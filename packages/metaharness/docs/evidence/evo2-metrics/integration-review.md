@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `58cc11ca11c457ddad84f83d4361bee97bd65091`
+- Head: `3db1f95edaab678e477c7e0e5b55836283b26aa0`
 - Result: **PASS**
 
 ## Review history
@@ -34,7 +34,12 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R29: a reviewer required migrating variant identities across R27's hash-frame change. Dismissed as not applicable and confirmed by a second reviewer: `main` carries neither the evo schema nor `src/evo`, the schema lands only in this unmerged branch, and the package is private at `0.0.1`, so no old-frame row can exist outside the gitignored scratch dir, which was reset.
 - R30: only `apiKey`, `headers`, `baseUrl` and `url` were validated, so an unrelated scalar holding a referenced credential's host value was snapshotted into `_evo/models` before any scan, and the overlay's later scan had an 8-character floor. `assertNoHostCredentialValues` now checks every scalar leaf and mapping key before both copies, reusing the existing length-aware matcher.
 - R31: that check skipped the whole `headers` subtree, so a header NAME could be the credential, and it guarded only the evo snapshot while the direct `--models-yaml` path copied the file verbatim into the container. Header keys are now scanned, the direct runner runs the same check inside its existing credential guard, and a credential-bearing key is reported as `<key>` so the dotted path cannot echo it.
+- R32: `assertNoHostCredentialValues` walked only the parsed tree, but comments never survive parsing while the original text is what every caller copies, so a credential in a trailing comment reached the persisted snapshot. The raw text is now scanned too.
+- R33: the evaluate job-name check was a TOCTOU across the `buildEvalLaunch` await, so a loser's `registerLaunch` could delete the winner's trial rows. First addressed with an atomic placeholder row.
+- R34: that placeholder used `status='running'`, which `ManagerServer.launch` refuses, so every evaluate failed; the race test had hidden it by stubbing `launch`. Repaired with a distinct `claimed` status, plus two scan gaps closed.
+- R35: the placeholder then produced five further lifecycle findings, so the mechanism was removed rather than patched. `#evaluate` re-checks after the await and launches synchronously, which is sufficient because the real launch path does not yield. Net deletion of 118 lines.
+- R36: removing the reaper left any legacy `claimed` row unreclaimable, so store open now purges them. No such row exists outside this unmerged branch; the purge guards a database file that outlives its writer.
 
 ## Final verdict
 
-Fresh reviewer over `952f64b254..58cc11ca11` (full branch delta `935046d15b...58cc11ca11`): `VERDICT: PASS`, no blockers; the class was confirmed closed at every site that reads, copies, stages, prints or uploads an external models file, including `agent/omp_local.py`.
+Fresh reviewer over `0ffce148e6..3db1f95eda` (full branch delta `935046d15b...3db1f95eda`): `VERDICT: PASS`, no blockers.
