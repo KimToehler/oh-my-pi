@@ -113,8 +113,9 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	const missing = names.filter(name => process.env[name] === undefined);
 	if (missing.length > 0)
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);
+	// `names` is the full referenced ∪ explicit union: an explicitly forwarded extra is as secret as a referenced one.
 	// No copy of the text may be written while an unvalidated scalar still carries a host credential.
-	assertNoHostCredentialValues(modelsText, credentialValuesFromEnv(referenced, process.env));
+	assertNoHostCredentialValues(modelsText, credentialValuesFromEnv(names, process.env));
 	// Content-addressed snapshot: later edits to the host file cannot change what this run (or its identity) used.
 	const modelsYamlHash = new Bun.CryptoHasher("sha256").update(modelsText).digest("hex");
 	const snapshot = path.join(input.jobsDir, "_evo", "models", `${modelsYamlHash}.yml`);

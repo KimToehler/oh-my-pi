@@ -7,6 +7,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import { type ConfigFile, collectConfigSync, hashConfig, materializeConfig, unlockTree } from "./config-snapshot";
+import { assertGenomeClean } from "./credential-scan";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 
 /**
@@ -155,6 +156,7 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 			);
 		}
 	}
+	assertGenomeClean(files, "", opts.secretValues ?? []);
 	const modelsText = await Bun.file(opts.modelsYaml)
 		.text()
 		.catch(() => {

@@ -12,6 +12,7 @@ import {
 	rejectUnknownKeys,
 	requiredString,
 } from "./boundary";
+import { forwardedSecretValues } from "./credential-scan";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "./launch";
 import { EvoReports } from "./service-reports";
 import { SuiteRegistry } from "./suites";
@@ -42,7 +43,9 @@ export class EvoService {
 		this.#jobsDir = opts.jobsDir;
 		this.#launch = opts.launch;
 		this.#defaults = opts.defaults;
-		this.#variants = new VariantRegistry(opts.store.evo, opts.jobsDir, opts.sourceRoot);
+		this.#variants = new VariantRegistry(opts.store.evo, opts.jobsDir, opts.sourceRoot, undefined, () =>
+			forwardedSecretValues(opts.defaults),
+		);
 		this.#suites = new SuiteRegistry(opts.jobsDir);
 		this.#reports = new EvoReports(opts.store, opts.jobsDir, this.#suites);
 	}

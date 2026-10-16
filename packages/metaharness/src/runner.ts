@@ -22,6 +22,7 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
 import type { Server } from "bun";
 import { writeComposeOverlayFile } from "./compose-overlay";
 import { assertNoHostCredentialValues, readModelsEnvNames } from "./evo/models-yaml";
+import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
@@ -1581,6 +1582,8 @@ const FORWARD_ENV_DENYLIST = new Set([
  * container-hostile dir/profile/session keys) plus explicit `--env` entries,
  * which always win and bypass the denylist.
  */
+export { modelsScanValues };
+
 export function collectForwardEnv(cfg: Config): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const [k, v] of Object.entries(process.env)) {
@@ -1778,7 +1781,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
 		assertNoHostCredentialValues(
 			await Bun.file(cfg.modelsYaml).text(),
-			credentialValuesFromEnv(credentialNames, process.env),
+			modelsScanValues(credentialNames, cfg.env, process.env),
 		);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
 		const explicitEnv = Object.fromEntries(Object.entries(cfg.env).filter(([key]) => !cfg.hostEnvKeys.includes(key)));

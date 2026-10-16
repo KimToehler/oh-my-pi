@@ -7,6 +7,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { EvoHttpError } from "./boundary";
+import { assertGenomeClean } from "./credential-scan";
 import { type ConfigFile, collectConfig, diffConfigs, hashConfig, unlockTree } from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
@@ -50,14 +51,20 @@ export class VariantRegistry {
 	readonly #jobsDir: string;
 	readonly #defaultSourceRoot: string;
 	readonly #afterMaterialize: ((variantDir: string) => Promise<void>) | undefined;
+	readonly #secretValues: () => readonly string[];
 
-	/** `afterMaterialize` is a fault-injection seam: it runs once the snapshot files are on disk. */
+	/**
+	 * `afterMaterialize` is a fault-injection seam: it runs once the snapshot files are on disk.
+	 * `secretValues` yields the forwarded host credential values; genome bytes are scanned against them before any write.
+	 */
 	constructor(
 		store: EvoStore,
 		jobsDir: string,
 		defaultSourceRoot: string,
 		afterMaterialize?: (variantDir: string) => Promise<void>,
+		secretValues: () => readonly string[] = () => [],
 	) {
+		this.#secretValues = secretValues;
 		this.#afterMaterialize = afterMaterialize;
 		this.#store = store;
 		this.#jobsDir = jobsDir;
@@ -96,6 +103,7 @@ export class VariantRegistry {
 		else files = await collectConfig(variantConfigDir(this.#jobsDir, (parent as VariantRow).id));
 		const configHash = hashConfig(files);
 		if (!req.sourceWorktree) {
+			assertGenomeClean(files, "", this.#secretValues());
 			const source = parent ? sourceOf(parent) : await sourceIdentity(this.#defaultSourceRoot);
 			return { files, configHash, source, snapshotPath: null, sourceChanged: [], sourcePatch: "" };
 		}
@@ -114,6 +122,7 @@ export class VariantRegistry {
 			);
 			sourcePatch = await repo.diffTree(parent.sourceRef, source.ref, false);
 		}
+		assertGenomeClean(files, sourcePatch, this.#secretValues());
 		return { files, configHash, source, snapshotPath: worktree, sourceChanged, sourcePatch };
 	}
 
