@@ -99,6 +99,8 @@ import { cfgPlanEnabled } from "../../plan-mode/settings";
 
 const ACP_DEFAULT_MODE_ID = "default";
 const ACP_PLAN_MODE_ID = "plan";
+/** IntelliJ's ACP steering extension: inject user input into a running turn. */
+const ACP_STEERING_METHOD = "_session/steering";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 const APPROVE_OPTION = "Approve and execute";
 const REFINE_OPTION = "Refine plan";
@@ -675,6 +677,9 @@ export class AcpAgent implements Agent {
 					close: {},
 				},
 			},
+			_meta: {
+				steering: { supported: true },
+			},
 		};
 	}
 
@@ -1030,6 +1035,9 @@ export class AcpAgent implements Agent {
 				}
 				return;
 			}
+			// Built-in commands (`/compact`, `/model`, …) never emit `agent_end`,
+			// so report the context they changed here.
+			await this.#emitUsageUpdate(record);
 			this.#finishPrompt(record, {
 				stopReason: "end_turn",
 				usage: this.#buildTurnUsage(
@@ -1141,6 +1149,8 @@ export class AcpAgent implements Agent {
 		switch (method) {
 			case SPEECH_MODELS_LIST_METHOD:
 				return buildAcpSpeechModelsCatalog();
+			case ACP_STEERING_METHOD:
+				return await this.#steer(params);
 			case "_omp/sessions/listAll": {
 				const limit = typeof params.limit === "number" ? Math.max(1, Math.min(5000, params.limit as number)) : 1000;
 				const sessions = await SessionManager.listAll();
@@ -1215,6 +1225,32 @@ export class AcpAgent implements Agent {
 			default:
 				throw new Error(`Unknown ACP ext method: ${method}`);
 		}
+	}
+
+	/**
+	 * `_session/steering`: inject the prompt into the running turn, or start a
+	 * new turn when none is streaming. Wire contract mirrors IntelliJ's
+	 * `SteeringRequest`/`SteeringResponse` (`injected` | `startedNewTurn`).
+	 */
+	async #steer(params: { [key: string]: unknown }): Promise<{ outcome: "injected" | "startedNewTurn" }> {
+		const { sessionId, prompt } = params;
+		if (typeof sessionId !== "string" || !Array.isArray(prompt) || prompt.length === 0) {
+			throw RequestError.invalidParams(undefined, "expected { sessionId: string, prompt: ContentBlock[] }");
+		}
+		// Same unvalidated block shape `session/prompt` hands to #convertPromptBlocks.
+		const blocks = prompt as PromptRequest["prompt"];
+		const record = this.#getSessionRecord(sessionId);
+		const turn = record.promptTurn;
+		const running = turn !== undefined && !turn.settled && !turn.cancelRequested && record.session.isStreaming;
+		if (running) {
+			const { text, images } = this.#convertPromptBlocks(blocks);
+			await record.session.steer(text, images);
+			return { outcome: "injected" };
+		}
+		void this.prompt({ sessionId, prompt: blocks }).catch((error: unknown) => {
+			logger.warn("ACP steering turn failed", { sessionId, error });
+		});
+		return { outcome: "startedNewTurn" };
 	}
 
 	async extNotification(_method: string, _params: { [key: string]: unknown }): Promise<void> {}
@@ -1375,19 +1411,44 @@ export class AcpAgent implements Agent {
 	}
 
 	async #handleLifetimeEvent(record: ManagedSessionRecord, event: AgentSessionEvent): Promise<void> {
-		if (event.type !== "thinking_level_changed" && event.type !== "model_changed") {
-			return;
+		switch (event.type) {
+			case "thinking_level_changed":
+				await this.#trackLifetimeDelivery(record, event.type, "config_option_update", () =>
+					this.#pushConfigOptionUpdate(record),
+				);
+				return;
+			case "model_changed":
+				await this.#trackLifetimeDelivery(record, event.type, "config_option_update", () =>
+					this.#pushConfigOptionUpdate(record),
+				);
+				// The context window size follows the model.
+				await this.#trackLifetimeDelivery(record, event.type, "usage_update", () => this.#emitUsageUpdate(record));
+				return;
+			case "auto_compaction_end":
+				// Compaction can run after `agent_end` already reported usage.
+				await this.#trackLifetimeDelivery(record, event.type, "usage_update", () => this.#emitUsageUpdate(record));
+				return;
 		}
-		// Config delivery is part of command completion, even though the
-		// subscription lives beyond an individual prompt turn.
-		const delivery = this.#pushConfigOptionUpdate(record);
+	}
+
+	/**
+	 * Delivery from the session-lifetime subscription is still part of command
+	 * completion, so it joins `promptEventHandlers` while in flight.
+	 */
+	async #trackLifetimeDelivery(
+		record: ManagedSessionRecord,
+		eventType: AgentSessionEvent["type"],
+		updateKind: "config_option_update" | "usage_update",
+		deliver: () => Promise<void>,
+	): Promise<void> {
+		const delivery = deliver();
 		record.promptEventHandlers.add(delivery);
 		try {
 			await delivery;
 		} catch (error) {
-			logger.warn("Failed to push config_option_update after a lifetime event", {
+			logger.warn(`Failed to push ${updateKind} after a lifetime event`, {
 				sessionId: record.session.sessionId,
-				eventType: event.type,
+				eventType,
 				error,
 			});
 		} finally {
@@ -1478,6 +1539,10 @@ export class AcpAgent implements Agent {
 		}
 		if (event.type === "tool_execution_end") {
 			record.toolArgsById.delete(event.toolCallId);
+		}
+		if (event.type === "turn_end") {
+			// One model turn finished: refresh the client's context meter mid-prompt.
+			await this.#emitUsageUpdate(record);
 		}
 		this.#clearLiveAssistantMessageAfterEvent(record, event);
 
@@ -2156,6 +2221,8 @@ export class AcpAgent implements Agent {
 				updatedAt: record.session.sessionManager.getHeader()?.timestamp,
 			},
 		});
+		// Lets clients show the context meter before the first prompt.
+		await this.#emitUsageUpdate(record);
 	}
 
 	async #emitAvailableCommandsUpdate(record: ManagedSessionRecord): Promise<void> {
@@ -2184,22 +2251,27 @@ export class AcpAgent implements Agent {
 		await this.#emitAvailableCommandsUpdate(record);
 	}
 
+	async #emitUsageUpdate(record: ManagedSessionRecord): Promise<void> {
+		const contextUsage = record.session.getContextUsage();
+		if (!contextUsage) {
+			return;
+		}
+		const usageStats = record.session.sessionManager.getUsageStatistics();
+		await this.#connection.sessionUpdate({
+			sessionId: record.session.sessionId,
+			update: {
+				sessionUpdate: "usage_update",
+				size: contextUsage.contextWindow,
+				// Clients decode token counts as integers (IntelliJ: Kotlin `Long`).
+				used: Math.round(contextUsage.tokens ?? 0),
+				cost: usageStats.cost > 0 ? { amount: usageStats.cost, currency: "USD" } : undefined,
+			},
+		});
+	}
+
 	async #emitEndOfTurnUpdates(record: ManagedSessionRecord): Promise<void> {
 		const sessionId = record.session.sessionId;
-
-		const contextUsage = record.session.getContextUsage();
-		if (contextUsage) {
-			const usageStats = record.session.sessionManager.getUsageStatistics();
-			await this.#connection.sessionUpdate({
-				sessionId,
-				update: {
-					sessionUpdate: "usage_update",
-					size: contextUsage.contextWindow,
-					used: contextUsage.tokens ?? 0,
-					cost: usageStats.cost > 0 ? { amount: usageStats.cost, currency: "USD" } : undefined,
-				},
-			});
-		}
+		await this.#emitUsageUpdate(record);
 
 		await this.#connection.sessionUpdate({
 			sessionId,
