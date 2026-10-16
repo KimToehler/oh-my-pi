@@ -522,9 +522,28 @@ describe("runner-config credential persistence", () => {
 		}, 30_000);
 	}
 
+	for (const [label, key, value] of [
+		["relative baseUrl query", "baseUrl", `/v1?api_key=${HEADER_SECRET}`],
+		["bare url query", "url", `?token=${HEADER_SECRET}`],
+	] as const) {
+		it(`rejects a models file with a ${label} carrying a literal credential`, async () => {
+			const jobsDir = tmp();
+			const job = `job-rel-${key}`;
+			const models = `${VALID_PROVIDER}  private-provider:\n    ${key}: "${value}"\n`;
+			const { code, out } = await runRunner(jobsDir, job, [], {}, models);
+			expect(code).not.toBe(0);
+			expect(out).toContain(`providers.private-provider.${key}`);
+			expect(out).not.toContain(HEADER_SECRET);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", job, "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual(
+				[],
+			);
+		}, 30_000);
+	}
+
 	it("accepts a plain baseUrl without userinfo, query or fragment", async () => {
 		const jobsDir = tmp();
-		const models = `${VALID_PROVIDER}  router:\n    baseUrl: "https://router.example/v1"\n`;
+		const models = `${VALID_PROVIDER}  router:\n    baseUrl: "https://router.example/v1"\n  relative:\n    baseUrl: "/v1"\n  ported:\n    baseUrl: "https://router.example:8443/v1"\n`;
 		const { code, out } = await runRunner(jobsDir, "job-plain-baseurl", ["--dry-run"], {}, models);
 		expect(out).not.toMatch(/error:/);
 		expect(code).toBe(0);

@@ -15,7 +15,12 @@ function urlCredentialPlacement(value: string): string | undefined {
 	try {
 		url = new URL(value);
 	} catch {
-		return undefined;
+		// Relative reference: resolve against a fixed dummy base so query/fragment still get checked.
+		try {
+			url = new URL(value, "https://models.invalid/");
+		} catch {
+			return undefined;
+		}
 	}
 	if (url.username !== "" || url.password !== "") return "embed credentials in the URL userinfo";
 	if (url.search !== "") return "carry a query string (literal credentials are not allowed)";
