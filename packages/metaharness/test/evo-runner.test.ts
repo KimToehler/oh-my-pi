@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { MODEL_ROLE_IDS } from "@oh-my-pi/pi-coding-agent/config/model-roles";
+import { EvoHttpError } from "../src/evo/boundary";
 import { BUILTIN_MODEL_ROLES, executorConfigHash, mergeOverlayConfig, stageAgentOverlay } from "../src/evo/overlay";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { harborRunnerArgs } from "../src/launch-args";
@@ -255,6 +256,57 @@ describe("agent overlay", () => {
 			}),
 		).rejects.toThrow(/--models-yaml not readable/);
 	});
+
+	// Agent-dir path: stageAgentOverlay() -> referencedEnvNamesFromText() before models.yml is copied into the overlay.
+	it("stageAgentOverlay rejects literal header credentials and userinfo baseUrls without echoing them or staging", async () => {
+		const root = tmp();
+		const variant = path.join(root, "variant");
+		write(variant, "AGENTS.md", "x");
+		const secret = "evo-header-secret-7b1c2d";
+		const cases: Array<[string, string, string]> = [
+			[
+				"header",
+				`providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n  private-provider:\n    baseUrl: https://example.invalid/v1\n    headers:\n      Authorization: "Bearer ${secret}"\n`,
+				"providers.private-provider.headers.Authorization",
+			],
+			[
+				"userinfo",
+				`providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n  private-provider:\n    baseUrl: "https://user:${secret}@example.invalid/v1"\n`,
+				"providers.private-provider.baseUrl",
+			],
+		];
+		for (const [name, yaml, where] of cases) {
+			const modelsYaml = path.join(root, `${name}.yml`);
+			fs.writeFileSync(modelsYaml, yaml);
+			const err = await stageAgentOverlay({
+				variantConfigDir: variant,
+				dest: path.join(root, `o-${name}`),
+				spec: SPEC,
+				modelsYaml,
+			}).then(
+				() => undefined,
+				(e: unknown) => e,
+			);
+			expect(err).toBeInstanceOf(EvoHttpError);
+			if (!(err instanceof EvoHttpError)) throw new Error("unreachable");
+			expect(err.status).toBe(422);
+			expect(err.message).toContain(where);
+			expect(err.message).not.toContain(secret);
+			expect(fs.existsSync(path.join(root, `o-${name}`))).toBe(false);
+		}
+		// Env-var-named header values stay allowed.
+		const okYaml = path.join(root, "ok.yml");
+		fs.writeFileSync(
+			okYaml,
+			"providers:\n  p:\n    baseUrl: https://example.invalid/v1\n    headers:\n      Authorization: EVO_AUTH_HEADER\n",
+		);
+		await stageAgentOverlay({
+			variantConfigDir: variant,
+			dest: path.join(root, "o-ok"),
+			spec: SPEC,
+			modelsYaml: okYaml,
+		});
+	});
 });
 
 describe("source root", () => {
@@ -345,11 +397,11 @@ describe("runner-config credential persistence", () => {
 	const RUNNER = path.resolve(import.meta.dir, "..", "src", "runner.ts");
 
 	/** Fake `harbor`/`docker` first on PATH so the real runner entry reaches the persistence block and exits fast. */
-	function stubBin(): string {
+	function stubBin(bodies: Record<string, string> = {}): string {
 		const bin = tmp();
-		for (const name of ["harbor", "docker"]) {
+		for (const name of new Set(["harbor", "docker", ...Object.keys(bodies)])) {
 			const file = path.join(bin, name);
-			fs.writeFileSync(file, "#!/bin/sh\nexit 0\n");
+			fs.writeFileSync(file, `#!/bin/sh\n${bodies[name] ?? ""}\nexit 0\n`);
 			fs.chmodSync(file, 0o755);
 		}
 		return bin;
@@ -360,19 +412,22 @@ describe("runner-config credential persistence", () => {
 		jobName: string,
 		extra: string[],
 		hostEnv: Record<string, string> = {},
+		modelsText = "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n",
+		stubBodies: Record<string, string> = {},
+		installMode = "published",
 	): Promise<{ code: number; out: string }> {
 		const modelsYaml = path.join(jobsDir, "models.yml");
-		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+		fs.writeFileSync(modelsYaml, modelsText);
 		const env: Record<string, string> = { ...(process.env as Record<string, string>), ...hostEnv };
 		delete env.EVO_SENTINEL_KEY;
 		Object.assign(env, hostEnv);
-		env.PATH = `${stubBin()}${path.delimiter}${process.env.PATH ?? ""}`;
+		env.PATH = `${stubBin(stubBodies)}${path.delimiter}${process.env.PATH ?? ""}`;
 		const proc = Bun.spawn(
 			[
 				process.execPath,
 				RUNNER,
 				"--install",
-				"published",
+				installMode,
 				"--no-gateway",
 				"--models-yaml",
 				modelsYaml,
@@ -388,12 +443,12 @@ describe("runner-config credential persistence", () => {
 		return { code, out: `${stdout}\n${stderr}` };
 	}
 
-	function scanForSentinel(dir: string): string[] {
+	function scanForSentinel(dir: string, needle: string = SENTINEL): string[] {
 		const hits: string[] = [];
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
 			if (!entry.isFile()) continue;
 			const file = path.join(entry.parentPath, entry.name);
-			if (fs.readFileSync(file).includes(SENTINEL)) hits.push(file);
+			if (fs.readFileSync(file).includes(needle)) hits.push(file);
 		}
 		return hits;
 	}
@@ -407,6 +462,44 @@ describe("runner-config credential persistence", () => {
 		expect(out).not.toContain(SENTINEL);
 		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-secret", "runner-config.json"))).toBe(false);
 		expect(scanForSentinel(jobsDir)).toEqual([]);
+	}, 30_000);
+
+	const HEADER_SECRET = "evo-header-secret-7b1c2d";
+	const DRY_RUN_MARKER = "evo-dry-run-marker";
+	const VALID_PROVIDER = "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n";
+
+	// Direct runner path: runner.ts main() -> readModelsEnvNames(cfg.modelsYaml) (src/evo/models-yaml.ts).
+	it("rejects a models file whose provider headers carry a literal credential", async () => {
+		const jobsDir = tmp();
+		const models = `${VALID_PROVIDER}  private-provider:\n    baseUrl: https://example.invalid/v1\n    headers:\n      Authorization: "Bearer ${HEADER_SECRET}"\n`;
+		const { code, out } = await runRunner(jobsDir, "job-header-secret", [], {}, models);
+		expect(code).not.toBe(0);
+		expect(out).toContain("providers.private-provider.headers.Authorization");
+		expect(out).not.toContain(HEADER_SECRET);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-header-secret", "runner-config.json"))).toBe(false);
+		expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
+	}, 30_000);
+
+	it("rejects a models file whose baseUrl embeds userinfo credentials", async () => {
+		const jobsDir = tmp();
+		const models = `${VALID_PROVIDER}  private-provider:\n    baseUrl: "https://user:${HEADER_SECRET}@example.invalid/v1"\n`;
+		const { code, out } = await runRunner(jobsDir, "job-userinfo-secret", [], {}, models);
+		expect(code).not.toBe(0);
+		expect(out).toContain("providers.private-provider.baseUrl");
+		expect(out).not.toContain(HEADER_SECRET);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-userinfo-secret", "runner-config.json"))).toBe(false);
+		expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
+	}, 30_000);
+
+	it("never prints the models file body in a dry run", async () => {
+		const jobsDir = tmp();
+		const models = `# ${DRY_RUN_MARKER}\n${VALID_PROVIDER}`;
+		const { code, out } = await runRunner(jobsDir, "job-dry-run", ["--dry-run"], {}, models);
+		expect(out).not.toMatch(/error:/);
+		expect(code).toBe(0);
+		expect(out).not.toContain(DRY_RUN_MARKER);
+		expect(out).toContain(path.join(jobsDir, "models.yml"));
+		expect(scanForSentinel(jobsDir, DRY_RUN_MARKER).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
 	}, 30_000);
 
 	it("rejects a host credential value passed under another explicit --env name and persists nothing", async () => {
@@ -547,5 +640,53 @@ describe("runner-config credential persistence", () => {
 		const persisted: { settings: Record<string, unknown> } = JSON.parse(text); // test reads own runner output
 		expect(persisted.settings).toEqual({ theme: "dark" });
 		expect(text).not.toContain(SENTINEL);
+	}, 60_000);
+
+	it("records the source identity observed after the run, not only the preflight one", async () => {
+		const jobsDir = tmp();
+		const source = tmp();
+		const git = (...args: string[]): void => {
+			const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: source });
+			if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+		};
+		git("init", "-q", "-b", "main");
+		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
+		write(source, "bun.lock", "");
+		write(source, "tracked.txt", "before");
+		git("add", "-A");
+		git("commit", "-q", "-m", "init");
+		const preflight = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-post-drift",
+			["--environment", "apple-container", "--source-root", source, "--source-identity", preflight],
+			{ STUB_SOURCE_ROOT: source, STUB_DEPS_DIR: depsDir },
+			undefined,
+			{
+				// `container run` builds the linux deps tree; harbor "runs" the trials and edits the mounted source.
+				container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"',
+				harbor: 'echo mutated-during-run > "$STUB_SOURCE_ROOT/tracked.txt"\necho new > "$STUB_SOURCE_ROOT/untracked.txt"',
+			},
+			"source",
+		);
+		// The stub really changed the bytes while harbor ran.
+		expect(formatSourceIdentity(await sourceIdentity(source))).not.toBe(preflight);
+		// Accepted outcome A: the runner detects drift and exits non-zero naming it.
+		const detected = code !== 0 && out.includes("source identity drift");
+		// Accepted outcome B: runner-config.json records a post-run identity that differs from the launch one.
+		const file = path.join(jobsDir, "_bench", "job-post-drift", "runner-config.json");
+		const persisted: Record<string, unknown> = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+		expect(persisted.sourceIdentity).toBe(preflight);
+		const observed = Object.entries(persisted).filter(
+			([key, value]) => key !== "sourceIdentity" && /identity/i.test(key) && typeof value === "string",
+		);
+		const recordedPostRun = observed.some(([, value]) => value !== preflight);
+		if (!detected && !recordedPostRun) {
+			throw new Error(
+				`source mutated during the run but neither drift exit nor post-run identity recorded (exit ${code}); ` +
+					`identity keys: ${JSON.stringify(observed)}; out: ${out}`,
+			);
+		}
 	}, 60_000);
 });

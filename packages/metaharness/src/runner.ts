@@ -1858,8 +1858,8 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		process.stdout.write(bold("\nharbor command:\n"));
 		process.stdout.write(`harbor ${harborArgs.join(" ")}\n\n`);
 		if (modelsYaml) {
-			process.stdout.write(bold("models.yml:\n"));
-			process.stdout.write(`${fs.readFileSync(modelsYaml, "utf8")}\n`);
+			const digest = new Bun.CryptoHasher("sha256").update(fs.readFileSync(modelsYaml)).digest("hex");
+			process.stdout.write(`${bold("models.yml:")} ${modelsYaml} (sha256 ${digest})\n`);
 		}
 		process.stdout.write(bold("omp env:\n"));
 		for (const key in harborEnv) {

@@ -9,6 +9,15 @@ function fail(detail: string): EvoHttpError {
 	return new EvoHttpError(422, `models.yml ${detail}`);
 }
 
+function hasUserinfo(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return url.username !== "" || url.password !== "";
+	} catch {
+		return false;
+	}
+}
+
 /** Walk `node`, collecting env names from every `apiKey`; messages never echo the offending value. */
 function collect(node: unknown, where: string, names: Set<string>): void {
 	if (Array.isArray(node)) {
@@ -18,6 +27,21 @@ function collect(node: unknown, where: string, names: Set<string>): void {
 	if (!isRecord(node)) return;
 	for (const [key, value] of Object.entries(node)) {
 		const here = where ? `${where}.${key}` : key;
+		if (key === "headers" && isRecord(value)) {
+			for (const [header, headerValue] of Object.entries(value)) {
+				if (typeof headerValue !== "string" || !ENV_NAME.test(headerValue)) {
+					throw fail(
+						`${here}.${header} must be an environment variable name (literal credentials are not allowed)`,
+					);
+				}
+				names.add(headerValue);
+			}
+			continue;
+		}
+		if ((key === "baseUrl" || key === "url") && typeof value === "string") {
+			if (hasUserinfo(value)) throw fail(`${here} must not embed credentials in the URL userinfo`);
+			continue;
+		}
 		if (key !== "apiKey") {
 			collect(value, here, names);
 			continue;
