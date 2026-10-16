@@ -392,6 +392,12 @@ describe("generic launch route", () => {
 			{ field: "extraArgs", value: ["--env", kv] },
 			{ field: "extraArgs", value: ["-e", kv] },
 			{ field: "extraArgs", value: [`--env=${kv}`] },
+			{ field: "extraArgs", value: ["--", "--env", kv] },
+			{ field: "extraArgs", value: ["--", "-e", kv] },
+			{ field: "extraArgs", value: ["--", `--env=${kv}`] },
+			{ field: "extraArgs", value: ["--", "--ae", kv] },
+			{ field: "extraArgs", value: ["--", `--agent-env=${kv}`] },
+			{ field: "extraArgs", value: ["--", "--ve", kv] },
 		];
 		const h = harness();
 		for (const [i, c] of cases.entries()) {

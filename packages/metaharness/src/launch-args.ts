@@ -70,6 +70,34 @@ export interface LaunchRequest {
 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** Harbor flags whose value is always an env assignment `NAME=VALUE`. */
+const HARBOR_ENV_FLAGS: Record<string, true> = {
+	"--ae": true,
+	"--agent-env": true,
+	"--ve": true,
+	"--verifier-env": true,
+};
+/** `-e`/`--env` is harbor's environment type: an env assignment only when the value has `=`. */
+const HARBOR_ENVTYPE_FLAGS: Record<string, true> = { "-e": true, "--env": true };
+
+/** NAME of every env assignment in a harbor argv tail. Never returns values. */
+export function harborEnvAssignmentNames(args: readonly string[]): string[] {
+	const names: string[] = [];
+	const take = (value: string | undefined): void => {
+		const eq = value?.indexOf("=") ?? -1;
+		if (value !== undefined && eq > 0) names.push(value.slice(0, eq));
+	};
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
+		const flag = eq === -1 ? arg : arg.slice(0, eq);
+		if (!HARBOR_ENV_FLAGS[flag] && !HARBOR_ENVTYPE_FLAGS[flag]) continue;
+		if (eq !== -1) take(arg.slice(eq + 1));
+		else take(args[++i]);
+	}
+	return names;
+}
+
 /** Reject launch requests that would carry env values (secrets) into persisted run state. Never echoes entries. */
 export function assertLaunchEnvSafe(request: LaunchRequest, benchmark: string): void {
 	for (const name of request.envNames ?? []) {
@@ -80,11 +108,16 @@ export function assertLaunchEnvSafe(request: LaunchRequest, benchmark: string): 
 		}
 	}
 	if (benchmark !== "harbor") return;
-	for (const arg of request.extraArgs ?? []) {
-		if (arg === "--") break;
-		if (arg === "-e" || arg === "--env" || arg.startsWith("--env=")) {
-			throw new Error("extraArgs must not set --env/-e; use envNames so only variable names are recorded");
-		}
+	const extra = request.extraArgs ?? [];
+	const split = extra.indexOf("--");
+	const head = split === -1 ? extra : extra.slice(0, split);
+	const tail = split === -1 ? [] : extra.slice(split + 1);
+	const bad =
+		head.some(arg => arg === "-e" || arg === "--env" || arg.startsWith("--env=")) ||
+		harborEnvAssignmentNames(tail).length > 0 ||
+		tail.some(arg => HARBOR_ENV_FLAGS[arg.split("=", 1)[0]]);
+	if (bad) {
+		throw new Error("extraArgs must not set --env/-e; use envNames so only variable names are recorded");
 	}
 }
 

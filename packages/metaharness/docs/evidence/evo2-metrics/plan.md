@@ -116,6 +116,7 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R2. Prevent explicit forwarded environment values from persisting in runner config; resume must resolve values from host environment (`packages/metaharness/src/runner.ts`). `runBenchmark` rejects `--env NAME=VALUE` for any variable a `--models-yaml` apiKey references, before anything is written; credentials must use host-sourced `--env NAME`.
 - [x] R3. Reject env values smuggled through the API launch boundary (`packages/metaharness/src/launch-args.ts`, `packages/metaharness/src/server.ts`). `assertLaunchEnvSafe` runs in `ManagerServer.launch()` before the job dir or run row exists: `envNames` must be variable names, and harbor `extraArgs` may not carry `--env`/`-e`/`--env=`.
 - [x] R4. Apply the `--models-yaml` credential guard for every agent, not only `omp` (`packages/metaharness/src/runner.ts`).
+- [x] R5. Close the harbor passthrough bypass after a literal `--` (`packages/metaharness/src/launch-args.ts`, `packages/metaharness/src/runner.ts`). `harborEnvAssignmentNames` parses `--ae`/`--agent-env`/`--ve`/`--verifier-env` and `-e`/`--env` values containing `=`; the API rejects any such flag after `--`, and the runner rejects `--models-yaml` credential names found in passthrough before anything is written. A bare `-- -e docker` stays allowed.
 
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers

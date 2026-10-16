@@ -425,6 +425,32 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir)).toEqual([]);
 	}, 30_000);
 
+	for (const [label, passthrough] of [
+		["--ae KEY=VALUE", ["--ae", `EVO_SENTINEL_KEY=${SENTINEL}`]],
+		["--agent-env=KEY=VALUE", [`--agent-env=EVO_SENTINEL_KEY=${SENTINEL}`]],
+	] as const) {
+		it(`rejects a credential value smuggled through harbor passthrough (${label}) and persists nothing`, async () => {
+			const jobsDir = tmp();
+			const { code, out } = await runRunner(jobsDir, "job-pass-secret", ["--", ...passthrough]);
+			expect(code).not.toBe(0);
+			expect(out).toContain("EVO_SENTINEL_KEY");
+			expect(out).not.toContain(SENTINEL);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", "job-pass-secret", "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir)).toEqual([]);
+		}, 30_000);
+	}
+
+	it("still allows harbor passthrough that carries no credential value (-- -e docker)", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-pass-ok", ["--", "-e", "docker"]);
+		expect(out).not.toMatch(/error:/);
+		expect(code).toBe(0);
+		const persisted = JSON.parse(
+			fs.readFileSync(path.join(jobsDir, "_bench", "job-pass-ok", "runner-config.json"), "utf8"),
+		) as { passthrough: string[] };
+		expect(persisted.passthrough).toEqual(["-e", "docker"]);
+	}, 60_000);
+
 	it("still persists non-credential KEY=VALUE knobs and omits host-sourced credential values", async () => {
 		const jobsDir = tmp();
 		const { code, out } = await runRunner(jobsDir, "job-ok", ["--env", "PI_KNOB=1", "--env", "EVO_SENTINEL_KEY"], {

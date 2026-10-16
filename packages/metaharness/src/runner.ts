@@ -26,7 +26,7 @@ import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
-import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
+import { defaultJobName, harborEnvAssignmentNames, harborRunnerArgs, type LaunchRequest } from "./launch-args";
 
 // ────────────────────────────────────────────────────────────────────── config
 
@@ -1723,6 +1723,14 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		if (explicit.length > 0) {
 			throw new Error(
 				`credential env ${explicit.join(", ")} referenced by --models-yaml must not be passed as KEY=VALUE; use ${explicit.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
+			);
+		}
+		const passed = [...new Set(harborEnvAssignmentNames(cfg.passthrough))].filter(name =>
+			credentialNames.includes(name),
+		);
+		if (passed.length > 0) {
+			throw new Error(
+				`credential env ${passed.join(", ")} referenced by --models-yaml must not be passed through harbor args; forward credentials with ${passed.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
 			);
 		}
 	}
