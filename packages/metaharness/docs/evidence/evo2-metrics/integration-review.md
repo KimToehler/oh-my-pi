@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `c536fbd76da251bcb88d3d530837a949a4311848`
+- Head: `c8229bab36834ea14e56e6a844f3f4ffe1cc998c`
 - Result: **PASS**
 
 ## Review history
@@ -24,7 +24,12 @@ Whole-diff review over `935046d15b..ab48053920` raised R1 and R2; successive fre
 Scope decision (user): the credential invariant covers accidental persistence; deliberate re-encoding by a key holder is out of scope.
 - R20: `computeFitness` checked only task IDs, so a suite declaring `attempts: 2` that produced one terminal trial per task still reported `complete: true` and let the comparison rank two differently sized samples. Each task's terminal-attempt cardinality must now equal the manifest's `attempts`.
 - R21: host credential values shorter than eight characters were dropped from leak detection, so a real seven-character credential persisted under an unrelated `--env NAME=VALUE`. Short values are now matched exactly, against a whole argument or the half after the first `=`.
+- R22: `make` and `verify` were separate optional commands and suite registration checked nothing, so an uncalibrated generated task could enter a suite and corrupt every fitness number. `verifyTask` now writes `calibration.json` bound to a hash of the task's files, and registration rejects a missing, unsuccessful or stale calibration.
+- R23: any clean worktree path was accepted as a source variant and bind-mounted into every trial, which Apple Container mounts writable. The worktree must now lie under `<jobsDir>/_evo/worktrees/`.
+- R24: evaluate accepted an existing job name, and registering the launch deleted the prior run's trial rows before any replacement existed. It now returns 409 for any existing name.
+- R25: the R23 check ran only at registration, so a variant row persisted earlier, or an arm inheriting an evo template's config, still reached the mount. The shared check now also runs in `variantLaunchFields` and on an inherited evo source root.
+- R26: `resume()` rebuilds its invocation from the recorded config and bypassed both guards; it now applies the same check when the run carries a `variantId`.
 
 ## Final verdict
 
-Fresh reviewer over `4ef04ca867..c536fbd76d` (full branch delta `935046d15b...c536fbd76d`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `84e9e0a48b..c8229bab36` (full branch delta `935046d15b...c8229bab36`): `VERDICT: PASS`, no blockers.

@@ -139,8 +139,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R25. Enforce worktree ownership at the launch boundary, not only at registration (`packages/metaharness/src/evo/variants.ts`, `packages/metaharness/src/evo/launch.ts`, `packages/metaharness/src/server.ts`). R23 guarded only new registrations, so a variant row persisted earlier with an external `snapshotPath` still reached the trial bind mount through `variantLaunchFields`, and an arm inheriting an evo template's config copied its `sourceRoot` verbatim; the shared `assertWorktreeOwned` helper now runs at registration, in `variantLaunchFields`, and on an inherited evo `sourceRoot`, while a plain harbor run's repo source root stays unaffected.
 - [x] R26. Apply the worktree-ownership check on resume (`packages/metaharness/src/server.ts`). `resume()` rebuilds the invocation from the recorded `runner-config.json`/`manager.json` and so bypassed both R25 guards, letting an evo run recorded before the rule relaunch with its external `sourceRoot`; resume now refuses when the run carries a `variantId` and a recorded source root outside `<jobsDir>/_evo/worktrees/`, while a plain harbor run resumes unchanged.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
