@@ -1980,7 +1980,8 @@ export class AcpAgent implements Agent {
 			readPlan: url => this.#readAcpPlanFile(session, url),
 			listPlanFiles: () => this.#listAcpLocalPlanFiles(session),
 		});
-		const approved = await this.#requestAcpPlanApprovalChoice(session.sessionId, resolvedTitle, planContent);
+		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
+		const approved = await this.#requestAcpPlanApprovalChoice(session.sessionId, resolvedTitle, planAbsolutePath);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
@@ -2100,15 +2101,12 @@ export class AcpAgent implements Agent {
 	 * confirmation surface available; without that, plan mode would strand
 	 * the agent (the bug this method exists to fix).
 	 */
-	async #requestAcpPlanApprovalChoice(sessionId: string, title: string, planContent: string): Promise<boolean> {
+	async #requestAcpPlanApprovalChoice(sessionId: string, title: string, planPath: string): Promise<boolean> {
 		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
 		if (!supportsForm) return true;
-		// Include a short preview of the plan so the user has context in the
-		// dialog. Keep the body bounded — Zed renders elicitation messages
-		// inline and a multi-thousand-line plan blows out the dialog.
-		const previewLines = planContent.split("\n").slice(0, 12).join("\n");
-		const ellipsis = planContent.split("\n").length > 12 ? "\n…" : "";
-		const message = `Approve plan "${title}" and start implementation?\n\n${previewLines}${ellipsis}`;
+		// Show only the plan file path: ACP clients render elicitation messages
+		// as plain text, so an embedded markdown preview is unreadable.
+		const message = `Approve plan "${title}" and start implementation?\n\nPlan file: ${planPath}`;
 		const value = await elicitFromAcpClient(
 			this.#connection,
 			sessionId,

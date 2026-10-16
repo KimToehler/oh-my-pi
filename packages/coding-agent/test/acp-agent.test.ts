@@ -913,6 +913,41 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
+	it("plan-proposal elicitation shows the plan file path, not the plan markdown", async () => {
+		const messages: string[] = [];
+		const harness = await createHarness({
+			elicitationHandler: async request => {
+				messages.push(request.message);
+				return { action: "accept", content: { value: "Approve and execute" } };
+			},
+		});
+		cfgPlanEnabled.set(Settings.instance, true);
+
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		await harness.agent.setSessionMode({ sessionId: created.sessionId, modeId: "plan" });
+
+		const localOptions = {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		};
+		cleanupRoots.push(resolveLocalUrlToPath("local://", localOptions));
+		const planPath = resolveLocalUrlToPath("local://words-counter-plan.md", localOptions);
+		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
+
+		const result = (await session.planProposalHandler!("words-counter")) as {
+			content: Array<{ type: string; text: string }>;
+		};
+
+		expect(messages).toHaveLength(1);
+		expect(messages[0]).toContain(planPath);
+		expect(messages[0]).not.toContain("# Words Counter");
+		expect(messages[0]).not.toContain("File contents.");
+		expect(result.content[0]?.text).toMatch(/Plan approved/);
+
+		harness.abortController.abort();
+	});
+
 	it("pushes config_option_update when thinking level changes internally", async () => {
 		// Internal callers (slash commands, model auto-adjust, extension UI) call
 		// AgentSession.setThinkingLevel directly without going through the ACP

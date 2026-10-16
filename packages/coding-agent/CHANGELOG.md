@@ -16,6 +16,7 @@
 ### Changed
 
 - ACP `usage_update` now goes out when a session opens and after each model turn, compaction, model switch, and built-in command, not only when a prompt finishes, so IntelliJ's context meter shows up right away and tracks long tool loops. Token counts are sent as integers.
+- ACP plan approval dialogs (IntelliJ, Zed) now show the plan file's absolute path instead of an unrendered markdown preview of the plan.
 - Reduced status-line refresh overhead while subagents have long conversations ([#15874](https://github.com/can1357/oh-my-pi/pull/15874) by [@iliaal](https://github.com/iliaal)).
 - Agents now send `todo` updates alongside their next tool call instead of spending a separate model turn on them ([#15402](https://github.com/can1357/oh-my-pi/pull/15402) by [@will-bogusz](https://github.com/will-bogusz))
 - The Shared Language Servers setting now says what it does: each connection gets its own server, and a released one is reused while another omp instance keeps the project's mux running ([#14633](https://github.com/can1357/oh-my-pi/pull/14633) by [@jorgoose](https://github.com/jorgoose))
