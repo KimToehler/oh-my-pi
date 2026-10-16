@@ -1140,14 +1140,26 @@ export interface SourceMount {
 	nodeModules: string[];
 }
 
-/** Bun version pinned by the repo's `packageManager` field. */
+/**
+ * Concrete bun version for the `oven/bun:<version>` image tag. An exact `packageManager`
+ * pin is used as-is; a semver range (e.g. `bun@>=1.4`) resolves to the host bun version
+ * when it satisfies the range, otherwise throws.
+ */
+export function resolveBunImageVersion(packageManager: unknown, hostBunVersion: string): string {
+	if (typeof packageManager !== "string" || !packageManager.startsWith("bun@")) return "1.4.0";
+	const spec = packageManager.slice("bun@".length);
+	if (/^\d+\.\d+\.\d+$/.test(spec)) return spec;
+	if (Bun.semver.satisfies(hostBunVersion, spec)) return hostBunVersion;
+	throw new Error(
+		`packageManager ${packageManager} does not pin an exact bun version and host bun ${hostBunVersion} does not satisfy it; pin an exact version`,
+	);
+}
+
+/** Bun version for the repo's `packageManager` field, resolved to a concrete image tag. */
 function repoBunVersion(sourceRoot: string): string {
 	const raw = readJson(path.join(sourceRoot, "package.json"));
-	if (raw && typeof raw === "object") {
-		const pm = (raw as Record<string, unknown>).packageManager;
-		if (typeof pm === "string" && pm.startsWith("bun@")) return pm.slice("bun@".length);
-	}
-	return "1.4.0";
+	const pm = raw && typeof raw === "object" ? (raw as Record<string, unknown>).packageManager : undefined;
+	return resolveBunImageVersion(pm, Bun.version);
 }
 
 /** Native arch of the docker daemon (what non-emulated task containers run as). */
