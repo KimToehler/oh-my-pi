@@ -65,6 +65,86 @@ describe("summarizeOmpTranscript", () => {
 		expect(m.cacheWriteTokens).toBe(5 + 1 + 40);
 	});
 
+	it("counts async task child usage from the terminal update once, not from the running initial end", () => {
+		const running = {
+			details: { results: [], async: { state: "running", jobId: "t1", type: "task" } },
+		};
+		const terminal = {
+			details: {
+				usage: usage(1000, 200, 300, 40),
+				results: [
+					{ requests: 3, usage: usage(400, 80, 100, 10) },
+					{ requests: 4, usage: usage(600, 120, 200, 30) },
+				],
+				async: { state: "completed", jobId: "t1", type: "task" },
+			},
+		};
+		const update: Json = {
+			type: "tool_execution_update",
+			toolCallId: "t1",
+			toolName: "task",
+			args: { agent: "scout", task: "x" },
+			partialResult: terminal,
+		};
+		const file = write(tmpDir(), [
+			assistantEnd(usage(100, 10, 50, 5)),
+			toolStart("t1", "task", { agent: "scout", task: "x" }),
+			toolEnd("t1", "task", running),
+			assistantEnd(usage(7, 3, 2, 1)),
+			update,
+			// Duplicate terminal update (replay): ignored.
+			update,
+		]);
+		const m = summarizeOmpTranscript(file);
+		expect(m.llmCalls).toBe(2 + 7);
+		expect(m.inputTokens).toBe(100 + 7 + 1000);
+		expect(m.outputTokens).toBe(10 + 3 + 200);
+		expect(m.cacheReadTokens).toBe(50 + 2 + 300);
+		expect(m.cacheWriteTokens).toBe(5 + 1 + 40);
+	});
+
+	it("counts the later mixed blocking+async task end aggregate once when an async-only terminal update arrived first", () => {
+		const asyncOnly = {
+			details: {
+				usage: usage(600, 120, 200, 30),
+				results: [{ requests: 4, usage: usage(600, 120, 200, 30) }],
+				async: { state: "completed", jobId: "t1", type: "task" },
+			},
+		};
+		const combined = {
+			details: {
+				usage: usage(1000, 200, 300, 40),
+				results: [
+					{ requests: 3, usage: usage(400, 80, 100, 10) },
+					{ requests: 4, usage: usage(600, 120, 200, 30) },
+				],
+				async: { state: "completed", jobId: "t1", type: "task" },
+			},
+		};
+		const earlyUpdate: Json = {
+			type: "tool_execution_update",
+			toolCallId: "t1",
+			toolName: "task",
+			args: {},
+			partialResult: asyncOnly,
+		};
+		const file = write(tmpDir(), [
+			assistantEnd(usage(100, 10, 50, 5)),
+			toolStart("t1", "task", { tasks: [{ agent: "scout" }, { agent: "worker" }] }),
+			earlyUpdate,
+			toolEnd("t1", "task", combined),
+			// Replay of the early async-only update after the final end: ignored.
+			earlyUpdate,
+			toolEnd("t1", "task", combined),
+		]);
+		const m = summarizeOmpTranscript(file);
+		expect(m.llmCalls).toBe(1 + 7);
+		expect(m.inputTokens).toBe(100 + 1000);
+		expect(m.outputTokens).toBe(10 + 200);
+		expect(m.cacheReadTokens).toBe(50 + 300);
+		expect(m.cacheWriteTokens).toBe(5 + 40);
+	});
+
 	it("falls back to summing results[].usage when aggregate usage is absent", () => {
 		const file = write(tmpDir(), [
 			toolEnd("t1", "task", {

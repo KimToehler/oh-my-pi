@@ -6,6 +6,7 @@
  */
 import * as fs from "node:fs";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { foldTaskSnapshots, recordTaskDetails, type TaskSnapshot } from "./transcript-task";
 
 /** Per-trial metrics derived from one transcript. */
 export interface TranscriptMetrics {
@@ -63,8 +64,8 @@ interface Tally {
 	droppedLines: number;
 	readonly startupErrors: Set<string>;
 	readonly signals: Set<string>;
-	/** Terminal `task` tool-call IDs already folded into usage totals. */
-	readonly taskCallsSeen: Set<string>;
+	/** Richest delegated-usage snapshot per `task` tool-call ID, folded once at EOF. */
+	readonly taskSnapshots: Map<string, TaskSnapshot>;
 }
 
 function num(value: unknown): number {
@@ -104,24 +105,6 @@ function onToolStart(tally: Tally, event: Record<string, unknown>): void {
 	else if (event.toolName === "task") taskAgentSignals(tally, args);
 }
 
-/** Fold a terminal `task` result's delegated usage in exactly once per tool call. */
-function onTaskEnd(tally: Tally, event: Record<string, unknown>): void {
-	if (typeof event.toolCallId === "string") {
-		if (tally.taskCallsSeen.has(event.toolCallId)) return;
-		tally.taskCallsSeen.add(event.toolCallId);
-	}
-	const details = isRecord(event.result) && isRecord(event.result.details) ? event.result.details : undefined;
-	if (!details) return;
-	const results = Array.isArray(details.results) ? details.results.filter(isRecord) : [];
-	for (const child of results) tally.llmCalls += num(child.requests);
-	// Aggregate usage already includes every child; summing both would double count.
-	if (isRecord(details.usage)) {
-		addUsage(tally, details.usage);
-		return;
-	}
-	for (const child of results) if (isRecord(child.usage)) addUsage(tally, child.usage);
-}
-
 function onEvent(tally: Tally, event: Record<string, unknown>): void {
 	switch (event.type) {
 		case "message_end": {
@@ -142,7 +125,14 @@ function onEvent(tally: Tally, event: Record<string, unknown>): void {
 			return;
 		case "tool_execution_end":
 			if (event.isError === true) tally.toolErrors++;
-			if (event.toolName === "task") onTaskEnd(tally, event);
+			if (event.toolName === "task" && isRecord(event.result)) {
+				recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.result.details, false);
+			}
+			return;
+		case "tool_execution_update":
+			if (event.toolName === "task" && isRecord(event.partialResult)) {
+				recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.partialResult.details, true);
+			}
 			return;
 		case "auto_retry_start":
 			tally.retries++;
@@ -211,7 +201,7 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		droppedLines: 0,
 		startupErrors: new Set(),
 		signals: new Set(),
-		taskCallsSeen: new Set(),
+		taskSnapshots: new Map(),
 	};
 	let fd: number | null = null;
 	try {
@@ -249,6 +239,7 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 	} finally {
 		if (fd !== null) fs.closeSync(fd);
 	}
+	foldTaskSnapshots(tally, tally.taskSnapshots);
 	return {
 		llmCalls: tally.llmCalls,
 		llmErrors: tally.llmErrors,

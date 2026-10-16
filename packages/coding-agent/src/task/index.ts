@@ -1100,20 +1100,42 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		let syncUsage: Usage | undefined;
 		// oxlint-disable-next-line prefer-const -- read by buildAsyncDetails before assignment
 		let syncOutputPaths: string[] | undefined;
+		const asyncResults = new Map<number, SingleResult>();
 		let syncProjectAgentsDir: string | null = null;
-		const buildAsyncDetails = (): TaskToolDetails => ({
-			projectAgentsDir: syncProjectAgentsDir,
-			results: [...syncResults],
-			totalDurationMs: Date.now() - callStartedAt,
-			usage: syncUsage,
-			outputPaths: syncOutputPaths,
-			progress: spawns.map(spawn => ({ ...spawn.progress })),
-			async: {
-				state: settledCount < asyncSpawns.length ? "running" : failedCount > 0 ? "failed" : "completed",
-				jobId: primaryJobId,
-				type: "task",
-			},
-		});
+		const buildAsyncDetails = (): TaskToolDetails => {
+			let results = syncResults.slice();
+			let usage = syncUsage;
+			let outputPaths = syncOutputPaths;
+			if (asyncResults.size > 0) {
+				results = [...syncResults, ...asyncResults.values()].sort((a, b) => a.index - b.index);
+				const totals = createUsageTotals();
+				let hasUsage = false;
+				const paths: string[] = [];
+				for (const result of results) {
+					if (result.usage) {
+						addUsageTotals(totals, result.usage);
+						hasUsage = true;
+					}
+				}
+				// Sync usage/paths are already merged from syncResults; recompute from the full set so each counts once.
+				for (const result of results) if (result.outputPath) paths.push(result.outputPath);
+				usage = hasUsage ? totals : undefined;
+				outputPaths = paths.length > 0 ? paths : syncOutputPaths;
+			}
+			return {
+				projectAgentsDir: syncProjectAgentsDir,
+				results,
+				totalDurationMs: Date.now() - callStartedAt,
+				usage,
+				outputPaths,
+				progress: spawns.map(spawn => ({ ...spawn.progress })),
+				async: {
+					state: settledCount < asyncSpawns.length ? "running" : failedCount > 0 ? "failed" : "completed",
+					jobId: primaryJobId,
+					type: "task",
+				},
+			};
+		};
 
 		const started: Array<{ agentId: string; jobId: string }> = [];
 		const failedSchedules: string[] = [];
@@ -1129,9 +1151,11 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 					ircEnabled,
 					buildDetails: buildAsyncDetails,
 					onUpdate,
-					onSettled: failed => {
+					onSettled: (failed, result) => {
 						settledCount += 1;
 						if (failed) failedCount += 1;
+						// Keyed by spawn index: a repeated settle overwrites, never duplicates.
+						if (result) asyncResults.set(spawn.index, { ...result, index: spawn.index });
 					},
 				});
 				if (started.length === 0) primaryJobId = jobId;
@@ -1299,7 +1323,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		ircEnabled: boolean;
 		buildDetails: () => TaskToolDetails;
 		onUpdate?: AgentToolUpdateCallback<TaskToolDetails>;
-		onSettled?: (failed: boolean) => void;
+		onSettled?: (failed: boolean, result?: SingleResult) => void;
 	}): string {
 		const {
 			manager,
@@ -1452,7 +1476,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 						delete progress.resolvedThinkingLevel;
 						delete progress.resolvedModelIsFallback;
 					}
-					onSettled?.(resultFailed);
+					onSettled?.(resultFailed, singleResult);
 					const statusText = resultFailed
 						? `Background task ${agentId} failed.`
 						: `Background task ${agentId} complete.`;

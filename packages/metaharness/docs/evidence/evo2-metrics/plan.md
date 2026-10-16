@@ -12,7 +12,7 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 ### 1. Add typed transcript metrics at Harbor trial boundary
 - Add `packages/metaharness/src/evo/transcript.ts` with `summarizeOmpTranscript(path): TranscriptMetrics`. Stream lines with bounded buffers; never load multi-GB traces wholesale. Parse JSON lines and tolerate explicit non-JSON marker/error lines.
 - Define exact persisted fields: `llm_calls`, `llm_errors`, `turns`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `tool_calls`, `tool_errors`, `compactions`, `retries`, `final_stop_reason`, `started`, `startup_errors`, and sorted unique `signals`.
-- Count main-agent usage once from assistant `message_end` events. Add subagent aggregate usage once from terminal `task` tool results at `result.details.usage` or `result.details.results[].usage`; deduplicate by tool-call ID and prove no double counting with a fixture containing both parent and child usage. Count task requests separately so call efficiency includes delegated model calls.
+- Count main-agent usage once from assistant `message_end` events. Add subagent aggregate usage from terminal `task` results at `result.details.usage` or `result.details.results[].usage`, with usage also accepted from blocking `tool_execution_end` or detached terminal `tool_execution_update`; keep the richest per-toolCallId snapshot until EOF so mixed blocking+async ordering and replay count the full aggregate exactly once. Deduplicate by tool-call ID and prove no double counting with a fixture containing both parent and child usage. Count task requests separately so call efficiency includes delegated model calls.
 - Derive evidence signals without prompt-text assertions:
   - `tool:<name>` from `tool_execution_start`;
   - `skill:<name>` from `read` calls whose path is `skill://<name>`;
@@ -80,6 +80,7 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - `packages/metaharness/src/runner.ts` — `Config`, `parseTrial()`, `prepareSourceDeps()`, compose/mount builders, `buildHarborEnv()`; source identity and container staging.
 - `packages/metaharness/agent/omp_local.py` — `OmpLocal.install()`, `_write_models_yaml()`, `run()`; agent overlay installation and direct-provider config.
 - `packages/metaharness/src/server.ts` — `ManagerServer.#route()`, `launch()`, normalized trace handler; evo REST boundary and shared trace extraction.
+- `packages/coding-agent/src/task/index.ts` — async terminal task-result/progress-details contract; settled result and usage payload emitted through progress details.
 - `packages/metaharness/src/evo/` — new bounded modules for transcript parsing, variant snapshots, suites, and fitness; no single file above 250 pure LOC.
 
 ## Verification
@@ -91,7 +92,7 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
   - source/config/executor mismatch proves comparison rejection;
   - paired fixture with known rewards proves VHat, error handling, SE/CI, cost means, and signal-gated credited delta;
   - generated example task fails before solution and passes after solution.
-- Run focused tests: `bun test packages/metaharness/test/evo-transcript.test.ts packages/metaharness/test/evo-variants.test.ts packages/metaharness/test/evo-fitness.test.ts packages/metaharness/test/evo-task.test.ts packages/metaharness/test/manager.test.ts packages/metaharness/test/runner.test.ts`.
+- Run focused tests: `bun test packages/metaharness/test/evo-transcript.test.ts packages/metaharness/test/evo-variants.test.ts packages/metaharness/test/evo-fitness.test.ts packages/metaharness/test/evo-task.test.ts packages/metaharness/test/manager.test.ts packages/metaharness/test/runner.test.ts packages/coding-agent/test/sdk-task-async-guidance.test.ts`.
 - Run package gates: `bun --cwd packages/metaharness run check` and `bun --cwd packages/metaharness test`.
 - API smoke: start `bun --cwd packages/metaharness run serve --port 4700`; register root + one no-op + one modified config variant, register explicit one-task suite, then observe variant/proposal/fitness/compare/reflection JSON via REST. Expected: no-op reuses parent content, modified child preserves lineage, unmatched source comparison returns 409.
 - Calibrate generated task before any agent run:
@@ -111,18 +112,18 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - Initial private search suite and Terminal-Bench held-out suite are not auto-curated. Generator and one calibrated example land now; user supplies explicit task IDs in immutable manifests afterward. Evo APIs reject empty or implicit-random manifests.
 
 ## Final verification wave
-- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
-- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
-- Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production omp runtime remains unchanged outside metaharness launch paths.
+- Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production task runtime now emits settled async result/usage in progress details; behavior/control flow unchanged but metric consumers may depend on payload.
 - Mandatory class: concurrency-state
 - Whole-diff review: needed
 - Feature-specific criteria:
   - Invariant: Every decided Harbor trial records complete main+task-subagent call/token/tool metrics exactly once.
     Positive witness: fixture and real smoke totals equal independently counted JSONL events and task-result aggregate usage.
-    Negative control: duplicated task result or resumed trial MUST NOT double-count prior usage.
+    Negative control: running initial end, duplicate replay, and sparse async update before richer mixed end MUST NOT double-count or overwrite richer per-toolCallId aggregate.
     Observable: persisted trial metric columns and fitness cost totals.
     Boundary: `agent/omp.txt` → `syncRun()` → `metaharness.sqlite`/REST.
   - Invariant: Parent/child delta compares only identical suite, executor, source identity, and explicit task IDs.
