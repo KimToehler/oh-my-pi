@@ -20,6 +20,7 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  *   metaharness harbor --help
  */
 import type { Server } from "bun";
+import { readModelsEnvNames } from "./evo/models-yaml";
 import { stageAgentOverlay } from "./evo/overlay";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
@@ -1709,6 +1710,8 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		);
 	}
 
+	// Reject literal/command apiKeys before anything is persisted or printed.
+	if (cfg.agent === "omp" && cfg.modelsYaml) await readModelsEnvNames(cfg.modelsYaml);
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
 	const jobDir = path.join(cfg.jobsDir, jobName);
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);

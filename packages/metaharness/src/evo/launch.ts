@@ -3,9 +3,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
-import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import type { LaunchRequest } from "../launch-args";
 import { EvoHttpError } from "./boundary";
+import { readModelsEnvNames } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import type { StoredSuite } from "./suites";
@@ -31,23 +31,6 @@ export function defaultEvoLaunch(): EvoLaunchDefaults {
 						.map(name => name.trim())
 						.filter(Boolean),
 	};
-}
-
-const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
-
-/** Env var names a models.yml references as `apiKey` (values are never read or stored). */
-export async function referencedEnvNames(modelsYaml: string): Promise<string[]> {
-	const file = Bun.file(modelsYaml);
-	if (!(await file.exists())) throw new EvoHttpError(422, `models file not found: ${modelsYaml}`);
-	const parsed: unknown = Bun.YAML.parse(await file.text());
-	const names = new Set<string>();
-	const providers = isRecord(parsed) && isRecord(parsed.providers) ? parsed.providers : {};
-	for (const provider of Object.values(providers)) {
-		if (isRecord(provider) && typeof provider.apiKey === "string" && ENV_NAME.test(provider.apiKey)) {
-			names.add(provider.apiKey);
-		}
-	}
-	return [...names].sort();
 }
 
 /** Launch fields derived from a variant alone (no suite): config overlay, source identity, hashes. */
@@ -91,7 +74,9 @@ export interface EvalLaunchInput {
 export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchRequest> {
 	const { variant, suite, defaults } = input;
 	const manifest = suite.manifest;
-	const names = defaults.forwardEnv ?? (await referencedEnvNames(defaults.modelsYaml));
+	// Validate even with an explicit forward list: the file is what the container receives.
+	const referenced = await readModelsEnvNames(defaults.modelsYaml);
+	const names = defaults.forwardEnv ?? referenced;
 	const missing = names.filter(name => process.env[name] === undefined);
 	if (missing.length > 0)
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);

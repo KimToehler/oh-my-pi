@@ -39,7 +39,17 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 	const status = await repo.statusPorcelain({ untracked: "all" });
 	if (status.trim() === "") return { ref, dirtyHash: null };
 	const hasher = new Bun.CryptoHasher("sha256");
-	hasher.update(await repo.diffText({ base: "HEAD", binary: true }));
+	// Length-framed sections in fixed order: staged (index vs HEAD), unstaged (worktree vs index).
+	// Hashing the two sides separately (not one worktree-vs-HEAD diff) keeps a staged edit that was
+	// later overwritten in the worktree distinguishable.
+	for (const [label, options] of [
+		["staged", { cached: true, binary: true }],
+		["unstaged", { binary: true }],
+	] as const) {
+		const text = await repo.diffText(options);
+		hasher.update(`\0${label}\0${Buffer.byteLength(text)}\0`);
+		hasher.update(text);
+	}
 	const untracked = (await repo.lsFiles(true, true)).sort();
 	for (const rel of untracked) {
 		hasher.update(`\0untracked\0${rel}\0`);

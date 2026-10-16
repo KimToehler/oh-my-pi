@@ -475,8 +475,56 @@ describe("evo launch", () => {
 		);
 	});
 
+	it("buildEvalLaunch accepts an env-name apiKey and rejects literals with a stable 422, even with an explicit forward list", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const sentinel = "sk-sentinel-literal-key-0123456789";
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		const h = harness({ modelsYaml, forwardEnv: [] });
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
+		process.env.ONARA_ROUTER_KEY = "router-value-123";
+		cleanups.push(() => {
+			delete process.env.ONARA_ROUTER_KEY;
+		});
+		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
+		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+		for (const value of [sentinel, "'!cat /etc/passwd'", "https://x.example/t", "42", "''"]) {
+			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ${value}\n`);
+			for (const forwardEnv of [null, []]) {
+				const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv } }).catch(
+					(e: unknown) => e as Error,
+				);
+				expect((err as { status?: number }).status).toBe(422);
+				expect((err as Error).message).toBe(
+					"models.yml providers.onara.apiKey must be an environment variable name (literal keys, commands and URLs are not allowed)",
+				);
+				expect((err as Error).message).not.toContain(sentinel);
+			}
+		}
+	});
+
+	it("evaluate answers 422 over REST for a literal apiKey and launches nothing", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: sk-literal-secret-value-99\n");
+		const h = harness({ modelsYaml, forwardEnv: [] });
+		const { rootId } = await seed(h);
+		const res = await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1" });
+		await expectError(
+			res,
+			422,
+			"models.yml providers.onara.apiKey must be an environment variable name (literal keys, commands and URLs are not allowed)",
+		);
+		expect(h.manager.store.listRuns()).toEqual([]);
+	});
+
 	it("resolveArmLaunch inherits suite, executor and tasks; only the variant may change", async () => {
-		const defaults: EvoLaunchDefaults = { modelsYaml: "/x/models.yml", forwardEnv: [] };
+		const modelsDir = tmp("evo-arm-models-");
+		write(modelsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n");
+		const defaults: EvoLaunchDefaults = { modelsYaml: path.join(modelsDir, "models.yml"), forwardEnv: [] };
 		const h = harness(defaults);
 		const { suiteHash, rootId, childId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;

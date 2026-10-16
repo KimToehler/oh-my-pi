@@ -6,6 +6,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { referencedEnvNamesFromText } from "./models-yaml";
 
 /**
  * Built-in omp model roles, frozen locally: importing the coding-agent role registry drags its whole
@@ -150,6 +151,7 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 		.catch(() => {
 			throw new Error(`--models-yaml not readable: ${opts.modelsYaml}`);
 		});
+	referencedEnvNamesFromText(modelsText);
 	for (const secret of opts.secretValues ?? []) {
 		if (secret.length >= 8 && modelsText.includes(secret)) {
 			throw new Error("--models-yaml embeds a forwarded secret value; reference the env var name instead");

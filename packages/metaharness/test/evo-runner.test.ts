@@ -186,12 +186,56 @@ describe("agent overlay", () => {
 		});
 	});
 
+	it("stages only models whose apiKey is an env var name; rejects literals, commands, URLs, non-strings, empty", async () => {
+		const root = tmp();
+		const variant = path.join(root, "variant");
+		write(variant, "AGENTS.md", "x");
+		const stage = (yaml: string, name: string) => {
+			const modelsYaml = path.join(root, `${name}.yml`);
+			fs.writeFileSync(modelsYaml, yaml);
+			return stageAgentOverlay({
+				variantConfigDir: variant,
+				dest: path.join(root, `o-${name}`),
+				spec: SPEC,
+				modelsYaml,
+			});
+		};
+		const sentinel = "sk-sentinel-literal-key-0123456789";
+		const bad: Array<[string, string]> = [
+			["literal", sentinel],
+			["command", "'!op read secret'"],
+			["url", "https://user:pw@example.com/token"],
+			["number", "12345"],
+			["empty", "''"],
+			["spaced", "'ROUTER KEY'"],
+			["dashed", "my-key"],
+		];
+		for (const [name, value] of bad) {
+			const err = await stage(`providers:\n  onara:\n    apiKey: ${value}\n`, name).catch(
+				(e: unknown) => e as Error & { status?: number },
+			);
+			expect((err as { status?: number }).status).toBe(422);
+			expect((err as Error).message).toBe(
+				"models.yml providers.onara.apiKey must be an environment variable name (literal keys, commands and URLs are not allowed)",
+			);
+			expect((err as Error).message).not.toContain(sentinel);
+			expect(fs.existsSync(path.join(root, `o-${name}`))).toBe(false);
+		}
+		const okStaged = await stage("providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n", "ok");
+		expect(fs.readFileSync(path.join(okStaged.dir, "models.yml"), "utf8")).toContain("ONARA_ROUTER_KEY");
+		// A provider with no apiKey stays allowed.
+		await stage("providers:\n  local:\n    baseUrl: http://x\n", "none");
+	});
+
 	it("refuses a models file that embeds a forwarded secret value", async () => {
 		const root = tmp();
 		const variant = path.join(root, "variant");
 		write(variant, "AGENTS.md", "x");
 		const modelsYaml = path.join(root, "models.yml");
-		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    apiKey: literal-secret-value-1234\n");
+		fs.writeFileSync(
+			modelsYaml,
+			"providers:\n  onara:\n    baseUrl: http://x\n    note: literal-secret-value-1234\n",
+		);
 		await expect(
 			stageAgentOverlay({
 				variantConfigDir: variant,

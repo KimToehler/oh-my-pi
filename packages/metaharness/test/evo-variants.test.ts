@@ -277,6 +277,57 @@ describe("source identity", () => {
 		expect(formatSourceIdentity(clean)).toBe(clean.ref);
 		await expect(sourceIdentity(path.join(src, "nope"))).rejects.toThrow(/does not exist/);
 	});
+
+	it("hashes staged-only edits, distinguishes them, and separates staged from unstaged content", async () => {
+		const stagedHash = async (content: string): Promise<string | null> => {
+			const src = await makeSource();
+			write(src, "a.txt", content);
+			await git(src, "add", "a.txt");
+			return (await sourceIdentity(src)).dirtyHash;
+		};
+		const one = await stagedHash("staged one\n");
+		const two = await stagedHash("staged two\n");
+		expect(one).toMatch(/^[0-9a-f]{64}$/);
+		expect(two).toMatch(/^[0-9a-f]{64}$/);
+		expect(one).not.toBe(two);
+		// Same final worktree bytes, different staging: must not collide.
+		const mixed = await makeSource();
+		write(mixed, "a.txt", "final\n");
+		const unstagedOnly = (await sourceIdentity(mixed)).dirtyHash;
+		await git(mixed, "add", "a.txt");
+		const stagedOnly = (await sourceIdentity(mixed)).dirtyHash;
+		write(mixed, "a.txt", "other\n");
+		await git(mixed, "add", "a.txt");
+		write(mixed, "a.txt", "final\n");
+		const stagedThenReverted = (await sourceIdentity(mixed)).dirtyHash;
+		expect(new Set([unstagedOnly, stagedOnly, stagedThenReverted]).size).toBe(3);
+	});
+
+	it("detects a staged change made after registration as drift", async () => {
+		const { registry, source } = await setup();
+		const cfg = agentDir({ "AGENTS.md": "a" });
+		const wtParent = tmp("evo-wt-");
+		const wt = path.join(wtParent, "wt");
+		await git(source, "worktree", "add", "-q", "--detach", wt, "HEAD");
+		cleanups.push(() => Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: source }));
+		const base = await registry.register(root(cfg));
+		const registered = await registry.register(
+			parseVariantRequest({
+				mutation: "manual",
+				parentId: base.variant.id,
+				configDir: agentDir({ "AGENTS.md": "b" }),
+				sourceWorktree: wt,
+			}),
+		);
+		const expected = formatSourceIdentity({
+			ref: registered.variant.sourceRef,
+			dirtyHash: registered.variant.sourceDirtyHash,
+		});
+		expect(formatSourceIdentity(await sourceIdentity(wt))).toBe(expected);
+		write(wt, "a.txt", "staged after registration\n");
+		await git(wt, "add", "a.txt");
+		expect(formatSourceIdentity(await sourceIdentity(wt))).not.toBe(expected);
+	});
 });
 
 describe("suites", () => {
