@@ -526,6 +526,41 @@ describe("registered snapshot integrity", () => {
 		expect(fs.existsSync(dest)).toBe(false);
 		expect(fs.existsSync(path.join(path.dirname(dest), "overlay-meta.json"))).toBe(false);
 	});
+
+	it("stageAgentOverlay stages the verified bytes when the snapshot is replaced after verification", async () => {
+		const { jobsDir, registry } = await setup();
+		const { variant } = await registry.register(
+			root(agentDir({ "AGENTS.md": "good", "config.yml": "display:\n  verified: true\n" })),
+		);
+		const dir = variantConfigDir(jobsDir, variant.id);
+		const scratch = tmp("evo-bench-");
+		// Staging runs synchronously through collect + hash, then yields at its first await (reading models.yml).
+		// Replacing the snapshot right after the call lands exactly in the verify -> materialize window,
+		// deterministically and without any hook in production code.
+		const modelsYaml = path.join(scratch, "models.yml");
+		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    baseUrl: http://x\n");
+		const spec = { ...executor, webSearch: false, findTool: false, settings: {} };
+		const dest = path.join(scratch, "agent-overlay");
+		// Verification (collect + hash) happens synchronously inside this call.
+		const staging = stageAgentOverlay({
+			variantConfigDir: dir,
+			expectedConfigHash: variant.configHash,
+			dest,
+			spec,
+			modelsYaml,
+		});
+		fs.chmodSync(dir, 0o755);
+		fs.rmSync(path.join(dir, "AGENTS.md"));
+		fs.writeFileSync(path.join(dir, "AGENTS.md"), "evil");
+		fs.rmSync(path.join(dir, "config.yml"));
+		fs.writeFileSync(path.join(dir, "config.yml"), "display:\n  evil: true\n");
+		const staged = await staging;
+		// Staging may only ever carry the verified bytes; the replacement must never reach the overlay.
+		expect(fs.readFileSync(path.join(staged.dir, "AGENTS.md"), "utf8")).toBe("good");
+		const config = fs.readFileSync(path.join(staged.dir, "config.yml"), "utf8");
+		expect(config).toContain("verified");
+		expect(config).not.toContain("evil");
+	});
 });
 
 describe("source identity", () => {

@@ -6,7 +6,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
-import { collectConfigSync, hashConfig } from "./config-snapshot";
+import { type ConfigFile, collectConfigSync, hashConfig, materializeConfig, unlockTree } from "./config-snapshot";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 
 /**
@@ -139,23 +139,16 @@ export interface StageOptions {
 	secretValues?: readonly string[];
 }
 
-async function copyTree(src: string, dest: string): Promise<void> {
-	await fs.mkdir(dest, { recursive: true });
-	for (const entry of await fs.readdir(src, { withFileTypes: true })) {
-		const from = path.join(src, entry.name);
-		const to = path.join(dest, entry.name);
-		if (entry.isDirectory()) await copyTree(from, to);
-		else if (entry.isFile()) await fs.copyFile(from, to);
-		else throw new Error(`variant snapshot contains a non-regular file: ${from}`);
-	}
-}
-
-/** Materialize `dest` as variant files + merged `config.yml` + fixed `models.yml`. */
+/**
+ * Materialize `dest` as variant files + merged `config.yml` + fixed `models.yml`. The variant is read exactly
+ * once: the collected bytes are hashed against `expectedConfigHash` and then written (and merged) as-is, so a
+ * snapshot replaced after verification can never reach the overlay under the registered hash.
+ */
 export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverlay> {
+	const files = collectConfigSync(opts.variantConfigDir);
 	if (opts.expectedConfigHash !== undefined) {
-		// Last gate before the copy; covers the runner entry (resume, direct CLI) that bypasses the manager check.
-		// Collection and the copy below read the same tree, so a replacement between them is the only residual window.
-		const actual = hashConfig(collectConfigSync(opts.variantConfigDir));
+		// Last gate before the write; covers the runner entry (resume, direct CLI) that bypasses the manager check.
+		const actual = hashConfig(files);
 		if (actual !== opts.expectedConfigHash) {
 			throw new Error(
 				`variant config ${opts.variantConfigDir} no longer matches its registered sha256 ${opts.expectedConfigHash}`,
@@ -169,14 +162,20 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 		});
 	referencedEnvNamesFromText(modelsText);
 	assertNoHostCredentialValues(modelsText, opts.secretValues ?? []);
-	const configFile = Bun.file(path.join(opts.variantConfigDir, "config.yml"));
-	const variantYaml = (await configFile.exists()) ? await configFile.text() : null;
+	const variantConfig = files.find(file => file.rel === "config.yml");
+	const variantYaml = variantConfig ? new TextDecoder().decode(variantConfig.bytes) : null;
 	const merged = mergeOverlayConfig(variantYaml, opts.spec);
+	const encoder = new TextEncoder();
+	const overlayFiles: ConfigFile[] = [
+		...files.filter(file => file.rel !== "config.yml"),
+		{ rel: "config.yml", bytes: encoder.encode(merged), executable: false },
+		{ rel: "models.yml", bytes: encoder.encode(modelsText), executable: false },
+	];
 	await fs.rm(opts.dest, { recursive: true, force: true });
-	await copyTree(opts.variantConfigDir, opts.dest);
-	await fs.rm(path.join(opts.dest, "config.yml"), { force: true });
-	await Bun.write(path.join(opts.dest, "config.yml"), merged);
-	await Bun.write(path.join(opts.dest, "models.yml"), modelsText);
+	await materializeConfig(overlayFiles, opts.dest);
+	// materializeConfig locks directories; the overlay was always deletable (bench dirs are removed and restaged
+	// on resume), and the container mount is read-only, so restore directory write. File modes stay as written.
+	await unlockTree(opts.dest);
 	const stagedConfigHash = sha256(merged);
 	const executor = executorConfigHash(opts.spec);
 	await Bun.write(
