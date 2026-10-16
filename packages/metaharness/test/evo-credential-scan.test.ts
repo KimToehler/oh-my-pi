@@ -199,6 +199,122 @@ describe("variant genome credential scan (Gap A)", () => {
 	});
 });
 
+describe("credential scan covers filenames and the generated diff (R44)", () => {
+	it("rejects a credential in a filename and persists nothing", async () => {
+		const { jobsDir, store, reg } = registry([SECRET]);
+		const dir = tmp("evo-cred-agent-");
+		write(dir, `rules/${SECRET}.md`, "harmless\n");
+		const err = await error(reg.register(parseVariantRequest({ mutation: "root", configDir: dir })));
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toContain("host credential value");
+		expect(err?.message).not.toContain(SECRET);
+		expectNothingPersisted(jobsDir, store);
+		const names = Bun.spawnSync(["find", jobsDir, "-name", `*${SECRET}*`])
+			.stdout.toString()
+			.trim();
+		expect(names).toBe("");
+	});
+
+	it("rejects a credential in a nested directory component", async () => {
+		const { jobsDir, store, reg } = registry([SECRET]);
+		const dir = tmp("evo-cred-agent-");
+		write(dir, `skills/${SECRET}/SKILL.md`, "harmless\n");
+		const err = await error(reg.register(parseVariantRequest({ mutation: "root", configDir: dir })));
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toContain("host credential value");
+		expect(err?.message).not.toContain(SECRET);
+		expectNothingPersisted(jobsDir, store);
+		const names = Bun.spawnSync(["find", jobsDir, "-name", `*${SECRET}*`])
+			.stdout.toString()
+			.trim();
+		expect(names).toBe("");
+	});
+
+	it("rejects a clean child whose diff would carry a credential from a pre-scan parent snapshot", async () => {
+		const { jobsDir, store, reg } = registry([SECRET]);
+		const base = tmp("evo-cred-agent-");
+		write(base, "AGENTS.md", "clean\n");
+		const parent = await reg.register(parseVariantRequest({ mutation: "root", configDir: base }));
+		// Simulate a pre-R43 registration: plant a credential straight into the read-only parent snapshot.
+		const cfg = path.join(jobsDir, "_evo", "variants", parent.variant.id, "config");
+		fs.chmodSync(cfg, 0o755);
+		fs.chmodSync(path.join(cfg, "AGENTS.md"), 0o644);
+		fs.writeFileSync(path.join(cfg, "AGENTS.md"), `old ${SECRET}\n`);
+		fs.chmodSync(cfg, 0o555);
+		const child = tmp("evo-cred-agent-");
+		write(child, "rules/new.md", "new rule\n");
+		const variantsBefore = fs.readdirSync(path.join(jobsDir, "_evo", "variants")).sort();
+		const err = await error(
+			reg.register(parseVariantRequest({ mutation: "manual", parentId: parent.variant.id, configDir: child })),
+		);
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).toContain("diff");
+		expect(err?.message).not.toContain(SECRET);
+		expect(store.evo.listVariants().map(v => v.id)).toEqual([parent.variant.id]);
+		expect(fs.readdirSync(path.join(jobsDir, "_evo", "variants")).sort()).toEqual(variantsBefore);
+		const scratch = path.join(jobsDir, "_evo", "tmp");
+		expect(fs.existsSync(scratch) ? fs.readdirSync(scratch) : []).toEqual([]);
+		const patches = Bun.spawnSync(["grep", "-rlF", "--include=diff.patch", "--", SECRET, path.join(jobsDir, "_evo")])
+			.stdout.toString()
+			.trim();
+		expect(patches).toBe("");
+	});
+
+	it("overlay staging rejects a credential in a variant filename before creating dest", async () => {
+		const root = tmp();
+		const variant = path.join(root, "variant");
+		write(variant, `rules/${SECRET}.md`, "harmless\n");
+		const modelsYaml = path.join(root, "models.yml");
+		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    baseUrl: http://x\n");
+		const dest = path.join(root, "bench", "agent-overlay");
+		const err = await error(
+			stageAgentOverlay({
+				variantConfigDir: variant,
+				dest,
+				spec: { model: "m", thinking: "medium", webSearch: false, findTool: false, settings: {} },
+				modelsYaml,
+				secretValues: [SECRET],
+			}),
+		);
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).not.toContain(SECRET);
+		expect(fs.existsSync(dest)).toBe(false);
+		expect(fs.existsSync(path.join(root, "bench", "overlay-meta.json"))).toBe(false);
+	});
+
+	it("still registers content that merely names the env var (201 through the server)", async () => {
+		setEnv("EVO_CRED_REFERENCED", SECRET);
+		const jobsDir = tmp("evo-cred-api-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_CRED_REFERENCED\n");
+		const defaults: EvoLaunchDefaults = { modelsYaml, forwardEnv: ["EVO_CRED_REFERENCED"] };
+		const manager = new ManagerServer(jobsDir, undefined, { sourceRoot: makeSource(), defaults });
+		const server = manager.start(0);
+		cleanups.push(() => void manager.stop());
+		const post = (configDir: string) =>
+			fetch(`http://localhost:${server.port}/api/evo/variants`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ mutation: "root", configDir }),
+			});
+		const bad = tmp("evo-cred-agent-");
+		write(bad, `rules/${SECRET}.md`, "harmless\n");
+		const rejected = await post(bad);
+		expect(rejected.status).toBe(422);
+		expect(await rejected.text()).not.toContain(SECRET);
+		const variants = path.join(jobsDir, "_evo", "variants");
+		expect(fs.existsSync(variants) ? fs.readdirSync(variants) : []).toEqual([]);
+		expect(
+			Bun.spawnSync(["grep", "-rlF", "--", SECRET, path.join(jobsDir, "_evo")])
+				.stdout.toString()
+				.trim(),
+		).toBe("");
+		const ok = tmp("evo-cred-agent-");
+		write(ok, "rules/EVO_CRED_REFERENCED.md", "set EVO_CRED_REFERENCED in the environment\n");
+		expect((await post(ok)).status).toBe(201);
+	});
+});
+
 describe("models.yml credential scan covers the full forwarded union (Gap B)", () => {
 	const text = (note: string) =>
 		`providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_CRED_REFERENCED\n    note: ${note}\n`;

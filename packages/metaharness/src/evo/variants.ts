@@ -7,7 +7,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { EvoHttpError } from "./boundary";
-import { assertGenomeClean } from "./credential-scan";
+import { assertDiffClean, assertGenomeClean } from "./credential-scan";
 import { type ConfigFile, collectConfig, diffConfigs, hashConfig, unlockTree } from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
@@ -164,11 +164,13 @@ export class VariantRegistry {
 		try {
 			const parentFiles = parent ? await collectConfig(variantConfigDir(this.#jobsDir, parent.id)) : [];
 			const diff = diffConfigs(parentFiles, resolved.files);
+			const diffText = diff.patch + resolved.sourcePatch;
+			assertDiffClean(diffText, this.#secretValues());
 			const { diffPath } = await publishSnapshot({
 				finalDir: variantDir,
 				tmpRoot: path.join(evoRoot(this.#jobsDir), "tmp"),
 				files: resolved.files,
-				diffText: diff.patch + resolved.sourcePatch,
+				diffText,
 				afterMaterialize: this.#afterMaterialize,
 			});
 			published = true;

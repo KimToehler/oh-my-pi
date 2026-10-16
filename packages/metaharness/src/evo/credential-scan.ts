@@ -18,13 +18,21 @@ function textCarriesSecret(text: string, secrets: readonly string[]): boolean {
 }
 
 /**
- * Throw 422 when any genome file body or the source patch carries a host credential value. Messages name the
- * file (or "source patch") only, never the matched value. Call before anything is written.
+ * Throw 422 when any genome file path (checked per component), file body, or the source patch carries a host
+ * credential value. Messages name the file (or "source patch") only, never the matched value. Call before
+ * anything is written.
  */
 export function assertGenomeClean(files: readonly ConfigFile[], sourcePatch: string, values: readonly string[]): void {
 	const secrets = values.filter(value => value.length > 0);
 	if (secrets.length === 0) return;
 	for (const file of files) {
+		if (textCarriesSecret(file.rel, secrets) || file.rel.split("/").some(part => textCarriesSecret(part, secrets))) {
+			const shown = secrets.reduce((rel, secret) => rel.split(secret).join("***"), file.rel);
+			throw new EvoHttpError(
+				422,
+				`config file path ${shown} embeds a host credential value; rename it (the value must not appear in a filename)`,
+			);
+		}
 		if (textCarriesSecret(decoder.decode(file.bytes), secrets)) {
 			throw new EvoHttpError(
 				422,
@@ -34,6 +42,17 @@ export function assertGenomeClean(files: readonly ConfigFile[], sourcePatch: str
 	}
 	if (textCarriesSecret(sourcePatch, secrets)) {
 		throw new EvoHttpError(422, "source patch embeds a host credential value; reference the env var name instead");
+	}
+}
+
+/** Throw 422 when the generated `diff.patch` text (which replays parent context and paths) carries a host credential value. */
+export function assertDiffClean(diffText: string, values: readonly string[]): void {
+	const secrets = values.filter(value => value.length > 0);
+	if (secrets.length > 0 && textCarriesSecret(diffText, secrets)) {
+		throw new EvoHttpError(
+			422,
+			"generated diff embeds a host credential value (likely from the parent snapshot); register a parent without it",
+		);
 	}
 }
 
