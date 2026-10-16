@@ -1738,9 +1738,11 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (cfg.modelsYaml) {
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
+		const explicitEnv = Object.fromEntries(Object.entries(cfg.env).filter(([key]) => !cfg.hostEnvKeys.includes(key)));
 		const leaked = findCredentialLeaks(
 			{
 				passthrough: cfg.passthrough,
+				env: explicitEnv,
 				agentArgs: cfg.agentArgs,
 				settings: cfg.settings,
 				providers: cfg.providers,

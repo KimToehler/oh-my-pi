@@ -409,6 +409,18 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir)).toEqual([]);
 	}, 30_000);
 
+	it("rejects a host credential value passed under another explicit --env name and persists nothing", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-other-secret", ["--env", `OTHER_KNOB=${SENTINEL}`], {
+			EVO_SENTINEL_KEY: SENTINEL,
+		});
+		expect(code).not.toBe(0);
+		expect(out).toContain("credential env");
+		expect(out).not.toContain(SENTINEL);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-other-secret", "runner-config.json"))).toBe(false);
+		expect(scanForSentinel(jobsDir)).toEqual([]);
+	}, 30_000);
+
 	it("rejects the same explicit credential KEY=VALUE for --agent pi and persists nothing", async () => {
 		const jobsDir = tmp();
 		const { code, out } = await runRunner(jobsDir, "job-pi-secret", [
