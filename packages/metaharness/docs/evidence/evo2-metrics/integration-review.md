@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `3db1f95edaab678e477c7e0e5b55836283b26aa0`
+- Head: `1993bcf1f6ccca0805b1324a02975a6b6fb17dcb`
 - Result: **PASS**
 
 ## Review history
@@ -39,7 +39,10 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R34: that placeholder used `status='running'`, which `ManagerServer.launch` refuses, so every evaluate failed; the race test had hidden it by stubbing `launch`. Repaired with a distinct `claimed` status, plus two scan gaps closed.
 - R35: the placeholder then produced five further lifecycle findings, so the mechanism was removed rather than patched. `#evaluate` re-checks after the await and launches synchronously, which is sufficient because the real launch path does not yield. Net deletion of 118 lines.
 - R36: removing the reaper left any legacy `claimed` row unreclaimable, so store open now purges them. No such row exists outside this unmerged branch; the purge guards a database file that outlives its writer.
+- R37: `materializeConfig` made snapshot files read-only, but POSIX lets an owner unlink a read-only file from a writable directory and drop a replacement in, so a tampered variant evaluated with 201 under its original id. The registered `configHash` is now re-verified before staging, at `variantLaunchFields`, at `resolveEvoInheritance` for an inheriting arm, and in `stageAgentOverlay` via `--agent-dir-hash` so resume re-checks too.
+- R38: `listRuns` ordered only by `created_at DESC`, which is epoch milliseconds, so same-millisecond rows tied and the template an inheriting arm copies was arbitrary — which made the R37 inherited-arm check pass only intermittently. Ordering is now `created_at DESC, rowid DESC`.
+- R39: `stageAgentOverlay` hashed the collected snapshot and then re-read the same mutable path, so a replacement landing in between was staged under the original identity. The overlay is now materialized from the single verified collection.
 
 ## Final verdict
 
-Fresh reviewer over `0ffce148e6..3db1f95eda` (full branch delta `935046d15b...3db1f95eda`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `888d4aba86..1993bcf1f6` (full branch delta `935046d15b...1993bcf1f6`): `VERDICT: PASS`, no blockers.
