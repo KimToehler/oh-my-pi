@@ -25,8 +25,17 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Server, Subprocess } from "bun";
 import { BENCHMARK_DEFINITIONS } from "./benchmarks";
+import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from "./evo/launch";
+import { defaultSourceRoot, EvoService } from "./evo/service";
+import { normalizeOmpTranscript } from "./evo/trace-entries";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
-import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
+import {
+	defaultJobName,
+	harborRunnerArgs,
+	isLocalDataset,
+	type LaunchRequest,
+	resolveLocalDataset,
+} from "./launch-args";
 import { type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
 
 /** PUT /api/experiments/:id body — goal and per-run role/note/label metadata. */
@@ -61,6 +70,8 @@ export interface AddArmRequest {
 	role?: RunRole;
 	note?: string;
 	extraArgs?: string[];
+	/** Evo arms may swap only the variant; suite, executor, source root, and tasks stay inherited. */
+	variantId?: string;
 }
 
 interface ManagedChild {
@@ -116,6 +127,39 @@ function pidAlive(pid: number | null): boolean {
  * prewalk, role, note, extra args) come from `req`. Throws if the experiment has
  * no runs to inherit from or the arm name is taken.
  */
+/** Evo identity fields an arm inherits from its template run; a new `variantId` re-derives the variant ones. */
+function resolveEvoInheritance(
+	store: RunStore,
+	cfg: Partial<LaunchRequest>,
+	req: AddArmRequest,
+): Partial<LaunchRequest> {
+	const inherited: Partial<LaunchRequest> = {};
+	for (const key of [
+		"suiteId",
+		"suiteHash",
+		"thinking",
+		"modelsYaml",
+		"noGateway",
+		"envNames",
+		"executorConfigHash",
+	] as const) {
+		if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
+	}
+	if (!req.variantId) {
+		for (const key of ["variantId", "agentDir", "sourceRoot", "sourceIdentity", "stagedConfigHash"] as const) {
+			if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
+		}
+		return inherited;
+	}
+	const variant = store.evo.getVariant(req.variantId);
+	if (!variant) throw new Error(`variant '${req.variantId}' not found`);
+	if (!cfg.suiteId || !cfg.model || !cfg.thinking) {
+		throw new Error("variantId can only be swapped on an arm whose template run is an evo evaluation");
+	}
+	const fields = variantLaunchFields(store.jobsDir, variant, { model: cfg.model, thinking: cfg.thinking });
+	return { ...inherited, ...fields };
+}
+
 export function resolveArmLaunch(store: RunStore, experimentId: string, req: AddArmRequest): LaunchRequest {
 	if (!req.arm || /[^\w.-]/.test(req.arm)) throw new Error("arm must be a non-empty [A-Za-z0-9_.-] token");
 	if (!req.model) throw new Error("model is required");
@@ -163,7 +207,15 @@ export function resolveArmLaunch(store: RunStore, experimentId: string, req: Add
 	const jobName = `${experimentId}-${req.arm}`;
 	if (store.getRun(jobName)) throw new Error(`arm '${req.arm}' already exists in '${experimentId}'`);
 	const conditions = strings(cfg.conditions);
+	if (cfg.suiteId) {
+		if (req.model !== cfg.model) throw new Error(`evo arms keep the suite model '${cfg.model}'; got '${req.model}'`);
+		if (req.prewalk || (req.extraArgs && req.extraArgs.length > 0) || (req.include && req.include.length > 0)) {
+			throw new Error("evo arms may change only variantId, role, and note");
+		}
+	}
+	const evo = resolveEvoInheritance(store, cfg, req);
 	return {
+		...evo,
 		benchmark: template.benchmark,
 		model: req.model,
 		dataset: template.dataset,
@@ -193,11 +245,19 @@ export class ManagerServer {
 	#syncTimer: Timer | undefined;
 	#server: Server<undefined> | null = null;
 	#stopped = false;
+	readonly #evo: EvoService;
 	readonly jobsDir: string;
 
-	constructor(jobsDir: string, dbPath?: string) {
+	constructor(jobsDir: string, dbPath?: string, evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {}) {
 		this.jobsDir = jobsDir;
 		this.#store = new RunStore(jobsDir, dbPath);
+		this.#evo = new EvoService({
+			store: this.#store,
+			jobsDir,
+			sourceRoot: evo.sourceRoot ?? defaultSourceRoot(),
+			defaults: evo.defaults ?? defaultEvoLaunch(),
+			launch: request => this.launch(request),
+		});
 	}
 
 	get store(): RunStore {
@@ -263,6 +323,8 @@ export class ManagerServer {
 		const url = new URL(request.url);
 		const p = url.pathname;
 		try {
+			const evo = await this.#evo.handle(request, url);
+			if (evo) return evo;
 			if (p === "/api/events") return this.#sseResponse();
 			if (p === "/api/benchmarks" && request.method === "GET") {
 				return Response.json(BENCHMARK_DEFINITIONS);
@@ -390,6 +452,8 @@ export class ManagerServer {
 		if (this.#children.has(jobName) || this.#store.getRun(jobName)?.status === "running") {
 			throw new Error(`run ${jobName} is already running`);
 		}
+		// Validate before any job dir exists so a bad path leaves no debris for discover().
+		if (benchmark === "harbor" && isLocalDataset(dataset)) resolveLocalDataset(dataset);
 		const jobDir = path.join(this.jobsDir, jobName);
 		fs.mkdirSync(jobDir, { recursive: true });
 
@@ -424,6 +488,8 @@ export class ManagerServer {
 			config: { ...request },
 			role: request.role,
 			note: request.note,
+			variantId: request.variantId,
+			suiteId: request.suiteId,
 		});
 		if (request.goal) this.#store.setExperimentGoal(experimentOf(jobName), request.goal);
 		return { jobName, pid };
@@ -471,6 +537,8 @@ export class ManagerServer {
 			config: run.config,
 			role: run.role,
 			note: run.note,
+			variantId: run.variantId ?? undefined,
+			suiteId: run.suiteId ?? undefined,
 		});
 		return { jobName, pid };
 	}
@@ -667,37 +735,7 @@ export class ManagerServer {
 				headers: { "content-type": "application/x-ndjson" },
 			});
 		}
-		const entries: Array<Record<string, unknown>> = [];
-		for (const line of lines) {
-			let event: Record<string, unknown>;
-			try {
-				event = JSON.parse(line) as Record<string, unknown>;
-			} catch {
-				continue;
-			}
-			if (event.type === "message_end") {
-				const message = event.message as Record<string, unknown> | undefined;
-				if (!message) continue;
-				const content = Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [];
-				const body = content
-					.filter(block => block.type === "text")
-					.map(block => String(block.text ?? ""))
-					.join("\n");
-				if (message.role === "assistant") {
-					const tools = content.filter(block => block.type === "toolCall").map(block => String(block.name ?? "?"));
-					entries.push({ kind: "assistant", model: message.model ?? "", text: body, tools });
-				} else if (message.role === "toolResult") {
-					entries.push({
-						kind: "toolResult",
-						tool: message.toolName ?? "?",
-						isError: message.isError === true,
-						text: body.length > 1600 ? `${body.slice(0, 1600)}…` : body,
-					});
-				}
-			} else if (event.type === "notice") {
-				entries.push({ kind: "notice", text: event.message ?? "" });
-			}
-		}
+		const entries = normalizeOmpTranscript(lines);
 		return Response.json({ jobName, trace: traceName, entries: entries.slice(-n), totalEvents: lines.length });
 	}
 }

@@ -2,6 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { conversationDumpRelativePath } from "../adapters/edit/dump-path";
+import type { TranscriptMetrics } from "./evo/transcript";
 import { aggregate, readJobResult, readTrials } from "./runner";
 import type { BenchmarkKind } from "./store";
 
@@ -55,6 +56,8 @@ export interface BenchmarkTrace {
 	durationMs: number;
 	detail: string;
 	tracePath: string | null;
+	/** Transcript-derived metrics; null for running trials and adapters without omp transcripts. */
+	transcript: TranscriptMetrics | null;
 }
 
 /** Uniform aggregate and traces read from benchmark-native artifacts. */
@@ -165,6 +168,7 @@ function readEditSnapshot(jobDir: string): BenchmarkSnapshot {
 				durationMs: run.duration,
 				detail: JSON.stringify({ name: task.name, error: run.error ?? null, tools: run.toolCalls ?? null }),
 				tracePath: path.join("result.dump", conversationDumpRelativePath(task.id, runNumber)),
+				transcript: null,
 			});
 		}
 	}
@@ -208,6 +212,7 @@ function readSnapcompactSnapshot(jobDir: string): BenchmarkSnapshot {
 		durationMs: 0,
 		detail: JSON.stringify({ question: record.q, answer: record.answer, golds: record.golds, em: record.em }),
 		tracePath: `record:${index + 1}`,
+		transcript: null,
 	}));
 	let rows: SnapSummaryRow[] = [];
 	if (fs.existsSync(summaryFile)) {
@@ -255,6 +260,7 @@ export function readBenchmarkSnapshot(benchmark: BenchmarkKind, jobDir: string):
 			durationMs: trial.durationMs,
 			detail: trial.detail,
 			tracePath: path.join(trial.name, "agent", "omp.txt"),
+			transcript: trial.transcript,
 		})),
 		total: totals.total,
 		done: totals.done,

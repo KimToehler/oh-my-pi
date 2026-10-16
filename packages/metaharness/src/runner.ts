@@ -20,6 +20,9 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  *   metaharness harbor --help
  */
 import type { Server } from "bun";
+import { stageAgentOverlay } from "./evo/overlay";
+import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
+import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
 import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
 
 // ────────────────────────────────────────────────────────────────────── config
@@ -27,7 +30,10 @@ import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-a
 const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..");
 const PKG_DIR = path.resolve(import.meta.dir, "..");
 const AGENT_DIR = path.join(PKG_DIR, "agent");
-const CODING_AGENT_DIR = path.join(REPO_ROOT, "packages", "coding-agent");
+/** Coding-agent package dir inside a source root. */
+function codingAgentDir(sourceRoot: string): string {
+	return path.join(sourceRoot, "packages", "coding-agent");
+}
 const AGENT_IMPORT_PATH = "omp_local:OmpLocal";
 const PI_UPSTREAM_IMPORT_PATH = "pi_upstream:PiUpstream";
 /** Upstream `@earendil-works/pi-coding-agent` version pinned for `--agent pi`. */
@@ -38,6 +44,8 @@ const MANAGED_AGENTS: Record<string, true> = { omp: true, pi: true };
 /** Container-side mount points for `--install source` (must match omp_local.py defaults). */
 const SOURCE_SRC_MOUNT = "/opt/omp/src";
 const SOURCE_BIN_MOUNT = "/opt/omp/bin";
+/** Container-side mount of the staged agent overlay (must match omp_local.py's OMP_BENCH_AGENT_OVERLAY). */
+const AGENT_OVERLAY_MOUNT = "/opt/omp/agent-overlay";
 
 /** Host address containers see on Apple Container's vmnet (bridge) network. */
 const VMNET_HOST_IP = "192.168.64.1";
@@ -95,6 +103,16 @@ export interface Config {
 	envType: "docker" | "apple-container";
 	passthrough: string[];
 	env: Record<string, string>;
+	/** `--env KEY` names whose values come from the host; values are never snapshotted. */
+	hostEnvKeys: string[];
+	/** Variant agent dir staged into a read-only overlay mounted at `~/.omp/agent`. */
+	agentDir: string | null;
+	/** Repo/worktree mounted as the omp source and used for dependency hashing. */
+	sourceRoot: string;
+	/** Expected `<ref>[+<dirtyHash>]` identity of `sourceRoot`; checked before spawn. */
+	sourceIdentity: string | null;
+	/** Fixed container-safe models.yml used instead of generated gateway routing. */
+	modelsYaml: string | null;
 }
 
 function defaultConfig(): Config {
@@ -137,6 +155,11 @@ function defaultConfig(): Config {
 		envType: "docker",
 		passthrough: [],
 		env: {},
+		hostEnvKeys: [],
+		agentDir: null,
+		sourceRoot: REPO_ROOT,
+		sourceIdentity: null,
+		modelsYaml: null,
 	};
 }
 
@@ -163,6 +186,11 @@ Model / agent:
       --setting <key=value>      omp setting for the container config, e.g. edit.mode=sloppy (repeatable; JSON values)
       --env <KEY[=VALUE]>        Forward env into omp container (repeatable).
                                  KEY alone forwards host value; host PI_* auto-forwarded.
+      --agent-dir <path>         Variant agent dir (AGENTS.md, config.yml, rules/, skills/, ...) staged into a
+                                 read-only overlay; the fixed model owns routing/retry, --setting wins last
+      --source-root <path>       Git worktree mounted as the omp source (default: this repo)
+      --source-identity <id>     Expected <HEAD>[+<dirty hash>] of --source-root; mismatch aborts the launch
+      --models-yaml <path>       Fixed models.yml for the container (works with --no-gateway)
 
 Dataset / scale:
   -l, --tasks <N>                Max tasks (default 20)
@@ -171,6 +199,7 @@ Dataset / scale:
   -i, --include <glob>           Include task name (repeatable)
   -x, --exclude <glob>           Exclude task name (repeatable)
   -d, --dataset <name@ver>       Default terminal-bench@2.0
+      --path <dir>               Local Harbor task/dataset directory (harbor run --path); replaces -d
 
 Gateway (auth, no keys in container):
       --gateway-url <url>        Default http://host.docker.internal:4000
@@ -312,6 +341,9 @@ export function parseArgs(argv: string[]): Config {
 			case "--dataset":
 				cfg.dataset = take(arg);
 				break;
+			case "--path":
+				cfg.dataset = path.resolve(take(arg));
+				break;
 
 			case "--gateway-url":
 				cfg.gatewayUrl = take(arg);
@@ -326,6 +358,18 @@ export function parseArgs(argv: string[]): Config {
 						.map(s => s.trim())
 						.filter(Boolean),
 				);
+				break;
+			case "--agent-dir":
+				cfg.agentDir = path.resolve(take(arg));
+				break;
+			case "--source-root":
+				cfg.sourceRoot = path.resolve(take(arg));
+				break;
+			case "--source-identity":
+				cfg.sourceIdentity = take(arg);
+				break;
+			case "--models-yaml":
+				cfg.modelsYaml = path.resolve(take(arg));
 				break;
 			case "--no-gateway":
 				cfg.gateway = false;
@@ -379,9 +423,13 @@ export function parseArgs(argv: string[]): Config {
 				const eq2 = spec.indexOf("=");
 				if (eq2 === -1) {
 					const hostVal = process.env[spec];
-					if (hostVal !== undefined) cfg.env[spec] = hostVal;
+					if (hostVal !== undefined) {
+						cfg.env[spec] = hostVal;
+						if (!cfg.hostEnvKeys.includes(spec)) cfg.hostEnvKeys.push(spec);
+					}
 				} else {
 					cfg.env[spec.slice(0, eq2)] = spec.slice(eq2 + 1);
+					cfg.hostEnvKeys = cfg.hostEnvKeys.filter(key => key !== spec.slice(0, eq2));
 				}
 				break;
 			}
@@ -450,6 +498,11 @@ export function resolveResumeConfig(cli: Config): Config {
 			`--resume: no recorded launch config for ${jobName} ` +
 				`(missing both _bench/${jobName}/runner-config.json and ${jobName}/manager.json)`,
 		);
+	}
+	// Host-sourced env values are never snapshotted; re-read them from this shell.
+	for (const key of cfg.hostEnvKeys ?? []) {
+		const value = process.env[key];
+		if (value !== undefined) cfg.env[key] = value;
 	}
 	cfg.jobsDir = jobsDir;
 	cfg.jobName = jobName;
@@ -532,6 +585,8 @@ export interface Trial {
 	tokCache: number;
 	durationMs: number;
 	detail: string;
+	/** Terminal-trial transcript metrics; null while running. */
+	transcript: TranscriptMetrics | null;
 }
 
 interface AgentCtxLike {
@@ -698,6 +753,7 @@ function parseTrial(dir: string, name: string): Trial | null {
 			tokCache,
 			durationMs: Date.now() - started,
 			detail: "",
+			transcript: null,
 		};
 	}
 	// Trial finished: usage now comes from result.json; drop the live-parse state.
@@ -764,7 +820,18 @@ function parseTrial(dir: string, name: string): Trial | null {
 	} else {
 		status = "fail";
 	}
-	return { name, status, reward, costUsd, tokIn, tokOut, tokCache, durationMs, detail };
+	return {
+		name,
+		status,
+		reward,
+		costUsd,
+		tokIn,
+		tokOut,
+		tokCache,
+		durationMs,
+		detail,
+		transcript: summarizeOmpTranscript(path.join(dir, "agent", "omp.txt")),
+	};
 }
 
 export function readTrials(jobDir: string): Trial[] {
@@ -1010,8 +1077,8 @@ function which(bin: string): string | null {
 	return r.status === 0 && out ? out : null;
 }
 
-function readPkgVersion(): string {
-	const raw = readJson(path.join(CODING_AGENT_DIR, "package.json"));
+function readPkgVersion(cfg: Config): string {
+	const raw = readJson(path.join(codingAgentDir(cfg.sourceRoot), "package.json"));
 	if (raw && typeof raw === "object") {
 		const v = (raw as Record<string, unknown>).version;
 		if (typeof v === "string") return v;
@@ -1019,10 +1086,10 @@ function readPkgVersion(): string {
 	return "latest";
 }
 
-function buildTarball(benchDir: string): string {
+function buildTarball(benchDir: string, cfg: Config): string {
 	process.stdout.write(dim("packing local omp (bun pm pack)…\n"));
 	const r = spawnSync("bun", ["pm", "pack", "--destination", benchDir], {
-		cwd: CODING_AGENT_DIR,
+		cwd: codingAgentDir(cfg.sourceRoot),
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
@@ -1064,8 +1131,8 @@ export interface SourceMount {
 }
 
 /** Bun version pinned by the repo's `packageManager` field. */
-function repoBunVersion(): string {
-	const raw = readJson(path.join(REPO_ROOT, "package.json"));
+function repoBunVersion(sourceRoot: string): string {
+	const raw = readJson(path.join(sourceRoot, "package.json"));
 	if (raw && typeof raw === "object") {
 		const pm = (raw as Record<string, unknown>).packageManager;
 		if (typeof pm === "string" && pm.startsWith("bun@")) return pm.slice("bun@".length);
@@ -1083,13 +1150,13 @@ function dockerServerArch(): "arm64" | "x64" {
 }
 
 /** Workspace member dirs (repo-relative), expanded from root package.json `workspaces.packages`. */
-function workspacePackageDirs(): string[] {
-	const raw = readJson(path.join(REPO_ROOT, "package.json")) as {
+function workspacePackageDirs(sourceRoot: string): string[] {
+	const raw = readJson(path.join(sourceRoot, "package.json")) as {
 		workspaces?: { packages?: string[] };
 	} | null;
 	const dirs = new Set<string>();
 	for (const pattern of raw?.workspaces?.packages ?? []) {
-		for (const match of new Bun.Glob(`${pattern}/package.json`).scanSync({ cwd: REPO_ROOT })) {
+		for (const match of new Bun.Glob(`${pattern}/package.json`).scanSync({ cwd: sourceRoot })) {
 			dirs.add(path.dirname(match));
 		}
 	}
@@ -1097,10 +1164,10 @@ function workspacePackageDirs(): string[] {
 }
 
 /** Manifest files (repo-relative) that fully determine a `bun install` result. */
-function sourceManifestFiles(pkgDirs: string[]): string[] {
+function sourceManifestFiles(sourceRoot: string, pkgDirs: string[]): string[] {
 	const files = ["package.json", "bun.lock"];
-	if (fs.existsSync(path.join(REPO_ROOT, "bunfig.toml"))) files.push("bunfig.toml");
-	const patchesDir = path.join(REPO_ROOT, "patches");
+	if (fs.existsSync(path.join(sourceRoot, "bunfig.toml"))) files.push("bunfig.toml");
+	const patchesDir = path.join(sourceRoot, "patches");
 	if (fs.existsSync(patchesDir)) {
 		for (const f of fs.readdirSync(patchesDir).sort()) files.push(path.join("patches", f));
 	}
@@ -1108,13 +1175,13 @@ function sourceManifestFiles(pkgDirs: string[]): string[] {
 	return files;
 }
 
-function sourceDepsStamp(manifests: string[], bunVersion: string): string {
+function sourceDepsStamp(sourceRoot: string, manifests: string[], bunVersion: string): string {
 	const h = new Bun.CryptoHasher("sha256");
 	h.update(`bun@${bunVersion}\0source-deps-v1\0`);
 	for (const rel of manifests) {
 		h.update(rel);
 		h.update("\0");
-		h.update(fs.readFileSync(path.join(REPO_ROOT, rel)));
+		h.update(fs.readFileSync(path.join(sourceRoot, rel)));
 		h.update("\0");
 	}
 	return h.digest("hex");
@@ -1128,11 +1195,12 @@ function sourceDepsStamp(manifests: string[], bunVersion: string): string {
  */
 export function prepareSourceDeps(cfg: Config): SourceMount {
 	const arch = cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
-	const bunVersion = repoBunVersion();
+	const sourceRoot = cfg.sourceRoot;
+	const bunVersion = repoBunVersion(sourceRoot);
 	const depsDir = path.join(cfg.jobsDir, "_bench", "_deps", `linux-${arch}`);
-	const pkgDirs = workspacePackageDirs();
-	const manifests = sourceManifestFiles(pkgDirs);
-	const stamp = sourceDepsStamp(manifests, bunVersion);
+	const pkgDirs = workspacePackageDirs(sourceRoot);
+	const manifests = sourceManifestFiles(sourceRoot, pkgDirs);
+	const stamp = sourceDepsStamp(sourceRoot, manifests, bunVersion);
 	const stampFile = path.join(depsDir, ".stamp");
 	let current: string | null = null;
 	try {
@@ -1147,7 +1215,7 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
 		for (const rel of manifests) {
 			const dst = path.join(depsDir, rel);
 			fs.mkdirSync(path.dirname(dst), { recursive: true });
-			fs.copyFileSync(path.join(REPO_ROOT, rel), dst);
+			fs.copyFileSync(path.join(sourceRoot, rel), dst);
 		}
 		// --ignore-scripts: the skeleton has manifests only, so lifecycle scripts
 		// (root `prepare` → gen:tool-views) would fail; patchedDependencies still apply.
@@ -1201,11 +1269,11 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
 	const nodeModules = ["node_modules"];
 	for (const dir of pkgDirs) {
 		const rel = path.join(dir, "node_modules");
-		const inHost = fs.existsSync(path.join(REPO_ROOT, rel));
+		const inHost = fs.existsSync(path.join(sourceRoot, rel));
 		const inDeps = fs.existsSync(path.join(depsDir, rel));
 		if (!inHost && !inDeps) continue;
 		if (!inDeps) fs.mkdirSync(path.join(depsDir, rel), { recursive: true });
-		if (!inHost) fs.mkdirSync(path.join(REPO_ROOT, rel), { recursive: true });
+		if (!inHost) fs.mkdirSync(path.join(sourceRoot, rel), { recursive: true });
 		nodeModules.push(rel);
 	}
 	return { arch, depsDir, nodeModules };
@@ -1215,17 +1283,23 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
  * Compose overlay applied to every trial's `main` service: host networking and/or the
  * read-only source + linux-deps mounts. Returns null when nothing needs overlaying.
  */
-function writeComposeOverlay(benchDir: string, cfg: Config, source: SourceMount | null): string | null {
+function writeComposeOverlay(
+	benchDir: string,
+	cfg: Config,
+	source: SourceMount | null,
+	agentOverlay: string | null,
+): string | null {
 	const lines: string[] = [];
 	if (cfg.hostNetwork) lines.push('    network_mode: "host"');
+	if (source || agentOverlay) lines.push("    volumes:");
 	if (source) {
-		lines.push("    volumes:");
-		lines.push(`      - ${REPO_ROOT}:${SOURCE_SRC_MOUNT}:ro`);
+		lines.push(`      - ${cfg.sourceRoot}:${SOURCE_SRC_MOUNT}:ro`);
 		for (const rel of source.nodeModules) {
 			lines.push(`      - ${path.join(source.depsDir, rel)}:${SOURCE_SRC_MOUNT}/${rel}:ro`);
 		}
 		lines.push(`      - ${path.join(source.depsDir, "bin")}:${SOURCE_BIN_MOUNT}:ro`);
 	}
+	if (agentOverlay) lines.push(`      - ${agentOverlay}:${AGENT_OVERLAY_MOUNT}:ro`);
 	if (lines.length === 0) return null;
 	const file = path.join(benchDir, "omp-compose-overlay.yaml");
 	fs.writeFileSync(file, `${["services:", "  main:", ...lines].join("\n")}\n`);
@@ -1237,20 +1311,31 @@ function writeComposeOverlay(benchDir: string, cfg: Config, source: SourceMount 
  * environments (apple-container): source repo + linux deps tree. Apple
  * Container currently mounts binds read-write regardless of `read_only`.
  */
-function buildMountsJson(source: SourceMount | null): string | null {
-	if (!source) return null;
-	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [
-		{ type: "bind", source: REPO_ROOT, target: SOURCE_SRC_MOUNT, read_only: true },
-	];
-	for (const rel of source.nodeModules) {
+export function buildMountsJson(
+	cfg: Config,
+	source: SourceMount | null,
+	agentOverlay: string | null = null,
+): string | null {
+	if (!source && !agentOverlay) return null;
+	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [];
+	if (source) {
+		mounts.push({ type: "bind", source: cfg.sourceRoot, target: SOURCE_SRC_MOUNT, read_only: true });
+		for (const rel of source.nodeModules) {
+			mounts.push({
+				type: "bind",
+				source: path.join(source.depsDir, rel),
+				target: `${SOURCE_SRC_MOUNT}/${rel}`,
+				read_only: true,
+			});
+		}
 		mounts.push({
 			type: "bind",
-			source: path.join(source.depsDir, rel),
-			target: `${SOURCE_SRC_MOUNT}/${rel}`,
+			source: path.join(source.depsDir, "bin"),
+			target: SOURCE_BIN_MOUNT,
 			read_only: true,
 		});
 	}
-	mounts.push({ type: "bind", source: path.join(source.depsDir, "bin"), target: SOURCE_BIN_MOUNT, read_only: true });
+	if (agentOverlay) mounts.push({ type: "bind", source: agentOverlay, target: AGENT_OVERLAY_MOUNT, read_only: true });
 	return JSON.stringify(mounts);
 }
 
@@ -1449,6 +1534,7 @@ export function buildHarborEnv(
 	tarball: string | null,
 	version: string,
 	source: SourceMount | null = null,
+	agentOverlay: string | null = null,
 ): Record<string, string> {
 	const env: Record<string, string> = { ...(process.env as Record<string, string>) };
 	// Drop any stale OMP_BENCH_FORWARD_ENV inherited from the caller's shell before
@@ -1480,8 +1566,10 @@ export function buildHarborEnv(
 	if (Object.keys(cfg.settings).length > 0) env.OMP_BENCH_SETTINGS = JSON.stringify(cfg.settings);
 	if (cfg.webSearch) env.OMP_BENCH_WEB_SEARCH = "1";
 	env.OMP_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
+	delete env.OMP_BENCH_AGENT_OVERLAY;
+	if (agentOverlay) env.OMP_BENCH_AGENT_OVERLAY = AGENT_OVERLAY_MOUNT;
+	if (modelsYaml) env.OMP_BENCH_MODELS_YAML = modelsYaml;
 	if (cfg.gateway) {
-		env.OMP_BENCH_MODELS_YAML = modelsYaml;
 		env.OMP_BENCH_GATEWAY_URL = cfg.gatewayUrl;
 		env.OMP_BENCH_GATEWAY_TOKEN = cfg.gatewayToken;
 		env.OMP_BENCH_GATEWAY_PROVIDERS = deriveProviders(cfg).join(",");
@@ -1628,10 +1716,13 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (!cfg.resume && !cfg.dryRun) {
 		// Snapshot the resolved launch config so a later `--resume <job>` can
 		// rebuild the exact same invocation without re-specifying flags.
-		fs.writeFileSync(path.join(benchDir, "runner-config.json"), JSON.stringify({ ...cfg, jobName }, null, "\t"));
+		// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
+		const persisted = { ...cfg, jobName, env: { ...cfg.env } };
+		for (const key of cfg.hostEnvKeys) delete persisted.env[key];
+		fs.writeFileSync(path.join(benchDir, "runner-config.json"), JSON.stringify(persisted, null, "\t"));
 	}
 
-	const version = readPkgVersion();
+	const version = readPkgVersion(cfg);
 
 	// tarball (local install only)
 	let tarball: string | null = cfg.tarball;
@@ -1639,10 +1730,19 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		if (tarball) {
 			process.stdout.write(dim(`using tarball ${tarball}\n`));
 		} else if (cfg.build) {
-			tarball = buildTarball(path.join(cfg.jobsDir, "_bench"));
+			tarball = buildTarball(path.join(cfg.jobsDir, "_bench"), cfg);
 		} else {
 			tarball = newestTarball(path.join(cfg.jobsDir, "_bench"));
 			if (!tarball) throw new Error("--no-build but no tarball found; pass --tarball or drop --no-build");
+		}
+	}
+
+	if (cfg.agent === "omp" && cfg.sourceIdentity) {
+		const actual = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
+		if (actual !== cfg.sourceIdentity) {
+			throw new Error(
+				`source identity drift for ${cfg.sourceRoot}: expected ${cfg.sourceIdentity}, actual ${actual}`,
+			);
 		}
 	}
 
@@ -1654,8 +1754,12 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 
 	// models.yml (gateway)
 	let modelsYaml = "";
+	if (cfg.agent === "omp" && cfg.modelsYaml) {
+		if (!fs.existsSync(cfg.modelsYaml)) throw new Error(`--models-yaml not found: ${cfg.modelsYaml}`);
+		modelsYaml = cfg.modelsYaml;
+	}
 	if (cfg.agent === "omp" && cfg.gateway) {
-		modelsYaml = writeModelsYaml(benchDir, cfg);
+		if (!modelsYaml) modelsYaml = writeModelsYaml(benchDir, cfg);
 		if (!gatewayHealthOk(cfg.gatewayUrl)) {
 			process.stderr.write(
 				yellow(
@@ -1664,13 +1768,35 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			);
 		}
 	}
-	const composeOverlayPath = cfg.envType === "docker" ? writeComposeOverlay(benchDir, cfg, source) : null;
-	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(source);
+	let agentOverlay: string | null = null;
+	if (cfg.agent === "omp" && cfg.agentDir) {
+		if (!cfg.modelsYaml)
+			throw new Error("--agent-dir requires --models-yaml (the overlay carries the fixed models.yml)");
+		if (!cfg.thinking) throw new Error("--agent-dir requires --thinking (the fixed executor level)");
+		agentOverlay = (
+			await stageAgentOverlay({
+				variantConfigDir: cfg.agentDir,
+				dest: path.join(benchDir, "agent-overlay"),
+				spec: {
+					model: cfg.models[0],
+					thinking: cfg.thinking,
+					webSearch: cfg.webSearch,
+					findTool: cfg.tools?.includes("find") ?? false,
+					settings: cfg.settings,
+				},
+				modelsYaml: cfg.modelsYaml,
+				secretValues: Object.values(cfg.env),
+			})
+		).dir;
+	}
+	const composeOverlayPath =
+		cfg.envType === "docker" ? writeComposeOverlay(benchDir, cfg, source, agentOverlay) : null;
+	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(cfg, source, agentOverlay);
 
 	const harborArgs = cfg.resume
 		? buildResumeArgs(cfg, jobDir)
 		: buildHarborArgs(cfg, jobName, modelsYaml, tarball, composeOverlayPath, mountsJson);
-	const harborEnv = buildHarborEnv(cfg, modelsYaml, tarball, version, source);
+	const harborEnv = buildHarborEnv(cfg, modelsYaml, tarball, version, source, agentOverlay);
 	const logPath = path.join(benchDir, "harbor.log");
 	if (cfg.dryRun) {
 		process.stdout.write(bold("\nharbor command:\n"));

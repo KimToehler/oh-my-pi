@@ -11,6 +11,14 @@ import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { readBenchmarkSnapshot } from "./benchmarks";
+import { EvoStore } from "./evo/evo-store";
+import type { TranscriptMetrics } from "./evo/transcript";
+import {
+	rowToTranscript,
+	TRANSCRIPT_COLUMN_NAMES,
+	TRANSCRIPT_COLUMNS,
+	transcriptParams,
+} from "./evo/transcript-columns";
 import { readJobResult } from "./runner";
 
 export type RunStatus = "running" | "complete" | "failed" | "cancelled";
@@ -56,6 +64,10 @@ export interface RunRow {
 	score: number | null;
 	/** Values keyed by the adapter's metric definitions. */
 	metrics: Record<string, number | null>;
+	/** Evo variant evaluated by this run; null for ordinary runs. */
+	variantId: string | null;
+	/** Evo suite this run evaluated; null for ordinary runs. */
+	suiteId: string | null;
 }
 
 export interface TraceRow {
@@ -70,6 +82,8 @@ export interface TraceRow {
 	updatedAt: number;
 	/** Adapter-owned locator used by the uniform trace endpoint. */
 	tracePath: string | null;
+	/** Transcript-derived metrics; null while running or for adapters without omp transcripts. */
+	transcript: TranscriptMetrics | null;
 }
 
 /** Row in the `experiments` table: goal metadata keyed by experiment id. */
@@ -90,6 +104,8 @@ export interface LaunchRecord {
 	role?: RunRole;
 	note?: string;
 	config?: Record<string, unknown>;
+	variantId?: string;
+	suiteId?: string;
 }
 
 const SCHEMA = `
@@ -120,7 +136,9 @@ CREATE TABLE IF NOT EXISTS runs (
 	tok_out INTEGER NOT NULL DEFAULT 0,
 	score REAL,
 	metrics_json TEXT NOT NULL DEFAULT '{}',
-	tok_cache INTEGER NOT NULL DEFAULT 0
+	tok_cache INTEGER NOT NULL DEFAULT 0,
+	variant_id TEXT,
+	suite_id TEXT
 );
 CREATE TABLE IF NOT EXISTS trials (
 	job_name TEXT NOT NULL,
@@ -144,7 +162,7 @@ CREATE TABLE IF NOT EXISTS experiments (
 `;
 
 /** Directory names inside the jobs root that are not Harbor job dirs. */
-const NON_JOB_DIRS = new Set(["_bench", "_manager"]);
+const NON_JOB_DIRS = new Set(["_bench", "_manager", "_evo"]);
 
 /** True when a bun:sqlite error is a transient busy/recovery lock. */
 function isBusyLock(err: unknown): boolean {
@@ -190,6 +208,8 @@ const LIVE_HEARTBEAT_MS = 10_000;
 export class RunStore {
 	#db: Database;
 	readonly jobsDir: string;
+	/** Evo variant registry tables living in the same database. */
+	readonly evo: EvoStore;
 
 	constructor(jobsDir: string, dbPath?: string) {
 		this.jobsDir = jobsDir;
@@ -210,6 +230,8 @@ export class RunStore {
 		if (!runColumns.has("config_json")) {
 			this.#db.run("ALTER TABLE runs ADD COLUMN config_json TEXT NOT NULL DEFAULT '{}'");
 		}
+		if (!runColumns.has("variant_id")) this.#db.run("ALTER TABLE runs ADD COLUMN variant_id TEXT");
+		if (!runColumns.has("suite_id")) this.#db.run("ALTER TABLE runs ADD COLUMN suite_id TEXT");
 		if (!runColumns.has("score")) this.#db.run("ALTER TABLE runs ADD COLUMN score REAL");
 		if (!runColumns.has("metrics_json")) {
 			this.#db.run("ALTER TABLE runs ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}'");
@@ -224,6 +246,10 @@ export class RunStore {
 			(this.#db.query("PRAGMA table_info(trials)").all() as Array<{ name: string }>).map(c => c.name),
 		);
 		if (!traceColumns.has("trace_path")) this.#db.run("ALTER TABLE trials ADD COLUMN trace_path TEXT");
+		for (const [name, sqlType] of TRANSCRIPT_COLUMNS) {
+			if (!traceColumns.has(name)) this.#db.run(`ALTER TABLE trials ADD COLUMN ${name} ${sqlType}`);
+		}
+		this.evo = new EvoStore(this.#db);
 	}
 
 	close(): void {
@@ -236,11 +262,12 @@ export class RunStore {
 		this.#db
 			.query(
 				`INSERT INTO runs
-				 (job_name, benchmark, dataset, agent, models, prewalk, role, note, config_json, status, pid, created_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
+				 (job_name, benchmark, dataset, agent, models, prewalk, role, note, config_json, variant_id, suite_id, status, pid, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
 				 ON CONFLICT(job_name) DO UPDATE SET
 					benchmark = excluded.benchmark, pid = excluded.pid, status = 'running',
 					config_json = excluded.config_json,
+					variant_id = excluded.variant_id, suite_id = excluded.suite_id,
 					role = CASE WHEN excluded.role != '' THEN excluded.role ELSE runs.role END,
 					note = CASE WHEN excluded.note != '' THEN excluded.note ELSE runs.note END`,
 			)
@@ -254,6 +281,8 @@ export class RunStore {
 				launch.role ?? "",
 				launch.note ?? "",
 				JSON.stringify(launch.config ?? {}),
+				launch.variantId ?? null,
+				launch.suiteId ?? null,
 				launch.pid,
 				Date.now(),
 			);
@@ -365,14 +394,17 @@ export class RunStore {
 		if (!row) return null;
 		const snapshot = readBenchmarkSnapshot(row.benchmark, jobDir);
 		const now = Date.now();
+		const transcriptColumns = TRANSCRIPT_COLUMN_NAMES.join(", ");
 		const upsert = this.#db.query(
 			`INSERT INTO trials
-			 (job_name, name, task, status, reward, cost_usd, duration_ms, detail, trace_path, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 (job_name, name, task, status, reward, cost_usd, duration_ms, detail, trace_path, ${transcriptColumns}, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${TRANSCRIPT_COLUMN_NAMES.map(() => "?").join(", ")}, ?)
 			 ON CONFLICT(job_name, name) DO UPDATE SET
 				status = excluded.status, reward = excluded.reward, cost_usd = excluded.cost_usd,
 				duration_ms = excluded.duration_ms, detail = excluded.detail,
-				trace_path = excluded.trace_path, updated_at = excluded.updated_at`,
+				trace_path = excluded.trace_path,
+				${TRANSCRIPT_COLUMN_NAMES.map(name => `${name} = excluded.${name}`).join(", ")},
+				updated_at = excluded.updated_at`,
 		);
 		const tx = this.#db.transaction(() => {
 			// Diff before writing: the 2s manager tick re-syncs every running
@@ -384,20 +416,18 @@ export class RunStore {
 			// heartbeat) so the dashboard stays live without per-tick writes.
 			const current = new Map(
 				(
-					this.#db
-						.query(
-							"SELECT name, status, reward, cost_usd, duration_ms, detail, trace_path, updated_at FROM trials WHERE job_name = ?",
-						)
-						.all(jobName) as Array<{
-						name: string;
-						status: string;
-						reward: number | null;
-						cost_usd: number | null;
-						duration_ms: number | null;
-						detail: string | null;
-						trace_path: string | null;
-						updated_at: number | null;
-					}>
+					this.#db.query("SELECT * FROM trials WHERE job_name = ?").all(jobName) as Array<
+						Record<string, unknown> & {
+							name: string;
+							status: string;
+							reward: number | null;
+							cost_usd: number | null;
+							duration_ms: number | null;
+							detail: string | null;
+							trace_path: string | null;
+							updated_at: number | null;
+						}
+					>
 				).map(row => [row.name, row]),
 			);
 			const seen = new Set<string>();
@@ -420,6 +450,7 @@ export class RunStore {
 					(prev.reward ?? null) === (trace.reward ?? null) &&
 					(prev.detail ?? null) === (trace.detail ?? null) &&
 					(prev.trace_path ?? null) === (trace.tracePath ?? null) &&
+					JSON.stringify(rowToTranscript(prev)) === JSON.stringify(trace.transcript ?? null) &&
 					!costMoved &&
 					!durationMoved &&
 					!heartbeatDue;
@@ -434,6 +465,7 @@ export class RunStore {
 					trace.durationMs,
 					trace.detail,
 					trace.tracePath,
+					...transcriptParams(trace.transcript),
 					now,
 				);
 			}
@@ -536,6 +568,18 @@ export class RunStore {
 		return r ? rowToRun(r) : null;
 	}
 
+	/** Runs evaluating `variantId`, newest first; optionally narrowed to one suite. */
+	listRunsForVariant(variantId: string, suiteId?: string): RunRow[] {
+		const rows = (
+			suiteId === undefined
+				? this.#db.query("SELECT * FROM runs WHERE variant_id = ? ORDER BY created_at DESC").all(variantId)
+				: this.#db
+						.query("SELECT * FROM runs WHERE variant_id = ? AND suite_id = ? ORDER BY created_at DESC")
+						.all(variantId, suiteId)
+		) as Array<Record<string, unknown>>;
+		return rows.map(rowToRun);
+	}
+
 	listRuns(): RunRow[] {
 		const rows = this.#db.query("SELECT * FROM runs ORDER BY created_at DESC").all() as Array<
 			Record<string, unknown>
@@ -558,6 +602,7 @@ export class RunStore {
 			detail: String(r.detail),
 			updatedAt: Number(r.updated_at),
 			tracePath: r.trace_path === null ? null : String(r.trace_path),
+			transcript: rowToTranscript(r),
 		}));
 	}
 }
@@ -591,6 +636,8 @@ function rowToRun(r: Record<string, unknown>): RunRow {
 		tokCache: Number(r.tok_cache),
 		score: r.score === null ? null : Number(r.score),
 		metrics: JSON.parse(String(r.metrics_json ?? "{}")),
+		variantId: r.variant_id === null || r.variant_id === undefined ? null : String(r.variant_id),
+		suiteId: r.suite_id === null || r.suite_id === undefined ? null : String(r.suite_id),
 	};
 }
 

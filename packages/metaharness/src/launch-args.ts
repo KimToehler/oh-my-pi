@@ -40,8 +40,50 @@ export interface LaunchRequest {
 	goal?: string;
 	/** Use prebuilt dist/omp-linux-* binaries instead of the default source mount. */
 	prebuiltBinaries?: boolean;
+	/** Fixed executor thinking level (`--thinking`). */
+	thinking?: string;
+	/** Evo variant under evaluation; recorded on the run row. */
+	variantId?: string;
+	/** Evo suite this run evaluates; recorded on the run row. */
+	suiteId?: string;
+	/** Variant agent dir staged as a read-only overlay (`--agent-dir`). */
+	agentDir?: string;
+	/** Source worktree mounted instead of this repo (`--source-root`). */
+	sourceRoot?: string;
+	/** Expected `<HEAD>[+<dirty hash>]` of the source root (`--source-identity`). */
+	sourceIdentity?: string;
+	/** Fixed container-safe models.yml (`--models-yaml`). */
+	modelsYaml?: string;
+	/** Pass provider keys into containers instead of the auth gateway (`--no-gateway`). */
+	noGateway?: boolean;
+	/** Host env var NAMES forwarded into the container (`--env NAME`); values never recorded. */
+	envNames?: string[];
+	/** Evo-only: hash of the merged config.yml staged for this run. */
+	stagedConfigHash?: string;
+	/** Evo-only: hash of the fixed executor routing fields. */
+	executorConfigHash?: string;
+	/** Evo-only: content hash of the suite manifest. */
+	suiteHash?: string;
 	/** Extra raw runner args, appended verbatim. */
 	extraArgs?: string[];
+}
+
+/** True when a dataset names a local Harbor task/dataset directory rather than a registry entry. */
+export function isLocalDataset(dataset: string): boolean {
+	return path.isAbsolute(dataset) || dataset.startsWith("./") || dataset.startsWith("../");
+}
+
+/** Resolve a local dataset path and require it to be an existing directory; throws a stable error. */
+export function resolveLocalDataset(dataset: string): string {
+	const resolved = path.resolve(dataset);
+	let isDir = false;
+	try {
+		isDir = fs.statSync(resolved).isDirectory();
+	} catch {
+		/* reported below */
+	}
+	if (!isDir) throw new Error(`local dataset path is not an existing directory: ${resolved}`);
+	return resolved;
 }
 
 /** Default `<model-slug>-<UTC stamp>` job name used when a launch does not name its job. */
@@ -55,7 +97,10 @@ export function harborRunnerArgs(
 	request: LaunchRequest,
 	opts: { jobsDir: string; jobName: string; dataset: string },
 ): string[] {
-	const argv = ["--model", request.model, "-d", opts.dataset, "--job-name", opts.jobName, "--jobs-dir", opts.jobsDir];
+	const datasetArgs = isLocalDataset(opts.dataset)
+		? ["--path", resolveLocalDataset(opts.dataset)]
+		: ["-d", opts.dataset];
+	const argv = ["--model", request.model, ...datasetArgs, "--job-name", opts.jobName, "--jobs-dir", opts.jobsDir];
 	// Prefer Apple Container when its CLI is present: native arm64 task
 	// containers with no Docker daemon. The runner itself defaults to
 	// docker, so the preference must be stated here.
@@ -70,6 +115,13 @@ export function harborRunnerArgs(
 	if (request.attempts !== undefined) argv.push("--attempts", String(request.attempts));
 	if (request.timeoutMultiplier !== undefined) argv.push("--timeout-multiplier", String(request.timeoutMultiplier));
 	if (request.webSearch) argv.push("--web-search");
+	if (request.thinking) argv.push("--thinking", request.thinking);
+	if (request.agentDir) argv.push("--agent-dir", request.agentDir);
+	if (request.sourceRoot) argv.push("--source-root", request.sourceRoot);
+	if (request.sourceIdentity) argv.push("--source-identity", request.sourceIdentity);
+	if (request.modelsYaml) argv.push("--models-yaml", request.modelsYaml);
+	if (request.noGateway) argv.push("--no-gateway");
+	for (const name of request.envNames ?? []) argv.push("--env", name);
 	for (const task of request.include ?? []) argv.push("--include", task);
 	if (request.prewalk) {
 		argv.push("--agent-arg", "--prewalk");

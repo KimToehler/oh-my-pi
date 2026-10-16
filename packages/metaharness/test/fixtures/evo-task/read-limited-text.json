@@ -1,0 +1,10 @@
+{
+	"repo": ".",
+	"base": "63b339b814^",
+	"fix": "63b339b814",
+	"name": "read-limited-text",
+	"instruction": "Capped response-body reading currently lives inside the web search provider utilities. Move it into a dedicated `packages/coding-agent/src/web/response-body.ts` module, keep BOM stripping, update importers, and make charset decoding of capped bodies work as covered by `packages/coding-agent/test/web/search/read-limited-text.test.ts`.",
+	"testCommand": "bun test packages/coding-agent/test/web/search/read-limited-text.test.ts",
+	"testGlobs": ["packages/coding-agent/test/web/search/read-limited-text.test.ts"],
+	"baseImage": "oven/bun:1"
+}

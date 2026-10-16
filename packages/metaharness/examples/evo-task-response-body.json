@@ -1,0 +1,12 @@
+{
+  "sourceRepo":"https://github.com/can1357/oh-my-pi.git",
+  "repo":".",
+  "base":"ce3339d31b0e2c9c9b6eaad72f08fee1cc615a93",
+  "fix":"63b339b81488830d350a944b90f595f7799cb1cf",
+  "name":"response-body-charset",
+  "instruction":"Decode HTTP response bodies using their declared charset and strip a UTF-8 byte-order mark before consumers parse JSON.",
+  "testCommand":"bun install --frozen-lockfile && bun test packages/coding-agent/test/web/search/read-limited-text.test.ts",
+  "testGlobs":["packages/coding-agent/test/web/search/read-limited-text.test.ts"],
+  "baseImage":"oven/bun:1.4.2",
+  "expectedCalibration":{"before":0,"after":1}
+}
