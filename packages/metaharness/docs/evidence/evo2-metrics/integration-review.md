@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `54b98577c4f865f70917a802c3d02828ca379f72`
+- Head: `c29ccd00739cb2f3e57e9814fbc0a8155a1aa859`
 - Result: **PASS**
 
 ## Review history
@@ -13,9 +13,12 @@ Whole-diff review over `935046d15b..ab48053920` raised R1 and R2; successive fre
 - R9: `oven/bun` image tag from a `packageManager` range (`bun@>=1.4` produced `docker: invalid reference format`), found by a real Docker run.
 - R11: the comparison identity did not bind the fixed `models.yml` content, so editing that mutable host file between a parent and a child evaluation produced an accepted, confounded delta. Found by the merge-gate implementation audit. `buildEvalLaunch` now snapshots the validated text to `<jobsDir>/_evo/models/<sha256>.yml` and records `modelsYamlHash`, which `ConditionIdentity` requires.
 - R12: that snapshot was published with `existsSync` plus an in-place write, so concurrent evaluations could expose a partial file. It is now written to a UUID temp file and renamed into place.
+- R13: `models.yml` validated only keys named `apiKey`, so a literal `headers.Authorization` or a `baseUrl` carrying URL userinfo was accepted, persisted to the content-addressed snapshot and the staged overlay, and printed verbatim by `--dry-run`. Found by the merge-gate implementation audit. Header values must now name an environment variable, URL userinfo is rejected, and the dry run prints the models path plus its sha256.
+- R14: a source variant mounts a live worktree and the identity was verified only before spawn, so bytes changing mid-run left the run recorded under its original identity and still comparable. The runner now records `postRunSourceIdentity` and the comparison refuses a drifted run with 409.
+- R15: that post-run identity was overwritten on every run, so restoring the source before `--resume` cleared a recorded drift while the job kept the drifted run's trials. A recorded drift is now sticky.
 
 Scope decision (user): the credential invariant covers accidental persistence; deliberate re-encoding by a key holder is out of scope.
 
 ## Final verdict
 
-Fresh reviewer over `5c5bc046d1..54b98577c4` (full branch delta `935046d15b...54b98577c4`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `5e993228cd..c29ccd0073` (full branch delta `935046d15b...c29ccd0073`): `VERDICT: PASS`, no blockers.
