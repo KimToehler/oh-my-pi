@@ -253,6 +253,34 @@ describe("variant registry", () => {
 		expect(store.evo.listVariants().map(v => v.id)).toEqual([rootResult.variant.id, child.variant.id]);
 	});
 
+	it("treats a permission-only change as a new variant", async () => {
+		const { store, registry } = await setup();
+		const files = { "AGENTS.md": "base\n", "skills/run.sh": "#!/bin/sh\necho hi\n" };
+		const exec = agentDir(files);
+		fs.chmodSync(path.join(exec, "skills/run.sh"), 0o755);
+		const plain = agentDir(files);
+		fs.chmodSync(path.join(plain, "skills/run.sh"), 0o644);
+		const same = agentDir(files);
+		fs.chmodSync(path.join(same, "skills/run.sh"), 0o755);
+
+		const rootResult = await registry.register(root(exec));
+		const child = await registry.register(
+			parseVariantRequest({ mutation: "autonomous", parentId: rootResult.variant.id, configDir: plain }),
+		);
+		expect(child.proposal.outcome).toBe("applied");
+		expect(child.created).toBe(true);
+		expect(child.variant.id).not.toBe(rootResult.variant.id);
+		expect(child.variant.changedFiles).toEqual(["skills/run.sh"]);
+		expect(fs.readFileSync(child.variant.diffPath, "utf8")).toContain("skills/run.sh");
+
+		const noop = await registry.register(
+			parseVariantRequest({ mutation: "autonomous", parentId: rootResult.variant.id, configDir: same }),
+		);
+		expect(noop.proposal.outcome).toBe("noop");
+		expect(noop.variant.id).toBe(rootResult.variant.id);
+		expect(store.evo.listVariants().map(v => v.id)).toEqual([rootResult.variant.id, child.variant.id]);
+	});
+
 	it("records apply failures without creating a variant", async () => {
 		const { store, registry } = await setup();
 		const rootResult = await registry.register(root(agentDir({ "AGENTS.md": "a" })));

@@ -159,11 +159,11 @@ export async function collectConfig(srcDir: string, limits: ConfigLimits = DEFAU
 	return ctx.out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
-/** SHA-256 over sorted relative paths and bytes. */
+/** SHA-256 over sorted relative paths, executable bit, and bytes. */
 export function hashConfig(files: readonly ConfigFile[]): string {
 	const hasher = new Bun.CryptoHasher("sha256");
 	for (const file of files) {
-		hasher.update(`${file.rel}\0${file.bytes.length}\0`);
+		hasher.update(`${file.rel}\0${file.executable ? "x" : "-"}\0${file.bytes.length}\0`);
 		hasher.update(file.bytes);
 		hasher.update("\0");
 	}
@@ -195,8 +195,14 @@ export function diffConfigs(parent: readonly ConfigFile[], child: readonly Confi
 	for (const rel of [...new Set([...before.keys(), ...after.keys()])].sort()) {
 		const old = before.get(rel);
 		const next = after.get(rel);
-		if (old && next && Buffer.compare(old.bytes, next.bytes) === 0) continue;
+		if (old && next && old.executable === next.executable && Buffer.compare(old.bytes, next.bytes) === 0) continue;
 		changed.push(rel);
+		if (old && next && Buffer.compare(old.bytes, next.bytes) === 0) {
+			patches.push(
+				`diff --mode a/${rel} b/${rel}\nold mode ${old.executable ? "755" : "644"}\nnew mode ${next.executable ? "755" : "644"}\n`,
+			);
+			continue;
+		}
 		patches.push(
 			createTwoFilesPatch(
 				old ? `a/${rel}` : "/dev/null",

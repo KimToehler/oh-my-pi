@@ -283,6 +283,9 @@ describe("comparison", () => {
 		expect(c.se).toBeCloseTo(Math.sqrt(0.9166666667 / 4), 9);
 		expect(c.creditedDelta).toBeCloseTo(0.25, 12);
 		expect(c.complete).toBe(true);
+		expect(typeof c.costUsdDelta).toBe("number");
+		expect(typeof c.callsDelta).toBe("number");
+		expect(typeof c.outputTokensDelta).toBe("number");
 	});
 
 	it("clamps positive credited delta to 0 unless every expected signal appears; raw stays visible", () => {
@@ -323,6 +326,7 @@ describe("comparison", () => {
 		expect(c.creditedDelta).toBeNull();
 		expect([c.sd, c.se, c.ci95]).toEqual([null, null, null]);
 		expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
+		expect([c.callsDelta, c.outputTokensDelta, c.costUsdDelta]).toEqual([null, null, null]);
 	});
 
 	it("reports tasks missing on either side instead of a comparable delta", () => {

@@ -68,7 +68,7 @@ export interface ComparisonReport extends Interval {
 	deltas: TaskDelta[];
 	callsDelta: number | null;
 	outputTokensDelta: number | null;
-	costUsdDelta: number;
+	costUsdDelta: number | null;
 }
 
 function diff(a: number | null, b: number | null): number | null {
@@ -119,8 +119,8 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		missingSignals,
 		signalsSatisfied,
 		deltas,
-		callsDelta: diff(child.meanLlmCalls, baseline.meanLlmCalls),
-		outputTokensDelta: diff(child.meanOutputTokens, baseline.meanOutputTokens),
-		costUsdDelta: child.meanCostUsd - baseline.meanCostUsd,
+		callsDelta: complete ? diff(child.meanLlmCalls, baseline.meanLlmCalls) : null,
+		outputTokensDelta: complete ? diff(child.meanOutputTokens, baseline.meanOutputTokens) : null,
+		costUsdDelta: complete ? child.meanCostUsd - baseline.meanCostUsd : null,
 	};
 }
