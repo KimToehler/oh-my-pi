@@ -114,6 +114,16 @@ export function assertNoHostCredentialValues(text: string, values: readonly stri
 		}
 	};
 	walk(parsed, "");
+	// Callers copy the ORIGINAL text, so comments, directives and any other non-structural text must be scanned too.
+	// Short values only match a whole node, so also test each line and each whitespace-delimited token.
+	for (const line of text.split(/\r?\n/)) {
+		const nodes = [line, line.trim(), ...line.split(/\s+/).map(token => token.replace(/^["']+|["',]+$/g, ""))];
+		if (secrets.some(secret => nodes.some(node => node.length > 0 && containsHostValue(node, secret)))) {
+			throw fail(
+				"embeds a host credential value outside the parsed structure (comment or other raw text); remove it",
+			);
+		}
+	}
 }
 
 /** Parse models.yml text and return the sorted env var names its apiKeys reference. */

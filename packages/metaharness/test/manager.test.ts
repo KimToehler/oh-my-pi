@@ -549,3 +549,125 @@ describe("resolveArmLaunch", () => {
 		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" })).toThrow(/no runs to inherit/);
 	});
 });
+
+describe("EvoService evaluate job-name claim", () => {
+	const SUITE = {
+		id: "race-1",
+		split: "search",
+		benchmark: "harbor",
+		dataset: "terminal-bench@2.0",
+		include: ["t1"],
+		attempts: 1,
+		timeoutMultiplier: 1,
+		model: "onara/cc/claude-sonnet-5-5",
+		thinking: "medium",
+		environment: "docker",
+	};
+
+	function git(cwd: string, ...args: string[]): void {
+		const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd });
+		if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+	}
+
+	async function setup() {
+		const jobsDir = makeJobsDir();
+		const source = makeJobsDir();
+		git(source, "init", "-q", "-b", "main");
+		fs.writeFileSync(path.join(source, "a.txt"), "1");
+		git(source, "add", "-A");
+		git(source, "commit", "-q", "-m", "init");
+		const configDir = makeJobsDir();
+		fs.writeFileSync(path.join(configDir, "AGENTS.md"), "root");
+		fs.writeFileSync(path.join(jobsDir, "models.yml"), "providers:\n  onara:\n    baseUrl: http://x\n");
+		const defaults = { modelsYaml: path.join(jobsDir, "models.yml"), forwardEnv: [] };
+		const manager = new ManagerServer(jobsDir, undefined, { sourceRoot: source, defaults });
+		const server = manager.start(0);
+		cleanups.push(() => void manager.stop());
+		const base = `http://localhost:${server.port}`;
+		const post = (url: string, body: unknown) =>
+			fetch(`${base}${url}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			});
+		expect((await post("/api/evo/suites", SUITE)).status).toBe(201);
+		const root = (await (await post("/api/evo/variants", { mutation: "root", configDir })).json()) as {
+			variant: { id: string };
+		};
+		return { jobsDir, source, defaults, manager, store: manager.store, variantId: root.variant.id };
+	}
+
+	it("lets exactly one of two concurrent same-name evaluations launch, and keeps its trial rows", async () => {
+		const { jobsDir, source, defaults, store, variantId } = await setup();
+		const launches: string[] = [];
+		// Stub at the process boundary: register the run like ManagerServer.launch does, with one synced trial.
+		const launch = (request: { jobName?: string }) => {
+			const jobName = request.jobName!;
+			launches.push(jobName);
+			store.registerLaunch({
+				benchmark: "harbor",
+				jobName,
+				dataset: SUITE.dataset,
+				agent: "omp",
+				models: [SUITE.model],
+				pid: 999999999,
+				variantId,
+				suiteId: SUITE.id,
+			});
+			const trial = path.join(jobsDir, jobName, "t1__abc");
+			fs.mkdirSync(path.join(trial, "agent"), { recursive: true });
+			fs.writeFileSync(
+				path.join(trial, "result.json"),
+				JSON.stringify({
+					started_at: "2026-07-12T10:00:00",
+					finished_at: "2026-07-12T10:01:00",
+					verifier_result: { rewards: { reward: 1 } },
+					agent_result: { cost_usd: 0.1 },
+				}),
+			);
+			store.syncRun(jobName);
+			return { jobName, pid: 999999999 };
+		};
+		const { EvoService } = await import("../src/evo/service");
+		const service = new EvoService({ store, jobsDir, sourceRoot: source, defaults, launch });
+		const url = new URL(`http://x/api/evo/variants/${variantId}/evaluate`);
+		const req = () =>
+			new Request(url, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-race" }),
+			});
+		const results = await Promise.allSettled([service.handle(req(), url), service.handle(req(), url)]);
+		const statuses = results.map(r => (r.status === "fulfilled" ? r.value?.status : "rejected")).sort();
+		expect(statuses).toEqual([201, 409]);
+		expect(launches).toEqual(["evo-race"]);
+		expect(store.listTraces("evo-race").map(t => t.name)).toEqual(["t1__abc"]);
+	});
+
+	it("releases the claim when launch setup fails so the name is reusable", async () => {
+		const { jobsDir, source, defaults, store, variantId } = await setup();
+		const { EvoService } = await import("../src/evo/service");
+		let fail = true;
+		const service = new EvoService({
+			store,
+			jobsDir,
+			sourceRoot: source,
+			defaults,
+			launch: request => {
+				if (fail) throw new Error("spawn failed");
+				return { jobName: request.jobName!, pid: 1 };
+			},
+		});
+		const url = new URL(`http://x/api/evo/variants/${variantId}/evaluate`);
+		const req = () =>
+			new Request(url, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-retry" }),
+			});
+		await expect(service.handle(req(), url)).rejects.toThrow("spawn failed");
+		expect(store.getRun("evo-retry")).toBeNull();
+		fail = false;
+		expect((await service.handle(req(), url))?.status).toBe(201);
+	});
+});

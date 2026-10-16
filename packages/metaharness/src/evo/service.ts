@@ -147,18 +147,32 @@ export class EvoService {
 		if (!/^[A-Za-z0-9][A-Za-z0-9_.]*(-[A-Za-z0-9_.]+)*$/.test(jobName)) {
 			throw badRequest("evaluate.jobName must be a single path-safe token of [A-Za-z0-9_.-]");
 		}
-		if (this.#store.getRun(jobName)) {
+		// Claim before the first await: check and reservation are one SQLite statement, so a concurrent
+		// request with the same name cannot slip through the buildEvalLaunch gap and reach registerLaunch.
+		if (
+			!this.#store.claimJobName({
+				jobName,
+				dataset: suite.manifest.dataset,
+				variantId: variant.id,
+				suiteId: suite.manifest.id,
+			})
+		) {
 			throw new EvoHttpError(409, `job '${jobName}' already exists; evaluate always starts a new run`);
 		}
-		const request = await buildEvalLaunch({
-			jobsDir: this.#jobsDir,
-			variant,
-			suite,
-			jobName,
-			concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
-			defaults: this.#defaults,
-		});
-		return this.#launch(request);
+		try {
+			const request = await buildEvalLaunch({
+				jobsDir: this.#jobsDir,
+				variant,
+				suite,
+				jobName,
+				concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
+				defaults: this.#defaults,
+			});
+			return this.#launch(request);
+		} catch (err) {
+			this.#store.releaseClaim(jobName);
+			throw err;
+		}
 	}
 
 	/** Condition identity recorded when the run was launched; unrecorded fields make a delta meaningless. */

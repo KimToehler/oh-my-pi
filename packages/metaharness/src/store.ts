@@ -256,6 +256,27 @@ export class RunStore {
 		this.#db.close();
 	}
 
+	/**
+	 * Atomically reserve a job name with a pid-less placeholder row. The conditional insert is the
+	 * uniqueness decision and the write in one statement, so concurrent callers cannot both win.
+	 * `registerLaunch` later upserts the same row; `releaseClaim` drops it if launch setup fails.
+	 */
+	claimJobName(claim: { jobName: string; dataset: string; variantId: string; suiteId: string }): boolean {
+		const result = this.#db
+			.query(
+				`INSERT INTO runs (job_name, dataset, variant_id, suite_id, status, pid, created_at)
+				 VALUES (?, ?, ?, ?, 'running', NULL, ?)
+				 ON CONFLICT(job_name) DO NOTHING`,
+			)
+			.run(claim.jobName, claim.dataset, claim.variantId, claim.suiteId, Date.now());
+		return result.changes === 1;
+	}
+
+	/** Drop a claim whose runner never took ownership (pid still unset); a launched run is left alone. */
+	releaseClaim(jobName: string): void {
+		this.#db.query("DELETE FROM runs WHERE job_name = ? AND pid IS NULL AND status = 'running'").run(jobName);
+	}
+
 	/** Register a run this manager just launched (pid-owning). */
 	registerLaunch(launch: LaunchRecord): void {
 		this.#db.query("DELETE FROM trials WHERE job_name = ?").run(launch.jobName);
