@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `c59883fdbd06983dc683f4a27f45427265e7fe77`
+- Head: `b74a187f838ff0434efa623fb366abdca7190a04`
 - Result: **PASS**
 
 ## Review history
@@ -45,7 +45,11 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R40: the plan's 250-line ceiling for `src/evo/` had drifted unnoticed to 286 and 262, because nothing checked it. Both modules were split behind unchanged import paths.
 - R41: the hand-rolled counter added with that split could be satisfied by reformatting rather than by removing code, so it was hardened into a character scanner.
 - R42: two further bypasses showed that hardening a JS lexer by hand has no clear end, so the counter was deleted and the ceiling moved to a scoped `eslint/max-lines` override in `.oxlintrc.json`, which rides the `oxlint .` already starting `check` and `lint`.
+- R43: no credential scanner was reachable from variant registration, so a whitelisted config file whose body carried the host key registered 201 and persisted it; the forwarded-env union was also computed but not scanned.
+- R44: the new scanner read file bytes but not file names, and never re-read the generated diff, so a credential-named file and a pre-R43 parent secret both still persisted.
+- R45: short credential values matched only whole strings or `KEY=VALUE`, so a three-character forwarded value persisted in a filename and a body line.
+- R46: the token-boundary rule enumerated separators and was wrong twice, so the definition was inverted to word-character continuation, which closes the class rather than the reported characters.
 
 ## Final verdict
 
-Fresh reviewer over `933b2d240b..c59883fdbd` (full branch delta `935046d15b...c59883fdbd`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `8e71b3dafc..b74a187f83` (full branch delta `935046d15b...b74a187f83`): `VERDICT: PASS`, no blockers.
