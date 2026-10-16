@@ -1,8 +1,7 @@
 /** `/api/evo/*` request handling: variants, suites, evaluation, fitness, compare, reflection bundle. */
-import * as fs from "node:fs";
 import * as path from "node:path";
 import type { LaunchRequest } from "../launch-args";
-import type { RunRow, RunStore } from "../store";
+import type { RunStore } from "../store";
 import {
 	badRequest,
 	EvoHttpError,
@@ -13,13 +12,11 @@ import {
 	rejectUnknownKeys,
 	requiredString,
 } from "./boundary";
-import { assertMatched, type ComparisonReport, compareFitness, type ConditionIdentity } from "./compare";
-import { computeFitness, type FitnessReport } from "./fitness";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "./launch";
-import { buildReflectionBundle } from "./reflection";
-import { type StoredSuite, SuiteRegistry } from "./suites";
-import { parseVariantRequest, VariantRegistry } from "./variants";
+import { EvoReports } from "./service-reports";
+import { SuiteRegistry } from "./suites";
 import type { VariantRow } from "./variant-types";
+import { parseVariantRequest, VariantRegistry } from "./variants";
 
 export interface EvoServiceOptions {
 	store: RunStore;
@@ -31,16 +28,6 @@ export interface EvoServiceOptions {
 	launch(request: LaunchRequest): { jobName: string; pid: number };
 }
 
-interface Evaluated {
-	run: RunRow;
-	report: FitnessReport;
-	identity: ConditionIdentity;
-}
-
-function str(value: unknown): string | null {
-	return typeof value === "string" && value !== "" ? value : null;
-}
-
 export class EvoService {
 	readonly #store: RunStore;
 	readonly #jobsDir: string;
@@ -48,6 +35,7 @@ export class EvoService {
 	readonly #defaults: EvoLaunchDefaults;
 	readonly #variants: VariantRegistry;
 	readonly #suites: SuiteRegistry;
+	readonly #reports: EvoReports;
 
 	constructor(opts: EvoServiceOptions) {
 		this.#store = opts.store;
@@ -56,6 +44,7 @@ export class EvoService {
 		this.#defaults = opts.defaults;
 		this.#variants = new VariantRegistry(opts.store.evo, opts.jobsDir, opts.sourceRoot);
 		this.#suites = new SuiteRegistry(opts.jobsDir);
+		this.#reports = new EvoReports(opts.store, opts.jobsDir, this.#suites);
 	}
 
 	/** Answer an `/api/evo/*` request, or null when the path is not an evo route. */
@@ -116,23 +105,15 @@ export class EvoService {
 				return Response.json(await this.#evaluate(variant, await readJsonBody(request)), { status: 201 });
 			case "fitness":
 				if (method !== "GET") break;
-				return Response.json((await this.#evaluated(variant, await this.#suite(url))).report);
+				return Response.json(await this.#reports.fitness(variant, url));
 			case "compare":
 				if (method !== "GET") break;
-				return Response.json(await this.#compare(variant, url));
+				return Response.json(await this.#reports.compare(variant, url));
 			case "reflection-bundle":
 				if (method !== "GET") break;
-				return Response.json(await this.#bundle(variant, url));
+				return Response.json(await this.#reports.bundle(variant, url));
 		}
 		return Response.json({ error: "method not allowed" }, { status: 405 });
-	}
-
-	async #suite(url: URL): Promise<StoredSuite> {
-		const id = url.searchParams.get("suite");
-		if (!id) throw badRequest("query parameter 'suite' is required");
-		const suite = await this.#suites.get(id);
-		if (!suite) throw new EvoHttpError(404, `suite '${id}' not found`);
-		return suite;
 	}
 
 	async #evaluate(variant: VariantRow, raw: unknown): Promise<{ jobName: string; pid: number }> {
@@ -163,123 +144,6 @@ export class EvoService {
 		// so no same-process request can interleave between this check and the run row.
 		if (this.#store.getRun(jobName)) throw duplicate();
 		return this.#launch(request);
-	}
-
-	/** Condition identity recorded when the run was launched; unrecorded fields make a delta meaningless. */
-	#identity(run: RunRow, variant: VariantRow): ConditionIdentity {
-		const cfg = run.config;
-		const suiteHash = str(cfg.suiteHash);
-		const executorConfigHash = str(cfg.executorConfigHash);
-		const modelsYamlHash = str(cfg.modelsYamlHash);
-		const model = str(cfg.model);
-		if (!run.suiteId || !suiteHash || !executorConfigHash || !modelsYamlHash || !model) {
-			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
-		}
-		const postRun = str(cfg.postRunSourceIdentity) ?? this.#recordedPostRunIdentity(run.jobName);
-		const launched = str(cfg.sourceIdentity);
-		if (postRun && launched && postRun !== launched) {
-			throw new EvoHttpError(409, `run '${run.jobName}' source changed during the run; it is not comparable`);
-		}
-		return {
-			suiteId: run.suiteId,
-			suiteHash,
-			model,
-			executorConfigHash,
-			modelsYamlHash,
-			sourceRef: variant.sourceRef,
-			sourceDirtyHash: variant.sourceDirtyHash,
-		};
-	}
-
-	/** The runner writes the post-run identity to its own `runner-config.json`, not into the launch request. */
-	#recordedPostRunIdentity(jobName: string): string | null {
-		try {
-			const saved: unknown = JSON.parse(
-				fs.readFileSync(path.join(this.#jobsDir, "_bench", jobName, "runner-config.json"), "utf8"),
-			);
-			return saved && typeof saved === "object"
-				? str((saved as Record<string, unknown>).postRunSourceIdentity)
-				: null;
-		} catch {
-			return null;
-		}
-	}
-
-	async #evaluated(variant: VariantRow, suite: StoredSuite): Promise<Evaluated> {
-		const runs = this.#store.listRunsForVariant(variant.id, suite.manifest.id);
-		const run = runs[0];
-		if (!run) throw new EvoHttpError(404, `variant '${variant.id}' has no run on suite '${suite.manifest.id}'`);
-		const synced = this.#store.syncRun(run.jobName) ?? run;
-		const identity = this.#identity(synced, variant);
-		if (identity.suiteHash !== suite.hash) {
-			throw new EvoHttpError(
-				409,
-				`run '${run.jobName}' evaluated a different version of suite '${suite.manifest.id}'`,
-				{
-					mismatches: [{ field: "suiteHash", child: identity.suiteHash, baseline: suite.hash }],
-				},
-			);
-		}
-		const report = computeFitness({
-			variantId: variant.id,
-			suiteId: suite.manifest.id,
-			jobName: synced.jobName,
-			suiteTasks: suite.manifest.include,
-			attempts: suite.manifest.attempts,
-			trials: this.#store.listTraces(synced.jobName),
-		});
-		return { run: synced, report, identity };
-	}
-
-	async #baseline(variant: VariantRow, url: URL): Promise<VariantRow> {
-		const requested = url.searchParams.get("baseline") ?? variant.parentId;
-		if (!requested) throw badRequest("variant has no parent; pass query parameter 'baseline'");
-		const baseline = this.#store.evo.getVariant(requested);
-		if (!baseline) throw new EvoHttpError(404, `baseline variant '${requested}' not found`);
-		return baseline;
-	}
-
-	async #compareEvaluated(
-		variant: VariantRow,
-		url: URL,
-	): Promise<{ child: Evaluated; baseline: Evaluated; baselineVariant: VariantRow; report: ComparisonReport }> {
-		const suite = await this.#suite(url);
-		const baselineVariant = await this.#baseline(variant, url);
-		const child = await this.#evaluated(variant, suite);
-		const baseline = await this.#evaluated(baselineVariant, suite);
-		assertMatched(child.identity, baseline.identity);
-		return { child, baseline, baselineVariant, report: compareFitness(child.report, baseline.report, variant) };
-	}
-
-	async #compare(variant: VariantRow, url: URL): Promise<ComparisonReport> {
-		return (await this.#compareEvaluated(variant, url)).report;
-	}
-
-	async #bundle(variant: VariantRow, url: URL): Promise<unknown> {
-		const suite = await this.#suite(url);
-		const parentId = url.searchParams.get("baseline") ?? variant.parentId;
-		if (!parentId) {
-			const child = await this.#evaluated(variant, suite);
-			return buildReflectionBundle({
-				variant,
-				parent: null,
-				fitness: child.report,
-				baselineFitness: null,
-				comparison: null,
-				childTraces: this.#store.listTraces(child.run.jobName),
-				baselineTraces: [],
-			});
-		}
-		const { child, baseline, baselineVariant, report } = await this.#compareEvaluated(variant, url);
-		return buildReflectionBundle({
-			variant,
-			parent: baselineVariant,
-			fitness: child.report,
-			baselineFitness: baseline.report,
-			comparison: report,
-			childTraces: this.#store.listTraces(child.run.jobName),
-			baselineTraces: this.#store.listTraces(baseline.run.jobName),
-		});
 	}
 }
 
