@@ -690,4 +690,63 @@ describe("runner-config credential persistence", () => {
 			);
 		}
 	}, 60_000);
+
+	it("keeps a recorded source drift sticky across a resume", async () => {
+		const jobsDir = tmp();
+		const source = tmp();
+		const git = (...args: string[]): void => {
+			const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: source });
+			if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+		};
+		git("init", "-q", "-b", "main");
+		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
+		write(source, "bun.lock", "");
+		write(source, "tracked.txt", "before");
+		git("add", "-A");
+		git("commit", "-q", "-m", "init");
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const env = { STUB_SOURCE_ROOT: source, STUB_DEPS_DIR: depsDir };
+		const jobName = "job-sticky-drift";
+		const first = await runRunner(
+			jobsDir,
+			jobName,
+			["--environment", "apple-container", "--source-root", source, "--source-identity", launch],
+			env,
+			undefined,
+			{
+				container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"',
+				harbor:
+					'echo mutated-during-run > "$STUB_SOURCE_ROOT/tracked.txt"\necho new > "$STUB_SOURCE_ROOT/untracked.txt"',
+			},
+			"source",
+		);
+		const file = path.join(jobsDir, "_bench", jobName, "runner-config.json");
+		const drifted = (JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>).postRunSourceIdentity;
+		expect(typeof drifted).toBe("string");
+		expect(drifted).not.toBe(launch);
+		expect(first.out).toContain("source identity drift");
+		// Restore the source byte-for-byte, then resume the same job.
+		write(source, "tracked.txt", "before");
+		fs.rmSync(path.join(source, "untracked.txt"));
+		expect(formatSourceIdentity(await sourceIdentity(source))).toBe(launch);
+		fs.mkdirSync(path.join(jobsDir, jobName), { recursive: true });
+		fs.writeFileSync(
+			path.join(jobsDir, jobName, "config.json"),
+			JSON.stringify({ environment: { type: "apple-container" } }),
+		);
+		const second = await runRunner(
+			jobsDir,
+			jobName,
+			["--resume", jobName],
+			env,
+			undefined,
+			{ container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"' },
+			"source",
+		);
+		expect(second.out).not.toMatch(/error:/);
+		const after = (JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>).postRunSourceIdentity;
+		expect(after).toBe(drifted);
+		expect(second.out).toContain("source identity drift");
+	}, 90_000);
 });

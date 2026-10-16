@@ -1991,13 +1991,20 @@ async function recordPostRunSourceIdentity(
 	} catch {
 		/* no readable snapshot (resume path): start from the minimal record */
 	}
-	record.postRunSourceIdentity = observed;
-	fs.mkdirSync(benchDir, { recursive: true });
-	fs.writeFileSync(file, JSON.stringify(record, null, "\t"));
-	if (observed !== launchIdentity) {
+	// Drift is sticky for the job's lifetime: a later run (resume) must not overwrite a recorded
+	// mismatch with a matching value, since retained trials ran against the changed source.
+	const recorded = record.postRunSourceIdentity;
+	const stickyDrift = typeof recorded === "string" && recorded !== launchIdentity;
+	if (!stickyDrift) {
+		record.postRunSourceIdentity = observed;
+		fs.mkdirSync(benchDir, { recursive: true });
+		fs.writeFileSync(file, JSON.stringify(record, null, "\t"));
+	}
+	if (stickyDrift || observed !== launchIdentity) {
+		const shown = stickyDrift ? (recorded as string) : observed;
 		process.stdout.write(
 			yellow(
-				`warning: source identity drift after run for ${cfg.sourceRoot}: launched ${launchIdentity}, now ${observed}; run is not comparable\n`,
+				`warning: source identity drift after run for ${cfg.sourceRoot}: launched ${launchIdentity}, now ${shown}; run is not comparable\n`,
 			),
 		);
 	}
