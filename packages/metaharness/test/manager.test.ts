@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -134,6 +135,21 @@ describe("RunStore", () => {
 		store.discover();
 		expect(store.getRun("job-done")?.status).toBe("complete");
 		expect(store.getRun("job-done")?.finishedAt).not.toBeNull();
+	});
+
+	it("purges a legacy claimed row on open", () => {
+		const jobsDir = makeJobsDir();
+		const dbPath = path.join(jobsDir, "_manager", "metaharness.sqlite");
+		const first = new RunStore(jobsDir);
+		first.close();
+		const raw = new Database(dbPath);
+		raw.run("INSERT INTO runs (job_name, status, pid, created_at) VALUES ('legacy-claim', 'claimed', NULL, 1)");
+		raw.close();
+
+		const store = new RunStore(jobsDir);
+		cleanups.push(() => store.close());
+		expect(store.listRuns().some(r => r.jobName === "legacy-claim")).toBe(false);
+		expect(store.getRun("legacy-claim")).toBeNull();
 	});
 
 	it("stores experiment goals and run roles/labels, and orders baselines first", () => {

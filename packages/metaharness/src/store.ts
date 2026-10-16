@@ -242,6 +242,9 @@ export class RunStore {
 		if (!runColumns.has("slide") && !runColumns.has("prewalk")) {
 			this.#db.run("ALTER TABLE runs ADD COLUMN prewalk TEXT");
 		}
+		// Cleanup of the removed launch-reservation mechanism: it wrote placeholder
+		// rows with status 'claimed' that nothing reaps anymore.
+		this.#db.run("DELETE FROM runs WHERE status = 'claimed'");
 		const traceColumns = new Set(
 			(this.#db.query("PRAGMA table_info(trials)").all() as Array<{ name: string }>).map(c => c.name),
 		);
