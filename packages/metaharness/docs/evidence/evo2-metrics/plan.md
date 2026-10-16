@@ -142,8 +142,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R28. Gate the cost and token deltas on completeness (`packages/metaharness/src/evo/compare.ts`). `callsDelta`, `outputTokensDelta` and `costUsdDelta` were computed unconditionally while the decision fields were nulled, so a consumer of the raw `/compare` response could read a cost delta whose two means covered different task sets; all three are now `null` unless the comparison is complete, and `costUsdDelta` widens to `number | null`.
 - [x] R29. Migrate variant identities across the R27 hash-frame change — dismissed as not applicable. The reviewer is right that rehashing with the new frame would orphan rows written under the old one, but no such row can exist outside this branch: `git show main:packages/metaharness/src/store.ts | grep -c evo_variants` is `0` and `git ls-tree -r main -- packages/metaharness/src/evo` is empty, so the entire evo schema is introduced by this unmerged branch (`5176c50e87`), and the package is `private` at version `0.0.1`. The only affected data is the gitignored QA scratch dir, which was reset before the F1 round rather than migrated.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate

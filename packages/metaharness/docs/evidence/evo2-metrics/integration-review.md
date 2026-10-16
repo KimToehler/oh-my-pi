@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `c8229bab36834ea14e56e6a844f3f4ffe1cc998c`
+- Head: `550f413d4787211a0bd0a0609646034d700abb1b`
 - Result: **PASS**
 
 ## Review history
@@ -29,7 +29,10 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R24: evaluate accepted an existing job name, and registering the launch deleted the prior run's trial rows before any replacement existed. It now returns 409 for any existing name.
 - R25: the R23 check ran only at registration, so a variant row persisted earlier, or an arm inheriting an evo template's config, still reached the mount. The shared check now also runs in `variantLaunchFields` and on an inherited evo source root.
 - R26: `resume()` rebuilds its invocation from the recorded config and bypassed both guards; it now applies the same check when the run carries a `variantId`.
+- R27: `hashConfig` and `diffConfigs` ignored `ConfigFile.executable` although `materializeConfig` chmods the staged tree from it, so a variant flipping only a script's exec bit took its parent's id and was discarded as a no-op. Both now fold the bit in, mirroring `hashTaskDir`.
+- R28: `callsDelta`, `outputTokensDelta` and `costUsdDelta` were computed unconditionally while the decision fields were nulled, so their means could span different task sets. All three are now `null` unless the comparison is complete.
+- R29: a reviewer required migrating variant identities across R27's hash-frame change. Dismissed as not applicable and confirmed by a second reviewer: `main` carries neither the evo schema nor `src/evo`, the schema lands only in this unmerged branch, and the package is private at `0.0.1`, so no old-frame row can exist outside the gitignored scratch dir, which was reset.
 
 ## Final verdict
 
-Fresh reviewer over `84e9e0a48b..c8229bab36` (full branch delta `935046d15b...c8229bab36`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `c8229bab36..550f413d47` (full branch delta `935046d15b...550f413d47`): `VERDICT: PASS`, no blockers, R29 dismissal upheld.
