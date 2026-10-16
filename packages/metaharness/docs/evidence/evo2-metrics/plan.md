@@ -125,8 +125,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R11. Bind the staged `models.yml` content into the comparison identity (`packages/metaharness/src/evo/launch.ts`, `compare.ts`, `service.ts`, `launch-args.ts`, `packages/metaharness/src/server.ts`). The host models file is mutable, so editing it between a parent and a child evaluation changed the effective executor while `executorConfigHash` stayed equal and `/compare` still returned a numeric delta. `buildEvalLaunch` now snapshots the validated text to `<jobsDir>/_evo/models/<sha256>.yml`, launches against that immutable copy, and records `modelsYamlHash`; `ConditionIdentity` requires it, and `/api/runs` rejects it as a caller-supplied evo identity field.
 - [x] R12. Publish the models snapshot atomically (`packages/metaharness/src/evo/launch.ts`). `existsSync` plus an in-place `Bun.write` let two concurrent evaluations with the same absent hash expose a partial file to the staging reader; the write now goes to `.<hash>.<uuid>.tmp` and is renamed into place, mirroring `snapshot-publish.ts`. No test accompanies this fix: a concurrency probe passed 3/3 against the pre-fix source, so it was removed rather than kept as a green-always test; the guarantee rests on rename atomicity.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
