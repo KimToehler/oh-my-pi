@@ -60,6 +60,10 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 	const include = stringArray(obj, "include", "suite", { required: true }) as string[];
 	if (include.length === 0) throw badRequest("suite.include must name at least one task");
 	if (new Set(include).size !== include.length) throw badRequest("suite.include must not contain duplicate task IDs");
+	// Results are matched by bare task name, so `org-a/foo` and `org-b/foo` would be one task.
+	if (new Set(include.map(taskKey)).size !== include.length) {
+		throw badRequest("suite.include must not contain task IDs that normalize to the same task name");
+	}
 	const attempts = obj.attempts;
 	if (typeof attempts !== "number" || !Number.isSafeInteger(attempts) || attempts < 1) {
 		throw badRequest("suite.attempts must be a positive integer");

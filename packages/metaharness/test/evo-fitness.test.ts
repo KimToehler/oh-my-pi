@@ -120,6 +120,88 @@ describe("fitness", () => {
 	});
 });
 
+describe("out-of-suite trials", () => {
+	it("never enter perTask, vHat, intervals, means, start-failure rate or signals; they only mark incomplete", () => {
+		const trials = [
+			trial("t1", 1, {
+				status: "fail",
+				reward: 0,
+				costUsd: 0.2,
+				transcript: metrics({ llmCalls: 2, outputTokens: 20, signals: ["tool:read"] }),
+			}),
+			trial("t2", 1, {
+				reward: 1,
+				costUsd: 9,
+				transcript: metrics({ llmCalls: 90, outputTokens: 900, started: false, signals: ["mark:outside"] }),
+			}),
+		];
+		const r = fit(trials, ["t1"]);
+		expect(r.perTask.map(t => t.task)).toEqual(["t1"]);
+		expect(r.vHat).toBe(0);
+		expect(r.sd).toBeNull();
+		expect(r.tasks).toBe(1);
+		expect(r.trials).toBe(1);
+		expect(r.meanLlmCalls).toBe(2);
+		expect(r.meanOutputTokens).toBe(20);
+		expect(r.meanCostUsd).toBeCloseTo(0.2, 12);
+		expect(r.startFailureRate).toBe(0);
+		expect(r.signalHits).toEqual({ "tool:read": 1 });
+		expect(r.outsideSuiteTasks).toEqual(["t2"]);
+		expect(r.complete).toBe(false);
+		expect(r.incompleteReasons).toContain("trials outside suite: t2");
+	});
+
+	it("keeps outside tasks out of paired deltas", () => {
+		const mk = (jobName: string, reward: number) => [
+			trial("t1", 1, { jobName, reward, status: reward ? "pass" : "fail" }),
+			trial("extra", 1, { jobName, reward: 1 }),
+		];
+		const child = fit(mk("cj", 1), ["t1"], "child", "cj");
+		const baseline = fit(mk("pj", 0), ["t1"], "parent", "pj");
+		const c = compareFitness(child, baseline, variant([]));
+		expect(c.deltas.map(d => d.task)).toEqual(["t1"]);
+		expect(c.rawDelta).toBe(1);
+	});
+});
+
+describe("missing task attribution", () => {
+	const side = (jobName: string, rewards: Record<string, number | null>, id: string) =>
+		fit(
+			Object.entries(rewards).map(([task, reward]) =>
+				trial(
+					task,
+					1,
+					reward === null
+						? { jobName, status: "error", reward: null, detail: "EnvironmentStartTimeoutError" }
+						: { jobName, reward, status: reward ? "pass" : "fail" },
+				),
+			),
+			["both", "childOnly", "baseOnly", "neither"],
+			id,
+			jobName,
+		);
+
+	it("blames only the side that lacks a reward; both-null is listed on both without duplicates", () => {
+		const child = side("cj", { both: 1, childOnly: 1, baseOnly: null, neither: null }, "child");
+		const baseline = side("pj", { both: 0, childOnly: null, baseOnly: 1, neither: null }, "parent");
+		const c = compareFitness(child, baseline, variant([]));
+		expect(c.deltas.map(d => d.task)).toEqual(["both"]);
+		expect(c.missingInBaseline).toEqual(["childOnly", "neither"]);
+		expect(c.missingInChild).toEqual(["baseOnly", "neither"]);
+		expect(new Set(c.missingInChild).size).toBe(c.missingInChild.length);
+		expect(new Set(c.missingInBaseline).size).toBe(c.missingInBaseline.length);
+		expect(c.complete).toBe(false);
+	});
+
+	it("is complete only when no task is missing on either side", () => {
+		const all = { both: 1, childOnly: 1, baseOnly: 0, neither: 1 };
+		const c = compareFitness(side("cj", all, "child"), side("pj", all, "parent"), variant([]));
+		expect(c.missingInChild).toEqual([]);
+		expect(c.missingInBaseline).toEqual([]);
+		expect(c.complete).toBe(true);
+	});
+});
+
 const variant = (expectedSignals: string[]): VariantRow => ({
 	id: "child",
 	configHash: "c",

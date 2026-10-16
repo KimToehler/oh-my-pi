@@ -54,6 +54,8 @@ export interface FitnessReport extends Interval {
 	variantId: string;
 	suiteId: string;
 	jobName: string;
+	/** Task keys seen in the job but absent from the suite; diagnostics only, never scored. */
+	outsideSuiteTasks: string[];
 	/** False when infra exceptions, running trials, or missing suite tasks make the estimate provisional. */
 	complete: boolean;
 	incompleteReasons: string[];
@@ -123,42 +125,50 @@ function taskFitness(task: string, trials: readonly TraceRow[]): TaskFitness {
 }
 
 export function computeFitness(input: FitnessInput): FitnessReport {
+	const suiteKeys = [...new Set(input.suiteTasks.map(taskKey))];
+	const inSuite = new Set(suiteKeys);
 	const byTask = new Map<string, TraceRow[]>();
+	const outside = new Set<string>();
+	// Out-of-suite trials are diagnosed but excluded from every statistic below.
+	const scored: TraceRow[] = [];
 	for (const trial of input.trials) {
 		const key = taskKey(trial.task);
+		if (!inSuite.has(key)) {
+			outside.add(key);
+			continue;
+		}
+		scored.push(trial);
 		const bucket = byTask.get(key);
 		if (bucket) bucket.push(trial);
 		else byTask.set(key, [trial]);
 	}
-	const suiteKeys = input.suiteTasks.map(taskKey);
-	const perTask = [...new Set([...suiteKeys, ...byTask.keys()])]
-		.sort()
-		.map(task => taskFitness(task, byTask.get(task) ?? []));
+	const perTask = [...suiteKeys].sort().map(task => taskFitness(task, byTask.get(task) ?? []));
+	const outsideSuiteTasks = [...outside].sort();
 	const reasons: string[] = [];
 	const missing = suiteKeys.filter(task => !byTask.has(task));
 	if (missing.length > 0) reasons.push(`missing suite tasks: ${missing.join(", ")}`);
-	const extra = [...byTask.keys()].filter(task => !suiteKeys.includes(task));
-	if (extra.length > 0) reasons.push(`trials outside suite: ${extra.join(", ")}`);
+	if (outsideSuiteTasks.length > 0) reasons.push(`trials outside suite: ${outsideSuiteTasks.join(", ")}`);
 	const excluded = perTask.reduce((acc, t) => acc + t.excluded, 0);
 	if (excluded > 0) reasons.push(`${excluded} trial(s) excluded as running or infrastructure failures`);
 	const rewards = perTask.flatMap(t => (t.reward === null ? [] : [t.reward]));
 	const vHat = mean(rewards);
-	const decided = input.trials.filter(t => t.status !== "running");
+	const decided = scored.filter(t => t.status !== "running");
 	const startFailures = decided.filter(t => !t.transcript?.started).length;
 	const signalHits: Record<string, number> = {};
-	for (const trial of input.trials) {
+	for (const trial of scored) {
 		for (const signal of trial.transcript?.signals ?? []) signalHits[signal] = (signalHits[signal] ?? 0) + 1;
 	}
 	return {
 		variantId: input.variantId,
 		suiteId: input.suiteId,
 		jobName: input.jobName,
+		outsideSuiteTasks,
 		complete: reasons.length === 0,
 		incompleteReasons: reasons,
 		vHat,
 		...interval(rewards, vHat),
 		tasks: perTask.filter(t => t.counted > 0).length,
-		trials: input.trials.length,
+		trials: scored.length,
 		errors: perTask.reduce((acc, t) => acc + t.errors, 0),
 		meanLlmCalls: mean(perTask.flatMap(t => (t.meanLlmCalls === null ? [] : [t.meanLlmCalls]))),
 		meanOutputTokens: mean(perTask.flatMap(t => (t.meanOutputTokens === null ? [] : [t.meanOutputTokens]))),

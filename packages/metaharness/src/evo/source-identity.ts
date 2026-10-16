@@ -47,16 +47,31 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 		["unstaged", { binary: true }],
 	] as const) {
 		const text = await repo.diffText(options);
-		hasher.update(`\0${label}\0${Buffer.byteLength(text)}\0`);
+		hasher.update(`${label}${Buffer.byteLength(text)}:`);
 		hasher.update(text);
 	}
+	// Every field is framed as `<byte length>:<bytes>` so no path or content can imitate a delimiter.
+	const frame = (label: string, data: string | Uint8Array): void => {
+		const bytes = typeof data === "string" ? Buffer.from(data) : data;
+		hasher.update(`${label}${bytes.byteLength}:`);
+		hasher.update(bytes);
+	};
 	const untracked = (await repo.lsFiles(true, true)).sort();
+	hasher.update(`untracked-count${untracked.length}:`);
 	for (const rel of untracked) {
-		hasher.update(`\0untracked\0${rel}\0`);
-		const abs = path.join(real, rel);
-		const stat = await fs.lstat(abs).catch(() => null);
-		if (!stat) continue;
-		hasher.update(stat.isSymbolicLink() ? await fs.readlink(abs) : stat.isFile() ? await fs.readFile(abs) : "");
+		frame("path", rel);
+		const stat = await fs.lstat(path.join(real, rel)).catch(() => null);
+		if (!stat) {
+			frame("type", "missing");
+		} else if (stat.isSymbolicLink()) {
+			frame("type", "symlink");
+			frame("content", await fs.readlink(path.join(real, rel)));
+		} else if (stat.isFile()) {
+			frame("type", "file");
+			frame("content", await fs.readFile(path.join(real, rel)));
+		} else {
+			frame("type", "other");
+		}
 	}
 	return { ref, dirtyHash: hasher.digest("hex") };
 }

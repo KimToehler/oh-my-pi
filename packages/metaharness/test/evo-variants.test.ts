@@ -382,6 +382,30 @@ describe("source identity", () => {
 		expect(new Set([unstagedOnly, stagedOnly, stagedThenReverted]).size).toBe(3);
 	});
 
+	it("frames untracked paths and content so delimiter-shaped names cannot collide", async () => {
+		const hashFor = async (files: Record<string, string>): Promise<string | null> => {
+			const src = await makeSource();
+			for (const [rel, content] of Object.entries(files)) write(src, rel, content);
+			return (await sourceIdentity(src)).dirtyHash;
+		};
+		// Under the old `\0untracked\0<path>\0<content>` scheme these two byte streams were identical.
+		const a = await hashFor({ x: "\0untracked\0y\0z" });
+		const b = await hashFor({ "x\0untracked\0y": "z" }).catch(() => null);
+		const c = await hashFor({ p: "q", r: "" });
+		const d = await hashFor({ p: "", qr: "" });
+		expect(a).toMatch(/^[0-9a-f]{64}$/);
+		if (b !== null) expect(a).not.toBe(b);
+		expect(c).not.toBe(d);
+		// Content moving across the path boundary changes the hash.
+		expect(await hashFor({ ab: "c" })).not.toBe(await hashFor({ a: "bc" }));
+		// A symlink and a regular file with the same target text differ by type.
+		const link = await makeSource();
+		fs.symlinkSync("target-text", path.join(link, "l"));
+		const file = await makeSource();
+		write(file, "l", "target-text");
+		expect((await sourceIdentity(link)).dirtyHash).not.toBe((await sourceIdentity(file)).dirtyHash);
+	});
+
 	it("detects a staged change made after registration as drift", async () => {
 		const { registry, source } = await setup();
 		const cfg = agentDir({ "AGENTS.md": "a" });
@@ -406,6 +430,26 @@ describe("source identity", () => {
 		write(wt, "a.txt", "staged after registration\n");
 		await git(wt, "add", "a.txt");
 		expect(formatSourceIdentity(await sourceIdentity(wt))).not.toBe(expected);
+	});
+});
+
+describe("suite identities", () => {
+	it("preserves the original explicit include strings", async () => {
+		const registry = new SuiteRegistry(tmp());
+		const { suite } = await registry.register({
+			id: "orgs",
+			split: "search",
+			benchmark: "harbor",
+			dataset: "d",
+			include: ["org-a/foo", "org-b/bar"],
+			attempts: 1,
+			timeoutMultiplier: 1,
+			model: "m/x",
+			thinking: "low",
+			environment: "docker",
+		});
+		expect(suite.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
+		expect((await registry.get("orgs"))?.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
 	});
 });
 
@@ -475,6 +519,14 @@ describe("suites", () => {
 		await reject({ include: [] }, "suite.include must name at least one task");
 		await reject({ include: undefined }, "suite.include must be an array of non-empty strings");
 		await reject({ include: ["a", "a"] }, "suite.include must not contain duplicate task IDs");
+		await reject(
+			{ include: ["org-a/foo", "org-b/foo"] },
+			"suite.include must not contain task IDs that normalize to the same task name",
+		);
+		await reject(
+			{ include: ["foo", "org/foo"] },
+			"suite.include must not contain task IDs that normalize to the same task name",
+		);
 		await reject({ split: "dev" }, "suite.split must be one of search|heldout");
 		await reject({ benchmark: "edit" }, "suite.benchmark must be one of harbor");
 		await reject({ attempts: 0 }, "suite.attempts must be a positive integer");

@@ -71,22 +71,21 @@ function diff(a: number | null, b: number | null): number | null {
 }
 
 export function compareFitness(child: FitnessReport, baseline: FitnessReport, variant: VariantRow): ComparisonReport {
-	const base = new Map(baseline.perTask.map(t => [t.task, t]));
+	const childTasks = new Map(child.perTask.map(t => [t.task, t.reward]));
+	const baseTasks = new Map(baseline.perTask.map(t => [t.task, t.reward]));
 	const deltas: TaskDelta[] = [];
-	const missingInChild: string[] = [];
-	const missingInBaseline: string[] = [];
-	for (const task of child.perTask) {
-		const other = base.get(task.task);
-		if (task.reward === null) missingInChild.push(task.task);
-		if (!other || other.reward === null) {
-			if (task.reward !== null) missingInBaseline.push(task.task);
+	const missingInChild = new Set<string>();
+	const missingInBaseline = new Set<string>();
+	for (const task of [...new Set([...childTasks.keys(), ...baseTasks.keys()])].sort()) {
+		const c = childTasks.get(task) ?? null;
+		const b = baseTasks.get(task) ?? null;
+		if (c !== null && b !== null) {
+			deltas.push({ task, child: c, baseline: b, delta: c - b });
 			continue;
 		}
-		if (task.reward === null) continue;
-		deltas.push({ task: task.task, child: task.reward, baseline: other.reward, delta: task.reward - other.reward });
-	}
-	for (const task of baseline.perTask) {
-		if (task.reward === null && !missingInChild.includes(task.task)) missingInChild.push(task.task);
+		// Each side is blamed only for its own absence; a task absent on both sides is listed on both.
+		if (c === null) missingInChild.add(task);
+		if (b === null) missingInBaseline.add(task);
 	}
 	const values = deltas.map(d => d.delta);
 	const rawDelta = mean(values);
@@ -105,9 +104,9 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		wins: deltas.filter(d => d.delta > 1e-12).length,
 		ties: deltas.filter(d => Math.abs(d.delta) <= 1e-12).length,
 		losses: deltas.filter(d => d.delta < -1e-12).length,
-		missingInChild: missingInChild.sort(),
-		missingInBaseline: missingInBaseline.sort(),
-		complete: child.complete && baseline.complete && missingInChild.length === 0 && missingInBaseline.length === 0,
+		missingInChild: [...missingInChild],
+		missingInBaseline: [...missingInBaseline],
+		complete: child.complete && baseline.complete && missingInChild.size === 0 && missingInBaseline.size === 0,
 		expectedSignals: variant.expectedSignals,
 		observedSignals: observed,
 		missingSignals,
