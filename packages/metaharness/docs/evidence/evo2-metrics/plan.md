@@ -144,7 +144,7 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 ## Final verification wave
 - [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
 - [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 - Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production task runtime now emits settled async result/usage in progress details; behavior/control flow unchanged but metric consumers may depend on payload.
