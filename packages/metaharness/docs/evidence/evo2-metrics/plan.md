@@ -111,6 +111,10 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - Source variants must be clean, task-owned worktrees. If dependency lock differs, build a separate cached Linux dependency tree keyed by that lock hash; do not reuse an incompatible tree.
 - Initial private search suite and Terminal-Bench held-out suite are not auto-curated. Generator and one calibrated example land now; user supplies explicit task IDs in immutable manifests afterward. Evo APIs reject empty or implicit-random manifests.
 
+## TODOs
+- [x] R1. Create parent directories before materializing nested whitelisted config files (`packages/metaharness/src/evo/config-snapshot.ts`). Dismissed as false positive: `Bun.write` creates parent directories; a nested-materialization probe passed before any change, and `evo-variants.test.ts` "concurrent registration" already reads `config/rules/r.md` from a registered variant.
+- [x] R2. Prevent explicit forwarded environment values from persisting in runner config; resume must resolve values from host environment (`packages/metaharness/src/runner.ts`). `runBenchmark` rejects `--env NAME=VALUE` for any variable a `--models-yaml` apiKey references, before anything is written; credentials must use host-sourced `--env NAME`.
+
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
 - [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit

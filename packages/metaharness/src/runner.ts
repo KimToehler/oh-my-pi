@@ -189,6 +189,7 @@ Model / agent:
       --setting <key=value>      omp setting for the container config, e.g. edit.mode=sloppy (repeatable; JSON values)
       --env <KEY[=VALUE]>        Forward env into omp container (repeatable).
                                  KEY alone forwards host value; host PI_* auto-forwarded.
+                                 Credentials named by --models-yaml apiKey must use the KEY form.
       --agent-dir <path>         Variant agent dir (AGENTS.md, config.yml, rules/, skills/, ...) staged into a
                                  read-only overlay; the fixed model owns routing/retry, --setting wins last
       --source-root <path>       Git worktree mounted as the omp source (default: this repo)
@@ -1716,7 +1717,15 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	}
 
 	// Reject literal/command apiKeys before anything is persisted or printed.
-	if (cfg.agent === "omp" && cfg.modelsYaml) await readModelsEnvNames(cfg.modelsYaml);
+	if (cfg.agent === "omp" && cfg.modelsYaml) {
+		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
+		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
+		if (explicit.length > 0) {
+			throw new Error(
+				`credential env ${explicit.join(", ")} referenced by --models-yaml must not be passed as KEY=VALUE; use ${explicit.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
+			);
+		}
+	}
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
 	const jobDir = path.join(cfg.jobsDir, jobName);
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);

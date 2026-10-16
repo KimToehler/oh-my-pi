@@ -339,3 +339,90 @@ describe("local datasets", () => {
 		expect(roundTrip.dataset).toBe(dir);
 	});
 });
+
+describe("runner-config credential persistence", () => {
+	const SENTINEL = "evo-sentinel-secret-9f3a7c21";
+	const RUNNER = path.resolve(import.meta.dir, "..", "src", "runner.ts");
+
+	/** Fake `harbor`/`docker` first on PATH so the real runner entry reaches the persistence block and exits fast. */
+	function stubBin(): string {
+		const bin = tmp();
+		for (const name of ["harbor", "docker"]) {
+			const file = path.join(bin, name);
+			fs.writeFileSync(file, "#!/bin/sh\nexit 0\n");
+			fs.chmodSync(file, 0o755);
+		}
+		return bin;
+	}
+
+	async function runRunner(
+		jobsDir: string,
+		jobName: string,
+		extra: string[],
+		hostEnv: Record<string, string> = {},
+	): Promise<{ code: number; out: string }> {
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+		const env: Record<string, string> = { ...(process.env as Record<string, string>), ...hostEnv };
+		delete env.EVO_SENTINEL_KEY;
+		Object.assign(env, hostEnv);
+		env.PATH = `${stubBin()}${path.delimiter}${process.env.PATH ?? ""}`;
+		const proc = Bun.spawn(
+			[
+				process.execPath,
+				RUNNER,
+				"--install",
+				"published",
+				"--no-gateway",
+				"--models-yaml",
+				modelsYaml,
+				"--jobs-dir",
+				jobsDir,
+				"--job-name",
+				jobName,
+				...extra,
+			],
+			{ env, stdout: "pipe", stderr: "pipe", stdin: "ignore" },
+		);
+		const [stdout, stderr, code] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+		return { code, out: `${stdout}\n${stderr}` };
+	}
+
+	function scanForSentinel(dir: string): string[] {
+		const hits: string[] = [];
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
+			if (!entry.isFile()) continue;
+			const file = path.join(entry.parentPath, entry.name);
+			if (fs.readFileSync(file).includes(SENTINEL)) hits.push(file);
+		}
+		return hits;
+	}
+
+	it("rejects an explicit --env KEY=VALUE for a models.yml apiKey variable and persists nothing", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-secret", ["--env", `EVO_SENTINEL_KEY=${SENTINEL}`]);
+		expect(code).not.toBe(0);
+		expect(out).toContain("EVO_SENTINEL_KEY");
+		expect(out).toContain("--env EVO_SENTINEL_KEY");
+		expect(out).not.toContain(SENTINEL);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-secret", "runner-config.json"))).toBe(false);
+		expect(scanForSentinel(jobsDir)).toEqual([]);
+	}, 30_000);
+
+	it("still persists non-credential KEY=VALUE knobs and omits host-sourced credential values", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-ok", ["--env", "PI_KNOB=1", "--env", "EVO_SENTINEL_KEY"], {
+			EVO_SENTINEL_KEY: SENTINEL,
+		});
+		expect(out).not.toMatch(/error:/);
+		expect(code).toBe(0);
+		const persisted = JSON.parse(
+			fs.readFileSync(path.join(jobsDir, "_bench", "job-ok", "runner-config.json"), "utf8"),
+		) as { env: Record<string, string>; hostEnvKeys: string[] };
+		expect(persisted.env).toEqual({ PI_KNOB: "1" });
+		expect(persisted.hostEnvKeys).toEqual(["EVO_SENTINEL_KEY"]);
+		expect(fs.readFileSync(path.join(jobsDir, "_bench", "job-ok", "runner-config.json"), "utf8")).not.toContain(
+			SENTINEL,
+		);
+	}, 60_000);
+});
