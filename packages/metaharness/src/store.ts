@@ -12,6 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { readBenchmarkSnapshot } from "./benchmarks";
 import { EvoStore } from "./evo/evo-store";
+import { type FailurePhase, parseFailurePhase } from "./evo/failure-phase";
 import type { TranscriptMetrics } from "./evo/transcript";
 import {
 	rowToTranscript,
@@ -79,6 +80,8 @@ export interface TraceRow {
 	costUsd: number;
 	durationMs: number;
 	detail: string;
+	/** Failure provenance; null while running and for rows written before provenance was recorded. */
+	phase: FailurePhase | null;
 	updatedAt: number;
 	/** Adapter-owned locator used by the uniform trace endpoint. */
 	tracePath: string | null;
@@ -150,6 +153,7 @@ CREATE TABLE IF NOT EXISTS trials (
 	duration_ms INTEGER NOT NULL DEFAULT 0,
 	detail TEXT NOT NULL DEFAULT '',
 	trace_path TEXT,
+	phase TEXT,
 	updated_at INTEGER NOT NULL,
 	PRIMARY KEY (job_name, name)
 );
@@ -249,6 +253,7 @@ export class RunStore {
 			(this.#db.query("PRAGMA table_info(trials)").all() as Array<{ name: string }>).map(c => c.name),
 		);
 		if (!traceColumns.has("trace_path")) this.#db.run("ALTER TABLE trials ADD COLUMN trace_path TEXT");
+		if (!traceColumns.has("phase")) this.#db.run("ALTER TABLE trials ADD COLUMN phase TEXT");
 		for (const [name, sqlType] of TRANSCRIPT_COLUMNS) {
 			if (!traceColumns.has(name)) this.#db.run(`ALTER TABLE trials ADD COLUMN ${name} ${sqlType}`);
 		}
@@ -399,12 +404,12 @@ export class RunStore {
 		const transcriptColumns = TRANSCRIPT_COLUMN_NAMES.join(", ");
 		const upsert = this.#db.query(
 			`INSERT INTO trials
-			 (job_name, name, task, status, reward, cost_usd, duration_ms, detail, trace_path, ${transcriptColumns}, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${TRANSCRIPT_COLUMN_NAMES.map(() => "?").join(", ")}, ?)
+			 (job_name, name, task, status, reward, cost_usd, duration_ms, detail, trace_path, phase, ${transcriptColumns}, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${TRANSCRIPT_COLUMN_NAMES.map(() => "?").join(", ")}, ?)
 			 ON CONFLICT(job_name, name) DO UPDATE SET
 				status = excluded.status, reward = excluded.reward, cost_usd = excluded.cost_usd,
 				duration_ms = excluded.duration_ms, detail = excluded.detail,
-				trace_path = excluded.trace_path,
+				trace_path = excluded.trace_path, phase = excluded.phase,
 				${TRANSCRIPT_COLUMN_NAMES.map(name => `${name} = excluded.${name}`).join(", ")},
 				updated_at = excluded.updated_at`,
 		);
@@ -427,6 +432,7 @@ export class RunStore {
 							duration_ms: number | null;
 							detail: string | null;
 							trace_path: string | null;
+							phase: string | null;
 							updated_at: number | null;
 						}
 					>
@@ -452,6 +458,7 @@ export class RunStore {
 					(prev.reward ?? null) === (trace.reward ?? null) &&
 					(prev.detail ?? null) === (trace.detail ?? null) &&
 					(prev.trace_path ?? null) === (trace.tracePath ?? null) &&
+					(prev.phase ?? null) === (trace.phase ?? null) &&
 					JSON.stringify(rowToTranscript(prev)) === JSON.stringify(trace.transcript ?? null) &&
 					!costMoved &&
 					!durationMoved &&
@@ -467,6 +474,7 @@ export class RunStore {
 					trace.durationMs,
 					trace.detail,
 					trace.tracePath,
+					trace.phase,
 					...transcriptParams(trace.transcript),
 					now,
 				);
@@ -608,6 +616,7 @@ export class RunStore {
 			costUsd: Number(r.cost_usd),
 			durationMs: Number(r.duration_ms),
 			detail: String(r.detail),
+			phase: parseFailurePhase(r.phase),
 			updatedAt: Number(r.updated_at),
 			tracePath: r.trace_path === null ? null : String(r.trace_path),
 			transcript: rowToTranscript(r),

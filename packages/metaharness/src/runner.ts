@@ -26,6 +26,7 @@ import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
+import { classifyHarborPhase, type FailurePhase } from "./evo/failure-phase";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
 import {
 	credentialValuesFromEnv,
@@ -634,6 +635,8 @@ export interface Trial {
 	tokCache: number;
 	durationMs: number;
 	detail: string;
+	/** Failure provenance; null while running. */
+	phase: FailurePhase | null;
 	/** Terminal-trial transcript metrics; null while running. */
 	transcript: TranscriptMetrics | null;
 }
@@ -802,6 +805,7 @@ function parseTrial(dir: string, name: string): Trial | null {
 			tokCache,
 			durationMs: Date.now() - started,
 			detail: "",
+			phase: null,
 			transcript: null,
 		};
 	}
@@ -869,6 +873,7 @@ function parseTrial(dir: string, name: string): Trial | null {
 	} else {
 		status = "fail";
 	}
+	const transcript = summarizeOmpTranscript(path.join(dir, "agent", "omp.txt"));
 	return {
 		name,
 		status,
@@ -879,7 +884,12 @@ function parseTrial(dir: string, name: string): Trial | null {
 		tokCache,
 		durationMs,
 		detail,
-		transcript: summarizeOmpTranscript(path.join(dir, "agent", "omp.txt")),
+		phase: classifyHarborPhase({
+			exception: exc ? (typeof exc.exception_type === "string" ? exc.exception_type : "error") : null,
+			reward,
+			transcript,
+		}),
+		transcript,
 	};
 }
 

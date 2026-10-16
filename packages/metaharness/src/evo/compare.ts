@@ -1,5 +1,6 @@
 /** Matched-condition parent/child comparison with confound guards and signal-gated credit. */
 import { EvoHttpError } from "./boundary";
+import type { FailurePhase } from "./failure-phase";
 import { type FitnessReport, interval, mean, type Interval } from "./fitness";
 import type { VariantRow } from "./variant-types";
 
@@ -44,6 +45,12 @@ export interface TaskDelta {
 	delta: number;
 }
 
+/** Why a comparison is non-decisionable: terminal trials whose outcome is not a model outcome. */
+export interface Refusal {
+	reason: Exclude<FailurePhase, "model_outcome">;
+	count: number;
+}
+
 export interface ComparisonReport extends Interval {
 	childVariantId: string;
 	baselineVariantId: string;
@@ -63,6 +70,8 @@ export interface ComparisonReport extends Interval {
 	missingInChild: string[];
 	missingInBaseline: string[];
 	complete: boolean;
+	/** Non-model trial counts (both sides) that make the comparison non-decisionable; empty when none. */
+	refusals: Refusal[];
 	expectedSignals: string[];
 	observedSignals: string[];
 	missingSignals: string[];
@@ -75,6 +84,15 @@ export interface ComparisonReport extends Interval {
 
 function diff(a: number | null, b: number | null): number | null {
 	return a === null || b === null ? null : a - b;
+}
+
+const REFUSAL_PHASES = ["variant_startup_failure", "executor_infra_failure", "unknown"] as const;
+
+function refusalsOf(child: FitnessReport, baseline: FitnessReport): Refusal[] {
+	return REFUSAL_PHASES.map(reason => ({
+		reason,
+		count: child.phaseCounts[reason] + baseline.phaseCounts[reason],
+	})).filter(r => r.count > 0);
 }
 
 export function compareFitness(child: FitnessReport, baseline: FitnessReport, variant: VariantRow): ComparisonReport {
@@ -99,7 +117,13 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 	const observed = Object.keys(child.signalHits).sort();
 	const missingSignals = variant.expectedSignals.filter(signal => !(signal in child.signalHits));
 	const signalsSatisfied = missingSignals.length === 0;
-	const complete = child.complete && baseline.complete && missingInChild.size === 0 && missingInBaseline.size === 0;
+	const refusals = refusalsOf(child, baseline);
+	const complete =
+		refusals.length === 0 &&
+		child.complete &&
+		baseline.complete &&
+		missingInChild.size === 0 &&
+		missingInBaseline.size === 0;
 	// Shared-task view stays as a diagnostic (`rawDelta`, `deltas`); every decision-valued field needs a complete task set.
 	const credited = !complete ? null : rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
 	return {
@@ -116,6 +140,7 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		missingInChild: [...missingInChild],
 		missingInBaseline: [...missingInBaseline],
 		complete,
+		refusals,
 		expectedSignals: variant.expectedSignals,
 		observedSignals: observed,
 		missingSignals,

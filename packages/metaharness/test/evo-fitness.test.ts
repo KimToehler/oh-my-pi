@@ -41,6 +41,7 @@ function trial(task: string, attempt: number, over: Partial<TraceRow> = {}): Tra
 		updatedAt: 0,
 		tracePath: "x/agent/omp.txt",
 		transcript: metrics(),
+		phase: "model_outcome",
 		...over,
 	};
 }
@@ -98,7 +99,12 @@ describe("fitness", () => {
 		const trials = [
 			trial("a", 1, { status: "error", reward: null, detail: "AgentTimeoutError" }),
 			trial("b", 1, { status: "fail", reward: null }),
-			trial("c", 1, { status: "error", reward: null, detail: "EnvironmentStartTimeoutError" }),
+			trial("c", 1, {
+				status: "error",
+				reward: null,
+				detail: "EnvironmentStartTimeoutError",
+				phase: "executor_infra_failure",
+			}),
 			trial("d", 1, { reward: 1 }),
 		];
 		const r = fit(trials, ["a", "b", "c", "d"]);
@@ -202,7 +208,13 @@ describe("missing task attribution", () => {
 					task,
 					1,
 					reward === null
-						? { jobName, status: "error", reward: null, detail: "EnvironmentStartTimeoutError" }
+						? {
+								jobName,
+								status: "error",
+								reward: null,
+								detail: "EnvironmentStartTimeoutError",
+								phase: "executor_infra_failure",
+							}
 						: { jobName, reward, status: reward ? "pass" : "fail" },
 				),
 			),

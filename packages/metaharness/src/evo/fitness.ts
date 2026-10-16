@@ -1,32 +1,7 @@
 /** Per-variant fitness on a fixed suite: macro-mean reward, uncertainty, cost, signal evidence. */
 import type { TraceRow } from "../store";
+import { FAILURE_PHASES, type FailurePhase } from "./failure-phase";
 import { taskKey } from "./suites";
-
-/**
- * Harbor exception types caused by the environment or provider rather than the agent. Such
- * trials are excluded from the estimate and mark it incomplete until resumed. Everything else,
- * including `AgentTimeoutError`, counts as reward 0.
- */
-export const INFRA_EXCEPTIONS: ReadonlySet<string> = new Set([
-	"CancelledError",
-	"EnvironmentStartTimeoutError",
-	"SandboxBuildFailedError",
-	"SandboxLikelyOutOfMemoryError",
-	"NetworkConnectionError",
-	"HealthcheckError",
-	"SSHAccessError",
-	"RuntimeRequestError",
-	"GKEExecStreamClosedError",
-	"GKEPodNotFoundError",
-	"ApiConnectionError",
-	"ApiConnectionClosedError",
-	"ApiOverloadedError",
-	"ApiRateLimitError",
-	"ApiInternalServerError",
-	"ApiUsageLimitError",
-	"ApiResponseStalledError",
-	"ApiProviderResourceNotFoundError",
-]);
 
 const Z_95 = 1.96;
 
@@ -67,6 +42,8 @@ export interface FitnessReport extends Interval {
 	meanLlmCalls: number | null;
 	meanOutputTokens: number | null;
 	meanCostUsd: number;
+	/** Terminal in-suite trials per failure provenance phase. */
+	phaseCounts: Record<FailurePhase, number>;
 	/** Share of decided trials whose transcript shows no assistant message. */
 	startFailureRate: number | null;
 	/** Trials emitting each signal. */
@@ -86,9 +63,15 @@ export function interval(values: readonly number[], center: number | null): Inte
 	return { sd, se, ci95: [center - Z_95 * se, center + Z_95 * se] };
 }
 
+/** Provenance of a terminal trial; rows without recorded provenance fail closed as `unknown`. */
+export function trialPhase(trial: TraceRow): FailurePhase {
+	return trial.phase ?? "unknown";
+}
+
 function trialReward(trial: TraceRow): number | null {
 	if (trial.status === "running") return null;
-	if (trial.status === "error" && INFRA_EXCEPTIONS.has(trial.detail)) return null;
+	// Only a genuine model outcome is a score; a missing phase on a terminal trial is `unknown`.
+	if (trialPhase(trial) !== "model_outcome") return null;
 	return trial.reward ?? 0;
 }
 
@@ -165,6 +148,8 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 	const vHat = mean(rewards);
 	const decided = scored.filter(t => t.status !== "running");
 	const startFailures = decided.filter(t => !t.transcript?.started).length;
+	const phaseCounts = Object.fromEntries(FAILURE_PHASES.map(p => [p, 0])) as Record<FailurePhase, number>;
+	for (const trial of decided) phaseCounts[trialPhase(trial)]++;
 	const signalHits: Record<string, number> = {};
 	for (const trial of scored) {
 		for (const signal of trial.transcript?.signals ?? []) signalHits[signal] = (signalHits[signal] ?? 0) + 1;
@@ -185,6 +170,7 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 		meanOutputTokens: mean(perTask.flatMap(t => (t.meanOutputTokens === null ? [] : [t.meanOutputTokens]))),
 		meanCostUsd: mean(perTask.filter(t => t.attempts > 0).map(t => t.meanCostUsd)) ?? 0,
 		startFailureRate: decided.length === 0 ? null : startFailures / decided.length,
+		phaseCounts,
 		signalHits,
 		perTask,
 	};

@@ -2,6 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { conversationDumpRelativePath } from "../adapters/edit/dump-path";
+import type { FailurePhase } from "./evo/failure-phase";
 import type { TranscriptMetrics } from "./evo/transcript";
 import { aggregate, readJobResult, readTrials } from "./runner";
 import type { BenchmarkKind } from "./store";
@@ -55,6 +56,8 @@ export interface BenchmarkTrace {
 	costUsd: number;
 	durationMs: number;
 	detail: string;
+	/** Failure provenance; null while running. */
+	phase: FailurePhase | null;
 	tracePath: string | null;
 	/** Transcript-derived metrics; null for running trials and adapters without omp transcripts. */
 	transcript: TranscriptMetrics | null;
@@ -167,6 +170,8 @@ function readEditSnapshot(jobDir: string): BenchmarkSnapshot {
 				costUsd: 0,
 				durationMs: run.duration,
 				detail: JSON.stringify({ name: task.name, error: run.error ?? null, tools: run.toolCalls ?? null }),
+				// An errored edit run has no provenance evidence either way.
+				phase: run.error && !run.success ? "unknown" : "model_outcome",
 				tracePath: path.join("result.dump", conversationDumpRelativePath(task.id, runNumber)),
 				transcript: null,
 			});
@@ -211,6 +216,7 @@ function readSnapcompactSnapshot(jobDir: string): BenchmarkSnapshot {
 		costUsd: 0,
 		durationMs: 0,
 		detail: JSON.stringify({ question: record.q, answer: record.answer, golds: record.golds, em: record.em }),
+		phase: "model_outcome",
 		tracePath: `record:${index + 1}`,
 		transcript: null,
 	}));
@@ -259,6 +265,7 @@ export function readBenchmarkSnapshot(benchmark: BenchmarkKind, jobDir: string):
 			costUsd: trial.costUsd,
 			durationMs: trial.durationMs,
 			detail: trial.detail,
+			phase: trial.phase,
 			tracePath: path.join(trial.name, "agent", "omp.txt"),
 			transcript: trial.transcript,
 		})),
