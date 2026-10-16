@@ -59,6 +59,9 @@ const DEFAULT_JOBS_DIR = path.join(REPO_ROOT, "runs", "harbor");
 
 export type { LaunchRequest } from "./launch-args";
 
+/** Run identity owned by the evo service; the generic launch route must never accept it from callers. */
+const EVO_IDENTITY_FIELDS = ["variantId", "suiteId", "suiteHash", "stagedConfigHash", "executorConfigHash"] as const;
+
 /** POST /api/experiments/:id/arms body — a new comparable arm; sample+config inherited. */
 export interface AddArmRequest {
 	/** Arm label; becomes the `<id>-<arm>` job name. */
@@ -376,6 +379,12 @@ export class ManagerServer {
 			}
 			if (p === "/api/runs" && request.method === "POST") {
 				const body = (await request.json()) as LaunchRequest;
+				const spoofed = EVO_IDENTITY_FIELDS.filter(field => field in (body ?? {}));
+				if (spoofed.length > 0) {
+					throw new Error(
+						`evo identity fields (${spoofed.join(", ")}) cannot be set on /api/runs; use POST /api/evo/variants/:id/evaluate`,
+					);
+				}
 				return Response.json(this.launch(body), { status: 201 });
 			}
 			const resumeMatch = p.match(/^\/api\/runs\/([^/]+)\/resume$/);

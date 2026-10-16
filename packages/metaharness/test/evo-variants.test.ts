@@ -9,6 +9,7 @@ import {
 	MAX_CONFIG_FILES,
 	MAX_CONFIG_TOTAL_BYTES,
 } from "../src/evo/config-snapshot";
+import { withDirLock } from "../src/evo/dir-lock";
 import { EvoStore } from "../src/evo/evo-store";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { SuiteRegistry } from "../src/evo/suites";
@@ -305,6 +306,38 @@ describe("suites", () => {
 		expect(await registry.get("../etc")).toBeNull();
 	});
 
+	it("publishes concurrently created manifests atomically: identical is idempotent, conflicting is 409", async () => {
+		const dir = tmp();
+		const registries = [
+			new SuiteRegistry(dir),
+			new SuiteRegistry(dir),
+			new SuiteRegistry(dir),
+			new SuiteRegistry(dir),
+		];
+		const same = await Promise.all(registries.map(r => r.register(manifest)));
+		expect(same.filter(r => r.created)).toHaveLength(1);
+		expect(new Set(same.map(r => r.suite.hash)).size).toBe(1);
+		const conflicting = { ...manifest, id: "search-2" };
+		const mixed = await Promise.allSettled([
+			registries[0].register(conflicting),
+			registries[1].register({ ...conflicting, attempts: 9 }),
+			registries[2].register(conflicting),
+			registries[3].register({ ...conflicting, attempts: 9 }),
+		]);
+		const winners = mixed.filter(r => r.status === "fulfilled");
+		const losers = mixed.filter(r => r.status === "rejected") as PromiseRejectedResult[];
+		expect(winners.length + losers.length).toBe(4);
+		expect(losers.length).toBeGreaterThan(0);
+		for (const loser of losers) {
+			expect((loser.reason as { status?: number }).status).toBe(409);
+			expect((loser.reason as Error).message).toBe("suite 'search-2' already exists with different content");
+		}
+		// Exactly one content survives, complete and readable; no temp files remain.
+		const stored = await registries[0].get("search-2");
+		expect(stored?.hash).toBeDefined();
+		expect(fs.readdirSync(path.join(dir, "_evo", "suites")).sort()).toEqual(["search-1.json", "search-2.json"]);
+	});
+
 	it("rejects implicit sampling and malformed fields with exact errors", async () => {
 		const registry = new SuiteRegistry(tmp());
 		const reject = (patch: Record<string, unknown>, message: string) =>
@@ -417,5 +450,134 @@ describe("materialization failures", () => {
 			fs.existsSync(path.join(jobsDir, "_evo", "variants")) &&
 				fs.readdirSync(path.join(jobsDir, "_evo", "variants")).length,
 		).toBe(1);
+	});
+});
+
+describe("concurrent registration", () => {
+	const cfgFiles = { "AGENTS.md": "same\n", "rules/r.md": "r\n" };
+
+	function verifyIntact(jobsDir: string, id: string): void {
+		const dir = path.join(jobsDir, "_evo", "variants", id);
+		expect(fs.readFileSync(path.join(dir, "config", "AGENTS.md"), "utf8")).toBe("same\n");
+		expect(fs.readFileSync(path.join(dir, "config", "rules", "r.md"), "utf8")).toBe("r\n");
+		expect(fs.existsSync(path.join(dir, "diff.patch"))).toBe(true);
+		expect(fs.readdirSync(path.join(jobsDir, "_evo", "tmp"))).toEqual([]);
+	}
+
+	it("serializes identical requests across independent registries: one applied, the rest noop, one variant", async () => {
+		const jobsDir = tmp("evo-jobs-");
+		const source = await makeSource();
+		const stores = [new RunStore(jobsDir), new RunStore(jobsDir), new RunStore(jobsDir)];
+		cleanups.push(() => stores.forEach(store => store.close()));
+		const registries = stores.map(store => new VariantRegistry(store.evo, jobsDir, source));
+		const cfg = agentDir(cfgFiles);
+		const results = await Promise.all(registries.map(r => r.register(root(cfg))));
+		expect(results.filter(r => r.created)).toHaveLength(1);
+		expect(results.map(r => r.proposal.outcome).sort()).toEqual(["applied", "noop", "noop"]);
+		expect(new Set(results.map(r => r.variant.id)).size).toBe(1);
+		expect(stores[0].evo.listVariants()).toHaveLength(1);
+		verifyIntact(jobsDir, results[0].variant.id);
+	});
+
+	it("a concurrently failing loser can never remove the winner's published directory", async () => {
+		const jobsDir = tmp("evo-jobs-");
+		const source = await makeSource();
+		const a = new RunStore(jobsDir);
+		const b = new RunStore(jobsDir);
+		cleanups.push(() => {
+			a.close();
+			b.close();
+		});
+		const good = new VariantRegistry(a.evo, jobsDir, source);
+		const faulty = new VariantRegistry(b.evo, jobsDir, source, async () => {
+			throw new Error("injected");
+		});
+		const cfg = agentDir(cfgFiles);
+		const settled = await Promise.allSettled([good.register(root(cfg)), faulty.register(root(cfg))]);
+		const variants = a.evo.listVariants();
+		expect(variants).toHaveLength(1);
+		verifyIntact(jobsDir, variants[0].id);
+		// Whichever order the lock was taken in, the good registry's variant exists and is intact.
+		expect(settled[0].status).toBe("fulfilled");
+		// Deterministic order: once published, a later faulty registration is a noop and cannot delete it.
+		const later = await faulty.register(root(cfg));
+		expect(later.proposal.outcome).toBe("noop");
+		verifyIntact(jobsDir, variants[0].id);
+	});
+
+	function deadPid(): number {
+		const child = Bun.spawnSync(["true"]);
+		return child.pid;
+	}
+
+	function plantLock(lock: string, pid: number | null): void {
+		fs.mkdirSync(lock, { recursive: true });
+		if (pid !== null) fs.writeFileSync(path.join(lock, "owner.json"), JSON.stringify({ pid, token: "planted" }));
+		const old = new Date(Date.now() - 60 * 60 * 1000);
+		fs.utimesSync(lock, old, old);
+	}
+
+	it("reclaims a stale lock whose recorded owner PID is dead", async () => {
+		const jobsDir = tmp("evo-jobs-");
+		const source = await makeSource();
+		const store = new RunStore(jobsDir);
+		cleanups.push(() => store.close());
+		const registry = new VariantRegistry(store.evo, jobsDir, source);
+		const cfg = agentDir(cfgFiles);
+		const first = await registry.register(root(cfg));
+		const lock = path.join(jobsDir, "_evo", "locks", `${first.variant.id}.lock`);
+		plantLock(lock, deadPid());
+		const again = await registry.register(root(cfg));
+		expect(again.proposal.outcome).toBe("noop");
+		expect(fs.existsSync(lock)).toBe(false);
+		expect(fs.existsSync(`${lock}.breaker`)).toBe(false);
+	});
+
+	it("never steals a stale-mtime lock whose owner is alive, has no metadata, or is unknown", async () => {
+		const dir = tmp("evo-lock-");
+		for (const [name, pid] of [
+			["live", process.pid],
+			["bare", null],
+		] as const) {
+			const lock = path.join(dir, `${name}.lock`);
+			plantLock(lock, pid);
+			await expect(
+				withDirLock(lock, async () => "x", { waitMs: 150, staleMs: 1000, pollMs: 5 }),
+			).rejects.toMatchObject({
+				status: 503,
+				message: `timed out waiting for lock ${name}.lock`,
+			});
+			expect(fs.existsSync(lock)).toBe(true);
+			expect(fs.existsSync(`${lock}.breaker`)).toBe(false);
+		}
+	});
+
+	it("release is ownership-checked: a lock whose token changed is left in place", async () => {
+		const dir = tmp("evo-lock-");
+		const lock = path.join(dir, "o.lock");
+		await withDirLock(lock, async () => {
+			fs.writeFileSync(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, token: "someone-else" }));
+		});
+		expect(fs.existsSync(lock)).toBe(true);
+		// Normal release removes the lock.
+		const normal = path.join(dir, "n.lock");
+		await withDirLock(normal, async () => {
+			expect(JSON.parse(fs.readFileSync(path.join(normal, "owner.json"), "utf8")).pid).toBe(process.pid);
+		});
+		expect(fs.existsSync(normal)).toBe(false);
+	});
+
+	it("a held breaker blocks reclaim; a live holder re-acquiring is not disturbed", async () => {
+		const dir = tmp("evo-lock-");
+		const lock = path.join(dir, "b.lock");
+		plantLock(lock, deadPid());
+		fs.mkdirSync(`${lock}.breaker`);
+		await expect(withDirLock(lock, async () => "x", { waitMs: 100, staleMs: 1000, pollMs: 5 })).rejects.toMatchObject(
+			{ status: 503 },
+		);
+		expect(fs.existsSync(lock)).toBe(true);
+		fs.rmSync(`${lock}.breaker`, { recursive: true });
+		expect(await withDirLock(lock, async () => "ok", { waitMs: 1000, staleMs: 1000, pollMs: 5 })).toBe("ok");
+		expect(fs.existsSync(lock)).toBe(false);
 	});
 });

@@ -367,6 +367,24 @@ describe("evo REST", () => {
 	});
 });
 
+describe("generic launch route", () => {
+	it("rejects caller-supplied evo identity fields and persists nothing", async () => {
+		const h = harness();
+		for (const field of ["variantId", "suiteId", "suiteHash", "stagedConfigHash", "executorConfigHash"]) {
+			const res = await h.post("/api/runs", { model: "m/x", jobName: `spoof-${field}`, [field]: "forged" });
+			await expectError(
+				res,
+				400,
+				`evo identity fields (${field}) cannot be set on /api/runs; use POST /api/evo/variants/:id/evaluate`,
+			);
+			expect(h.manager.store.getRun(`spoof-${field}`)).toBeNull();
+		}
+		const multi = await h.post("/api/runs", { model: "m/x", variantId: "a", suiteId: "b" });
+		expect(((await multi.json()) as { error: string }).error).toContain("variantId, suiteId");
+		expect(h.manager.store.listRuns()).toEqual([]);
+	});
+});
+
 describe("evo request hardening", () => {
 	it("rejects an over-1MiB body with 413, both declared and streamed", async () => {
 		const h = harness();

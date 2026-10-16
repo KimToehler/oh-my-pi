@@ -126,9 +126,28 @@ export class SuiteRegistry {
 			return { suite: existing, created: false };
 		}
 		const suite: StoredSuite = { manifest, hash, createdAt: Date.now() };
-		await Bun.write(this.#file(manifest.id), JSON.stringify(suite, null, "\t"), { createPath: true });
-		await fs.chmod(this.#file(manifest.id), 0o444);
-		return { suite, created: true };
+		// Write complete bytes privately, then hard-link into place: link(2) fails with EEXIST instead of
+		// replacing, so exactly one creator wins and no reader ever sees partial JSON.
+		const temp = path.join(this.dir, `.tmp-${crypto.randomUUID()}`);
+		await Bun.write(temp, JSON.stringify(suite, null, "\t"), { createPath: true });
+		try {
+			await fs.chmod(temp, 0o444);
+			await fs.link(temp, this.#file(manifest.id));
+			return { suite, created: true };
+		} catch (err) {
+			if (!(typeof err === "object" && err !== null && "code" in err && err.code === "EEXIST")) throw err;
+		} finally {
+			await fs.rm(temp, { force: true });
+		}
+		const winner = await this.get(manifest.id);
+		if (!winner) throw new Error(`suite '${manifest.id}' vanished during registration`);
+		if (winner.hash !== hash) {
+			throw new EvoHttpError(409, `suite '${manifest.id}' already exists with different content`, {
+				existingHash: winner.hash,
+				submittedHash: hash,
+			});
+		}
+		return { suite: winner, created: false };
 	}
 
 	async get(id: string): Promise<StoredSuite | null> {

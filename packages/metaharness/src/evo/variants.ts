@@ -15,8 +15,10 @@ import {
 	requiredString,
 	stringArray,
 } from "./boundary";
-import { type ConfigFile, collectConfig, diffConfigs, hashConfig, materializeConfig } from "./config-snapshot";
+import { type ConfigFile, collectConfig, diffConfigs, hashConfig } from "./config-snapshot";
+import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
+import { publishSnapshot } from "./snapshot-publish";
 import { type SourceIdentity, sourceIdentity } from "./source-identity";
 import { MUTATIONS, type Mutation, type ProposalRow, type VariantRow } from "./variant-types";
 
@@ -86,8 +88,12 @@ export function parseVariantRequest(raw: unknown): VariantRequest {
 	};
 }
 
+export function evoRoot(jobsDir: string): string {
+	return path.join(jobsDir, "_evo");
+}
+
 export function variantsRoot(jobsDir: string): string {
-	return path.join(jobsDir, "_evo", "variants");
+	return path.join(evoRoot(jobsDir), "variants");
 }
 
 /** Immutable config snapshot for a variant (always present, source variants included). */
@@ -202,6 +208,20 @@ export class VariantRegistry {
 			throw new EvoHttpError(422, detail, { outcome: "apply_failed", proposalId: proposal.id });
 		}
 		const id = variantId(resolved.configHash, resolved.source);
+		// Serialize on the deterministic id across async calls and processes; the lock lives outside
+		// the variants dir so it can never be mistaken for a snapshot.
+		return withDirLock(path.join(evoRoot(this.#jobsDir), "locks", `${id}.lock`), () =>
+			this.#publish(req, parent, resolved, id),
+		);
+	}
+
+	async #publish(
+		req: VariantRequest,
+		parent: VariantRow | null,
+		resolved: Resolved,
+		id: string,
+	): Promise<RegisterResult> {
+		// Re-read inside the lock: a concurrent winner may have published while we waited.
 		const existing = this.#store.getVariant(id);
 		if (existing) {
 			const reason = existing.id === parent?.id ? "identical to parent" : "identical to an existing variant";
@@ -209,17 +229,19 @@ export class VariantRegistry {
 			return { variant: existing, proposal, created: false };
 		}
 		const variantDir = path.join(variantsRoot(this.#jobsDir), id);
+		let published = false;
 		let inserted = false;
 		try {
-			// No row means any directory here is debris from an earlier failed attempt.
-			await fs.rm(variantDir, { recursive: true, force: true });
 			const parentFiles = parent ? await collectConfig(variantConfigDir(this.#jobsDir, parent.id)) : [];
 			const diff = diffConfigs(parentFiles, resolved.files);
-			await materializeConfig(resolved.files, variantConfigDir(this.#jobsDir, id));
-			await this.#afterMaterialize?.(variantDir);
-			const diffPath = path.join(variantDir, "diff.patch");
-			await Bun.write(diffPath, diff.patch + resolved.sourcePatch);
-			await fs.chmod(diffPath, 0o444);
+			const { diffPath } = await publishSnapshot({
+				finalDir: variantDir,
+				tmpRoot: path.join(evoRoot(this.#jobsDir), "tmp"),
+				files: resolved.files,
+				diffText: diff.patch + resolved.sourcePatch,
+				afterMaterialize: this.#afterMaterialize,
+			});
+			published = true;
 			const variant: VariantRow = {
 				id,
 				configHash: resolved.configHash,
@@ -243,7 +265,8 @@ export class VariantRegistry {
 			return { variant, proposal, created: true };
 		} catch (err) {
 			if (inserted) throw err;
-			await fs.rm(variantDir, { recursive: true, force: true }).catch(() => {});
+			// Only our own unregistered publication is removed; a registered winner is never touched.
+			if (published) await fs.rm(variantDir, { recursive: true, force: true }).catch(() => {});
 			const detail = err instanceof Error ? err.message : String(err);
 			const proposal = this.#propose(req, "apply_failed", detail, null);
 			throw new EvoHttpError(422, detail, { outcome: "apply_failed", proposalId: proposal.id });
