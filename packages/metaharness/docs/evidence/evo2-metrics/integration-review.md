@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `c29ccd00739cb2f3e57e9814fbc0a8155a1aa859`
+- Head: `4ef04ca86798a6eb55d76b8f4ab3110ea00a0a17`
 - Result: **PASS**
 
 ## Review history
@@ -16,9 +16,13 @@ Whole-diff review over `935046d15b..ab48053920` raised R1 and R2; successive fre
 - R13: `models.yml` validated only keys named `apiKey`, so a literal `headers.Authorization` or a `baseUrl` carrying URL userinfo was accepted, persisted to the content-addressed snapshot and the staged overlay, and printed verbatim by `--dry-run`. Found by the merge-gate implementation audit. Header values must now name an environment variable, URL userinfo is rejected, and the dry run prints the models path plus its sha256.
 - R14: a source variant mounts a live worktree and the identity was verified only before spawn, so bytes changing mid-run left the run recorded under its original identity and still comparable. The runner now records `postRunSourceIdentity` and the comparison refuses a drifted run with 409.
 - R15: that post-run identity was overwritten on every run, so restoring the source before `--resume` cleared a recorded drift while the job kept the drifted run's trials. A recorded drift is now sticky.
+- R16: an incomplete comparison still emitted `creditedDelta`, a decision interval and win counts computed from the shared tasks, so a child omitting failed or unrun suite tasks could earn positive credit. Those fields are now `null` whenever either side is incomplete.
+- R17: the content-addressed models snapshot was left writable and a reuse hit was trusted without rehashing. It is now published read-only and rehashed on reuse, and the runner verifies the file against `--models-yaml-hash` before writing its config and again before staging the overlay.
+- R18: only URL userinfo was rejected, so `baseUrl: "https://host/v1?api_key=..."` was accepted and persisted. A non-empty query or fragment is now rejected.
+- R19: `new URL()` throws on a relative reference and the catch waved it through, so `baseUrl: "/v1?api_key=..."` bypassed those rules. A failed absolute parse now retries against a fixed dummy base.
 
 Scope decision (user): the credential invariant covers accidental persistence; deliberate re-encoding by a key holder is out of scope.
 
 ## Final verdict
 
-Fresh reviewer over `5e993228cd..c29ccd0073` (full branch delta `935046d15b...c29ccd0073`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `cc525adc8b..4ef04ca867` (full branch delta `935046d15b...4ef04ca867`): `VERDICT: PASS`, no blockers.

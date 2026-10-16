@@ -132,8 +132,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R18. Reject credentials in models.yml URL query and fragment components (`packages/metaharness/src/evo/models-yaml.ts`). Only userinfo was rejected, so `baseUrl: "https://host/v1?api_key=..."` was accepted and persisted into the snapshot and the staged overlay; a non-empty query or fragment on any `baseUrl`/`url` is now rejected by dotted path without echoing the value.
 - [x] R19. Apply the URL credential rules to relative references too (`packages/metaharness/src/evo/models-yaml.ts`). `new URL(value)` throws on a relative reference and the catch waved it through, so `baseUrl: "/v1?api_key=..."` or `url: "?token=..."` skipped the query/fragment rejection and was persisted; a failed absolute parse now retries against a fixed dummy base and applies the same rules, while a plain relative path stays acceptable.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
