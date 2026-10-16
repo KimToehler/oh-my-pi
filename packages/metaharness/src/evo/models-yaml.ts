@@ -68,7 +68,7 @@ function collect(node: unknown, where: string, names: Set<string>): void {
 
 /**
  * Reject models.yml text whose scalar leaf carries one of the host credential `values` (length-aware match shared with
- * launch-args). `apiKey` and `headers` leaves are env names already validated by `collect`. Messages name the dotted
+ * launch-args). `apiKey` and `headers` values are env names already validated by `collect`; header names are scanned. Messages name the dotted
  * path only, never the value.
  */
 export function assertNoHostCredentialValues(text: string, values: readonly string[]): void {
@@ -89,9 +89,20 @@ export function assertNoHostCredentialValues(text: string, values: readonly stri
 			for (const [key, value] of Object.entries(node)) {
 				const here = where ? `${where}.${key}` : key;
 				if (secrets.some(secret => containsHostValue(key, secret))) {
-					throw fail(`${here} embeds a host credential value; reference the env var name instead`);
+					throw fail(
+						`${where ? `${where}.` : ""}<key> embeds a host credential value; reference the env var name instead`,
+					);
 				}
-				if (key === "apiKey" || (key === "headers" && isRecord(value))) continue;
+				if (key === "apiKey") continue;
+				if (key === "headers" && isRecord(value)) {
+					// Header values are env names proven by `collect`; header names are free text and must be scanned.
+					for (const header of Object.keys(value)) {
+						if (secrets.some(secret => containsHostValue(header, secret))) {
+							throw fail(`${here}.<key> embeds a host credential value; reference the env var name instead`);
+						}
+					}
+					continue;
+				}
 				walk(value, here);
 			}
 			return;

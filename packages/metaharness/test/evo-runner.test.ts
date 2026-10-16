@@ -511,6 +511,20 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
 	}, 30_000);
 
+	it("rejects a direct --models-yaml whose unrelated scalar carries a referenced host credential", async () => {
+		for (const [i, secret] of ["evo-host-credential-value-9f3a", "rk-77"].entries()) {
+			const jobsDir = tmp();
+			const jobName = `job-host-value-${i}`;
+			const models = `${VALID_PROVIDER}    metadata: ${secret}\n`;
+			const { code, out } = await runRunner(jobsDir, jobName, [], { EVO_SENTINEL_KEY: secret }, models);
+			expect(code).not.toBe(0);
+			expect(out).toContain("providers.onara.metadata");
+			expect(out).not.toContain(secret);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", jobName, "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir, secret).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
+		}
+	}, 30_000);
+
 	it("refuses to stage a models file that does not match the recorded hash", async () => {
 		const jobsDir = tmp();
 		const { code, out } = await runRunner(jobsDir, "job-models-hash", ["--models-yaml-hash", "0".repeat(64)]);

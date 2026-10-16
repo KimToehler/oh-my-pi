@@ -21,7 +21,7 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  */
 import type { Server } from "bun";
 import { writeComposeOverlayFile } from "./compose-overlay";
-import { readModelsEnvNames } from "./evo/models-yaml";
+import { assertNoHostCredentialValues, readModelsEnvNames } from "./evo/models-yaml";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
@@ -1766,6 +1766,10 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (cfg.modelsYaml) {
 		assertModelsYamlHash(cfg);
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
+		assertNoHostCredentialValues(
+			await Bun.file(cfg.modelsYaml).text(),
+			credentialValuesFromEnv(credentialNames, process.env),
+		);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
 		const explicitEnv = Object.fromEntries(Object.entries(cfg.env).filter(([key]) => !cfg.hostEnvKeys.includes(key)));
 		const leaked = findCredentialLeaks(
