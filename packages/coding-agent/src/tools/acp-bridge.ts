@@ -8,6 +8,7 @@
  * never be pushed into the editor.
  */
 
+import * as path from "node:path";
 import { InternalUrlRouter } from "../internal-urls";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "../lsp/client";
 import type { ToolSession } from ".";
@@ -18,9 +19,10 @@ import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 /**
  * Return `true` when an ACP client bridge write is appropriate for this path.
  *
- * Returns `false` for internal-URL paths (e.g. `'/Users/theo/.omp/agent/sessions/-Projects-oh-my-pi/2026-06-10T09-11-41-506Z_019eb0cd-3ec2-7000-92aa-1b82aa4d78f0/local/PLAN.md'`) and for the
- * active plan file while plan mode is enabled — both are OMP-internal artifacts
- * that must stay off the editor's buffer.
+ * Returns `false` for paths outside the session workspace, internal-URL paths
+ * (e.g. `local://PLAN.md`), and the active plan file while plan mode is
+ * enabled. External paths cannot be represented by workspace-scoped ACP
+ * clients, while OMP-internal artifacts must stay off the editor's buffer.
  */
 export async function shouldRouteWriteThroughBridge(
 	session: ToolSession,
@@ -34,6 +36,17 @@ export async function shouldRouteWriteThroughBridge(
 	// after tag-based path recovery rebinds a bare `plan.md#tag` onto the
 	// `local://` artifact, `requestedPath` is the absolute path, not the URL.
 	if (await targetsLocalSandbox(session, absolutePath)) return false;
+	// ACP clients validate the presented path against their lexical workspace
+	// root. Do not resolve symlinks here: the target may not exist yet, and on
+	// macOS `/var` versus `/private/var` would misclassify a new workspace file.
+	const workspaceRelativePath = path.relative(path.resolve(session.cwd), path.resolve(absolutePath));
+	if (
+		workspaceRelativePath === ".." ||
+		workspaceRelativePath.startsWith(`..${path.sep}`) ||
+		path.isAbsolute(workspaceRelativePath)
+	) {
+		return false;
+	}
 
 	const state = session.getPlanModeState?.();
 	if (!state?.enabled || !router.canHandle(state.planFilePath)) return true;

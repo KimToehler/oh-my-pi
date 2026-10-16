@@ -84,6 +84,30 @@ describe("write tool ACP fs routing", () => {
 		}
 	});
 
+	it("writes paths outside the workspace directly when the ACP client rejects external paths", async () => {
+		const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-acp-external-test-"));
+		try {
+			const filePath = path.join(externalDir, "output.txt");
+			const bridge: ClientBridge = {
+				capabilities: { writeTextFile: true },
+				writeTextFile: async () => {
+					throw new Error("Path is outside the current ACP session workspace");
+				},
+			};
+			const bridgeSpy = spyOn(bridge, "writeTextFile");
+
+			await new WriteTool(createSession(tmpDir, { bridge })).execute("call-external", {
+				path: filePath,
+				content: FILE_CONTENT,
+			});
+
+			expect(bridgeSpy).not.toHaveBeenCalled();
+			expect(await Bun.file(filePath).text()).toBe(FILE_CONTENT);
+		} finally {
+			await removeWithRetries(externalDir);
+		}
+	});
+
 	it("keys the returned snapshot header on bridge-transformed disk content", async () => {
 		const filePath = path.join(tmpDir, "formatted.ts");
 		const requested = "function f() {\n    return 1;\n}\n";
