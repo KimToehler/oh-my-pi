@@ -1,5 +1,6 @@
 /** Maps (variant, suite) to a fully specified harbor LaunchRequest: every matched field comes from the suite. */
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
@@ -98,7 +99,18 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	// Content-addressed snapshot: later edits to the host file cannot change what this run (or its identity) used.
 	const modelsYamlHash = new Bun.CryptoHasher("sha256").update(modelsText).digest("hex");
 	const snapshot = path.join(input.jobsDir, "_evo", "models", `${modelsYamlHash}.yml`);
-	if (!fs.existsSync(snapshot)) await Bun.write(snapshot, modelsText);
+	if (!fs.existsSync(snapshot)) {
+		await fsp.mkdir(path.dirname(snapshot), { recursive: true });
+		// Temp + rename: readers never see a partial file; racing writers publish byte-identical content.
+		const tmp = path.join(path.dirname(snapshot), `.${modelsYamlHash}.${crypto.randomUUID()}.tmp`);
+		try {
+			await Bun.write(tmp, modelsText);
+			await fsp.rename(tmp, snapshot);
+		} catch (err) {
+			await fsp.rm(tmp, { force: true }).catch(() => {});
+			throw err;
+		}
+	}
 	return {
 		benchmark: "harbor",
 		model: manifest.model,
