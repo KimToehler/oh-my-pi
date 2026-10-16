@@ -11,6 +11,11 @@
 
 - The `lsp` tool now uses `lsp.requestTimeout` to dynamically adjust both call deadlines and project-aware diagnostic wait times, with support for per-call overrides
 - Reduced CPU overhead during syntax checks and automatic edit repairs ([#15904](https://github.com/can1357/oh-my-pi/pull/15904) by [@iliaal](https://github.com/iliaal)).
+- ACP clients that support steering (IntelliJ's `_session/steering`) can now inject a message into a running turn; omp advertises this in `initialize` `_meta.steering`.
+
+### Changed
+
+- ACP `usage_update` now goes out when a session opens and after each model turn, compaction, model switch, and built-in command, not only when a prompt finishes, so IntelliJ's context meter shows up right away and tracks long tool loops. Token counts are sent as integers.
 - Reduced status-line refresh overhead while subagents have long conversations ([#15874](https://github.com/can1357/oh-my-pi/pull/15874) by [@iliaal](https://github.com/iliaal)).
 - Agents now send `todo` updates alongside their next tool call instead of spending a separate model turn on them ([#15402](https://github.com/can1357/oh-my-pi/pull/15402) by [@will-bogusz](https://github.com/will-bogusz))
 - The Shared Language Servers setting now says what it does: each connection gets its own server, and a released one is reused while another omp instance keeps the project's mux running ([#14633](https://github.com/can1357/oh-my-pi/pull/14633) by [@jorgoose](https://github.com/jorgoose))

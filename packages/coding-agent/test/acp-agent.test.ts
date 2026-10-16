@@ -136,6 +136,12 @@ class FakeAgentSession {
 		return Settings.instance;
 	}
 	promptCalls: string[] = [];
+	steerCalls: Array<{ text: string; images?: unknown[] }> = [];
+	/** Resolved when `prompt()` starts streaming; lets a test await turn start. */
+	promptEntered = Promise.withResolvers<void>();
+	/** Awaited inside `prompt()` after streaming starts, so a test can hold a turn open. */
+	promptGate: Promise<void> | undefined;
+	contextUsage: { tokens: number | null; contextWindow: number; percent: number } | undefined;
 	customMessages: Array<{ customType: string; content: string; details?: unknown }> = [];
 	customMessageOptions: Array<{ streamingBehavior?: "steer" | "followUp"; queueChipText?: string } | undefined> = [];
 	skillsSettings = { enableSkillCommands: true };
@@ -236,6 +242,8 @@ class FakeAgentSession {
 	async prompt(text: string): Promise<boolean> {
 		this.promptCalls.push(text);
 		this.isStreaming = true;
+		this.promptEntered.resolve();
+		await this.promptGate;
 		this.sessionManager.appendMessage({ role: "user", content: text, timestamp: Date.now() });
 		const assistantMessage = makeAssistantMessage("pong");
 		for (const listener of this.#listeners) {
@@ -301,8 +309,12 @@ class FakeAgentSession {
 
 	async refreshMCPTools(_tools: unknown[]): Promise<void> {}
 
-	getContextUsage(): undefined {
-		return undefined;
+	async steer(text: string, images?: unknown[]): Promise<void> {
+		this.steerCalls.push({ text, images });
+	}
+
+	getContextUsage(): { tokens: number | null; contextWindow: number; percent: number } | undefined {
+		return this.contextUsage;
 	}
 
 	async switchSession(sessionPath: string): Promise<boolean> {
@@ -1292,6 +1304,125 @@ describe("ACP agent", () => {
 			"Unknown ACP ext method",
 		);
 
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("advertises steering support for IntelliJ in initialize _meta", async () => {
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({ protocolVersion: 1, clientCapabilities: {} } as Parameters<
+			typeof harness.agent.initialize
+		>[0]);
+		expect(response._meta).toEqual({ steering: { supported: true } });
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("reports integer context usage before the first prompt", async () => {
+		const usageSeen = Promise.withResolvers<SessionNotification>();
+		const harness = await createHarness({
+			sessionUpdateHook: notification => {
+				if (notification.update.sessionUpdate === "usage_update") usageSeen.resolve(notification);
+			},
+		});
+		vi.useFakeTimers();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		harness.findSession(created.sessionId)!.contextUsage = { tokens: 1234.6, contextWindow: 200_000, percent: 0.6 };
+		await advanceBootstrapGuard();
+		vi.useRealTimers();
+
+		const usage = await usageSeen.promise;
+		expect(usage.sessionId).toBe(created.sessionId);
+		expect(usage.update).toEqual({ sessionUpdate: "usage_update", used: 1235, size: 200_000 });
+
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("reports context usage after each model turn while the prompt is still running", async () => {
+		const usageSeen = Promise.withResolvers<SessionNotification>();
+		const harness = await createHarness({
+			sessionUpdateHook: notification => {
+				if (notification.update.sessionUpdate === "usage_update") usageSeen.resolve(notification);
+			},
+		});
+		// Bootstrap guard never fires, so the only usage_update must come from turn_end.
+		vi.useFakeTimers();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.contextUsage = { tokens: 4_000, contextWindow: 100_000, percent: 4 };
+		const gate = Promise.withResolvers<void>();
+		session.promptGate = gate.promise;
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await session.promptEntered.promise;
+		for (const listener of session.listeners()) {
+			listener({ type: "turn_end", message: makeAssistantMessage("step"), toolResults: [] } as AgentSessionEvent);
+		}
+
+		const midTurn = await usageSeen.promise;
+		expect(settled).toBe(false);
+		expect(midTurn.update).toEqual({ sessionUpdate: "usage_update", used: 4_000, size: 100_000 });
+
+		gate.resolve();
+		await prompt;
+		vi.useRealTimers();
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("injects _session/steering into a running turn", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const gate = Promise.withResolvers<void>();
+		session.promptGate = gate.promise;
+
+		const prompt = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] });
+		await session.promptEntered.promise;
+		const steered = await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "also check X" }],
+		});
+
+		expect(steered).toEqual({ outcome: "injected" });
+		expect(session.steerCalls).toEqual([{ text: "also check X", images: [] }]);
+		expect(session.promptCalls).toEqual(["work"]);
+
+		gate.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("starts a new turn for _session/steering while idle", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+
+		const steered = await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "start over" }],
+		});
+		await session.promptEntered.promise;
+
+		expect(steered).toEqual({ outcome: "startedNewTurn" });
+		expect(session.steerCalls).toEqual([]);
+		expect(session.promptCalls).toEqual(["start over"]);
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
+	it("rejects malformed _session/steering params as invalid params", async () => {
+		const harness = await createHarness();
+		await expect(harness.agent.extMethod("_session/steering", { sessionId: 1, prompt: [] })).rejects.toMatchObject({
+			code: -32602,
+		});
 		harness.abortController.abort();
 		await Bun.sleep(0);
 	});
