@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { readFixedModes } from "./evo-task-modes";
 import { assertSafeRef, assertSafeRelPath, fail, META_FILE, type TaskMeta } from "./evo-task-shared";
 import { dockerfile, SOLVE_SH, TEST_SH, taskToml } from "./evo-task-templates";
 
@@ -36,12 +37,19 @@ async function resolveCommit(git: VcsGitRepo, ref: string): Promise<string> {
 	return (await git.resolveRef(`${ref}^{commit}`)) ?? fail(`cannot resolve ref ${ref}`);
 }
 
-async function writeFixedFile(git: VcsGitRepo, fix: string, rel: string, destRoot: string): Promise<void> {
+async function writeFixedFile(
+	git: VcsGitRepo,
+	fix: string,
+	rel: string,
+	destRoot: string,
+	mode: number,
+): Promise<void> {
 	const blob = await git.showBlob(`${fix}:${rel}`);
 	if (blob.truncated) fail(`blob ${rel} truncated`);
 	const dest = path.join(destRoot, rel);
 	await fs.mkdir(path.dirname(dest), { recursive: true });
 	await Bun.write(dest, blob.data);
+	await fs.chmod(dest, mode);
 }
 
 /**
@@ -91,6 +99,7 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	if (testFiles.length === 0) fail("no changed files match --test-glob between base and fix");
 	if (solutionFiles.length + deletedFiles.length === 0) fail("fix changes only test files; no solution to verify");
 
+	const modes = await readFixedModes(repo, fix, [...testFiles, ...solutionFiles]);
 	const out = path.resolve(o.output);
 	const existing = await fs.readdir(out).catch(() => null);
 	if (existing && existing.length > 0) fail(`output ${out} exists and is not empty`);
@@ -107,8 +116,8 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	await Bun.write(path.join(out, "solution", "deleted.txt"), deletedFiles.map(f => `${f}\n`).join(""));
 	await fs.chmod(path.join(out, "tests", "test.sh"), 0o755);
 	await fs.chmod(path.join(out, "solution", "solve.sh"), 0o755);
-	for (const f of testFiles) await writeFixedFile(git, fix, f, path.join(out, "tests", "files"));
-	for (const f of solutionFiles) await writeFixedFile(git, fix, f, path.join(out, "solution", "files"));
+	for (const f of testFiles) await writeFixedFile(git, fix, f, path.join(out, "tests", "files"), modes[f]);
+	for (const f of solutionFiles) await writeFixedFile(git, fix, f, path.join(out, "solution", "files"), modes[f]);
 
 	const meta: TaskMeta = { base, fix, testFiles, solutionFiles, deletedFiles };
 	await Bun.write(path.join(out, META_FILE), `${JSON.stringify(meta, null, 2)}\n`);

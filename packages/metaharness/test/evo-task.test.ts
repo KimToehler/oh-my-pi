@@ -15,10 +15,22 @@ async function sh(cwd: string, ...cmd: string[]): Promise<string> {
 	return out.trim();
 }
 
-async function commit(repo: string, files: Record<string, string>, message: string, remove: string[] = []) {
+async function commit(
+	repo: string,
+	files: Record<string, string>,
+	message: string,
+	remove: string[] = [],
+	executable: string[] = [],
+	symlinks: Record<string, string> = {},
+) {
 	for (const [rel, content] of Object.entries(files)) {
 		await fs.mkdir(path.dirname(path.join(repo, rel)), { recursive: true });
 		await Bun.write(path.join(repo, rel), content);
+	}
+	for (const rel of executable) await fs.chmod(path.join(repo, rel), 0o755);
+	for (const [rel, target] of Object.entries(symlinks)) {
+		await fs.mkdir(path.dirname(path.join(repo, rel)), { recursive: true });
+		await fs.symlink(target, path.join(repo, rel));
 	}
 	for (const rel of remove) await fs.rm(path.join(repo, rel));
 	await sh(repo, "git", "add", "-A");
@@ -219,6 +231,44 @@ describe("evo-task make", () => {
 		];
 		expect(parseMakeArgs(base).testGlobs).toEqual(["a", "b"]);
 		expect(() => parseMakeArgs(base.slice(2))).toThrow(/--repo is required/);
+	});
+});
+
+describe("evo-task git file modes", () => {
+	async function execRepo(): Promise<Fixture> {
+		const repo = path.join(tmp, "repo");
+		await fs.mkdir(repo);
+		await sh(repo, "git", "init", "-q", "-b", "main");
+		const base = await commit(repo, { "README.md": "readme\n" }, "base");
+		const fix = await commit(
+			repo,
+			{
+				"src/tool.sh": "#!/usr/bin/env bash\necho ok > out.txt\n",
+				"src/data.txt": "plain\n",
+				"tests/check.sh": "#!/usr/bin/env bash\n./src/tool.sh && grep -qx ok out.txt\n",
+			},
+			"fix",
+			[],
+			["src/tool.sh", "tests/check.sh"],
+		);
+		return { repo, base, fix };
+	}
+
+	it("preserves executable bit on hidden tests and solution files; verify runs 0 then 1", async () => {
+		const f = await execRepo();
+		await makeTask(opts(f, { testCommand: "./tests/check.sh" }));
+		const out = path.join(tmp, "out");
+		const mode = async (rel: string): Promise<number> => (await fs.stat(path.join(out, rel))).mode & 0o111;
+		expect(await mode("tests/files/tests/check.sh")).not.toBe(0);
+		expect(await mode("solution/files/src/tool.sh")).not.toBe(0);
+		expect(await mode("solution/files/src/data.txt")).toBe(0);
+		expect(await verifyTask(out)).toEqual({ before: 0, after: 1 });
+	});
+
+	it("rejects symlink tree entries in the fixed snapshot", async () => {
+		const f = await execRepo();
+		const fix = await commit(f.repo, {}, "link", [], [], { "src/link": "data.txt" });
+		await expect(makeTask(opts(f, { fix, testCommand: "./tests/check.sh" }))).rejects.toThrow(/symlink|non-regular/);
 	});
 });
 

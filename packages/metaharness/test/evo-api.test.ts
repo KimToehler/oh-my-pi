@@ -506,6 +506,59 @@ describe("evo launch", () => {
 		}
 	});
 
+	it("requires an explicit forward list to cover every models.yml env name; outputs a deterministic deduplicated union", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(
+			jobsDir,
+			"models.yml",
+			"providers:\n  a:\n    apiKey: B_KEY\n  b:\n    apiKey: A_KEY\n  c:\n    apiKey: A_KEY\n",
+		);
+		const h = harness({ modelsYaml, forwardEnv: null });
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const launch = (forwardEnv: string[] | null) =>
+			buildEvalLaunch({
+				jobsDir: h.jobsDir,
+				variant,
+				suite,
+				jobName: "j",
+				concurrency: null,
+				defaults: { modelsYaml, forwardEnv },
+			});
+		for (const name of ["A_KEY", "B_KEY", "EXTRA_KEY"]) process.env[name] = `value-of-${name}`;
+		cleanups.push(() => {
+			for (const name of ["A_KEY", "B_KEY", "EXTRA_KEY"]) delete process.env[name];
+		});
+		// Empty and mismatched lists are rejected, naming variable NAMES only.
+		for (const [list, missing] of [
+			[[], "A_KEY, B_KEY"],
+			[["A_KEY"], "B_KEY"],
+			[["EXTRA_KEY", "B_KEY"], "A_KEY"],
+		] as const) {
+			const err = await launch([...list]).catch((e: unknown) => e as Error);
+			expect((err as { status?: number }).status).toBe(422);
+			expect((err as Error).message).toBe(`forwarded env is missing variables referenced by models.yml: ${missing}`);
+			expect((err as Error).message).not.toContain("value-of-");
+		}
+		// Complete, reordered, duplicated and superset lists produce the same sorted union.
+		expect((await launch(["B_KEY", "A_KEY"])).envNames).toEqual(["A_KEY", "B_KEY"]);
+		expect((await launch(null)).envNames).toEqual(["A_KEY", "B_KEY"]);
+		expect((await launch(["EXTRA_KEY", "B_KEY", "A_KEY", "A_KEY"])).envNames).toEqual([
+			"A_KEY",
+			"B_KEY",
+			"EXTRA_KEY",
+		]);
+		// Host value missing for any name in the union.
+		delete process.env.EXTRA_KEY;
+		await expect(launch(["EXTRA_KEY", "A_KEY", "B_KEY"])).rejects.toThrow(
+			"host env not set for forwarded variables: EXTRA_KEY",
+		);
+		delete process.env.A_KEY;
+		await expect(launch(null)).rejects.toThrow("host env not set for forwarded variables: A_KEY");
+	});
+
 	it("evaluate answers 422 over REST for a literal apiKey and launches nothing", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");

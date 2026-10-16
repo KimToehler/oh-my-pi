@@ -20,8 +20,10 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  *   metaharness harbor --help
  */
 import type { Server } from "bun";
+import { writeComposeOverlayFile } from "./compose-overlay";
 import { readModelsEnvNames } from "./evo/models-yaml";
 import { stageAgentOverlay } from "./evo/overlay";
+import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
 import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
@@ -343,7 +345,7 @@ export function parseArgs(argv: string[]): Config {
 				cfg.dataset = take(arg);
 				break;
 			case "--path":
-				cfg.dataset = path.resolve(take(arg));
+				cfg.dataset = path.resolve(assertPlainPath("--path", take(arg)));
 				break;
 
 			case "--gateway-url":
@@ -361,16 +363,16 @@ export function parseArgs(argv: string[]): Config {
 				);
 				break;
 			case "--agent-dir":
-				cfg.agentDir = path.resolve(take(arg));
+				cfg.agentDir = path.resolve(assertPlainPath("--agent-dir", take(arg)));
 				break;
 			case "--source-root":
-				cfg.sourceRoot = path.resolve(take(arg));
+				cfg.sourceRoot = path.resolve(assertPlainPath("--source-root", take(arg)));
 				break;
 			case "--source-identity":
 				cfg.sourceIdentity = take(arg);
 				break;
 			case "--models-yaml":
-				cfg.modelsYaml = path.resolve(take(arg));
+				cfg.modelsYaml = path.resolve(assertPlainPath("--models-yaml", take(arg)));
 				break;
 			case "--no-gateway":
 				cfg.gateway = false;
@@ -383,7 +385,7 @@ export function parseArgs(argv: string[]): Config {
 				break;
 			case "-o":
 			case "--jobs-dir":
-				cfg.jobsDir = path.resolve(take(arg));
+				cfg.jobsDir = path.resolve(assertPlainPath("--jobs-dir", take(arg)));
 				break;
 			case "--job-name":
 				cfg.jobName = take(arg);
@@ -1290,21 +1292,19 @@ function writeComposeOverlay(
 	source: SourceMount | null,
 	agentOverlay: string | null,
 ): string | null {
-	const lines: string[] = [];
-	if (cfg.hostNetwork) lines.push('    network_mode: "host"');
-	if (source || agentOverlay) lines.push("    volumes:");
-	if (source) {
-		lines.push(`      - ${cfg.sourceRoot}:${SOURCE_SRC_MOUNT}:ro`);
-		for (const rel of source.nodeModules) {
-			lines.push(`      - ${path.join(source.depsDir, rel)}:${SOURCE_SRC_MOUNT}/${rel}:ro`);
-		}
-		lines.push(`      - ${path.join(source.depsDir, "bin")}:${SOURCE_BIN_MOUNT}:ro`);
-	}
-	if (agentOverlay) lines.push(`      - ${agentOverlay}:${AGENT_OVERLAY_MOUNT}:ro`);
-	if (lines.length === 0) return null;
-	const file = path.join(benchDir, "omp-compose-overlay.yaml");
-	fs.writeFileSync(file, `${["services:", "  main:", ...lines].join("\n")}\n`);
-	return file;
+	return writeComposeOverlayFile(benchDir, {
+		hostNetwork: cfg.hostNetwork,
+		source: source
+			? {
+					root: cfg.sourceRoot,
+					target: SOURCE_SRC_MOUNT,
+					depsDir: source.depsDir,
+					nodeModules: source.nodeModules,
+					binTarget: SOURCE_BIN_MOUNT,
+				}
+			: null,
+		agentOverlay: agentOverlay ? { host: agentOverlay, target: AGENT_OVERLAY_MOUNT } : null,
+	});
 }
 
 /**
@@ -1320,7 +1320,12 @@ export function buildMountsJson(
 	if (!source && !agentOverlay) return null;
 	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [];
 	if (source) {
-		mounts.push({ type: "bind", source: cfg.sourceRoot, target: SOURCE_SRC_MOUNT, read_only: true });
+		mounts.push({
+			type: "bind",
+			source: assertPlainPath("--source-root", cfg.sourceRoot),
+			target: SOURCE_SRC_MOUNT,
+			read_only: true,
+		});
 		for (const rel of source.nodeModules) {
 			mounts.push({
 				type: "bind",

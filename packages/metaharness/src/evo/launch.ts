@@ -76,7 +76,16 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	const manifest = suite.manifest;
 	// Validate even with an explicit forward list: the file is what the container receives.
 	const referenced = await readModelsEnvNames(defaults.modelsYaml);
-	const names = defaults.forwardEnv ?? referenced;
+	const explicit = defaults.forwardEnv ?? [];
+	// An explicit list must cover every variable the models file references; extras are allowed.
+	const unforwarded = referenced.filter(name => !explicit.includes(name));
+	if (defaults.forwardEnv !== null && unforwarded.length > 0) {
+		throw new EvoHttpError(
+			422,
+			`forwarded env is missing variables referenced by models.yml: ${unforwarded.join(", ")}`,
+		);
+	}
+	const names = [...new Set([...referenced, ...explicit])].sort();
 	const missing = names.filter(name => process.env[name] === undefined);
 	if (missing.length > 0)
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);

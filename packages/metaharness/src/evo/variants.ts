@@ -18,6 +18,7 @@ import {
 import { type ConfigFile, collectConfig, diffConfigs, hashConfig } from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
+import { optionalPlainPath as optionalPath } from "./path-guard";
 import { publishSnapshot } from "./snapshot-publish";
 import { type SourceIdentity, sourceIdentity } from "./source-identity";
 import { MUTATIONS, type Mutation, type ProposalRow, type VariantRow } from "./variant-types";
@@ -60,7 +61,7 @@ export function parseVariantRequest(raw: unknown): VariantRequest {
 	const mutation = enumValue(obj, "mutation", "variant", MUTATIONS);
 	const parentId = optionalString(obj, "parentId", "variant");
 	const donorVariantId = optionalString(obj, "donorVariantId", "variant");
-	const configDir = optionalString(obj, "configDir", "variant");
+	const configDir = optionalPath(obj, "configDir");
 	if (mutation === "root") {
 		if (parentId) throw badRequest("variant.parentId must be omitted for a root variant");
 		if (!configDir) throw badRequest("variant.configDir is required for a root variant");
@@ -84,7 +85,7 @@ export function parseVariantRequest(raw: unknown): VariantRequest {
 		directive: obj.directive === undefined ? "" : requiredString(obj, "directive", "variant"),
 		expectedSignals: [...new Set(expectedSignals)].sort(),
 		configDir,
-		sourceWorktree: optionalString(obj, "sourceWorktree", "variant"),
+		sourceWorktree: optionalPath(obj, "sourceWorktree"),
 	};
 }
 
