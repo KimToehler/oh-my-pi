@@ -61,8 +61,13 @@ import type { MCPServerConfig } from "../../mcp/types";
 import { loadAllExtensions } from "../../modes/components/extensions/state-manager";
 import { theme } from "@oh-my-pi/pi-tui/theme";
 import { normalizePlanTitle, type PlanApprovalDetails, resolveApprovedPlan } from "../../plan-mode/approved-plan";
+import { recommendPlanExecutionRole } from "../../plan-mode/execution-model";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
-import type { AgentSession, AgentSessionEvent } from "../../session/agent-session";
+import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
+import { journalJudgmentUsage } from "../../judgment";
+import { cfgCycleOrder } from "../../config/model-settings";
+import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
+import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
 import { BlobStore, resolveImageDataSync } from "../../session/blob-store";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import type { UsageStatistics } from "../../session/session-entries";
@@ -88,6 +93,7 @@ import {
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
+	buildToolCallStartUpdate,
 	extractAssistantMessageText,
 	mapAgentSessionEventToAcpSessionUpdates,
 	normalizeReplayToolArguments,
@@ -102,8 +108,10 @@ const ACP_PLAN_MODE_ID = "plan";
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
-const APPROVE_OPTION = "Approve and execute";
-const REFINE_OPTION = "Refine plan";
+/** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
+const PLAN_APPROVE_VALUE = "approve";
+const PLAN_APPROVE_VALUE_PREFIX = "approve:";
+const PLAN_REFINE_VALUE = "refine";
 const MODE_CONFIG_ID = "mode";
 const MODEL_CONFIG_ID = "model";
 const THINKING_CONFIG_ID = "thinking";
@@ -1958,12 +1966,15 @@ export class AcpAgent implements Agent {
 	 * `xd://propose`; this handler validates the plan file, normalizes the
 	 * title, asks the ACP client to confirm (via `unstable_createElicitation`
 	 * when supported), and on approval keeps the chosen plan path, exits plan
-	 * mode, and notifies the client so the agent regains full tools.
+	 * mode, switches to the execution model the operator picked, and notifies
+	 * the client so the agent regains full tools.
 	 *
 	 * Mirrors `InteractiveMode.#handlePlanProposal` for the parts the agent sees
 	 * (same `PlanApprovalDetails` shape). Clients without form-mode elicitation
 	 * get an auto-approve so plan mode is never stranded — the agent always has
-	 * a way out.
+	 * a way out. The model switch lands mid-turn on purpose: the agent loop
+	 * reads the model per LLM call, so the implementation steps after this tool
+	 * result already run on the chosen model.
 	 */
 	async #handleAcpPlanProposal(session: AgentSession, title: string): Promise<AgentToolResult<unknown>> {
 		const state = session.getPlanModeState();
@@ -1981,13 +1992,13 @@ export class AcpAgent implements Agent {
 			listPlanFiles: () => this.#listAcpLocalPlanFiles(session),
 		});
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		const approved = await this.#requestAcpPlanApprovalChoice(session.sessionId, resolvedTitle, planAbsolutePath);
+		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
 			planExists: true,
 		};
-		if (!approved) {
+		if (!choice.approved) {
 			// Rejection keeps plan mode active for another planning turn. Promote the
 			// reviewed path into plan-mode state so the next `#buildPlanModeMessage()`
 			// targets the plan just reviewed, not the stale state path.
@@ -2025,6 +2036,22 @@ export class AcpAgent implements Agent {
 			});
 			autosaveFailed = true;
 		}
+		let modelNote = "";
+		const executionModel = choice.executionModel;
+		if (executionModel && !this.#isActiveRoleModel(session, executionModel)) {
+			const modelLabel = `${executionModel.role} (${executionModel.model.name || executionModel.model.id})`;
+			try {
+				await session.applyRoleModel(executionModel);
+				modelNote = ` Implementation model: ${modelLabel}.`;
+			} catch (error) {
+				logger.warn("Failed to apply plan execution model", {
+					sessionId: session.sessionId,
+					role: executionModel.role,
+					error,
+				});
+				modelNote = ` (Could not switch to the ${executionModel.role} model; continuing with the current model.)`;
+			}
+		}
 		try {
 			await this.#connection.sessionUpdate({
 				sessionId: session.sessionId,
@@ -2037,17 +2064,23 @@ export class AcpAgent implements Agent {
 				error,
 			});
 		}
+		const autosaveNote = autosaveFailed ? " (Plan autosave failed; continuing.)" : "";
 		return {
 			content: [
 				{
 					type: "text" as const,
-					text: autosaveFailed
-						? `Plan approved at ${planFilePath}. Plan mode exited; proceed with the implementation. (Plan autosave failed; continuing.)`
-						: `Plan approved at ${planFilePath}. Plan mode exited; proceed with the implementation.`,
+					text: `Plan approved at ${planFilePath}. Plan mode exited; proceed with the implementation.${modelNote}${autosaveNote}`,
 				},
 			],
 			details,
 		};
+	}
+
+	/** Whether applying `entry` would leave the session on the same model and effective thinking level. */
+	#isActiveRoleModel(session: AgentSession, entry: ResolvedRoleModel): boolean {
+		const current = session.model;
+		if (!current || !modelsAreEqual(entry.model, current)) return false;
+		return !entry.explicitThinkingLevel || entry.thinkingLevel === session.thinkingLevel;
 	}
 
 	#resolveAcpPlanFilePath(session: AgentSession, planFilePath: string): string {
@@ -2093,32 +2126,95 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
-	 * Ask the ACP client to confirm plan approval. Returns `true` only on an
-	 * explicit `APPROVE_OPTION` selection. Refine, dismissal (`undefined`), or
-	 * any unrecognized value falls through to refine semantics — the caller
-	 * keeps plan mode active and surfaces guidance text to the agent. Clients
-	 * without `elicitation.form` support auto-approve because there is no
-	 * confirmation surface available; without that, plan mode would strand
-	 * the agent (the bug this method exists to fix).
+	 * Ask the ACP client to confirm plan approval and pick the execution model.
+	 * With two or more `cycleOrder` role models the select offers one
+	 * `approve:<role>` option per role plus `refine`; the judge's recommended
+	 * role (else `default`) is preselected and marked. Without tiers it offers
+	 * a bare `approve`/`refine` pair.
+	 *
+	 * Approves ONLY on an explicit approve value naming a known tier (or the
+	 * bare approve without tiers). Refine, dismissal, timeout, or any other
+	 * value falls through to refine semantics, so closing the dialog can never
+	 * grant write access. Clients without `elicitation.form` support
+	 * auto-approve on the current model because there is no confirmation
+	 * surface; without that, plan mode would strand the agent.
+	 *
+	 * Before the dialog it publishes the plan file as a completed `read` tool
+	 * call so clients render it as a clickable file chip; elicitation text
+	 * cannot carry a `file://` link (IntelliJ only follows http/https/mailto).
 	 */
-	async #requestAcpPlanApprovalChoice(sessionId: string, title: string, planPath: string): Promise<boolean> {
+	async #requestAcpPlanApprovalChoice(
+		session: AgentSession,
+		title: string,
+		planPath: string,
+		planContent: string,
+	): Promise<{ approved: false } | { approved: true; executionModel?: ResolvedRoleModel }> {
 		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
-		if (!supportsForm) return true;
-		// Show only the plan file path: ACP clients render elicitation messages
-		// as plain text, so an embedded markdown preview is unreadable.
-		const message = `Approve plan "${title}" and start implementation?\n\nPlan file: ${planPath}`;
+		if (!supportsForm) return { approved: true };
+		try {
+			await this.#connection.sessionUpdate({
+				sessionId: session.sessionId,
+				update: buildToolCallStartUpdate({
+					toolCallId: crypto.randomUUID(),
+					toolName: "read",
+					args: { path: planPath },
+					intent: `Plan: ${title}`,
+					cwd: session.sessionManager.getCwd(),
+					status: "completed",
+				}),
+			});
+		} catch (error) {
+			logger.warn("Failed to publish plan file location", { sessionId: session.sessionId, error });
+		}
+		const cycle = session.getRoleModelCycle(cfgCycleOrder.get(session.settings));
+		const tiers = cycle && cycle.models.length > 1 ? cycle.models : [];
+		let options: Array<{ const: string; title: string }>;
+		let defaultValue: string;
+		if (tiers.length > 0) {
+			const recommended =
+				(await recommendPlanExecutionRole(planContent, tiers, {
+					settings: session.settings,
+					registry: session.modelRegistry,
+					model: session.model,
+					sessionId: session.sessionId,
+					metadataResolver: provider => session.agent.metadataForProvider(provider),
+					onUsage: journalJudgmentUsage(session.sessionManager),
+					telemetry: session.agent.telemetry,
+				})) ?? (tiers.some(entry => entry.role === "default") ? "default" : tiers[0].role);
+			options = tiers.map(entry => ({
+				const: `${PLAN_APPROVE_VALUE_PREFIX}${entry.role}`,
+				title: `Approve → ${entry.role} · ${entry.model.name || entry.model.id}${entry.role === recommended ? " (recommended)" : ""}`,
+			}));
+			defaultValue = `${PLAN_APPROVE_VALUE_PREFIX}${recommended}`;
+		} else {
+			options = [{ const: PLAN_APPROVE_VALUE, title: "Approve and execute" }];
+			defaultValue = PLAN_APPROVE_VALUE;
+		}
+		options.push({ const: PLAN_REFINE_VALUE, title: "Refine plan" });
+		// Single plain-text line: IntelliJ flattens the message into a one-line
+		// header and renders no markdown or HTML, so the path rides in the
+		// field description (shown as a short subtitle) instead.
 		const value = await elicitFromAcpClient(
 			this.#connection,
-			sessionId,
+			session.sessionId,
 			"select",
-			message,
-			{ type: "string", enum: [APPROVE_OPTION, REFINE_OPTION] },
+			`Approve plan "${title}" and start implementation?`,
+			{
+				type: "string",
+				title: "Implementation",
+				description: `Plan file: ${shortenPath(planPath)}`,
+				oneOf: options,
+				default: defaultValue,
+			},
 			undefined,
 		);
-		// Approve ONLY on the explicit approve selection. Dismissal, cancel,
-		// timeout, or any other non-approve response falls through to refine
-		// semantics so closing the dialog can never grant write access.
-		return value === APPROVE_OPTION;
+		if (tiers.length === 0) {
+			return value === PLAN_APPROVE_VALUE ? { approved: true } : { approved: false };
+		}
+		if (typeof value !== "string" || !value.startsWith(PLAN_APPROVE_VALUE_PREFIX)) return { approved: false };
+		const role = value.slice(PLAN_APPROVE_VALUE_PREFIX.length);
+		const executionModel = tiers.find(entry => entry.role === role);
+		return executionModel ? { approved: true, executionModel } : { approved: false };
 	}
 
 	#buildModeState(session: AgentSession): SessionModeState {

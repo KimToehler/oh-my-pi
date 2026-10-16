@@ -1,0 +1,6 @@
+{
+	"model": {
+		"instructions": "The state holds an approved implementation plan (`plan`). Choose which model should implement it. The options are ordered from cheapest/fastest first to strongest last. Choose the cheapest option that will implement the plan correctly. Judge how open-ended the work is, not how long the plan is: a plan where every step names the exact edit is mechanical, even if it is long. Choose a stronger option only when steps leave real design decisions open, or when they touch concurrency, invariants, migrations, security, or cross-module contracts that are easy to get subtly wrong. If torn between two options, choose the cheaper one.",
+		"criteria": {}
+	}
+}
