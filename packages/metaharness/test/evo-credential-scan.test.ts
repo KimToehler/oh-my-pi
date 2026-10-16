@@ -341,6 +341,8 @@ describe("models.yml credential scan covers the full forwarded union (Gap B)", (
 			model: "m",
 			thinking: "medium",
 			environment: "docker",
+			minPairedTasks: 1,
+			minAttemptsPerTask: 1,
 		};
 		const input = {
 			jobsDir,
@@ -397,6 +399,8 @@ describe("request metadata is scanned at the /api/evo boundary (R48)", () => {
 		model: "onara/cc/claude-sonnet-5-5",
 		thinking: "medium",
 		environment: "docker",
+		minPairedTasks: 1,
+		minAttemptsPerTask: 1,
 	};
 
 	function expectClean(jobsDir: string, manager: ManagerServer): void {

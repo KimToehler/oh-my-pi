@@ -677,6 +677,8 @@ describe("suite identities", () => {
 			model: "m/x",
 			thinking: "low",
 			environment: "docker",
+			minPairedTasks: 1,
+			minAttemptsPerTask: 1,
 		});
 		expect(suite.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
 		expect((await registry.get("orgs"))?.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
@@ -695,6 +697,8 @@ describe("suites", () => {
 		model: "onara/cc/claude-sonnet-5-5",
 		thinking: "medium",
 		environment: "docker",
+		minPairedTasks: 1,
+		minAttemptsPerTask: 1,
 	};
 
 	it("snapshots immutable manifests and rejects changed content under an existing id", async () => {

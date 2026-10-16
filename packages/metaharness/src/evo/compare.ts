@@ -1,7 +1,8 @@
 /** Matched-condition parent/child comparison with confound guards and signal-gated credit. */
 import { EvoHttpError } from "./boundary";
+import { evaluateEligibility, type Ineligibility, type Interval, interval } from "./decision-policy";
 import type { FailurePhase } from "./failure-phase";
-import { type FitnessReport, interval, mean, type Interval } from "./fitness";
+import { type FitnessReport, mean } from "./fitness";
 import type { VariantRow } from "./variant-types";
 
 /** Run-level identity that must match for a delta to be meaningful. */
@@ -60,16 +61,30 @@ export interface ComparisonReport extends Interval {
 	rawDelta: number | null;
 	/**
 	 * Raw delta, with a positive value clamped to 0 unless every expected signal was observed.
-	 * `null` whenever the comparison is incomplete: a partial task set never yields a decision value.
+	 * `null` unless `decisionEligible`: an underpowered or non-model comparison never yields a decision value.
 	 */
 	creditedDelta: number | null;
-	/** Task counts over shared tasks; `null` when the comparison is incomplete. */
+	/** Task counts over shared tasks; `null` unless `decisionEligible`. */
 	wins: number | null;
 	ties: number | null;
 	losses: number | null;
 	missingInChild: string[];
 	missingInBaseline: string[];
-	complete: boolean;
+	/** Cardinality only: both runs have a terminal record in every task x attempt cell. */
+	dataComplete: boolean;
+	/**
+	 * `dataComplete` AND no non-model trials AND the suite's pre-declared policy is met AND the paired deltas have
+	 * variance to state an interval. Every decision-valued field (`creditedDelta`, wins/ties/losses, interval, and
+	 * the cost/call/token deltas) is null unless this is true.
+	 */
+	decisionEligible: boolean;
+	/** Why `decisionEligible` is false; null when eligible. */
+	ineligibility: Ineligibility | null;
+	/** Shared-task pairs with a reward on both sides (same as `sharedTasks`). */
+	pairedTasks: number;
+	attemptsPerTask: number;
+	childWithinTaskVariance: number | null;
+	baselineWithinTaskVariance: number | null;
 	/** Non-model trial counts (both sides) that make the comparison non-decisionable; empty when none. */
 	refusals: Refusal[];
 	expectedSignals: string[];
@@ -118,14 +133,22 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 	const missingSignals = variant.expectedSignals.filter(signal => !(signal in child.signalHits));
 	const signalsSatisfied = missingSignals.length === 0;
 	const refusals = refusalsOf(child, baseline);
-	const complete =
-		refusals.length === 0 &&
-		child.complete &&
-		baseline.complete &&
-		missingInChild.size === 0 &&
-		missingInBaseline.size === 0;
-	// Shared-task view stays as a diagnostic (`rawDelta`, `deltas`); every decision-valued field needs a complete task set.
-	const credited = !complete ? null : rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
+	// Every paired task must also carry a reward on both sides, or the paired set is partial.
+	const dataComplete =
+		child.dataComplete && baseline.dataComplete && missingInChild.size === 0 && missingInBaseline.size === 0;
+	const ineligibility = evaluateEligibility({
+		// Suite identity is matched upstream, so both sides carry the same policy and attempts.
+		policy: child.policy,
+		dataComplete,
+		incompleteReasons: [...child.incompleteReasons, ...baseline.incompleteReasons],
+		nonModelPhases: refusals.map(r => r.reason),
+		pairedTasks: deltas.length,
+		attemptsPerTask: Math.min(child.attemptsPerTask, baseline.attemptsPerTask),
+		deltas: values,
+	});
+	const eligible = ineligibility === null;
+	// Shared-task view stays as a diagnostic (`rawDelta`, `deltas`); every decision-valued field needs eligibility.
+	const credited = !eligible ? null : rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
 	return {
 		childVariantId: child.variantId,
 		baselineVariantId: baseline.variantId,
@@ -133,21 +156,27 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		sharedTasks: deltas.length,
 		rawDelta,
 		creditedDelta: credited,
-		...(complete ? interval(values, rawDelta) : { sd: null, se: null, ci95: null }),
-		wins: complete ? deltas.filter(d => d.delta > 1e-12).length : null,
-		ties: complete ? deltas.filter(d => Math.abs(d.delta) <= 1e-12).length : null,
-		losses: complete ? deltas.filter(d => d.delta < -1e-12).length : null,
+		...(eligible ? interval(values, rawDelta) : { sd: null, se: null, ci95: null }),
+		wins: eligible ? deltas.filter(d => d.delta > 1e-12).length : null,
+		ties: eligible ? deltas.filter(d => Math.abs(d.delta) <= 1e-12).length : null,
+		losses: eligible ? deltas.filter(d => d.delta < -1e-12).length : null,
 		missingInChild: [...missingInChild],
 		missingInBaseline: [...missingInBaseline],
-		complete,
+		dataComplete,
+		decisionEligible: eligible,
+		ineligibility,
+		pairedTasks: deltas.length,
+		attemptsPerTask: child.attemptsPerTask,
+		childWithinTaskVariance: child.withinTaskVariance,
+		baselineWithinTaskVariance: baseline.withinTaskVariance,
 		refusals,
 		expectedSignals: variant.expectedSignals,
 		observedSignals: observed,
 		missingSignals,
 		signalsSatisfied,
 		deltas,
-		callsDelta: complete ? diff(child.meanLlmCalls, baseline.meanLlmCalls) : null,
-		outputTokensDelta: complete ? diff(child.meanOutputTokens, baseline.meanOutputTokens) : null,
-		costUsdDelta: complete ? child.meanCostUsd - baseline.meanCostUsd : null,
+		callsDelta: eligible ? diff(child.meanLlmCalls, baseline.meanLlmCalls) : null,
+		outputTokensDelta: eligible ? diff(child.meanOutputTokens, baseline.meanOutputTokens) : null,
+		costUsdDelta: eligible ? child.meanCostUsd - baseline.meanCostUsd : null,
 	};
 }

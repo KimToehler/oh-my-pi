@@ -101,6 +101,10 @@ export class EvoReports {
 			jobName: synced.jobName,
 			suiteTasks: suite.manifest.include,
 			attempts: suite.manifest.attempts,
+			policy: {
+				minPairedTasks: suite.manifest.minPairedTasks,
+				minAttemptsPerTask: suite.manifest.minAttemptsPerTask,
+			},
 			trials: this.#store.listTraces(synced.jobName),
 		});
 		return { run: synced, report, identity };

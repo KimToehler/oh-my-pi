@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { assertMatched, type ConditionIdentity, compareFitness } from "../src/evo/compare";
+import { tCritical95 } from "../src/evo/decision-policy";
 import { computeFitness } from "../src/evo/fitness";
 import { buildReflectionBundle } from "../src/evo/reflection";
 import type { TranscriptMetrics } from "../src/evo/transcript";
@@ -46,8 +47,9 @@ function trial(task: string, attempt: number, over: Partial<TraceRow> = {}): Tra
 	};
 }
 
+const POLICY = { minPairedTasks: 1, minAttemptsPerTask: 1 };
 const fit = (trials: TraceRow[], tasks: string[], variantId = "v", jobName = "job", attempts = 1) =>
-	computeFitness({ variantId, suiteId: "s", jobName, suiteTasks: tasks, attempts, trials });
+	computeFitness({ variantId, suiteId: "s", jobName, suiteTasks: tasks, attempts, policy: POLICY, trials });
 
 describe("fitness", () => {
 	it("computes per-task mean attempts, macro mean, SD/SE/CI, and cost means exactly", () => {
@@ -84,10 +86,12 @@ describe("fitness", () => {
 		// rewards [0.5, 1, 0]: variance = (0 + .25 + .25)/2 = .25 -> sd .5, se .5/sqrt3
 		expect(r.sd).toBeCloseTo(0.5, 12);
 		expect(r.se).toBeCloseTo(0.5 / Math.sqrt(3), 12);
-		expect(r.ci95?.[0]).toBeCloseTo(0.5 - 1.96 * r.se!, 12);
+		// df = 2: Student-t critical 4.3027, not the normal 1.96.
+		expect(r.ci95?.[0]).toBeCloseTo(0.5 - tCritical95(2) * r.se!, 12);
+		expect(tCritical95(2)).toBeCloseTo(4.3027, 4);
 		expect(r.tasks).toBe(3);
 		expect(r.trials).toBe(6);
-		expect(r.complete).toBe(true);
+		expect(r.dataComplete).toBe(true);
 		// per-task means [3,10,6] -> 19/3; [30,100,60] -> 190/3; cost [.3,.1,0]
 		expect(r.meanLlmCalls).toBeCloseTo(19 / 3, 12);
 		expect(r.meanOutputTokens).toBeCloseTo(190 / 3, 12);
@@ -112,8 +116,10 @@ describe("fitness", () => {
 		expect(r.perTask.find(t => t.task === "b")?.reward).toBe(0);
 		expect(r.perTask.find(t => t.task === "c")?.reward).toBeNull();
 		expect(r.vHat).toBeCloseTo(1 / 3, 12);
-		expect(r.complete).toBe(false);
-		expect(r.incompleteReasons.join()).toContain("excluded as running or infrastructure failures");
+		// Every cell has a terminal record, so the data is complete; the infra trial is excluded from the score
+		// and surfaces in phaseCounts, and comparison refuses it via `refusals`.
+		expect(r.dataComplete).toBe(true);
+		expect(r.phaseCounts.executor_infra_failure).toBe(1);
 		expect(r.errors).toBe(2);
 		// A timeout must NOT be excluded (negative control): vHat would be 0.5 if it were.
 		expect(r.vHat).not.toBeCloseTo(0.5, 6);
@@ -126,7 +132,8 @@ describe("fitness", () => {
 			trial("b", 1, { status: "running", reward: null, transcript: null }),
 		];
 		const r = fit(trials, ["a", "b", "z"]);
-		expect(r.complete).toBe(false);
+		expect(r.dataComplete).toBe(false);
+		expect(r.incompleteReasons.join()).toContain("1 trial(s) still running");
 		expect(r.incompleteReasons.join()).toContain("missing suite tasks: z");
 		expect(r.startFailureRate).toBe(0.5);
 		expect(r.signalHits).toEqual({ "tool:read": 2, "mark:m": 1 });
@@ -145,13 +152,13 @@ describe("fitness", () => {
 				),
 			});
 		const exact = run({ a: 2, b: 2 });
-		expect(exact.complete).toBe(true);
+		expect(exact.dataComplete).toBe(true);
 		expect(exact.incompleteReasons).toEqual([]);
 		const fewer = run({ a: 2, b: 1 });
-		expect(fewer.complete).toBe(false);
+		expect(fewer.dataComplete).toBe(false);
 		expect(fewer.incompleteReasons).toEqual(["tasks with unexpected attempt count (expected 2): b has 1"]);
 		const more = run({ a: 3, b: 2 });
-		expect(more.complete).toBe(false);
+		expect(more.dataComplete).toBe(false);
 		expect(more.incompleteReasons).toEqual(["tasks with unexpected attempt count (expected 2): a has 3"]);
 	});
 });
@@ -183,7 +190,7 @@ describe("out-of-suite trials", () => {
 		expect(r.startFailureRate).toBe(0);
 		expect(r.signalHits).toEqual({ "tool:read": 1 });
 		expect(r.outsideSuiteTasks).toEqual(["t2"]);
-		expect(r.complete).toBe(false);
+		expect(r.dataComplete).toBe(false);
 		expect(r.incompleteReasons).toContain("trials outside suite: t2");
 	});
 
@@ -232,7 +239,7 @@ describe("missing task attribution", () => {
 		expect(c.missingInChild).toEqual(["baseOnly", "neither"]);
 		expect(new Set(c.missingInChild).size).toBe(c.missingInChild.length);
 		expect(new Set(c.missingInBaseline).size).toBe(c.missingInBaseline.length);
-		expect(c.complete).toBe(false);
+		expect(c.dataComplete).toBe(false);
 	});
 
 	it("is complete only when no task is missing on either side", () => {
@@ -240,7 +247,7 @@ describe("missing task attribution", () => {
 		const c = compareFitness(side("cj", all, "child"), side("pj", all, "parent"), variant([]));
 		expect(c.missingInChild).toEqual([]);
 		expect(c.missingInBaseline).toEqual([]);
-		expect(c.complete).toBe(true);
+		expect(c.dataComplete).toBe(true);
 	});
 });
 
@@ -294,7 +301,7 @@ describe("comparison", () => {
 		// deltas [1,-1,1,0] mean .25: var = (.5625+1.5625+.5625+.0625)/3 = .9166667
 		expect(c.se).toBeCloseTo(Math.sqrt(0.9166666667 / 4), 9);
 		expect(c.creditedDelta).toBeCloseTo(0.25, 12);
-		expect(c.complete).toBe(true);
+		expect(c.dataComplete).toBe(true);
 		expect(typeof c.costUsdDelta).toBe("number");
 		expect(typeof c.callsDelta).toBe("number");
 		expect(typeof c.outputTokensDelta).toBe("number");
@@ -328,7 +335,7 @@ describe("comparison", () => {
 		const { child, baseline } = pair({ t1: 1, t2: 1 }, ["tool:read", "mark:fix"]);
 		const c = compareFitness(child, baseline, variant(["mark:fix"]));
 		expect(c.signalsSatisfied).toBe(true);
-		expect(c.complete).toBe(false);
+		expect(c.dataComplete).toBe(false);
 		expect(c.sharedTasks).toBe(2);
 		expect(c.rawDelta).toBeCloseTo(0.5, 12);
 		expect(c.deltas.map(d => [d.task, d.delta])).toEqual([
@@ -344,7 +351,7 @@ describe("comparison", () => {
 	it("reports tasks missing on either side instead of a comparable delta", () => {
 		const { child, baseline } = pair({ t1: 1, t2: 1 });
 		const c = compareFitness(child, baseline, variant([]));
-		expect(c.complete).toBe(false);
+		expect(c.dataComplete).toBe(false);
 		expect(c.sharedTasks).toBe(2);
 		expect(c.missingInChild).toEqual(["t3", "t4"]);
 	});

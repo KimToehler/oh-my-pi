@@ -29,6 +29,9 @@ export interface SuiteManifest {
 	model: string;
 	thinking: string;
 	environment: (typeof SUITE_ENVIRONMENTS)[number];
+	/** Decision policy, pre-declared here so it cannot be chosen at read time; see `decision-policy.ts`. */
+	minPairedTasks: number;
+	minAttemptsPerTask: number;
 }
 
 export interface StoredSuite {
@@ -51,6 +54,8 @@ const FIELDS = [
 	"model",
 	"thinking",
 	"environment",
+	"minPairedTasks",
+	"minAttemptsPerTask",
 ] as const;
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
@@ -77,6 +82,18 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 	if (typeof timeoutMultiplier !== "number" || !Number.isFinite(timeoutMultiplier) || timeoutMultiplier <= 0) {
 		throw badRequest("suite.timeoutMultiplier must be a positive number");
 	}
+	const minPairedTasks = obj.minPairedTasks;
+	if (typeof minPairedTasks !== "number" || !Number.isSafeInteger(minPairedTasks) || minPairedTasks < 1) {
+		throw badRequest("suite.minPairedTasks must be a positive integer");
+	}
+	if (minPairedTasks > include.length) {
+		throw badRequest("suite.minPairedTasks must not exceed the number of included tasks");
+	}
+	const minAttemptsPerTask = obj.minAttemptsPerTask;
+	if (typeof minAttemptsPerTask !== "number" || !Number.isSafeInteger(minAttemptsPerTask) || minAttemptsPerTask < 1) {
+		throw badRequest("suite.minAttemptsPerTask must be a positive integer");
+	}
+	if (minAttemptsPerTask > attempts) throw badRequest("suite.minAttemptsPerTask must not exceed suite.attempts");
 	const thinking = requiredString(obj, "thinking", "suite");
 	if (!THINKING_LEVELS.includes(thinking))
 		throw badRequest(`suite.thinking must be one of ${THINKING_LEVELS.join("|")}`);
@@ -91,6 +108,8 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 		model: requiredString(obj, "model", "suite"),
 		thinking,
 		environment: enumValue(obj, "environment", "suite", SUITE_ENVIRONMENTS),
+		minPairedTasks,
+		minAttemptsPerTask,
 	};
 }
 

@@ -92,18 +92,36 @@ const trial = (task: string, over: Partial<TraceRow>): TraceRow => ({
 	transcript: null,
 	...over,
 });
-const fit = (id: string, trials: TraceRow[]) =>
-	computeFitness({ variantId: id, suiteId: "s", jobName: id, suiteTasks: ["a"], attempts: 1, trials });
+const fit = (id: string, trials: TraceRow[], suiteTasks: string[] = ["a"]) =>
+	computeFitness({
+		variantId: id,
+		suiteId: "s",
+		jobName: id,
+		suiteTasks,
+		attempts: 1,
+		policy: { minPairedTasks: 1, minAttemptsPerTask: 1 },
+		trials,
+	});
 const variant = { expectedSignals: [] } as unknown as VariantRow;
 
 describe("comparison gate by provenance", () => {
 	it("model_outcome 0 vs model_outcome 1 compares with a negative delta", () => {
+		const tasks = ["a", "b", "c"];
 		const c = compareFitness(
+			fit("c", [trial("a", {}), trial("b", {}), trial("c", {})], tasks),
+			fit("b", [trial("a", { status: "pass", reward: 1 }), trial("b", {}), trial("c", {})], tasks),
+			variant,
+		);
+		expect(c.decisionEligible).toBe(true);
+		expect(c.creditedDelta).toBeCloseTo(-1 / 3, 12);
+		// A single pair is never eligible, even when both sides are clean model outcomes.
+		const one = compareFitness(
 			fit("c", [trial("a", {})]),
 			fit("b", [trial("a", { status: "pass", reward: 1 })]),
 			variant,
 		);
-		expect(c.creditedDelta).toBe(-1);
+		expect(one.ineligibility).toMatchObject({ reason: "underpowered", pairedTasks: 1 });
+		expect(one.creditedDelta).toBeNull();
 		expect(c.refusals).toEqual([]);
 	});
 
@@ -115,7 +133,7 @@ describe("comparison gate by provenance", () => {
 				variant,
 			);
 			expect(c.refusals).toEqual([{ reason: phase, count: 1 }]);
-			expect(c.complete).toBe(false);
+			expect(c.decisionEligible).toBe(false);
 			expect(c.creditedDelta).toBeNull();
 			expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
 		});

@@ -628,6 +628,8 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		model: "onara/cc/claude-sonnet-5-5",
 		thinking: "medium",
 		environment: "docker",
+		minPairedTasks: 1,
+		minAttemptsPerTask: 1,
 	};
 
 	function git(cwd: string, ...args: string[]): void {

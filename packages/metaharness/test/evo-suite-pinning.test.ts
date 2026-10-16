@@ -60,6 +60,8 @@ const manifestFor = (dataset: string, over: Record<string, unknown> = {}) => ({
 	model: "onara/cc/claude-sonnet-5-5",
 	thinking: "medium",
 	environment: "docker",
+	minPairedTasks: 1,
+	minAttemptsPerTask: 1,
 	...over,
 });
 

@@ -51,6 +51,8 @@ const SUITE = {
 	model: "onara/cc/claude-sonnet-5-5",
 	thinking: "medium",
 	environment: "docker",
+	minPairedTasks: 1,
+	minAttemptsPerTask: 1,
 };
 
 interface Harness {
@@ -302,18 +304,28 @@ describe("evo REST", () => {
 		const list = await h.json<Array<{ id: string; runCount: number }>>(await fetch(`${h.base}/api/evo/variants`));
 		expect(list.map(v => v.runCount)).toEqual([1, 1]);
 
-		const fitness = await h.json<{ vHat: number; complete: boolean; signalHits: Record<string, number> }>(
+		const fitness = await h.json<{ vHat: number; dataComplete: boolean; signalHits: Record<string, number> }>(
 			await fetch(`${h.base}/api/evo/variants/${childId}/fitness?suite=search-1`),
 		);
-		expect(fitness).toMatchObject({ vHat: 1, complete: true, signalHits: { "mark:fix": 2 } });
+		expect(fitness).toMatchObject({ vHat: 1, dataComplete: true, signalHits: { "mark:fix": 2 } });
 
 		const compare = await h.json<{
 			rawDelta: number;
-			creditedDelta: number;
-			wins: number;
+			creditedDelta: number | null;
+			wins: number | null;
+			decisionEligible: boolean;
 			signalsSatisfied: boolean;
+			ineligibility: { reason: string; pairedTasks: number; minPairedTasks: number };
 		}>(await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`));
-		expect(compare).toMatchObject({ rawDelta: 0.5, creditedDelta: 0.5, wins: 1, signalsSatisfied: true });
+		// Two paired tasks, but the suite declares minPairedTasks: 1 -> effective floor 2 is met; deltas [1, 0] have variance.
+		expect(compare).toMatchObject({
+			rawDelta: 0.5,
+			creditedDelta: 0.5,
+			wins: 1,
+			decisionEligible: true,
+			ineligibility: null,
+			signalsSatisfied: true,
+		});
 
 		const bundle = await h.json<{
 			diff: { text: string };
@@ -347,7 +359,13 @@ describe("evo REST", () => {
 		const compare = await h.json<Record<string, unknown>>(
 			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
 		);
-		expect(compare).toMatchObject({ complete: false, rawDelta: 1, creditedDelta: null, signalsSatisfied: true });
+		expect(compare).toMatchObject({
+			dataComplete: false,
+			decisionEligible: false,
+			rawDelta: 1,
+			creditedDelta: null,
+			signalsSatisfied: true,
+		});
 		expect([compare.wins, compare.ties, compare.losses]).toEqual([null, null, null]);
 	});
 
@@ -359,7 +377,7 @@ describe("evo REST", () => {
 		const compare = await h.json<Record<string, unknown>>(
 			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
 		);
-		expect(compare).toMatchObject({ complete: false, creditedDelta: null });
+		expect(compare).toMatchObject({ dataComplete: false, decisionEligible: false, creditedDelta: null });
 		expect([compare.wins, compare.ties, compare.losses]).toEqual([null, null, null]);
 	});
 
@@ -456,14 +474,15 @@ describe("evo REST", () => {
 		);
 	});
 
-	it("excludes infrastructure failures from fitness and reports incomplete", async () => {
+	it("excludes infrastructure failures from fitness and reports them in phaseCounts", async () => {
 		const h = harness();
 		const { suiteHash, rootId } = await seed(h);
 		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash, infra: "t1" });
-		const fitness = await h.json<{ vHat: number; complete: boolean }>(
+		const fitness = await h.json<{ vHat: number; dataComplete: boolean; phaseCounts: Record<string, number> }>(
 			await fetch(`${h.base}/api/evo/variants/${rootId}/fitness?suite=search-1`),
 		);
-		expect(fitness).toMatchObject({ vHat: 1, complete: false });
+		// Every cell has a terminal record, so the data is complete; the infra trial is unscored and shown in phaseCounts.
+		expect(fitness).toMatchObject({ vHat: 1, dataComplete: true, phaseCounts: { executor_infra_failure: 1 } });
 	});
 });
 
