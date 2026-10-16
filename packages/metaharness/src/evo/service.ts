@@ -28,7 +28,7 @@ export interface EvoServiceOptions {
 	sourceRoot: string;
 	defaults: EvoLaunchDefaults;
 	/** Spawn a harbor launch; provided by the manager server. */
-	launch(request: LaunchRequest): { jobName: string; pid: number };
+	launch(request: LaunchRequest, opts?: { claimed?: boolean }): { jobName: string; pid: number };
 }
 
 interface Evaluated {
@@ -168,7 +168,7 @@ export class EvoService {
 				concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
 				defaults: this.#defaults,
 			});
-			return this.#launch(request);
+			return this.#launch(request, { claimed: true });
 		} catch (err) {
 			this.#store.releaseClaim(jobName);
 			throw err;

@@ -793,6 +793,41 @@ describe("evo launch", () => {
 		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
 	});
 
+	it("refuses a short host credential that a comment quotes or punctuates", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		const h = harness({ modelsYaml, forwardEnv: null });
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		cleanups.push(() => {
+			delete process.env.ONARA_ROUTER_KEY;
+		});
+		process.env.ONARA_ROUTER_KEY = "rk-77";
+		for (const comment of [
+			'# token="rk-77"',
+			'# "rk-77":',
+			"# 'rk-77',",
+			"# (rk-77).",
+			'# token: "rk-77";',
+			"# key=[rk-77]",
+		]) {
+			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n${comment}\n`);
+			const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
+				() => undefined,
+				(e: unknown) => e,
+			);
+			expect(err).toMatchObject({ status: 422 });
+			expect((err as Error).message).toContain("outside the parsed structure");
+			expect((err as Error).message).not.toContain("rk-77");
+		}
+		// Negative control: a longer token merely containing the short value as a substring is not a leak.
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n# rk-770 and brk-77x\n");
+		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
+		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+	});
+
 	it("refuses to publish a models snapshot whose header NAME carries a host credential", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");

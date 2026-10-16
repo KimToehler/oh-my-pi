@@ -594,7 +594,7 @@ describe("EvoService evaluate job-name claim", () => {
 		const root = (await (await post("/api/evo/variants", { mutation: "root", configDir })).json()) as {
 			variant: { id: string };
 		};
-		return { jobsDir, source, defaults, manager, store: manager.store, variantId: root.variant.id };
+		return { jobsDir, source, defaults, manager, base, store: manager.store, variantId: root.variant.id };
 	}
 
 	it("lets exactly one of two concurrent same-name evaluations launch, and keeps its trial rows", async () => {
@@ -642,6 +642,78 @@ describe("EvoService evaluate job-name claim", () => {
 		expect(statuses).toEqual([201, 409]);
 		expect(launches).toEqual(["evo-race"]);
 		expect(store.listTraces("evo-race").map(t => t.name)).toEqual(["t1__abc"]);
+	});
+
+	/** Stub Bun.spawn only: ManagerServer.launch, #spawnRunner and registerLaunch stay production code. */
+	function stubSpawn(): { argvs: string[][] } {
+		const argvs: string[][] = [];
+		const bun: { spawn: unknown } = Bun; // widened view of the same object, to swap one member
+		const original = bun.spawn;
+		bun.spawn = (argv: string[]) => {
+			argvs.push(argv);
+			return { pid: process.pid, exited: new Promise<number>(() => {}) };
+		};
+		cleanups.push(() => {
+			bun.spawn = original;
+		});
+		return { argvs };
+	}
+
+	it("evaluates through the real ManagerServer.launch and rejects the loser of a concurrent pair", async () => {
+		const { jobsDir, variantId, store, base } = await setup();
+		const { argvs } = stubSpawn();
+		const evaluate = (jobName: string) =>
+			fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName }),
+			});
+		const single = await evaluate("evo-single");
+		expect(single.status).toBe(201);
+		expect(await single.json()).toMatchObject({ jobName: "evo-single", pid: process.pid });
+		expect(store.getRun("evo-single")).toMatchObject({ status: "running", pid: process.pid, variantId });
+		expect(fs.existsSync(path.join(jobsDir, "evo-single", "manager.json"))).toBe(true);
+
+		const pair = await Promise.all([evaluate("evo-pair"), evaluate("evo-pair")]);
+		expect(pair.map(r => r.status).sort()).toEqual([201, 409]);
+		expect(argvs.filter(a => a.includes("evo-pair")).length).toBe(1);
+		// Negative control: a genuinely running name is still rejected by launch itself (generic launch route).
+		const dup = await fetch(`${base}/api/runs`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ model: "m/x", jobName: "evo-single" }),
+		});
+		expect(dup.status).toBe(400);
+		expect(await dup.json()).toMatchObject({ error: "run evo-single is already running" });
+	});
+
+	it("does not let a generic launch take over an in-flight evaluate claim", async () => {
+		const { variantId, store, manager } = await setup();
+		stubSpawn();
+		expect(store.claimJobName({ jobName: "evo-held", dataset: SUITE.dataset, variantId, suiteId: SUITE.id })).toBe(
+			true,
+		);
+		expect(() => manager.launch({ model: "m/x", jobName: "evo-held" })).toThrow("run evo-held is already running");
+		expect(store.getRun("evo-held")).toMatchObject({ pid: null });
+	});
+
+	it("reclaims a pid-less claim with no job dir left by a dead process", async () => {
+		const { jobsDir, variantId, store, base } = await setup();
+		stubSpawn();
+		// A second store on the same DB stands in for the process that died between claim and launch.
+		const dead = new RunStore(jobsDir);
+		expect(dead.claimJobName({ jobName: "evo-dead", dataset: SUITE.dataset, variantId, suiteId: SUITE.id })).toBe(
+			true,
+		);
+		dead.close();
+		expect(store.listRuns().map(r => r.jobName)).not.toContain("evo-dead");
+		expect(store.getRun("evo-dead")).toBeNull();
+		const res = await fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-dead" }),
+		});
+		expect(res.status).toBe(201);
 	});
 
 	it("releases the claim when launch setup fails so the name is reusable", async () => {

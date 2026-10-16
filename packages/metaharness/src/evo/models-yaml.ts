@@ -66,6 +66,11 @@ function collect(node: unknown, where: string, names: Set<string>): void {
 	}
 }
 
+/** Strip quotes and sentence/YAML punctuation from both ends of a raw-text token. */
+function stripQuotesAndPunctuation(token: string): string {
+	return token.replace(/^[\s"'`,;:.()[\]{}<>]+|[\s"'`,;:.()[\]{}<>]+$/g, "");
+}
+
 /**
  * Reject models.yml text whose scalar leaf carries one of the host credential `values` (length-aware match shared with
  * launch-args). `apiKey` and `headers` values are env names already validated by `collect`; header names are scanned. Messages name the dotted
@@ -117,7 +122,12 @@ export function assertNoHostCredentialValues(text: string, values: readonly stri
 	// Callers copy the ORIGINAL text, so comments, directives and any other non-structural text must be scanned too.
 	// Short values only match a whole node, so also test each line and each whitespace-delimited token.
 	for (const line of text.split(/\r?\n/)) {
-		const nodes = [line, line.trim(), ...line.split(/\s+/).map(token => token.replace(/^["']+|["',]+$/g, ""))];
+		const nodes = [line, line.trim()];
+		for (const token of line.split(/\s+/)) {
+			nodes.push(token, stripQuotesAndPunctuation(token));
+			// `key="value"`, `"value":` and `key=[value]` forms: test each assignment/mapping side on its own.
+			for (const part of token.split(/[=:]/)) nodes.push(stripQuotesAndPunctuation(part));
+		}
 		if (secrets.some(secret => nodes.some(node => node.length > 0 && containsHostValue(node, secret)))) {
 			throw fail(
 				"embeds a host credential value outside the parsed structure (comment or other raw text); remove it",
