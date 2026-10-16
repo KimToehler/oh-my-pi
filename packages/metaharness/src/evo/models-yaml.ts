@@ -9,13 +9,18 @@ function fail(detail: string): EvoHttpError {
 	return new EvoHttpError(422, `models.yml ${detail}`);
 }
 
-function hasUserinfo(value: string): boolean {
+/** Why a URL string may not appear in models.yml, or undefined when acceptable. A base URL legitimately has none of these. */
+function urlCredentialPlacement(value: string): string | undefined {
+	let url: URL;
 	try {
-		const url = new URL(value);
-		return url.username !== "" || url.password !== "";
+		url = new URL(value);
 	} catch {
-		return false;
+		return undefined;
 	}
+	if (url.username !== "" || url.password !== "") return "embed credentials in the URL userinfo";
+	if (url.search !== "") return "carry a query string (literal credentials are not allowed)";
+	if (url.hash !== "") return "carry a fragment (literal credentials are not allowed)";
+	return undefined;
 }
 
 /** Walk `node`, collecting env names from every `apiKey`; messages never echo the offending value. */
@@ -39,7 +44,8 @@ function collect(node: unknown, where: string, names: Set<string>): void {
 			continue;
 		}
 		if ((key === "baseUrl" || key === "url") && typeof value === "string") {
-			if (hasUserinfo(value)) throw fail(`${here} must not embed credentials in the URL userinfo`);
+			const problem = urlCredentialPlacement(value);
+			if (problem) throw fail(`${here} must not ${problem}`);
 			continue;
 		}
 		if (key !== "apiKey") {

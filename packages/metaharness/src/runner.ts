@@ -128,6 +128,19 @@ export interface Config {
 	postRunSourceIdentity?: string;
 	/** Fixed container-safe models.yml used instead of generated gateway routing. */
 	modelsYaml: string | null;
+	/** Expected sha256 of the `modelsYaml` bytes; verified before the file is staged (`--models-yaml-hash`). */
+	modelsYamlHash: string | null;
+}
+
+/** Throw unless `cfg.modelsYaml` bytes hash to the recorded `--models-yaml-hash` (no-op without one). */
+function assertModelsYamlHash(cfg: Config): void {
+	if (!cfg.modelsYaml || !cfg.modelsYamlHash) return;
+	const actual = new Bun.CryptoHasher("sha256").update(fs.readFileSync(cfg.modelsYaml)).digest("hex");
+	if (actual !== cfg.modelsYamlHash) {
+		throw new Error(
+			`models.yml hash mismatch for ${cfg.modelsYaml}: expected ${cfg.modelsYamlHash}, actual ${actual}`,
+		);
+	}
 }
 
 function defaultConfig(): Config {
@@ -175,6 +188,7 @@ function defaultConfig(): Config {
 		sourceRoot: REPO_ROOT,
 		sourceIdentity: null,
 		modelsYaml: null,
+		modelsYamlHash: null,
 	};
 }
 
@@ -207,6 +221,7 @@ Model / agent:
       --source-root <path>       Git worktree mounted as the omp source (default: this repo)
       --source-identity <id>     Expected <HEAD>[+<dirty hash>] of --source-root; mismatch aborts the launch
       --models-yaml <path>       Fixed models.yml for the container (works with --no-gateway)
+      --models-yaml-hash <hex>   Expected sha256 of --models-yaml; mismatch aborts the launch
 
 Dataset / scale:
   -l, --tasks <N>                Max tasks (default 20)
@@ -387,6 +402,13 @@ export function parseArgs(argv: string[]): Config {
 			case "--models-yaml":
 				cfg.modelsYaml = path.resolve(assertPlainPath("--models-yaml", take(arg)));
 				break;
+			case "--models-yaml-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value))
+					throw new Error("--models-yaml-hash must be 64 lowercase hex characters");
+				cfg.modelsYamlHash = value;
+				break;
+			}
 			case "--no-gateway":
 				cfg.gateway = false;
 				break;
@@ -1742,6 +1764,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 
 	// Reject literal/command apiKeys before anything is persisted or printed.
 	if (cfg.modelsYaml) {
+		assertModelsYamlHash(cfg);
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
 		const explicitEnv = Object.fromEntries(Object.entries(cfg.env).filter(([key]) => !cfg.hostEnvKeys.includes(key)));
@@ -1835,6 +1858,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		if (!cfg.modelsYaml)
 			throw new Error("--agent-dir requires --models-yaml (the overlay carries the fixed models.yml)");
 		if (!cfg.thinking) throw new Error("--agent-dir requires --thinking (the fixed executor level)");
+		assertModelsYamlHash(cfg);
 		agentOverlay = (
 			await stageAgentOverlay({
 				variantConfigDir: cfg.agentDir,

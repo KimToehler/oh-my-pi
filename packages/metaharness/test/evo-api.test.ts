@@ -320,6 +320,19 @@ describe("evo REST", () => {
 		expect(compare).toMatchObject({ rawDelta: 0.5, creditedDelta: 0, missingSignals: ["mark:fix"] });
 	});
 
+	it("never returns positive credit for an incomplete comparison", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		// Child omits t2 but improves t1 with the expected marker present.
+		writeJob(h, "evo-child", childId, { t1: 1 }, { suiteHash, signals: ["fix"] });
+		const compare = await h.json<Record<string, unknown>>(
+			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
+		);
+		expect(compare).toMatchObject({ complete: false, rawDelta: 1, creditedDelta: null, signalsSatisfied: true });
+		expect([compare.wins, compare.ties, compare.losses]).toEqual([null, null, null]);
+	});
+
 	it("returns 409 with exact differing fields for model and executor confounds", async () => {
 		const h = harness();
 		const { suiteHash, rootId, childId } = await seed(h);
@@ -696,6 +709,36 @@ describe("evo launch", () => {
 				expect((err as Error).message).not.toContain(sentinel);
 			}
 		}
+	});
+
+	it("rejects a models snapshot whose bytes no longer match its recorded hash", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
+		process.env.ONARA_ROUTER_KEY = "router-value-123";
+		cleanups.push(() => {
+			delete process.env.ONARA_ROUTER_KEY;
+		});
+		const defaults: EvoLaunchDefaults = { modelsYaml, forwardEnv: null };
+		const h = harness(defaults);
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null, defaults };
+		const first = await buildEvalLaunch(input);
+		const snapshot = first.modelsYaml!;
+		expect(fs.statSync(snapshot).mode & 0o222).toBe(0);
+		fs.chmodSync(snapshot, 0o644);
+		fs.writeFileSync(snapshot, "providers:\n  onara:\n    baseUrl: http://tampered\n    apiKey: ONARA_ROUTER_KEY\n");
+		const err = await buildEvalLaunch(input).then(
+			() => undefined,
+			(e: unknown) => e,
+		);
+		expect(err).toBeInstanceOf(Error);
+		expect(err).toMatchObject({ status: 422 });
+		const message = err instanceof Error ? err.message : "";
+		expect(message).toContain(snapshot);
+		expect(message).not.toContain("tampered");
 	});
 
 	it("requires an explicit forward list to cover every models.yml env name; outputs a deterministic deduplicated union", async () => {

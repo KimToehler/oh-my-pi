@@ -49,11 +49,15 @@ export interface ComparisonReport extends Interval {
 	sharedTasks: number;
 	/** Mean paired delta over shared tasks with complete rewards on both sides. */
 	rawDelta: number | null;
-	/** Raw delta, with a positive value clamped to 0 unless every expected signal was observed. */
+	/**
+	 * Raw delta, with a positive value clamped to 0 unless every expected signal was observed.
+	 * `null` whenever the comparison is incomplete: a partial task set never yields a decision value.
+	 */
 	creditedDelta: number | null;
-	wins: number;
-	ties: number;
-	losses: number;
+	/** Task counts over shared tasks; `null` when the comparison is incomplete. */
+	wins: number | null;
+	ties: number | null;
+	losses: number | null;
 	missingInChild: string[];
 	missingInBaseline: string[];
 	complete: boolean;
@@ -93,7 +97,9 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 	const observed = Object.keys(child.signalHits).sort();
 	const missingSignals = variant.expectedSignals.filter(signal => !(signal in child.signalHits));
 	const signalsSatisfied = missingSignals.length === 0;
-	const credited = rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
+	const complete = child.complete && baseline.complete && missingInChild.size === 0 && missingInBaseline.size === 0;
+	// Shared-task view stays as a diagnostic (`rawDelta`, `deltas`); every decision-valued field needs a complete task set.
+	const credited = !complete ? null : rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
 	return {
 		childVariantId: child.variantId,
 		baselineVariantId: baseline.variantId,
@@ -101,13 +107,13 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		sharedTasks: deltas.length,
 		rawDelta,
 		creditedDelta: credited,
-		...interval(values, rawDelta),
-		wins: deltas.filter(d => d.delta > 1e-12).length,
-		ties: deltas.filter(d => Math.abs(d.delta) <= 1e-12).length,
-		losses: deltas.filter(d => d.delta < -1e-12).length,
+		...(complete ? interval(values, rawDelta) : { sd: null, se: null, ci95: null }),
+		wins: complete ? deltas.filter(d => d.delta > 1e-12).length : null,
+		ties: complete ? deltas.filter(d => Math.abs(d.delta) <= 1e-12).length : null,
+		losses: complete ? deltas.filter(d => d.delta < -1e-12).length : null,
 		missingInChild: [...missingInChild],
 		missingInBaseline: [...missingInBaseline],
-		complete: child.complete && baseline.complete && missingInChild.size === 0 && missingInBaseline.size === 0,
+		complete,
 		expectedSignals: variant.expectedSignals,
 		observedSignals: observed,
 		missingSignals,

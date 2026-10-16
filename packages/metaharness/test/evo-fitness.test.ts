@@ -278,6 +278,23 @@ describe("comparison", () => {
 		expect(compareFitness(noMarker.child, noMarker.baseline, variant([])).creditedDelta).toBeCloseTo(0.25, 12);
 	});
 
+	it("withholds decision metrics when either side is incomplete", () => {
+		// Child improves t1 and satisfies every expected signal but omits t3/t4: shared gain must not be credited.
+		const { child, baseline } = pair({ t1: 1, t2: 1 }, ["tool:read", "mark:fix"]);
+		const c = compareFitness(child, baseline, variant(["mark:fix"]));
+		expect(c.signalsSatisfied).toBe(true);
+		expect(c.complete).toBe(false);
+		expect(c.sharedTasks).toBe(2);
+		expect(c.rawDelta).toBeCloseTo(0.5, 12);
+		expect(c.deltas.map(d => [d.task, d.delta])).toEqual([
+			["t1", 1],
+			["t2", 0],
+		]);
+		expect(c.creditedDelta).toBeNull();
+		expect([c.sd, c.se, c.ci95]).toEqual([null, null, null]);
+		expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
+	});
+
 	it("reports tasks missing on either side instead of a comparable delta", () => {
 		const { child, baseline } = pair({ t1: 1, t2: 1 });
 		const c = compareFitness(child, baseline, variant([]));

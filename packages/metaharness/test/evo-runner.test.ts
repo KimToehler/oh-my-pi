@@ -274,6 +274,11 @@ describe("agent overlay", () => {
 				`providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n  private-provider:\n    baseUrl: "https://user:${secret}@example.invalid/v1"\n`,
 				"providers.private-provider.baseUrl",
 			],
+			[
+				"query",
+				`providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n  private-provider:\n    baseUrl: "https://provider.invalid/v1?api_key=${secret}"\n`,
+				"providers.private-provider.baseUrl",
+			],
 		];
 		for (const [name, yaml, where] of cases) {
 			const modelsYaml = path.join(root, `${name}.yml`);
@@ -480,6 +485,14 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
 	}, 30_000);
 
+	it("refuses to stage a models file that does not match the recorded hash", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-models-hash", ["--models-yaml-hash", "0".repeat(64)]);
+		expect(code).not.toBe(0);
+		expect(out).toContain("models.yml hash mismatch");
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-models-hash", "runner-config.json"))).toBe(false);
+	}, 30_000);
+
 	it("rejects a models file whose baseUrl embeds userinfo credentials", async () => {
 		const jobsDir = tmp();
 		const models = `${VALID_PROVIDER}  private-provider:\n    baseUrl: "https://user:${HEADER_SECRET}@example.invalid/v1"\n`;
@@ -489,6 +502,32 @@ describe("runner-config credential persistence", () => {
 		expect(out).not.toContain(HEADER_SECRET);
 		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-userinfo-secret", "runner-config.json"))).toBe(false);
 		expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
+	}, 30_000);
+
+	for (const [label, suffix] of [
+		["query", `?api_key=${HEADER_SECRET}`],
+		["fragment", `#token=${HEADER_SECRET}`],
+	] as const) {
+		it(`rejects a models file whose baseUrl carries a literal credential in the ${label}`, async () => {
+			const jobsDir = tmp();
+			const models = `${VALID_PROVIDER}  private-provider:\n    baseUrl: "https://provider.invalid/v1${suffix}"\n`;
+			const { code, out } = await runRunner(jobsDir, `job-${label}-secret`, [], {}, models);
+			expect(code).not.toBe(0);
+			expect(out).toContain("providers.private-provider.baseUrl");
+			expect(out).not.toContain(HEADER_SECRET);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", `job-${label}-secret`, "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir, HEADER_SECRET).filter(file => path.basename(file) !== "models.yml")).toEqual(
+				[],
+			);
+		}, 30_000);
+	}
+
+	it("accepts a plain baseUrl without userinfo, query or fragment", async () => {
+		const jobsDir = tmp();
+		const models = `${VALID_PROVIDER}  router:\n    baseUrl: "https://router.example/v1"\n`;
+		const { code, out } = await runRunner(jobsDir, "job-plain-baseurl", ["--dry-run"], {}, models);
+		expect(out).not.toMatch(/error:/);
+		expect(code).toBe(0);
 	}, 30_000);
 
 	it("never prints the models file body in a dry run", async () => {

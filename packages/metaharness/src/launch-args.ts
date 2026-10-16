@@ -274,6 +274,7 @@ export function harborRunnerArgs(
 	if (request.sourceRoot) argv.push("--source-root", request.sourceRoot);
 	if (request.sourceIdentity) argv.push("--source-identity", request.sourceIdentity);
 	if (request.modelsYaml) argv.push("--models-yaml", request.modelsYaml);
+	if (request.modelsYamlHash) argv.push("--models-yaml-hash", request.modelsYamlHash);
 	if (request.noGateway) argv.push("--no-gateway");
 	for (const name of request.envNames ?? []) argv.push("--env", name);
 	for (const task of request.include ?? []) argv.push("--include", task);

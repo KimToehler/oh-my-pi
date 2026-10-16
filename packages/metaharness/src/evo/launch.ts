@@ -105,11 +105,20 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		const tmp = path.join(path.dirname(snapshot), `.${modelsYamlHash}.${crypto.randomUUID()}.tmp`);
 		try {
 			await Bun.write(tmp, modelsText);
+			await fsp.chmod(tmp, 0o444);
 			await fsp.rename(tmp, snapshot);
 		} catch (err) {
 			await fsp.rm(tmp, { force: true }).catch(() => {});
 			throw err;
 		}
+	}
+	// A reuse hit is trusted only after its bytes hash back to the recorded identity.
+	const publishedHash = new Bun.CryptoHasher("sha256").update(await fsp.readFile(snapshot)).digest("hex");
+	if (publishedHash !== modelsYamlHash) {
+		throw new EvoHttpError(
+			422,
+			`models snapshot ${snapshot} no longer matches its recorded sha256 ${modelsYamlHash}`,
+		);
 	}
 	return {
 		benchmark: "harbor",
