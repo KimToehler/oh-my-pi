@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `550f413d4787211a0bd0a0609646034d700abb1b`
+- Head: `58cc11ca11c457ddad84f83d4361bee97bd65091`
 - Result: **PASS**
 
 ## Review history
@@ -32,7 +32,9 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R27: `hashConfig` and `diffConfigs` ignored `ConfigFile.executable` although `materializeConfig` chmods the staged tree from it, so a variant flipping only a script's exec bit took its parent's id and was discarded as a no-op. Both now fold the bit in, mirroring `hashTaskDir`.
 - R28: `callsDelta`, `outputTokensDelta` and `costUsdDelta` were computed unconditionally while the decision fields were nulled, so their means could span different task sets. All three are now `null` unless the comparison is complete.
 - R29: a reviewer required migrating variant identities across R27's hash-frame change. Dismissed as not applicable and confirmed by a second reviewer: `main` carries neither the evo schema nor `src/evo`, the schema lands only in this unmerged branch, and the package is private at `0.0.1`, so no old-frame row can exist outside the gitignored scratch dir, which was reset.
+- R30: only `apiKey`, `headers`, `baseUrl` and `url` were validated, so an unrelated scalar holding a referenced credential's host value was snapshotted into `_evo/models` before any scan, and the overlay's later scan had an 8-character floor. `assertNoHostCredentialValues` now checks every scalar leaf and mapping key before both copies, reusing the existing length-aware matcher.
+- R31: that check skipped the whole `headers` subtree, so a header NAME could be the credential, and it guarded only the evo snapshot while the direct `--models-yaml` path copied the file verbatim into the container. Header keys are now scanned, the direct runner runs the same check inside its existing credential guard, and a credential-bearing key is reported as `<key>` so the dotted path cannot echo it.
 
 ## Final verdict
 
-Fresh reviewer over `c8229bab36..550f413d47` (full branch delta `935046d15b...550f413d47`): `VERDICT: PASS`, no blockers, R29 dismissal upheld.
+Fresh reviewer over `952f64b254..58cc11ca11` (full branch delta `935046d15b...58cc11ca11`): `VERDICT: PASS`, no blockers; the class was confirmed closed at every site that reads, copies, stages, prints or uploads an external models file, including `agent/omp_local.py`.
