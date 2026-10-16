@@ -6,6 +6,7 @@ import { parseMakeArgs } from "../scripts/evo-task";
 import { type MakeOptions, makeTask } from "../scripts/evo-task-make";
 import { verifyTask } from "../scripts/evo-task-verify";
 import { EvoHttpError } from "../src/evo/boundary";
+import { unlockTree } from "../src/evo/config-snapshot";
 import { SuiteRegistry } from "../src/evo/suites";
 
 let tmp = "";
@@ -86,6 +87,8 @@ beforeEach(async () => {
 	tmp = await fs.mkdtemp(path.join(os.tmpdir(), "evo-task-test-"));
 });
 afterEach(async () => {
+	// Suite task snapshots are read-only directories; restore owner write before deleting.
+	await unlockTree(tmp);
 	await fs.rm(tmp, { recursive: true, force: true });
 });
 

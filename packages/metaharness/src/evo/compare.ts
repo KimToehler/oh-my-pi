@@ -7,6 +7,8 @@ import type { VariantRow } from "./variant-types";
 export interface ConditionIdentity {
 	suiteId: string;
 	suiteHash: string;
+	/** Identity of the evaluated task bytes; parent and child must have run the same bytes. */
+	taskHash: string;
 	model: string;
 	executorConfigHash: string;
 	modelsYamlHash: string;

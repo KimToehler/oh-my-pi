@@ -404,7 +404,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "job-live",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -413,7 +413,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "job-bare",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -444,7 +444,7 @@ describe("ManagerServer API", () => {
 			manager.store.registerLaunch({
 				benchmark: "harbor",
 				jobName,
-				dataset: "terminal-bench@2.0",
+				dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 				agent: "omp",
 				models: ["m/x"],
 				pid: process.pid,
@@ -454,7 +454,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "live-run",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -621,7 +621,7 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		id: "race-1",
 		split: "search",
 		benchmark: "harbor",
-		dataset: "terminal-bench@2.0",
+		dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 		include: ["t1"],
 		attempts: 1,
 		timeoutMultiplier: 1,

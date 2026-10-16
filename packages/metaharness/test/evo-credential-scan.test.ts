@@ -345,7 +345,7 @@ describe("models.yml credential scan covers the full forwarded union (Gap B)", (
 		const input = {
 			jobsDir,
 			variant: {} as never,
-			suite: { manifest, hash: "h" } as never,
+			suite: { manifest, hash: "h", taskHashes: null } as never,
 			jobName: "j",
 			concurrency: null,
 			defaults,
@@ -390,7 +390,7 @@ describe("request metadata is scanned at the /api/evo boundary (R48)", () => {
 		id: "search-r48",
 		split: "search",
 		benchmark: "harbor",
-		dataset: "terminal-bench@2.0",
+		dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 		include: ["t1"],
 		attempts: 1,
 		timeoutMultiplier: 1,

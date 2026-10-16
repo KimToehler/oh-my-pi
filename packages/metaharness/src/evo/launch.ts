@@ -9,6 +9,7 @@ import { EvoHttpError } from "./boundary";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
+import { assertSuiteTasksIntact, suiteDataset, suiteTaskHash } from "./suite-tasks";
 import type { StoredSuite } from "./suites";
 import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant, variantConfigDir } from "./variants";
 import type { VariantRow } from "./variant-types";
@@ -92,6 +93,8 @@ export interface EvalLaunchInput {
 export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchRequest> {
 	const { variant, suite, defaults } = input;
 	const manifest = suite.manifest;
+	// Launch-time integrity: the snapshot must still hold the registered task bytes before anything is staged.
+	assertSuiteTasksIntact(input.jobsDir, suite);
 	// Validate even with an explicit forward list: the file is what the container receives.
 	let modelsText: string;
 	try {
@@ -143,7 +146,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	return {
 		benchmark: "harbor",
 		model: manifest.model,
-		dataset: manifest.dataset,
+		dataset: suiteDataset(input.jobsDir, suite),
 		include: manifest.include,
 		tasks: manifest.include.length,
 		attempts: manifest.attempts,
@@ -154,6 +157,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		jobName: input.jobName,
 		suiteId: manifest.id,
 		suiteHash: suite.hash,
+		taskHash: suiteTaskHash(suite),
 		...variantLaunchFields(input.jobsDir, variant, manifest),
 		modelsYaml: snapshot,
 		modelsYamlHash,

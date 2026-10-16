@@ -44,7 +44,7 @@ const SUITE = {
 	id: "search-1",
 	split: "search",
 	benchmark: "harbor",
-	dataset: "terminal-bench@2.0",
+	dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 	include: ["t1", "t2"],
 	attempts: 1,
 	timeoutMultiplier: 1,
@@ -92,6 +92,7 @@ function harness(defaults?: EvoLaunchDefaults): Harness {
 interface JobOptions {
 	signals?: string[];
 	suiteHash?: string;
+	taskHash?: string;
 	executor?: string;
 	model?: string;
 	modelsYamlHash?: string;
@@ -137,7 +138,11 @@ function writeJob(
 		];
 		write(trial, "agent/omp.txt", `${events.join("\n")}\n`);
 	}
-	write(jobDir, "config.json", JSON.stringify({ dataset: "terminal-bench@2.0", agents: [{ name: "omp" }] }));
+	write(
+		jobDir,
+		"config.json",
+		JSON.stringify({ dataset: `terminal-bench@sha256:${"a".repeat(64)}`, agents: [{ name: "omp" }] }),
+	);
 	write(
 		jobDir,
 		"result.json",
@@ -150,7 +155,7 @@ function writeJob(
 	h.manager.store.registerLaunch({
 		benchmark: "harbor",
 		jobName,
-		dataset: "terminal-bench@2.0",
+		dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 		agent: "omp",
 		models: [opts.model ?? SUITE.model],
 		pid: 999999999,
@@ -159,6 +164,7 @@ function writeJob(
 		config: {
 			model: opts.model ?? SUITE.model,
 			suiteHash: opts.suiteHash,
+			taskHash: opts.taskHash ?? "t".repeat(64),
 			executorConfigHash: opts.executor ?? "exec-1",
 			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
 			...(opts.sourceIdentity ? { sourceIdentity: opts.sourceIdentity } : {}),
@@ -407,6 +413,19 @@ describe("evo REST", () => {
 		const body = (await res.json()) as { error: string; mismatches: Array<{ field: string }> };
 		expect(body.error).toContain("modelsYamlHash");
 		expect(body.mismatches.map(m => m.field)).toEqual(["modelsYamlHash"]);
+	});
+
+	it("refuses a comparison whose runs evaluated different task bytes, never returning a delta", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash, taskHash: "a".repeat(64) });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, taskHash: "b".repeat(64) });
+		const res = await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: string; rawDelta?: number; mismatches: Array<{ field: string }> };
+		expect(body.error).toBe("conditions differ: taskHash");
+		expect(body.mismatches.map(m => m.field)).toEqual(["taskHash"]);
+		expect(body.rawDelta).toBeUndefined();
 	});
 
 	it("refuses fitness for a stale suite version and for runs without recorded conditions", async () => {

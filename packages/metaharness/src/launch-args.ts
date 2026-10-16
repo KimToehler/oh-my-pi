@@ -68,6 +68,8 @@ export interface LaunchRequest {
 	modelsYamlHash?: string;
 	/** Evo-only: content hash of the suite manifest. */
 	suiteHash?: string;
+	/** Evo-only: identity of the task bytes evaluated (per-task hash digest, or pinned registry reference). */
+	taskHash?: string;
 	/** Extra raw runner args, appended verbatim. */
 	extraArgs?: string[];
 }

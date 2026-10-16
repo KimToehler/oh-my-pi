@@ -42,10 +42,11 @@ export class EvoReports {
 	#identity(run: RunRow, variant: VariantRow): ConditionIdentity {
 		const cfg = run.config;
 		const suiteHash = str(cfg.suiteHash);
+		const taskHash = str(cfg.taskHash);
 		const executorConfigHash = str(cfg.executorConfigHash);
 		const modelsYamlHash = str(cfg.modelsYamlHash);
 		const model = str(cfg.model);
-		if (!run.suiteId || !suiteHash || !executorConfigHash || !modelsYamlHash || !model) {
+		if (!run.suiteId || !suiteHash || !taskHash || !executorConfigHash || !modelsYamlHash || !model) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
 		const postRun = str(cfg.postRunSourceIdentity) ?? this.#recordedPostRunIdentity(run.jobName);
@@ -56,6 +57,7 @@ export class EvoReports {
 		return {
 			suiteId: run.suiteId,
 			suiteHash,
+			taskHash,
 			model,
 			executorConfigHash,
 			modelsYamlHash,

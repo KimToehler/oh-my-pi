@@ -41,6 +41,7 @@ import {
 	type LaunchRequest,
 	resolveLocalDataset,
 } from "./launch-args";
+import { assertRecordedSuiteIntact } from "./evo/suite-tasks";
 import { type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
 
 /** PUT /api/experiments/:id body — goal and per-run role/note/label metadata. */
@@ -69,6 +70,7 @@ const EVO_IDENTITY_FIELDS = [
 	"variantId",
 	"suiteId",
 	"suiteHash",
+	"taskHash",
 	"stagedConfigHash",
 	"executorConfigHash",
 	"modelsYamlHash",
@@ -149,9 +151,12 @@ function resolveEvoInheritance(
 	req: AddArmRequest,
 ): Partial<LaunchRequest> {
 	const inherited: Partial<LaunchRequest> = {};
+	// An arm re-launches the template run's suite snapshot dataset: verify those bytes still match the registered hashes.
+	if (cfg.suiteId) assertRecordedSuiteIntact(store.jobsDir, cfg.suiteId);
 	for (const key of [
 		"suiteId",
 		"suiteHash",
+		"taskHash",
 		"thinking",
 		"modelsYaml",
 		"noGateway",
