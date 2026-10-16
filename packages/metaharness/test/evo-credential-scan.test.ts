@@ -157,6 +157,7 @@ describe("variant genome credential scan (Gap A)", () => {
 				dest,
 				spec: { model: "m", thinking: "medium", webSearch: false, findTool: false, settings: {} },
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 				secretValues: [SECRET],
 			}),
 		);
@@ -273,6 +274,7 @@ describe("credential scan covers filenames and the generated diff (R44)", () => 
 				dest,
 				spec: { model: "m", thinking: "medium", webSearch: false, findTool: false, settings: {} },
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 				secretValues: [SECRET],
 			}),
 		);
@@ -364,3 +366,108 @@ describe("models.yml credential scan covers the full forwarded union (Gap B)", (
 		expect(values).toContain(EXTRA_SECRET);
 	});
 });
+
+describe("request metadata is scanned at the /api/evo boundary (R48)", () => {
+	function apiHarness() {
+		setEnv("EVO_CRED_REFERENCED", SECRET);
+		const jobsDir = tmp("evo-cred-req-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_CRED_REFERENCED\n");
+		const defaults: EvoLaunchDefaults = { modelsYaml, forwardEnv: ["EVO_CRED_REFERENCED"] };
+		const manager = new ManagerServer(jobsDir, undefined, { sourceRoot: makeSource(), defaults });
+		const server = manager.start(0);
+		cleanups.push(() => void manager.stop());
+		const post = (route: string, body: unknown) =>
+			fetch(`http://localhost:${server.port}${route}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			});
+		return { jobsDir, manager, post };
+	}
+
+	const SUITE = {
+		id: "search-r48",
+		split: "search",
+		benchmark: "harbor",
+		dataset: "terminal-bench@2.0",
+		include: ["t1"],
+		attempts: 1,
+		timeoutMultiplier: 1,
+		model: "onara/cc/claude-sonnet-5-5",
+		thinking: "medium",
+		environment: "docker",
+	};
+
+	function expectClean(jobsDir: string, manager: ManagerServer): void {
+		expect(manager.store.evo.listVariants()).toEqual([]);
+		const proposals = (manager.store.evo as unknown as { listProposals(id: string | null): unknown[] }).listProposals;
+		expect(typeof proposals).toBe("function");
+		expect(Bun.spawnSync(["grep", "-rlF", "--", SECRET, jobsDir]).stdout.toString().trim()).toBe("");
+	}
+
+	it("rejects a forwarded value in directive, strategy, and nested expectedSignals with 422", async () => {
+		const { jobsDir, manager, post } = apiHarness();
+		const dir = tmp("evo-cred-agent-");
+		write(dir, "AGENTS.md", "# clean\n");
+		const bodies = [
+			{ mutation: "root", configDir: dir, directive: `debug with ${SECRET}` },
+			{ mutation: "root", configDir: dir, strategy: `try ${SECRET}` },
+			{ mutation: "root", configDir: dir, expectedSignals: [`tool:${SECRET}`] },
+		];
+		for (const body of bodies) {
+			const res = await post("/api/evo/variants", body);
+			expect(res.status).toBe(422);
+			expect(await res.text()).not.toContain(SECRET);
+		}
+		expectClean(jobsDir, manager);
+	});
+
+	it("rejects a forwarded value at any depth of a suite manifest and registers a clean one", async () => {
+		const { jobsDir, manager, post } = apiHarness();
+		const res = await post("/api/evo/suites", { ...SUITE, include: ["t1", `t-${SECRET}`] });
+		expect(res.status).toBe(422);
+		expect(await res.text()).not.toContain(SECRET);
+		const nested = await post("/api/evo/suites", { ...SUITE, extra: { deep: [{ x: SECRET }] } });
+		expect(nested.status).toBe(422);
+		expect(await nested.text()).not.toContain(SECRET);
+		expectClean(jobsDir, manager);
+		expect((await post("/api/evo/suites", SUITE)).status).toBe(201);
+	});
+
+	it("still registers a legitimate directive, strategy, and signals with 201", async () => {
+		const { post } = apiHarness();
+		const dir = tmp("evo-cred-agent-");
+		write(dir, "AGENTS.md", "# clean\n");
+		const res = await post("/api/evo/variants", {
+			mutation: "root",
+			configDir: dir,
+			strategy: "tighten rules",
+			directive: "reference EVO_CRED_REFERENCED by name only",
+			expectedSignals: ["tool:read"],
+		});
+		expect(res.status).toBe(201);
+	});
+
+	it("never persists an echoed credential in a proposal detail", async () => {
+		const secret = SECRET;
+		const { jobsDir, store, reg } = registry([secret]);
+		const missing = path.join(jobsDir, `missing-${secret}`);
+		const err = await error(reg.register(parseVariantRequest({ mutation: "root", configDir: missing })));
+		expect(err).toBeInstanceOf(Error);
+		expect(err?.message).not.toContain(secret);
+		expect(Bun.spawnSync(["grep", "-rlF", "--", secret, jobsDir]).stdout.toString().trim()).toBe("");
+		void store;
+	});
+});
+
+/** sha256 of a models file as the runner records it; the overlay requires it at staging time. */
+function modelsHash(file: string): string {
+	let bytes: Uint8Array;
+	try {
+		bytes = fs.readFileSync(file);
+	} catch {
+		bytes = new Uint8Array();
+	}
+	return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+}

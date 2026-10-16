@@ -7,7 +7,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { EvoHttpError } from "./boundary";
-import { assertDiffClean, assertGenomeClean } from "./credential-scan";
+import { assertDiffClean, assertGenomeClean, redactSecrets } from "./credential-scan";
 import { type ConfigFile, collectConfig, diffConfigs, hashConfig, unlockTree } from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
@@ -133,7 +133,7 @@ export class VariantRegistry {
 		try {
 			resolved = await this.#resolve(req, parent);
 		} catch (err) {
-			const detail = err instanceof Error ? err.message : String(err);
+			const detail = redactSecrets(err instanceof Error ? err.message : String(err), this.#secretValues());
 			const proposal = this.#propose(req, "apply_failed", detail, null);
 			throw new EvoHttpError(422, detail, { outcome: "apply_failed", proposalId: proposal.id });
 		}
@@ -200,7 +200,7 @@ export class VariantRegistry {
 			// Only our own unregistered publication is removed; a registered winner is never touched.
 			if (published) await unlockTree(variantDir);
 			if (published) await fs.rm(variantDir, { recursive: true, force: true }).catch(() => {});
-			const detail = err instanceof Error ? err.message : String(err);
+			const detail = redactSecrets(err instanceof Error ? err.message : String(err), this.#secretValues());
 			const proposal = this.#propose(req, "apply_failed", detail, null);
 			throw new EvoHttpError(422, detail, { outcome: "apply_failed", proposalId: proposal.id });
 		}

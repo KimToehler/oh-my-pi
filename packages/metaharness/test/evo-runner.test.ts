@@ -161,6 +161,7 @@ describe("agent overlay", () => {
 			dest: path.join(root, "bench", "agent-overlay"),
 			spec: SPEC,
 			modelsYaml,
+			expectedModelsYamlHash: modelsHash(modelsYaml),
 		});
 		expect(fs.readFileSync(path.join(staged.dir, "AGENTS.md"), "utf8")).toBe("hello");
 		expect(fs.readFileSync(path.join(staged.dir, "rules/r.md"), "utf8")).toBe("rule");
@@ -199,6 +200,7 @@ describe("agent overlay", () => {
 				dest: path.join(root, `o-${name}`),
 				spec: SPEC,
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 			});
 		};
 		const sentinel = "sk-sentinel-literal-key-0123456789";
@@ -243,6 +245,7 @@ describe("agent overlay", () => {
 				dest: path.join(root, "o"),
 				spec: SPEC,
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 				secretValues: ["literal-secret-value-1234"],
 			}),
 		).rejects.toThrow(
@@ -255,6 +258,7 @@ describe("agent overlay", () => {
 				dest: path.join(root, "o"),
 				spec: SPEC,
 				modelsYaml: path.join(root, "nope.yml"),
+				expectedModelsYamlHash: modelsHash(path.join(root, "nope.yml")),
 			}),
 		).rejects.toThrow(/--models-yaml not readable/);
 	});
@@ -271,6 +275,7 @@ describe("agent overlay", () => {
 				dest: path.join(root, "o"),
 				spec: SPEC,
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 				secretValues: [secret],
 			}).then(
 				() => undefined,
@@ -314,6 +319,7 @@ describe("agent overlay", () => {
 				dest: path.join(root, `o-${name}`),
 				spec: SPEC,
 				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
 			}).then(
 				() => undefined,
 				(e: unknown) => e,
@@ -336,6 +342,7 @@ describe("agent overlay", () => {
 			dest: path.join(root, "o-ok"),
 			spec: SPEC,
 			modelsYaml: okYaml,
+			expectedModelsYamlHash: modelsHash(okYaml),
 		});
 	});
 });
@@ -886,3 +893,14 @@ describe("runner-config credential persistence", () => {
 		expect(second.out).toContain("source identity drift");
 	}, 90_000);
 });
+
+/** sha256 of a models file as the runner records it; the overlay requires it at staging time. */
+function modelsHash(file: string): string {
+	let bytes: Uint8Array;
+	try {
+		bytes = fs.readFileSync(file);
+	} catch {
+		bytes = new Uint8Array();
+	}
+	return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+}

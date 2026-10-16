@@ -1875,6 +1875,8 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		if (!cfg.modelsYaml)
 			throw new Error("--agent-dir requires --models-yaml (the overlay carries the fixed models.yml)");
 		if (!cfg.thinking) throw new Error("--agent-dir requires --thinking (the fixed executor level)");
+		if (!cfg.modelsYamlHash)
+			throw new Error("--agent-dir requires --models-yaml-hash (the recorded identity of the fixed models.yml)");
 		assertModelsYamlHash(cfg);
 		agentOverlay = (
 			await stageAgentOverlay({
@@ -1889,6 +1891,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 					settings: cfg.settings,
 				},
 				modelsYaml: cfg.modelsYaml,
+				expectedModelsYamlHash: cfg.modelsYamlHash,
 				secretValues: Object.values(cfg.env),
 			})
 		).dir;

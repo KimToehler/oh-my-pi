@@ -136,6 +136,8 @@ export interface StageOptions {
 	spec: ExecutorSpec;
 	/** Fixed container-safe models.yml. */
 	modelsYaml: string;
+	/** Recorded sha256 of the `modelsYaml` bytes; the bytes read at staging time must match before anything is written. */
+	expectedModelsYamlHash: string;
 	/** Values that must never appear in the staged tree (forwarded secrets). */
 	secretValues?: readonly string[];
 }
@@ -157,11 +159,21 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 		}
 	}
 	assertGenomeClean(files, "", opts.secretValues ?? []);
-	const modelsText = await Bun.file(opts.modelsYaml)
-		.text()
+	// Same shape as the variant bytes above: read models.yml ONCE, hash those exact bytes against the recorded
+	// identity, and only then parse, scan and write them. A replacement landing after the runner's pre-check
+	// (or between hash and copy) can never reach the overlay under the recorded `modelsYamlHash`.
+	const modelsBytes = await Bun.file(opts.modelsYaml)
+		.bytes()
 		.catch(() => {
 			throw new Error(`--models-yaml not readable: ${opts.modelsYaml}`);
 		});
+	const actualModelsHash = new Bun.CryptoHasher("sha256").update(modelsBytes).digest("hex");
+	if (actualModelsHash !== opts.expectedModelsYamlHash) {
+		throw new Error(
+			`models.yml ${opts.modelsYaml} no longer matches its recorded sha256 ${opts.expectedModelsYamlHash}`,
+		);
+	}
+	const modelsText = new TextDecoder().decode(modelsBytes);
 	referencedEnvNamesFromText(modelsText);
 	assertNoHostCredentialValues(modelsText, opts.secretValues ?? []);
 	const variantConfig = files.find(file => file.rel === "config.yml");
@@ -171,7 +183,7 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 	const overlayFiles: ConfigFile[] = [
 		...files.filter(file => file.rel !== "config.yml"),
 		{ rel: "config.yml", bytes: encoder.encode(merged), executable: false },
-		{ rel: "models.yml", bytes: encoder.encode(modelsText), executable: false },
+		{ rel: "models.yml", bytes: modelsBytes, executable: false },
 	];
 	await fs.rm(opts.dest, { recursive: true, force: true });
 	await materializeConfig(overlayFiles, opts.dest);

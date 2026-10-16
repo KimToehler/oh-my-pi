@@ -89,3 +89,31 @@ export function forwardedSecretValues(defaults: EvoLaunchDefaults): string[] {
 	}
 	return credentialValuesFromEnv(names, process.env);
 }
+
+/**
+ * Request-boundary chokepoint: walk every string leaf (object keys included, any depth, arrays too) of a decoded
+ * `/api/evo` body and throw 422 when one carries a forwarded host credential value. Runs before any registry
+ * work so every persisted request field inherits it. The message never contains the matched value or its text.
+ */
+export function assertRequestClean(body: unknown, values: readonly string[]): void {
+	const secrets = values.filter(value => value.length > 0);
+	if (secrets.length === 0) return;
+	const stack: unknown[] = [body];
+	while (stack.length > 0) {
+		const node = stack.pop();
+		if (typeof node === "string") {
+			if (textCarriesSecret(node, secrets)) {
+				throw new EvoHttpError(422, "request embeds a host credential value; reference the env var name instead");
+			}
+		} else if (Array.isArray(node)) {
+			stack.push(...node);
+		} else if (node !== null && typeof node === "object") {
+			for (const [key, child] of Object.entries(node)) stack.push(key, child);
+		}
+	}
+}
+
+/** Mask every forwarded value in an error text before it is persisted or returned (e.g. an echoed path). */
+export function redactSecrets(text: string, values: readonly string[]): string {
+	return values.reduce((out, secret) => (secret.length > 0 ? out.split(secret).join("***") : out), text);
+}

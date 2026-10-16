@@ -513,6 +513,7 @@ describe("registered snapshot integrity", () => {
 			dest,
 			spec,
 			modelsYaml,
+			expectedModelsYamlHash: modelsHash(modelsYaml),
 		});
 		expect(fs.readFileSync(path.join(ok.dir, "AGENTS.md"), "utf8")).toBe("a");
 		fs.rmSync(dest, { recursive: true, force: true });
@@ -521,7 +522,14 @@ describe("registered snapshot integrity", () => {
 		fs.rmSync(path.join(dir, "AGENTS.md"));
 		fs.writeFileSync(path.join(dir, "AGENTS.md"), "evil");
 		await expect(
-			stageAgentOverlay({ variantConfigDir: dir, expectedConfigHash: variant.configHash, dest, spec, modelsYaml }),
+			stageAgentOverlay({
+				variantConfigDir: dir,
+				expectedConfigHash: variant.configHash,
+				dest,
+				spec,
+				modelsYaml,
+				expectedModelsYamlHash: modelsHash(modelsYaml),
+			}),
 		).rejects.toThrow(`no longer matches its registered sha256 ${variant.configHash}`);
 		expect(fs.existsSync(dest)).toBe(false);
 		expect(fs.existsSync(path.join(path.dirname(dest), "overlay-meta.json"))).toBe(false);
@@ -548,6 +556,7 @@ describe("registered snapshot integrity", () => {
 			dest,
 			spec,
 			modelsYaml,
+			expectedModelsYamlHash: modelsHash(modelsYaml),
 		});
 		fs.chmodSync(dir, 0o755);
 		fs.rmSync(path.join(dir, "AGENTS.md"));
@@ -984,3 +993,14 @@ describe("concurrent registration", () => {
 		expect(fs.existsSync(lock)).toBe(false);
 	});
 });
+
+/** sha256 of a models file as the runner records it; the overlay requires it at staging time. */
+function modelsHash(file: string): string {
+	let bytes: Uint8Array;
+	try {
+		bytes = fs.readFileSync(file);
+	} catch {
+		bytes = new Uint8Array();
+	}
+	return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+}

@@ -12,7 +12,7 @@ import {
 	rejectUnknownKeys,
 	requiredString,
 } from "./boundary";
-import { forwardedSecretValues } from "./credential-scan";
+import { assertRequestClean, forwardedSecretValues } from "./credential-scan";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "./launch";
 import { EvoReports } from "./service-reports";
 import { SuiteRegistry } from "./suites";
@@ -37,14 +37,20 @@ export class EvoService {
 	readonly #variants: VariantRegistry;
 	readonly #suites: SuiteRegistry;
 	readonly #reports: EvoReports;
+	readonly #secretValues: () => readonly string[];
 
 	constructor(opts: EvoServiceOptions) {
 		this.#store = opts.store;
 		this.#jobsDir = opts.jobsDir;
 		this.#launch = opts.launch;
 		this.#defaults = opts.defaults;
-		this.#variants = new VariantRegistry(opts.store.evo, opts.jobsDir, opts.sourceRoot, undefined, () =>
-			forwardedSecretValues(opts.defaults),
+		this.#secretValues = () => forwardedSecretValues(opts.defaults);
+		this.#variants = new VariantRegistry(
+			opts.store.evo,
+			opts.jobsDir,
+			opts.sourceRoot,
+			undefined,
+			this.#secretValues,
 		);
 		this.#suites = new SuiteRegistry(opts.jobsDir);
 		this.#reports = new EvoReports(opts.store, opts.jobsDir, this.#suites);
@@ -65,12 +71,19 @@ export class EvoService {
 		}
 	}
 
+	/** The single decode point for every `/api/evo` body: scanned against forwarded credential values before use. */
+	async #body(request: Request): Promise<unknown> {
+		const body = await readJsonBody(request);
+		assertRequestClean(body, this.#secretValues());
+		return body;
+	}
+
 	async #route(request: Request, url: URL, p: string): Promise<Response> {
 		const method = request.method;
 		if (p === "/api/evo/variants") {
 			if (method === "GET") return Response.json(this.#store.evo.listVariants());
 			if (method === "POST") {
-				const result = await this.#variants.register(parseVariantRequest(await readJsonBody(request)));
+				const result = await this.#variants.register(parseVariantRequest(await this.#body(request)));
 				return Response.json(
 					{ ...result, outcome: result.proposal.outcome },
 					{ status: result.created ? 201 : 200 },
@@ -80,7 +93,7 @@ export class EvoService {
 		if (p === "/api/evo/suites") {
 			if (method === "GET") return Response.json(await this.#suites.list());
 			if (method === "POST") {
-				const { suite, created } = await this.#suites.register(await readJsonBody(request));
+				const { suite, created } = await this.#suites.register(await this.#body(request));
 				return Response.json(suite, { status: created ? 201 : 200 });
 			}
 		}
@@ -105,7 +118,7 @@ export class EvoService {
 				});
 			case "evaluate":
 				if (method !== "POST") break;
-				return Response.json(await this.#evaluate(variant, await readJsonBody(request)), { status: 201 });
+				return Response.json(await this.#evaluate(variant, await this.#body(request)), { status: 201 });
 			case "fitness":
 				if (method !== "GET") break;
 				return Response.json(await this.#reports.fitness(variant, url));
