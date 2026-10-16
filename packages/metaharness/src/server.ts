@@ -27,6 +27,7 @@ import type { Server, Subprocess } from "bun";
 import { BENCHMARK_DEFINITIONS } from "./benchmarks";
 import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from "./evo/launch";
 import { defaultSourceRoot, EvoService } from "./evo/service";
+import { readModelsEnvNamesSync } from "./evo/models-yaml";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
@@ -455,7 +456,7 @@ export class ManagerServer {
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
 			throw new Error(`unsupported benchmark: ${benchmark}`);
 		}
-		assertLaunchEnvSafe(request, benchmark);
+		assertLaunchEnvSafe(request, benchmark, request.modelsYaml ? readModelsEnvNamesSync(request.modelsYaml) : []);
 		const dataset =
 			request.dataset ??
 			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");

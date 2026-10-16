@@ -26,7 +26,7 @@ import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
-import { defaultJobName, harborEnvAssignmentNames, harborRunnerArgs, type LaunchRequest } from "./launch-args";
+import { credentialNamesInArgs, defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
 
 // ────────────────────────────────────────────────────────────────────── config
 
@@ -1720,17 +1720,11 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (cfg.modelsYaml) {
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
-		if (explicit.length > 0) {
+		const passed = credentialNamesInArgs([...cfg.passthrough, ...cfg.agentArgs], credentialNames);
+		const offenders = [...new Set([...explicit, ...passed])].sort();
+		if (offenders.length > 0) {
 			throw new Error(
-				`credential env ${explicit.join(", ")} referenced by --models-yaml must not be passed as KEY=VALUE; use ${explicit.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
-			);
-		}
-		const passed = [...new Set(harborEnvAssignmentNames(cfg.passthrough))].filter(name =>
-			credentialNames.includes(name),
-		);
-		if (passed.length > 0) {
-			throw new Error(
-				`credential env ${passed.join(", ")} referenced by --models-yaml must not be passed through harbor args; forward credentials with ${passed.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
+				`credential env ${offenders.join(", ")} referenced by --models-yaml must not be passed as KEY=VALUE; use ${offenders.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`,
 			);
 		}
 	}

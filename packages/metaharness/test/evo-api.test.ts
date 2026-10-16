@@ -416,6 +416,36 @@ describe("generic launch route", () => {
 			expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
 		}
 	});
+
+	it("rejects any extraArgs element assigning a models.yml credential, whatever the flag form", async () => {
+		const SENTINEL = "evo-sentinel-secret-9f3a7c21";
+		const kv = `EVO_SENTINEL_KEY=${SENTINEL}`;
+		const h = harness();
+		const modelsYaml = path.join(h.jobsDir, "models.yml");
+		write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+		const cases = [
+			["--", `-e=${kv}`],
+			["--", `-e${kv}`],
+			["--", `--ae=${kv}`],
+			["--some-runner-flag", kv],
+			["--setting", `x=${kv}`],
+		];
+		for (const [i, extraArgs] of cases.entries()) {
+			const jobName = `credential-extra-${i}`;
+			const res = await h.post("/api/runs", { model: "m/x", jobName, modelsYaml, extraArgs });
+			expect(res.status).toBe(400);
+			const { error } = (await res.json()) as { error: string };
+			expect(error).toContain("extraArgs");
+			expect(error).toContain("EVO_SENTINEL_KEY");
+			expect(error).not.toContain(SENTINEL);
+			expect(h.manager.store.getRun(jobName)).toBeNull();
+			expect(fs.existsSync(path.join(h.jobsDir, jobName))).toBe(false);
+		}
+		for (const entry of fs.readdirSync(h.jobsDir, { withFileTypes: true, recursive: true })) {
+			if (!entry.isFile()) continue;
+			expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
+		}
+	});
 });
 
 describe("evo request hardening", () => {

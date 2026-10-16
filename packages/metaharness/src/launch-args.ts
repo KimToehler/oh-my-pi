@@ -89,23 +89,55 @@ export function harborEnvAssignmentNames(args: readonly string[]): string[] {
 	};
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
-		const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
-		const flag = eq === -1 ? arg : arg.slice(0, eq);
+		let flag = arg;
+		let inline: string | undefined;
+		if (arg.startsWith("-e=")) {
+			flag = "-e";
+			inline = arg.slice(3);
+		} else if (arg.startsWith("-e") && arg.length > 2) {
+			flag = "-e";
+			inline = arg.slice(2);
+		} else {
+			const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
+			if (eq !== -1) {
+				flag = arg.slice(0, eq);
+				inline = arg.slice(eq + 1);
+			}
+		}
 		if (!HARBOR_ENV_FLAGS[flag] && !HARBOR_ENVTYPE_FLAGS[flag]) continue;
-		if (eq !== -1) take(arg.slice(eq + 1));
+		if (inline !== undefined) take(inline);
 		else take(args[++i]);
 	}
 	return names;
 }
 
+/** Credential names whose values appear in arbitrary argument strings. Never returns values. */
+export function credentialNamesInArgs(args: readonly string[], credentialNames: readonly string[]): string[] {
+	const matched = new Set<string>();
+	for (const name of credentialNames) {
+		if (args.some(arg => arg.includes(`${name}=`))) matched.add(name);
+	}
+	return [...matched].sort();
+}
+
 /** Reject launch requests that would carry env values (secrets) into persisted run state. Never echoes entries. */
-export function assertLaunchEnvSafe(request: LaunchRequest, benchmark: string): void {
+export function assertLaunchEnvSafe(
+	request: LaunchRequest,
+	benchmark: string,
+	credentialNames: readonly string[] = [],
+): void {
 	for (const name of request.envNames ?? []) {
 		if (typeof name !== "string" || !ENV_NAME.test(name)) {
 			throw new Error(
 				"envNames entries must be environment variable names (values are read from the host environment)",
 			);
 		}
+	}
+	const credentialArgs = credentialNamesInArgs(request.extraArgs ?? [], credentialNames);
+	if (credentialArgs.length > 0) {
+		throw new Error(
+			`extraArgs must not contain values for credential env ${credentialArgs.join(", ")}; use envNames so only variable names are recorded`,
+		);
 	}
 	if (benchmark !== "harbor") return;
 	const extra = request.extraArgs ?? [];

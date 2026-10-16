@@ -1,4 +1,5 @@
 /** Single parser/validator for the fixed evo `models.yml`: apiKey may only name an environment variable. */
+import * as fs from "node:fs";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import { EvoHttpError } from "./boundary";
 
@@ -47,4 +48,15 @@ export async function readModelsEnvNames(file: string): Promise<string[]> {
 	const handle = Bun.file(file);
 	if (!(await handle.exists())) throw new EvoHttpError(422, `models file not found: ${file}`);
 	return referencedEnvNamesFromText(await handle.text());
+}
+
+/** Synchronously read and validate a models file for launch-time request validation. */
+export function readModelsEnvNamesSync(file: string): string[] {
+	let text: string;
+	try {
+		text = fs.readFileSync(file, "utf8");
+	} catch {
+		throw new EvoHttpError(422, `models file not found: ${file}`);
+	}
+	return referencedEnvNamesFromText(text);
 }
