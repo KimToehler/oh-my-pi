@@ -81,6 +81,33 @@ describe("EditTool ACP write routing", () => {
 		expect((result.details as EditToolDetails).newText).toBe("new content\n");
 	});
 
+	it("edits paths outside the workspace directly when the ACP client rejects external paths", async () => {
+		const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), "edit-acp-external-test-"));
+		try {
+			const target = path.join(externalDir, "replace.txt");
+			await Bun.write(target, "old content\n");
+			const bridge: ClientBridge = {
+				capabilities: { writeTextFile: true },
+				writeTextFile: async () => {
+					throw new Error("Path is outside the current ACP session workspace");
+				},
+			};
+			const bridgeSpy = spyOn(bridge, "writeTextFile");
+
+			const result = await new EditTool(createSession(tmpDir, { bridge }), "replace").execute("external", {
+				path: target,
+				old_string: "old content",
+				new_string: "new content",
+			});
+
+			expect(result.isError).not.toBe(true);
+			expect(bridgeSpy).not.toHaveBeenCalled();
+			expect(await Bun.file(target).text()).toBe("new content\n");
+		} finally {
+			await removeWithRetries(externalDir);
+		}
+	});
+
 	it("routes patch writes through the ACP bridge", async () => {
 		const target = path.join(tmpDir, "patch.txt");
 		await Bun.write(target, "a\n");
