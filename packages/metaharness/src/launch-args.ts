@@ -111,20 +111,63 @@ export function harborEnvAssignmentNames(args: readonly string[]): string[] {
 	return names;
 }
 
-/** Credential names whose values appear in arbitrary argument strings. Never returns values. */
-export function credentialNamesInArgs(args: readonly string[], credentialNames: readonly string[]): string[] {
-	const matched = new Set<string>();
-	for (const name of credentialNames) {
-		if (args.some(arg => arg.includes(`${name}=`))) matched.add(name);
+/** Shortest host credential value treated as a secret; shorter values would false-positive on ordinary text. */
+export const MIN_SECRET_VALUE_LENGTH = 8;
+
+const MAX_LEAK_DEPTH = 8;
+const HOST_VALUE_LABEL = "<host value>";
+
+/** Deduped host values of the named credential env vars that are long enough to be secrets. */
+export function credentialValuesFromEnv(names: readonly string[], env: Record<string, string | undefined>): string[] {
+	const values = new Set<string>();
+	for (const name of names) {
+		const value = env[name];
+		if (typeof value === "string" && value.length >= MIN_SECRET_VALUE_LENGTH) values.add(value);
 	}
-	return [...matched].sort();
+	return [...values];
+}
+
+/**
+ * Walk every string leaf of a decoded config (also its JSON-decoded and `KEY=VALUE` value forms) and report
+ * credential names assigned as `NAME=` plus the literal label `<host value>` when a host credential value appears.
+ * Never returns or embeds values.
+ */
+export function findCredentialLeaks(value: unknown, names: readonly string[], values: readonly string[]): string[] {
+	const hits = new Set<string>();
+	const visit = (node: unknown, depth: number): void => {
+		if (depth > MAX_LEAK_DEPTH) return;
+		if (typeof node === "string") {
+			for (const name of names) if (node.includes(`${name}=`)) hits.add(name);
+			if (values.some(secret => node.includes(secret))) hits.add(HOST_VALUE_LABEL);
+			let decoded: unknown;
+			try {
+				decoded = JSON.parse(node);
+			} catch {
+				decoded = undefined;
+			}
+			if (decoded !== null && typeof decoded === "object") visit(decoded, depth + 1);
+			else if (typeof decoded === "string" && decoded !== node) visit(decoded, depth + 1);
+			const eq = node.indexOf("=");
+			if (eq !== -1) visit(node.slice(eq + 1), depth + 1);
+			return;
+		}
+		if (Array.isArray(node)) {
+			for (const item of node) visit(item, depth + 1);
+			return;
+		}
+		if (node !== null && typeof node === "object") {
+			for (const item of Object.values(node)) visit(item, depth + 1);
+		}
+	};
+	visit(value, 0);
+	return [...hits].sort();
 }
 
 /** Reject launch requests that would carry env values (secrets) into persisted run state. Never echoes entries. */
 export function assertLaunchEnvSafe(
 	request: LaunchRequest,
 	benchmark: string,
-	credentialNames: readonly string[] = [],
+	credentials: { names: readonly string[]; values: readonly string[] } = { names: [], values: [] },
 ): void {
 	for (const name of request.envNames ?? []) {
 		if (typeof name !== "string" || !ENV_NAME.test(name)) {
@@ -133,10 +176,10 @@ export function assertLaunchEnvSafe(
 			);
 		}
 	}
-	const credentialArgs = credentialNamesInArgs(request.extraArgs ?? [], credentialNames);
-	if (credentialArgs.length > 0) {
+	const hits = findCredentialLeaks(request, credentials.names, credentials.values);
+	if (hits.length > 0) {
 		throw new Error(
-			`extraArgs must not contain values for credential env ${credentialArgs.join(", ")}; use envNames so only variable names are recorded`,
+			`launch request must not contain values for credential env ${hits.join(", ")}; use envNames so only variable names are recorded`,
 		);
 	}
 	if (benchmark !== "harbor") return;

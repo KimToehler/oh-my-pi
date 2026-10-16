@@ -435,7 +435,7 @@ describe("generic launch route", () => {
 			const res = await h.post("/api/runs", { model: "m/x", jobName, modelsYaml, extraArgs });
 			expect(res.status).toBe(400);
 			const { error } = (await res.json()) as { error: string };
-			expect(error).toContain("extraArgs");
+			expect(error).toContain("credential env");
 			expect(error).toContain("EVO_SENTINEL_KEY");
 			expect(error).not.toContain(SENTINEL);
 			expect(h.manager.store.getRun(jobName)).toBeNull();
@@ -444,6 +444,42 @@ describe("generic launch route", () => {
 		for (const entry of fs.readdirSync(h.jobsDir, { withFileTypes: true, recursive: true })) {
 			if (!entry.isFile()) continue;
 			expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
+		}
+	});
+
+	it("rejects credential values hidden in --setting JSON escapes and in host-value form", async () => {
+		const SENTINEL = "evo-sentinel-secret-9f3a7c21";
+		const previous = process.env.EVO_SENTINEL_KEY;
+		process.env.EVO_SENTINEL_KEY = SENTINEL;
+		try {
+			const h = harness();
+			const modelsYaml = path.join(h.jobsDir, "models.yml");
+			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+			const escaped = `--setting=x="EVO_SENTINEL_KEY\\u003d${SENTINEL}"`;
+			expect(escaped.includes("EVO_SENTINEL_KEY=")).toBe(false);
+			expect(escaped.includes("\\u003d")).toBe(true);
+			const cases: Record<string, unknown>[] = [
+				{ extraArgs: [escaped] },
+				{ extraArgs: ["--setting", `x=${SENTINEL}`] },
+				{ note: `token ${SENTINEL}` },
+			];
+			for (const [i, c] of cases.entries()) {
+				const jobName = `setting-secret-${i}`;
+				const res = await h.post("/api/runs", { model: "m/x", jobName, modelsYaml, ...c });
+				expect(res.status).toBe(400);
+				const { error } = (await res.json()) as { error: string };
+				expect(error).toContain("credential env");
+				expect(error).not.toContain(SENTINEL);
+				expect(h.manager.store.getRun(jobName)).toBeNull();
+				expect(fs.existsSync(path.join(h.jobsDir, jobName))).toBe(false);
+			}
+			for (const entry of fs.readdirSync(h.jobsDir, { withFileTypes: true, recursive: true })) {
+				if (!entry.isFile()) continue;
+				expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
+			}
+		} finally {
+			if (previous === undefined) delete process.env.EVO_SENTINEL_KEY;
+			else process.env.EVO_SENTINEL_KEY = previous;
 		}
 	});
 });

@@ -32,6 +32,7 @@ import { normalizeOmpTranscript } from "./evo/trace-entries";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
 	assertLaunchEnvSafe,
+	credentialValuesFromEnv,
 	defaultJobName,
 	harborRunnerArgs,
 	isLocalDataset,
@@ -456,7 +457,8 @@ export class ManagerServer {
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
 			throw new Error(`unsupported benchmark: ${benchmark}`);
 		}
-		assertLaunchEnvSafe(request, benchmark, request.modelsYaml ? readModelsEnvNamesSync(request.modelsYaml) : []);
+		const names = request.modelsYaml ? readModelsEnvNamesSync(request.modelsYaml) : [];
+		assertLaunchEnvSafe(request, benchmark, { names, values: credentialValuesFromEnv(names, process.env) });
 		const dataset =
 			request.dataset ??
 			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");

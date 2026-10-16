@@ -483,4 +483,34 @@ describe("runner-config credential persistence", () => {
 			SENTINEL,
 		);
 	}, 60_000);
+
+	for (const [label, args, hostEnv] of [
+		["--setting x=KEY=VALUE", ["--setting", `x=EVO_SENTINEL_KEY=${SENTINEL}`], {}],
+		["--setting JSON-escaped KEY\\u003dVALUE", ["--setting", `x="EVO_SENTINEL_KEY\\u003d${SENTINEL}"`], {}],
+		["--setting carrying the host credential value", ["--setting", `x=${SENTINEL}`], { EVO_SENTINEL_KEY: SENTINEL }],
+	] as const) {
+		it(`rejects a credential smuggled through ${label} and persists nothing`, async () => {
+			const jobsDir = tmp();
+			const { code, out } = await runRunner(jobsDir, "job-setting-secret", [...args], { ...hostEnv });
+			expect(code).not.toBe(0);
+			expect(out).toContain("credential env");
+			expect(out).not.toContain(SENTINEL);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", "job-setting-secret", "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir)).toEqual([]);
+		}, 30_000);
+	}
+
+	it("still persists non-credential --setting values while the host credential is set", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-setting-ok", ["--setting", 'theme="dark"'], {
+			EVO_SENTINEL_KEY: SENTINEL,
+		});
+		expect(out).not.toMatch(/error:/);
+		expect(code).toBe(0);
+		const file = path.join(jobsDir, "_bench", "job-setting-ok", "runner-config.json");
+		const text = fs.readFileSync(file, "utf8");
+		const persisted: { settings: Record<string, unknown> } = JSON.parse(text); // test reads own runner output
+		expect(persisted.settings).toEqual({ theme: "dark" });
+		expect(text).not.toContain(SENTINEL);
+	}, 60_000);
 });
