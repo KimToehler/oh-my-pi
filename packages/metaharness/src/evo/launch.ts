@@ -10,7 +10,7 @@ import { referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import type { StoredSuite } from "./suites";
-import { isSourceVariant, variantConfigDir } from "./variants";
+import { assertWorktreeOwned, isSourceVariant, variantConfigDir } from "./variants";
 import type { VariantRow } from "./variant-types";
 
 export interface EvoLaunchDefaults {
@@ -46,6 +46,14 @@ export function variantLaunchFields(
 	executor: { model: string; thinking: string },
 ): VariantLaunchFields {
 	const configDir = variantConfigDir(jobsDir, variant.id);
+	const sourceVariant = isSourceVariant(jobsDir, variant);
+	if (sourceVariant) {
+		try {
+			assertWorktreeOwned(jobsDir, variant.snapshotPath, `variant '${variant.id}' source worktree`);
+		} catch (err) {
+			throw new EvoHttpError(422, err instanceof Error ? err.message : String(err));
+		}
+	}
 	const spec = { ...executor, webSearch: false, findTool: false, settings: {} };
 	let yaml: string | null = null;
 	try {
@@ -56,7 +64,7 @@ export function variantLaunchFields(
 	return {
 		variantId: variant.id,
 		agentDir: configDir,
-		sourceRoot: isSourceVariant(jobsDir, variant) ? variant.snapshotPath : undefined,
+		sourceRoot: sourceVariant ? variant.snapshotPath : undefined,
 		sourceIdentity: formatSourceIdentity({ ref: variant.sourceRef, dirtyHash: variant.sourceDirtyHash }),
 		stagedConfigHash: new Bun.CryptoHasher("sha256").update(mergeOverlayConfig(yaml, spec)).digest("hex"),
 		executorConfigHash: executorConfigHash(spec),

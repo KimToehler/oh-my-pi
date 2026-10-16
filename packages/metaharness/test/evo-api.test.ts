@@ -893,4 +893,38 @@ describe("evo launch", () => {
 			"evo arms may change only variantId, role, and note",
 		);
 	});
+
+	it("refuses an arm that inherits an external source root from an evo template", () => {
+		const h = harness();
+		const required = path.join(h.jobsDir, "_evo", "worktrees");
+		const inside = path.join(required, "wt-1");
+		fs.mkdirSync(inside, { recursive: true });
+		const external = tmp("evo-arm-external-");
+		const repo = tmp("evo-arm-repo-");
+		const template = (jobName: string, config: Record<string, unknown>): void => {
+			h.manager.store.registerLaunch({
+				benchmark: "harbor",
+				jobName,
+				dataset: SUITE.dataset,
+				agent: "omp",
+				models: [SUITE.model],
+				pid: 1,
+				config: { model: SUITE.model, ...config },
+			});
+		};
+		template("ext-base", { variantId: "v-old", sourceRoot: external });
+		template("in-base", { variantId: "v-old", sourceRoot: inside });
+		template("plain-base", { sourceRoot: repo });
+		// No variantId on the request: the template's identity is inherited verbatim.
+		expect(() => resolveArmLaunch(h.manager.store, "ext", { arm: "a", model: SUITE.model })).toThrow(
+			`inherited variant 'v-old' source root must be a task-owned worktree under ${required}: ${external}`,
+		);
+		expect(resolveArmLaunch(h.manager.store, "in", { arm: "a", model: SUITE.model })).toMatchObject({
+			variantId: "v-old",
+			sourceRoot: inside,
+		});
+		expect(resolveArmLaunch(h.manager.store, "plain", { arm: "a", model: SUITE.model })).toMatchObject({
+			sourceRoot: repo,
+		});
+	});
 });

@@ -2,6 +2,7 @@
  * Content-addressed harness variants: snapshot a config genome (and optional source worktree),
  * record lineage, and classify every proposal as applied / noop / apply_failed.
  */
+import * as nodeFs from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
@@ -98,6 +99,27 @@ export function worktreesRoot(jobsDir: string): string {
 	return path.join(evoRoot(jobsDir), "worktrees");
 }
 
+function realpathOr(target: string): string {
+	try {
+		return nodeFs.realpathSync(target);
+	} catch {
+		return target;
+	}
+}
+
+/**
+ * Throws unless `worktree` resolves (symlinks followed) inside the realpathed worktrees root.
+ * Shared by registration and launch so a stored row cannot bypass containment.
+ */
+export function assertWorktreeOwned(jobsDir: string, worktree: string, label: string): string {
+	const requiredRoot = worktreesRoot(jobsDir);
+	const rel = path.relative(realpathOr(requiredRoot), realpathOr(worktree));
+	if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+		throw new Error(`${label} must be a task-owned worktree under ${requiredRoot}: ${worktree}`);
+	}
+	return requiredRoot;
+}
+
 export function variantsRoot(jobsDir: string): string {
 	return path.join(evoRoot(jobsDir), "variants");
 }
@@ -188,12 +210,7 @@ export class VariantRegistry {
 		const worktree = await fs.realpath(req.sourceWorktree).catch(() => {
 			throw new Error(`source worktree not found: ${req.sourceWorktree}`);
 		});
-		const requiredRoot = worktreesRoot(this.#jobsDir);
-		const realRoot = await fs.realpath(requiredRoot).catch(() => requiredRoot);
-		const rel = path.relative(realRoot, worktree);
-		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
-			throw new Error(`source worktree must be a task-owned worktree under ${requiredRoot}: ${worktree}`);
-		}
+		assertWorktreeOwned(this.#jobsDir, worktree, "source worktree");
 		const source = await sourceIdentity(worktree);
 		if (source.dirtyHash) throw new Error(`source worktree must be clean: ${worktree}`);
 		let sourceChanged: string[] = [];

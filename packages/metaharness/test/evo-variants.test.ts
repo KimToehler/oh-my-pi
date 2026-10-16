@@ -10,7 +10,9 @@ import {
 	MAX_CONFIG_TOTAL_BYTES,
 } from "../src/evo/config-snapshot";
 import { withDirLock } from "../src/evo/dir-lock";
+import { EvoHttpError } from "../src/evo/boundary";
 import { EvoStore } from "../src/evo/evo-store";
+import { variantLaunchFields } from "../src/evo/launch";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { SuiteRegistry } from "../src/evo/suites";
 import { parseVariantRequest, VariantRegistry, variantConfigDir } from "../src/evo/variants";
@@ -371,6 +373,48 @@ describe("variant registry", () => {
 		expect(formatSourceIdentity({ ref: ok.variant.sourceRef, dirtyHash: ok.variant.sourceDirtyHash })).toBe(
 			formatSourceIdentity(await sourceIdentity(inside)),
 		);
+	});
+
+	it("refuses to launch a stored source variant whose snapshotPath is outside the worktree root", async () => {
+		const { registry, source, jobsDir, store } = await setup();
+		const cfg = agentDir({ "AGENTS.md": "a" });
+		const base = await registry.register(root(cfg));
+		const required = path.join(jobsDir, "_evo", "worktrees");
+		const executor = { model: "m", thinking: "off" };
+		const stored = (id: string, snapshotPath: string) => {
+			// Direct insert bypasses the registration guard, as a pre-existing row would.
+			const row = { ...base.variant, id, snapshotPath };
+			store.evo.insertVariant(row);
+			return row;
+		};
+		const refused = (row: typeof base.variant) => {
+			try {
+				variantLaunchFields(jobsDir, row, executor);
+			} catch (err) {
+				return err;
+			}
+			return null;
+		};
+		// External checkout: refused with 422 naming the variant and the required root.
+		const outside = await addWorktree(source, path.join(tmp("evo-wt-"), "wt"));
+		const bad = refused(stored("bad0000000000001", outside));
+		expect(bad).toBeInstanceOf(EvoHttpError);
+		expect((bad as EvoHttpError).status).toBe(422);
+		expect((bad as EvoHttpError).message).toContain("bad0000000000001");
+		expect((bad as EvoHttpError).message).toContain(required);
+		// Primary checkout.
+		expect(refused(stored("bad0000000000002", source))).toBeInstanceOf(EvoHttpError);
+		// Symlink under the root pointing outside cannot escape.
+		fs.mkdirSync(required, { recursive: true });
+		const link = path.join(required, "escape");
+		fs.symlinkSync(outside, link);
+		expect(refused(stored("bad0000000000003", link))).toBeInstanceOf(EvoHttpError);
+		// Positive control: stored variant inside the root launches with that source root.
+		const inside = await addWorktree(source, path.join(required, "ok"));
+		const ok = stored("good000000000001", inside);
+		expect(variantLaunchFields(jobsDir, ok, executor).sourceRoot).toBe(inside);
+		// Config-only variant is unaffected.
+		expect(variantLaunchFields(jobsDir, base.variant, executor).sourceRoot).toBeUndefined();
 	});
 });
 

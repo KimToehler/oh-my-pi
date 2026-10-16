@@ -29,6 +29,7 @@ import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from ".
 import { defaultSourceRoot, EvoService } from "./evo/service";
 import { readModelsEnvNamesSync } from "./evo/models-yaml";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
+import { assertWorktreeOwned } from "./evo/variants";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
 	assertLaunchEnvSafe,
@@ -163,6 +164,10 @@ function resolveEvoInheritance(
 	if (!req.variantId) {
 		for (const key of ["variantId", "agentDir", "sourceRoot", "sourceIdentity", "stagedConfigHash"] as const) {
 			if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
+		}
+		// A plain harbor run may point `sourceRoot` at any repo; only an evo variant run must stay in a worktree.
+		if (cfg.variantId && cfg.sourceRoot) {
+			assertWorktreeOwned(store.jobsDir, cfg.sourceRoot, `inherited variant '${cfg.variantId}' source root`);
 		}
 		return inherited;
 	}
