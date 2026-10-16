@@ -927,4 +927,42 @@ describe("evo launch", () => {
 			sourceRoot: repo,
 		});
 	});
+
+	it("refuses to resume an evo run whose recorded source root is external", () => {
+		const h = harness();
+		const required = path.join(h.jobsDir, "_evo", "worktrees");
+		const inside = path.join(required, "wt-1");
+		fs.mkdirSync(inside, { recursive: true });
+		const external = tmp("evo-resume-external-");
+		const repo = tmp("evo-resume-repo-");
+		const register = (
+			jobName: string,
+			variantId: string | undefined,
+			sourceRoot: string,
+			withConfig: boolean,
+		): void => {
+			h.manager.store.registerLaunch({
+				benchmark: "harbor",
+				jobName,
+				dataset: SUITE.dataset,
+				agent: "omp",
+				models: [SUITE.model],
+				pid: 2147483646,
+				config: { model: SUITE.model, sourceRoot },
+				variantId,
+			});
+			h.manager.store.markExit(jobName, 0, false);
+			if (withConfig) write(path.join(h.jobsDir, jobName), "config.json", "{}");
+		};
+		register("ext-run", "v-old", external, true);
+		expect(() => h.manager.resume("ext-run")).toThrow(
+			`variant 'v-old' source root must be a task-owned worktree under ${required}: ${external}`,
+		);
+		// Positive controls stop at the next precondition (missing harbor config.json) instead of
+		// spawning a real runner: reaching that error proves the ownership guard did not fire.
+		register("in-run", "v-old", inside, false);
+		expect(() => h.manager.resume("in-run")).toThrow("in-run has no harbor config.json to resume from");
+		register("plain-run", undefined, repo, false);
+		expect(() => h.manager.resume("plain-run")).toThrow("plain-run has no harbor config.json to resume from");
+	});
 });

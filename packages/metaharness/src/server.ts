@@ -542,6 +542,12 @@ export class ManagerServer {
 		if (this.#runLive(run)) {
 			throw new Error(`run ${jobName} is already running`);
 		}
+		// `--resume` rebuilds the launch from the recorded config, so an evo variant run recorded before
+		// the containment rule existed must be re-checked here; plain harbor runs keep their repo root.
+		const recordedRoot = run.config.sourceRoot;
+		if (run.variantId && typeof recordedRoot === "string" && recordedRoot) {
+			assertWorktreeOwned(this.jobsDir, recordedRoot, `variant '${run.variantId}' source root`);
+		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
 		if (!fs.existsSync(path.join(jobDir, "config.json"))) {
