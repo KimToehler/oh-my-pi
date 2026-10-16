@@ -6,7 +6,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
-import { referencedEnvNamesFromText } from "./models-yaml";
+import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 
 /**
  * Built-in omp model roles, frozen locally: importing the coding-agent role registry drags its whole
@@ -152,11 +152,7 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 			throw new Error(`--models-yaml not readable: ${opts.modelsYaml}`);
 		});
 	referencedEnvNamesFromText(modelsText);
-	for (const secret of opts.secretValues ?? []) {
-		if (secret.length >= 8 && modelsText.includes(secret)) {
-			throw new Error("--models-yaml embeds a forwarded secret value; reference the env var name instead");
-		}
-	}
+	assertNoHostCredentialValues(modelsText, opts.secretValues ?? []);
 	const configFile = Bun.file(path.join(opts.variantConfigDir, "config.yml"));
 	const variantYaml = (await configFile.exists()) ? await configFile.text() : null;
 	const merged = mergeOverlayConfig(variantYaml, opts.spec);

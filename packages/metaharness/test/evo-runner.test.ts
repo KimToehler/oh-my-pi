@@ -245,7 +245,9 @@ describe("agent overlay", () => {
 				modelsYaml,
 				secretValues: ["literal-secret-value-1234"],
 			}),
-		).rejects.toThrow("--models-yaml embeds a forwarded secret value; reference the env var name instead");
+		).rejects.toThrow(
+			"models.yml providers.onara.note embeds a host credential value; reference the env var name instead",
+		);
 		expect(fs.existsSync(path.join(root, "o"))).toBe(false);
 		await expect(
 			stageAgentOverlay({
@@ -255,6 +257,30 @@ describe("agent overlay", () => {
 				modelsYaml: path.join(root, "nope.yml"),
 			}),
 		).rejects.toThrow(/--models-yaml not readable/);
+	});
+
+	it("stageAgentOverlay rejects an unknown scalar carrying a forwarded value, including short values", async () => {
+		const root = tmp();
+		const variant = path.join(root, "variant");
+		write(variant, "AGENTS.md", "x");
+		const modelsYaml = path.join(root, "models.yml");
+		for (const secret of ["literal-secret-value-1234", "rk-77"]) {
+			fs.writeFileSync(modelsYaml, `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: ${secret}\n`);
+			const err = await stageAgentOverlay({
+				variantConfigDir: variant,
+				dest: path.join(root, "o"),
+				spec: SPEC,
+				modelsYaml,
+				secretValues: [secret],
+			}).then(
+				() => undefined,
+				(e: unknown) => e as Error,
+			);
+			expect(err).toBeInstanceOf(Error);
+			expect(err?.message).toContain("providers.onara.metadata");
+			expect(err?.message).not.toContain(secret);
+			expect(fs.existsSync(path.join(root, "o"))).toBe(false);
+		}
 	});
 
 	// Agent-dir path: stageAgentOverlay() -> referencedEnvNamesFromText() before models.yml is copied into the overlay.

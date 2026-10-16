@@ -723,6 +723,38 @@ describe("evo launch", () => {
 		}
 	});
 
+	it("refuses to publish a models snapshot whose scalar carries a host credential", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		const h = harness({ modelsYaml, forwardEnv: null });
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		cleanups.push(() => {
+			delete process.env.ONARA_ROUTER_KEY;
+		});
+		for (const secret of ["router-secret-value-0123456789", "rk-77"]) {
+			process.env.ONARA_ROUTER_KEY = secret;
+			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: ${secret}\n`);
+			const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
+				() => undefined,
+				(e: unknown) => e,
+			);
+			expect(err).toMatchObject({ status: 422 });
+			const message = (err as Error).message;
+			expect(message).toContain("providers.onara.metadata");
+			expect(message).not.toContain(secret);
+			const snapshots = path.join(h.jobsDir, "_evo", "models");
+			expect(fs.existsSync(snapshots) ? fs.readdirSync(snapshots) : []).toEqual([]);
+		}
+		// Positive control: public metadata is accepted.
+		process.env.ONARA_ROUTER_KEY = "router-secret-value-0123456789";
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: public\n");
+		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
+		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+	});
+
 	it("rejects a models snapshot whose bytes no longer match its recorded hash", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");

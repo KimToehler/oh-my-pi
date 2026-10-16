@@ -1,6 +1,7 @@
 /** Single parser/validator for the fixed evo `models.yml`: apiKey may only name an environment variable. */
 import * as fs from "node:fs";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { containsHostValue } from "../launch-args";
 import { EvoHttpError } from "./boundary";
 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -63,6 +64,45 @@ function collect(node: unknown, where: string, names: Set<string>): void {
 		}
 		names.add(value);
 	}
+}
+
+/**
+ * Reject models.yml text whose scalar leaf carries one of the host credential `values` (length-aware match shared with
+ * launch-args). `apiKey` and `headers` leaves are env names already validated by `collect`. Messages name the dotted
+ * path only, never the value.
+ */
+export function assertNoHostCredentialValues(text: string, values: readonly string[]): void {
+	const secrets = values.filter(value => value.length > 0);
+	if (secrets.length === 0) return;
+	let parsed: unknown;
+	try {
+		parsed = Bun.YAML.parse(text);
+	} catch {
+		throw fail("is not valid YAML");
+	}
+	const walk = (node: unknown, where: string): void => {
+		if (Array.isArray(node)) {
+			node.forEach((item, i) => walk(item, `${where}[${i}]`));
+			return;
+		}
+		if (isRecord(node)) {
+			for (const [key, value] of Object.entries(node)) {
+				const here = where ? `${where}.${key}` : key;
+				if (secrets.some(secret => containsHostValue(key, secret))) {
+					throw fail(`${here} embeds a host credential value; reference the env var name instead`);
+				}
+				if (key === "apiKey" || (key === "headers" && isRecord(value))) continue;
+				walk(value, here);
+			}
+			return;
+		}
+		if (node === null || node === undefined) return;
+		const scalar = typeof node === "string" ? node : String(node);
+		if (secrets.some(secret => containsHostValue(scalar, secret))) {
+			throw fail(`${where} embeds a host credential value; reference the env var name instead`);
+		}
+	};
+	walk(parsed, "");
 }
 
 /** Parse models.yml text and return the sorted env var names its apiKeys reference. */

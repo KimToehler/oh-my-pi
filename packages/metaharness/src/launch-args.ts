@@ -128,7 +128,7 @@ export function credentialValuesFromEnv(names: readonly string[], env: Record<st
 	return [...values];
 }
 
-function containsHostValue(node: string, secret: string): boolean {
+export function containsHostValue(node: string, secret: string): boolean {
 	if (secret.length >= MIN_SECRET_VALUE_LENGTH) return node.includes(secret);
 	if (node === secret) return true;
 	const eq = node.indexOf("=");

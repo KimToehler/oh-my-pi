@@ -4,9 +4,9 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
-import type { LaunchRequest } from "../launch-args";
+import { credentialValuesFromEnv, type LaunchRequest } from "../launch-args";
 import { EvoHttpError } from "./boundary";
-import { referencedEnvNamesFromText } from "./models-yaml";
+import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import type { StoredSuite } from "./suites";
@@ -104,6 +104,8 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	const missing = names.filter(name => process.env[name] === undefined);
 	if (missing.length > 0)
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);
+	// No copy of the text may be written while an unvalidated scalar still carries a host credential.
+	assertNoHostCredentialValues(modelsText, credentialValuesFromEnv(referenced, process.env));
 	// Content-addressed snapshot: later edits to the host file cannot change what this run (or its identity) used.
 	const modelsYamlHash = new Bun.CryptoHasher("sha256").update(modelsText).digest("hex");
 	const snapshot = path.join(input.jobsDir, "_evo", "models", `${modelsYamlHash}.yml`);
