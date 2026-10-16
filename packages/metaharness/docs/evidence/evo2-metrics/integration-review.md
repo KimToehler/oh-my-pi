@@ -1,15 +1,19 @@
 # Evo2 metrics integration review
 
-- Base: `main`
-- Head: `01a4dc7869bfd120475704ff1816d9c71088a2cd`
+- Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
+- Head: `c09cf9a2526286dd1a3473fb2a092b687d3d9a49`
 - Result: **PASS**
 
-## Review scope
+## Review history
 
-Whole-diff review checked closure for identity spoof, atomic publication, staged/unstaged/untracked framing, `apiKey` validation, symlink secret containment, suite-only fitness, normalized collisions, missing attribution, and comparison confounds. Formal audit also closed generated payload `100644`/`100755` modes, non-regular rejection, referenced environment forwarding superset, and structured Compose/path control guard. Latest fresh whole-diff integration reviewer found no blocker.
+Whole-diff review over `935046d15b..ab48053920` raised R1 and R2; successive fresh delta reviews over `ab48053920..<head>` raised R3 through R10. Each fix shipped with a failing-first test observed RED before the change.
 
-## Verification evidence
+- R1 (materialize nested config): dismissed as false positive; `Bun.write` creates parent directories, accepted by the next reviewer.
+- R2 explicit `--env NAME=VALUE`; R3 API `envNames`/`extraArgs`; R4 non-omp agents; R5 harbor passthrough after `--`; R6 flag-spelling independence; R7 `--setting` JSON-decoded values and `\u003d` escapes; R8 object keys, unbounded nesting, `--models-yaml` inside `extraArgs`; R10 host credential value under another `--env` name. All credential-persistence fixes.
+- R9: `oven/bun` image tag from a `packageManager` range (`bun@>=1.4` produced `docker: invalid reference format`), found by a real Docker run.
 
-Manual QA and package checks are recorded in [`manual-qa.md`](manual-qa.md). Observed checks include 161 passing tests across 15 files, clean formatting/static checks, task calibration reward `0` before solution and `1` after solution, REST identity and normalized-collision rejection, signal-gated fitness attribution, runner overlay/secret masking, and literal-key rejection.
+Scope decision (user): the credential invariant covers accidental persistence; deliberate re-encoding by a key holder is out of scope.
 
-Full Harbor task run was unavailable because actual `docker` and `container` binaries are absent. This remains a limitation, not a claimed pass.
+## Final verdict
+
+Fresh reviewer over `15d4efa8a6..c09cf9a252` (full secret-class delta `ab48053920..c09cf9a252`): `VERDICT: PASS`, no blockers.

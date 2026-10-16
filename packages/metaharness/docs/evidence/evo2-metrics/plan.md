@@ -123,8 +123,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R9. Resolve the `oven/bun` image tag from a `packageManager` range (`packages/metaharness/src/runner.ts`). `bun@>=1.4` produced `oven/bun:>=1.4` and `docker: invalid reference format`, which broke every `--install source` Docker run; `resolveBunImageVersion` keeps exact pins, otherwise uses the host Bun when it satisfies the range, and fails loudly when it does not.
 - [x] R10. Scan explicit `--env` values for host credential values (`packages/metaharness/src/runner.ts`). `--env OTHER=<credential value>` bypassed the name-based check; the runner guard now passes every non-host-sourced `cfg.env` entry to `findCredentialLeaks` before anything is written.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
