@@ -291,6 +291,7 @@ describe("comparison", () => {
 		suiteHash: "h",
 		model: "m",
 		executorConfigHash: "e",
+		modelsYamlHash: "m",
 		sourceRef: "r",
 		sourceDirtyHash: null,
 	};

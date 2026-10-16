@@ -82,6 +82,7 @@ interface JobOptions {
 	suiteHash?: string;
 	executor?: string;
 	model?: string;
+	modelsYamlHash?: string;
 	infra?: string;
 }
 
@@ -145,6 +146,7 @@ function writeJob(
 			model: opts.model ?? SUITE.model,
 			suiteHash: opts.suiteHash,
 			executorConfigHash: opts.executor ?? "exec-1",
+			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
 		},
 	});
 	h.manager.store.markExit(jobName, 0);
@@ -328,6 +330,18 @@ describe("evo REST", () => {
 		expect((await fetch(`${h.base}/api/evo/variants/${childId}/reflection-bundle?suite=search-1`)).status).toBe(409);
 	});
 
+	it("refuses a comparison whose runs staged different models.yml content", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 1, t2: 1 }, { suiteHash, modelsYamlHash: "a".repeat(64) });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, modelsYamlHash: "b".repeat(64) });
+		const res = await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: string; mismatches: Array<{ field: string }> };
+		expect(body.error).toContain("modelsYamlHash");
+		expect(body.mismatches.map(m => m.field)).toEqual(["modelsYamlHash"]);
+	});
+
 	it("refuses fitness for a stale suite version and for runs without recorded conditions", async () => {
 		const h = harness();
 		const { suiteHash, rootId, childId } = await seed(h);
@@ -370,7 +384,14 @@ describe("evo REST", () => {
 describe("generic launch route", () => {
 	it("rejects caller-supplied evo identity fields and persists nothing", async () => {
 		const h = harness();
-		for (const field of ["variantId", "suiteId", "suiteHash", "stagedConfigHash", "executorConfigHash"]) {
+		for (const field of [
+			"variantId",
+			"suiteId",
+			"suiteHash",
+			"stagedConfigHash",
+			"executorConfigHash",
+			"modelsYamlHash",
+		]) {
 			const res = await h.post("/api/runs", { model: "m/x", jobName: `spoof-${field}`, [field]: "forged" });
 			await expectError(
 				res,
@@ -594,8 +615,12 @@ describe("evo launch", () => {
 			variantId: rootId,
 			suiteId: "search-1",
 			suiteHash: suite.hash,
-			modelsYaml,
+			modelsYaml: path.join(h.jobsDir, "_evo", "models", `${launch.modelsYamlHash}.yml`),
 		});
+		expect(launch.modelsYamlHash).toBe(
+			new Bun.CryptoHasher("sha256").update(fs.readFileSync(modelsYaml, "utf8")).digest("hex"),
+		);
+		expect(fs.readFileSync(launch.modelsYaml!, "utf8")).toBe(fs.readFileSync(modelsYaml, "utf8"));
 		expect(launch.sourceRoot).toBeUndefined();
 		expect(launch.agentDir).toBe(path.join(h.jobsDir, "_evo", "variants", rootId, "config"));
 		expect(JSON.stringify(launch)).not.toContain(sentinel);

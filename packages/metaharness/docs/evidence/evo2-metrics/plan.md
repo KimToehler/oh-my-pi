@@ -122,10 +122,11 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R8. Close accidental-leak gaps in credential detection (`packages/metaharness/src/launch-args.ts`, `packages/metaharness/src/server.ts`). `findCredentialLeaks` now walks object keys as well as values with no depth limit (explicit stack, cycle-safe), and the API derives credential names from every effective models file (`request.modelsYaml` plus any `--models-yaml` inside `extraArgs`). Scope decision: the invariant covers accidental persistence (plaintext, `NAME=`, JSON escapes, keys, any nesting, effective models file); deliberate re-encoding (base64, hex, splitting across arguments) by someone already holding the key is out of scope, because content scanning cannot close it.
 - [x] R9. Resolve the `oven/bun` image tag from a `packageManager` range (`packages/metaharness/src/runner.ts`). `bun@>=1.4` produced `oven/bun:>=1.4` and `docker: invalid reference format`, which broke every `--install source` Docker run; `resolveBunImageVersion` keeps exact pins, otherwise uses the host Bun when it satisfies the range, and fails loudly when it does not.
 - [x] R10. Scan explicit `--env` values for host credential values (`packages/metaharness/src/runner.ts`). `--env OTHER=<credential value>` bypassed the name-based check; the runner guard now passes every non-host-sourced `cfg.env` entry to `findCredentialLeaks` before anything is written.
+- [x] R11. Bind the staged `models.yml` content into the comparison identity (`packages/metaharness/src/evo/launch.ts`, `compare.ts`, `service.ts`, `launch-args.ts`, `packages/metaharness/src/server.ts`). The host models file is mutable, so editing it between a parent and a child evaluation changed the effective executor while `executorConfigHash` stayed equal and `/compare` still returned a numeric delta. `buildEvalLaunch` now snapshots the validated text to `<jobsDir>/_evo/models/<sha256>.yml`, launches against that immutable copy, and records `modelsYamlHash`; `ConditionIdentity` requires it, and `/api/runs` rejects it as a caller-supplied evo identity field.
 ## Final verification wave
-- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
-- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 - Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production task runtime now emits settled async result/usage in progress details; behavior/control flow unchanged but metric consumers may depend on payload.
@@ -137,9 +138,9 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
     Negative control: running initial end, duplicate replay, and sparse async update before richer mixed end MUST NOT double-count or overwrite richer per-toolCallId aggregate.
     Observable: persisted trial metric columns and fitness cost totals.
     Boundary: `agent/omp.txt` → `syncRun()` → `metaharness.sqlite`/REST.
-  - Invariant: Parent/child delta compares only identical suite, executor, source identity, and explicit task IDs.
+  - Invariant: Parent/child delta compares only identical suite, executor identity (including the exact staged models.yml bytes), source identity, and explicit task IDs.
     Positive witness: matched variants return paired delta and per-task flips.
-    Negative control: changed model, source hash, suite hash, or missing task set MUST return 409/incomplete, never a numeric comparable delta.
+    Negative control: A changed model, a changed staged models.yml, a changed source hash, a changed suite hash, or a missing task set MUST return 409/incomplete, never a numeric comparable delta.
     Observable: compare API status and response fields.
     Boundary: evo suite/variant run records → fitness API.
   - Invariant: Positive reflector credit requires runtime evidence for every declared expected signal.

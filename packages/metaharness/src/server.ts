@@ -64,7 +64,14 @@ const DEFAULT_JOBS_DIR = path.join(REPO_ROOT, "runs", "harbor");
 export type { LaunchRequest } from "./launch-args";
 
 /** Run identity owned by the evo service; the generic launch route must never accept it from callers. */
-const EVO_IDENTITY_FIELDS = ["variantId", "suiteId", "suiteHash", "stagedConfigHash", "executorConfigHash"] as const;
+const EVO_IDENTITY_FIELDS = [
+	"variantId",
+	"suiteId",
+	"suiteHash",
+	"stagedConfigHash",
+	"executorConfigHash",
+	"modelsYamlHash",
+] as const;
 
 /** POST /api/experiments/:id/arms body — a new comparable arm; sample+config inherited. */
 export interface AddArmRequest {
@@ -149,6 +156,7 @@ function resolveEvoInheritance(
 		"noGateway",
 		"envNames",
 		"executorConfigHash",
+		"modelsYamlHash",
 	] as const) {
 		if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
 	}

@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
 import type { LaunchRequest } from "../launch-args";
 import { EvoHttpError } from "./boundary";
-import { readModelsEnvNames } from "./models-yaml";
+import { referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import type { StoredSuite } from "./suites";
@@ -75,7 +75,13 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	const { variant, suite, defaults } = input;
 	const manifest = suite.manifest;
 	// Validate even with an explicit forward list: the file is what the container receives.
-	const referenced = await readModelsEnvNames(defaults.modelsYaml);
+	let modelsText: string;
+	try {
+		modelsText = await Bun.file(defaults.modelsYaml).text();
+	} catch {
+		throw new EvoHttpError(422, `models file not readable: ${defaults.modelsYaml}`);
+	}
+	const referenced = referencedEnvNamesFromText(modelsText);
 	const explicit = defaults.forwardEnv ?? [];
 	// An explicit list must cover every variable the models file references; extras are allowed.
 	const unforwarded = referenced.filter(name => !explicit.includes(name));
@@ -89,6 +95,10 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	const missing = names.filter(name => process.env[name] === undefined);
 	if (missing.length > 0)
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);
+	// Content-addressed snapshot: later edits to the host file cannot change what this run (or its identity) used.
+	const modelsYamlHash = new Bun.CryptoHasher("sha256").update(modelsText).digest("hex");
+	const snapshot = path.join(input.jobsDir, "_evo", "models", `${modelsYamlHash}.yml`);
+	if (!fs.existsSync(snapshot)) await Bun.write(snapshot, modelsText);
 	return {
 		benchmark: "harbor",
 		model: manifest.model,
@@ -104,7 +114,8 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		suiteId: manifest.id,
 		suiteHash: suite.hash,
 		...variantLaunchFields(input.jobsDir, variant, manifest),
-		modelsYaml: defaults.modelsYaml,
+		modelsYaml: snapshot,
+		modelsYamlHash,
 		noGateway: true,
 		envNames: names,
 		role: "variant",

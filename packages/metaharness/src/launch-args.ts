@@ -62,6 +62,8 @@ export interface LaunchRequest {
 	stagedConfigHash?: string;
 	/** Evo-only: hash of the fixed executor routing fields. */
 	executorConfigHash?: string;
+	/** Evo-only: content hash of the staged models.yml the run used. */
+	modelsYamlHash?: string;
 	/** Evo-only: content hash of the suite manifest. */
 	suiteHash?: string;
 	/** Extra raw runner args, appended verbatim. */

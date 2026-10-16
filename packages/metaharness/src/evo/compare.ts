@@ -9,6 +9,7 @@ export interface ConditionIdentity {
 	suiteHash: string;
 	model: string;
 	executorConfigHash: string;
+	modelsYamlHash: string;
 	sourceRef: string;
 	sourceDirtyHash: string | null;
 }

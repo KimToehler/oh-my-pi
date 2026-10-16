@@ -162,8 +162,9 @@ export class EvoService {
 		const cfg = run.config;
 		const suiteHash = str(cfg.suiteHash);
 		const executorConfigHash = str(cfg.executorConfigHash);
+		const modelsYamlHash = str(cfg.modelsYamlHash);
 		const model = str(cfg.model);
-		if (!run.suiteId || !suiteHash || !executorConfigHash || !model) {
+		if (!run.suiteId || !suiteHash || !executorConfigHash || !modelsYamlHash || !model) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
 		return {
@@ -171,6 +172,7 @@ export class EvoService {
 			suiteHash,
 			model,
 			executorConfigHash,
+			modelsYamlHash,
 			sourceRef: variant.sourceRef,
 			sourceDirtyHash: variant.sourceDirtyHash,
 		};
