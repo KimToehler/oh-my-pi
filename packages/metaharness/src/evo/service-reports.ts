@@ -80,10 +80,31 @@ export class EvoReports {
 		}
 	}
 
-	async evaluated(variant: VariantRow, suite: StoredSuite): Promise<Evaluated> {
-		const runs = this.#store.listRunsForVariant(variant.id, suite.manifest.id);
-		const run = runs[0];
-		if (!run) throw new EvoHttpError(404, `variant '${variant.id}' has no run on suite '${suite.manifest.id}'`);
+	/** Named job must exist (404) and belong to this variant and suite (422); otherwise newest run on the suite. */
+	#selectRun(variant: VariantRow, suite: StoredSuite, jobName: string | null, param: string): RunRow {
+		if (jobName === null) {
+			const run = this.#store.listRunsForVariant(variant.id, suite.manifest.id)[0];
+			if (!run) throw new EvoHttpError(404, `variant '${variant.id}' has no run on suite '${suite.manifest.id}'`);
+			return run;
+		}
+		const run = this.#store.getRun(jobName);
+		if (!run) throw new EvoHttpError(404, `${param} '${jobName}' not found`);
+		if (run.variantId !== variant.id || run.suiteId !== suite.manifest.id) {
+			throw new EvoHttpError(
+				422,
+				`${param} '${jobName}' is not an evaluation of variant '${variant.id}' on suite '${suite.manifest.id}'`,
+			);
+		}
+		return run;
+	}
+
+	async evaluated(
+		variant: VariantRow,
+		suite: StoredSuite,
+		jobName: string | null = null,
+		param = "job",
+	): Promise<Evaluated> {
+		const run = this.#selectRun(variant, suite, jobName, param);
 		const synced = this.#store.syncRun(run.jobName) ?? run;
 		const identity = this.#identity(synced, variant);
 		if (identity.suiteHash !== suite.hash) {
@@ -124,8 +145,13 @@ export class EvoReports {
 	): Promise<{ child: Evaluated; baseline: Evaluated; baselineVariant: VariantRow; report: ComparisonReport }> {
 		const suite = await this.suite(url);
 		const baselineVariant = await this.#baseline(variant, url);
-		const child = await this.evaluated(variant, suite);
-		const baseline = await this.evaluated(baselineVariant, suite);
+		const child = await this.evaluated(variant, suite, str(url.searchParams.get("childJob")), "childJob");
+		const baseline = await this.evaluated(
+			baselineVariant,
+			suite,
+			str(url.searchParams.get("baselineJob")),
+			"baselineJob",
+		);
 		assertMatched(child.identity, baseline.identity);
 		return { child, baseline, baselineVariant, report: compareFitness(child.report, baseline.report, variant) };
 	}
@@ -138,7 +164,8 @@ export class EvoReports {
 		const suite = await this.suite(url);
 		const parentId = url.searchParams.get("baseline") ?? variant.parentId;
 		if (!parentId) {
-			const child = await this.evaluated(variant, suite);
+			if (url.searchParams.has("baselineJob")) throw badRequest("'baselineJob' needs a baseline variant");
+			const child = await this.evaluated(variant, suite, str(url.searchParams.get("childJob")), "childJob");
 			return buildReflectionBundle({
 				variant,
 				parent: null,
@@ -162,6 +189,6 @@ export class EvoReports {
 	}
 
 	async fitness(variant: VariantRow, url: URL): Promise<FitnessReport> {
-		return (await this.evaluated(variant, await this.suite(url))).report;
+		return (await this.evaluated(variant, await this.suite(url), str(url.searchParams.get("job")))).report;
 	}
 }

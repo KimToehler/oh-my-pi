@@ -1283,3 +1283,71 @@ describe("registered variant snapshot integrity at launch", () => {
 		expect(artifacts(h.jobsDir, "exp-swap").benchDir).toBe(false);
 	});
 });
+
+describe("evo evaluation-pair binding (R52)", () => {
+	it("fitness names the job used: newest by default, the named older job with ?job", async () => {
+		const h = harness();
+		const { suiteHash, childId } = await seed(h);
+		writeJob(h, "evo-child-old", childId, { t1: 0, t2: 0 }, { suiteHash });
+		writeJob(h, "evo-child-new", childId, { t1: 1, t2: 1 }, { suiteHash });
+		const base = `${h.base}/api/evo/variants/${childId}/fitness?suite=search-1`;
+		const newest = await h.json<{ vHat: number; jobName: string }>(await fetch(base));
+		expect(newest).toMatchObject({ vHat: 1, jobName: "evo-child-new" });
+		const older = await h.json<{ vHat: number; jobName: string }>(await fetch(`${base}&job=evo-child-old`));
+		expect(older).toMatchObject({ vHat: 0, jobName: "evo-child-old" });
+		expect((await fetch(`${base}&job=ghost`)).status).toBe(404);
+	});
+
+	it("compare uses exactly the named child/baseline jobs from different epochs and reports both", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "root-a", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		writeJob(h, "child-a", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"] });
+		writeJob(h, "root-b", rootId, { t1: 1, t2: 1 }, { suiteHash });
+		writeJob(h, "child-b", childId, { t1: 1, t2: 0 }, { suiteHash, signals: ["fix"] });
+		const url = `${h.base}/api/evo/variants/${childId}/compare?suite=search-1`;
+		const dflt = await h.json<{ childJob: string; baselineJob: string; rawDelta: number }>(await fetch(url));
+		expect(dflt).toMatchObject({ childJob: "child-b", baselineJob: "root-b", rawDelta: -0.5 });
+		const mixed = await h.json<{ childJob: string; baselineJob: string; rawDelta: number }>(
+			await fetch(`${url}&childJob=child-a&baselineJob=root-a`),
+		);
+		expect(mixed).toMatchObject({ childJob: "child-a", baselineJob: "root-a", rawDelta: 0.5 });
+		const onlyChild = await h.json<{ childJob: string; baselineJob: string }>(await fetch(`${url}&childJob=child-a`));
+		expect(onlyChild).toMatchObject({ childJob: "child-a", baselineJob: "root-b" });
+		const bundle = await h.json<{ childJob: string; baselineJob: string | null }>(
+			await fetch(
+				`${h.base}/api/evo/variants/${childId}/reflection-bundle?suite=search-1&childJob=child-a&baselineJob=root-a`,
+			),
+		);
+		expect(bundle).toMatchObject({ childJob: "child-a", baselineJob: "root-a" });
+	});
+
+	it("rejects a job of another variant or a missing job; never falls back", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "root-a", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		writeJob(h, "child-a", childId, { t1: 1, t2: 1 }, { suiteHash });
+		const url = `${h.base}/api/evo/variants/${childId}/compare?suite=search-1`;
+		expect((await fetch(`${url}&childJob=root-a`)).status).toBe(422);
+		expect((await fetch(`${url}&baselineJob=child-a`)).status).toBe(422);
+		expect((await fetch(`${url}&childJob=ghost`)).status).toBe(404);
+		expect((await fetch(`${url}&baselineJob=ghost`)).status).toBe(404);
+		expect((await fetch(`${h.base}/api/evo/variants/${childId}/fitness?suite=search-1&job=root-a`)).status).toBe(422);
+	});
+
+	it("matched-conditions are re-verified on the explicit pair, not the newest rows", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "root-a", rootId, { t1: 0, t2: 1 }, { suiteHash, taskHash: "a".repeat(64) });
+		writeJob(h, "child-a", childId, { t1: 1, t2: 1 }, { suiteHash, taskHash: "a".repeat(64) });
+		writeJob(h, "root-b", rootId, { t1: 0, t2: 1 }, { suiteHash, taskHash: "b".repeat(64) });
+		const url = `${h.base}/api/evo/variants/${childId}/compare?suite=search-1`;
+		// Newest baseline is root-b (different task bytes): default pairing refuses.
+		expect((await fetch(url)).status).toBe(409);
+		// Explicit matched epoch-a pair succeeds.
+		const ok = await h.json<{ rawDelta: number; baselineJob: string }>(await fetch(`${url}&baselineJob=root-a`));
+		expect(ok).toMatchObject({ rawDelta: 0.5, baselineJob: "root-a" });
+		// Explicit mismatched pair refuses.
+		expect((await fetch(`${url}&baselineJob=root-b`)).status).toBe(409);
+	});
+});

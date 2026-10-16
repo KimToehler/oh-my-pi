@@ -55,6 +55,9 @@ export interface Refusal {
 export interface ComparisonReport extends Interval {
 	childVariantId: string;
 	baselineVariantId: string;
+	/** The evaluation pair this report describes: the exact jobs behind each side. */
+	childJob: string;
+	baselineJob: string;
 	suiteId: string;
 	sharedTasks: number;
 	/** Mean paired delta over shared tasks with complete rewards on both sides. */
@@ -152,6 +155,8 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 	return {
 		childVariantId: child.variantId,
 		baselineVariantId: baseline.variantId,
+		childJob: child.jobName,
+		baselineJob: baseline.jobName,
 		suiteId: child.suiteId,
 		sharedTasks: deltas.length,
 		rawDelta,

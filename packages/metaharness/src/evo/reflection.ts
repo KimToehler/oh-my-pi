@@ -32,6 +32,9 @@ export interface ReflectionBundle {
 	variant: VariantRow;
 	parent: VariantRow | null;
 	diff: { path: string; text: string; truncated: boolean };
+	/** Evaluation pair this bundle describes; `baselineJob` is null when the variant has no baseline. */
+	childJob: string;
+	baselineJob: string | null;
 	fitness: FitnessReport;
 	baselineFitness: FitnessReport | null;
 	comparison: ComparisonReport | null;
@@ -105,6 +108,8 @@ export async function buildReflectionBundle(input: BundleInput): Promise<Reflect
 		variant,
 		parent: input.parent,
 		diff: await readDiff(variant.diffPath),
+		childJob: fitness.jobName,
+		baselineJob: input.baselineFitness?.jobName ?? null,
 		fitness,
 		baselineFitness: input.baselineFitness,
 		comparison,
