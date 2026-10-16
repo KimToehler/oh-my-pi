@@ -500,6 +500,29 @@ describe("runner-config credential persistence", () => {
 		}, 30_000);
 	}
 
+	const nest12 = (leaf: string): unknown => {
+		let node: unknown = leaf;
+		for (let depth = 0; depth < 12; depth++) node = { a: node };
+		return node;
+	};
+	for (const [label, args] of [
+		["--setting with the credential value as an object key", ["--setting", `${SENTINEL}=false`]],
+		[
+			"--setting JSON nested 12 levels deep",
+			["--setting", `x=${JSON.stringify(nest12(`EVO_SENTINEL_KEY=${SENTINEL}`))}`],
+		],
+	] as const) {
+		it(`rejects a credential reachable through ${label} and persists nothing`, async () => {
+			const jobsDir = tmp();
+			const { code, out } = await runRunner(jobsDir, "job-deep-secret", [...args], { EVO_SENTINEL_KEY: SENTINEL });
+			expect(code).not.toBe(0);
+			expect(out).toContain("credential env");
+			expect(out).not.toContain(SENTINEL);
+			expect(fs.existsSync(path.join(jobsDir, "_bench", "job-deep-secret", "runner-config.json"))).toBe(false);
+			expect(scanForSentinel(jobsDir)).toEqual([]);
+		}, 30_000);
+	}
+
 	it("still persists non-credential --setting values while the host credential is set", async () => {
 		const jobsDir = tmp();
 		const { code, out } = await runRunner(jobsDir, "job-setting-ok", ["--setting", 'theme="dark"'], {

@@ -482,6 +482,44 @@ describe("generic launch route", () => {
 			else process.env.EVO_SENTINEL_KEY = previous;
 		}
 	});
+
+	it("rejects credentials reachable through a models.yml given in extraArgs, object keys, or deep nesting", async () => {
+		const SENTINEL = "evo-sentinel-secret-9f3a7c21";
+		const previous = process.env.EVO_SENTINEL_KEY;
+		process.env.EVO_SENTINEL_KEY = SENTINEL;
+		try {
+			const h = harness();
+			const modelsYaml = path.join(h.jobsDir, "models.yml");
+			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+			let nest: unknown = `EVO_SENTINEL_KEY=${SENTINEL}`;
+			for (let depth = 0; depth < 12; depth++) nest = { a: nest };
+			const cases: Record<string, unknown>[] = [
+				{
+					extraArgs: ["--models-yaml", modelsYaml, "--setting", `x=EVO_SENTINEL_KEY=${SENTINEL}`],
+				},
+				{ extraArgs: [`--models-yaml=${modelsYaml}`, "--setting", `x=${SENTINEL}`] },
+				{ modelsYaml, extraArgs: ["--setting", `${SENTINEL}=false`] },
+				{ modelsYaml, extraArgs: ["--setting", `x=${JSON.stringify(nest)}`] },
+			];
+			for (const [i, c] of cases.entries()) {
+				const jobName = `deep-${i}`;
+				const res = await h.post("/api/runs", { model: "m/x", jobName, ...c });
+				expect(res.status).toBe(400);
+				const { error } = (await res.json()) as { error: string };
+				expect(error).toContain("credential env");
+				expect(error).not.toContain(SENTINEL);
+				expect(h.manager.store.getRun(jobName)).toBeNull();
+				expect(fs.existsSync(path.join(h.jobsDir, jobName))).toBe(false);
+			}
+			for (const entry of fs.readdirSync(h.jobsDir, { withFileTypes: true, recursive: true })) {
+				if (!entry.isFile()) continue;
+				expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
+			}
+		} finally {
+			if (previous === undefined) delete process.env.EVO_SENTINEL_KEY;
+			else process.env.EVO_SENTINEL_KEY = previous;
+		}
+	});
 });
 
 describe("evo request hardening", () => {

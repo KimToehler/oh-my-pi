@@ -34,6 +34,7 @@ import {
 	assertLaunchEnvSafe,
 	credentialValuesFromEnv,
 	defaultJobName,
+	effectiveModelsYaml,
 	harborRunnerArgs,
 	isLocalDataset,
 	type LaunchRequest,
@@ -457,7 +458,7 @@ export class ManagerServer {
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
 			throw new Error(`unsupported benchmark: ${benchmark}`);
 		}
-		const names = request.modelsYaml ? readModelsEnvNamesSync(request.modelsYaml) : [];
+		const names = [...new Set(effectiveModelsYaml(request).flatMap(file => readModelsEnvNamesSync(file)))].sort();
 		assertLaunchEnvSafe(request, benchmark, { names, values: credentialValuesFromEnv(names, process.env) });
 		const dataset =
 			request.dataset ??

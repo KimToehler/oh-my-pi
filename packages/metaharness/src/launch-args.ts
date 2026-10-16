@@ -114,7 +114,6 @@ export function harborEnvAssignmentNames(args: readonly string[]): string[] {
 /** Shortest host credential value treated as a secret; shorter values would false-positive on ordinary text. */
 export const MIN_SECRET_VALUE_LENGTH = 8;
 
-const MAX_LEAK_DEPTH = 8;
 const HOST_VALUE_LABEL = "<host value>";
 
 /** Deduped host values of the named credential env vars that are long enough to be secrets. */
@@ -134,9 +133,14 @@ export function credentialValuesFromEnv(names: readonly string[], env: Record<st
  */
 export function findCredentialLeaks(value: unknown, names: readonly string[], values: readonly string[]): string[] {
 	const hits = new Set<string>();
-	const visit = (node: unknown, depth: number): void => {
-		if (depth > MAX_LEAK_DEPTH) return;
+	const seenObjects = new WeakSet<object>();
+	const seenStrings = new Set<string>();
+	const stack: unknown[] = [value];
+	while (stack.length > 0) {
+		const node = stack.pop();
 		if (typeof node === "string") {
+			if (seenStrings.has(node)) continue;
+			seenStrings.add(node);
 			for (const name of names) if (node.includes(`${name}=`)) hits.add(name);
 			if (values.some(secret => node.includes(secret))) hits.add(HOST_VALUE_LABEL);
 			let decoded: unknown;
@@ -145,22 +149,42 @@ export function findCredentialLeaks(value: unknown, names: readonly string[], va
 			} catch {
 				decoded = undefined;
 			}
-			if (decoded !== null && typeof decoded === "object") visit(decoded, depth + 1);
-			else if (typeof decoded === "string" && decoded !== node) visit(decoded, depth + 1);
+			if (decoded !== null && typeof decoded === "object") stack.push(decoded);
+			else if (typeof decoded === "string" && decoded !== node) stack.push(decoded);
 			const eq = node.indexOf("=");
-			if (eq !== -1) visit(node.slice(eq + 1), depth + 1);
-			return;
+			if (eq !== -1) stack.push(node.slice(eq + 1));
+			continue;
 		}
+		if (node === null || typeof node !== "object") continue;
+		if (seenObjects.has(node)) continue;
+		seenObjects.add(node);
 		if (Array.isArray(node)) {
-			for (const item of node) visit(item, depth + 1);
-			return;
+			for (const item of node) stack.push(item);
+			continue;
 		}
-		if (node !== null && typeof node === "object") {
-			for (const item of Object.values(node)) visit(item, depth + 1);
+		for (const [key, item] of Object.entries(node)) {
+			stack.push(key);
+			stack.push(item);
 		}
-	};
-	visit(value, 0);
+	}
 	return [...hits].sort();
+}
+
+/** Every models.yml the runner will read: `request.modelsYaml` plus each `--models-yaml <v>` / `--models-yaml=<v>` in extraArgs. */
+export function effectiveModelsYaml(request: LaunchRequest): string[] {
+	const files = new Set<string>();
+	if (request.modelsYaml) files.add(request.modelsYaml);
+	const args = request.extraArgs ?? [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--models-yaml") {
+			const next = args[i + 1];
+			if (next !== undefined) files.add(next);
+		} else if (arg.startsWith("--models-yaml=")) {
+			files.add(arg.slice("--models-yaml=".length));
+		}
+	}
+	return [...files];
 }
 
 /** Reject launch requests that would carry env values (secrets) into persisted run state. Never echoes entries. */
