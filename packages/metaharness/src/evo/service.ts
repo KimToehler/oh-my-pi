@@ -147,6 +147,9 @@ export class EvoService {
 		if (!/^[A-Za-z0-9][A-Za-z0-9_.]*(-[A-Za-z0-9_.]+)*$/.test(jobName)) {
 			throw badRequest("evaluate.jobName must be a single path-safe token of [A-Za-z0-9_.-]");
 		}
+		if (this.#store.getRun(jobName)) {
+			throw new EvoHttpError(409, `job '${jobName}' already exists; evaluate always starts a new run`);
+		}
 		const request = await buildEvalLaunch({
 			jobsDir: this.#jobsDir,
 			variant,

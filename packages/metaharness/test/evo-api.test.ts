@@ -821,6 +821,32 @@ describe("evo launch", () => {
 		expect(h.manager.store.listRuns()).toEqual([]);
 	});
 
+	it("refuses to reuse an existing evaluation job name", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: sk-literal-secret-value-99\n");
+		const h = harness({ modelsYaml, forwardEnv: [] });
+		const { suiteHash, rootId } = await seed(h);
+		writeJob(h, "evo-used", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		h.manager.store.syncRun("evo-used");
+		const before = h.manager.store.listTraces("evo-used");
+		expect(before.length).toBe(2);
+		const run = h.manager.store.getRun("evo-used");
+		await expectError(
+			await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1", jobName: "evo-used" }),
+			409,
+			"job 'evo-used' already exists; evaluate always starts a new run",
+		);
+		expect(h.manager.store.listTraces("evo-used")).toEqual(before);
+		expect(h.manager.store.getRun("evo-used")).toEqual(run);
+		// Positive control: a fresh name passes the guard and reaches launch construction (422 from the literal key).
+		await expectError(
+			await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1", jobName: "evo-fresh" }),
+			422,
+			"models.yml providers.onara.apiKey must be an environment variable name (literal keys, commands and URLs are not allowed)",
+		);
+	});
+
 	it("resolveArmLaunch inherits suite, executor and tasks; only the variant may change", async () => {
 		const modelsDir = tmp("evo-arm-models-");
 		write(modelsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n");

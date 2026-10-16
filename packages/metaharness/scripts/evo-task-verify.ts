@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { CALIBRATION_FILE, type CalibrationRecord, hashTaskDir } from "../src/evo/calibration";
 import { fail, run, type VerifyResult } from "./evo-task-shared";
 
 async function runVerifier(taskDir: string, repoDir: string, logDir: string): Promise<number> {
@@ -40,6 +41,13 @@ export async function verifyTask(taskDirArg: string): Promise<VerifyResult> {
 		if (solve.code !== 0) fail(`solution/solve.sh exited ${solve.code}: ${solve.err.trim()}`);
 		const after = await runVerifier(taskDir, repoDir, logDir);
 		if (after !== 1) fail(`GREEN check failed: verifier reward ${after} after solution (expected 1)`);
+		const record: CalibrationRecord = {
+			before,
+			after,
+			taskHash: await hashTaskDir(taskDir),
+			verifiedAt: new Date().toISOString(),
+		};
+		await Bun.write(path.join(taskDir, CALIBRATION_FILE), `${JSON.stringify(record, null, "\t")}\n`);
 		return { before, after };
 	} finally {
 		await fs.rm(scratch, { recursive: true, force: true });

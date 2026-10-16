@@ -52,6 +52,13 @@ async function makeSource(): Promise<string> {
 	return dir;
 }
 
+async function addWorktree(source: string, wt: string): Promise<string> {
+	fs.mkdirSync(path.dirname(wt), { recursive: true });
+	await git(source, "worktree", "add", "-q", "--detach", wt, "HEAD");
+	cleanups.push(() => Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: source }));
+	return fs.realpathSync(wt);
+}
+
 function agentDir(files: Record<string, string>): string {
 	const dir = tmp("evo-agent-");
 	for (const [rel, content] of Object.entries(files)) write(dir, rel, content);
@@ -313,15 +320,13 @@ describe("variant registry", () => {
 	});
 
 	it("gives a source variant its own identity via a clean worktree", async () => {
-		const { registry, source } = await setup();
+		const { registry, source, jobsDir } = await setup();
 		const cfg = agentDir({ "AGENTS.md": "a" });
 		const base = await registry.register(root(cfg));
 		write(source, "a.txt", "two\n");
 		await git(source, "add", "-A");
 		await git(source, "commit", "-q", "-m", "second");
-		const wt = path.join(tmp("evo-wt-"), "wt");
-		await git(source, "worktree", "add", "-q", "--detach", wt, "HEAD");
-		cleanups.push(() => Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: source }));
+		const wt = await addWorktree(source, path.join(jobsDir, "_evo", "worktrees", "wt"));
 		const sourceVariant = await registry.register(
 			parseVariantRequest({ mutation: "manual", parentId: base.variant.id, configDir: cfg, sourceWorktree: wt }),
 		);
@@ -336,6 +341,36 @@ describe("variant registry", () => {
 				parseVariantRequest({ mutation: "manual", parentId: base.variant.id, configDir: cfg, sourceWorktree: wt }),
 			),
 		).rejects.toThrow(/source worktree must be clean/);
+	});
+
+	it("rejects a source worktree outside the evo worktree root", async () => {
+		const { registry, source, jobsDir } = await setup();
+		const cfg = agentDir({ "AGENTS.md": "a" });
+		const base = await registry.register(root(cfg));
+		const required = path.join(jobsDir, "_evo", "worktrees");
+		const request = (wt: string) =>
+			parseVariantRequest({ mutation: "manual", parentId: base.variant.id, configDir: cfg, sourceWorktree: wt });
+		// Outside the root entirely.
+		const outside = await addWorktree(source, path.join(tmp("evo-wt-"), "wt"));
+		await expect(registry.register(request(outside))).rejects.toThrow(required);
+		// The primary checkout is not task-owned either.
+		await expect(registry.register(request(source))).rejects.toThrow(required);
+		// A symlink under the root that points outside it cannot escape.
+		fs.mkdirSync(required, { recursive: true });
+		const link = path.join(required, "escape");
+		fs.symlinkSync(outside, link);
+		await expect(registry.register(request(link))).rejects.toThrow(required);
+		// Positive control: same kind of clean worktree under the root registers and records identity.
+		write(source, "a.txt", "two\n");
+		await git(source, "add", "-A");
+		await git(source, "commit", "-q", "-m", "second");
+		const inside = await addWorktree(source, path.join(required, "ok"));
+		const ok = await registry.register(request(inside));
+		expect(ok.created).toBe(true);
+		expect(ok.variant.snapshotPath).toBe(inside);
+		expect(formatSourceIdentity({ ref: ok.variant.sourceRef, dirtyHash: ok.variant.sourceDirtyHash })).toBe(
+			formatSourceIdentity(await sourceIdentity(inside)),
+		);
 	});
 });
 
@@ -407,12 +442,9 @@ describe("source identity", () => {
 	});
 
 	it("detects a staged change made after registration as drift", async () => {
-		const { registry, source } = await setup();
+		const { registry, source, jobsDir } = await setup();
 		const cfg = agentDir({ "AGENTS.md": "a" });
-		const wtParent = tmp("evo-wt-");
-		const wt = path.join(wtParent, "wt");
-		await git(source, "worktree", "add", "-q", "--detach", wt, "HEAD");
-		cleanups.push(() => Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: source }));
+		const wt = await addWorktree(source, path.join(jobsDir, "_evo", "worktrees", "wt"));
 		const base = await registry.register(root(cfg));
 		const registered = await registry.register(
 			parseVariantRequest({

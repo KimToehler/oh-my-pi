@@ -93,6 +93,11 @@ export function evoRoot(jobsDir: string): string {
 	return path.join(jobsDir, "_evo");
 }
 
+/** Task-owned git worktrees; the only place a source variant's worktree may live. */
+export function worktreesRoot(jobsDir: string): string {
+	return path.join(evoRoot(jobsDir), "worktrees");
+}
+
 export function variantsRoot(jobsDir: string): string {
 	return path.join(evoRoot(jobsDir), "variants");
 }
@@ -183,6 +188,12 @@ export class VariantRegistry {
 		const worktree = await fs.realpath(req.sourceWorktree).catch(() => {
 			throw new Error(`source worktree not found: ${req.sourceWorktree}`);
 		});
+		const requiredRoot = worktreesRoot(this.#jobsDir);
+		const realRoot = await fs.realpath(requiredRoot).catch(() => requiredRoot);
+		const rel = path.relative(realRoot, worktree);
+		if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+			throw new Error(`source worktree must be a task-owned worktree under ${requiredRoot}: ${worktree}`);
+		}
 		const source = await sourceIdentity(worktree);
 		if (source.dirtyHash) throw new Error(`source worktree must be clean: ${worktree}`);
 		let sourceChanged: string[] = [];

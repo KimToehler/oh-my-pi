@@ -5,6 +5,8 @@ import * as path from "node:path";
 import { parseMakeArgs } from "../scripts/evo-task";
 import { type MakeOptions, makeTask } from "../scripts/evo-task-make";
 import { verifyTask } from "../scripts/evo-task-verify";
+import { EvoHttpError } from "../src/evo/boundary";
+import { SuiteRegistry } from "../src/evo/suites";
 
 let tmp = "";
 
@@ -131,6 +133,40 @@ describe("evo-task make", () => {
 		await makeTask(opts(f));
 		const result = await verifyTask(path.join(tmp, "out"));
 		expect(result).toEqual({ before: 0, after: 1 });
+	});
+
+	it("suite registration rejects a generated task with no successful calibration", async () => {
+		const f = await makeRepo();
+		const dataset = path.join(tmp, "dataset");
+		await makeTask(opts(f, { output: path.join(dataset, "synthetic") }));
+		const registry = new SuiteRegistry(path.join(tmp, "jobs"));
+		const manifest = {
+			id: "cal-suite",
+			split: "search",
+			benchmark: "harbor",
+			dataset,
+			include: ["synthetic"],
+			attempts: 1,
+			timeoutMultiplier: 1,
+			model: "m",
+			thinking: "off",
+			environment: "docker",
+		};
+		const err = await registry.register(manifest).then(
+			() => null,
+			(e: unknown) => e,
+		);
+		expect(err).toBeInstanceOf(EvoHttpError);
+		expect((err as EvoHttpError).status).toBe(422);
+		expect((err as Error).message).toMatch(/synthetic.*calibration|calibration.*synthetic/);
+
+		await verifyTask(path.join(dataset, "synthetic"));
+		expect((await registry.register(manifest)).created).toBe(true);
+
+		// Task bytes changed after calibration: evidence no longer binds.
+		const second = new SuiteRegistry(path.join(tmp, "jobs2"));
+		await Bun.write(path.join(dataset, "synthetic", "tests", "command.txt"), "true\n");
+		await expect(second.register(manifest)).rejects.toThrow(/synthetic.*calibration|calibration.*synthetic/);
 	});
 
 	it("verify rejects a task whose solution does not fix the tests (GREEN discriminates)", async () => {

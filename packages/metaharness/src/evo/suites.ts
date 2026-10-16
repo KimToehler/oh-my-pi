@@ -2,6 +2,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import { isLocalDataset, resolveLocalDataset } from "../launch-args";
+import { CALIBRATION_FILE, type CalibrationRecord, hashTaskDir, META_FILE } from "./calibration";
 import {
 	badRequest,
 	enumValue,
@@ -104,6 +106,31 @@ export function taskKey(task: string): string {
 	return slash === -1 ? task : task.slice(slash + 1);
 }
 
+/**
+ * Generated tasks (local dataset dir entries holding evo-task.json) must carry a calibration.json whose hash
+ * still matches the task bytes and whose GREEN reward is 1. Other include entries are left alone.
+ */
+async function requireCalibratedTasks(manifest: SuiteManifest): Promise<void> {
+	if (!isLocalDataset(manifest.dataset)) return;
+	const root = resolveLocalDataset(manifest.dataset);
+	for (const task of manifest.include) {
+		const dir = path.join(root, taskKey(task));
+		if (!(await Bun.file(path.join(dir, META_FILE)).exists())) continue;
+		let record: Partial<CalibrationRecord> | null = null;
+		try {
+			record = (await Bun.file(path.join(dir, CALIBRATION_FILE)).json()) as Partial<CalibrationRecord>;
+		} catch (err) {
+			if (!isEnoent(err) && !(err instanceof SyntaxError)) throw err;
+		}
+		if (!record || record.before !== 0 || record.after !== 1) {
+			throw new EvoHttpError(422, `task '${task}' has no successful RED/GREEN calibration; run evo-task verify`);
+		}
+		if (record.taskHash !== (await hashTaskDir(dir))) {
+			throw new EvoHttpError(422, `task '${task}' changed since its calibration; re-run evo-task verify`);
+		}
+	}
+}
+
 export class SuiteRegistry {
 	readonly dir: string;
 
@@ -118,6 +145,7 @@ export class SuiteRegistry {
 	/** Snapshot a manifest. Idempotent for identical content; a changed manifest under an existing id is a 409. */
 	async register(raw: unknown): Promise<{ suite: StoredSuite; created: boolean }> {
 		const manifest = parseSuiteManifest(raw);
+		await requireCalibratedTasks(manifest);
 		const hash = suiteHash(manifest);
 		const existing = await this.get(manifest.id);
 		if (existing) {

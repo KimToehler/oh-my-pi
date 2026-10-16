@@ -1,5 +1,3 @@
-export const META_FILE = "evo-task.json";
-
 export interface TaskMeta {
 	base: string;
 	fix: string;

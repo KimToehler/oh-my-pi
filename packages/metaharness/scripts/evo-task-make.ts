@@ -2,8 +2,9 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { META_FILE } from "../src/evo/calibration";
 import { readFixedModes } from "./evo-task-modes";
-import { assertSafeRef, assertSafeRelPath, fail, META_FILE, type TaskMeta } from "./evo-task-shared";
+import { assertSafeRef, assertSafeRelPath, fail, type TaskMeta } from "./evo-task-shared";
 import { dockerfile, SOLVE_SH, TEST_SH, taskToml } from "./evo-task-templates";
 
 export interface MakeOptions {
