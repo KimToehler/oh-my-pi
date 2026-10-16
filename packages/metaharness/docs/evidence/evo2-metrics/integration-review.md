@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `4ef04ca86798a6eb55d76b8f4ab3110ea00a0a17`
+- Head: `c536fbd76da251bcb88d3d530837a949a4311848`
 - Result: **PASS**
 
 ## Review history
@@ -22,7 +22,9 @@ Whole-diff review over `935046d15b..ab48053920` raised R1 and R2; successive fre
 - R19: `new URL()` throws on a relative reference and the catch waved it through, so `baseUrl: "/v1?api_key=..."` bypassed those rules. A failed absolute parse now retries against a fixed dummy base.
 
 Scope decision (user): the credential invariant covers accidental persistence; deliberate re-encoding by a key holder is out of scope.
+- R20: `computeFitness` checked only task IDs, so a suite declaring `attempts: 2` that produced one terminal trial per task still reported `complete: true` and let the comparison rank two differently sized samples. Each task's terminal-attempt cardinality must now equal the manifest's `attempts`.
+- R21: host credential values shorter than eight characters were dropped from leak detection, so a real seven-character credential persisted under an unrelated `--env NAME=VALUE`. Short values are now matched exactly, against a whole argument or the half after the first `=`.
 
 ## Final verdict
 
-Fresh reviewer over `cc525adc8b..4ef04ca867` (full branch delta `935046d15b...4ef04ca867`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `4ef04ca867..c536fbd76d` (full branch delta `935046d15b...c536fbd76d`): `VERDICT: PASS`, no blockers.

@@ -134,8 +134,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 - [x] R20. Enforce the suite's declared attempt count before a fitness decision (`packages/metaharness/src/evo/fitness.ts`, `packages/metaharness/src/evo/service.ts`). Only task IDs were checked, so a suite declaring `attempts: 2` that produced one terminal trial per task still reported `complete: true` and let the comparison rank two differently sized samples; each task's terminal-attempt cardinality must now equal `suite.manifest.attempts`, and `compareFitness` already withholds the decision fields once a side is incomplete.
 - [x] R21. Detect short host credential values (`packages/metaharness/src/launch-args.ts`). The 8-character floor on host-value matching let a real 7-character credential pass under an unrelated `--env NAME=VALUE` and persist in `runner-config.json`; values at or above the floor keep the substring match, while shorter ones now match a whole scanned string or the half after the first `=`, which stays exact without firing on ordinary prose.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
