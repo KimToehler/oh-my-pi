@@ -1,4 +1,5 @@
 /** `/api/evo/*` request handling: variants, suites, evaluation, fitness, compare, reflection bundle. */
+import * as fs from "node:fs";
 import * as path from "node:path";
 import type { LaunchRequest } from "../launch-args";
 import type { RunRow, RunStore } from "../store";
@@ -167,6 +168,11 @@ export class EvoService {
 		if (!run.suiteId || !suiteHash || !executorConfigHash || !modelsYamlHash || !model) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
+		const postRun = str(cfg.postRunSourceIdentity) ?? this.#recordedPostRunIdentity(run.jobName);
+		const launched = str(cfg.sourceIdentity);
+		if (postRun && launched && postRun !== launched) {
+			throw new EvoHttpError(409, `run '${run.jobName}' source changed during the run; it is not comparable`);
+		}
 		return {
 			suiteId: run.suiteId,
 			suiteHash,
@@ -176,6 +182,20 @@ export class EvoService {
 			sourceRef: variant.sourceRef,
 			sourceDirtyHash: variant.sourceDirtyHash,
 		};
+	}
+
+	/** The runner writes the post-run identity to its own `runner-config.json`, not into the launch request. */
+	#recordedPostRunIdentity(jobName: string): string | null {
+		try {
+			const saved: unknown = JSON.parse(
+				fs.readFileSync(path.join(this.#jobsDir, "_bench", jobName, "runner-config.json"), "utf8"),
+			);
+			return saved && typeof saved === "object"
+				? str((saved as Record<string, unknown>).postRunSourceIdentity)
+				: null;
+		} catch {
+			return null;
+		}
 	}
 
 	async #evaluated(variant: VariantRow, suite: StoredSuite): Promise<Evaluated> {

@@ -84,6 +84,8 @@ interface JobOptions {
 	model?: string;
 	modelsYamlHash?: string;
 	infra?: string;
+	/** Launch `sourceIdentity` recorded in the run config, as the evo launch path records it. */
+	sourceIdentity?: string;
 }
 
 /** Completed harbor job whose trials have the given rewards and omp transcript markers. */
@@ -147,6 +149,7 @@ function writeJob(
 			suiteHash: opts.suiteHash,
 			executorConfigHash: opts.executor ?? "exec-1",
 			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
+			...(opts.sourceIdentity ? { sourceIdentity: opts.sourceIdentity } : {}),
 		},
 	});
 	h.manager.store.markExit(jobName, 0);
@@ -328,6 +331,33 @@ describe("evo REST", () => {
 		expect(body.error).toBe("conditions differ: model, executorConfigHash");
 		expect(body.mismatches.map(m => m.field)).toEqual(["model", "executorConfigHash"]);
 		expect((await fetch(`${h.base}/api/evo/variants/${childId}/reflection-bundle?suite=search-1`)).status).toBe(409);
+	});
+
+	it("refuses a comparison whose run recorded post-run source drift", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		const launched = "a".repeat(40);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash, sourceIdentity: launched });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"], sourceIdentity: launched });
+		const configFile = path.join(h.jobsDir, "_bench", "evo-child", "runner-config.json");
+		const recordPostRun = (postRunSourceIdentity: string): void =>
+			write(
+				h.jobsDir,
+				path.join("_bench", "evo-child", "runner-config.json"),
+				JSON.stringify({ jobName: "evo-child", sourceIdentity: launched, postRunSourceIdentity }),
+			);
+		const url = `${h.base}/api/evo/variants/${childId}/compare?suite=search-1`;
+
+		recordPostRun(`${"b".repeat(40)}+${"c".repeat(64)}`);
+		expect(fs.existsSync(configFile)).toBe(true);
+		const refused = await fetch(url);
+		expect(refused.status).toBe(409);
+		expect(((await refused.json()) as { error: string }).error).toContain("source changed during the run");
+
+		// Negative control: the same run with an unchanged post-run identity is comparable.
+		recordPostRun(launched);
+		const ok = await h.json<{ rawDelta: number }>(await fetch(url));
+		expect(ok.rawDelta).toBe(0.5);
 	});
 
 	it("refuses a comparison whose runs staged different models.yml content", async () => {

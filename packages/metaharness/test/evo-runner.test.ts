@@ -666,7 +666,8 @@ describe("runner-config credential persistence", () => {
 			{
 				// `container run` builds the linux deps tree; harbor "runs" the trials and edits the mounted source.
 				container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"',
-				harbor: 'echo mutated-during-run > "$STUB_SOURCE_ROOT/tracked.txt"\necho new > "$STUB_SOURCE_ROOT/untracked.txt"',
+				harbor:
+					'echo mutated-during-run > "$STUB_SOURCE_ROOT/tracked.txt"\necho new > "$STUB_SOURCE_ROOT/untracked.txt"',
 			},
 			"source",
 		);

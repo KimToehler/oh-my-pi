@@ -120,6 +120,12 @@ export interface Config {
 	sourceRoot: string;
 	/** Expected `<ref>[+<dirtyHash>]` identity of `sourceRoot`; checked before spawn. */
 	sourceIdentity: string | null;
+	/**
+	 * Identity of `sourceRoot` re-read after harbor returned; persisted to runner-config.json
+	 * (`unknown` when recomputation failed). Differs from `sourceIdentity` when the bind-mounted
+	 * source changed during the run, which makes the run non-comparable.
+	 */
+	postRunSourceIdentity?: string;
 	/** Fixed container-safe models.yml used instead of generated gateway routing. */
 	modelsYaml: string | null;
 }
@@ -1935,6 +1941,10 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		process.off("SIGTERM", onSig);
 	}
 
+	if (cfg.agent === "omp" && cfg.sourceIdentity) {
+		await recordPostRunSourceIdentity(cfg, jobName, benchDir, cfg.sourceIdentity);
+	}
+
 	// final summary (printed to the normal screen)
 	const trials = readTrials(jobDir);
 	const totals = aggregate(trials, readJobResult(jobDir), expected);
@@ -1956,6 +1966,41 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	process.stdout.write(`${dim("trials:")} ${jobDir}\n`);
 	if (exitCode !== 0) process.stdout.write(yellow(`harbor exited ${exitCode}; see harbor.log\n`));
 	return { exitCode, jobName, jobDir, benchDir, tarball, elapsedMs, totals, reportPath };
+}
+
+/** Re-verify the bind-mounted source after the run and persist what was observed; drift is warned, never fatal. */
+async function recordPostRunSourceIdentity(
+	cfg: Config,
+	jobName: string,
+	benchDir: string,
+	launchIdentity: string,
+): Promise<void> {
+	let observed: string;
+	try {
+		observed = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
+	} catch {
+		observed = "unknown";
+	}
+	const file = path.join(benchDir, "runner-config.json");
+	let record: Record<string, unknown> = { jobName, sourceIdentity: launchIdentity };
+	try {
+		const existing: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+		if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+			record = existing as Record<string, unknown>;
+		}
+	} catch {
+		/* no readable snapshot (resume path): start from the minimal record */
+	}
+	record.postRunSourceIdentity = observed;
+	fs.mkdirSync(benchDir, { recursive: true });
+	fs.writeFileSync(file, JSON.stringify(record, null, "\t"));
+	if (observed !== launchIdentity) {
+		process.stdout.write(
+			yellow(
+				`warning: source identity drift after run for ${cfg.sourceRoot}: launched ${launchIdentity}, now ${observed}; run is not comparable\n`,
+			),
+		);
+	}
 }
 
 async function main(): Promise<void> {
