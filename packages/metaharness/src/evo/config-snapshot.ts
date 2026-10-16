@@ -2,7 +2,8 @@
  * Config genome snapshots: whitelist a harness agent dir, dereference safe symlinks, hash the
  * content, and materialize it immutably.
  */
-import * as fs from "node:fs/promises";
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import { createTwoFilesPatch } from "diff";
@@ -74,8 +75,8 @@ interface WalkContext {
 	totalBytes: number;
 }
 
-async function readLeaf(ctx: WalkContext, abs: string, rel: string): Promise<void> {
-	const size = (await fs.stat(abs)).size;
+function readLeaf(ctx: WalkContext, abs: string, rel: string): void {
+	const size = fs.statSync(abs).size;
 	if (ctx.out.length + 1 > ctx.limits.maxFiles) throw new Error(`config exceeds ${ctx.limits.maxFiles} files`);
 	if (size > ctx.limits.maxFileBytes) throw new Error(`file ${rel} exceeds ${ctx.limits.maxFileBytes} bytes`);
 	if (ctx.totalBytes + size > ctx.limits.maxTotalBytes) {
@@ -84,37 +85,37 @@ async function readLeaf(ctx: WalkContext, abs: string, rel: string): Promise<voi
 	ctx.totalBytes += size;
 	let bytes: Uint8Array;
 	try {
-		bytes = await fs.readFile(abs);
+		bytes = fs.readFileSync(abs);
 	} catch (err) {
 		throw new Error(`unreadable file ${rel}: ${err instanceof Error ? err.message : String(err)}`);
 	}
-	const stat = await fs.stat(abs);
+	const stat = fs.statSync(abs);
 	ctx.out.push({ rel, bytes, executable: (stat.mode & 0o111) !== 0 });
 }
 
-async function walk(ctx: WalkContext, abs: string, rel: string): Promise<void> {
-	const link = await fs.lstat(abs);
+function walk(ctx: WalkContext, abs: string, rel: string): void {
+	const link = fs.lstatSync(abs);
 	let real = abs;
 	if (link.isSymbolicLink()) {
 		try {
-			real = await fs.realpath(abs);
+			real = fs.realpathSync(abs);
 		} catch {
 			throw new Error(`broken symlink: ${rel}`);
 		}
 		if (!within(real, ctx.root)) throw new Error(`symlink escapes source root: ${rel}`);
 		assertTargetAllowed(ctx.root, real, rel);
 	}
-	const stat = await fs.stat(real);
+	const stat = fs.statSync(real);
 	if (stat.isFile()) return readLeaf(ctx, real, rel);
 	if (!stat.isDirectory()) throw new Error(`unsupported file type (not a regular file or directory): ${rel}`);
-	const key = await fs.realpath(real);
+	const key = fs.realpathSync(real);
 	if (ctx.active.has(key)) throw new Error(`symlink cycle at ${rel}`);
 	ctx.active.add(key);
-	for (const name of (await fs.readdir(real)).sort()) {
+	for (const name of fs.readdirSync(real).sort()) {
 		const child = `${rel}/${name}`;
 		if (SECRET_NAMES.some(re => re.test(name))) throw new Error(`secret-bearing path not allowed: ${child}`);
 		if (STATE_NAMES.some(re => re.test(name))) continue;
-		await walk(ctx, path.join(real, name), child);
+		walk(ctx, path.join(real, name), child);
 	}
 	ctx.active.delete(key);
 }
@@ -129,34 +130,42 @@ function validateConfigYaml(bytes: Uint8Array): void {
 	if (parsed !== null && !isRecord(parsed)) throw new Error("config.yml must be a YAML mapping");
 }
 
-/** Collect whitelisted files from an agent dir, sorted by relative path. */
-export async function collectConfig(srcDir: string, limits: ConfigLimits = DEFAULT_LIMITS): Promise<ConfigFile[]> {
+/**
+ * Collect whitelisted files from an agent dir, sorted by relative path. Synchronous so the launch
+ * path (which must not yield between verification and spawn) can re-verify a registered snapshot.
+ */
+export function collectConfigSync(srcDir: string, limits: ConfigLimits = DEFAULT_LIMITS): ConfigFile[] {
 	let root: string;
 	try {
-		root = await fs.realpath(srcDir);
-		if (!(await fs.stat(root)).isDirectory()) throw new Error("not a directory");
+		root = fs.realpathSync(srcDir);
+		if (!fs.statSync(root).isDirectory()) throw new Error("not a directory");
 	} catch {
 		throw new Error(`config directory not found: ${srcDir}`);
 	}
+	const exists = (abs: string): fs.Stats | null => fs.lstatSync(abs, { throwIfNoEntry: false }) ?? null;
 	const ctx: WalkContext = { root, out: [], active: new Set(), limits, totalBytes: 0 };
 	for (const name of WHITELIST_FILES) {
 		const abs = path.join(root, name);
-		if (!(await fs.lstat(abs).catch(() => null))) continue;
+		if (!exists(abs)) continue;
 		const before = ctx.out.length;
-		await walk(ctx, abs, name);
+		walk(ctx, abs, name);
 		if (ctx.out.length === before) throw new Error(`${name} must be a file`);
 	}
 	for (const name of WHITELIST_DIRS) {
 		const abs = path.join(root, name);
-		const stat = await fs.lstat(abs).catch(() => null);
-		if (!stat) continue;
-		const target = await fs.stat(abs).catch(() => null);
+		if (!exists(abs)) continue;
+		const target = fs.statSync(abs, { throwIfNoEntry: false });
 		if (!target?.isDirectory()) throw new Error(`${name} must be a directory`);
-		await walk(ctx, abs, name);
+		walk(ctx, abs, name);
 	}
 	const config = ctx.out.find(file => file.rel === "config.yml");
 	if (config) validateConfigYaml(config.bytes);
 	return ctx.out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+}
+
+/** Async form of {@link collectConfigSync}. */
+export async function collectConfig(srcDir: string, limits: ConfigLimits = DEFAULT_LIMITS): Promise<ConfigFile[]> {
+	return collectConfigSync(srcDir, limits);
 }
 
 /** SHA-256 over sorted relative paths, executable bit, and bytes. */
@@ -172,12 +181,37 @@ export function hashConfig(files: readonly ConfigFile[]): string {
 
 /** Write files under `dest` (created); regular files only, made read-only. */
 export async function materializeConfig(files: readonly ConfigFile[], dest: string): Promise<void> {
-	await fs.mkdir(dest, { recursive: true });
+	await fsp.mkdir(dest, { recursive: true });
 	for (const file of files) {
 		const target = path.join(dest, file.rel);
 		await Bun.write(target, file.bytes);
-		await fs.chmod(target, file.executable ? 0o555 : 0o444);
+		await fsp.chmod(target, file.executable ? 0o555 : 0o444);
 	}
+	// Defence in depth only: a read-only directory stops accidental writes and casual unlink/replace, but its
+	// owner can chmod it back. `assertVariantSnapshotIntact` (rehash at launch) is what actually closes tampering.
+	await lockDirs(dest);
+}
+
+/** Restore owner write on `dir` and every directory beneath it so the tree can be deleted. Missing path is fine. */
+export async function unlockTree(dir: string): Promise<void> {
+	let entries: fs.Dirent[];
+	try {
+		await fsp.chmod(dir, 0o755);
+		entries = await fsp.readdir(dir, { withFileTypes: true });
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		if (entry.isDirectory()) await unlockTree(path.join(dir, entry.name));
+	}
+}
+
+/** Remove write permission from `dir` and every directory beneath it, deepest first. */
+async function lockDirs(dir: string): Promise<void> {
+	for (const entry of await fsp.readdir(dir, { withFileTypes: true })) {
+		if (entry.isDirectory()) await lockDirs(path.join(dir, entry.name));
+	}
+	await fsp.chmod(dir, 0o555);
 }
 
 export interface ConfigDiff {

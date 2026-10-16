@@ -6,6 +6,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { collectConfigSync, hashConfig } from "./config-snapshot";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 
 /**
@@ -125,6 +126,11 @@ export interface StagedOverlay {
 
 export interface StageOptions {
 	variantConfigDir: string;
+	/**
+	 * Registered sha256 of the variant config. When set, the directory is re-collected and re-hashed
+	 * immediately before anything is read from it or written to `dest`; a mismatch throws.
+	 */
+	expectedConfigHash?: string;
 	dest: string;
 	spec: ExecutorSpec;
 	/** Fixed container-safe models.yml. */
@@ -146,6 +152,16 @@ async function copyTree(src: string, dest: string): Promise<void> {
 
 /** Materialize `dest` as variant files + merged `config.yml` + fixed `models.yml`. */
 export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverlay> {
+	if (opts.expectedConfigHash !== undefined) {
+		// Last gate before the copy; covers the runner entry (resume, direct CLI) that bypasses the manager check.
+		// Collection and the copy below read the same tree, so a replacement between them is the only residual window.
+		const actual = hashConfig(collectConfigSync(opts.variantConfigDir));
+		if (actual !== opts.expectedConfigHash) {
+			throw new Error(
+				`variant config ${opts.variantConfigDir} no longer matches its registered sha256 ${opts.expectedConfigHash}`,
+			);
+		}
+	}
 	const modelsText = await Bun.file(opts.modelsYaml)
 		.text()
 		.catch(() => {

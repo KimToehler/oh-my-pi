@@ -13,6 +13,7 @@ import { withDirLock } from "../src/evo/dir-lock";
 import { EvoHttpError } from "../src/evo/boundary";
 import { EvoStore } from "../src/evo/evo-store";
 import { variantLaunchFields } from "../src/evo/launch";
+import { stageAgentOverlay } from "../src/evo/overlay";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { SuiteRegistry } from "../src/evo/suites";
 import { parseVariantRequest, VariantRegistry, variantConfigDir } from "../src/evo/variants";
@@ -23,9 +24,21 @@ afterEach(() => {
 	while (cleanups.length) cleanups.pop()?.();
 });
 
+/** Published variant snapshots are read-only directories; restore owner write so cleanup can delete them. */
+function rmTree(dir: string): void {
+	const unlock = (d: string): void => {
+		try {
+			fs.chmodSync(d, 0o755);
+			for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) unlock(path.join(d, e.name));
+		} catch {}
+	};
+	unlock(dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 function tmp(prefix = "evo-test-"): string {
 	const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
-	cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+	cleanups.push(() => rmTree(dir));
 	return dir;
 }
 
@@ -440,9 +453,78 @@ describe("variant registry", () => {
 		// Positive control: stored variant inside the root launches with that source root.
 		const inside = await addWorktree(source, path.join(required, "ok"));
 		const ok = stored("good000000000001", inside);
+		// Launch also verifies the config snapshot for the row's id, so give the inserted id a real one.
+		fs.cpSync(variantConfigDir(jobsDir, base.variant.id), variantConfigDir(jobsDir, ok.id), { recursive: true });
 		expect(variantLaunchFields(jobsDir, ok, executor).sourceRoot).toBe(inside);
 		// Config-only variant is unaffected.
 		expect(variantLaunchFields(jobsDir, base.variant, executor).sourceRoot).toBeUndefined();
+	});
+});
+
+describe("registered snapshot integrity", () => {
+	const executor = { model: "m", thinking: "off" };
+
+	it("publishes non-writable directories, and rehash still catches an unlink+replace by the owner", async () => {
+		const { jobsDir, registry } = await setup();
+		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a", "rules/r.md": "r" })));
+		const dir = variantConfigDir(jobsDir, variant.id);
+		expect(fs.statSync(dir).mode & 0o222).toBe(0);
+		expect(fs.statSync(path.join(dir, "rules")).mode & 0o222).toBe(0);
+		expect(fs.statSync(path.dirname(dir)).mode & 0o222).toBe(0);
+		// Secondary defence: casual replacement is refused outright.
+		expect(() => fs.rmSync(path.join(dir, "AGENTS.md"))).toThrow();
+		// Owner defeats modes with chmod; the hash is the boundary.
+		fs.chmodSync(dir, 0o755);
+		fs.rmSync(path.join(dir, "AGENTS.md"));
+		fs.writeFileSync(path.join(dir, "AGENTS.md"), "evil");
+		const err = (() => {
+			try {
+				variantLaunchFields(jobsDir, variant, executor);
+			} catch (e) {
+				return e;
+			}
+			return null;
+		})();
+		expect(err).toBeInstanceOf(EvoHttpError);
+		expect((err as EvoHttpError).status).toBe(422);
+		expect((err as EvoHttpError).message).toBe(
+			`variant '${variant.id}' snapshot no longer matches its registered configHash`,
+		);
+		expect((err as EvoHttpError).message).not.toContain("evil");
+	});
+
+	it("variantLaunchFields passes an untouched variant and records its configHash as agentDirHash", async () => {
+		const { jobsDir, registry } = await setup();
+		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a" })));
+		expect(variantLaunchFields(jobsDir, variant, executor).agentDirHash).toBe(variant.configHash);
+	});
+
+	it("stageAgentOverlay refuses tampered bytes before creating dest, and stages intact ones", async () => {
+		const { jobsDir, registry } = await setup();
+		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a" })));
+		const dir = variantConfigDir(jobsDir, variant.id);
+		const modelsYaml = path.join(tmp("evo-models-"), "models.yml");
+		fs.writeFileSync(modelsYaml, "providers:\n  onara:\n    baseUrl: http://x\n");
+		const spec = { ...executor, webSearch: false, findTool: false, settings: {} };
+		const dest = path.join(tmp("evo-bench-"), "agent-overlay");
+		const ok = await stageAgentOverlay({
+			variantConfigDir: dir,
+			expectedConfigHash: variant.configHash,
+			dest,
+			spec,
+			modelsYaml,
+		});
+		expect(fs.readFileSync(path.join(ok.dir, "AGENTS.md"), "utf8")).toBe("a");
+		fs.rmSync(dest, { recursive: true, force: true });
+		fs.rmSync(path.join(path.dirname(dest), "overlay-meta.json"));
+		fs.chmodSync(dir, 0o755);
+		fs.rmSync(path.join(dir, "AGENTS.md"));
+		fs.writeFileSync(path.join(dir, "AGENTS.md"), "evil");
+		await expect(
+			stageAgentOverlay({ variantConfigDir: dir, expectedConfigHash: variant.configHash, dest, spec, modelsYaml }),
+		).rejects.toThrow(`no longer matches its registered sha256 ${variant.configHash}`);
+		expect(fs.existsSync(dest)).toBe(false);
+		expect(fs.existsSync(path.join(path.dirname(dest), "overlay-meta.json"))).toBe(false);
 	});
 });
 

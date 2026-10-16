@@ -574,9 +574,13 @@ export class RunStore {
 	listRunsForVariant(variantId: string, suiteId?: string): RunRow[] {
 		const rows = (
 			suiteId === undefined
-				? this.#db.query("SELECT * FROM runs WHERE variant_id = ? ORDER BY created_at DESC").all(variantId)
+				? this.#db
+						.query("SELECT * FROM runs WHERE variant_id = ? ORDER BY created_at DESC, rowid DESC")
+						.all(variantId)
 				: this.#db
-						.query("SELECT * FROM runs WHERE variant_id = ? AND suite_id = ? ORDER BY created_at DESC")
+						.query(
+							"SELECT * FROM runs WHERE variant_id = ? AND suite_id = ? ORDER BY created_at DESC, rowid DESC",
+						)
 						.all(variantId, suiteId)
 		) as Array<Record<string, unknown>>;
 		return rows.map(rowToRun);
@@ -584,7 +588,8 @@ export class RunStore {
 
 	/** Every run, newest first. */
 	listRuns(): RunRow[] {
-		const rows = this.#db.query("SELECT * FROM runs ORDER BY created_at DESC").all() as Array<
+		// rowid breaks same-millisecond ties: rows tie on created_at, and without a total order SQLite may return them in any order.
+		const rows = this.#db.query("SELECT * FROM runs ORDER BY created_at DESC, rowid DESC").all() as Array<
 			Record<string, unknown>
 		>;
 		return rows.map(rowToRun);

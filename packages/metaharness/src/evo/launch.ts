@@ -10,7 +10,7 @@ import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./mode
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import type { StoredSuite } from "./suites";
-import { assertWorktreeOwned, isSourceVariant, variantConfigDir } from "./variants";
+import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant, variantConfigDir } from "./variants";
 import type { VariantRow } from "./variant-types";
 
 export interface EvoLaunchDefaults {
@@ -37,7 +37,13 @@ export function defaultEvoLaunch(): EvoLaunchDefaults {
 /** Launch fields derived from a variant alone (no suite): config overlay, source identity, hashes. */
 export type VariantLaunchFields = Pick<
 	LaunchRequest,
-	"variantId" | "agentDir" | "sourceRoot" | "sourceIdentity" | "stagedConfigHash" | "executorConfigHash"
+	| "variantId"
+	| "agentDir"
+	| "agentDirHash"
+	| "sourceRoot"
+	| "sourceIdentity"
+	| "stagedConfigHash"
+	| "executorConfigHash"
 >;
 
 export function variantLaunchFields(
@@ -54,6 +60,8 @@ export function variantLaunchFields(
 			throw new EvoHttpError(422, err instanceof Error ? err.message : String(err));
 		}
 	}
+	// Every variant launch (evaluate, arm swap) funnels through here: verify before any config byte is read for staging.
+	assertVariantSnapshotIntact(jobsDir, variant);
 	const spec = { ...executor, webSearch: false, findTool: false, settings: {} };
 	let yaml: string | null = null;
 	try {
@@ -64,6 +72,7 @@ export function variantLaunchFields(
 	return {
 		variantId: variant.id,
 		agentDir: configDir,
+		agentDirHash: variant.configHash,
 		sourceRoot: sourceVariant ? variant.snapshotPath : undefined,
 		sourceIdentity: formatSourceIdentity({ ref: variant.sourceRef, dirtyHash: variant.sourceDirtyHash }),
 		stagedConfigHash: new Bun.CryptoHasher("sha256").update(mergeOverlayConfig(yaml, spec)).digest("hex"),

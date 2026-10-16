@@ -12,9 +12,21 @@ afterEach(() => {
 	while (cleanups.length) cleanups.pop()?.();
 });
 
+/** Published variant snapshots are read-only directories; restore owner write so cleanup can delete them. */
+function rmTree(dir: string): void {
+	const unlock = (d: string): void => {
+		try {
+			fs.chmodSync(d, 0o755);
+			for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) unlock(path.join(d, e.name));
+		} catch {}
+	};
+	unlock(dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 function tmp(prefix: string): string {
 	const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
-	cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+	cleanups.push(() => rmTree(dir));
 	return dir;
 }
 
@@ -1111,5 +1123,125 @@ describe("evo launch", () => {
 		expect(() => h.manager.resume("in-run")).toThrow("in-run has no harbor config.json to resume from");
 		register("plain-run", undefined, repo, false);
 		expect(() => h.manager.resume("plain-run")).toThrow("plain-run has no harbor config.json to resume from");
+	});
+});
+
+describe("registered variant snapshot integrity at launch", () => {
+	/** Stub Bun.spawn only: ManagerServer.launch, #spawnRunner and registerLaunch stay production code. */
+	function stubSpawn(): { argvs: string[][] } {
+		const argvs: string[][] = [];
+		const bun: { spawn: unknown } = Bun;
+		const original = bun.spawn;
+		bun.spawn = (argv: string[]) => {
+			argvs.push(argv);
+			return { pid: process.pid, exited: new Promise<number>(() => {}) };
+		};
+		cleanups.push(() => {
+			bun.spawn = original;
+		});
+		return { argvs };
+	}
+
+	/** The attack: an owner may unlink a read-only file from a writable dir and drop a replacement in. */
+	function replaceSnapshotFile(jobsDir: string, variantId: string, rel: string, content: string): void {
+		const dir = path.join(jobsDir, "_evo", "variants", variantId, "config");
+		const target = path.join(dir, path.dirname(rel));
+		// A directory the registry made non-writable is chmod-able back by its owner; the hash check, not modes, is the boundary.
+		fs.chmodSync(path.join(jobsDir, "_evo", "variants", variantId), 0o755);
+		fs.chmodSync(dir, 0o755);
+		fs.chmodSync(target, 0o755);
+		fs.rmSync(path.join(dir, rel), { force: true });
+		fs.writeFileSync(path.join(dir, rel), content);
+	}
+
+	function artifacts(jobsDir: string, jobName: string) {
+		return {
+			jobDir: fs.existsSync(path.join(jobsDir, jobName)),
+			benchDir: fs.existsSync(path.join(jobsDir, "_bench", jobName)),
+			runnerConfig: fs.existsSync(path.join(jobsDir, "_bench", jobName, "runner-config.json")),
+			overlay: fs.existsSync(path.join(jobsDir, "_bench", jobName, "agent-overlay")),
+		};
+	}
+
+	function setup() {
+		const modelsDir = tmp("evo-integrity-models-");
+		write(modelsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n");
+		return harness({ modelsYaml: path.join(modelsDir, "models.yml"), forwardEnv: [] });
+	}
+
+	const evaluate = (h: Harness, variantId: string, jobName: string) =>
+		h.post(`/api/evo/variants/${variantId}/evaluate`, { suiteId: "search-1", jobName });
+
+	it("refuses to evaluate a variant whose snapshot was replaced after registration, before any job artifact exists", async () => {
+		const h = setup();
+		const { argvs } = stubSpawn();
+		const { rootId, childId } = await seed(h);
+		// Positive control: untouched variants launch.
+		const ok = await evaluate(h, rootId, "evo-intact");
+		expect(ok.status).toBe(201);
+		expect(argvs.length).toBe(1);
+
+		replaceSnapshotFile(h.jobsDir, childId, "AGENTS.md", "tampered harness");
+		const res = await evaluate(h, childId, "evo-tampered");
+		const body = await h.json<{ error: string }>(res);
+		expect({ status: res.status, error: body.error }).toEqual({
+			status: 422,
+			error: `variant '${childId}' snapshot no longer matches its registered configHash`,
+		});
+		expect(body.error).not.toContain("tampered harness");
+		expect(argvs.length).toBe(1);
+		expect(h.manager.store.getRun("evo-tampered")).toBeNull();
+		expect(artifacts(h.jobsDir, "evo-tampered")).toEqual({
+			jobDir: false,
+			benchDir: false,
+			runnerConfig: false,
+			overlay: false,
+		});
+		// The untouched sibling is unaffected.
+		expect((await evaluate(h, rootId, "evo-intact-2")).status).toBe(201);
+	});
+
+	it("also refuses added and removed snapshot files", async () => {
+		const h = setup();
+		stubSpawn();
+		const { rootId, childId } = await seed(h);
+		const dir = path.join(h.jobsDir, "_evo", "variants");
+		fs.chmodSync(path.join(dir, rootId, "config"), 0o755);
+		fs.writeFileSync(path.join(dir, rootId, "config", "config.yml"), "theme: injected\n");
+		expect((await evaluate(h, rootId, "evo-added")).status).toBe(422);
+		fs.chmodSync(path.join(dir, childId), 0o755);
+		fs.chmodSync(path.join(dir, childId, "config"), 0o755);
+		fs.rmSync(path.join(dir, childId, "config", "AGENTS.md"));
+		expect((await evaluate(h, childId, "evo-removed")).status).toBe(422);
+		expect(h.manager.store.listRuns()).toEqual([]);
+	});
+
+	it("refuses an arm that swaps in, or inherits, a tampered variant", async () => {
+		const h = setup();
+		const { argvs } = stubSpawn();
+		const { rootId, childId } = await seed(h);
+		expect((await evaluate(h, rootId, "exp-base")).status).toBe(201);
+		// Arm swapping to an intact variant works.
+		const arm = await h.post("/api/experiments/exp/arms", { arm: "child", model: SUITE.model, variantId: childId });
+		expect(arm.status).toBe(201);
+		const launched = argvs.length;
+
+		replaceSnapshotFile(h.jobsDir, childId, "AGENTS.md", "tampered harness");
+		const swapped = await h.post("/api/experiments/exp/arms", {
+			arm: "swap",
+			model: SUITE.model,
+			variantId: childId,
+		});
+		expect(swapped.status).toBe(400);
+		expect(((await swapped.json()) as { error: string }).error).toBe(
+			`variant '${childId}' snapshot no longer matches its registered configHash`,
+		);
+		// Inheriting: the newest sibling template now names the tampered variant, no variantId on the request.
+		const inherited = await h.post("/api/experiments/exp/arms", { arm: "inherit", model: SUITE.model });
+		expect(inherited.status).toBe(400);
+		expect(argvs.length).toBe(launched);
+		expect(h.manager.store.getRun("exp-swap")).toBeNull();
+		expect(h.manager.store.getRun("exp-inherit")).toBeNull();
+		expect(artifacts(h.jobsDir, "exp-swap").benchDir).toBe(false);
 	});
 });

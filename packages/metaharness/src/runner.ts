@@ -116,6 +116,8 @@ export interface Config {
 	hostEnvKeys: string[];
 	/** Variant agent dir staged into a read-only overlay mounted at `~/.omp/agent`. */
 	agentDir: string | null;
+	/** Registered sha256 of `agentDir`; the overlay is staged only from bytes that still hash to it (`--agent-dir-hash`). */
+	agentDirHash: string | null;
 	/** Repo/worktree mounted as the omp source and used for dependency hashing. */
 	sourceRoot: string;
 	/** Expected `<ref>[+<dirtyHash>]` identity of `sourceRoot`; checked before spawn. */
@@ -185,6 +187,7 @@ function defaultConfig(): Config {
 		env: {},
 		hostEnvKeys: [],
 		agentDir: null,
+		agentDirHash: null,
 		sourceRoot: REPO_ROOT,
 		sourceIdentity: null,
 		modelsYaml: null,
@@ -218,6 +221,7 @@ Model / agent:
                                  Credentials named by --models-yaml apiKey must use the KEY form.
       --agent-dir <path>         Variant agent dir (AGENTS.md, config.yml, rules/, skills/, ...) staged into a
                                  read-only overlay; the fixed model owns routing/retry, --setting wins last
+      --agent-dir-hash <hex>     Expected sha256 of --agent-dir content; mismatch aborts staging
       --source-root <path>       Git worktree mounted as the omp source (default: this repo)
       --source-identity <id>     Expected <HEAD>[+<dirty hash>] of --source-root; mismatch aborts the launch
       --models-yaml <path>       Fixed models.yml for the container (works with --no-gateway)
@@ -393,6 +397,12 @@ export function parseArgs(argv: string[]): Config {
 			case "--agent-dir":
 				cfg.agentDir = path.resolve(assertPlainPath("--agent-dir", take(arg)));
 				break;
+			case "--agent-dir-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("--agent-dir-hash must be 64 lowercase hex characters");
+				cfg.agentDirHash = value;
+				break;
+			}
 			case "--source-root":
 				cfg.sourceRoot = path.resolve(assertPlainPath("--source-root", take(arg)));
 				break;
@@ -1866,6 +1876,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		agentOverlay = (
 			await stageAgentOverlay({
 				variantConfigDir: cfg.agentDir,
+				expectedConfigHash: cfg.agentDirHash ?? undefined,
 				dest: path.join(benchDir, "agent-overlay"),
 				spec: {
 					model: cfg.models[0],

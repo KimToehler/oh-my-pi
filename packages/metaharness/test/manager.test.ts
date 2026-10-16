@@ -19,9 +19,21 @@ afterEach(() => {
 	while (cleanups.length) cleanups.pop()?.();
 });
 
+/** Published variant snapshots are read-only directories; restore owner write so cleanup can delete them. */
+function rmTree(dir: string): void {
+	const unlock = (d: string): void => {
+		try {
+			fs.chmodSync(d, 0o755);
+			for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) unlock(path.join(d, e.name));
+		} catch {}
+	};
+	unlock(dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 function makeJobsDir(): string {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metaharness-test-"));
-	cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+	cleanups.push(() => rmTree(dir));
 	return dir;
 }
 
@@ -215,6 +227,44 @@ describe("RunStore", () => {
 		const finished = store.getRun("job-b");
 		expect(finished?.status).toBe("complete");
 		expect(finished?.finishedAt).toBe(Date.parse("2026-07-12T11:00:00"));
+	});
+
+	it("orders same-millisecond runs newest-insertion-first, and keeps an upserted run's slot", () => {
+		const store = new RunStore(makeJobsDir());
+		cleanups.push(() => store.close());
+		const realNow = Date.now;
+		Date.now = () => 1_800_000_000_000; // every row ties on created_at
+		try {
+			const names = ["m-q", "m-c", "m-x", "m-a", "m-k", "m-z", "m-b"];
+			for (const jobName of names) {
+				store.registerLaunch({
+					benchmark: "harbor",
+					jobName,
+					dataset: "d",
+					agent: "omp",
+					models: ["m"],
+					pid: 1,
+					variantId: "v1",
+				});
+			}
+			const expected = [...names].reverse();
+			for (let i = 0; i < 5; i++) {
+				expect(store.listRuns().map(r => r.jobName)).toEqual(expected);
+				expect(store.listRunsForVariant("v1").map(r => r.jobName)).toEqual(expected);
+			}
+			// Re-registering an existing job upserts in place: it keeps its insertion slot.
+			store.registerLaunch({
+				benchmark: "harbor",
+				jobName: "m-c",
+				dataset: "d",
+				agent: "omp",
+				models: ["m"],
+				pid: 2,
+			});
+			expect(store.listRuns().map(r => r.jobName)).toEqual(expected);
+		} finally {
+			Date.now = realNow;
+		}
 	});
 });
 

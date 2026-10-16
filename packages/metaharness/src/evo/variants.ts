@@ -16,7 +16,14 @@ import {
 	requiredString,
 	stringArray,
 } from "./boundary";
-import { type ConfigFile, collectConfig, diffConfigs, hashConfig } from "./config-snapshot";
+import {
+	type ConfigFile,
+	collectConfig,
+	collectConfigSync,
+	diffConfigs,
+	hashConfig,
+	unlockTree,
+} from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
 import { optionalPlainPath as optionalPath } from "./path-guard";
@@ -132,6 +139,26 @@ export function variantConfigDir(jobsDir: string, variantId: string): string {
 /** Source variants point `snapshotPath` at their git worktree instead of the variant dir. */
 export function isSourceVariant(jobsDir: string, variant: VariantRow): boolean {
 	return variant.snapshotPath !== path.join(variantsRoot(jobsDir), variant.id);
+}
+
+/**
+ * Launch-time integrity boundary: the registered `configHash` must still describe the bytes on disk.
+ * Read-only modes do not protect the snapshot (the owner can unlink and replace a file), so every
+ * launch re-collects the whitelisted config and compares. Messages name the variant, never file bytes.
+ */
+export function assertVariantSnapshotIntact(jobsDir: string, variant: VariantRow): void {
+	let actual: string;
+	try {
+		actual = hashConfig(collectConfigSync(variantConfigDir(jobsDir, variant.id)));
+	} catch {
+		throw new EvoHttpError(
+			422,
+			`variant '${variant.id}' snapshot is unreadable; cannot verify its registered configHash`,
+		);
+	}
+	if (actual !== variant.configHash) {
+		throw new EvoHttpError(422, `variant '${variant.id}' snapshot no longer matches its registered configHash`);
+	}
 }
 
 export function variantId(configHash: string, source: SourceIdentity): string {
@@ -295,6 +322,7 @@ export class VariantRegistry {
 		} catch (err) {
 			if (inserted) throw err;
 			// Only our own unregistered publication is removed; a registered winner is never touched.
+			if (published) await unlockTree(variantDir);
 			if (published) await fs.rm(variantDir, { recursive: true, force: true }).catch(() => {});
 			const detail = err instanceof Error ? err.message : String(err);
 			const proposal = this.#propose(req, "apply_failed", detail, null);

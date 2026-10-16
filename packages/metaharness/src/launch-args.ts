@@ -48,6 +48,8 @@ export interface LaunchRequest {
 	suiteId?: string;
 	/** Variant agent dir staged as a read-only overlay (`--agent-dir`). */
 	agentDir?: string;
+	/** Registered sha256 of the `agentDir` config; the runner re-verifies it before staging (`--agent-dir-hash`). */
+	agentDirHash?: string;
 	/** Source worktree mounted instead of this repo (`--source-root`). */
 	sourceRoot?: string;
 	/** Expected `<HEAD>[+<dirty hash>]` of the source root (`--source-identity`). */
@@ -278,6 +280,7 @@ export function harborRunnerArgs(
 	if (request.webSearch) argv.push("--web-search");
 	if (request.thinking) argv.push("--thinking", request.thinking);
 	if (request.agentDir) argv.push("--agent-dir", request.agentDir);
+	if (request.agentDirHash) argv.push("--agent-dir-hash", request.agentDirHash);
 	if (request.sourceRoot) argv.push("--source-root", request.sourceRoot);
 	if (request.sourceIdentity) argv.push("--source-identity", request.sourceIdentity);
 	if (request.modelsYaml) argv.push("--models-yaml", request.modelsYaml);

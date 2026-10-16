@@ -29,7 +29,7 @@ import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from ".
 import { defaultSourceRoot, EvoService } from "./evo/service";
 import { readModelsEnvNamesSync } from "./evo/models-yaml";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
-import { assertWorktreeOwned } from "./evo/variants";
+import { assertVariantSnapshotIntact, assertWorktreeOwned } from "./evo/variants";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
 	assertLaunchEnvSafe,
@@ -162,9 +162,19 @@ function resolveEvoInheritance(
 		if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
 	}
 	if (!req.variantId) {
-		for (const key of ["variantId", "agentDir", "sourceRoot", "sourceIdentity", "stagedConfigHash"] as const) {
+		for (const key of [
+			"variantId",
+			"agentDir",
+			"agentDirHash",
+			"sourceRoot",
+			"sourceIdentity",
+			"stagedConfigHash",
+		] as const) {
 			if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
 		}
+		// An inherited variant never passes through variantLaunchFields, so verify its snapshot here too.
+		const inheritedVariant = cfg.variantId ? store.evo.getVariant(cfg.variantId) : null;
+		if (inheritedVariant) assertVariantSnapshotIntact(store.jobsDir, inheritedVariant);
 		// A plain harbor run may point `sourceRoot` at any repo; only an evo variant run must stay in a worktree.
 		if (cfg.variantId && cfg.sourceRoot) {
 			assertWorktreeOwned(store.jobsDir, cfg.sourceRoot, `inherited variant '${cfg.variantId}' source root`);
