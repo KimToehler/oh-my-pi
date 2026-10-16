@@ -28,7 +28,7 @@ export interface EvoServiceOptions {
 	sourceRoot: string;
 	defaults: EvoLaunchDefaults;
 	/** Spawn a harbor launch; provided by the manager server. */
-	launch(request: LaunchRequest, opts?: { claimed?: boolean }): { jobName: string; pid: number };
+	launch(request: LaunchRequest): { jobName: string; pid: number };
 }
 
 interface Evaluated {
@@ -147,32 +147,22 @@ export class EvoService {
 		if (!/^[A-Za-z0-9][A-Za-z0-9_.]*(-[A-Za-z0-9_.]+)*$/.test(jobName)) {
 			throw badRequest("evaluate.jobName must be a single path-safe token of [A-Za-z0-9_.-]");
 		}
-		// Claim before the first await: check and reservation are one SQLite statement, so a concurrent
-		// request with the same name cannot slip through the buildEvalLaunch gap and reach registerLaunch.
-		if (
-			!this.#store.claimJobName({
-				jobName,
-				dataset: suite.manifest.dataset,
-				variantId: variant.id,
-				suiteId: suite.manifest.id,
-			})
-		) {
-			throw new EvoHttpError(409, `job '${jobName}' already exists; evaluate always starts a new run`);
-		}
-		try {
-			const request = await buildEvalLaunch({
-				jobsDir: this.#jobsDir,
-				variant,
-				suite,
-				jobName,
-				concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
-				defaults: this.#defaults,
-			});
-			return this.#launch(request, { claimed: true });
-		} catch (err) {
-			this.#store.releaseClaim(jobName);
-			throw err;
-		}
+		const duplicate = () =>
+			new EvoHttpError(409, `job '${jobName}' already exists; evaluate always starts a new run`);
+		// Fast rejection only; the re-check below is the correctness boundary.
+		if (this.#store.getRun(jobName)) throw duplicate();
+		const request = await buildEvalLaunch({
+			jobsDir: this.#jobsDir,
+			variant,
+			suite,
+			jobName,
+			concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
+			defaults: this.#defaults,
+		});
+		// buildEvalLaunch yields, so re-check. From here through launch's registerLaunch nothing yields,
+		// so no same-process request can interleave between this check and the run row.
+		if (this.#store.getRun(jobName)) throw duplicate();
+		return this.#launch(request);
 	}
 
 	/** Condition identity recorded when the run was launched; unrecorded fields make a delta meaningless. */

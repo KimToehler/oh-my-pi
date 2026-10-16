@@ -276,7 +276,7 @@ export class ManagerServer {
 			jobsDir,
 			sourceRoot: evo.sourceRoot ?? defaultSourceRoot(),
 			defaults: evo.defaults ?? defaultEvoLaunch(),
-			launch: (request, opts) => this.launch(request, opts),
+			launch: request => this.launch(request),
 		});
 	}
 
@@ -465,7 +465,7 @@ export class ManagerServer {
 	}
 
 	/** Launch any supported benchmark and register it in the uniform run store. */
-	launch(request: LaunchRequest, opts: { claimed?: boolean } = {}): { jobName: string; pid: number } {
+	launch(request: LaunchRequest): { jobName: string; pid: number } {
 		if (!request.model) throw new Error("model is required");
 		const benchmark = request.benchmark ?? "harbor";
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
@@ -478,9 +478,7 @@ export class ManagerServer {
 			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");
 		const jobName = request.jobName ?? defaultJobName(request.model);
 		const existing = this.#store.getRun(jobName);
-		// `claimed` is an evaluate's name reservation: only that evaluate (opts.claimed) may launch over it.
-		const blocked = existing?.status === "running" || (existing?.status === "claimed" && !opts.claimed);
-		if (this.#children.has(jobName) || blocked) {
+		if (this.#children.has(jobName) || existing?.status === "running") {
 			throw new Error(`run ${jobName} is already running`);
 		}
 		// Validate before any job dir exists so a bad path leaves no debris for discover().

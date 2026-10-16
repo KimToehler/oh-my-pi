@@ -550,7 +550,7 @@ describe("resolveArmLaunch", () => {
 	});
 });
 
-describe("EvoService evaluate job-name claim", () => {
+describe("EvoService evaluate job-name uniqueness", () => {
 	const SUITE = {
 		id: "race-1",
 		split: "search",
@@ -687,36 +687,7 @@ describe("EvoService evaluate job-name claim", () => {
 		expect(await dup.json()).toMatchObject({ error: "run evo-single is already running" });
 	});
 
-	it("does not let a generic launch take over an in-flight evaluate claim", async () => {
-		const { variantId, store, manager } = await setup();
-		stubSpawn();
-		expect(store.claimJobName({ jobName: "evo-held", dataset: SUITE.dataset, variantId, suiteId: SUITE.id })).toBe(
-			true,
-		);
-		expect(() => manager.launch({ model: "m/x", jobName: "evo-held" })).toThrow("run evo-held is already running");
-		expect(store.getRun("evo-held")).toMatchObject({ pid: null });
-	});
-
-	it("reclaims a pid-less claim with no job dir left by a dead process", async () => {
-		const { jobsDir, variantId, store, base } = await setup();
-		stubSpawn();
-		// A second store on the same DB stands in for the process that died between claim and launch.
-		const dead = new RunStore(jobsDir);
-		expect(dead.claimJobName({ jobName: "evo-dead", dataset: SUITE.dataset, variantId, suiteId: SUITE.id })).toBe(
-			true,
-		);
-		dead.close();
-		expect(store.listRuns().map(r => r.jobName)).not.toContain("evo-dead");
-		expect(store.getRun("evo-dead")).toBeNull();
-		const res = await fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-dead" }),
-		});
-		expect(res.status).toBe(201);
-	});
-
-	it("releases the claim when launch setup fails so the name is reusable", async () => {
+	it("leaves no run after a failed launch and lets the same name be retried", async () => {
 		const { jobsDir, source, defaults, store, variantId } = await setup();
 		const { EvoService } = await import("../src/evo/service");
 		let fail = true;
