@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `1993bcf1f6ccca0805b1324a02975a6b6fb17dcb`
+- Head: `c59883fdbd06983dc683f4a27f45427265e7fe77`
 - Result: **PASS**
 
 ## Review history
@@ -42,7 +42,10 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R37: `materializeConfig` made snapshot files read-only, but POSIX lets an owner unlink a read-only file from a writable directory and drop a replacement in, so a tampered variant evaluated with 201 under its original id. The registered `configHash` is now re-verified before staging, at `variantLaunchFields`, at `resolveEvoInheritance` for an inheriting arm, and in `stageAgentOverlay` via `--agent-dir-hash` so resume re-checks too.
 - R38: `listRuns` ordered only by `created_at DESC`, which is epoch milliseconds, so same-millisecond rows tied and the template an inheriting arm copies was arbitrary — which made the R37 inherited-arm check pass only intermittently. Ordering is now `created_at DESC, rowid DESC`.
 - R39: `stageAgentOverlay` hashed the collected snapshot and then re-read the same mutable path, so a replacement landing in between was staged under the original identity. The overlay is now materialized from the single verified collection.
+- R40: the plan's 250-line ceiling for `src/evo/` had drifted unnoticed to 286 and 262, because nothing checked it. Both modules were split behind unchanged import paths.
+- R41: the hand-rolled counter added with that split could be satisfied by reformatting rather than by removing code, so it was hardened into a character scanner.
+- R42: two further bypasses showed that hardening a JS lexer by hand has no clear end, so the counter was deleted and the ceiling moved to a scoped `eslint/max-lines` override in `.oxlintrc.json`, which rides the `oxlint .` already starting `check` and `lint`.
 
 ## Final verdict
 
-Fresh reviewer over `888d4aba86..1993bcf1f6` (full branch delta `935046d15b...1993bcf1f6`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `933b2d240b..c59883fdbd` (full branch delta `935046d15b...c59883fdbd`): `VERDICT: PASS`, no blockers.
