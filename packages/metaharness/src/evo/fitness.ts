@@ -98,6 +98,8 @@ export interface FitnessInput {
 	jobName: string;
 	/** Explicit suite task IDs; each must be present for the estimate to be complete. */
 	suiteTasks: readonly string[];
+	/** Attempts the suite declares per task; each task must have exactly this many terminal trials. */
+	attempts: number;
 	trials: readonly TraceRow[];
 }
 
@@ -146,6 +148,15 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 	const outsideSuiteTasks = [...outside].sort();
 	const reasons: string[] = [];
 	const missing = suiteKeys.filter(task => !byTask.has(task));
+	const wrongCount = perTask
+		.filter(t => t.attempts > 0)
+		.map(t => ({ task: t.task, terminal: (byTask.get(t.task) ?? []).filter(x => x.status !== "running").length }))
+		.filter(t => t.terminal !== input.attempts);
+	if (wrongCount.length > 0) {
+		reasons.push(
+			`tasks with unexpected attempt count (expected ${input.attempts}): ${wrongCount.map(t => `${t.task} has ${t.terminal}`).join(", ")}`,
+		);
+	}
 	if (missing.length > 0) reasons.push(`missing suite tasks: ${missing.join(", ")}`);
 	if (outsideSuiteTasks.length > 0) reasons.push(`trials outside suite: ${outsideSuiteTasks.join(", ")}`);
 	const excluded = perTask.reduce((acc, t) => acc + t.excluded, 0);

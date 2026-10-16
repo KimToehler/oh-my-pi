@@ -218,6 +218,7 @@ export class EvoService {
 			suiteId: suite.manifest.id,
 			jobName: synced.jobName,
 			suiteTasks: suite.manifest.include,
+			attempts: suite.manifest.attempts,
 			trials: this.#store.listTraces(synced.jobName),
 		});
 		return { run: synced, report, identity };

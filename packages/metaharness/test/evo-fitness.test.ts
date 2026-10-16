@@ -45,8 +45,8 @@ function trial(task: string, attempt: number, over: Partial<TraceRow> = {}): Tra
 	};
 }
 
-const fit = (trials: TraceRow[], tasks: string[], variantId = "v", jobName = "job") =>
-	computeFitness({ variantId, suiteId: "s", jobName, suiteTasks: tasks, trials });
+const fit = (trials: TraceRow[], tasks: string[], variantId = "v", jobName = "job", attempts = 1) =>
+	computeFitness({ variantId, suiteId: "s", jobName, suiteTasks: tasks, attempts, trials });
 
 describe("fitness", () => {
 	it("computes per-task mean attempts, macro mean, SD/SE/CI, and cost means exactly", () => {
@@ -65,8 +65,15 @@ describe("fitness", () => {
 				costUsd: 0,
 				transcript: metrics({ llmCalls: 6, outputTokens: 60 }),
 			}),
+			trial("b", 2, { reward: 1, costUsd: 0.1, transcript: metrics({ llmCalls: 10, outputTokens: 100 }) }),
+			trial("c", 2, {
+				status: "fail",
+				reward: 0,
+				costUsd: 0,
+				transcript: metrics({ llmCalls: 6, outputTokens: 60 }),
+			}),
 		];
-		const r = fit(trials, ["a", "b", "c"]);
+		const r = fit(trials, ["a", "b", "c"], "v", "job", 2);
 		expect(r.perTask.map(t => [t.task, t.reward])).toEqual([
 			["a", 0.5],
 			["b", 1],
@@ -78,7 +85,7 @@ describe("fitness", () => {
 		expect(r.se).toBeCloseTo(0.5 / Math.sqrt(3), 12);
 		expect(r.ci95?.[0]).toBeCloseTo(0.5 - 1.96 * r.se!, 12);
 		expect(r.tasks).toBe(3);
-		expect(r.trials).toBe(4);
+		expect(r.trials).toBe(6);
 		expect(r.complete).toBe(true);
 		// per-task means [3,10,6] -> 19/3; [30,100,60] -> 190/3; cost [.3,.1,0]
 		expect(r.meanLlmCalls).toBeCloseTo(19 / 3, 12);
@@ -117,6 +124,29 @@ describe("fitness", () => {
 		expect(r.incompleteReasons.join()).toContain("missing suite tasks: z");
 		expect(r.startFailureRate).toBe(0.5);
 		expect(r.signalHits).toEqual({ "tool:read": 2, "mark:m": 1 });
+	});
+
+	it("marks a report incomplete when a task has fewer or more attempts than the suite declares", () => {
+		const run = (counts: Record<string, number>) =>
+			computeFitness({
+				variantId: "v",
+				suiteId: "s",
+				jobName: "job",
+				suiteTasks: ["a", "b"],
+				attempts: 2,
+				trials: Object.entries(counts).flatMap(([task, n]) =>
+					Array.from({ length: n }, (_, i) => trial(task, i + 1)),
+				),
+			});
+		const exact = run({ a: 2, b: 2 });
+		expect(exact.complete).toBe(true);
+		expect(exact.incompleteReasons).toEqual([]);
+		const fewer = run({ a: 2, b: 1 });
+		expect(fewer.complete).toBe(false);
+		expect(fewer.incompleteReasons).toEqual(["tasks with unexpected attempt count (expected 2): b has 1"]);
+		const more = run({ a: 3, b: 2 });
+		expect(more.complete).toBe(false);
+		expect(more.incompleteReasons).toEqual(["tasks with unexpected attempt count (expected 2): a has 3"]);
 	});
 });
 

@@ -572,6 +572,30 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir)).toEqual([]);
 	}, 30_000);
 
+	const SHORT = "abc1234";
+
+	it("rejects a short host credential value passed under another explicit --env name", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, "job-short-secret", ["--env", `OTHER_KNOB=${SHORT}`], {
+			EVO_SENTINEL_KEY: SHORT,
+		});
+		expect(code).not.toBe(0);
+		expect(out).toContain("credential env");
+		expect(out).not.toContain(SHORT);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-short-secret", "runner-config.json"))).toBe(false);
+		expect(scanForSentinel(jobsDir, SHORT).filter(file => path.basename(file) !== "models.yml")).toEqual([]);
+	}, 30_000);
+
+	it("does not flag a short host credential value that is only a substring of other arguments", async () => {
+		const jobsDir = tmp();
+		const { code, out } = await runRunner(jobsDir, `j-${SHORT}5`, ["--setting", 'theme="dark"', "--dry-run"], {
+			EVO_SENTINEL_KEY: SHORT,
+		});
+		expect(out).not.toMatch(/error:/);
+		expect(out).not.toContain("credential env");
+		expect(code).toBe(0);
+	}, 30_000);
+
 	it("rejects the same explicit credential KEY=VALUE for --agent pi and persists nothing", async () => {
 		const jobsDir = tmp();
 		const { code, out } = await runRunner(jobsDir, "job-pi-secret", [

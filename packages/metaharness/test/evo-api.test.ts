@@ -155,12 +155,12 @@ function writeJob(
 	h.manager.store.markExit(jobName, 0);
 }
 
-async function seed(h: Harness) {
+async function seed(h: Harness, suite: typeof SUITE = SUITE) {
 	const rootDir = tmp("evo-api-root-");
 	write(rootDir, "AGENTS.md", "root");
 	const childDir = tmp("evo-api-child-");
 	write(childDir, "AGENTS.md", "root\nchild");
-	const suite = await h.json<{ hash: string }>(await h.post("/api/evo/suites", SUITE));
+	const suiteRes = await h.json<{ hash: string }>(await h.post("/api/evo/suites", suite));
 	const root = await h.json<{ variant: { id: string } }>(
 		await h.post("/api/evo/variants", { mutation: "root", configDir: rootDir }),
 	);
@@ -172,7 +172,7 @@ async function seed(h: Harness) {
 			expectedSignals: ["mark:fix"],
 		}),
 	);
-	return { rootDir, childDir, suiteHash: suite.hash, rootId: root.variant.id, childId: child.variant.id };
+	return { rootDir, childDir, suiteHash: suiteRes.hash, rootId: root.variant.id, childId: child.variant.id };
 }
 
 async function expectError(res: Response, status: number, message: string): Promise<void> {
@@ -330,6 +330,18 @@ describe("evo REST", () => {
 			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
 		);
 		expect(compare).toMatchObject({ complete: false, rawDelta: 1, creditedDelta: null, signalsSatisfied: true });
+		expect([compare.wins, compare.ties, compare.losses]).toEqual([null, null, null]);
+	});
+
+	it("withholds decision fields when a suite declaring attempts: 2 yields one trial per task", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h, { ...SUITE, attempts: 2 });
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"] });
+		const compare = await h.json<Record<string, unknown>>(
+			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
+		);
+		expect(compare).toMatchObject({ complete: false, creditedDelta: null });
 		expect([compare.wins, compare.ties, compare.losses]).toEqual([null, null, null]);
 	});
 

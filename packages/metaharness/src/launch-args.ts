@@ -113,19 +113,26 @@ export function harborEnvAssignmentNames(args: readonly string[]): string[] {
 	return names;
 }
 
-/** Shortest host credential value treated as a secret; shorter values would false-positive on ordinary text. */
+/** Host credential values at least this long match as substrings; shorter ones only match whole strings or an assignment's value half. */
 export const MIN_SECRET_VALUE_LENGTH = 8;
 
 const HOST_VALUE_LABEL = "<host value>";
 
-/** Deduped host values of the named credential env vars that are long enough to be secrets. */
+/** Deduped non-empty host values of the named credential env vars. */
 export function credentialValuesFromEnv(names: readonly string[], env: Record<string, string | undefined>): string[] {
 	const values = new Set<string>();
 	for (const name of names) {
 		const value = env[name];
-		if (typeof value === "string" && value.length >= MIN_SECRET_VALUE_LENGTH) values.add(value);
+		if (typeof value === "string" && value.length > 0) values.add(value);
 	}
 	return [...values];
+}
+
+function containsHostValue(node: string, secret: string): boolean {
+	if (secret.length >= MIN_SECRET_VALUE_LENGTH) return node.includes(secret);
+	if (node === secret) return true;
+	const eq = node.indexOf("=");
+	return eq !== -1 && node.slice(eq + 1) === secret;
 }
 
 /**
@@ -144,7 +151,7 @@ export function findCredentialLeaks(value: unknown, names: readonly string[], va
 			if (seenStrings.has(node)) continue;
 			seenStrings.add(node);
 			for (const name of names) if (node.includes(`${name}=`)) hits.add(name);
-			if (values.some(secret => node.includes(secret))) hits.add(HOST_VALUE_LABEL);
+			if (values.some(secret => containsHostValue(node, secret))) hits.add(HOST_VALUE_LABEL);
 			let decoded: unknown;
 			try {
 				decoded = JSON.parse(node);
