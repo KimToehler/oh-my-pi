@@ -30,6 +30,7 @@ import { defaultSourceRoot, EvoService } from "./evo/service";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
+	assertLaunchEnvSafe,
 	defaultJobName,
 	harborRunnerArgs,
 	isLocalDataset,
@@ -454,6 +455,7 @@ export class ManagerServer {
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
 			throw new Error(`unsupported benchmark: ${benchmark}`);
 		}
+		assertLaunchEnvSafe(request, benchmark);
 		const dataset =
 			request.dataset ??
 			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");

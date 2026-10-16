@@ -383,6 +383,33 @@ describe("generic launch route", () => {
 		expect(((await multi.json()) as { error: string }).error).toContain("variantId, suiteId");
 		expect(h.manager.store.listRuns()).toEqual([]);
 	});
+
+	it("rejects KEY=VALUE secrets in envNames and extraArgs before creating any run state", async () => {
+		const SENTINEL = "evo-sentinel-secret-9f3a7c21";
+		const kv = `EVO_SENTINEL_KEY=${SENTINEL}`;
+		const cases: Array<{ field: "envNames" | "extraArgs"; value: string[] }> = [
+			{ field: "envNames", value: [kv] },
+			{ field: "extraArgs", value: ["--env", kv] },
+			{ field: "extraArgs", value: ["-e", kv] },
+			{ field: "extraArgs", value: [`--env=${kv}`] },
+		];
+		const h = harness();
+		for (const [i, c] of cases.entries()) {
+			const jobName = `secret-${i}`;
+			const res = await h.post("/api/runs", { model: "m/x", jobName, [c.field]: c.value });
+			expect(res.status).toBe(400);
+			const { error } = (await res.json()) as { error: string };
+			expect(error).toContain(c.field);
+			expect(error).not.toContain(SENTINEL);
+			expect(h.manager.store.getRun(jobName)).toBeNull();
+			expect(fs.existsSync(path.join(h.jobsDir, jobName))).toBe(false);
+		}
+		expect(h.manager.store.listRuns()).toEqual([]);
+		for (const entry of fs.readdirSync(h.jobsDir, { withFileTypes: true, recursive: true })) {
+			if (!entry.isFile()) continue;
+			expect(fs.readFileSync(path.join(entry.parentPath, entry.name)).includes(SENTINEL)).toBe(false);
+		}
+	});
 });
 
 describe("evo request hardening", () => {

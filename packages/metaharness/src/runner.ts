@@ -1717,7 +1717,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	}
 
 	// Reject literal/command apiKeys before anything is persisted or printed.
-	if (cfg.agent === "omp" && cfg.modelsYaml) {
+	if (cfg.modelsYaml) {
 		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
 		if (explicit.length > 0) {

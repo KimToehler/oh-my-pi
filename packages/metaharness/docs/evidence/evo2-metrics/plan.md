@@ -114,6 +114,8 @@ This plan builds measurement/evaluation substrate only; Proposer/Reflector promp
 ## TODOs
 - [x] R1. Create parent directories before materializing nested whitelisted config files (`packages/metaharness/src/evo/config-snapshot.ts`). Dismissed as false positive: `Bun.write` creates parent directories; a nested-materialization probe passed before any change, and `evo-variants.test.ts` "concurrent registration" already reads `config/rules/r.md` from a registered variant.
 - [x] R2. Prevent explicit forwarded environment values from persisting in runner config; resume must resolve values from host environment (`packages/metaharness/src/runner.ts`). `runBenchmark` rejects `--env NAME=VALUE` for any variable a `--models-yaml` apiKey references, before anything is written; credentials must use host-sourced `--env NAME`.
+- [x] R3. Reject env values smuggled through the API launch boundary (`packages/metaharness/src/launch-args.ts`, `packages/metaharness/src/server.ts`). `assertLaunchEnvSafe` runs in `ManagerServer.launch()` before the job dir or run row exists: `envNames` must be variable names, and harbor `extraArgs` may not carry `--env`/`-e`/`--env=`.
+- [x] R4. Apply the `--models-yaml` credential guard for every agent, not only `omp` (`packages/metaharness/src/runner.ts`).
 
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers

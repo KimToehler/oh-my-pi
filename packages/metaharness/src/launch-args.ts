@@ -68,6 +68,26 @@ export interface LaunchRequest {
 	extraArgs?: string[];
 }
 
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Reject launch requests that would carry env values (secrets) into persisted run state. Never echoes entries. */
+export function assertLaunchEnvSafe(request: LaunchRequest, benchmark: string): void {
+	for (const name of request.envNames ?? []) {
+		if (typeof name !== "string" || !ENV_NAME.test(name)) {
+			throw new Error(
+				"envNames entries must be environment variable names (values are read from the host environment)",
+			);
+		}
+	}
+	if (benchmark !== "harbor") return;
+	for (const arg of request.extraArgs ?? []) {
+		if (arg === "--") break;
+		if (arg === "-e" || arg === "--env" || arg.startsWith("--env=")) {
+			throw new Error("extraArgs must not set --env/-e; use envNames so only variable names are recorded");
+		}
+	}
+}
+
 /** True when a dataset names a local Harbor task/dataset directory rather than a registry entry. */
 export function isLocalDataset(dataset: string): boolean {
 	return path.isAbsolute(dataset) || dataset.startsWith("./") || dataset.startsWith("../");
