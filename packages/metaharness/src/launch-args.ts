@@ -118,12 +118,8 @@ export function harborEnvAssignmentNames(args: readonly string[]): string[] {
 /** Host credential values at least this long match as substrings; shorter ones only match as a complete token. */
 export const MIN_SECRET_VALUE_LENGTH = 8;
 
-/** Characters that cannot occur inside an env value in practice: they delimit tokens. */
-const TOKEN_DELIMITER = /[\s/.=:,;"'`()[\]{}<>]/;
-
-function atTokenEdge(text: string, index: number, secretEdge: string): boolean {
-	return index < 0 || index >= text.length || TOKEN_DELIMITER.test(text[index]) || TOKEN_DELIMITER.test(secretEdge);
-}
+/** Word characters may continue a token; every other character, or a string edge, is a boundary. */
+const WORD_CHAR = /\w/;
 
 const HOST_VALUE_LABEL = "<host value>";
 
@@ -138,15 +134,20 @@ export function credentialValuesFromEnv(names: readonly string[], env: Record<st
 }
 
 /**
- * Values of `MIN_SECRET_VALUE_LENGTH` or more match as plain substrings. Shorter values match only as a complete
- * token (bounded by the string ends or a delimiter), so `abc` hits `rules/abc.md` and `A=abc` but not `abcdef`.
+ * Values of `MIN_SECRET_VALUE_LENGTH` or more match as plain substrings. Shorter values match only on word
+ * boundaries (string edge or non-word character on each side), so `abc` hits `rules/abc-x.md` and `A=abc&b` but
+ * not `abcdef`. A secret whose own edge is a non-word character needs no boundary on that side.
  */
 export function containsHostValue(node: string, secret: string): boolean {
 	if (secret.length >= MIN_SECRET_VALUE_LENGTH) return node.includes(secret);
 	if (secret.length === 0) return false;
+	const needStart = WORD_CHAR.test(secret[0]);
+	const needEnd = WORD_CHAR.test(secret[secret.length - 1]);
 	for (let at = node.indexOf(secret); at !== -1; at = node.indexOf(secret, at + 1)) {
 		const end = at + secret.length;
-		if (atTokenEdge(node, at - 1, secret[0]) && atTokenEdge(node, end, secret[secret.length - 1])) return true;
+		if (needStart && at > 0 && WORD_CHAR.test(node[at - 1])) continue;
+		if (needEnd && end < node.length && WORD_CHAR.test(node[end])) continue;
+		return true;
 	}
 	return false;
 }
