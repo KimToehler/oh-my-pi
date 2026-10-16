@@ -1,0 +1,146 @@
+# omp Evo2 metric substrate plan
+
+## Context
+User wants to test Evo2-style harness evolution for omp, with config-layer genes first and source-code genes supported by the same identity model. Fitness must combine a private, repo-derived search suite with a held-out Terminal-Bench transfer suite. Implementation lives in `/Users/tim/git/oh-my-pi/packages/metaharness`; work happens in `/Users/tim/git/oh-my-pi/.worktrees/evo-metrics` on a feature branch, never in the shared `main` checkout.
+
+Existing substrate is useful but incomplete. `src/store.ts` already persists run-level score/pass/fail/error, aggregate input/output/cache tokens and cost, plus trial reward/status/duration/trace path. `src/runner.ts` already evaluates fixed Harbor task lists with repeated attempts, writes raw `agent/omp.txt` JSONL, and extracts verifier reward. `src/experiments.ts` already supplies cross-arm task matrices. omp JSONL already emits assistant usage, tool lifecycle, retry/compaction, TTSR-rule, and task-result events. Missing for Evo2: content-addressed variant lineage, matched parent/child identity, per-trial LLM-call/token/tool metrics, subagent usage inclusion, mechanism-fired evidence, no-op/startup validity, paired fitness deltas with uncertainty, and one reflector-ready evidence bundle.
+
+This plan builds measurement/evaluation substrate only; Proposer/Reflector prompts, genetic parent sampling, crossover orchestration, and weight training consume these APIs later. Weight evolution is not applicable to current fixed proprietary models.
+
+## Approach
+
+### 1. Add typed transcript metrics at Harbor trial boundary
+- Add `packages/metaharness/src/evo/transcript.ts` with `summarizeOmpTranscript(path): TranscriptMetrics`. Stream lines with bounded buffers; never load multi-GB traces wholesale. Parse JSON lines and tolerate explicit non-JSON marker/error lines.
+- Define exact persisted fields: `llm_calls`, `llm_errors`, `turns`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `tool_calls`, `tool_errors`, `compactions`, `retries`, `final_stop_reason`, `started`, `startup_errors`, and sorted unique `signals`.
+- Count main-agent usage once from assistant `message_end` events. Add subagent aggregate usage once from terminal `task` tool results at `result.details.usage` or `result.details.results[].usage`; deduplicate by tool-call ID and prove no double counting with a fixture containing both parent and child usage. Count task requests separately so call efficiency includes delegated model calls.
+- Derive evidence signals without prompt-text assertions:
+  - `tool:<name>` from `tool_execution_start`;
+  - `skill:<name>` from `read` calls whose path is `skill://<name>`;
+  - `rule:<name>` from `ttsr_triggered.rules[].name` or `read` calls on `rule://<name>`;
+  - `agent:<name>` from top-level and batched `task` arguments;
+  - `mark:<id>` only from non-JSON stderr lines matching `EVO-MARK:<id>`.
+- Treat non-JSON `Failed to load extension …` lines as startup errors. `started` means at least one assistant `message_end`; do not infer success from process creation.
+- Extend `Trial`, `BenchmarkTrace`, `TraceRow`, and SQLite `trials` columns with these metrics. Add ALTER migrations following existing `PRAGMA table_info` pattern. Populate finished Harbor trials during `readTrials()`/`syncRun()`; leave nullable fields for edit/SnapCompact adapters rather than fabricating equivalents. If a resumed trial changes back to running, clear its terminal transcript summary and recompute after the new terminal result.
+- Preserve current run aggregates. Add run-detail JSON exposure of new per-trial fields; dashboard changes are limited to showing mean LLM calls and output tokens per decided trial beside existing spend.
+
+### 2. Introduce content-addressed harness variants and proposal outcomes
+- Add `packages/metaharness/src/evo/variants.ts` and SQLite tables:
+  - `evo_variants(id, config_hash, source_ref, source_dirty_hash, snapshot_path, parent_id, donor_variant_id, depth, mutation, strategy, directive, expected_signals_json, diff_path, changed_files_json, created_at)`;
+  - `evo_proposals(id, parent_id, candidate_variant_id, mutation, donor_variant_id, outcome, detail, created_at)` where outcome is exactly `applied | noop | apply_failed`.
+- Model mutation as exhaustive variants `root | autonomous | revision | crossover | manual`. Crossover keeps recipient `parent_id` and records donor separately, matching paper lineage semantics.
+- Add `variant_id` and `suite_id` to `runs`/`RunRow`/`LaunchRecord`. Every variant launch records both config hash and source identity; comparisons reject mismatched source identities instead of attributing source drift to config evolution.
+- Compute config hash from sorted relative paths and bytes with SHA-256. Snapshot only `AGENTS.md`, `config.yml`, `rules/`, `skills/`, `agents/`, and `extensions/`; dereference symlinks. Exclude `.env`, `models.yml`, DB/WAL/SHM files, sessions, cache, prediction data, logs, backups, and lock files. Reject symlinks escaping source roots, sockets/devices, unreadable files, malformed YAML, and secrets-bearing excluded paths.
+- Compute `source_ref` with `git rev-parse HEAD`; if dirty, hash tracked diff plus untracked file names/content into `source_dirty_hash`. Config-first variants normally share this source identity. Source variants use a clean task-owned worktree as `snapshot_path`; runner support in step 3 accepts that worktree as source root, so schema has no nonfunctional source mode.
+- Materialize snapshots immutably under `<jobs-dir>/_evo/variants/<id>/`. Generate unified parent diff and changed-file list. Same config/source hashes as parent create a proposal row with `noop` and reuse parent variant ID; malformed/apply failures create `apply_failed` proposal rows without a fake candidate.
+- Add REST boundaries with parsed request bodies:
+  - `POST /api/evo/variants` registers/snapshots candidate plus proposal metadata;
+  - `GET /api/evo/variants` lists lineage and attached run counts;
+  - `GET /api/evo/variants/:id` returns variant, proposal history, diff locator, and runs.
+
+### 3. Make config and source genomes reproducibly runnable
+- Extend `LaunchRequest`, `harborRunnerArgs()`, runner `Config`, resume snapshots, and CLI help with `variantId`, `suiteId`, `--agent-dir`, `--source-root`, and `--models-yaml`.
+- Config variant launch stages a complete agent directory under `<jobs-dir>/_bench/<job>/agent-overlay/`:
+  1. copy immutable variant snapshot;
+  2. parse `config.yml` with `Bun.YAML`;
+  3. reserve executor keys `modelRoles`, `enabledModels`, `modelProviderOrder`, and `retry` from evolution;
+  4. rewrite every discovered/built-in model role to fixed launch model/thinking level;
+  5. apply benchmark web-search/find settings, then explicit `--setting` overrides last;
+  6. write merged `config.yml` and copy fixed `models.yml` supplied by `--models-yaml`.
+- Add read-only agent-overlay mounts to Docker compose and Apple-container mount JSON. `agent/omp_local.py` copies mounted overlay to `$HOME/.omp/agent` before execution; when overlay exists it MUST NOT regenerate config/models. Existing generation remains fallback for ordinary non-evo runs.
+- Support direct onara execution: `--models-yaml` works with `--no-gateway`, sets `OMP_BENCH_MODELS_YAML`, and triggers `_write_models_yaml()` even when gateway is off. Container-safe models file uses `apiKey: ONARA_ROUTER_KEY`; runner forwards value only through explicit `--env ONARA_ROUTER_KEY`. Never persist key in SQLite, manager JSON, logs, staged overlay, or dry-run output.
+- Source variant launch replaces hard-coded `REPO_ROOT` only in source dependency hashing, package discovery, compose/mount paths, package version lookup, and binary lookup through `Config.sourceRoot`. Require git worktree path and recorded source identity match before spawn; reject drift with both expected/actual identities. Config-first runs use default source root.
+- Persist exact staged config hash and executor config hash in run `config_json`. `resolveArmLaunch()` inherits variant, suite, source root, executor model, attempts, and explicit task list; sibling arms may change only variant ID plus arm label/note.
+
+### 4. Define fixed suites and matched-condition fitness
+- Add `packages/metaharness/src/evo/suites.ts` with strict manifest parsing. Suite schema: `{ id, split: "search" | "heldout", benchmark: "harbor", dataset, include, attempts, timeoutMultiplier, model, thinking, environment }`. Empty/duplicate task IDs and implicit random sampling are errors.
+- Store manifests under `<jobs-dir>/_evo/suites/*.json`; API `POST /api/evo/suites` snapshots one and `GET /api/evo/suites` lists immutable versions by content hash. `POST /api/evo/variants/:id/evaluate` accepts only `{ suiteId, jobName?, concurrency? }`; all matched-condition fields come from suite manifest.
+- Add `packages/metaharness/src/evo/fitness.ts`:
+  - per-task reward = mean of attempts; missing reward and agent-caused errors, including `AgentTimeoutError`, count as `0`;
+  - infrastructure exceptions use an explicit allowlist from observed Harbor exception types, remain excluded, and make estimate `incomplete` until resumed;
+  - `VHat` = macro mean of complete per-task rewards;
+  - report tasks/trials/errors, sample SD/SE/95% CI, mean LLM calls/output tokens/cost per task, startup failure rate, and signal hit counts;
+  - parent delta uses shared task IDs under identical suite/executor/source hashes, reports mean paired delta, paired SE/95% CI, wins/ties/losses, and missing-task lists. Reject unmatched comparisons with 409 and exact differing fields.
+- Expected signals come from variant registration. Empty signal set means unconditional config/prompt change and needs no runtime gating. Non-empty set is satisfied only when every expected signal appears in at least one child trial. Reflector-credited positive delta is clamped to zero if expected signals were not observed; raw delta remains visible.
+- Add APIs:
+  - `GET /api/evo/variants/:id/fitness?suite=<id>`;
+  - `GET /api/evo/variants/:id/compare?baseline=<id>&suite=<id>`;
+  - `GET /api/evo/variants/:id/reflection-bundle?suite=<id>` returning child/parent metadata, stored diff, fitness/delta/cost, signal evidence, per-task flips, and normalized trace links for up to 3 regressions, 3 improvements, and 3 persistent failures.
+- Reuse existing normalized trace parser by extracting it from `ManagerServer.#trace` into a shared pure function; do not duplicate JSONL interpretation.
+
+### 5. Add private-suite task generator, not task selection
+- Add `packages/metaharness/scripts/evo-task.ts make` with required typed options: `--repo`, `--base`, `--fix`, `--name`, `--instruction`, `--test-command`, repeatable `--test-glob`, `--base-image`, and `--output`.
+- Generate canonical Harbor task: `task.toml` schema 1.3, `instruction.md`, `environment/Dockerfile`, `tests/test.sh`, hidden fixed test files, `solution/solve.sh`, and fixed non-test files. Agent environment uses public network only for model access; verifier runs with `no-network`. Test script writes numeric reward to `/logs/verifier/reward.txt`.
+- Base image contains repo at `base`; hidden verifier overlays test files from `fix`; solution overlays non-test fixed files and handles deleted files. Reject merge commits, identical base/fix, missing test changes, test files also included in solution, dirty source repo, absolute/traversal paths, and commands containing NUL/newlines.
+- Add `verify --task <generated-task-dir>` subcommand: run verifier before solution and require reward `0`, run `solution/solve.sh`, then rerun verifier and require reward `1`. This discriminating RED/GREEN calibration is mandatory before task enters a suite.
+- Ship one real example manifest using `base = 63b339b814^`, `fix = 63b339b814`, hidden test `packages/coding-agent/test/web/search/read-limited-text.test.ts`, and test command `bun test packages/coding-agent/test/web/search/read-limited-text.test.ts`. Do not commit archived repo payloads or user-private suite contents; generated tasks live under gitignored `<jobs-dir>/_evo/tasks/`.
+- Initial search/held-out suite content remains user-curated after generator validation. This change ships no guessed Terminal-Bench manifests: evo APIs accept only user-supplied immutable manifests with explicit non-empty task IDs. Until those manifests exist, only the one-task generated example suite is runnable.
+
+## Critical files & anchors
+- `packages/metaharness/src/store.ts` — `SCHEMA`, constructor migrations, `syncRun()`, `RunRow`/`TraceRow`; persistence boundary for variants and per-trial metrics.
+- `packages/metaharness/src/runner.ts` — `Config`, `parseTrial()`, `prepareSourceDeps()`, compose/mount builders, `buildHarborEnv()`; source identity and container staging.
+- `packages/metaharness/agent/omp_local.py` — `OmpLocal.install()`, `_write_models_yaml()`, `run()`; agent overlay installation and direct-provider config.
+- `packages/metaharness/src/server.ts` — `ManagerServer.#route()`, `launch()`, normalized trace handler; evo REST boundary and shared trace extraction.
+- `packages/metaharness/src/evo/` — new bounded modules for transcript parsing, variant snapshots, suites, and fitness; no single file above 250 pure LOC.
+
+## Verification
+- Working directory: `/Users/tim/git/oh-my-pi/.worktrees/evo-metrics`. Prerequisites: `bun install`; `uv tool install harbor`; Docker Desktop running; `ONARA_ROUTER_KEY` present; container-safe `~/.omp/evo/models.yml` with `apiKey: ONARA_ROUTER_KEY` and exact list-price cost fields.
+- RED/GREEN evidence: add committed tests first and run each against pre-change source before implementation. Required discriminating tests:
+  - transcript fixture with parent + task subagent usage proves exact calls/tokens and no double count;
+  - malformed/oversized/mixed stderr lines prove bounded parser and startup-error capture;
+  - variant snapshot proves symlink dereference, forbidden-file exclusion, hash stability, noop/apply-failed outcomes;
+  - source/config/executor mismatch proves comparison rejection;
+  - paired fixture with known rewards proves VHat, error handling, SE/CI, cost means, and signal-gated credited delta;
+  - generated example task fails before solution and passes after solution.
+- Run focused tests: `bun test packages/metaharness/test/evo-transcript.test.ts packages/metaharness/test/evo-variants.test.ts packages/metaharness/test/evo-fitness.test.ts packages/metaharness/test/evo-task.test.ts packages/metaharness/test/manager.test.ts packages/metaharness/test/runner.test.ts`.
+- Run package gates: `bun --cwd packages/metaharness run check` and `bun --cwd packages/metaharness test`.
+- API smoke: start `bun --cwd packages/metaharness run serve --port 4700`; register root + one no-op + one modified config variant, register explicit one-task suite, then observe variant/proposal/fitness/compare/reflection JSON via REST. Expected: no-op reuses parent content, modified child preserves lineage, unmatched source comparison returns 409.
+- Calibrate generated task before any agent run:
+  `bun packages/metaharness/scripts/evo-task.ts verify --task <jobs-dir>/_evo/tasks/read-limited-text`.
+  Expected observable: verifier reward `0` before solution and `1` after `solution/solve.sh`.
+- Real omp surface smoke on same task:
+  `bun packages/metaharness/src/runner.ts --model onara/cc/claude-sonnet-5-5 --thinking medium --dataset <jobs-dir>/_evo/tasks/read-limited-text --tasks 1 --attempts 1 --concurrency 1 --agent-dir <variant-snapshot> --models-yaml ~/.omp/evo/models.yml --no-gateway --env ONARA_ROUTER_KEY --environment docker --job-name evo-smoke --jobs-dir <jobs-dir>`.
+  Expected observable: actual omp reward plus non-null per-trial `llm_calls`, output tokens, tool counters, `started=true`, and a trace link. Negative control: broken extension variant yields startup error/zero started trials and cannot receive positive credited delta.
+- Repeat same one-task suite for parent and child with identical executor/source. `GET …/compare` must show shared task, exact raw delta, call/token/cost differences, and expected signal evidence. No held-out claim occurs until user supplies an explicit held-out suite manifest; once supplied, it stays unread during search and runs only against selected champion.
+
+## Assumptions & contingencies
+- Full Proposer/Reflector/genetic-search driver is a separate consumer after metrics prove discriminating. No implementation decisions for that loop are hidden here.
+- Executor stays fixed at `onara/cc/claude-sonnet-5-5:medium` across one comparison. If cost requires another model, create a new suite version; never mix executor identities in one delta.
+- onara is a custom local provider; omp auth gateway intentionally ignores local `models.yml`. Therefore local Docker trials use `--no-gateway`, explicit models file, and forwarded router key. This exposes key to local task container environment. If that is unacceptable, stop and add a host-side proxy that supports custom providers before running untrusted tasks.
+- Tasks with `no-network` cannot reach onara directly. Exclude them from suite or switch entire suite to a broker-routable provider; never silently drop only failed tasks after evaluation.
+- Source variants must be clean, task-owned worktrees. If dependency lock differs, build a separate cached Linux dependency tree keyed by that lock hash; do not reuse an incompatible tree.
+- Initial private search suite and Terminal-Bench held-out suite are not auto-curated. Generator and one calibrated example land now; user supplies explicit task IDs in immutable manifests afterward. Evo APIs reject empty or implicit-random manifests.
+
+## Final verification wave
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+
+## Merge gate
+- Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production omp runtime remains unchanged outside metaharness launch paths.
+- Mandatory class: concurrency-state
+- Whole-diff review: needed
+- Feature-specific criteria:
+  - Invariant: Every decided Harbor trial records complete main+task-subagent call/token/tool metrics exactly once.
+    Positive witness: fixture and real smoke totals equal independently counted JSONL events and task-result aggregate usage.
+    Negative control: duplicated task result or resumed trial MUST NOT double-count prior usage.
+    Observable: persisted trial metric columns and fitness cost totals.
+    Boundary: `agent/omp.txt` → `syncRun()` → `metaharness.sqlite`/REST.
+  - Invariant: Parent/child delta compares only identical suite, executor, source identity, and explicit task IDs.
+    Positive witness: matched variants return paired delta and per-task flips.
+    Negative control: changed model, source hash, suite hash, or missing task set MUST return 409/incomplete, never a numeric comparable delta.
+    Observable: compare API status and response fields.
+    Boundary: evo suite/variant run records → fitness API.
+  - Invariant: Positive reflector credit requires runtime evidence for every declared expected signal.
+    Positive witness: child trace emitting declared marker retains positive credited delta.
+    Negative control: same raw gain without marker evidence MUST clamp credited delta to zero.
+    Observable: raw delta, signal hits, credited delta.
+    Boundary: trial transcript signals → reflection bundle.
+  - Invariant: Secrets never enter persisted metaharness artifacts or dry-run output.
+    Positive witness: container resolves `ONARA_ROUTER_KEY` and completes a call while stored config records only variable name.
+    Negative control: seeded sentinel secret MUST fail repository/jobs-dir recursive scan if any artifact contains it.
+    Observable: sentinel scan result and successful trial.
+    Boundary: host env → container process env versus job/DB/log persistence.
+  - Mechanical: Variant hash and diff are deterministic for identical dereferenced config/source content.
+    Invariant: Same bytes/source identity produce same variant ID and changed-file set.
+    Observable: equality across independently materialized snapshots.
+    Boundary: agent/source paths → evo variant registry.
