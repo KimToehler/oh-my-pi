@@ -115,6 +115,85 @@ describe("config snapshot", () => {
 	});
 });
 
+describe("symlink target checks", () => {
+	const SENTINEL = "sentinel-secret-bytes-ABCDEF123456";
+
+	function rootWith(files: Record<string, string>): string {
+		return agentDir(files);
+	}
+
+	it("rejects file symlinks that alias root models.yml or .env, naming the logical path only", async () => {
+		for (const secret of ["models.yml", ".env", "nested/models.yaml"]) {
+			const dir = rootWith({ "AGENTS.md": "x", [secret]: SENTINEL });
+			fs.mkdirSync(path.join(dir, "rules"));
+			fs.symlinkSync(path.join(dir, secret), path.join(dir, "rules", "forwarded.md"));
+			const err = await collectConfig(dir).catch((e: Error) => e);
+			expect((err as Error).message).toBe("symlink target is secret-bearing: rules/forwarded.md");
+			expect((err as Error).message).not.toContain(SENTINEL);
+		}
+	});
+
+	it("rejects symlinked directories that land on state dirs and nested forbidden segments", async () => {
+		for (const state of ["sessions", "cache"]) {
+			const dir = rootWith({ "AGENTS.md": "x", [`${state}/a.md`]: "state" });
+			fs.symlinkSync(path.join(dir, state), path.join(dir, "skills"));
+			await expect(collectConfig(dir)).rejects.toThrow("symlink target is excluded state: skills");
+		}
+		const nested = rootWith({ "AGENTS.md": "x", "private/models.yml/sub/a.md": SENTINEL });
+		fs.symlinkSync(path.join(nested, "private", "models.yml", "sub"), path.join(nested, "agents"));
+		await expect(collectConfig(nested)).rejects.toThrow("symlink target is secret-bearing: agents");
+		// A directory symlink whose children contain a secret is rejected by the recursive walk.
+		const holder = rootWith({ "AGENTS.md": "x", "bundle/models.yml": SENTINEL, "bundle/a.md": "a" });
+		fs.symlinkSync(path.join(holder, "bundle"), path.join(holder, "extensions"));
+		await expect(collectConfig(holder)).rejects.toThrow("secret-bearing path not allowed: extensions/models.yml");
+		// A symlinked directory below a secret-named parent segment is rejected by segment.
+		const parent = rootWith({ "AGENTS.md": "x", "auth.json/inner/x.md": "i" });
+		fs.symlinkSync(path.join(parent, "auth.json", "inner"), path.join(parent, "rules"));
+		await expect(collectConfig(parent)).rejects.toThrow("symlink target is secret-bearing: rules");
+	});
+
+	it("still dereferences safe in-root symlinks with stable hashes", async () => {
+		const dir = rootWith({ "AGENTS.md": "x", "shared/rule.md": "shared\n", "shared/more/a.md": "a\n" });
+		fs.mkdirSync(path.join(dir, "rules"));
+		fs.symlinkSync(path.join(dir, "shared", "rule.md"), path.join(dir, "rules", "alias.md"));
+		fs.symlinkSync(path.join(dir, "shared", "more"), path.join(dir, "skills"));
+		const files = await collectConfig(dir);
+		expect(files.map(f => f.rel)).toEqual(["AGENTS.md", "rules/alias.md", "skills/a.md"]);
+		expect(hashConfig(files)).toBe(hashConfig(await collectConfig(dir)));
+		const copy = rootWith({ "AGENTS.md": "x", "rules/alias.md": "shared\n", "skills/a.md": "a\n" });
+		expect(hashConfig(await collectConfig(copy))).toBe(hashConfig(files));
+	});
+
+	it("a rejected alias records apply_failed and leaves no secret bytes or diff on disk", async () => {
+		const { jobsDir, store, registry } = await setup();
+		const base = await registry.register(root(agentDir({ "AGENTS.md": "base" })));
+		const bad = rootWith({ "AGENTS.md": "x", "models.yml": SENTINEL });
+		fs.mkdirSync(path.join(bad, "rules"));
+		fs.symlinkSync(path.join(bad, "models.yml"), path.join(bad, "rules", "forwarded.md"));
+		const err = await registry
+			.register(parseVariantRequest({ mutation: "manual", parentId: base.variant.id, configDir: bad }))
+			.catch((e: Error) => e);
+		expect((err as { status?: number }).status).toBe(422);
+		expect((err as Error).message).toBe("symlink target is secret-bearing: rules/forwarded.md");
+		expect(store.evo.listVariants()).toHaveLength(1);
+		const failed = store.evo.listProposals(base.variant.id).filter(p => p.outcome === "apply_failed");
+		expect(failed).toHaveLength(1);
+		expect(failed[0].detail).not.toContain(SENTINEL);
+		const leaked: string[] = [];
+		const scan = (dir: string): void => {
+			for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+				const full = path.join(dir, entry.name);
+				if (entry.isDirectory()) scan(full);
+				else if (entry.isFile() && fs.readFileSync(full).includes(SENTINEL)) leaked.push(full);
+			}
+		};
+		scan(jobsDir);
+		expect(leaked).toEqual([]);
+		expect(fs.readdirSync(path.join(jobsDir, "_evo", "variants"))).toEqual([base.variant.id]);
+		expect(fs.readdirSync(path.join(jobsDir, "_evo", "tmp")).length).toBe(0);
+	});
+});
+
 describe("variant registry", () => {
 	it("registers root, reuses parent on identical content (noop), and links a changed child", async () => {
 		const { jobsDir, store, registry } = await setup();

@@ -54,6 +54,18 @@ function within(child: string, root: string): boolean {
 	return child === root || child.startsWith(`${root}${path.sep}`);
 }
 
+/**
+ * A symlink must not smuggle a forbidden file into the snapshot under an innocuous alias. Inspect every
+ * root-relative segment of the resolved target (so a symlinked directory is judged by where it lands,
+ * and nested children are re-judged by the walk). Messages name the logical path, never target bytes.
+ */
+function assertTargetAllowed(root: string, real: string, rel: string): void {
+	for (const segment of path.relative(root, real).split(path.sep)) {
+		if (SECRET_NAMES.some(re => re.test(segment))) throw new Error(`symlink target is secret-bearing: ${rel}`);
+		if (STATE_NAMES.some(re => re.test(segment))) throw new Error(`symlink target is excluded state: ${rel}`);
+	}
+}
+
 interface WalkContext {
 	root: string;
 	out: ConfigFile[];
@@ -90,6 +102,7 @@ async function walk(ctx: WalkContext, abs: string, rel: string): Promise<void> {
 			throw new Error(`broken symlink: ${rel}`);
 		}
 		if (!within(real, ctx.root)) throw new Error(`symlink escapes source root: ${rel}`);
+		assertTargetAllowed(ctx.root, real, rel);
 	}
 	const stat = await fs.stat(real);
 	if (stat.isFile()) return readLeaf(ctx, real, rel);
