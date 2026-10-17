@@ -31,6 +31,7 @@ import { parseXdUrl, XD_URL_PREFIX } from "@oh-my-pi/pi-tui/tools/xd-url";
 
 import resolveReminderPrompt from "../prompts/system/resolve-device-reminder.md" with { type: "text" };
 
+import type { ResolvedApprovedPlan } from "../plan-mode/approved-plan";
 import type { ToolSession } from ".";
 
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
@@ -40,6 +41,9 @@ import type { XdevDispatch } from "./xdev";
 export const RESOLVE_DEVICE_PATH = `${XD_URL_PREFIX}${RESOLVE_DEVICE_NAME}`;
 export const REJECT_DEVICE_PATH = `${XD_URL_PREFIX}${REJECT_DEVICE_NAME}`;
 export const PROPOSE_DEVICE_PATH = `${XD_URL_PREFIX}${PROPOSE_DEVICE_NAME}`;
+
+/** Error text for an `xd://propose` write while no plan-proposal handler is installed. */
+export const NO_PLAN_AWAITING_APPROVAL = `No plan is awaiting approval — ${PROPOSE_DEVICE_PATH} only accepts a plan title while plan mode is active.`;
 
 /**
  * Model-visible banner prepended to a staged preview's tool result text. The
@@ -103,8 +107,18 @@ export function writeDeviceDispatch(toolName: string, result: unknown): XdevDisp
 	return xdev as XdevDispatch;
 }
 
-/** Handler installed by plan mode; `xd://propose` dispatches the written plan title to it. */
-export type PlanProposalHandler = (title: string) => Promise<AgentToolResult<unknown>>;
+/** Handler installed by plan mode. The session resolves the proposed plan once
+ *  (`AgentSession.submitPlanProposal`) and hands the handler the resolved plan. */
+export type PlanProposalHandler = (plan: ResolvedApprovedPlan) => Promise<AgentToolResult<unknown>>;
+
+/** Identity of one `xd://propose` dispatch, forwarded to `ToolSession.submitPlanProposal`. */
+export interface PlanProposalCall {
+	/** Id of the `write` tool call that wrote `xd://propose`. */
+	toolCallId?: string;
+	signal?: AbortSignal;
+	/** The ToolSession that dispatched the propose write. */
+	toolSession?: ToolSession;
+}
 
 /** Parse a completed `write` dispatch targeting `xd://resolve` or `xd://reject`. */
 export function resolveDispatchDetails(toolName: string, result: unknown): ResolveDetails | undefined {
@@ -272,23 +286,20 @@ async function runResolveInvocation(
  * Execute a resolution-device write. `text` is the raw plain-text body:
  * - `xd://resolve` / `xd://reject` → the reason; dispatches to the pending
  *   preview invoker (in-flight queue directive first).
- * - `xd://propose` → the plan title; dispatches to the plan-proposal handler
+ * - `xd://propose` → the plan title; submitted through the session's
+ *   `submitPlanProposal`, which resolves the plan and calls the handler
  *   installed by plan mode.
  */
 export async function dispatchResolutionDevice(
 	session: ToolSession,
 	device: ResolutionDeviceName,
 	text: string,
+	call: PlanProposalCall = {},
 ): Promise<{ result: AgentToolResult<unknown>; xdev: XdevDispatch }> {
 	const body = text.trim();
 	if (device === PROPOSE_DEVICE_NAME) {
-		const handler = session.peekPlanProposalHandler?.();
-		if (!handler) {
-			throw new ToolError(
-				`No plan is awaiting approval — ${PROPOSE_DEVICE_PATH} only accepts a plan title while plan mode is active.`,
-			);
-		}
-		const result = await handler(body);
+		if (!session.submitPlanProposal) throw new ToolError(NO_PLAN_AWAITING_APPROVAL);
+		const result = await session.submitPlanProposal(body, { ...call, toolSession: session });
 		return { result, xdev: { tool: device, mode: "execute", args: { title: body }, inner: result.details } };
 	}
 

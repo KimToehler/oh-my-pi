@@ -1,3 +1,4 @@
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { InternalUrlRouter } from "../internal-urls/router";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 
@@ -10,6 +11,7 @@ export interface PlanApprovalDetails {
 	planFilePath: string;
 	title: string;
 	planExists: boolean;
+	planSha256?: string;
 }
 
 /** Validate and normalize the agent-supplied plan title into a safe filename stem.
@@ -187,6 +189,15 @@ export async function resolveApprovedPlan(input: ResolveApprovedPlanInput): Prom
 	throw new ToolError(
 		`Plan file not found at ${target}. Write the finalized plan to ${target} before requesting approval.`,
 	);
+}
+
+/** The `xd://propose` result for hosts that open their own approval UI from
+ *  `PlanApprovalDetails` (the interactive event-controller path). */
+export function planReviewResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
+	return {
+		content: [{ type: "text", text: "Plan ready for review." }],
+		details: { planFilePath: plan.planFilePath, title: plan.title, planExists: true },
+	};
 }
 
 function finalizeApprovedPlan(planFilePath: string, planContent: string, suppliedTitle: unknown): ResolvedApprovedPlan {

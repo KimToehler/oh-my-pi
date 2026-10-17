@@ -3,7 +3,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { type LocalProtocolOptions, resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { type ResolvedApprovedPlan, resolveApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import { listPlanFiles, readPlanFile } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
+import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import { getSettingsForTab } from "@oh-my-pi/pi-tui/overlays/settings-defs";
 import { createSettingsHost } from "@oh-my-pi/pi-coding-agent/config/settings-ui";
 import { autosaveApprovedPlan, resolvePlanAutosaveDir } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-autosave";
@@ -144,10 +147,19 @@ describe("plan-yolo approval autosave", () => {
 		maxTokens: 8_192,
 	});
 
+	function resolveAuthPlan(localOptions: LocalProtocolOptions, cwd: string): Promise<ResolvedApprovedPlan> {
+		return resolveApprovedPlan({
+			suppliedTitle: "auth",
+			statePlanFilePath: "local://PLAN.md",
+			readPlan: url => readPlanFile(url, { localProtocolOptions: localOptions, cwd }),
+			listPlanFiles: () => listPlanFiles({ localProtocolOptions: localOptions }),
+		});
+	}
+
 	function setupPlanYolo(cwd: string, artifactsDir: string, settings: Settings) {
 		const notices: Array<{ level: "info" | "warning" | "error"; message: string; source?: string }> = [];
 		const modelTemporaryCalls: unknown[][] = [];
-		let capturedHandler: ((title: string) => Promise<unknown>) | undefined;
+		let capturedHandler: PlanProposalHandler | undefined;
 		let planModeState: PlanModeState | undefined;
 		const localOptions = { getArtifactsDir: () => artifactsDir, getSessionId: () => "test-session" };
 		const host: PrewalkCoordinatorHost = {
@@ -179,7 +191,6 @@ describe("plan-yolo approval autosave", () => {
 				capturedHandler = handler ?? undefined;
 			},
 			waitForSessionMessagePersistence: async () => {},
-			localProtocolOptions: () => localOptions,
 		};
 		return { host, notices, modelTemporaryCalls, localOptions, getHandler: () => capturedHandler };
 	}
@@ -195,7 +206,7 @@ describe("plan-yolo approval autosave", () => {
 		await Bun.write(planPath, "# Plan\n\nYolo.\n");
 		const handler = t.getHandler();
 		if (!handler) throw new Error("expected a plan proposal handler");
-		const result = (await handler("auth")) as {
+		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd))) as {
 			content: Array<{ type: string; text: string }>;
 			details: { planFilePath: string; title: string; planExists: boolean };
 		};
@@ -224,7 +235,9 @@ describe("plan-yolo approval autosave", () => {
 		await Bun.write(planPath, "# Plan\n\nYolo.\n");
 		const handler = t.getHandler();
 		if (!handler) throw new Error("expected a plan proposal handler");
-		const result = (await handler("auth")) as { content: Array<{ type: string; text: string }> };
+		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd))) as {
+			content: Array<{ type: string; text: string }>;
+		};
 		expect(result.content[0]?.text).toBe(`Plan approved. Implementing now with ${target.id}.`);
 		expect(t.modelTemporaryCalls.length).toBe(1);
 		expect(t.notices).toContainEqual({

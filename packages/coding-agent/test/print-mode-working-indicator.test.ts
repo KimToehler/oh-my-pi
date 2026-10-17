@@ -93,10 +93,6 @@ function createDelayedSession(
 		setPlanModeState: (state: PlanModeState | undefined) => {
 			planModeState = state;
 		},
-		preparePlanForReview: async (title: string) => {
-			const details = { planFilePath: `local://${title}-plan.md`, title, planExists: true };
-			return { content: [{ type: "text" as const, text: "Plan ready for review." }], details };
-		},
 		setPlanProposalHandler: (handler: PlanProposalHandler | null) => {
 			planProposalHandler = handler ?? undefined;
 		},

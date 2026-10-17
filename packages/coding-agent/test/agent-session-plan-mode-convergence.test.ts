@@ -11,6 +11,7 @@
  *      user), and either decision tool resets the counter.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import * as fs from "node:fs/promises";
 import { type } from "@oh-my-pi/omptype";
 import {
 	Agent,
@@ -30,6 +31,9 @@ import { type IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { ResolvedApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
+import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import type { XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import planModeReminderPrompt from "../src/prompts/system/plan-mode-tool-decision-reminder.md" with { type: "text" };
@@ -413,9 +417,8 @@ describe("AgentSession plan-mode convergence", () => {
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
 		await Bun.write(planPath, "# Demo plan\n\nImplement it.\n");
-		const handler = harness.session.peekPlanProposalHandler();
-		expect(handler).toBeDefined();
-		await handler!("demo");
+		expect(harness.session.peekPlanProposalHandler()).toBeDefined();
+		await harness.session.submitPlanProposal("demo");
 
 		expect(harness.session.getPlanModeState()).toBeUndefined();
 		expect(harness.session.getActiveToolNames()).toEqual(["read"]);
@@ -444,9 +447,8 @@ describe("AgentSession plan-mode convergence", () => {
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
 		await Bun.write(planPath, "# MCP devices plan\n\nKeep the connected devices.\n");
-		const handler = harness.session.peekPlanProposalHandler();
-		if (!handler) throw new Error("Expected PlanYolo proposal handler");
-		await handler("mcp-devices");
+		if (!harness.session.peekPlanProposalHandler()) throw new Error("Expected PlanYolo proposal handler");
+		await harness.session.submitPlanProposal("mcp-devices");
 
 		expect(harness.session.getPlanModeState()).toBeUndefined();
 		expect(harness.session.getActiveToolNames()).toEqual(["read", "write", "mcp__context_query_docs"]);
@@ -480,9 +482,8 @@ describe("AgentSession plan-mode convergence", () => {
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
 		await Bun.write(planPath, "# Queued MCP plan\n\nKeep the connected device.\n");
-		const handler = harness.session.peekPlanProposalHandler();
-		if (!handler) throw new Error("Expected PlanYolo proposal handler");
-		const approval = handler("queued-mcp");
+		if (!harness.session.peekPlanProposalHandler()) throw new Error("Expected PlanYolo proposal handler");
+		const approval = harness.session.submitPlanProposal("queued-mcp");
 		release.resolve();
 		await Promise.all([blocker, refresh, approval]);
 
@@ -511,9 +512,8 @@ describe("AgentSession plan-mode convergence", () => {
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
 		await Bun.write(planPath, "# Read-only MCP plan\n\nKeep the selected device.\n");
-		const handler = harness.session.peekPlanProposalHandler();
-		if (!handler) throw new Error("Expected PlanYolo proposal handler");
-		await handler("read-only-mcp");
+		if (!harness.session.peekPlanProposalHandler()) throw new Error("Expected PlanYolo proposal handler");
+		await harness.session.submitPlanProposal("read-only-mcp");
 
 		expect(harness.session.getPlanModeState()).toBeUndefined();
 		expect(harness.session.getActiveToolNames()).toEqual(["read", "mcp__chrome_devtools_list_pages"]);
@@ -539,14 +539,131 @@ describe("AgentSession plan-mode convergence", () => {
 		const mountedBefore = harness.session.getMountedXdevToolNames();
 		rebuildGate.fail = true;
 
-		await expect(handler!("retry")).rejects.toThrow("rebuild failed");
+		await expect(harness.session.submitPlanProposal("retry")).rejects.toThrow("rebuild failed");
 		expect(harness.session.getPlanModeState()?.enabled).toBe(true);
 		expect(harness.session.peekPlanProposalHandler()).toBe(handler);
 		expect(harness.session.getActiveToolNames()).toEqual(activeBefore);
 		expect(harness.session.getMountedXdevToolNames()).toEqual(mountedBefore);
 		rebuildGate.fail = false;
-		await handler!("retry");
+		await harness.session.submitPlanProposal("retry");
 		expect(harness.session.getPlanModeState()).toBeUndefined();
 		expect(harness.session.getActiveToolNames()).toEqual(["read"]);
+	});
+});
+
+describe("AgentSession.submitPlanProposal", () => {
+	let tempDir: TempDir;
+	let authDir: TempDir;
+	let authStorage: AuthStorage;
+	let session: AgentSession | undefined;
+
+	beforeEach(async () => {
+		tempDir = TempDir.createSync("@pi-plan-submit-");
+		authDir = TempDir.createSync("@pi-plan-submit-auth-");
+		authStorage = await AuthStorage.create(authDir.join("auth.db"));
+	});
+
+	afterEach(async () => {
+		try {
+			await session?.dispose();
+		} finally {
+			session = undefined;
+			authStorage.close();
+			authDir.removeSync();
+			await tempDir.remove();
+		}
+	});
+
+	function createSession(): AgentSession {
+		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
+		if (!model) throw new Error("Expected bundled anthropic model to exist");
+		const created = new AgentSession({
+			agent: new Agent({
+				getApiKey: () => "test-key",
+				initialState: { model, systemPrompt: ["Test"], tools: [], messages: [] },
+				streamFn: createMockModel({ responses: [] }).stream,
+			}),
+			sessionManager: SessionManager.create(tempDir.path(), tempDir.join("sessions")),
+			settings: Settings.isolated({ "compaction.enabled": false }),
+			modelRegistry: new ModelRegistry(authStorage, authDir.join("models.yml")),
+		});
+		session = created;
+		return created;
+	}
+
+	function localPath(target: AgentSession, url: string): string {
+		return resolveLocalUrlToPath(url, {
+			getArtifactsDir: () => target.sessionManager.getArtifactsDir(),
+			getSessionId: () => target.sessionManager.getSessionId(),
+		});
+	}
+
+	function recordingHandler(): { plans: ResolvedApprovedPlan[]; handler: PlanProposalHandler } {
+		const plans: ResolvedApprovedPlan[] = [];
+		return {
+			plans,
+			handler: async plan => {
+				plans.push(plan);
+				return { content: [{ type: "text", text: "handled" }] };
+			},
+		};
+	}
+
+	it("hands the handler the named plan file and its content, not the newer one", async () => {
+		const target = createSession();
+		target.setPlanModeState({ enabled: true, planFilePath: "local://PLAN.md" });
+		const named = localPath(target, "local://b-plan.md");
+		const newer = localPath(target, "local://a-plan.md");
+		await Bun.write(named, "# B plan\n\nThe named plan.\n");
+		await Bun.write(newer, "# A plan\n\nThe newer plan.\n");
+		const later = new Date(Date.now() + 60_000);
+		await fs.utimes(newer, later, later);
+		const recorder = recordingHandler();
+		target.setPlanProposalHandler(recorder.handler);
+
+		const result = await target.submitPlanProposal("b");
+
+		expect(recorder.plans).toEqual([
+			{ planFilePath: "local://b-plan.md", planContent: "# B plan\n\nThe named plan.\n", title: "b" },
+		]);
+		expect(result.content).toEqual([{ type: "text", text: "handled" }]);
+	});
+
+	it("throws Plan file not found and never calls the handler when no plan exists", async () => {
+		const target = createSession();
+		target.setPlanModeState({ enabled: true, planFilePath: "local://PLAN.md" });
+		const recorder = recordingHandler();
+		target.setPlanProposalHandler(recorder.handler);
+
+		await expect(target.submitPlanProposal("demo")).rejects.toThrow(/Plan file not found/);
+		expect(recorder.plans).toEqual([]);
+		expect(target.getPlanModeState()?.enabled).toBe(true);
+	});
+
+	it("aborts before resolving when the propose call's signal is already aborted", async () => {
+		const target = createSession();
+		target.setPlanModeState({ enabled: true, planFilePath: "local://PLAN.md" });
+		await Bun.write(localPath(target, "local://demo-plan.md"), "# Demo\n");
+		const recorder = recordingHandler();
+		target.setPlanProposalHandler(recorder.handler);
+		const controller = new AbortController();
+		controller.abort();
+
+		await expect(target.submitPlanProposal("demo", { signal: controller.signal })).rejects.toBeInstanceOf(
+			ToolAbortError,
+		);
+		expect(recorder.plans).toEqual([]);
+	});
+
+	it("refuses without an installed handler or an active plan mode", async () => {
+		const target = createSession();
+		target.setPlanModeState({ enabled: true, planFilePath: "local://PLAN.md" });
+		await expect(target.submitPlanProposal("demo")).rejects.toThrow(/No plan is awaiting approval/);
+
+		const recorder = recordingHandler();
+		target.setPlanProposalHandler(recorder.handler);
+		target.setPlanModeState(undefined);
+		await expect(target.submitPlanProposal("demo")).rejects.toThrow("Plan mode is not active.");
+		expect(recorder.plans).toEqual([]);
 	});
 });

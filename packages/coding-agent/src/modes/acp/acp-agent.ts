@@ -1,8 +1,7 @@
-import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, isEnoent, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -60,7 +59,7 @@ import { MCPManager } from "../../mcp/manager";
 import type { MCPServerConfig } from "../../mcp/types";
 import { loadAllExtensions } from "../../modes/components/extensions/state-manager";
 import { theme } from "@oh-my-pi/pi-tui/theme";
-import { normalizePlanTitle, type PlanApprovalDetails, resolveApprovedPlan } from "../../plan-mode/approved-plan";
+import { normalizePlanTitle, type PlanApprovalDetails, type ResolvedApprovedPlan } from "../../plan-mode/approved-plan";
 import { recommendPlanExecutionRole } from "../../plan-mode/execution-model";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
 import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
@@ -1967,7 +1966,7 @@ export class AcpAgent implements Agent {
 			// handler that consumes `xd://propose` writes from plan mode. Without
 			// this, proposal dispatch falls through and plan mode has no approval
 			// path (issue #1869).
-			session.setPlanProposalHandler?.(title => this.#handleAcpPlanProposal(session, title));
+			session.setPlanProposalHandler?.(plan => this.#handleAcpPlanProposal(session, plan));
 		} else {
 			session.setPlanProposalHandler?.(null);
 			session.setPlanModeState(undefined);
@@ -1977,8 +1976,8 @@ export class AcpAgent implements Agent {
 	/**
 	 * Plan-proposal handler installed while ACP plan mode is active. The agent
 	 * submits the finalized plan by writing its `<slug>`/title to
-	 * `xd://propose`; this handler validates the plan file, normalizes the
-	 * title, asks the ACP client to confirm (via `unstable_createElicitation`
+	 * `xd://propose`; the session resolves the plan file once
+	 * (`AgentSession.submitPlanProposal`), and this handler asks the ACP client to confirm (via `unstable_createElicitation`
 	 * when supported), and on approval keeps the chosen plan path, exits plan
 	 * mode, switches to the execution model the operator picked, and notifies
 	 * the client so the agent regains full tools.
@@ -1990,21 +1989,12 @@ export class AcpAgent implements Agent {
 	 * reads the model per LLM call, so the implementation steps after this tool
 	 * result already run on the chosen model.
 	 */
-	async #handleAcpPlanProposal(session: AgentSession, title: string): Promise<AgentToolResult<unknown>> {
+	async #handleAcpPlanProposal(session: AgentSession, plan: ResolvedApprovedPlan): Promise<AgentToolResult<unknown>> {
 		const state = session.getPlanModeState();
 		if (!state?.enabled) {
 			throw new ToolError("Plan mode is not active.");
 		}
-		const {
-			planFilePath,
-			planContent,
-			title: resolvedTitle,
-		} = await resolveApprovedPlan({
-			suppliedTitle: title,
-			statePlanFilePath: state.planFilePath,
-			readPlan: url => this.#readAcpPlanFile(session, url),
-			listPlanFiles: () => this.#listAcpLocalPlanFiles(session),
-		});
+		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
 		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
 		const details: PlanApprovalDetails = {
@@ -2105,38 +2095,6 @@ export class AcpAgent implements Agent {
 			},
 			cwd: session.sessionManager.getCwd(),
 		});
-	}
-
-	async #readAcpPlanFile(session: AgentSession, planFilePath: string): Promise<string | null> {
-		const resolvedPath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		try {
-			return await Bun.file(resolvedPath).text();
-		} catch (error) {
-			if (isEnoent(error)) {
-				return null;
-			}
-			throw error;
-		}
-	}
-
-	/** `local://` URLs of plan files in the session-local root, newest first —
-	 *  the `resolveApprovedPlan` fallback for a dropped `extra.title`. */
-	async #listAcpLocalPlanFiles(session: AgentSession): Promise<string[]> {
-		const localRoot = this.#resolveAcpPlanFilePath(session, "local://");
-		try {
-			const entries = await fs.readdir(localRoot, { withFileTypes: true });
-			const plans = await Promise.all(
-				entries
-					.filter(entry => entry.isFile() && /plan\.md$/i.test(entry.name))
-					.map(async entry => {
-						const stat = await fs.stat(path.join(localRoot, entry.name)).catch(() => null);
-						return { url: `local://${entry.name}`, mtime: stat?.mtimeMs ?? 0 };
-					}),
-			);
-			return plans.sort((a, b) => b.mtime - a.mtime).map(plan => plan.url);
-		} catch {
-			return [];
-		}
 	}
 
 	/**

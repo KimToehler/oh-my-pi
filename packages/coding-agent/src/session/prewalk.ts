@@ -3,10 +3,8 @@ import { invalidateMessageCache } from "@oh-my-pi/pi-agent-core/compaction";
 import type { Model, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { logger, prompt } from "@oh-my-pi/pi-utils";
 import type { Settings } from "../config/settings";
-import type { LocalProtocolOptions } from "../internal-urls";
-import { resolveApprovedPlan } from "../plan-mode/approved-plan";
+import type { ResolvedApprovedPlan } from "../plan-mode/approved-plan";
 import { autosaveApprovedPlan } from "../plan-mode/plan-autosave";
-import { listPlanFiles, readPlanFile } from "../plan-mode/plan-files";
 import type { PlanModeState } from "../plan-mode/state";
 import planYoloHandoffPrompt from "../prompts/system/plan-yolo-handoff.md" with { type: "text" };
 import prewalkChecklistPrompt from "../prompts/system/prewalk-checklist.md" with { type: "text" };
@@ -87,7 +85,6 @@ export interface PrewalkCoordinatorHost {
 	getPlanReferencePath(): string;
 	setPlanProposalHandler(handler: PlanProposalHandler | null): void;
 	waitForSessionMessagePersistence(message: AgentMessage): Promise<void>;
-	localProtocolOptions(): LocalProtocolOptions;
 }
 
 /** Initial state for prewalk and plan-yolo startup flows. */
@@ -405,7 +402,7 @@ export class PrewalkCoordinator {
 			enabled: previousEnabledTools.filter(name => !isMCPToolName(name)),
 			mounted: previousMountedTools.filter(name => !isMCPToolName(name)),
 		};
-		this.#host.setPlanProposalHandler(title => this.#finalizePlanYoloProposal(title));
+		this.#host.setPlanProposalHandler(plan => this.#finalizePlanYoloProposal(plan));
 	}
 
 	#scrubPlanNudge(liveMessages?: AgentMessage[], includeContinuation = false): void {
@@ -432,24 +429,11 @@ export class PrewalkCoordinator {
 		}
 	}
 
-	async #finalizePlanYoloProposal(title: string): Promise<AgentToolResult<unknown>> {
+	async #finalizePlanYoloProposal(plan: ResolvedApprovedPlan): Promise<AgentToolResult<unknown>> {
 		const planYolo = this.#planYolo;
 		const state = this.#host.getPlanModeState();
 		if (!planYolo || !state?.enabled) throw new ToolError("Plan mode is not active.");
-		const {
-			planFilePath,
-			planContent,
-			title: resolvedTitle,
-		} = await resolveApprovedPlan({
-			suppliedTitle: title,
-			statePlanFilePath: state.planFilePath,
-			readPlan: url =>
-				readPlanFile(url, {
-					localProtocolOptions: this.#host.localProtocolOptions(),
-					cwd: this.#host.sessionManager.getCwd(),
-				}),
-			listPlanFiles: () => listPlanFiles({ localProtocolOptions: this.#host.localProtocolOptions() }),
-		});
+		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		let autosavedPlan: string | null = null;
 		try {
 			autosavedPlan = await autosaveApprovedPlan({

@@ -107,7 +107,12 @@ import {
 	type McpConnectionFailure,
 	type McpConnectionStatusEvent,
 } from "../mcp/startup-events";
-import { humanizePlanTitle, type PlanApprovalDetails, resolvePlanTitle } from "../plan-mode/approved-plan";
+import {
+	humanizePlanTitle,
+	type PlanApprovalDetails,
+	planReviewResult,
+	resolvePlanTitle,
+} from "../plan-mode/approved-plan";
 import {
 	isJudgmentBatchProgress,
 	JUDGMENT_BATCH_PROGRESS_EVENT_CHANNEL,
@@ -5078,7 +5083,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.planModeEnabled = false;
 			throw error;
 		}
-		this.session.setPlanProposalHandler?.(title => this.session.preparePlanForReview(title));
+		this.session.setPlanProposalHandler?.(async plan => planReviewResult(plan));
 		if (this.session.isStreaming) {
 			await this.session.sendPlanModeContext({ deliverAs: "steer" });
 		}

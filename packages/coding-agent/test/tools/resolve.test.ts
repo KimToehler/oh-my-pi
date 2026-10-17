@@ -1,11 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+import { XdProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/xd-protocol";
 import { getThemeByName } from "@oh-my-pi/pi-tui/theme";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import {
 	dispatchResolutionDevice,
 	isPreviewResolutionToolCall,
 	isProposeToolCall,
+	type PlanProposalCall,
 	type PlanProposalHandler,
 	PROPOSE_DEVICE_PATH,
 	REJECT_DEVICE_PATH,
@@ -24,6 +27,7 @@ function createSession(
 	options: {
 		handler?: (input: unknown) => Promise<unknown>;
 		proposalHandler?: PlanProposalHandler;
+		submitPlanProposal?: ToolSession["submitPlanProposal"];
 		clearPendingInvokers?: () => void;
 	} = {},
 ): ToolSession {
@@ -35,6 +39,7 @@ function createSession(
 		settings: Settings.isolated(),
 		peekQueueInvoker: options.handler ? () => options.handler : () => undefined,
 		peekPlanProposalHandler: options.proposalHandler ? () => options.proposalHandler : () => undefined,
+		submitPlanProposal: options.submitPlanProposal,
 		clearPendingInvokers: options.clearPendingInvokers,
 	};
 }
@@ -152,23 +157,69 @@ describe("dispatchResolutionDevice", () => {
 		expect(writeDeviceDispatch("write", { details: { xdev } })?.tool).toBe(RESOLVE_DEVICE_NAME);
 	});
 
-	it("routes propose to the plan proposal handler", async () => {
-		let proposedTitle = "";
-		const proposalHandler: PlanProposalHandler = async (title: string) => {
-			proposedTitle = title;
-			return {
-				content: [{ type: "text", text: "Plan ready for approval." }],
-				details: { planFilePath: "local://demo-plan.md", title, planExists: true },
-			};
-		};
-		const { result, xdev } = await dispatchResolutionDevice(
-			createSession({ proposalHandler }),
-			PROPOSE_DEVICE_NAME,
-			"demo",
-		);
-		expect(proposedTitle).toBe("demo");
+	it("routes propose through submitPlanProposal with the call identity and the dispatching session", async () => {
+		const submissions: Array<{ title: string; call: PlanProposalCall }> = [];
+		const session = createSession({
+			submitPlanProposal: async (title, call) => {
+				submissions.push({ title, call });
+				return {
+					content: [{ type: "text", text: "Plan ready for approval." }],
+					details: { planFilePath: "local://demo-plan.md", title, planExists: true },
+				};
+			},
+		});
+		const controller = new AbortController();
+
+		const { result, xdev } = await dispatchResolutionDevice(session, PROPOSE_DEVICE_NAME, "  demo\n", {
+			toolCallId: "call-propose-1",
+			signal: controller.signal,
+		});
+
+		expect(submissions).toHaveLength(1);
+		expect(submissions[0]?.title).toBe("demo");
+		expect(submissions[0]?.call.toolCallId).toBe("call-propose-1");
+		expect(submissions[0]?.call.signal).toBe(controller.signal);
+		expect(submissions[0]?.call.toolSession).toBe(session);
 		expect(getText(result)).toContain("Plan ready for approval.");
-		expect(xdev).toMatchObject({ tool: PROPOSE_DEVICE_NAME, mode: "execute", args: { title: "demo" } });
+		expect(xdev).toEqual({
+			tool: PROPOSE_DEVICE_NAME,
+			mode: "execute",
+			args: { title: "demo" },
+			inner: { planFilePath: "local://demo-plan.md", title: "demo", planExists: true },
+		});
+	});
+
+	it("errors on propose when the session cannot submit a plan, even with a handler installed", async () => {
+		const proposalHandler: PlanProposalHandler = async () => ({ content: [] });
+		for (const session of [createSession(), createSession({ proposalHandler })]) {
+			await expect(dispatchResolutionDevice(session, PROPOSE_DEVICE_NAME, "demo")).rejects.toThrow(
+				`No plan is awaiting approval — ${PROPOSE_DEVICE_PATH} only accepts a plan title while plan mode is active.`,
+			);
+		}
+	});
+});
+
+describe("XdProtocolHandler propose write", () => {
+	it("forwards the write tool call id and abort signal to submitPlanProposal", async () => {
+		const calls: PlanProposalCall[] = [];
+		const session = createSession({
+			submitPlanProposal: async (_title, call) => {
+				calls.push(call);
+				return { content: [{ type: "text", text: "ok" }] };
+			},
+		});
+		const controller = new AbortController();
+
+		await new XdProtocolHandler().write(parseInternalUrl(PROPOSE_DEVICE_PATH), "demo", {
+			session,
+			signal: controller.signal,
+			toolCall: { id: "write-call-7" },
+		});
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.toolCallId).toBe("write-call-7");
+		expect(calls[0]?.signal).toBe(controller.signal);
+		expect(calls[0]?.toolSession).toBe(session);
 	});
 });
 

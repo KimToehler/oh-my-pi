@@ -179,7 +179,7 @@ import { containsMagicKeyword } from "@oh-my-pi/pi-tui/prompt/magic-keywords";
 import { theme } from "@oh-my-pi/pi-tui/theme";
 import { parseTurnBudget } from "../modes/turn-budget";
 import { computeNonMessageTokens } from "@oh-my-pi/pi-tui/status-line/context-usage";
-import { type PlanApprovalDetails, resolveApprovedPlan } from "../plan-mode/approved-plan";
+import { resolveApprovedPlan } from "../plan-mode/approved-plan";
 import { listPlanFiles, readPlanFile, resolvePlanFilePath } from "../plan-mode/plan-files";
 import { loadOverallPlanReference } from "../plan-mode/plan-handoff";
 import type { PlanModeState } from "../plan-mode/state";
@@ -237,6 +237,8 @@ import {
 	buildResolveReminderMessage,
 	isPreviewResolutionToolCall,
 	isProposeToolCall,
+	NO_PLAN_AWAITING_APPROVAL,
+	type PlanProposalCall,
 	type PlanProposalHandler,
 	writeDeviceDispatch,
 } from "../tools/resolve";
@@ -244,6 +246,7 @@ import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import { supportsExternalThinking } from "../tools/think";
 import type { TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { throwIfAborted } from "../tools/tool-errors";
 import type { WorkPoolYieldItem } from "../task/workpool-yield";
 import type { AgentDefinition } from "../task/types";
 import type { ModelMention } from "@oh-my-pi/pi-tui/prompt/model-mention-syntax";
@@ -1620,22 +1623,24 @@ export class AgentSession implements SettingsScope {
 		return this.#prewalk.restart(source, sourceThinkingLevel, target, targetThinkingLevel);
 	}
 
-	/** Validate the active plan artifact and shape an `xd://propose` result for review-mode hosts. */
-	async preparePlanForReview(title: string): Promise<AgentToolResult<PlanApprovalDetails>> {
+	/**
+	 * Single convergence point of every `xd://propose` dispatch: resolve the
+	 * proposed plan exactly once, then hand the resolved plan to the handler
+	 * installed by the active plan-mode host (interactive, ACP, plan-yolo).
+	 */
+	async submitPlanProposal(title: string, call: PlanProposalCall = {}): Promise<AgentToolResult<unknown>> {
+		throwIfAborted(call.signal);
+		const handler = this.#planProposalHandler;
+		if (!handler) throw new ToolError(NO_PLAN_AWAITING_APPROVAL);
 		const state = this.getPlanModeState();
-		if (!state?.enabled) {
-			throw new ToolError("Plan mode is not active.");
-		}
-		const { planFilePath, title: resolvedTitle } = await resolveApprovedPlan({
+		if (!state?.enabled) throw new ToolError("Plan mode is not active.");
+		const plan = await resolveApprovedPlan({
 			suppliedTitle: title,
 			statePlanFilePath: state.planFilePath,
 			readPlan: url => this.#readPlanFile(url),
 			listPlanFiles: () => this.#listPlanFiles(),
 		});
-		return {
-			content: [{ type: "text", text: "Plan ready for review." }],
-			details: { planFilePath, title: resolvedTitle, planExists: true },
-		};
+		return handler(plan);
 	}
 
 	async #readPlanFile(planFilePath: string): Promise<string | null> {
@@ -1745,7 +1750,6 @@ export class AgentSession implements SettingsScope {
 			getPlanReferencePath: () => this.getPlanReferencePath(),
 			setPlanProposalHandler: handler => this.setPlanProposalHandler(handler),
 			waitForSessionMessagePersistence: message => this.#waitForSessionMessagePersistence(message),
-			localProtocolOptions: () => this.#localProtocolOptions(),
 		};
 		this.#prewalk = new PrewalkCoordinator(prewalkHost, {
 			prewalk: config.prewalk,
