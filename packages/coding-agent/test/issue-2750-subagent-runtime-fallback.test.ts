@@ -45,6 +45,7 @@ function model(provider: string, id: string): Model<Api> {
 function createYieldingSession(
 	fallback: "served" | "unproven" | "none" = "served",
 	beforeYield?: () => Promise<void>,
+	assistantMessages: AssistantMessage[] = [],
 ): AgentSession {
 	const listeners: Array<(event: { type: string; [key: string]: unknown }) => void> = [];
 	const session = {
@@ -80,6 +81,9 @@ function createYieldingSession(
 					session.servingModel = { selector: "fallback/working-model", isFallback: true };
 					emit({ type: "retry_fallback_succeeded", model: "fallback/working-model", role: "subagent:issue-2750" });
 				}
+			}
+			for (const message of assistantMessages) {
+				emit({ type: "message_end", message });
 			}
 			emit({
 				type: "tool_execution_end",
@@ -305,6 +309,93 @@ describe("subagent runtime model resolution", () => {
 			enableLsp: false,
 		});
 		expect(persisted).toEqual({ primary: "primary/bad-runtime-model", chain: ["fallback/working-model"] });
+	});
+
+	it("reports the distinct models that answered a run, skipping turns that produced no output", async () => {
+		// Failure mode: consumers cannot tell which model actually answered a
+		// subagent run; a result reporting only the final serving model hides
+		// earlier successful turns, and errored turns leak in as answers.
+		const primary = model("primary", "bad-runtime-model");
+		const answered = (id: string, stopReason: AssistantMessage["stopReason"]): AssistantMessage =>
+			({
+				role: "assistant",
+				provider: "primary",
+				model: id,
+				content: [{ type: "text", text: `answer from ${id}` }],
+				stopReason,
+			}) as AssistantMessage;
+		vi.spyOn(sdkModule, "createAgentSession").mockImplementation(async () => {
+			return {
+				session: createYieldingSession("none", undefined, [
+					answered("bad-runtime-model", "stop"),
+					answered("bad-runtime-model", "stop"),
+					answered("bad-runtime-model", "error"),
+				]),
+				extensionsResult: {},
+				setToolUIContext: () => {},
+			} as never;
+		});
+
+		const agent: AgentDefinition = { name: "task", description: "test", systemPrompt: "test", source: "bundled" };
+		const settings = Settings.isolated({});
+		settings.setModelRole("default", "primary/bad-runtime-model");
+		const result = await runSubprocess({
+			cwd: "/tmp",
+			agent,
+			task: "work",
+			index: 0,
+			id: "answering-models",
+			modelOverride: ["primary/bad-runtime-model"],
+			settings,
+			modelRegistry: {
+				refresh: async () => {},
+				getAvailable: () => [primary],
+				getApiKey: async () => "test-key",
+			} as never,
+			enableLsp: false,
+		});
+
+		expect(result.answeringModels).toEqual([{ provider: "primary", model: "bad-runtime-model" }]);
+	});
+
+	it("leaves answeringModels unset when no assistant turn produced output", async () => {
+		const primary = model("primary", "bad-runtime-model");
+		vi.spyOn(sdkModule, "createAgentSession").mockImplementation(async () => {
+			return {
+				session: createYieldingSession("none", undefined, [
+					{
+						role: "assistant",
+						provider: "primary",
+						model: "bad-runtime-model",
+						content: [],
+						stopReason: "error",
+					} as unknown as AssistantMessage,
+				]),
+				extensionsResult: {},
+				setToolUIContext: () => {},
+			} as never;
+		});
+
+		const agent: AgentDefinition = { name: "task", description: "test", systemPrompt: "test", source: "bundled" };
+		const settings = Settings.isolated({});
+		settings.setModelRole("default", "primary/bad-runtime-model");
+		const result = await runSubprocess({
+			cwd: "/tmp",
+			agent,
+			task: "work",
+			index: 0,
+			id: "no-answering-models",
+			modelOverride: ["primary/bad-runtime-model"],
+			settings,
+			modelRegistry: {
+				refresh: async () => {},
+				getAvailable: () => [primary],
+				getApiKey: async () => "test-key",
+			} as never,
+			enableLsp: false,
+		});
+
+		expect(result.answeringModels).toBeUndefined();
 	});
 
 	it("does not attribute the run to a fallback that never served a turn", async () => {

@@ -8,7 +8,7 @@ import * as fs from "node:fs/promises";
 import path from "node:path";
 import type { AgentEvent, AgentIdentity, AgentMessage, AgentTelemetryConfig } from "@oh-my-pi/pi-agent-core";
 import { AgentBusyError, EventLoopKeepalive, recordHandoff, resolveTelemetry } from "@oh-my-pi/pi-agent-core";
-import type { Api, Model, ServiceTierByFamily, Usage } from "@oh-my-pi/pi-ai";
+import type { Api, AssistantMessage, Model, ServiceTierByFamily, Usage } from "@oh-my-pi/pi-ai";
 import { isRecord, logger, popLoopPhase, prompt, pushLoopPhase, sanitizeText, untilAborted } from "@oh-my-pi/pi-utils";
 import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobError, AsyncJobManager, type AsyncJobRunResult } from "../async";
 import type { Rule } from "../capability/rule";
@@ -76,7 +76,7 @@ import {
 import { type ArtifactManager, writeArtifact } from "../session/artifacts";
 import { ASYNC_RESULT_MESSAGE_TYPE } from "../session/async-job-delivery";
 import type { AuthStorage } from "../session/auth-storage";
-import { SKILL_PROMPT_MESSAGE_TYPE } from "../session/messages";
+import { assistantTurnProducedOutput, SKILL_PROMPT_MESSAGE_TYPE } from "../session/messages";
 import { hasConversationalHistory, SessionManager } from "../session/session-manager";
 import { truncateTail } from "@oh-my-pi/pi-tui/tools/streaming-output";
 import {
@@ -1295,6 +1295,7 @@ interface SubagentRunMonitor {
 	 * further work started. Source for `yield`'s data-less finalize.
 	 */
 	lastReportTurnText(): string | undefined;
+	answeringModels(): SingleResult["answeringModels"];
 	/** Final raw output: end-of-run assistant text when available, else accumulated chunks. */
 	rawOutput(): string;
 	scheduleProgress(flush?: boolean): void;
@@ -1408,6 +1409,8 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	// itself is usually text-less. Turns that started more work are excluded on
 	// purpose: mid-run narration must never surface as a final result.
 	let lastReportTurnText: string | undefined;
+	const answeringModelKeys = new Set<string>();
+	const answeringModels: NonNullable<SingleResult["answeringModels"]> = [];
 	let activeSessionAbortPromise: Promise<void> | undefined;
 
 	const abortActiveSession = (): Promise<void> => {
@@ -2025,6 +2028,18 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 					progress.requests += 1;
 					const eventContent = isRecord(event) && "content" in event ? event.content : undefined;
 					const messageContent = getMessageContent(event.message) || eventContent;
+					const answered = event.message as AssistantMessage | undefined;
+					if (answered && assistantTurnProducedOutput(answered)) {
+						const key = `${answered.provider}\u0000${answered.model}\u0000${answered.upstreamModel ?? ""}`;
+						if (!answeringModelKeys.has(key)) {
+							answeringModelKeys.add(key);
+							answeringModels.push({
+								provider: answered.provider,
+								model: answered.model,
+								...(answered.upstreamModel ? { upstreamModel: answered.upstreamModel } : {}),
+							});
+						}
+					}
 					if (messageContent && Array.isArray(messageContent)) {
 						const turnText: string[] = [];
 						let startedMoreWork = false;
@@ -2311,6 +2326,7 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 		captureSalvage,
 		lastAssistantSalvageText: () => lastAssistantSalvageText,
 		lastReportTurnText: () => lastReportTurnText,
+		answeringModels: () => (answeringModels.length > 0 ? [...answeringModels] : undefined),
 		rawOutput: () => (finalOutputChunks.length > 0 ? finalOutputChunks.join("") : outputChunks.join("")),
 		scheduleProgress,
 		finish: () => {
@@ -2947,6 +2963,7 @@ async function finalizeRunResult(args: FinalizeRunArgs): Promise<SingleResult> {
 		resolvedThinkingLevel: progress.resolvedThinkingLevel,
 		resolvedModelIsFallback: progress.resolvedModelIsFallback,
 		resolvedModelRoute: progress.resolvedModelRoute,
+		answeringModels: monitor.answeringModels(),
 		advisor: progress.advisor,
 		error: exitCode !== 0 && stderr ? stderr : undefined,
 		aborted: wasAborted,
