@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
@@ -164,6 +165,40 @@ describe("R77 staged tree hardening", () => {
 		const dest = path.join(tmp("evo-stage-dest-"), "source");
 		await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [SECRET] });
 		expect(fs.existsSync(path.join(dest, "ok.env"))).toBe(true);
+	});
+
+	it("scans the bytes it copies: a file turning credential-bearing after enumeration never reaches the tree", async () => {
+		const root = await makeRepo();
+		write(root, "late.txt", "clean\n");
+		const dest = path.join(tmp("evo-stage-dest-"), "source");
+		// Swap the file to credential-bearing content right after its first read. A stager that scans in one pass
+		// and copies in a second reads the clean bytes, then copies the swapped ones; only a scan of the exact bytes
+		// being written can refuse it.
+		const realReadFile = fsp.readFile;
+		let reads = 0;
+		const spy = spyOn(fsp, "readFile").mockImplementation((async (
+			file: Parameters<typeof fsp.readFile>[0],
+			...rest: unknown[]
+		) => {
+			const result = await (realReadFile as (...args: unknown[]) => Promise<unknown>)(file, ...rest);
+			if (String(file).endsWith(`${path.sep}late.txt`) && !String(file).startsWith(dest) && ++reads === 1) {
+				fs.writeFileSync(path.join(root, "late.txt"), `KEY=${SECRET}\n`);
+			}
+			return result;
+		}) as typeof fsp.readFile);
+		let staged = false;
+		try {
+			await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [SECRET] });
+			staged = true;
+		} catch (err) {
+			expect((err as Error).message).not.toContain(SECRET);
+		} finally {
+			spy.mockRestore();
+		}
+		expect(reads).toBeGreaterThanOrEqual(1);
+		// Either outcome is safe (refused, or staged the scanned clean bytes); the secret must never land in the tree.
+		if (staged) expect(fs.readFileSync(path.join(dest, "late.txt"), "utf8")).toBe("clean\n");
+		else expect(fs.existsSync(dest)).toBe(false);
 	});
 
 	it("reports a file added to the staged tree, a chmod, and a non-empty mount dir", async () => {

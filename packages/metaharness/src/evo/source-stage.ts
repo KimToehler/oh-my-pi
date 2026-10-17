@@ -54,52 +54,66 @@ async function candidatePaths(root: string): Promise<{ rels: string[]; addons: s
 	return { rels: [...new Set([...tracked, ...untracked, ...addons])].sort(), addons };
 }
 
+/** Throw 422 when a candidate's path, file body or symlink target carries a value. Never echoes the value. */
+function assertCandidateClean(rel: string, body: Uint8Array | string | null, values: readonly string[]): void {
+	if (values.length === 0) return;
+	if (textCarriesSecret(rel, values) || rel.split("/").some(part => textCarriesSecret(part, values))) {
+		throw new EvoHttpError(
+			422,
+			`source path ${redactSecrets(rel, values)} embeds a host credential value; rename it (the value must not appear in a filename)`,
+		);
+	}
+	const text = body === null ? null : typeof body === "string" ? body : new TextDecoder().decode(body);
+	if (text !== null && textCarriesSecret(text, values)) {
+		throw new EvoHttpError(
+			422,
+			`source file ${rel} embeds a host credential value; remove it or add the file to .gitignore before launching`,
+		);
+	}
+}
+
+/** One read of a candidate: what is scanned is exactly what `stageOne` writes. */
+async function readCandidate(
+	root: string,
+	rel: string,
+): Promise<{ kind: "link"; target: string } | { kind: "file"; bytes: Uint8Array; mode: number } | null> {
+	const src = path.join(root, rel);
+	const stat = await fs.lstat(src).catch(() => null);
+	if (!stat) return null; // tracked file deleted in the worktree: absent from the staged tree too
+	if (stat.isSymbolicLink()) return { kind: "link", target: await fs.readlink(src) };
+	if (!stat.isFile()) return null; // submodule gitlinks and other non-files carry no bytes (and no empty parent dirs)
+	return { kind: "file", bytes: await fs.readFile(src), mode: stat.mode };
+}
+
 /**
- * Throw 422 when any candidate path component, file body or symlink target carries a host credential value.
- * Messages name the file only (path redacted), never the value. Call before any byte is staged or persisted.
+ * Manager-side preflight: throw 422 when any candidate path component, file body or symlink target carries a host
+ * credential value. `stageSource` repeats the check on the exact bytes it writes, so this is early refusal, not the
+ * boundary.
  */
 export async function assertSourceClean(root: string, secrets: readonly string[]): Promise<void> {
 	const values = secrets.filter(value => value.length > 0);
 	if (values.length === 0) return;
 	const real = await fs.realpath(root);
-	const decoder = new TextDecoder();
 	for (const rel of (await candidatePaths(real)).rels) {
-		if (textCarriesSecret(rel, values) || rel.split("/").some(part => textCarriesSecret(part, values))) {
-			throw new EvoHttpError(
-				422,
-				`source path ${redactSecrets(rel, values)} embeds a host credential value; rename it (the value must not appear in a filename)`,
-			);
-		}
-		const stat = await fs.lstat(path.join(real, rel)).catch(() => null);
-		let body: string | null = null;
-		if (stat?.isSymbolicLink()) body = await fs.readlink(path.join(real, rel));
-		else if (stat?.isFile()) body = decoder.decode(await fs.readFile(path.join(real, rel)));
-		if (body !== null && textCarriesSecret(body, values)) {
-			throw new EvoHttpError(
-				422,
-				`source file ${rel} embeds a host credential value; remove it or add the file to .gitignore before launching`,
-			);
-		}
+		const read = await readCandidate(real, rel);
+		assertCandidateClean(rel, read === null ? null : read.kind === "link" ? read.target : read.bytes, values);
 	}
 }
 
-async function stageOne(root: string, dest: string, rel: string): Promise<string | null> {
-	const src = path.join(root, rel);
-	const stat = await fs.lstat(src).catch(() => null);
-	if (!stat) return null; // tracked file deleted in the worktree: absent from the staged tree too
+/** Stage one candidate from a single read, scanned before anything is created for it. */
+async function stageOne(root: string, dest: string, rel: string, values: readonly string[]): Promise<string | null> {
+	const read = await readCandidate(root, rel);
+	assertCandidateClean(rel, read === null ? null : read.kind === "link" ? read.target : read.bytes, values);
+	if (read === null) return null;
 	const out = path.join(dest, rel);
-	if (stat.isSymbolicLink()) {
-		const target = await fs.readlink(src);
-		await fs.mkdir(path.dirname(out), { recursive: true });
-		await fs.symlink(target, out);
-		return `link:${target}`;
-	}
-	if (!stat.isFile()) return null; // submodule gitlinks and other non-files carry no bytes (and no empty parent dirs)
-	const bytes = await fs.readFile(src);
 	await fs.mkdir(path.dirname(out), { recursive: true });
-	await Bun.write(out, bytes);
-	await fs.chmod(out, stat.mode & 0o111 ? 0o555 : 0o444);
-	return fileDigest(bytes, stat.mode);
+	if (read.kind === "link") {
+		await fs.symlink(read.target, out);
+		return `link:${read.target}`;
+	}
+	await Bun.write(out, read.bytes);
+	await fs.chmod(out, read.mode & 0o111 ? 0o555 : 0o444);
+	return fileDigest(read.bytes, read.mode);
 }
 
 export interface StageOptions {
@@ -119,13 +133,13 @@ export async function stageSource(opts: StageOptions): Promise<StagedSource> {
 	const root = await fs.realpath(opts.root);
 	const { rels, addons } = await candidatePaths(root);
 	assertContainerAddon(addons, opts.arch, root);
-	await assertSourceClean(root, opts.secrets);
+	const values = opts.secrets.filter(value => value.length > 0);
 	await removeStagedSource(opts.dest);
 	try {
 		await fs.mkdir(opts.dest, { recursive: true });
 		const manifest: Record<string, string> = {};
 		for (const rel of rels) {
-			const digest = await stageOne(root, opts.dest, rel);
+			const digest = await stageOne(root, opts.dest, rel, values);
 			if (digest !== null) manifest[rel] = digest;
 		}
 		for (const rel of opts.mountDirs) await fs.mkdir(path.join(opts.dest, rel), { recursive: true });
