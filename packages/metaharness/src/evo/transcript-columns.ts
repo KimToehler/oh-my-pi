@@ -1,7 +1,7 @@
 /** SQLite column mapping for per-trial {@link TranscriptMetrics}; every column is nullable. */
 import type { TranscriptMetrics } from "./transcript";
 
-export const TRANSCRIPT_COLUMNS: ReadonlyArray<readonly [name: string, sqlType: "INTEGER" | "TEXT"]> = [
+export const TRANSCRIPT_COLUMNS: ReadonlyArray<readonly [name: string, sqlType: "INTEGER" | "REAL" | "TEXT"]> = [
 	["llm_calls", "INTEGER"],
 	["llm_errors", "INTEGER"],
 	["turns", "INTEGER"],
@@ -9,6 +9,7 @@ export const TRANSCRIPT_COLUMNS: ReadonlyArray<readonly [name: string, sqlType: 
 	["output_tokens", "INTEGER"],
 	["cache_read_tokens", "INTEGER"],
 	["cache_write_tokens", "INTEGER"],
+	["transcript_cost_usd", "REAL"],
 	["tool_calls", "INTEGER"],
 	["tool_errors", "INTEGER"],
 	["compactions", "INTEGER"],
@@ -34,6 +35,7 @@ export function transcriptParams(t: TranscriptMetrics | null | undefined): Array
 		t.outputTokens,
 		t.cacheReadTokens,
 		t.cacheWriteTokens,
+		t.costUsd,
 		t.toolCalls,
 		t.toolErrors,
 		t.compactions,
@@ -67,6 +69,10 @@ export function rowToTranscript(row: Record<string, unknown>): TranscriptMetrics
 		outputTokens: Number(row.output_tokens),
 		cacheReadTokens: Number(row.cache_read_tokens),
 		cacheWriteTokens: Number(row.cache_write_tokens),
+		costUsd:
+			row.transcript_cost_usd === null || row.transcript_cost_usd === undefined
+				? null
+				: Number(row.transcript_cost_usd),
 		toolCalls: Number(row.tool_calls),
 		toolErrors: Number(row.tool_errors),
 		compactions: Number(row.compactions),

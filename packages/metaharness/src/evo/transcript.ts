@@ -6,7 +6,7 @@
  */
 import * as fs from "node:fs";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
-import { foldTaskSnapshots, recordTaskDetails, type TaskSnapshot } from "./transcript-task";
+import { addCost, foldTaskSnapshots, recordTaskDetails, type TaskSnapshot, usageCost } from "./transcript-task";
 
 /** Per-trial metrics derived from one transcript. */
 export interface TranscriptMetrics {
@@ -19,6 +19,11 @@ export interface TranscriptMetrics {
 	readonly outputTokens: number;
 	readonly cacheReadTokens: number;
 	readonly cacheWriteTokens: number;
+	/**
+	 * Main-agent `usage.cost.total` plus delegated task usage cost, same scope as the token counts.
+	 * Null when no usage record carried a cost; consumers must not treat null as 0.
+	 */
+	readonly costUsd: number | null;
 	readonly toolCalls: number;
 	readonly toolErrors: number;
 	readonly compactions: number;
@@ -55,6 +60,7 @@ interface Tally {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	costUsd: number | null;
 	toolCalls: number;
 	toolErrors: number;
 	compactions: number;
@@ -77,6 +83,7 @@ function addUsage(tally: Tally, usage: Record<string, unknown>): void {
 	tally.outputTokens += num(usage.output);
 	tally.cacheReadTokens += num(usage.cacheRead);
 	tally.cacheWriteTokens += num(usage.cacheWrite);
+	tally.costUsd = addCost(tally.costUsd, usageCost(usage));
 }
 
 function readSignalPath(tally: Tally, pathArg: unknown): void {
@@ -192,6 +199,7 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		outputTokens: 0,
 		cacheReadTokens: 0,
 		cacheWriteTokens: 0,
+		costUsd: null,
 		toolCalls: 0,
 		toolErrors: 0,
 		compactions: 0,
@@ -248,6 +256,7 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		outputTokens: tally.outputTokens,
 		cacheReadTokens: tally.cacheReadTokens,
 		cacheWriteTokens: tally.cacheWriteTokens,
+		costUsd: tally.costUsd,
 		toolCalls: tally.toolCalls,
 		toolErrors: tally.toolErrors,
 		compactions: tally.compactions,

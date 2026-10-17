@@ -47,7 +47,8 @@ export interface ReflectionBundle {
 		creditedDelta: number | null;
 	};
 	cost: {
-		meanCostUsd: number;
+		/** Transcript cost (main + delegated); null when no trial carried one. */
+		meanCostUsd: number | null;
 		meanLlmCalls: number | null;
 		meanOutputTokens: number | null;
 		startFailureRate: number | null;

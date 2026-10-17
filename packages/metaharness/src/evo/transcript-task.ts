@@ -12,6 +12,8 @@ export interface TaskSnapshot {
 	results: number;
 	requests: number;
 	usage: UsageTuple;
+	/** `usage.cost.total` of the same record(s) as `usage`; null when none carried a cost. */
+	cost: number | null;
 }
 
 /** Totals a snapshot contributes to a transcript tally. */
@@ -21,6 +23,8 @@ export interface TaskTotals {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	/** Null until some usage record carried a cost; null stays null rather than becoming 0. */
+	costUsd: number | null;
 }
 
 function num(value: unknown): number {
@@ -31,15 +35,30 @@ function usageTuple(usage: Record<string, unknown>): UsageTuple {
 	return [num(usage.input), num(usage.output), num(usage.cacheRead), num(usage.cacheWrite)];
 }
 
+/** `usage.cost.total` when the record states one; null otherwise (absent cost is unknown, not zero). */
+export function usageCost(usage: Record<string, unknown>): number | null {
+	const cost = usage.cost;
+	if (!isRecord(cost)) return null;
+	return typeof cost.total === "number" && Number.isFinite(cost.total) ? cost.total : null;
+}
+
+export function addCost(total: number | null, cost: number | null): number | null {
+	return cost === null ? total : (total ?? 0) + cost;
+}
+
 function snapshotOf(details: Record<string, unknown>): TaskSnapshot {
 	const results = Array.isArray(details.results) ? details.results.filter(isRecord) : [];
-	const snap: TaskSnapshot = { results: results.length, requests: 0, usage: [0, 0, 0, 0] };
+	const snap: TaskSnapshot = { results: results.length, requests: 0, usage: [0, 0, 0, 0], cost: null };
 	for (const child of results) snap.requests += num(child.requests);
 	// Aggregate usage already includes every child; summing both would double count.
-	const parts = isRecord(details.usage)
-		? [usageTuple(details.usage)]
-		: results.flatMap(child => (isRecord(child.usage) ? [usageTuple(child.usage)] : []));
-	for (const part of parts) for (let i = 0; i < 4; i++) snap.usage[i] += part[i];
+	const records = isRecord(details.usage)
+		? [details.usage]
+		: results.flatMap(child => (isRecord(child.usage) ? [child.usage] : []));
+	for (const record of records) {
+		const part = usageTuple(record);
+		for (let i = 0; i < 4; i++) snap.usage[i] += part[i];
+		snap.cost = addCost(snap.cost, usageCost(record));
+	}
 	return snap;
 }
 
@@ -76,5 +95,6 @@ export function foldTaskSnapshots(tally: TaskTotals, snapshots: ReadonlyMap<stri
 		tally.outputTokens += snap.usage[1];
 		tally.cacheReadTokens += snap.usage[2];
 		tally.cacheWriteTokens += snap.usage[3];
+		tally.costUsd = addCost(tally.costUsd, snap.cost);
 	}
 }

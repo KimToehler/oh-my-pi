@@ -29,6 +29,13 @@ export type Ineligibility =
 	  }
 	| { reason: "no_variance"; pairedTasks: number };
 
+/** Phases that make a trial non-decisionable, in the order refusals are reported. */
+export const NON_MODEL_PHASES = [
+	"variant_startup_failure",
+	"executor_infra_failure",
+	"unknown",
+] as const satisfies ReadonlyArray<Exclude<FailurePhase, "model_outcome">>;
+
 /** Two-sided 95% Student-t critical values, df 1..30. */
 const T_95 = [
 	12.7062, 4.3027, 3.1824, 2.7764, 2.5706, 2.4469, 2.3646, 2.306, 2.2622, 2.2281, 2.201, 2.1788, 2.1604, 2.1448,

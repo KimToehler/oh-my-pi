@@ -253,6 +253,40 @@ describe("evo REST", () => {
 		expect(rootDetail.proposals.map(p => p.outcome)).toEqual(["applied", "applied", "noop"]);
 	});
 
+	it("exposes held-out evaluation counts per variant and per heldout suite; search runs do not count (R76)", async () => {
+		const h = harness();
+		const { rootId, childId } = await seed(h);
+		const heldout = { ...SUITE, id: "held-1", split: "heldout" };
+		expect((await h.post("/api/evo/suites", heldout)).status).toBe(201);
+		const launch = (jobName: string, variantId: string, suiteId: string) =>
+			h.manager.store.registerLaunch({
+				benchmark: "harbor",
+				jobName,
+				dataset: SUITE.dataset,
+				agent: "omp",
+				models: [SUITE.model],
+				pid: 999999999,
+				variantId,
+				suiteId,
+				config: {},
+			});
+		launch("j-search", rootId, "search-1");
+		const detail = async (id: string) =>
+			(await h.json<{ heldoutEvaluations: number }>(await fetch(`${h.base}/api/evo/variants/${id}`)))
+				.heldoutEvaluations;
+		expect(await detail(rootId)).toBe(0);
+		launch("j-held-1", rootId, "held-1");
+		launch("j-held-2", rootId, "held-1");
+		launch("j-held-child", childId, "held-1");
+		expect(await detail(rootId)).toBe(2);
+		expect(await detail(childId)).toBe(1);
+		const suites = await h.json<Array<{ manifest: { id: string }; evaluations?: number }>>(
+			await fetch(`${h.base}/api/evo/suites`),
+		);
+		expect(suites.find(s => s.manifest.id === "held-1")?.evaluations).toBe(3);
+		expect(suites.find(s => s.manifest.id === "search-1")?.evaluations).toBeUndefined();
+	});
+
 	it("rejects invalid boundaries with exact errors and status codes", async () => {
 		const h = harness();
 		const { rootId } = await seed(h);

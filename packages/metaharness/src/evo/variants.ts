@@ -12,7 +12,7 @@ import { type ConfigFile, collectConfig, diffConfigs, hashConfig, unlockTree } f
 import { withDirLock } from "./dir-lock";
 import type { EvoStore } from "./evo-store";
 import { publishSnapshot } from "./snapshot-publish";
-import { type SourceIdentity, sourceIdentity } from "./source-identity";
+import { type SourceIdentity, isTreeClean, sourceIdentity } from "./source-identity";
 import type { ProposalRow, VariantRow } from "./variant-types";
 import { assertWorktreeOwned, evoRoot, sourceOf, variantConfigDir, variantId, variantsRoot } from "./variant-paths";
 import type { VariantRequest } from "./variant-request";
@@ -112,7 +112,7 @@ export class VariantRegistry {
 		});
 		assertWorktreeOwned(this.#jobsDir, worktree, "source worktree");
 		const source = await sourceIdentity(worktree);
-		if (source.dirtyHash) throw new Error(`source worktree must be clean: ${worktree}`);
+		if (!(await isTreeClean(worktree))) throw new Error(`source worktree must be clean: ${worktree}`);
 		let sourceChanged: string[] = [];
 		let sourcePatch = "";
 		if (parent && parent.sourceRef !== source.ref) {
@@ -154,6 +154,16 @@ export class VariantRegistry {
 		// Re-read inside the lock: a concurrent winner may have published while we waited.
 		const existing = this.#store.getVariant(id);
 		if (existing) {
+			// Same bytes under a different signal gate must not silently keep the old gate: signals are not in the hash.
+			const requested = [...new Set(req.expectedSignals)].sort();
+			const stored = [...new Set(existing.expectedSignals)].sort();
+			if (requested.length !== stored.length || requested.some((signal, i) => signal !== stored[i])) {
+				throw new EvoHttpError(
+					409,
+					`variant ${id} already exists with expectedSignals [${stored.join(", ")}]; request has [${requested.join(", ")}]. Signals are not part of the variant hash, so identical bytes cannot take a different signal gate`,
+					{ existingVariantId: id, existingExpectedSignals: stored, requestedExpectedSignals: requested },
+				);
+			}
 			const reason = existing.id === parent?.id ? "identical to parent" : "identical to an existing variant";
 			const proposal = this.#propose(req, "noop", `${reason} (${id})`, existing.id);
 			return { variant: existing, proposal, created: false };

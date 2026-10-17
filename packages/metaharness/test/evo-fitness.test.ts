@@ -16,6 +16,7 @@ function metrics(over: Partial<TranscriptMetrics> = {}): TranscriptMetrics {
 		outputTokens: 10,
 		cacheReadTokens: 0,
 		cacheWriteTokens: 0,
+		costUsd: null,
 		toolCalls: 3,
 		toolErrors: 0,
 		compactions: 0,
@@ -29,7 +30,13 @@ function metrics(over: Partial<TranscriptMetrics> = {}): TranscriptMetrics {
 	};
 }
 
+/** Cost now comes from the transcript (main + delegated), so a trial's `costUsd` is mirrored into it. */
 function trial(task: string, attempt: number, over: Partial<TraceRow> = {}): TraceRow {
+	const row = rawTrial(task, attempt, over);
+	return row.transcript ? { ...row, transcript: { ...row.transcript, costUsd: row.costUsd } } : row;
+}
+
+function rawTrial(task: string, attempt: number, over: Partial<TraceRow> = {}): TraceRow {
 	return {
 		jobName: "job",
 		name: `${task}__${attempt}`,
@@ -147,6 +154,7 @@ describe("fitness", () => {
 				jobName: "job",
 				suiteTasks: ["a", "b"],
 				attempts: 2,
+				policy: POLICY,
 				trials: Object.entries(counts).flatMap(([task, n]) =>
 					Array.from({ length: n }, (_, i) => trial(task, i + 1)),
 				),
@@ -427,5 +435,109 @@ describe("reflection bundle", () => {
 		expect(bundle.signals).toMatchObject({ expected: ["mark:x"], satisfied: false, missing: ["mark:x"] });
 		expect(bundle.signals.creditedDelta).toBe(comparison.creditedDelta);
 		expect(bundle.diff.text).toBe("");
+	});
+});
+
+describe("cost scope (R73)", () => {
+	const powered = { minPairedTasks: 2, minAttemptsPerTask: 1 };
+	const sideOf = (job: string, costs: Array<number | null>, rewards = [1, 0]) =>
+		computeFitness({
+			variantId: job,
+			suiteId: "s",
+			jobName: job,
+			suiteTasks: ["a", "b"],
+			attempts: 1,
+			policy: powered,
+			trials: ["a", "b"].map((task, i) => {
+				const t = trial(task, 1, { jobName: job, reward: rewards[i], costUsd: 99 });
+				const cost = costs[i];
+				return {
+					...t,
+					transcript: { ...metrics(), costUsd: cost },
+				};
+			}),
+		});
+
+	it("takes meanCostUsd from transcript cost, not the Harbor trial cost", () => {
+		const r = sideOf("c", [0.2, 0.4]);
+		expect(r.meanCostUsd).toBeCloseTo(0.3, 12);
+		expect(r.costMissingTrials).toBe(0);
+	});
+
+	it("excludes null-cost trials from the mean instead of counting 0, and nulls costUsdDelta", () => {
+		const child = sideOf("c", [0.2, null]);
+		const baseline = sideOf("p", [0.2, 0.2], [0, 0]);
+		expect(child.meanCostUsd).toBeCloseTo(0.2, 12);
+		expect(child.costMissingTrials).toBe(1);
+		const c = compareFitness(child, baseline, variant([]));
+		expect(c.decisionEligible).toBe(true);
+		expect(c.costUsdDelta).toBeNull();
+		const whole = compareFitness(sideOf("c2", [0.2, 0.4]), baseline, variant([]));
+		expect(whole.costUsdDelta).toBeCloseTo(0.1, 12);
+	});
+
+	it("reports null mean cost when no trial has one", () => {
+		expect(sideOf("c", [null, null]).meanCostUsd).toBeNull();
+	});
+});
+
+describe("fitness decision verdict (R74)", () => {
+	const run = (
+		tasks: string[],
+		trials: TraceRow[],
+		policy = { minPairedTasks: 2, minAttemptsPerTask: 1 },
+		attempts = 1,
+	) => computeFitness({ variantId: "v", suiteId: "s", jobName: "job", suiteTasks: tasks, attempts, policy, trials });
+
+	it("is eligible with numbers when complete, powered, and varied", () => {
+		const r = run(
+			["a", "b", "c"],
+			[trial("a", 1, { reward: 1 }), trial("b", 1, { reward: 0 }), trial("c", 1, { reward: 1 })],
+		);
+		expect(r.decisionEligible).toBe(true);
+		expect(r.ineligibility).toBeNull();
+		expect(r.ci95).not.toBeNull();
+		expect(r.se).not.toBeNull();
+	});
+
+	it("names incomplete, nulls the interval, keeps vHat diagnostic", () => {
+		const r = run(["a", "b", "c"], [trial("a", 1, { reward: 1 }), trial("b", 1, { reward: 0 })]);
+		expect(r.decisionEligible).toBe(false);
+		expect(r.ineligibility?.reason).toBe("incomplete");
+		expect([r.sd, r.se, r.ci95]).toEqual([null, null, null]);
+		expect(r.vHat).toBeCloseTo(0.5, 12);
+	});
+
+	it("names non_model_phase before lossy and underpowered", () => {
+		const r = run(
+			["a", "b"],
+			[
+				trial("a", 1, { reward: 1 }),
+				trial("b", 1, { reward: null, phase: "executor_infra_failure", status: "error" }),
+			],
+		);
+		expect(r.ineligibility).toEqual({ reason: "non_model_phase", phases: ["executor_infra_failure"] });
+	});
+
+	it("names lossy_transcript", () => {
+		const r = run(
+			["a", "b"],
+			[trial("a", 1, { transcript: metrics({ droppedLines: 1 }) }), trial("b", 1, { reward: 0 })],
+		);
+		expect(r.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+	});
+
+	it("names underpowered against the declared policy", () => {
+		const r = run(["a", "b"], [trial("a", 1), trial("b", 1, { reward: 0 })], {
+			minPairedTasks: 3,
+			minAttemptsPerTask: 1,
+		});
+		expect(r.ineligibility).toMatchObject({ reason: "underpowered", pairedTasks: 2, minPairedTasks: 3 });
+	});
+
+	it("names no_variance when every task reward is equal", () => {
+		const r = run(["a", "b"], [trial("a", 1), trial("b", 1)]);
+		expect(r.ineligibility).toEqual({ reason: "no_variance", pairedTasks: 2 });
+		expect(r.ci95).toBeNull();
 	});
 });

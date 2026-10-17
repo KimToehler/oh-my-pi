@@ -15,7 +15,7 @@ import {
 import { assertRequestClean, forwardedSecretValues } from "./credential-scan";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "./launch";
 import { EvoReports } from "./service-reports";
-import { SuiteRegistry } from "./suites";
+import { type StoredSuite, SuiteRegistry } from "./suites";
 import type { VariantRow } from "./variant-types";
 import { parseVariantRequest, VariantRegistry } from "./variants";
 
@@ -93,7 +93,7 @@ export class EvoService {
 			}
 		}
 		if (p === "/api/evo/suites") {
-			if (method === "GET") return Response.json(await this.#suites.list());
+			if (method === "GET") return Response.json(await this.#suitesWithEvaluations());
 			if (method === "POST") {
 				const { suite, created } = await this.#suites.register(await this.#body(request));
 				return Response.json(suite, { status: created ? 201 : 200 });
@@ -110,14 +110,17 @@ export class EvoService {
 		const variant = this.#store.evo.getVariant(id);
 		if (!variant) throw new EvoHttpError(404, `variant '${id}' not found`);
 		switch (m[2]) {
-			case undefined:
+			case undefined: {
 				if (method !== "GET") break;
+				const runs = this.#store.listRunsForVariant(id);
 				return Response.json({
 					variant,
 					proposals: this.#store.evo.listProposals(id),
 					diff: { path: variant.diffPath, changedFiles: variant.changedFiles },
-					runs: this.#store.listRunsForVariant(id),
+					runs,
+					heldoutEvaluations: await this.#heldoutEvaluations(runs),
 				});
+			}
 			case "evaluate":
 				if (method !== "POST") break;
 				return Response.json(await this.#evaluate(variant, await this.#body(request)), { status: 201 });
@@ -132,6 +135,26 @@ export class EvoService {
 				return Response.json(await this.#reports.bundle(variant, url));
 		}
 		return Response.json({ error: "method not allowed" }, { status: 405 });
+	}
+
+	/** Runs of one variant whose suite is held out; derived from run rows plus the suite registry, never stored. */
+	async #heldoutEvaluations(runs: ReadonlyArray<{ suiteId: string | null }>): Promise<number> {
+		const heldout = new Set(
+			(await this.#suites.list()).filter(s => s.manifest.split === "heldout").map(s => s.manifest.id),
+		);
+		return runs.filter(run => run.suiteId !== null && heldout.has(run.suiteId)).length;
+	}
+
+	/** Suite list; heldout suites also carry `evaluations`, the number of runs recorded against them. */
+	async #suitesWithEvaluations(): Promise<Array<StoredSuite & { evaluations?: number }>> {
+		const suites = await this.#suites.list();
+		const counts = new Map<string, number>();
+		for (const run of this.#store.listRuns()) {
+			if (run.suiteId !== null) counts.set(run.suiteId, (counts.get(run.suiteId) ?? 0) + 1);
+		}
+		return suites.map(suite =>
+			suite.manifest.split === "heldout" ? { ...suite, evaluations: counts.get(suite.manifest.id) ?? 0 } : suite,
+		);
 	}
 
 	async #evaluate(variant: VariantRow, raw: unknown): Promise<{ jobName: string; pid: number }> {

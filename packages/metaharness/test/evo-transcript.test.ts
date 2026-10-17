@@ -21,6 +21,9 @@ type Json = Record<string, unknown>;
 function usage(input: number, output: number, cacheRead = 0, cacheWrite = 0): Json {
 	return { input, output, cacheRead, cacheWrite, totalTokens: input + output + cacheRead + cacheWrite };
 }
+function withCost(u: Json, total: number): Json {
+	return { ...u, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total } };
+}
 function assistantEnd(u: Json | undefined, stopReason = "stop"): Json {
 	return { type: "message_end", message: { role: "assistant", stopReason, ...(u ? { usage: u } : {}) } };
 }
@@ -169,6 +172,51 @@ describe("summarizeOmpTranscript", () => {
 		const m = summarizeOmpTranscript(file);
 		expect(m.llmCalls).toBe(0);
 		expect(m.inputTokens).toBe(0);
+	});
+
+	it("sums main-agent cost and delegated task cost through the same dedup path as tokens", () => {
+		const file = write(tmpDir(), [
+			assistantEnd(withCost(usage(100, 10), 0.5)),
+			toolStart("t1", "task", { agent: "scout", task: "x" }),
+			// Aggregate cost AND per-child cost present: only the aggregate counts.
+			toolEnd("t1", "task", {
+				details: {
+					usage: withCost(usage(1000, 200), 2),
+					results: [
+						{ requests: 3, usage: withCost(usage(400, 80), 0.75) },
+						{ requests: 4, usage: withCost(usage(600, 120), 1.25) },
+					],
+				},
+			}),
+			// Replay of the same terminal event: ignored.
+			toolEnd("t1", "task", {
+				details: {
+					usage: withCost(usage(1000, 200), 2),
+					results: [{ requests: 7, usage: withCost(usage(1000, 200), 2) }],
+				},
+			}),
+			assistantEnd(withCost(usage(7, 3), 0.25)),
+		]);
+		expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(0.5 + 0.25 + 2, 12);
+	});
+
+	it("sums results[].usage.cost when aggregate usage is absent", () => {
+		const file = write(tmpDir(), [
+			toolEnd("t1", "task", {
+				details: {
+					results: [
+						{ requests: 2, usage: withCost(usage(10, 1), 0.5) },
+						{ requests: 5, usage: withCost(usage(20, 2), 0.25) },
+					],
+				},
+			}),
+		]);
+		expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(0.75, 12);
+	});
+
+	it("reports null cost when no usage record carried one, never a silent zero", () => {
+		const file = write(tmpDir(), [assistantEnd(usage(1, 1))]);
+		expect(summarizeOmpTranscript(file).costUsd).toBeNull();
 	});
 
 	it("derives lifecycle, tool, error, and stop-reason fields", () => {
@@ -356,7 +404,7 @@ describe("trial transcript persistence", () => {
 		seedTrial(jobDir, "t__abc", {
 			result: true,
 			lines: [
-				assistantEnd(usage(11, 12, 13, 14)),
+				assistantEnd(withCost(usage(11, 12, 13, 14), 0.125)),
 				toolStart("a", "task", { agent: "scout" }),
 				"EVO-MARK:m1",
 				"Failed to load extension /x: boom",
@@ -370,6 +418,7 @@ describe("trial transcript persistence", () => {
 			outputTokens: 12,
 			cacheReadTokens: 13,
 			cacheWriteTokens: 14,
+			costUsd: 0.125,
 			toolCalls: 1,
 			started: true,
 			signals: ["agent:scout", "mark:m1", "tool:task"],

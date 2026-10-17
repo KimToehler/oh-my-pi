@@ -1,6 +1,14 @@
 /** Per-variant fitness on a fixed suite: macro-mean reward, uncertainty, cost, signal evidence. */
 import type { TraceRow } from "../store";
-import { type DecisionPolicy, type Interval, interval, pooledWithinTaskVariance } from "./decision-policy";
+import {
+	type DecisionPolicy,
+	evaluateEligibility,
+	type Ineligibility,
+	type Interval,
+	interval,
+	NON_MODEL_PHASES,
+	pooledWithinTaskVariance,
+} from "./decision-policy";
 import { FAILURE_PHASES, type FailurePhase } from "./failure-phase";
 import { taskKey } from "./suites";
 
@@ -15,9 +23,14 @@ export interface TaskFitness {
 	errors: number;
 	meanLlmCalls: number | null;
 	meanOutputTokens: number | null;
-	meanCostUsd: number;
+	/** Mean transcript cost over attempts that carry one; null when none does. Never counts a missing cost as 0. */
+	meanCostUsd: number | null;
 }
 
+/**
+ * Interval fields (`sd`, `se`, `ci95`) are null unless `decisionEligible`. `vHat` is a diagnostic that stays
+ * populated when ineligible (the counterpart of `ComparisonReport.rawDelta`); read it only with `decisionEligible`.
+ */
 export interface FitnessReport extends Interval {
 	variantId: string;
 	suiteId: string;
@@ -36,6 +49,13 @@ export interface FitnessReport extends Interval {
 	withinTaskVariance: number | null;
 	/** Decision policy the suite declared at registration. */
 	policy: DecisionPolicy;
+	/**
+	 * Single-sided subset of the comparison gates: complete, model-outcome only, lossless transcripts, powered by the
+	 * declared policy, and task-level variance. When false the interval is null and `vHat` is diagnostic only.
+	 */
+	decisionEligible: boolean;
+	/** Why `decisionEligible` is false, in `ComparisonReport.ineligibility`'s shape; null when eligible. */
+	ineligibility: Ineligibility | null;
 	/** Macro mean of complete per-task rewards; null when no task has a reward. */
 	vHat: number | null;
 	tasks: number;
@@ -43,7 +63,10 @@ export interface FitnessReport extends Interval {
 	errors: number;
 	meanLlmCalls: number | null;
 	meanOutputTokens: number | null;
-	meanCostUsd: number;
+	/** Macro mean of transcript cost (main + delegated) over trials that carry one; null when none does. */
+	meanCostUsd: number | null;
+	/** Terminal in-suite trials with no transcript cost; they are excluded from `meanCostUsd`, and any makes cost deltas null. */
+	costMissingTrials: number;
 	/** Terminal in-suite trials per failure provenance phase. */
 	phaseCounts: Record<FailurePhase, number>;
 	/** Share of decided trials whose transcript shows no assistant message. */
@@ -102,7 +125,7 @@ function taskFitness(task: string, trials: readonly TraceRow[]): TaskFitness {
 		errors,
 		meanLlmCalls: mean(calls),
 		meanOutputTokens: mean(out),
-		meanCostUsd: mean(trials.map(t => t.costUsd)) ?? 0,
+		meanCostUsd: mean(trials.flatMap(t => (t.transcript?.costUsd == null ? [] : [t.transcript.costUsd]))),
 	};
 }
 
@@ -158,25 +181,41 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 	for (const trial of scored) {
 		for (const signal of trial.transcript?.signals ?? []) signalHits[signal] = (signalHits[signal] ?? 0) + 1;
 	}
+	const dataComplete = reasons.length === 0;
+	const lossyTranscriptTrials = decided.filter(t => (t.transcript?.droppedLines ?? 0) > 0).length;
+	const ineligibility = evaluateEligibility({
+		policy: input.policy,
+		dataComplete,
+		incompleteReasons: reasons,
+		nonModelPhases: NON_MODEL_PHASES.filter(phase => phaseCounts[phase] > 0),
+		lossyTranscriptTrials,
+		pairedTasks: rewards.length,
+		attemptsPerTask: input.attempts,
+		deltas: rewards,
+	});
+	const eligible = ineligibility === null;
 	return {
 		variantId: input.variantId,
 		suiteId: input.suiteId,
 		jobName: input.jobName,
 		outsideSuiteTasks,
-		dataComplete: reasons.length === 0,
+		dataComplete,
 		incompleteReasons: reasons,
 		attemptsPerTask: input.attempts,
 		withinTaskVariance: pooledWithinTaskVariance(attemptRewards),
 		policy: input.policy,
+		decisionEligible: eligible,
+		ineligibility,
 		vHat,
-		...interval(rewards, vHat),
+		...(eligible ? interval(rewards, vHat) : { sd: null, se: null, ci95: null }),
 		tasks: perTask.filter(t => t.counted > 0).length,
 		trials: scored.length,
 		errors: perTask.reduce((acc, t) => acc + t.errors, 0),
 		meanLlmCalls: mean(perTask.flatMap(t => (t.meanLlmCalls === null ? [] : [t.meanLlmCalls]))),
 		meanOutputTokens: mean(perTask.flatMap(t => (t.meanOutputTokens === null ? [] : [t.meanOutputTokens]))),
-		meanCostUsd: mean(perTask.filter(t => t.attempts > 0).map(t => t.meanCostUsd)) ?? 0,
-		lossyTranscriptTrials: decided.filter(t => (t.transcript?.droppedLines ?? 0) > 0).length,
+		meanCostUsd: mean(perTask.flatMap(t => (t.meanCostUsd === null ? [] : [t.meanCostUsd]))),
+		costMissingTrials: decided.filter(t => t.transcript?.costUsd == null).length,
+		lossyTranscriptTrials,
 		startFailureRate: decided.length === 0 ? null : startFailures / decided.length,
 		phaseCounts,
 		signalHits,

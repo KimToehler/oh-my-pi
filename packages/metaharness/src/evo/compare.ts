@@ -1,6 +1,6 @@
 /** Matched-condition parent/child comparison with confound guards and signal-gated credit. */
 import { EvoHttpError } from "./boundary";
-import { evaluateEligibility, type Ineligibility, type Interval, interval } from "./decision-policy";
+import { evaluateEligibility, type Ineligibility, type Interval, interval, NON_MODEL_PHASES } from "./decision-policy";
 import type { FailurePhase } from "./failure-phase";
 import { type FitnessReport, mean } from "./fitness";
 import type { VariantRow } from "./variant-types";
@@ -106,10 +106,8 @@ function diff(a: number | null, b: number | null): number | null {
 	return a === null || b === null ? null : a - b;
 }
 
-const REFUSAL_PHASES = ["variant_startup_failure", "executor_infra_failure", "unknown"] as const;
-
 function refusalsOf(child: FitnessReport, baseline: FitnessReport): Refusal[] {
-	return REFUSAL_PHASES.map(reason => ({
+	return NON_MODEL_PHASES.map(reason => ({
 		reason,
 		count: child.phaseCounts[reason] + baseline.phaseCounts[reason],
 	})).filter(r => r.count > 0);
@@ -185,6 +183,10 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		deltas,
 		callsDelta: eligible ? diff(child.meanLlmCalls, baseline.meanLlmCalls) : null,
 		outputTokensDelta: eligible ? diff(child.meanOutputTokens, baseline.meanOutputTokens) : null,
-		costUsdDelta: eligible ? child.meanCostUsd - baseline.meanCostUsd : null,
+		// Cost is a decision number only when every terminal trial on both sides carries a transcript cost.
+		costUsdDelta:
+			eligible && child.costMissingTrials === 0 && baseline.costMissingTrials === 0
+				? diff(child.meanCostUsd, baseline.meanCostUsd)
+				: null,
 	};
 }

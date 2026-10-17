@@ -217,6 +217,43 @@ describe("symlink target checks", () => {
 	});
 });
 
+describe("variant registry noop signal gate (R75)", () => {
+	it("refuses 409 naming both sets when identical bytes request a different signal set; equal sets stay noop", async () => {
+		const { registry } = await setup();
+		const rootDir = agentDir({ "AGENTS.md": "base\n" });
+		const rootResult = await registry.register(root(rootDir));
+		const childDir = agentDir({ "AGENTS.md": "base\nplus\n" });
+		const child = await registry.register(
+			parseVariantRequest({
+				mutation: "revision",
+				parentId: rootResult.variant.id,
+				configDir: childDir,
+				expectedSignals: ["tool:read", "mark:x"],
+			}),
+		);
+		const again = (signals: string[]) =>
+			registry.register(
+				parseVariantRequest({
+					mutation: "revision",
+					parentId: rootResult.variant.id,
+					configDir: childDir,
+					expectedSignals: signals,
+				}),
+			);
+		const same = await again(["mark:x", "tool:read", "mark:x"]);
+		expect(same.proposal.outcome).toBe("noop");
+		expect(same.variant.expectedSignals).toEqual(["mark:x", "tool:read"]);
+		const err = await again(["tool:bash"]).catch(e => e);
+		expect(err).toBeInstanceOf(EvoHttpError);
+		expect(err.status).toBe(409);
+		expect(err.message).toContain("mark:x, tool:read");
+		expect(err.message).toContain("tool:bash");
+		expect(err.body).toMatchObject({ existingVariantId: child.variant.id });
+		const dropped = await again([]).catch(e => e);
+		expect(dropped.status).toBe(409);
+	});
+});
+
 describe("variant registry", () => {
 	it("registers root, reuses parent on identical content (noop), and links a changed child", async () => {
 		const { jobsDir, store, registry } = await setup();
