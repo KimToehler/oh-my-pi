@@ -411,6 +411,9 @@ describe("structured subagent primitive", () => {
 		await expect(runStructuredSubagent(request({ session: disabled, bypassSpawnPolicy: true }))).rejects.toThrow(
 			'Agent "worker" is disabled in settings',
 		);
+		await expect(
+			runStructuredSubagent(request({ session: noSpawns(), bypassSpawnPolicy: true, blockedAgent: "worker" })),
+		).rejects.toThrow("Cannot spawn worker agent from within itself (recursion prevention)");
 		expect(dispatched).toHaveBeenCalledTimes(1);
 	});
 	it("propagates a custom thinking-suffixed role alias through policy, dispatch, and settlement", async () => {
