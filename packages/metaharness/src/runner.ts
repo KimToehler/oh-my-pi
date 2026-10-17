@@ -1785,6 +1785,10 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		);
 	}
 
+	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
+	// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
+	const persisted = { ...cfg, jobName, env: { ...cfg.env } };
+	for (const key of cfg.hostEnvKeys) delete persisted.env[key];
 	// Reject literal/command apiKeys before anything is persisted or printed.
 	if (cfg.modelsYaml) {
 		assertModelsYamlHash(cfg);
@@ -1794,19 +1798,9 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			modelsScanValues(credentialNames, cfg.env, process.env),
 		);
 		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
-		const explicitEnv = Object.fromEntries(Object.entries(cfg.env).filter(([key]) => !cfg.hostEnvKeys.includes(key)));
+		// Scan the complete persisted launch object, path-bearing fields (jobName, modelsYaml, agentDir, ...) included.
 		const leaked = findCredentialLeaks(
-			{
-				passthrough: cfg.passthrough,
-				env: explicitEnv,
-				agentArgs: cfg.agentArgs,
-				settings: cfg.settings,
-				providers: cfg.providers,
-				allowHosts: cfg.allowHosts,
-				include: cfg.include,
-				exclude: cfg.exclude,
-				tools: cfg.tools,
-			},
+			persisted,
 			credentialNames,
 			credentialValuesFromEnv(credentialNames, process.env),
 		);
@@ -1821,16 +1815,13 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			);
 		}
 	}
-	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
+
 	const jobDir = path.join(cfg.jobsDir, jobName);
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);
 	fs.mkdirSync(benchDir, { recursive: true });
 	if (!cfg.resume && !cfg.dryRun) {
 		// Snapshot the resolved launch config so a later `--resume <job>` can
 		// rebuild the exact same invocation without re-specifying flags.
-		// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
-		const persisted = { ...cfg, jobName, env: { ...cfg.env } };
-		for (const key of cfg.hostEnvKeys) delete persisted.env[key];
 		fs.writeFileSync(path.join(benchDir, "runner-config.json"), JSON.stringify(persisted, null, "\t"));
 	}
 

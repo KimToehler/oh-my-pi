@@ -29,7 +29,7 @@ import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from ".
 import { defaultSourceRoot, EvoService } from "./evo/service";
 import { readModelsEnvNamesSync } from "./evo/models-yaml";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
-import { assertVariantSnapshotIntact, assertWorktreeOwned } from "./evo/variants";
+import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant } from "./evo/variants";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
 import {
 	assertLaunchEnvSafe,
@@ -152,6 +152,7 @@ function resolveEvoInheritance(
 	cfg: Partial<LaunchRequest>,
 	req: AddArmRequest,
 	jobName: string,
+	defaultSourceRoot: string,
 ): Partial<LaunchRequest> {
 	const inherited: Partial<LaunchRequest> = {};
 	// An arm never opens the template run's directory: the suite snapshot is re-copied and verified into the new
@@ -185,7 +186,8 @@ function resolveEvoInheritance(
 		const inheritedVariant = cfg.variantId ? store.evo.getVariant(cfg.variantId) : null;
 		if (inheritedVariant) assertVariantSnapshotIntact(store.jobsDir, inheritedVariant);
 		// A plain harbor run may point `sourceRoot` at any repo; only an evo variant run must stay in a worktree.
-		if (cfg.variantId && cfg.sourceRoot) {
+		// Config-first variants legitimately carry the service default root; unknown variants stay guarded.
+		if (cfg.variantId && cfg.sourceRoot && (!inheritedVariant || isSourceVariant(store.jobsDir, inheritedVariant))) {
 			assertWorktreeOwned(store.jobsDir, cfg.sourceRoot, `inherited variant '${cfg.variantId}' source root`);
 		}
 		return inherited;
@@ -195,11 +197,21 @@ function resolveEvoInheritance(
 	if (!cfg.suiteId || !cfg.model || !cfg.thinking) {
 		throw new Error("variantId can only be swapped on an arm whose template run is an evo evaluation");
 	}
-	const fields = variantLaunchFields(store.jobsDir, variant, { model: cfg.model, thinking: cfg.thinking });
+	const fields = variantLaunchFields(
+		store.jobsDir,
+		variant,
+		{ model: cfg.model, thinking: cfg.thinking },
+		defaultSourceRoot,
+	);
 	return { ...inherited, ...fields };
 }
 
-export function resolveArmLaunch(store: RunStore, experimentId: string, req: AddArmRequest): LaunchRequest {
+export function resolveArmLaunch(
+	store: RunStore,
+	experimentId: string,
+	req: AddArmRequest,
+	defaultSourceRoot: string,
+): LaunchRequest {
 	if (!req.arm || /[^\w.-]/.test(req.arm)) throw new Error("arm must be a non-empty [A-Za-z0-9_.-] token");
 	if (!req.model) throw new Error("model is required");
 	const siblings = store.listRuns().filter(r => experimentOf(r.jobName) === experimentId);
@@ -252,7 +264,7 @@ export function resolveArmLaunch(store: RunStore, experimentId: string, req: Add
 			throw new Error("evo arms may change only variantId, role, and note");
 		}
 	}
-	const evo = resolveEvoInheritance(store, cfg, req, jobName);
+	const evo = resolveEvoInheritance(store, cfg, req, jobName, defaultSourceRoot);
 	return {
 		...evo,
 		benchmark: template.benchmark,
@@ -285,6 +297,7 @@ export class ManagerServer {
 	#server: Server<undefined> | null = null;
 	#stopped = false;
 	readonly #evo: EvoService;
+	readonly #sourceRoot: string;
 	readonly jobsDir: string;
 	readonly #host: string | null;
 
@@ -297,10 +310,11 @@ export class ManagerServer {
 		this.jobsDir = jobsDir;
 		this.#host = host;
 		this.#store = new RunStore(jobsDir, dbPath);
+		this.#sourceRoot = evo.sourceRoot ?? defaultSourceRoot();
 		this.#evo = new EvoService({
 			store: this.#store,
 			jobsDir,
-			sourceRoot: evo.sourceRoot ?? defaultSourceRoot(),
+			sourceRoot: this.#sourceRoot,
 			defaults: evo.defaults ?? defaultEvoLaunch(),
 			launch: request => this.launch(request),
 		});
@@ -577,7 +591,9 @@ export class ManagerServer {
 		// `--resume` rebuilds the launch from the recorded config, so an evo variant run recorded before
 		// the containment rule existed must be re-checked here; plain harbor runs keep their repo root.
 		const recordedRoot = run.config.sourceRoot;
-		if (run.variantId && typeof recordedRoot === "string" && recordedRoot) {
+		const resumedVariant = run.variantId ? this.#store.evo.getVariant(run.variantId) : null;
+		const configFirst = resumedVariant !== null && !isSourceVariant(this.jobsDir, resumedVariant);
+		if (run.variantId && typeof recordedRoot === "string" && recordedRoot && !configFirst) {
 			assertWorktreeOwned(this.jobsDir, recordedRoot, `variant '${run.variantId}' source root`);
 		}
 		// Same launch-time integrity rule as `launch()`: `--resume` rebuilds the harbor invocation
@@ -740,7 +756,7 @@ export class ManagerServer {
 
 	/** Add a comparable arm to an existing experiment, inheriting its sample + config. */
 	addArm(experimentId: string, req: AddArmRequest): { jobName: string; pid: number } {
-		return this.launch(resolveArmLaunch(this.#store, experimentId, req));
+		return this.launch(resolveArmLaunch(this.#store, experimentId, req, this.#sourceRoot));
 	}
 
 	/** Cancel a managed run. SIGTERM first so the runner forwards the signal to

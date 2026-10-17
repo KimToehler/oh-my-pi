@@ -52,6 +52,7 @@ export function variantLaunchFields(
 	jobsDir: string,
 	variant: VariantRow,
 	executor: { model: string; thinking: string },
+	defaultSourceRoot: string,
 ): VariantLaunchFields {
 	const configDir = variantConfigDir(jobsDir, variant.id);
 	const sourceVariant = isSourceVariant(jobsDir, variant);
@@ -75,7 +76,8 @@ export function variantLaunchFields(
 		variantId: variant.id,
 		agentDir: configDir,
 		agentDirHash: variant.configHash,
-		sourceRoot: sourceVariant ? variant.snapshotPath : undefined,
+		// Config-first variants were registered against the service default root; launch must name that same root.
+		sourceRoot: sourceVariant ? variant.snapshotPath : defaultSourceRoot,
 		sourceIdentity: formatSourceIdentity({ ref: variant.sourceRef, dirtyHash: variant.sourceDirtyHash }),
 		stagedConfigHash: new Bun.CryptoHasher("sha256").update(mergeOverlayConfig(yaml, spec)).digest("hex"),
 		executorConfigHash: executorConfigHash(spec),
@@ -89,6 +91,8 @@ export interface EvalLaunchInput {
 	jobName: string;
 	concurrency: number | null;
 	defaults: EvoLaunchDefaults;
+	/** Source root config-first variants were registered against. */
+	sourceRoot: string;
 }
 
 export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchRequest> {
@@ -160,7 +164,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		suiteId: manifest.id,
 		suiteHash: suite.hash,
 		taskHash: suiteTaskHash(suite),
-		...variantLaunchFields(input.jobsDir, variant, manifest),
+		...variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot),
 		modelsYaml: snapshot,
 		modelsYamlHash,
 		noGateway: true,

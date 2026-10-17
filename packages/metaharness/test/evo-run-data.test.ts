@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { SuiteRegistry } from "../src/evo/suites";
 import { ManagerServer } from "../src/server";
+import { serveRegistryTasks } from "./registry-stub";
 
 const SECRET = "sk-evo-suite-secret-0123456789abcdef";
 
@@ -97,6 +98,46 @@ describe("suite snapshot credential scan (S1)", () => {
 		const { suite, created } = await new SuiteRegistry(jobsDir, secrets).register(manifestFor(dataset));
 		expect(created).toBe(true);
 		expect(Object.keys(suite.taskHashes ?? {}).sort()).toEqual(["t1", "t2"]);
+	});
+});
+
+describe("registry task credential scan (R63)", () => {
+	const secrets = () => [SECRET];
+	const dataset = `terminal-bench@sha256:${"a".repeat(64)}`;
+	const plain = (task: string) => ({
+		"task.toml": `name = "${task}"\n`,
+		"environment/Dockerfile": "FROM scratch\n",
+	});
+	const served = (extra: Record<string, Record<string, string>> = {}) =>
+		cleanups.push(serveRegistryTasks({ t1: { ...plain("t1"), ...extra.t1 }, t2: { ...plain("t2"), ...extra.t2 } }));
+
+	it("refuses a registry task file body carrying a forwarded credential, persisting nothing", async () => {
+		const jobsDir = tmp("evo-rd-reg-");
+		served({ t1: { "tests/data.txt": `token=${SECRET}\n` } });
+		const err = await new SuiteRegistry(jobsDir, secrets).register(manifestFor(dataset)).catch((e: Error) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).message).toMatch(/task file tests\/data\.txt embeds a host credential/);
+		expect((err as Error).message).not.toContain(SECRET);
+		expect(suiteDataEntries(jobsDir)).toEqual([]);
+		expect(fs.existsSync(path.join(jobsDir, "_evo", "suites", "rd-1.json"))).toBe(false);
+	});
+
+	it("refuses a registry nested filename carrying a forwarded credential, redacting it", async () => {
+		const jobsDir = tmp("evo-rd-reg-");
+		served({ t2: { [`environment/${SECRET}/note.txt`]: "harmless" } });
+		const err = await new SuiteRegistry(jobsDir, secrets).register(manifestFor(dataset)).catch((e: Error) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).message).toMatch(/path .*\*\*\*.*host credential/);
+		expect((err as Error).message).not.toContain(SECRET);
+		expect(suiteDataEntries(jobsDir)).toEqual([]);
+	});
+
+	it("still registers a clean digest-pinned registry suite, including an env reference by name", async () => {
+		const jobsDir = tmp("evo-rd-reg-");
+		served({ t1: { "tests/env.txt": "export KEY=$OPENAI_API_KEY\n" } });
+		const { created } = await new SuiteRegistry(jobsDir, secrets).register(manifestFor(dataset));
+		expect(created).toBe(true);
+		expect(suiteDataEntries(jobsDir)).toEqual([]);
 	});
 });
 

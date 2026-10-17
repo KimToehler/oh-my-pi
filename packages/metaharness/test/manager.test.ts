@@ -3,7 +3,9 @@ import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { experimentDetail } from "../src/experiments";
+import { parseArgs } from "../src/runner";
 import { ManagerServer, resolveArmLaunch } from "../src/server";
 import { RunStore } from "../src/store";
 import "./registry-stub";
@@ -552,13 +554,18 @@ describe("resolveArmLaunch", () => {
 			},
 		});
 
-		const launch = resolveArmLaunch(store, "exp", {
-			arm: "n8",
-			model: "google/gemini-3.5-flash",
-			role: "variant",
-			note: "prewalk@flash",
-			prewalk: { into: "google/gemini-3.5-flash" },
-		});
+		const launch = resolveArmLaunch(
+			store,
+			"exp",
+			{
+				arm: "n8",
+				model: "google/gemini-3.5-flash",
+				role: "variant",
+				note: "prewalk@flash",
+				prewalk: { into: "google/gemini-3.5-flash" },
+			},
+			"/src",
+		);
 
 		expect(launch.jobName).toBe("exp-n8");
 		expect(launch.dataset).toBe("swe-bench/swe-bench-verified");
@@ -595,7 +602,7 @@ describe("resolveArmLaunch", () => {
 			config: {},
 		});
 
-		const launch = resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" });
+		const launch = resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" }, "/src");
 		expect(launch.include).toEqual(["swe-bench/astropy__astropy-1", "swe-bench/django__django-2"]);
 		expect(launch.tasks).toBe(2);
 	});
@@ -612,8 +619,8 @@ describe("resolveArmLaunch", () => {
 			pid: 1,
 			config: { include: ["t1"] },
 		});
-		expect(() => resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" })).toThrow(/already exists/);
-		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" })).toThrow(/no runs to inherit/);
+		expect(() => resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" }, "/src")).toThrow(/already exists/);
+		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" }, "/src")).toThrow(/no runs to inherit/);
 	});
 });
 
@@ -754,6 +761,35 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		});
 		expect(dup.status).toBe(400);
 		expect(await dup.json()).toMatchObject({ error: "run evo-single is already running" });
+	});
+
+	it("launches a config-first variant with the service's custom source root and passes the runner preflight", async () => {
+		const { source, variantId, store, base, manager } = await setup();
+		const { argvs } = stubSpawn();
+		const defaultRoot = path.resolve(import.meta.dir, "..", "..", "..");
+		expect(fs.realpathSync(source)).not.toBe(fs.realpathSync(defaultRoot));
+		const evaluate = (jobName: string) =>
+			fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName }),
+			});
+		expect((await evaluate("rootexp-base")).status).toBe(201);
+		const argv = argvs.find(a => a.includes("rootexp-base"))!;
+		const at = argv.indexOf("--source-root");
+		expect(at).toBeGreaterThan(-1);
+		expect(argv[at + 1]).toBe(source);
+		// The runner parses its own argv and runs this exact check before spawning harbor.
+		const cfg = parseArgs(argv.slice(argv.indexOf("src/runner.ts") + 1));
+		expect(cfg.sourceRoot).toBe(source);
+		expect(cfg.sourceIdentity).toBe(formatSourceIdentity(await sourceIdentity(cfg.sourceRoot)));
+		// Negative control: the default checkout is a different identity, so omitting the root would be rejected.
+		expect(cfg.sourceIdentity).not.toBe(formatSourceIdentity(await sourceIdentity(defaultRoot)));
+		// Arm variant swap repeats the same launch fields.
+		store.syncAll();
+		const arm = manager.addArm("rootexp", { arm: "swap", model: SUITE.model, variantId });
+		const armArgv = argvs.find(a => a.includes(arm.jobName))!;
+		expect(armArgv[armArgv.indexOf("--source-root") + 1]).toBe(source);
 	});
 
 	it("leaves no run after a failed launch and lets the same name be retried", async () => {

@@ -453,8 +453,9 @@ describe("runner-config credential persistence", () => {
 		modelsText = "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n",
 		stubBodies: Record<string, string> = {},
 		installMode = "published",
+		modelsFile = "models.yml",
 	): Promise<{ code: number; out: string }> {
-		const modelsYaml = path.join(jobsDir, "models.yml");
+		const modelsYaml = path.join(jobsDir, modelsFile);
 		fs.writeFileSync(modelsYaml, modelsText);
 		const env: Record<string, string> = { ...(process.env as Record<string, string>), ...hostEnv };
 		delete env.EVO_SENTINEL_KEY;
@@ -655,6 +656,46 @@ describe("runner-config credential persistence", () => {
 		expect(out).not.toMatch(/error:/);
 		expect(out).not.toContain("credential env");
 		expect(code).toBe(0);
+	}, 30_000);
+
+	function namesContaining(dir: string, needle: string): string[] {
+		return fs
+			.readdirSync(dir, { recursive: true })
+			.map(String)
+			.filter(name => name.includes(needle));
+	}
+
+	it("rejects a --job-name carrying a forwarded credential value and creates no job artifact", async () => {
+		for (const [i, secret] of [SENTINEL, "rk-77"].entries()) {
+			const jobsDir = tmp();
+			const jobName = `job-${secret}-${i}`;
+			const { code, out } = await runRunner(jobsDir, jobName, [], { EVO_SENTINEL_KEY: secret });
+			expect(code).not.toBe(0);
+			expect(out).toContain("credential env");
+			expect(out).not.toContain(secret);
+			expect(namesContaining(jobsDir, secret)).toEqual([]);
+			expect(fs.existsSync(path.join(jobsDir, "_bench"))).toBe(false);
+		}
+	}, 30_000);
+
+	it("rejects a --models-yaml path carrying a forwarded credential value and creates no job artifact", async () => {
+		const jobsDir = tmp();
+		const modelsFile = `models-${SENTINEL}.yml`;
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-models-path-secret",
+			[],
+			{ EVO_SENTINEL_KEY: SENTINEL },
+			undefined,
+			{},
+			"published",
+			modelsFile,
+		);
+		expect(code).not.toBe(0);
+		expect(out).toContain("credential env");
+		expect(out).not.toContain(SENTINEL);
+		expect(fs.existsSync(path.join(jobsDir, "_bench"))).toBe(false);
+		expect(fs.existsSync(path.join(jobsDir, "job-models-path-secret"))).toBe(false);
 	}, 30_000);
 
 	it("rejects the same explicit credential KEY=VALUE for --agent pi and persists nothing", async () => {

@@ -8,6 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { EvoHttpError } from "./boundary";
+import { hashTaskTree } from "./task-tree";
 
 /** Populate `dest` with the dataset's tasks; Harbor export layout is `<dest>/<dataset-name>/<task-name>/`. */
 export type RegistryTaskFetcher = (dataset: string, dest: string) => Promise<void>;
@@ -53,8 +54,17 @@ function findTaskDir(root: string, key: string, depth = 0): string | null {
 	return null;
 }
 
-/** Resolve the included tasks of a digest-pinned registry dataset into `dest/<key>`; 422 when unresolvable. */
-export async function resolveRegistryTasks(dataset: string, keys: readonly string[], dest: string): Promise<void> {
+/**
+ * Resolve the included tasks of a digest-pinned registry dataset into `dest/<key>`; 422 when unresolvable. Each task
+ * is walked once by the same scan local suites use (`hashTaskTree`) BEFORE it is copied, so a path or body carrying a
+ * forwarded credential value is refused before it lands anywhere outside the downloader's private dir.
+ */
+export async function resolveRegistryTasks(
+	dataset: string,
+	keys: readonly string[],
+	dest: string,
+	secrets: readonly string[] = [],
+): Promise<void> {
 	const raw = path.join(dest, ".download");
 	fs.mkdirSync(raw, { recursive: true });
 	try {
@@ -69,6 +79,7 @@ export async function resolveRegistryTasks(dataset: string, keys: readonly strin
 	for (const key of keys) {
 		const src = findTaskDir(raw, key);
 		if (!src) throw new EvoHttpError(422, `task '${key}' was not found in registry dataset '${dataset}'`);
+		hashTaskTree(src, secrets);
 		fs.cpSync(src, path.join(dest, key), { recursive: true, verbatimSymlinks: true });
 	}
 	fs.rmSync(raw, { recursive: true, force: true });

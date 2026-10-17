@@ -431,7 +431,7 @@ describe("variant registry", () => {
 		};
 		const refused = (row: typeof base.variant) => {
 			try {
-				variantLaunchFields(jobsDir, row, executor);
+				variantLaunchFields(jobsDir, row, executor, source);
 			} catch (err) {
 				return err;
 			}
@@ -456,9 +456,9 @@ describe("variant registry", () => {
 		const ok = stored("good000000000001", inside);
 		// Launch also verifies the config snapshot for the row's id, so give the inserted id a real one.
 		fs.cpSync(variantConfigDir(jobsDir, base.variant.id), variantConfigDir(jobsDir, ok.id), { recursive: true });
-		expect(variantLaunchFields(jobsDir, ok, executor).sourceRoot).toBe(inside);
+		expect(variantLaunchFields(jobsDir, ok, executor, source).sourceRoot).toBe(inside);
 		// Config-only variant is unaffected.
-		expect(variantLaunchFields(jobsDir, base.variant, executor).sourceRoot).toBeUndefined();
+		expect(variantLaunchFields(jobsDir, base.variant, executor, source).sourceRoot).toBe(source);
 	});
 });
 
@@ -466,7 +466,7 @@ describe("registered snapshot integrity", () => {
 	const executor = { model: "m", thinking: "off" };
 
 	it("publishes non-writable directories, and rehash still catches an unlink+replace by the owner", async () => {
-		const { jobsDir, registry } = await setup();
+		const { jobsDir, registry, source } = await setup();
 		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a", "rules/r.md": "r" })));
 		const dir = variantConfigDir(jobsDir, variant.id);
 		expect(fs.statSync(dir).mode & 0o222).toBe(0);
@@ -480,7 +480,7 @@ describe("registered snapshot integrity", () => {
 		fs.writeFileSync(path.join(dir, "AGENTS.md"), "evil");
 		const err = (() => {
 			try {
-				variantLaunchFields(jobsDir, variant, executor);
+				variantLaunchFields(jobsDir, variant, executor, source);
 			} catch (e) {
 				return e;
 			}
@@ -495,9 +495,9 @@ describe("registered snapshot integrity", () => {
 	});
 
 	it("variantLaunchFields passes an untouched variant and records its configHash as agentDirHash", async () => {
-		const { jobsDir, registry } = await setup();
+		const { jobsDir, registry, source } = await setup();
 		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a" })));
-		expect(variantLaunchFields(jobsDir, variant, executor).agentDirHash).toBe(variant.configHash);
+		expect(variantLaunchFields(jobsDir, variant, executor, source).agentDirHash).toBe(variant.configHash);
 	});
 
 	it("stageAgentOverlay refuses tampered bytes before creating dest, and stages intact ones", async () => {

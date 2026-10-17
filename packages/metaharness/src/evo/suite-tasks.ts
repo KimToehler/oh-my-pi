@@ -109,7 +109,7 @@ export async function pinSuiteTasks(
 		try {
 			await fsp.mkdir(scratch, { recursive: true });
 			const keys = manifest.include.map(taskKey);
-			await resolveRegistryTasks(manifest.dataset, keys, scratch);
+			await resolveRegistryTasks(manifest.dataset, keys, scratch, secrets);
 			generatedTaskImages(scratch, keys);
 		} finally {
 			await fsp.rm(scratch, { recursive: true, force: true });

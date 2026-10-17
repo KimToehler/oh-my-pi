@@ -59,6 +59,7 @@ const SUITE = {
 interface Harness {
 	base: string;
 	jobsDir: string;
+	source: string;
 	manager: ManagerServer;
 	post: (url: string, body: unknown) => Promise<Response>;
 	json: <T>(res: Response) => Promise<T>;
@@ -81,6 +82,7 @@ function harness(defaults?: EvoLaunchDefaults): Harness {
 	return {
 		base,
 		jobsDir,
+		source,
 		manager,
 		post: (url, body) =>
 			fetch(`${base}${url}`, {
@@ -1072,7 +1074,12 @@ describe("evo launch", () => {
 			suiteId: "search-1",
 			config: { ...launch },
 		});
-		const arm = resolveArmLaunch(h.manager.store, "exp", { arm: "child", model: SUITE.model, variantId: childId });
+		const arm = resolveArmLaunch(
+			h.manager.store,
+			"exp",
+			{ arm: "child", model: SUITE.model, variantId: childId },
+			h.source,
+		);
 		expect(arm).toMatchObject({
 			suiteId: "search-1",
 			suiteHash,
@@ -1085,11 +1092,11 @@ describe("evo launch", () => {
 		expect(arm.stagedConfigHash).toBe(launch.stagedConfigHash); // both lack config.yml; AGENTS.md is not part of it
 		expect(arm.agentDir).toContain(childId);
 		expect(() =>
-			resolveArmLaunch(h.manager.store, "exp", { arm: "m", model: "other/model", variantId: childId }),
+			resolveArmLaunch(h.manager.store, "exp", { arm: "m", model: "other/model", variantId: childId }, h.source),
 		).toThrow(`evo arms keep the suite model '${SUITE.model}'; got 'other/model'`);
-		expect(() => resolveArmLaunch(h.manager.store, "exp", { arm: "p", model: SUITE.model, prewalk: {} })).toThrow(
-			"evo arms may change only variantId, role, and note",
-		);
+		expect(() =>
+			resolveArmLaunch(h.manager.store, "exp", { arm: "p", model: SUITE.model, prewalk: {} }, h.source),
+		).toThrow("evo arms may change only variantId, role, and note");
 	});
 
 	it("refuses an arm that inherits an external source root from an evo template", () => {
@@ -1114,14 +1121,14 @@ describe("evo launch", () => {
 		template("in-base", { variantId: "v-old", sourceRoot: inside });
 		template("plain-base", { sourceRoot: repo });
 		// No variantId on the request: the template's identity is inherited verbatim.
-		expect(() => resolveArmLaunch(h.manager.store, "ext", { arm: "a", model: SUITE.model })).toThrow(
+		expect(() => resolveArmLaunch(h.manager.store, "ext", { arm: "a", model: SUITE.model }, h.source)).toThrow(
 			`inherited variant 'v-old' source root must be a task-owned worktree under ${required}: ${external}`,
 		);
-		expect(resolveArmLaunch(h.manager.store, "in", { arm: "a", model: SUITE.model })).toMatchObject({
+		expect(resolveArmLaunch(h.manager.store, "in", { arm: "a", model: SUITE.model }, h.source)).toMatchObject({
 			variantId: "v-old",
 			sourceRoot: inside,
 		});
-		expect(resolveArmLaunch(h.manager.store, "plain", { arm: "a", model: SUITE.model })).toMatchObject({
+		expect(resolveArmLaunch(h.manager.store, "plain", { arm: "a", model: SUITE.model }, h.source)).toMatchObject({
 			sourceRoot: repo,
 		});
 	});

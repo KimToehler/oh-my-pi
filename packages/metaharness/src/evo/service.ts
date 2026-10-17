@@ -32,6 +32,7 @@ export interface EvoServiceOptions {
 export class EvoService {
 	readonly #store: RunStore;
 	readonly #jobsDir: string;
+	readonly #sourceRoot: string;
 	readonly #launch: EvoServiceOptions["launch"];
 	readonly #defaults: EvoLaunchDefaults;
 	readonly #variants: VariantRegistry;
@@ -42,6 +43,7 @@ export class EvoService {
 	constructor(opts: EvoServiceOptions) {
 		this.#store = opts.store;
 		this.#jobsDir = opts.jobsDir;
+		this.#sourceRoot = opts.sourceRoot;
 		this.#launch = opts.launch;
 		this.#defaults = opts.defaults;
 		this.#secretValues = () => forwardedSecretValues(opts.defaults);
@@ -155,6 +157,7 @@ export class EvoService {
 			jobName,
 			concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
 			defaults: this.#defaults,
+			sourceRoot: this.#sourceRoot,
 		});
 		// buildEvalLaunch yields, so re-check. From here through launch's registerLaunch nothing yields,
 		// so no same-process request can interleave between this check and the run row.
