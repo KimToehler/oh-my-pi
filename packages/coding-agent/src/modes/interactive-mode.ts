@@ -110,6 +110,7 @@ import {
 import {
 	humanizePlanTitle,
 	type PlanApprovalDetails,
+	planContentSha256,
 	planReviewResult,
 	resolvePlanTitle,
 } from "../plan-mode/approved-plan";
@@ -569,6 +570,12 @@ const GOAL_SUBCOMMANDS = new Set<GoalSubcommand>(["set", "show", "pause", "resum
 const PLAN_KEEP_CONTEXT_OPTION_INDEX = 2;
 const PLAN_KEEP_CONTEXT_DISABLE_THRESHOLD_PERCENT = 95;
 const PLAN_SAVE_AND_QUIT_OPTION = "Save and quit";
+const STALE_REVIEWED_PLAN_ERROR = "Plan file changed after review; ask the agent to propose it again.";
+
+/** A cross-family review bound the approval to exact bytes; any other content is stale. */
+function isReviewedPlanStale(details: PlanApprovalDetails, planContent: string): boolean {
+	return details.planSha256 !== undefined && details.planSha256 !== planContentSha256(planContent);
+}
 const PLAN_SAVE_TITLE_LINE_LIMIT = 6;
 
 const CFG_APPROVE_SESSION = "Always for this session";
@@ -5672,11 +5679,12 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 	}
 
-	async #openPlanInExternalEditor(planFilePath: string): Promise<void> {
+	/** Returns the saved editor text, or `undefined` when nothing was written. */
+	async #openPlanInExternalEditor(planFilePath: string): Promise<string | undefined> {
 		const editorCmd = getEditorCommand();
 		if (!editorCmd) {
 			this.showWarning("No editor configured. Set $VISUAL or $EDITOR environment variable.");
-			return;
+			return undefined;
 		}
 
 		const resolvedPath = this.#resolvePlanFilePath(planFilePath);
@@ -5686,10 +5694,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		} catch (error) {
 			if (isEnoent(error)) {
 				this.showError(`Plan file not found at ${planFilePath}`);
-				return;
+				return undefined;
 			}
 			this.showWarning(`Failed to open external editor: ${error instanceof Error ? error.message : String(error)}`);
-			return;
+			return undefined;
 		}
 
 		try {
@@ -5702,6 +5710,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				await Bun.write(resolvedPath, result);
 				this.#planReviewOverlay?.setPlanContent(result);
 				this.showStatus("Plan updated in external editor.");
+				return result;
 			}
 		} catch (error) {
 			this.showWarning(`Failed to open external editor: ${error instanceof Error ? error.message : String(error)}`);
@@ -5709,6 +5718,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.ui.start();
 			this.ui.requestRender(true);
 		}
+		return undefined;
 	}
 
 	async #openPlanAnnotationInExternalEditor(draft: string, commit: (text: string | null) => void): Promise<void> {
@@ -6688,6 +6698,10 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.showError(`Plan file not found at ${planFilePath}`);
 			return;
 		}
+		if (isReviewedPlanStale(details, planContent)) {
+			this.showError(STALE_REVIEWED_PLAN_ERROR);
+			return;
+		}
 		// The operator may have left plan mode or switched sessions while the turn was
 		// aborted or the plan was read; a stale review must not mount over that.
 		if (!this.planModeEnabled || this.sessionManager.getSessionId() !== originSessionId) return;
@@ -6799,7 +6813,10 @@ export class InteractiveMode implements InteractiveModeContext {
 			reviewOptions.map(option => option.label),
 			{
 				helpText,
-				onExternalEditor: () => void this.#openPlanInExternalEditor(planFilePath),
+				onExternalEditor: () =>
+					void this.#openPlanInExternalEditor(planFilePath).then(content => {
+						if (content !== undefined) editedContent = content;
+					}),
 				onPlanEdited: content => {
 					editedContent = content;
 					void Bun.write(this.#resolvePlanFilePath(planFilePath), content);
@@ -6873,6 +6890,13 @@ export class InteractiveMode implements InteractiveModeContext {
 				}
 				if (!latestPlanContent) {
 					this.showError(`Plan file not found at ${planFilePath}`);
+					closePlanReview();
+					return;
+				}
+				// An in-overlay edit is the operator's own change; only an unseen
+				// on-disk change after the review is refused.
+				if (editedContent === undefined && isReviewedPlanStale(details, latestPlanContent)) {
+					this.showError(STALE_REVIEWED_PLAN_ERROR);
 					closePlanReview();
 					return;
 				}

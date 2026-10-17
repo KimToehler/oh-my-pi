@@ -33,7 +33,17 @@ import * as clipboard from "@oh-my-pi/pi-coding-agent/utils/clipboard";
 import { setKeybindings } from "@oh-my-pi/pi-tui";
 import { formatNumber, TempDir } from "@oh-my-pi/pi-utils";
 
-import { cfgPlanAutosave, cfgPlanAutosaveDir } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
+import {
+	cfgPlanAutosave,
+	cfgPlanAutosaveDir,
+	cfgPlanReviewEnabled,
+	cfgPlanReviewModels,
+} from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
+import type { PlanApprovalDetails } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
+import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
 
 /**
  * Matches the plan-approved synthetic-prompt dispatch. `#approvePlan` calls
@@ -2854,6 +2864,172 @@ describe("InteractiveMode plan review rendering", () => {
 			expect(recorder.events.filter(event => event.type === "plan_review_resolved")).toEqual([]);
 			expect(ctx.resolvePlanReview(first!.reviewId, "refine", { feedback: "revise" })).toBe(true);
 		});
+	});
+});
+
+describe("InteractiveMode reviewed-plan byte binding (T5-m)", () => {
+	// A cross-family review approves exact bytes. If the plan file changes on disk after
+	// the review, the operator must not approve unreviewed content; their own in-overlay
+	// edit is a trusted change and still approves.
+	const STALE_ERROR = "Plan file changed after review; ask the agent to propose it again.";
+	const PLAN_URL = "local://demo-plan.md";
+	let tempDir: TempDir;
+	let authStorage: AuthStorage;
+	let session: AgentSession;
+	let mode: InteractiveMode;
+
+	let sharedTempDir: TempDir;
+
+	beforeAll(async () => {
+		initTheme();
+		resetSettingsForTest();
+		sharedTempDir = TempDir.createSync("@pi-plan-review-binding-shared-");
+		await Settings.init({ inMemory: true, cwd: sharedTempDir.path() });
+	});
+
+	afterAll(() => {
+		sharedTempDir?.removeSync();
+	});
+
+	beforeEach(async () => {
+		tempDir = TempDir.createSync("@pi-plan-review-binding-");
+		authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
+		authStorage.keys.setRuntime("anthropic", "test-key");
+		authStorage.keys.setRuntime("openai", "test-key");
+		const modelRegistry = new ModelRegistry(authStorage);
+		const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
+		if (!model) throw new Error("Expected claude-sonnet-4-5 to exist in registry");
+		session = new AgentSession({
+			agent: new Agent({ initialState: { model, systemPrompt: ["Test"], tools: [], messages: [] } }),
+			sessionManager: SessionManager.create(tempDir.path(), tempDir.path()),
+			settings: Settings.isolated(),
+			modelRegistry,
+		});
+		cfgPlanReviewEnabled.set(session.settings, true);
+		cfgPlanReviewModels.set(session.settings, ["openai/gpt-4o"]);
+		mode = new InteractiveMode(session, "test");
+	});
+
+	afterEach(async () => {
+		vi.restoreAllMocks();
+		mode.stop();
+		await session.dispose();
+		authStorage.close();
+		tempDir.removeSync();
+		setKeybindings(KeybindingsManager.inMemory());
+	});
+
+	function planPath(): string {
+		return resolveLocalUrlToPath(PLAN_URL, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+	}
+
+	/** Enter plan mode, then propose `content` through a real OKAY review; returns the approval details. */
+	async function reviewedDetails(content: string): Promise<PlanApprovalDetails> {
+		await Bun.write(planPath(), content);
+		await mode.handlePlanModeCommand();
+		vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue({
+			result: {
+				index: 0,
+				id: "PlanReview",
+				agent: "plan-reviewer",
+				agentSource: "bundled",
+				task: "review",
+				exitCode: 0,
+				output: "",
+				stderr: "",
+				truncated: false,
+				durationMs: 1,
+				tokens: 0,
+				requests: 1,
+				answeringModels: [{ provider: "openai", model: "gpt-4o" }],
+				structuredOutput: {
+					source: "caller",
+					mode: "permissive",
+					status: "valid",
+					data: { verdict: "OKAY", summary: "ok" },
+				},
+			},
+			policy: {} as StructuredSubagentResult["policy"],
+			mergeSummary: "",
+			changesApplied: null,
+			artifactsDir: "/tmp",
+			temporaryArtifacts: true,
+		});
+		const toolCall = {
+			type: "toolCall" as const,
+			id: "propose-1",
+			name: "write",
+			arguments: { path: "xd://propose", content: "demo" },
+		};
+		const tool: AgentTool = {
+			name: "write",
+			label: "write",
+			description: "write",
+			parameters: {} as AgentTool["parameters"],
+			execute: async () => ({ content: [] }),
+		};
+		await session.agent.beforeToolCall?.({
+			assistantMessage: assistantWithUsage({
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				content: [toolCall],
+			}),
+			toolCall,
+			tool,
+			args: toolCall.arguments,
+			context: session.agent.state as never,
+		});
+		const result = await session.submitPlanProposal("demo", {
+			toolCallId: "propose-1",
+			toolSession: { cwd: tempDir.path() } as ToolSession,
+		});
+		const details = result.details as PlanApprovalDetails;
+		expect(details.planSha256).toBeDefined();
+		return details;
+	}
+
+	it("refuses to open the overlay on bytes changed after review, opens it on unchanged bytes", async () => {
+		const details = await reviewedDetails("# Demo\n\nreviewed body\n");
+		const review = vi.spyOn(mode, "showPlanReview").mockResolvedValue("Refine plan");
+		const showError = vi.spyOn(mode, "showError");
+
+		await Bun.write(planPath(), "# Demo\n\nswapped body\n");
+		await mode.handlePlanApproval(details);
+		expect(review).not.toHaveBeenCalled();
+		expect(showError).toHaveBeenCalledWith(STALE_ERROR);
+
+		await Bun.write(planPath(), "# Demo\n\nreviewed body\n");
+		await mode.handlePlanApproval(details);
+		expect(review).toHaveBeenCalledTimes(1);
+	});
+
+	it("refuses approval when the file changes under the open overlay, but approves an in-overlay edit", async () => {
+		const details = await reviewedDetails("# Demo\n\nreviewed body\n");
+		vi.spyOn(mode, "handleClearCommand").mockResolvedValue();
+		const prompt = vi.spyOn(session, "prompt").mockResolvedValue(undefined as never);
+		const showError = vi.spyOn(mode, "showError");
+		const review = vi.spyOn(mode, "showPlanReview").mockImplementationOnce(async () => {
+			await Bun.write(planPath(), "# Demo\n\nswapped on disk\n");
+			return "Approve and execute";
+		});
+
+		await mode.handlePlanApproval(details);
+		expect(showError).toHaveBeenCalledWith(STALE_ERROR);
+		expect(prompt.mock.calls.find(isPlanApprovedCall)).toBeUndefined();
+		expect(mode.planModeEnabled).toBe(true);
+
+		await Bun.write(planPath(), "# Demo\n\nreviewed body\n");
+		review.mockImplementationOnce(async (_plan, _title, _options, dialogOptions) => {
+			dialogOptions?.onPlanEdited?.("# Demo\n\noperator edit\n");
+			return "Approve and execute";
+		});
+		await mode.handlePlanApproval(details);
+		const approved = prompt.mock.calls.find(isPlanApprovedCall);
+		expect(approved?.[0] as string).toContain("operator edit");
+		expect(mode.planModeEnabled).toBe(false);
 	});
 });
 
