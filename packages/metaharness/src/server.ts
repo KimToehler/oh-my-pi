@@ -28,6 +28,8 @@ import { BENCHMARK_DEFINITIONS } from "./benchmarks";
 import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from "./evo/launch";
 import { defaultSourceRoot, EvoService } from "./evo/service";
 import { readModelsEnvNamesSync } from "./evo/models-yaml";
+import { ProviderProxy } from "./evo/provider-proxy";
+import { PROXY_TOKEN_ENV, proxyRoutesFromModels } from "./evo/proxy-models";
 import { normalizeOmpTranscript } from "./evo/trace-entries";
 import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant } from "./evo/variants";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
@@ -165,6 +167,7 @@ function resolveEvoInheritance(
 		"thinking",
 		"modelsYaml",
 		"noGateway",
+		"providerProxy",
 		"envNames",
 		"executorConfigHash",
 		"modelsYamlHash",
@@ -297,6 +300,8 @@ export class ManagerServer {
 	#server: Server<undefined> | null = null;
 	#stopped = false;
 	readonly #evo: EvoService;
+	/** Holds real provider credentials for evo runs; created lazily, never exposes them to a runner or agent. */
+	readonly #proxy = new ProviderProxy();
 	readonly #sourceRoot: string;
 	readonly jobsDir: string;
 	readonly #host: string | null;
@@ -359,6 +364,7 @@ export class ManagerServer {
 		}
 		this.#sse.clear();
 		this.#server?.stop(true);
+		this.#proxy.stop();
 		this.#store.close();
 	}
 
@@ -653,7 +659,7 @@ export class ManagerServer {
 			cwd,
 			stdout: logFile,
 			stderr: logFile,
-			env: { ...process.env },
+			env: this.#runnerEnv(record),
 			// Own process group: a manager restart (Ctrl+C / --hot dev cycle) must
 			// not deliver terminal signals to runners — that killed live runs.
 			detached: true,
@@ -664,6 +670,7 @@ export class ManagerServer {
 			try {
 				fs.closeSync(logFile);
 			} catch {}
+			this.#proxy.unregister(jobName);
 			// A retired instance (--hot reload) must not touch the closed store;
 			// the successor's pid sweep reconciles this run from disk instead.
 			if (this.#stopped) return;
@@ -677,6 +684,26 @@ export class ManagerServer {
 		this.#store.registerLaunch({ ...record, pid: proc.pid });
 		this.#tick();
 		return proc.pid;
+	}
+
+	/**
+	 * Environment for a runner child. A provider-proxy run gets a per-run token and the proxy port and NO provider
+	 * credential: every variable models.yml references is removed, so the real key lives only in this process.
+	 */
+	#runnerEnv(record: Omit<LaunchRecord, "pid">): Record<string, string | undefined> {
+		const env: Record<string, string | undefined> = { ...process.env };
+		const modelsYaml = record.config?.modelsYaml;
+		if (record.config?.providerProxy !== true || typeof modelsYaml !== "string") return env;
+		for (const name of readModelsEnvNamesSync(modelsYaml)) delete env[name];
+		let text: string;
+		try {
+			text = fs.readFileSync(modelsYaml, "utf8");
+		} catch {
+			throw new Error(`models file not readable: ${modelsYaml}`);
+		}
+		env[PROXY_TOKEN_ENV] = this.#proxy.register(record.jobName, proxyRoutesFromModels(text, process.env));
+		env.OMP_EVO_PROXY_PORT = String(this.#proxy.port);
+		return env;
 	}
 
 	/** Liveness check that survives manager restarts: managed child, or a running row with a live pid. */

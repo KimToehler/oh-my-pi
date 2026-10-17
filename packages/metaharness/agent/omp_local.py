@@ -246,6 +246,9 @@ class OmpLocal(BaseInstalledAgent):
         self._agent_args = self._parse_agent_args()
         self._bun_version = _env("OMP_BENCH_BUN_VERSION", "1.4.0")
         self._gateway_on = _env("OMP_BENCH_GATEWAY", "1") != "0"
+        # Host provider proxy: the models file already points at it with a per-run token, so no
+        # provider credential may be read from this process environment into the agent environment.
+        self._provider_proxy = _truthy(_env("OMP_BENCH_PROVIDER_PROXY", "0"))
 
         # web_search auth can't route through the gateway (dedicated provider creds);
         # off by default so search-using tasks don't false-negative on 401s.
@@ -634,7 +637,7 @@ class OmpLocal(BaseInstalledAgent):
         # argv); forwarded PI_* / --env knobs apply last so an explicit --env
         # always wins.
         run_env: dict[str, str] = dict(_SERVICE_GRACE_ENV)
-        if not self._gateway_on:
+        if not self._gateway_on and not self._provider_proxy:
             run_env.update(self._collect_provider_keys(provider))
         run_env.update(self._forward_env)
         await self.exec_as_agent(

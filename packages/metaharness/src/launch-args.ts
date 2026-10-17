@@ -58,6 +58,8 @@ export interface LaunchRequest {
 	modelsYaml?: string;
 	/** Pass provider keys into containers instead of the auth gateway (`--no-gateway`). */
 	noGateway?: boolean;
+	/** Evo-only: provider traffic goes through the manager's host proxy; no provider credential reaches the agent (`--provider-proxy`). */
+	providerProxy?: boolean;
 	/** Host env var NAMES forwarded into the container (`--env NAME`); values never recorded. */
 	envNames?: string[];
 	/** Evo-only: hash of the merged config.yml staged for this run. */
@@ -303,6 +305,7 @@ export function harborRunnerArgs(
 	if (request.modelsYaml) argv.push("--models-yaml", request.modelsYaml);
 	if (request.modelsYamlHash) argv.push("--models-yaml-hash", request.modelsYamlHash);
 	if (request.noGateway) argv.push("--no-gateway");
+	if (request.providerProxy) argv.push("--provider-proxy");
 	for (const name of request.envNames ?? []) argv.push("--env", name);
 	for (const task of request.include ?? []) argv.push("--include", task);
 	if (request.prewalk) {

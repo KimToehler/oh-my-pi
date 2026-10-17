@@ -9,6 +9,7 @@ import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import { type ConfigFile, collectConfigSync, hashConfig, materializeConfig, unlockTree } from "./config-snapshot";
 import { assertGenomeClean } from "./credential-scan";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
+import { rewriteModelsForProxy } from "./proxy-models";
 
 /**
  * Built-in omp model roles, frozen locally: importing the coding-agent role registry drags its whole
@@ -140,6 +141,8 @@ export interface StageOptions {
 	expectedModelsYamlHash: string;
 	/** Values that must never appear in the staged tree (forwarded secrets). */
 	secretValues?: readonly string[];
+	/** Host proxy URL containers reach; credentialed providers are rewritten to it and lose their key/headers. */
+	providerProxyUrl?: string;
 }
 
 /**
@@ -176,6 +179,9 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 	const modelsText = new TextDecoder().decode(modelsBytes);
 	referencedEnvNamesFromText(modelsText);
 	assertNoHostCredentialValues(modelsText, opts.secretValues ?? []);
+	const stagedModels = opts.providerProxyUrl
+		? new TextEncoder().encode(rewriteModelsForProxy(modelsText, opts.providerProxyUrl))
+		: modelsBytes;
 	const variantConfig = files.find(file => file.rel === "config.yml");
 	const variantYaml = variantConfig ? new TextDecoder().decode(variantConfig.bytes) : null;
 	const merged = mergeOverlayConfig(variantYaml, opts.spec);
@@ -183,7 +189,7 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 	const overlayFiles: ConfigFile[] = [
 		...files.filter(file => file.rel !== "config.yml"),
 		{ rel: "config.yml", bytes: encoder.encode(merged), executable: false },
-		{ rel: "models.yml", bytes: modelsBytes, executable: false },
+		{ rel: "models.yml", bytes: stagedModels, executable: false },
 	];
 	await fs.rm(opts.dest, { recursive: true, force: true });
 	await materializeConfig(overlayFiles, opts.dest);

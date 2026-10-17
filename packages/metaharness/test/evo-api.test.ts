@@ -719,7 +719,8 @@ describe("evo launch", () => {
 			environment: "docker",
 			concurrency: 2,
 			noGateway: true,
-			envNames: ["EVO_TEST_ROUTER_KEY"],
+			providerProxy: true,
+			envNames: [],
 			variantId: rootId,
 			suiteId: "search-1",
 			suiteHash: suite.hash,
@@ -734,7 +735,8 @@ describe("evo launch", () => {
 		expect(JSON.stringify(launch)).not.toContain(sentinel);
 		const argv = harborRunnerArgs(launch, { jobsDir: h.jobsDir, jobName: "j", dataset: SUITE.dataset });
 		expect(argv).toContain("--no-gateway");
-		expect(argv.join(" ")).toContain("--env EVO_TEST_ROUTER_KEY");
+		expect(argv).toContain("--provider-proxy");
+		expect(argv).not.toContain("--env");
 		expect(argv.join(" ")).not.toContain(sentinel);
 		for (const flag of ["--agent-dir", "--models-yaml", "--source-identity", "--thinking"])
 			expect(argv).toContain(flag);
@@ -760,7 +762,7 @@ describe("evo launch", () => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
-		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+		expect(ok.envNames).toEqual([]);
 		for (const value of [sentinel, "'!cat /etc/passwd'", "https://x.example/t", "42", "''"]) {
 			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ${value}\n`);
 			for (const forwardEnv of [null, []]) {
@@ -805,7 +807,7 @@ describe("evo launch", () => {
 		process.env.ONARA_ROUTER_KEY = "router-secret-value-0123456789";
 		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: public\n");
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
-		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+		expect(ok.envNames).toEqual([]);
 	});
 
 	it("refuses to publish a models snapshot whose only host credential occurrence is in a comment", async () => {
@@ -843,7 +845,7 @@ describe("evo launch", () => {
 			"# router config\nproviders:\n  onara:\n    apiKey: ONARA_ROUTER_KEY # env name only\n# end\n",
 		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
-		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+		expect(ok.envNames).toEqual([]);
 	});
 
 	it("refuses a short host credential that a comment quotes or punctuates", async () => {
@@ -878,7 +880,7 @@ describe("evo launch", () => {
 		// Negative control: a longer token merely containing the short value as a substring is not a leak.
 		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n# rk-770 and brk-77x\n");
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
-		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY"]);
+		expect(ok.envNames).toEqual([]);
 	});
 
 	it("refuses to publish a models snapshot whose header NAME carries a host credential", async () => {
@@ -920,7 +922,7 @@ describe("evo launch", () => {
 			"providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    headers:\n      X-Public: PUBLIC_HEADER_ENV\n",
 		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
-		expect(ok.envNames).toEqual(["ONARA_ROUTER_KEY", "PUBLIC_HEADER_ENV"]);
+		expect(ok.envNames).toEqual([]);
 	});
 
 	it("rejects a models snapshot whose bytes no longer match its recorded hash", async () => {
@@ -989,14 +991,14 @@ describe("evo launch", () => {
 			expect((err as Error).message).toBe(`forwarded env is missing variables referenced by models.yml: ${missing}`);
 			expect((err as Error).message).not.toContain("value-of-");
 		}
-		// Complete, reordered, duplicated and superset lists produce the same sorted union.
-		expect((await launch(["B_KEY", "A_KEY"])).envNames).toEqual(["A_KEY", "B_KEY"]);
-		expect((await launch(null)).envNames).toEqual(["A_KEY", "B_KEY"]);
-		expect((await launch(["EXTRA_KEY", "B_KEY", "A_KEY", "A_KEY"])).envNames).toEqual([
-			"A_KEY",
-			"B_KEY",
-			"EXTRA_KEY",
-		]);
+		// Complete, reordered and duplicated lists are accepted; the proxy forwards no name into the agent.
+		expect((await launch(["B_KEY", "A_KEY"])).envNames).toEqual([]);
+		expect((await launch(null)).envNames).toEqual([]);
+		expect((await launch(["B_KEY", "A_KEY", "A_KEY"])).envNames).toEqual([]);
+		// A superset is refused: the proxy has no route for an extra variable.
+		await expect(launch(["EXTRA_KEY", "B_KEY", "A_KEY"])).rejects.toThrow(
+			"provider proxy cannot route forwarded variables not referenced by models.yml: EXTRA_KEY",
+		);
 		// Host value missing for any name in the union.
 		delete process.env.EXTRA_KEY;
 		await expect(launch(["EXTRA_KEY", "A_KEY", "B_KEY"])).rejects.toThrow(
@@ -1087,6 +1089,7 @@ describe("evo launch", () => {
 			include: SUITE.include,
 			variantId: childId,
 			noGateway: true,
+			providerProxy: true,
 		});
 		expect(arm.executorConfigHash).toBe(launch.executorConfigHash);
 		expect(arm.stagedConfigHash).toBe(launch.stagedConfigHash); // both lack config.yml; AGENTS.md is not part of it

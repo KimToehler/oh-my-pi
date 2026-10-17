@@ -21,7 +21,8 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  */
 import type { Server } from "bun";
 import { writeComposeOverlayFile } from "./compose-overlay";
-import { assertNoHostCredentialValues, readModelsEnvNames } from "./evo/models-yaml";
+import { assertNoHostCredentialValues, readModelsEnvNames, readModelsEnvNamesSync } from "./evo/models-yaml";
+import { assertProxyForwardsNoCredentials, PROXY_TOKEN_ENV } from "./evo/proxy-models";
 import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
@@ -134,6 +135,8 @@ export interface Config {
 	modelsYaml: string | null;
 	/** Expected sha256 of the `modelsYaml` bytes; verified before the file is staged (`--models-yaml-hash`). */
 	modelsYamlHash: string | null;
+	/** Provider traffic goes through the manager's host proxy; the agent gets a per-run token, never a provider key. */
+	providerProxy: boolean;
 }
 
 /** Throw unless `cfg.modelsYaml` bytes hash to the recorded `--models-yaml-hash` (no-op without one). */
@@ -194,6 +197,7 @@ function defaultConfig(): Config {
 		sourceIdentity: null,
 		modelsYaml: null,
 		modelsYamlHash: null,
+		providerProxy: false,
 	};
 }
 
@@ -242,6 +246,7 @@ Gateway (auth, no keys in container):
       --gateway-url <url>        Default http://host.docker.internal:4000
       --gateway-token <tok>      Default "no-auth" (gateway runs --no-auth)
       --providers <csv>          Providers to route (default: model provider + anthropic,openai-codex)
+      --provider-proxy           Route provider traffic through the manager's host proxy (env OMP_EVO_PROXY_PORT/TOKEN); no key enters the agent
       --no-gateway               Pass host provider API keys into containers instead
       --web-search               Enable omp web_search (off by default; can't auth via gateway)
       --allow-host <host>        harbor --allow-agent-host (repeatable)
@@ -423,6 +428,9 @@ export function parseArgs(argv: string[]): Config {
 			}
 			case "--no-gateway":
 				cfg.gateway = false;
+				break;
+			case "--provider-proxy":
+				cfg.providerProxy = true;
 				break;
 			case "--web-search":
 				cfg.webSearch = true;
@@ -1642,6 +1650,7 @@ export function buildHarborEnv(
 	if (Object.keys(cfg.settings).length > 0) env.OMP_BENCH_SETTINGS = JSON.stringify(cfg.settings);
 	if (cfg.webSearch) env.OMP_BENCH_WEB_SEARCH = "1";
 	env.OMP_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
+	env.OMP_BENCH_PROVIDER_PROXY = cfg.providerProxy ? "1" : "0";
 	delete env.OMP_BENCH_AGENT_OVERLAY;
 	if (agentOverlay) env.OMP_BENCH_AGENT_OVERLAY = AGENT_OVERLAY_MOUNT;
 	if (modelsYaml) env.OMP_BENCH_MODELS_YAML = modelsYaml;
@@ -1772,6 +1781,32 @@ interface BenchmarkRun {
 	reportPath: string | null;
 }
 
+/**
+ * Provider-proxy launches: the per-run token (the only secret the agent receives) comes from the runner's own host
+ * environment and travels as a host-sourced `--env` value, so it is never persisted. Returns the URL the containers
+ * reach the proxy at. Refuses a config that would also hand the agent a real provider credential.
+ */
+function adoptProviderProxy(cfg: Config): string {
+	const token = process.env[PROXY_TOKEN_ENV];
+	const port = process.env.OMP_EVO_PROXY_PORT;
+	if (!token || !port) {
+		throw new Error(
+			`--provider-proxy requires ${PROXY_TOKEN_ENV} and OMP_EVO_PROXY_PORT from the manager environment`,
+		);
+	}
+	if (cfg.agent !== "omp" || !cfg.agentDir || !cfg.modelsYaml) {
+		throw new Error(
+			"--provider-proxy requires --agent omp with --agent-dir and --models-yaml (the proxy rewrite is applied to the overlay)",
+		);
+	}
+	const credentialNames = readModelsEnvNamesSync(cfg.modelsYaml);
+	assertProxyForwardsNoCredentials(Object.keys(cfg.env), credentialNames);
+	cfg.env[PROXY_TOKEN_ENV] = token;
+	if (!cfg.hostEnvKeys.includes(PROXY_TOKEN_ENV)) cfg.hostEnvKeys.push(PROXY_TOKEN_ENV);
+	const host = cfg.envType === "apple-container" ? VMNET_HOST_IP : "host.docker.internal";
+	return `http://${host}:${port}`;
+}
+
 async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (!which("harbor")) {
 		throw new Error("harbor not found on PATH. Install with: uv tool install harbor");
@@ -1785,6 +1820,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		);
 	}
 
+	const proxyUrl = cfg.providerProxy ? adoptProviderProxy(cfg) : null;
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
 	// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
 	const persisted = { ...cfg, jobName, env: { ...cfg.env } };
@@ -1894,6 +1930,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 				modelsYaml: cfg.modelsYaml,
 				expectedModelsYamlHash: cfg.modelsYamlHash,
 				secretValues: Object.values(cfg.env),
+				providerProxyUrl: proxyUrl ?? undefined,
 			})
 		).dir;
 	}

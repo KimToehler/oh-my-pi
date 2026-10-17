@@ -125,6 +125,15 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	// `names` is the full referenced ∪ explicit union: an explicitly forwarded extra is as secret as a referenced one.
 	// No copy of the text may be written while an unvalidated scalar still carries a host credential.
 	assertNoHostCredentialValues(modelsText, credentialValuesFromEnv(names, process.env));
+	// Provider-proxy launch: the agent receives no host variable at all. Referenced credentials stay in the manager
+	// (the proxy injects them); an explicitly forwarded extra has no proxy route and would reach the agent plaintext.
+	const unroutable = explicit.filter(name => !referenced.includes(name));
+	if (unroutable.length > 0) {
+		throw new EvoHttpError(
+			422,
+			`provider proxy cannot route forwarded variables not referenced by models.yml: ${unroutable.join(", ")}`,
+		);
+	}
 	// Content-addressed snapshot: later edits to the host file cannot change what this run (or its identity) used.
 	const modelsYamlHash = new Bun.CryptoHasher("sha256").update(modelsText).digest("hex");
 	const snapshot = path.join(input.jobsDir, "_evo", "models", `${modelsYamlHash}.yml`);
@@ -168,7 +177,8 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		modelsYaml: snapshot,
 		modelsYamlHash,
 		noGateway: true,
-		envNames: names,
+		providerProxy: true,
+		envNames: [],
 		role: "variant",
 	};
 }
