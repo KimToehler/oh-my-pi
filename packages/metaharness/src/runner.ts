@@ -1206,10 +1206,8 @@ export interface SourceMount {
 	stagedDir: string;
 }
 
-/** Deps plan before the source tree is staged. `hostMissing` dirs must exist in the staged tree as mount points. */
-export interface SourcePlan extends Omit<SourceMount, "stagedDir"> {
-	hostMissing: string[];
-}
+/** Deps plan before the source tree is staged; every `nodeModules` dir becomes a mount point in the staged tree. */
+export type SourcePlan = Omit<SourceMount, "stagedDir">;
 
 /**
  * Concrete bun version for the `oven/bun:<version>` image tag. An exact `packageManager`
@@ -1357,20 +1355,18 @@ export function prepareSourceDeps(cfg: Config): SourcePlan {
 	if (!fs.existsSync(path.join(depsDir, "node_modules"))) {
 		throw new Error(`source deps tree has no node_modules (${depsDir}); delete it and retry`);
 	}
-	// Shadow-mount every node_modules visible in the host tree (they hold darwin
-	// binaries) with the skeleton's linux one; both sides of each mount must exist.
+	// Shadow-mount every node_modules that exists on either side with the skeleton's linux one. The staged
+	// tree never copies host node_modules (ignored), so each shadowed dir is created there as a mount point.
 	const nodeModules = ["node_modules"];
-	const hostMissing: string[] = [];
 	for (const dir of pkgDirs) {
 		const rel = path.join(dir, "node_modules");
 		const inHost = fs.existsSync(path.join(sourceRoot, rel));
 		const inDeps = fs.existsSync(path.join(depsDir, rel));
 		if (!inHost && !inDeps) continue;
 		if (!inDeps) fs.mkdirSync(path.join(depsDir, rel), { recursive: true });
-		if (!inHost) hostMissing.push(rel);
 		nodeModules.push(rel);
 	}
-	return { arch, depsDir, nodeModules, hostMissing };
+	return { arch, depsDir, nodeModules };
 }
 
 /**
@@ -1908,7 +1904,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			root: cfg.sourceRoot,
 			dest: path.join(benchDir, "source"),
 			arch: plan.arch,
-			mountDirs: plan.hostMissing,
+			mountDirs: plan.nodeModules,
 		});
 		// A host edit while copying would make the staged bytes differ from the launch identity.
 		await assertLaunchIdentity();

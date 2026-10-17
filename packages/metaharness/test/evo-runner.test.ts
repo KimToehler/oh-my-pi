@@ -885,6 +885,40 @@ describe("runner-config credential persistence", () => {
 		}
 	}, 60_000);
 
+	it("creates every shadowed node_modules mount point inside the staged source tree", async () => {
+		const jobsDir = tmp();
+		const source = tmp();
+		const git = (...args: string[]): void => {
+			const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: source });
+			if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+		};
+		git("init", "-q", "-b", "main");
+		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
+		write(source, "bun.lock", "");
+		write(source, ".gitignore", "*.node\nnode_modules/\n");
+		write(source, "tracked.txt", "before");
+		git("add", "-A");
+		git("commit", "-q", "-m", "init");
+		write(source, "packages/natives/native/pi_natives.linux-arm64.node", "addon");
+		// The host checkout has its own (ignored) node_modules, as every real checkout does.
+		write(source, "node_modules/host-only/index.js", "darwin build");
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		await runRunner(
+			jobsDir,
+			"job-mountpoints",
+			["--environment", "apple-container", "--source-root", source, "--source-identity", launch],
+			{ STUB_DEPS_DIR: depsDir },
+			undefined,
+			{ container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"', harbor: "true" },
+			"source",
+		);
+		const staged = path.join(jobsDir, "_bench", "job-mountpoints", "source");
+		// A read-only bind of the staged tree cannot grow mount points at container start.
+		expect(fs.statSync(path.join(staged, "node_modules")).isDirectory()).toBe(true);
+		expect(fs.existsSync(path.join(staged, "node_modules", "host-only"))).toBe(false);
+	}, 60_000);
+
 	it("keeps a recorded source drift sticky across a resume", async () => {
 		const jobsDir = tmp();
 		const source = tmp();
