@@ -566,10 +566,17 @@ export class ManagerServer {
 		}
 		// Same launch-time integrity rule as `launch()`: `--resume` rebuilds the harbor invocation
 		// from the recorded config, so a suite snapshot tampered after the original run must not
-		// execute under its stale `suiteHash`/`taskHash`.
-		const recordedSuite = run.config.suiteId;
-		if (typeof recordedSuite === "string" && recordedSuite) {
-			assertRecordedSuiteIntact(this.jobsDir, recordedSuite);
+		// execute under its stale `suiteHash`/`taskHash`. `suite_id` is the durable run identity:
+		// an evo row must name its suite in both places and both must agree, while a plain harbor
+		// row (null suite) carries nothing to validate.
+		if (run.suiteId !== null) {
+			const recordedSuite = run.config.suiteId;
+			if (typeof recordedSuite !== "string" || recordedSuite !== run.suiteId) {
+				throw new Error(
+					`run ${jobName} records suite '${run.suiteId}' but its config names '${String(recordedSuite)}'; cannot resume`,
+				);
+			}
+			assertRecordedSuiteIntact(this.jobsDir, run.suiteId);
 		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
