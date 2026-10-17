@@ -1,3 +1,6 @@
+/** Harbor verifier network policy; calibration applies the same policy when it runs the verifier. */
+export const VERIFIER_NETWORK_MODE = "no-network";
+
 export function taskToml(name: string): string {
 	return [
 		'schema_version = "1.3"',
@@ -10,7 +13,7 @@ export function taskToml(name: string): string {
 		"",
 		"[verifier]",
 		"timeout_sec = 900.0",
-		'network_mode = "no-network"',
+		`network_mode = "${VERIFIER_NETWORK_MODE}"`,
 		"",
 		"[environment]",
 		"build_timeout_sec = 900.0",

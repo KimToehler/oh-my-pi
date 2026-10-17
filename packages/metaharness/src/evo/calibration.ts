@@ -5,9 +5,18 @@ import * as path from "node:path";
 export const META_FILE = "evo-task.json";
 export const CALIBRATION_FILE = "calibration.json";
 
+/** Where the RED/GREEN outcomes were measured: the task's generated image under the verifier's network policy. */
+export interface CalibrationEnvironment {
+	mode: "container";
+	runtime: string;
+	image: string;
+	verifierNetwork: string;
+}
+
 export interface CalibrationRecord {
 	before: number;
 	after: number;
+	environment: CalibrationEnvironment;
 	taskHash: string;
 	verifiedAt: string;
 }

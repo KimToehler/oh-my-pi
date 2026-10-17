@@ -10,7 +10,9 @@
  * `make` emits a Harbor task (schema 1.3) for the base→fix change: `environment/repo/` holds the
  * base snapshot (copied to /workspace/repo by the Dockerfile), the verifier overlays hidden tests
  * taken from `fix`, and the reference solution overlays the non-test files taken from `fix`.
- * `verify` is the mandatory RED/GREEN calibration: reward 0 before solution, 1 after.
+ * `verify` is the mandatory RED/GREEN calibration: reward 0 before solution, 1 after, measured in the generated
+ * Docker image under the verifier's no-network policy (runtime: $EVO_CONTAINER_RUNTIME, default `docker`).
+ * `--host-unisolated` runs the same check on the host shell as a diagnostic and never writes calibration.json.
  */
 import { fail } from "./evo-task-shared";
 import { type MakeOptions, makeTask } from "./evo-task-make";
@@ -51,8 +53,11 @@ export async function main(argv: string[]): Promise<void> {
 		return;
 	}
 	if (cmd === "verify") {
-		if (rest.length !== 2 || rest[0] !== "--task") fail("usage: evo-task.ts verify --task <dir>");
-		const r = await verifyTask(rest[1]);
+		const host = rest[2] === "--host-unisolated";
+		if (rest.length !== (host ? 3 : 2) || rest[0] !== "--task") {
+			fail("usage: evo-task.ts verify --task <dir> [--host-unisolated]");
+		}
+		const r = await verifyTask(rest[1], { hostUnisolated: host });
 		console.log(`verifier reward before solution: ${r.before}\nverifier reward after solution: ${r.after}`);
 		return;
 	}
