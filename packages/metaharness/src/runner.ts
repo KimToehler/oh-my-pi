@@ -27,7 +27,7 @@ import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
-import { type StagedSource, stageSource, verifyStagedSource } from "./evo/source-stage";
+import { removeStagedSource, type StagedSource, stageSource, verifyStagedSource } from "./evo/source-stage";
 import { probeProxyLiveness } from "./evo/provider-proxy";
 import { classifyHarborPhase, type FailurePhase } from "./evo/failure-phase";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
@@ -1814,7 +1814,21 @@ function adoptProviderProxy(cfg: Config): { url: string; probe: () => Promise<bo
 	return { url: `http://${host}:${port}`, probe: () => probeProxyLiveness(port, token) };
 }
 
+/**
+ * The staged source tree is transient: once the run (and its postflight verification) is over, or on any failure
+ * path, it is removed so no copy of the worktree (untracked files included) persists in the job dir. A resume
+ * restages from the live root and re-checks the launch identity, so it never needs the old tree.
+ */
 async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
+	const transient: { stagedDir: string | null } = { stagedDir: null };
+	try {
+		return await runBenchmarkWith(cfg, transient);
+	} finally {
+		if (transient.stagedDir) await removeStagedSource(transient.stagedDir);
+	}
+}
+
+async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | null }): Promise<BenchmarkRun> {
 	if (!which("harbor")) {
 		throw new Error("harbor not found on PATH. Install with: uv tool install harbor");
 	}
@@ -1900,11 +1914,15 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	let stagedSource: StagedSource | null = null;
 	if (cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
 		const plan = prepareSourceDeps(cfg);
+		transient.stagedDir = path.join(benchDir, "source");
 		stagedSource = await stageSource({
 			root: cfg.sourceRoot,
 			dest: path.join(benchDir, "source"),
 			arch: plan.arch,
 			mountDirs: plan.nodeModules,
+			secrets: cfg.modelsYaml
+				? modelsScanValues(await readModelsEnvNames(cfg.modelsYaml), cfg.env, process.env)
+				: [],
 		});
 		// A host edit while copying would make the staged bytes differ from the launch identity.
 		await assertLaunchIdentity();

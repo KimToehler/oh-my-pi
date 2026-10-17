@@ -9,6 +9,7 @@ import { EvoHttpError } from "./boundary";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
+import { assertSourceClean } from "./source-stage";
 import { stageRunData } from "./run-data";
 import { suiteTaskHash } from "./suite-tasks";
 import type { StoredSuite } from "./suites";
@@ -124,7 +125,12 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		throw new EvoHttpError(422, `host env not set for forwarded variables: ${missing.join(", ")}`);
 	// `names` is the full referenced ∪ explicit union: an explicitly forwarded extra is as secret as a referenced one.
 	// No copy of the text may be written while an unvalidated scalar still carries a host credential.
-	assertNoHostCredentialValues(modelsText, credentialValuesFromEnv(names, process.env));
+	const hostValues = credentialValuesFromEnv(names, process.env);
+	assertNoHostCredentialValues(modelsText, hostValues);
+	// The runner never sees these values (the manager strips them from its environment), so the staged source
+	// tree must be scanned here, over the root this launch will stage, before anything is spawned.
+	const fields = variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot);
+	await assertSourceClean(fields.sourceRoot as string, hostValues);
 	// Provider-proxy launch: the agent receives no host variable at all. Referenced credentials stay in the manager
 	// (the proxy injects them); an explicitly forwarded extra has no proxy route and would reach the agent plaintext.
 	const unroutable = explicit.filter(name => !referenced.includes(name));
@@ -173,7 +179,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		suiteId: manifest.id,
 		suiteHash: suite.hash,
 		taskHash: suiteTaskHash(suite),
-		...variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot),
+		...fields,
 		modelsYaml: snapshot,
 		modelsYamlHash,
 		noGateway: true,

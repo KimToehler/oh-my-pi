@@ -86,6 +86,7 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 			frame("content", await fs.readlink(path.join(real, rel)));
 		} else if (stat.isFile()) {
 			frame("type", "file");
+			frame("exec", stat.mode & 0o111 ? "1" : "0");
 			frame("content", await fs.readFile(path.join(real, rel)));
 		} else {
 			frame("type", "other");
@@ -95,6 +96,8 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 	hasher.update(`native-count${addons.length}:`);
 	for (const rel of addons) {
 		frame("path", rel);
+		const mode = (await fs.stat(path.join(real, rel))).mode;
+		frame("exec", mode & 0o111 ? "1" : "0");
 		frame("content", await fs.readFile(path.join(real, rel)));
 	}
 	return { ref, dirtyHash: hasher.digest("hex") };

@@ -904,19 +904,68 @@ describe("runner-config credential persistence", () => {
 		write(source, "node_modules/host-only/index.js", "darwin build");
 		const launch = formatSourceIdentity(await sourceIdentity(source));
 		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const probe = path.join(jobsDir, "mount-probe.txt");
+		const staged = path.join(jobsDir, "_bench", "job-mountpoints", "source");
 		await runRunner(
 			jobsDir,
 			"job-mountpoints",
 			["--environment", "apple-container", "--source-root", source, "--source-identity", launch],
-			{ STUB_DEPS_DIR: depsDir },
+			{ STUB_DEPS_DIR: depsDir, STUB_STAGED: staged, STUB_PROBE: probe },
 			undefined,
-			{ container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"', harbor: "true" },
+			{
+				container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"',
+				// The tree exists only while harbor runs: record what the container would see.
+				harbor:
+					'if [ -d "$STUB_STAGED/node_modules" ]; then echo mountpoint-dir > "$STUB_PROBE"; else echo missing > "$STUB_PROBE"; fi\n' +
+					'ls -A "$STUB_STAGED/node_modules" >> "$STUB_PROBE"',
+			},
 			"source",
 		);
-		const staged = path.join(jobsDir, "_bench", "job-mountpoints", "source");
-		// A read-only bind of the staged tree cannot grow mount points at container start.
-		expect(fs.statSync(path.join(staged, "node_modules")).isDirectory()).toBe(true);
-		expect(fs.existsSync(path.join(staged, "node_modules", "host-only"))).toBe(false);
+		// A read-only bind of the staged tree cannot grow mount points at container start; host contents never leak in.
+		expect(fs.readFileSync(probe, "utf8")).toBe("mountpoint-dir\n");
+		// Transient: the staged copy is gone once postflight verification ran.
+		expect(fs.existsSync(staged)).toBe(false);
+	}, 60_000);
+
+	it("refuses a direct run whose untracked source file holds a forwarded credential and stages nothing", async () => {
+		const jobsDir = tmp();
+		const source = tmp();
+		const git = (...args: string[]): void => {
+			const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: source });
+			if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+		};
+		git("init", "-q", "-b", "main");
+		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
+		write(source, "bun.lock", "");
+		write(source, ".gitignore", "*.node\nnode_modules/\n");
+		git("add", "-A");
+		git("commit", "-q", "-m", "init");
+		write(source, "packages/natives/native/pi_natives.linux-arm64.node", "addon");
+		write(source, "secret.env", `KEY=${SENTINEL}\n`);
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-source-secret",
+			[
+				"--environment",
+				"apple-container",
+				"--source-root",
+				source,
+				"--source-identity",
+				launch,
+				"--env",
+				"EVO_SENTINEL_KEY",
+			],
+			{ STUB_DEPS_DIR: depsDir, EVO_SENTINEL_KEY: SENTINEL },
+			undefined,
+			{ container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"' },
+			"source",
+		);
+		expect(code).not.toBe(0);
+		expect(out).toContain("secret.env");
+		expect(out).not.toContain(SENTINEL);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-source-secret", "source"))).toBe(false);
 	}, 60_000);
 
 	it("keeps a recorded source drift sticky across a resume", async () => {

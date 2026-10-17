@@ -217,6 +217,22 @@ describe("evo launch through the provider proxy", () => {
 		).rejects.toThrow("provider proxy cannot route forwarded variables not referenced by models.yml: R64_EXTRA");
 	});
 
+	it("buildEvalLaunch refuses 422 when the source root holds an untracked file carrying the forwarded value", async () => {
+		const { jobsDir, suite, variant, defaults, source } = await setup();
+		fs.writeFileSync(path.join(source, "secret.env"), `KEY=${SENTINEL}\n`);
+		const err = await buildEvalLaunch({ jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: source }).then(
+			() => undefined,
+			(e: unknown) => e as Error & { status?: number },
+		);
+		expect(err?.status).toBe(422);
+		expect(err?.message).toContain("secret.env");
+		expect(err?.message).not.toContain(SENTINEL);
+		fs.rmSync(path.join(source, "secret.env"));
+		expect(
+			(await buildEvalLaunch({ jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: source })).providerProxy,
+		).toBe(true);
+	});
+
 	it("real runner process: sentinel reaches no persisted artifact and no spawned process environment", async () => {
 		const { jobsDir, manager, suite, variant, defaults, source } = await setup();
 		const bin = tmp("r64-bin-");

@@ -843,7 +843,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: h.source };
 		const launch = await buildEvalLaunch(input);
 		expect(launch).toMatchObject({
 			model: SUITE.model,
@@ -867,7 +867,7 @@ describe("evo launch", () => {
 			new Bun.CryptoHasher("sha256").update(fs.readFileSync(modelsYaml, "utf8")).digest("hex"),
 		);
 		expect(fs.readFileSync(launch.modelsYaml!, "utf8")).toBe(fs.readFileSync(modelsYaml, "utf8"));
-		expect(launch.sourceRoot).toBeUndefined();
+		expect(launch.sourceRoot).toBe(h.source);
 		expect(launch.agentDir).toBe(path.join(h.jobsDir, "_evo", "variants", rootId, "config"));
 		expect(JSON.stringify(launch)).not.toContain(sentinel);
 		const argv = harborRunnerArgs(launch, { jobsDir: h.jobsDir, jobName: "j", dataset: SUITE.dataset });
@@ -877,7 +877,7 @@ describe("evo launch", () => {
 		expect(argv.join(" ")).not.toContain(sentinel);
 		for (const flag of ["--agent-dir", "--models-yaml", "--source-identity", "--thinking"])
 			expect(argv).toContain(flag);
-		expect(argv).not.toContain("--source-root");
+		expect(argv).toContain("--source-root");
 		delete process.env.EVO_TEST_ROUTER_KEY;
 		await expect(buildEvalLaunch(input)).rejects.toThrow(
 			"host env not set for forwarded variables: EVO_TEST_ROUTER_KEY",
@@ -892,7 +892,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
 		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
 		process.env.ONARA_ROUTER_KEY = "router-value-123";
 		cleanups.push(() => {
@@ -922,7 +922,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -954,7 +954,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -992,7 +992,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -1027,7 +1027,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
 		process.env.PUBLIC_HEADER_ENV = "public-header-value";
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
@@ -1075,7 +1075,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: h.source };
 		const first = await buildEvalLaunch(input);
 		const snapshot = first.modelsYaml!;
 		expect(fs.statSync(snapshot).mode & 0o222).toBe(0);
@@ -1110,6 +1110,7 @@ describe("evo launch", () => {
 				variant,
 				suite,
 				jobName: "j",
+				sourceRoot: h.source,
 				defaults: { modelsYaml, forwardEnv },
 			});
 		for (const name of ["A_KEY", "B_KEY", "EXTRA_KEY"]) process.env[name] = `value-of-${name}`;
@@ -1199,6 +1200,7 @@ describe("evo launch", () => {
 			suite,
 			jobName: "exp-base",
 			defaults,
+			sourceRoot: h.source,
 		});
 		h.manager.store.registerLaunch({
 			benchmark: "harbor",

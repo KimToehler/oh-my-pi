@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
-import { removeStagedSource, stageSource, verifyStagedSource } from "../src/evo/source-stage";
+import { assertSourceClean, removeStagedSource, stageSource, verifyStagedSource } from "../src/evo/source-stage";
 import { buildMountsJson } from "../src/runner";
 import "./registry-stub";
 
@@ -82,7 +82,7 @@ describe("stageSource", () => {
 		write(root, "ignored.log", "ignored\n");
 		write(root, ".gitignore", "*.node\n*.log\n");
 		const dest = path.join(tmp("evo-stage-dest-"), "source");
-		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: ["node_modules"] });
+		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: ["node_modules"], secrets: [] });
 		expect(fs.readFileSync(path.join(dest, "a.txt"), "utf8")).toBe("edited, unstaged\n");
 		expect(fs.readFileSync(path.join(dest, "src/b.ts"), "utf8")).toBe("export const b = 1;\n");
 		expect(fs.readFileSync(path.join(dest, "new.txt"), "utf8")).toBe("untracked\n");
@@ -95,7 +95,7 @@ describe("stageSource", () => {
 	it("is read-only and detects tampering", async () => {
 		const root = await makeRepo();
 		const dest = path.join(tmp("evo-stage-dest-"), "source");
-		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: [] });
+		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [] });
 		expect(fs.statSync(path.join(dest, "a.txt")).mode & 0o222).toBe(0);
 		expect(fs.statSync(dest).mode & 0o222).toBe(0);
 		expect(await verifyStagedSource(staged)).toEqual([]);
@@ -108,24 +108,99 @@ describe("stageSource", () => {
 	it("refuses the launch when the container addon is missing", async () => {
 		const root = await makeRepo(null);
 		const dest = path.join(tmp("evo-stage-dest-"), "source");
-		await expect(stageSource({ root, dest, arch: "arm64", mountDirs: [] })).rejects.toThrow(
+		await expect(stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [] })).rejects.toThrow(
 			/pi_natives\.linux-arm64.*missing/,
 		);
 		expect(fs.existsSync(dest)).toBe(false);
 		// An addon for the other platform does not satisfy the requirement.
 		write(root, `${ADDON_DIR}/pi_natives.darwin-arm64.node`, "mac");
-		await expect(stageSource({ root, dest, arch: "arm64", mountDirs: [] })).rejects.toThrow(/missing/);
+		await expect(stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [] })).rejects.toThrow(/missing/);
 	});
 
 	it("staged identity inputs equal the live identity: mounts target the staged dir", async () => {
 		const root = await makeRepo();
 		const dest = path.join(tmp("evo-stage-dest-"), "_bench", "job", "source");
-		await stageSource({ root, dest, arch: "arm64", mountDirs: [] });
+		await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [] });
 		const mounts = JSON.parse(
 			buildMountsJson({ arch: "arm64", depsDir: "/deps", nodeModules: ["node_modules"], stagedDir: dest }) ?? "[]",
 		) as Array<{ source: string; target: string }>;
 		const src = mounts.find(m => m.target === "/opt/omp/src");
 		expect(src?.source).toBe(dest);
 		expect(mounts.some(m => m.source === root)).toBe(false);
+	});
+});
+
+const SECRET = "sk-r77-forwarded-secret-0123456789";
+
+describe("R77 staged tree hardening", () => {
+	it("refuses an untracked file holding a forwarded value and stages nothing", async () => {
+		const root = await makeRepo();
+		write(root, "secret.env", `KEY=${SECRET}\n`);
+		const dest = path.join(tmp("evo-stage-dest-"), "source");
+		const err = await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [SECRET] }).then(
+			() => undefined,
+			(e: unknown) => e as Error,
+		);
+		expect(err?.message).toContain("secret.env");
+		expect(err?.message).not.toContain(SECRET);
+		expect(fs.existsSync(dest)).toBe(false);
+		await expect(assertSourceClean(root, [SECRET])).rejects.toThrow("secret.env");
+	});
+
+	it("refuses a path component carrying the value without echoing it", async () => {
+		const root = await makeRepo();
+		write(root, `dir-${SECRET}/x.txt`, "x");
+		const err = await assertSourceClean(root, [SECRET]).then(
+			() => undefined,
+			(e: unknown) => e as Error,
+		);
+		expect(err?.message).toContain("dir-***");
+		expect(err?.message).not.toContain(SECRET);
+	});
+
+	it("clean control: a tree without the value stages", async () => {
+		const root = await makeRepo();
+		write(root, "ok.env", "KEY=other\n");
+		const dest = path.join(tmp("evo-stage-dest-"), "source");
+		await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [SECRET] });
+		expect(fs.existsSync(path.join(dest, "ok.env"))).toBe(true);
+	});
+
+	it("reports a file added to the staged tree, a chmod, and a non-empty mount dir", async () => {
+		const root = await makeRepo();
+		write(root, "run.sh", "#!/bin/sh\n");
+		const dest = path.join(tmp("evo-stage-dest-"), "source");
+		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: ["pkg/node_modules"], secrets: [] });
+		expect(await verifyStagedSource(staged)).toEqual([]);
+		fs.chmodSync(path.join(dest, "pkg/node_modules"), 0o755);
+		write(dest, "pkg/node_modules/planted.js", "x");
+		fs.chmodSync(dest, 0o755);
+		write(dest, "added.txt", "new");
+		fs.chmodSync(path.join(dest, "src"), 0o755);
+		fs.symlinkSync("/etc/passwd", path.join(dest, "src/link"));
+		fs.chmodSync(path.join(dest, "run.sh"), 0o755);
+		const bad = await verifyStagedSource(staged);
+		expect(bad.sort()).toEqual(["added.txt", "pkg/node_modules/planted.js", "run.sh", "src/link"]);
+	});
+
+	it("reports a chmod alone", async () => {
+		const root = await makeRepo();
+		const dest = path.join(tmp("evo-stage-dest-"), "source");
+		const staged = await stageSource({ root, dest, arch: "arm64", mountDirs: [], secrets: [] });
+		fs.chmodSync(path.join(dest, "a.txt"), 0o755);
+		expect(await verifyStagedSource(staged)).toEqual(["a.txt"]);
+	});
+
+	it("gives different identities to the same bytes with a different exec bit", async () => {
+		const a = await makeRepo();
+		const b = await makeRepo();
+		write(a, "tool.sh", "same");
+		write(b, "tool.sh", "same");
+		expect((await sourceIdentity(a)).dirtyHash).toBe((await sourceIdentity(b)).dirtyHash);
+		fs.chmodSync(path.join(b, "tool.sh"), 0o755);
+		expect((await sourceIdentity(a)).dirtyHash).not.toBe((await sourceIdentity(b)).dirtyHash);
+		const before = (await sourceIdentity(a)).dirtyHash;
+		fs.chmodSync(path.join(a, ADDON), 0o755);
+		expect((await sourceIdentity(a)).dirtyHash).not.toBe(before);
 	});
 });
