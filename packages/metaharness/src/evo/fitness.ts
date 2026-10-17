@@ -48,6 +48,8 @@ export interface FitnessReport extends Interval {
 	phaseCounts: Record<FailurePhase, number>;
 	/** Share of decided trials whose transcript shows no assistant message. */
 	startFailureRate: number | null;
+	/** Terminal in-suite trials whose transcript parse dropped lines; their call/token totals undercount. */
+	lossyTranscriptTrials: number;
 	/** Trials emitting each signal. */
 	signalHits: Record<string, number>;
 	perTask: TaskFitness[];
@@ -174,6 +176,7 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 		meanLlmCalls: mean(perTask.flatMap(t => (t.meanLlmCalls === null ? [] : [t.meanLlmCalls]))),
 		meanOutputTokens: mean(perTask.flatMap(t => (t.meanOutputTokens === null ? [] : [t.meanOutputTokens]))),
 		meanCostUsd: mean(perTask.filter(t => t.attempts > 0).map(t => t.meanCostUsd)) ?? 0,
+		lossyTranscriptTrials: decided.filter(t => (t.transcript?.droppedLines ?? 0) > 0).length,
 		startFailureRate: decided.length === 0 ? null : startFailures / decided.length,
 		phaseCounts,
 		signalHits,

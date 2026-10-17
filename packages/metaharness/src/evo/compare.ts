@@ -76,7 +76,7 @@ export interface ComparisonReport extends Interval {
 	/** Cardinality only: both runs have a terminal record in every task x attempt cell. */
 	dataComplete: boolean;
 	/**
-	 * `dataComplete` AND no non-model trials AND the suite's pre-declared policy is met AND the paired deltas have
+	 * `dataComplete` AND no non-model trials AND no lossy transcripts AND the suite's pre-declared policy is met AND the paired deltas have
 	 * variance to state an interval. Every decision-valued field (`creditedDelta`, wins/ties/losses, interval, and
 	 * the cost/call/token deltas) is null unless this is true.
 	 */
@@ -145,6 +145,7 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		dataComplete,
 		incompleteReasons: [...child.incompleteReasons, ...baseline.incompleteReasons],
 		nonModelPhases: refusals.map(r => r.reason),
+		lossyTranscriptTrials: child.lossyTranscriptTrials + baseline.lossyTranscriptTrials,
 		pairedTasks: deltas.length,
 		attemptsPerTask: Math.min(child.attemptsPerTask, baseline.attemptsPerTask),
 		deltas: values,

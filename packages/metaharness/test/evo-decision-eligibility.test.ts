@@ -175,6 +175,66 @@ describe("decision eligibility", () => {
 		});
 	}
 
+	describe("lossy transcripts fail closed", () => {
+		const lossy = (n: number) => ({
+			transcript: {
+				llmCalls: 1,
+				llmErrors: 0,
+				turns: 1,
+				inputTokens: 1,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				toolCalls: 0,
+				toolErrors: 0,
+				compactions: 0,
+				retries: 0,
+				finalStopReason: "stop",
+				started: true,
+				startupErrors: [],
+				signals: [],
+				droppedLines: n,
+			},
+		});
+		const rewardsC = { a: [1], b: [1], c: [0], d: [1] };
+		const rewardsB = { a: [0], b: [1], c: [0], d: [0] };
+
+		it("a clean transcript compares normally", () => {
+			const c = compareFitness(
+				side("c", rewardsC, POLICY, { a__1: lossy(0) }),
+				side("b", rewardsB, POLICY, { a__1: lossy(0) }),
+				variant,
+			);
+			expect(c.decisionEligible).toBe(true);
+			expect(c.ineligibility).toBeNull();
+			expect(c.callsDelta).not.toBeNull();
+		});
+
+		for (const which of ["child", "baseline"] as const) {
+			it(`one dropped line on the ${which} refuses with lossy_transcript and nulls decision fields`, () => {
+				const over = { a__1: lossy(1) };
+				const c = compareFitness(
+					side("c", rewardsC, POLICY, which === "child" ? over : {}),
+					side("b", rewardsB, POLICY, which === "baseline" ? over : {}),
+					variant,
+				);
+				expect(c.decisionEligible).toBe(false);
+				expect(c.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+				expect(c.creditedDelta).toBeNull();
+				expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
+				expect([c.callsDelta, c.outputTokensDelta, c.costUsdDelta]).toEqual([null, null, null]);
+				expect(c.ci95).toBeNull();
+				// Raw diagnostics stay visible.
+				expect(c.rawDelta).toBeCloseTo(0.5, 12);
+			});
+		}
+
+		it("fitness reports the lossy trial count", () => {
+			expect(side("c", rewardsC, POLICY, { a__1: lossy(3), b__1: lossy(1) }).lossyTranscriptTrials).toBe(2);
+			expect(side("c", rewardsC, POLICY).lossyTranscriptTrials).toBe(0);
+		});
+	});
+
 	it("a data-incomplete run is not dataComplete and reports incomplete", () => {
 		const c = compareFitness(
 			side("c", { a: [1], b: [1] }, POLICY, {}, ["a", "b", "c"]),

@@ -19,6 +19,7 @@ export interface Interval {
 export type Ineligibility =
 	| { reason: "incomplete"; reasons: string[] }
 	| { reason: "non_model_phase"; phases: Array<Exclude<FailurePhase, "model_outcome">> }
+	| { reason: "lossy_transcript"; trials: number }
 	| {
 			reason: "underpowered";
 			pairedTasks: number;
@@ -75,6 +76,8 @@ export interface EligibilityInput {
 	dataComplete: boolean;
 	incompleteReasons: string[];
 	nonModelPhases: Array<Exclude<FailurePhase, "model_outcome">>;
+	/** Terminal trials (both sides) whose transcript parse dropped at least one line. */
+	lossyTranscriptTrials: number;
 	pairedTasks: number;
 	attemptsPerTask: number;
 	/** Paired per-task deltas over which the interval is stated. */
@@ -82,7 +85,7 @@ export interface EligibilityInput {
 }
 
 /**
- * First failing gate wins: data completeness, then provenance (R50), then declared power, then variance.
+ * First failing gate wins: data completeness, then provenance (R50), then transcript completeness (any dropped line), then declared power, then variance.
  * Zero spread across paired deltas gives a zero-width interval that would claim certainty from no
  * information, so it is ineligible rather than silently narrow. Zero WITHIN-task variance does not block:
  * the interval is over task-level deltas, so between-task spread still carries it; the operator sees
@@ -91,6 +94,8 @@ export interface EligibilityInput {
 export function evaluateEligibility(input: EligibilityInput): Ineligibility | null {
 	if (!input.dataComplete) return { reason: "incomplete", reasons: input.incompleteReasons };
 	if (input.nonModelPhases.length > 0) return { reason: "non_model_phase", phases: input.nonModelPhases };
+	// Any dropped line means call/token totals undercount; there is no pre-declared tolerated fraction, so none is read.
+	if (input.lossyTranscriptTrials > 0) return { reason: "lossy_transcript", trials: input.lossyTranscriptTrials };
 	const { policy, pairedTasks, attemptsPerTask } = input;
 	// A single paired task has no variance, so the effective floor is 2 whatever the suite declared.
 	const minPairedTasks = Math.max(policy.minPairedTasks, 2);
