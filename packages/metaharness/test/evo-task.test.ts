@@ -428,3 +428,63 @@ describe("example descriptor", () => {
 		});
 	});
 });
+
+describe("setup command (build-time dependency install)", () => {
+	const setup = "printf ok > .deps-ready";
+	const testCommand = "bash tests/check.sh && test -f .deps-ready";
+
+	it("without --setup-command a test needing build-time artifacts fails GREEN; Dockerfile has no RUN line", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f, { testCommand }));
+		const out = path.join(tmp, "out");
+		const dockerfile = await Bun.file(path.join(out, "environment", "Dockerfile")).text();
+		expect(dockerfile.split("\n").some(l => l.startsWith("RUN "))).toBe(false);
+		expect(dockerfile).toMatch(/^FROM \S+\nCOPY repo\/ \/workspace\/repo\/\nWORKDIR \/workspace\/repo\n$/);
+		const meta = (await Bun.file(path.join(out, "evo-task.json")).json()) as { setupCommand: string | null };
+		expect(meta.setupCommand).toBeNull();
+		await expect(verifyTask(out)).rejects.toThrow(/GREEN check failed/);
+	});
+
+	it("with --setup-command the RUN step executes at build time and verify returns 0 then 1", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f, { testCommand, setupCommand: setup }));
+		const out = path.join(tmp, "out");
+		const dockerfile = await Bun.file(path.join(out, "environment", "Dockerfile")).text();
+		expect(dockerfile.endsWith(`WORKDIR /workspace/repo\nRUN ${setup}\n`)).toBe(true);
+		const meta = (await Bun.file(path.join(out, "evo-task.json")).json()) as { setupCommand: string | null };
+		expect(meta.setupCommand).toBe(setup);
+		expect(await verifyTask(out)).toEqual({ before: 0, after: 1 });
+	});
+
+	it("rejects empty, NUL, or newline setup command", async () => {
+		const f = await makeRepo();
+		await expect(makeTask(opts(f, { setupCommand: "true\nrm -rf /" }))).rejects.toThrow(/NUL or newline/);
+		await expect(makeTask(opts(f, { setupCommand: "true\u0000" }))).rejects.toThrow(/NUL or newline/);
+		await expect(makeTask(opts(f, { setupCommand: "  " }))).rejects.toThrow(/must not be empty/);
+	});
+
+	it("parseMakeArgs accepts optional --setup-command", () => {
+		const args = [
+			"--repo",
+			"r",
+			"--base",
+			"b",
+			"--fix",
+			"f",
+			"--name",
+			"n",
+			"--instruction",
+			"i",
+			"--test-command",
+			"c",
+			"--test-glob",
+			"g",
+			"--base-image",
+			"img",
+			"--output",
+			"o",
+		];
+		expect(parseMakeArgs(args).setupCommand).toBeUndefined();
+		expect(parseMakeArgs([...args, "--setup-command", "bun install"]).setupCommand).toBe("bun install");
+	});
+});

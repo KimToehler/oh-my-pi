@@ -15,6 +15,7 @@ export interface MakeOptions {
 	name: string;
 	instruction: string;
 	testCommand: string;
+	setupCommand?: string;
 	testGlobs: string[];
 	baseImage: string;
 	output: string;
@@ -28,6 +29,10 @@ export function validateOptions(o: MakeOptions): void {
 	if (o.instruction.includes("\u0000")) fail("--instruction must not contain NUL");
 	if (o.testCommand.trim().length === 0) fail("--test-command must not be empty");
 	if (/[\u0000\n\r]/.test(o.testCommand)) fail("--test-command must not contain NUL or newline");
+	if (o.setupCommand !== undefined) {
+		if (o.setupCommand.trim().length === 0) fail("--setup-command must not be empty");
+		if (/[\u0000\n\r]/.test(o.setupCommand)) fail("--setup-command must not contain NUL or newline");
+	}
 	if (o.testGlobs.length === 0) fail("at least one --test-glob is required");
 	for (const g of o.testGlobs) assertSafeRelPath(g, "--test-glob");
 	if (!/^[^\s\u0000]+$/.test(o.baseImage)) fail("--base-image must be a single token without whitespace");
@@ -112,7 +117,7 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	await Bun.write(path.join(out, "task.toml"), taskToml(o.name));
 	await Bun.write(path.join(out, "instruction.md"), `${o.instruction.trim()}\n`);
 	const baseImage = await resolveBaseImage(o.baseImage, process.env.EVO_CONTAINER_RUNTIME ?? "docker");
-	await Bun.write(path.join(out, "environment", "Dockerfile"), dockerfile(baseImage));
+	await Bun.write(path.join(out, "environment", "Dockerfile"), dockerfile(baseImage, o.setupCommand));
 	await Bun.write(path.join(out, "tests", "test.sh"), TEST_SH);
 	await Bun.write(path.join(out, "tests", "command.txt"), `${o.testCommand}\n`);
 	await Bun.write(path.join(out, "solution", "solve.sh"), SOLVE_SH);
@@ -122,7 +127,7 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	for (const f of testFiles) await writeFixedFile(git, fix, f, path.join(out, "tests", "files"), modes[f]);
 	for (const f of solutionFiles) await writeFixedFile(git, fix, f, path.join(out, "solution", "files"), modes[f]);
 
-	const meta: TaskMeta = { base, fix, testFiles, solutionFiles, deletedFiles };
+	const meta: TaskMeta = { base, fix, testFiles, solutionFiles, deletedFiles, setupCommand: o.setupCommand ?? null };
 	await Bun.write(path.join(out, META_FILE), `${JSON.stringify(meta, null, 2)}\n`);
 	return meta;
 }

@@ -4,6 +4,7 @@ export interface TaskMeta {
 	testFiles: string[];
 	solutionFiles: string[];
 	deletedFiles: string[];
+	setupCommand: string | null;
 }
 
 export interface VerifyResult {

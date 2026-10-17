@@ -22,8 +22,10 @@ export function taskToml(name: string): string {
 	].join("\n");
 }
 
-export function dockerfile(baseImage: string): string {
-	return `FROM ${baseImage}\nCOPY repo/ /workspace/repo/\nWORKDIR /workspace/repo\n`;
+/** `setupCommand` runs at image build time (build phase has network; the verifier does not), in the repo. */
+export function dockerfile(baseImage: string, setupCommand?: string): string {
+	const run = setupCommand === undefined ? "" : `RUN ${setupCommand}\n`;
+	return `FROM ${baseImage}\nCOPY repo/ /workspace/repo/\nWORKDIR /workspace/repo\n${run}`;
 }
 
 /** Hidden verifier: overlay fixed tests, run the test command, write a numeric reward. */

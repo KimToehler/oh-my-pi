@@ -4,12 +4,13 @@
  * Private-suite task generator for Evo2 evaluation.
  *
  *   evo-task.ts make   --repo R --base B --fix F --name N --instruction T --test-command C
- *                      --test-glob G [--test-glob G…] --base-image I --output DIR
+ *                      [--setup-command S] --test-glob G [--test-glob G…] --base-image I --output DIR
  *   evo-task.ts verify --task DIR
  *
  * `make` emits a Harbor task (schema 1.3) for the base→fix change: `environment/repo/` holds the
  * base snapshot (copied to /workspace/repo by the Dockerfile), the verifier overlays hidden tests
  * taken from `fix`, and the reference solution overlays the non-test files taken from `fix`.
+ * `--setup-command S` becomes a build-time `RUN S` in the repo (build phase has network; the verifier does not).
  * `verify` is the mandatory RED/GREEN calibration: reward 0 before solution, 1 after, measured in the generated
  * Docker image under the verifier's no-network policy (runtime: $EVO_CONTAINER_RUNTIME, default `docker`).
  * `--host-unisolated` runs the same check on the host shell as a diagnostic and never writes calibration.json.
@@ -37,6 +38,7 @@ export function parseMakeArgs(argv: string[]): MakeOptions {
 		name: need("--name"),
 		instruction: need("--instruction"),
 		testCommand: need("--test-command"),
+		...(vals["--setup-command"] === undefined ? {} : { setupCommand: vals["--setup-command"] }),
 		testGlobs,
 		baseImage: need("--base-image"),
 		output: need("--output"),

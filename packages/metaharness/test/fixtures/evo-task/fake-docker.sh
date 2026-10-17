@@ -21,6 +21,12 @@ build)
 	rm -rf "$state/images/$tag"
 	mkdir -p "$state/images/$tag"
 	cp -R "$ctx/repo" "$state/images/$tag/repo"
+	# Build phase: execute each RUN line with cwd = the image's repo copy (WORKDIR /workspace/repo).
+	while IFS= read -r line; do
+		case "$line" in
+		"RUN "*) (cd "$state/images/$tag/repo" && bash -c "${line#RUN }") ;;
+		esac
+	done < "$ctx/Dockerfile"
 	;;
 image)
 	# image inspect --format <fmt> <ref>. A RepoDigests lookup models a registry-resolved reference: a deterministic
