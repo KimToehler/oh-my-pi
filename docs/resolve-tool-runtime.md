@@ -38,6 +38,8 @@ Plan mode installs a separate proposal handler through `setPlanProposalHandler(.
 
 `xd://propose` dispatches the written slug to the installed plan proposal handler and is valid only while plan mode is active. The handler validates that a real plan artifact exists. Slug-based `local://<slug>-plan.md` lookup can fall back to the recorded plan path or discovered plan artifacts; proposal does not rename the file.
 
+With `plan.review.enabled`, the session reviews the resolved plan before the handler runs. A REJECT verdict returns a refine result to the planner instead of reaching the handler; after two rejected rounds the third proposal goes to approval with a warning. The round counter lives in memory and resets when a session is resumed. The propose write must be a top-level call and the last tool call of its message, so the reviewer sees a plan that is final. Reviewer failures (no eligible cross-family reviewer, missing agent, timeout, unusable output) never block approval; only structural proposal refusals still do. Reviewer output is untrusted. Each review appends a `plan-review` audit entry to the session recording reviewer identities, outcome, and plan hash, but not blockers or notes.
+
 Ordinary print mode has no interactive review surface and ignores `plan.defaultOnStartup`; use `--plan-yolo` for the supported headless approval-and-execution flow.
 
 ## Keeping `write` available

@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- SDK: `PlanProposalHandler` now receives the resolved plan (`{ planFilePath, planContent, title }`) instead of the proposed title; `AgentSession.preparePlanForReview` was removed.
+
 ### Added
 
+- Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
 - Added `lsp.requestTimeout` setting to configure wait durations for language server diagnostics and requests
 - Added `omp auth-gateway serve --clients=<file>`: per-client bearer tokens, each limited to listed models and broker OAuth accounts with no fallback to other accounts or API keys, re-read while serving ([#5098](https://github.com/can1357/oh-my-pi/issues/5098), [#15900](https://github.com/can1357/oh-my-pi/pull/15900) by [@alphastorm](https://github.com/alphastorm))
 - ACP plan approval (IntelliJ, Zed) offers one approve option per `cycleOrder` role model, so you choose which model implements the plan; the judge model preselects one by how open-ended the plan is, falling back to `default`

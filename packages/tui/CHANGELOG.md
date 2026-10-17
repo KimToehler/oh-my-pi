@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Task results can list the models that answered (`answeringModels`)
+
 ### Changed
 
 - Improved nested tool status line rendering: moved preview content into a dedicated collapsible code block when expanded and limited field widths on the one-line summary
