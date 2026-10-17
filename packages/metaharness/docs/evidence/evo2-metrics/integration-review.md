@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `b74a187f838ff0434efa623fb366abdca7190a04`
+- Head: `51c6b5e0c7379ca5ff33094ec9dc8a6f35204f66`
 - Result: **PASS**
 
 ## Review history
@@ -50,6 +50,8 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R45: short credential values matched only whole strings or `KEY=VALUE`, so a three-character forwarded value persisted in a filename and a body line.
 - R46: the token-boundary rule enumerated separators and was wrong twice, so the definition was inverted to word-character continuation, which closes the class rather than the reported characters.
 
+- R53: resume rebuilt the Harbor invocation from the recorded config without the R49 integrity gate, so a tampered suite snapshot could execute on resume under stale hashes; the gate now runs in `resume()` too.
+- R54: the first resume guard trusted the optional `run.config.suiteId` while the durable identity is the `suite_id` column, so a missing or different config value validated the wrong suite; `run.suiteId` is now the identity and both places must agree.
 ## Final verdict
 
-Fresh reviewer over `8e71b3dafc..b74a187f83` (full branch delta `935046d15b...b74a187f83`): `VERDICT: PASS`, no blockers.
+Fresh reviewer over `03e6b108..51c6b5e0c` (full branch delta `935046d15b...51c6b5e0c`): `VERDICT: PASS`, no blockers. The R47–R52 wave before it was reviewed in `b74a187f83..c7f0b122b6` with one blocker (the resume gate), closed as R53/R54 and re-reviewed PASS.

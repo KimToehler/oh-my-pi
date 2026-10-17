@@ -1,0 +1,3 @@
+Fresh reviewer (integration-review) over 933b2d240b..c59883fdbd, full branch delta 935046d15b...c59883fdbd.
+VERDICT: PASS, no blockers.
+Report: packages/metaharness/docs/evidence/evo2-metrics/integration-review.md

@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: Suite task references must have unique normalized Harbor task names, not only unique literal strings.
+  positive_witness: `["org-a/foo", "org-b/bar"]` registers as two distinct tasks.
+  negative_control: `["org-a/foo", "org-b/foo"]` MUST fail before suite snapshot publication.
+  observable: HTTP/request parser returns `suite.include must not contain task IDs that normalize to the same task name`; no suite JSON exists.
+  boundary: `parseSuiteManifest()` before `SuiteRegistry.register()` persistence.
+END-REVIEW-TRAILER
