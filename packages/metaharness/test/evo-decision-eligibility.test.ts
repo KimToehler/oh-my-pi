@@ -263,6 +263,7 @@ describe("suite decision policy registration", () => {
 		environment: "docker",
 		minPairedTasks: 3,
 		minAttemptsPerTask: 2,
+		concurrency: 1,
 	};
 	const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "evo-policy-"));
 
@@ -283,5 +284,6 @@ describe("suite decision policy registration", () => {
 		await reject({ minPairedTasks: 4 }, "suite.minPairedTasks must not exceed the number of included tasks");
 		await reject({ minAttemptsPerTask: undefined }, "suite.minAttemptsPerTask must be a positive integer");
 		await reject({ minAttemptsPerTask: 3 }, "suite.minAttemptsPerTask must not exceed suite.attempts");
+		await reject({ concurrency: undefined }, "suite.concurrency must be a positive integer");
 	});
 });

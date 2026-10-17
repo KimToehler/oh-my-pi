@@ -32,6 +32,8 @@ export interface SuiteManifest {
 	/** Decision policy, pre-declared here so it cannot be chosen at read time; see `decision-policy.ts`. */
 	minPairedTasks: number;
 	minAttemptsPerTask: number;
+	/** Evaluation concurrency, pre-declared so parent and child always run under the same load; see `compare.ts`. */
+	concurrency: number;
 }
 
 export interface StoredSuite {
@@ -56,6 +58,7 @@ const FIELDS = [
 	"environment",
 	"minPairedTasks",
 	"minAttemptsPerTask",
+	"concurrency",
 ] as const;
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
@@ -94,6 +97,10 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 		throw badRequest("suite.minAttemptsPerTask must be a positive integer");
 	}
 	if (minAttemptsPerTask > attempts) throw badRequest("suite.minAttemptsPerTask must not exceed suite.attempts");
+	const concurrency = obj.concurrency;
+	if (typeof concurrency !== "number" || !Number.isSafeInteger(concurrency) || concurrency < 1) {
+		throw badRequest("suite.concurrency must be a positive integer");
+	}
 	const thinking = requiredString(obj, "thinking", "suite");
 	if (!THINKING_LEVELS.includes(thinking))
 		throw badRequest(`suite.thinking must be one of ${THINKING_LEVELS.join("|")}`);
@@ -110,6 +117,7 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 		environment: enumValue(obj, "environment", "suite", SUITE_ENVIRONMENTS),
 		minPairedTasks,
 		minAttemptsPerTask,
+		concurrency,
 	};
 }
 

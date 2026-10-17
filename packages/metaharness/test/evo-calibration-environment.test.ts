@@ -78,6 +78,7 @@ const manifest = (dataset: string, environment: string) => ({
 	environment,
 	minPairedTasks: 1,
 	minAttemptsPerTask: 1,
+	concurrency: 1,
 });
 
 async function refusal(promise: Promise<unknown>): Promise<string> {

@@ -258,6 +258,7 @@ describe("evo-task make", () => {
 			environment: "docker",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
+			concurrency: 1,
 		};
 		const err = await registry.register(manifest).then(
 			() => null,

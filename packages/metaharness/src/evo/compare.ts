@@ -16,12 +16,14 @@ export interface ConditionIdentity {
 	modelsYamlHash: string;
 	sourceRef: string;
 	sourceDirtyHash: string | null;
+	/** Evaluation concurrency; provider throttling and timeouts differ with load, so it is part of the condition. */
+	concurrency: number;
 }
 
 export interface Mismatch {
 	field: keyof ConditionIdentity;
-	child: string | null;
-	baseline: string | null;
+	child: string | number | null;
+	baseline: string | number | null;
 }
 
 export function conditionMismatches(child: ConditionIdentity, baseline: ConditionIdentity): Mismatch[] {

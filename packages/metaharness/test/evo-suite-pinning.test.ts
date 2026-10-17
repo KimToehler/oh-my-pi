@@ -65,6 +65,7 @@ const manifestFor = (dataset: string, over: Record<string, unknown> = {}) => ({
 	environment: "docker",
 	minPairedTasks: 1,
 	minAttemptsPerTask: 1,
+	concurrency: 1,
 	...over,
 });
 

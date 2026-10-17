@@ -119,6 +119,7 @@ describe("evo launch through the provider proxy", () => {
 		environment: "docker",
 		minPairedTasks: 1,
 		minAttemptsPerTask: 1,
+		concurrency: 1,
 	};
 
 	async function setup() {
@@ -163,7 +164,6 @@ describe("evo launch through the provider proxy", () => {
 			variant,
 			suite,
 			jobName: "j",
-			concurrency: null,
 			defaults,
 			sourceRoot: source,
 		});
@@ -183,7 +183,7 @@ describe("evo launch through the provider proxy", () => {
 			forwardEnv: ["R64_PROVIDER_KEY", "R64_EXTRA"],
 		};
 		await expect(
-			buildEvalLaunch({ jobsDir, variant, suite, jobName: "j", concurrency: null, defaults, sourceRoot: source }),
+			buildEvalLaunch({ jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: source }),
 		).rejects.toThrow("provider proxy cannot route forwarded variables not referenced by models.yml: R64_EXTRA");
 	});
 
@@ -206,7 +206,6 @@ describe("evo launch through the provider proxy", () => {
 			variant,
 			suite,
 			jobName: "r64-job",
-			concurrency: null,
 			defaults,
 			sourceRoot: source,
 		});

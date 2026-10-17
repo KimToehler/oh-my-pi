@@ -638,6 +638,7 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		environment: "docker",
 		minPairedTasks: 1,
 		minAttemptsPerTask: 1,
+		concurrency: 1,
 	};
 
 	function git(cwd: string, ...args: string[]): void {

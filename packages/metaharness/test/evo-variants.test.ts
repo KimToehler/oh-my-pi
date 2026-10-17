@@ -680,6 +680,7 @@ describe("suite identities", () => {
 			environment: "docker",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
+			concurrency: 1,
 		});
 		expect(suite.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
 		expect((await registry.get("orgs"))?.manifest.include).toEqual(["org-a/foo", "org-b/bar"]);
@@ -700,6 +701,7 @@ describe("suites", () => {
 		environment: "docker",
 		minPairedTasks: 1,
 		minAttemptsPerTask: 1,
+		concurrency: 1,
 	};
 
 	it("snapshots immutable manifests and rejects changed content under an existing id", async () => {

@@ -66,6 +66,7 @@ describe("generated-task base image pinning (D1)", () => {
 			environment: "docker",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
+			concurrency: 1,
 		};
 		await expect(new SuiteRegistry(path.join(tmp, "jobs")).register(manifest)).rejects.toThrow(
 			/mutable image 'oven\/bun:1\.4\.2'/,

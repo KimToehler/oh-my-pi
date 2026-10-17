@@ -58,6 +58,7 @@ const manifestFor = (dataset: string) => ({
 	environment: "docker",
 	minPairedTasks: 1,
 	minAttemptsPerTask: 1,
+	concurrency: 1,
 });
 
 function suiteDataEntries(jobsDir: string): string[] {

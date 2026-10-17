@@ -364,12 +364,16 @@ describe("comparison", () => {
 		modelsYamlHash: "m",
 		sourceRef: "r",
 		sourceDirtyHash: null,
+		concurrency: 4,
 	};
 
 	it("rejects every confounded condition with a 409 naming the exact fields", () => {
 		expect(() => assertMatched(identity, { ...identity })).not.toThrow();
 		for (const field of Object.keys(identity) as Array<keyof ConditionIdentity>) {
-			const other = { ...identity, [field]: field === "sourceDirtyHash" ? "dirty" : "different" };
+			const other = {
+				...identity,
+				[field]: field === "sourceDirtyHash" ? "dirty" : field === "concurrency" ? 20 : "different",
+			};
 			try {
 				assertMatched(identity, other);
 				throw new Error(`no rejection for ${field}`);

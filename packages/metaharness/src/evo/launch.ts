@@ -89,7 +89,7 @@ export interface EvalLaunchInput {
 	variant: VariantRow;
 	suite: StoredSuite;
 	jobName: string;
-	concurrency: number | null;
+	/** Suite policy owns evaluation concurrency; callers cannot select it. */
 	defaults: EvoLaunchDefaults;
 	/** Source root config-first variants were registered against. */
 	sourceRoot: string;
@@ -168,7 +168,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		timeoutMultiplier: manifest.timeoutMultiplier,
 		thinking: manifest.thinking,
 		environment: manifest.environment,
-		concurrency: input.concurrency ?? undefined,
+		concurrency: manifest.concurrency,
 		jobName: input.jobName,
 		suiteId: manifest.id,
 		suiteHash: suite.hash,

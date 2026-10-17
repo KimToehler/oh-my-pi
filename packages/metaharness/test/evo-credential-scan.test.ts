@@ -344,13 +344,13 @@ describe("models.yml credential scan covers the full forwarded union (Gap B)", (
 			environment: "docker",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
+			concurrency: 1,
 		};
 		const input = {
 			jobsDir,
 			variant: {} as never,
 			suite: { manifest, hash: "h", taskHashes: null } as never,
 			jobName: "j",
-			concurrency: null,
 			defaults,
 		};
 		const err = await error(buildEvalLaunch(input));
@@ -402,6 +402,7 @@ describe("request metadata is scanned at the /api/evo boundary (R48)", () => {
 		environment: "docker",
 		minPairedTasks: 1,
 		minAttemptsPerTask: 1,
+		concurrency: 1,
 	};
 
 	function expectClean(jobsDir: string, manager: ManagerServer): void {

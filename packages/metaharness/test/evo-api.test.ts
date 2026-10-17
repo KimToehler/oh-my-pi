@@ -54,6 +54,7 @@ const SUITE = {
 	environment: "docker",
 	minPairedTasks: 1,
 	minAttemptsPerTask: 1,
+	concurrency: 4,
 };
 
 interface Harness {
@@ -104,6 +105,8 @@ interface JobOptions {
 	infra?: string;
 	/** Launch `sourceIdentity` recorded in the run config, as the evo launch path records it. */
 	sourceIdentity?: string;
+	/** Evaluation concurrency recorded in the run config, as the evo launch path records it. */
+	concurrency?: number;
 }
 
 /** Completed harbor job whose trials have the given rewards and omp transcript markers. */
@@ -172,6 +175,7 @@ function writeJob(
 			taskHash: opts.taskHash ?? "t".repeat(64),
 			executorConfigHash: opts.executor ?? "exec-1",
 			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
+			concurrency: opts.concurrency ?? 1,
 			...(opts.sourceIdentity ? { sourceIdentity: opts.sourceIdentity } : {}),
 		},
 	});
@@ -275,6 +279,11 @@ describe("evo REST", () => {
 			await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1", concurrency: 0 }),
 			400,
 			"evaluate.concurrency must be a positive integer",
+		);
+		await expectError(
+			await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1", concurrency: 20 }),
+			409,
+			"evaluate.concurrency 20 differs from suite 'search-1' concurrency 4; concurrency is suite policy",
 		);
 		await expectError(
 			await h.post("/api/evo/variants/ghost/evaluate", { suiteId: "search-1" }),
@@ -447,6 +456,45 @@ describe("evo REST", () => {
 		expect(body.error).toBe("conditions differ: taskHash");
 		expect(body.mismatches.map(m => m.field)).toEqual(["taskHash"]);
 		expect(body.rawDelta).toBeUndefined();
+	});
+
+	it("refuses a comparison whose runs recorded different evaluation concurrency, never returning a delta", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash, concurrency: 1 });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, concurrency: 20 });
+		const res = await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: string; rawDelta?: number; mismatches: Array<{ field: string }> };
+		expect(body.error).toBe("conditions differ: concurrency");
+		expect(body.mismatches.map(m => m.field)).toEqual(["concurrency"]);
+		expect(body.rawDelta).toBeUndefined();
+	});
+
+	it("compares runs that recorded the same evaluation concurrency", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash, concurrency: 20 });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, concurrency: 20 });
+		const ok = await h.json<{ rawDelta: number }>(
+			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
+		);
+		expect(ok.rawDelta).toBe(0.5);
+	});
+
+	it("refuses a suite that omits or mis-declares its evaluation concurrency at registration", async () => {
+		const h = harness();
+		const { concurrency: _omitted, ...withoutConcurrency } = SUITE;
+		await expectError(
+			await h.post("/api/evo/suites", { ...withoutConcurrency, id: "no-conc" }),
+			400,
+			"suite.concurrency must be a positive integer",
+		);
+		await expectError(
+			await h.post("/api/evo/suites", { ...SUITE, id: "bad-conc", concurrency: 0 }),
+			400,
+			"suite.concurrency must be a positive integer",
+		);
 	});
 
 	it("refuses fitness for a stale suite version and for runs without recorded conditions", async () => {
@@ -706,7 +754,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: 2, defaults };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults };
 		const launch = await buildEvalLaunch(input);
 		expect(launch).toMatchObject({
 			model: SUITE.model,
@@ -717,7 +765,7 @@ describe("evo launch", () => {
 			timeoutMultiplier: 1,
 			thinking: "medium",
 			environment: "docker",
-			concurrency: 2,
+			concurrency: 4,
 			noGateway: true,
 			providerProxy: true,
 			envNames: [],
@@ -742,7 +790,7 @@ describe("evo launch", () => {
 			expect(argv).toContain(flag);
 		expect(argv).not.toContain("--source-root");
 		delete process.env.EVO_TEST_ROUTER_KEY;
-		await expect(buildEvalLaunch({ ...input, concurrency: null })).rejects.toThrow(
+		await expect(buildEvalLaunch(input)).rejects.toThrow(
 			"host env not set for forwarded variables: EVO_TEST_ROUTER_KEY",
 		);
 	});
@@ -755,7 +803,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
 		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
 		process.env.ONARA_ROUTER_KEY = "router-value-123";
 		cleanups.push(() => {
@@ -785,7 +833,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -817,7 +865,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -855,7 +903,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
 		});
@@ -890,7 +938,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j" };
 		process.env.PUBLIC_HEADER_ENV = "public-header-value";
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
@@ -938,7 +986,7 @@ describe("evo launch", () => {
 		const { rootId } = await seed(h);
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
-		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", concurrency: null, defaults };
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults };
 		const first = await buildEvalLaunch(input);
 		const snapshot = first.modelsYaml!;
 		expect(fs.statSync(snapshot).mode & 0o222).toBe(0);
@@ -973,7 +1021,6 @@ describe("evo launch", () => {
 				variant,
 				suite,
 				jobName: "j",
-				concurrency: null,
 				defaults: { modelsYaml, forwardEnv },
 			});
 		for (const name of ["A_KEY", "B_KEY", "EXTRA_KEY"]) process.env[name] = `value-of-${name}`;
@@ -1062,7 +1109,6 @@ describe("evo launch", () => {
 			variant: rootVariant,
 			suite,
 			jobName: "exp-base",
-			concurrency: null,
 			defaults,
 		});
 		h.manager.store.registerLaunch({

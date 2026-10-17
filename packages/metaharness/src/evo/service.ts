@@ -140,6 +140,13 @@ export class EvoService {
 		const suiteId = requiredString(body, "suiteId", "evaluate");
 		const suite = await this.#suites.get(suiteId);
 		if (!suite) throw new EvoHttpError(404, `suite '${suiteId}' not found`);
+		const requested = optionalPositiveInt(body, "concurrency", "evaluate");
+		if (requested !== null && requested !== suite.manifest.concurrency) {
+			throw new EvoHttpError(
+				409,
+				`evaluate.concurrency ${requested} differs from suite '${suiteId}' concurrency ${suite.manifest.concurrency}; concurrency is suite policy`,
+			);
+		}
 		const jobName =
 			optionalString(body, "jobName", "evaluate") ??
 			`evo-${variant.id}-${suite.manifest.id}-${Date.now().toString(36)}`;
@@ -155,7 +162,6 @@ export class EvoService {
 			variant,
 			suite,
 			jobName,
-			concurrency: optionalPositiveInt(body, "concurrency", "evaluate"),
 			defaults: this.#defaults,
 			sourceRoot: this.#sourceRoot,
 		});
