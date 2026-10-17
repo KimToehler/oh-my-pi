@@ -758,6 +758,22 @@ describe("suites", () => {
 		await reject({ include: [] }, "suite.include must name at least one task");
 		await reject({ include: undefined }, "suite.include must be an array of non-empty strings");
 		await reject({ include: ["a", "a"] }, "suite.include must not contain duplicate task IDs");
+		for (const bad of [
+			".",
+			"..",
+			"org/..",
+			"org/.",
+			"t1/",
+			"/t1",
+			"org//t1",
+			"a/b/c",
+			"t1\\x",
+			" t1",
+			"-t1",
+			"..t1",
+		]) {
+			await reject({ include: [bad] }, "suite.include entries must be <name> or <org>/<name>");
+		}
 		await reject(
 			{ include: ["org-a/foo", "org-b/foo"] },
 			"suite.include must not contain task IDs that normalize to the same task name",

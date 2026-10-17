@@ -17,6 +17,8 @@ export { taskKey };
 
 export const SUITE_SPLITS = ["search", "heldout"] as const;
 export const SUITE_ENVIRONMENTS = ["docker", "apple-container"] as const;
+/** `name` or `org/name`; segments cannot be `.`/`..`, empty, or start with a separator-like character. */
+const TASK_REFERENCE = /^(?:[A-Za-z0-9][A-Za-z0-9_.-]*\/)?[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 export interface SuiteManifest {
 	id: string;
@@ -75,6 +77,10 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 	if (obj.benchmark !== "harbor") throw badRequest("suite.benchmark must be one of harbor");
 	const include = stringArray(obj, "include", "suite", { required: true }) as string[];
 	if (include.length === 0) throw badRequest("suite.include must name at least one task");
+	// Task references become directory names under the dataset and the suite store; only plain segments are paths.
+	for (const task of include) {
+		if (!TASK_REFERENCE.test(task)) throw badRequest("suite.include entries must be <name> or <org>/<name>");
+	}
 	if (new Set(include).size !== include.length) throw badRequest("suite.include must not contain duplicate task IDs");
 	// Results are matched by bare task name, so `org-a/foo` and `org-b/foo` would be one task.
 	if (new Set(include.map(taskKey)).size !== include.length) {
