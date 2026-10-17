@@ -11,6 +11,7 @@ import { EvoHttpError } from "./boundary";
 import { CALIBRATION_FILE, type CalibrationRecord, hashTaskDir, META_FILE } from "./calibration";
 import { unlockTree } from "./config-snapshot";
 import { generatedTaskImages } from "./image-pins";
+import { resolveRegistryTasks } from "./registry-tasks";
 import type { SuiteManifest } from "./suites";
 import { assertTaskSnapshotIntact, hashTaskTree, lockTree } from "./task-tree";
 
@@ -102,6 +103,16 @@ export async function pinSuiteTasks(
 				422,
 				`registry dataset '${manifest.dataset}' is not pinned to an immutable revision; use '<name>@sha256:<digest>' or a local dataset directory`,
 			);
+		}
+		// The registry digest fixes task bytes, not the mutable base tag inside a generated task's Dockerfile.
+		const scratch = path.resolve(jobsDir, "_evo", "suite-data", `.tmp-${crypto.randomUUID()}`);
+		try {
+			await fsp.mkdir(scratch, { recursive: true });
+			const keys = manifest.include.map(taskKey);
+			await resolveRegistryTasks(manifest.dataset, keys, scratch);
+			generatedTaskImages(scratch, keys);
+		} finally {
+			await fsp.rm(scratch, { recursive: true, force: true });
 		}
 		return { taskHashes: null, publish: async () => {}, discard: async () => {} };
 	}

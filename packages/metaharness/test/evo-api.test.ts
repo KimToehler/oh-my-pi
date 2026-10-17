@@ -6,6 +6,7 @@ import { buildEvalLaunch, type EvoLaunchDefaults } from "../src/evo/launch";
 import { SuiteRegistry } from "../src/evo/suites";
 import { harborRunnerArgs } from "../src/launch-args";
 import { ManagerServer, resolveArmLaunch } from "../src/server";
+import "./registry-stub";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {

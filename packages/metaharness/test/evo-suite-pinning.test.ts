@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { setRegistryTaskFetcher } from "../src/evo/registry-tasks";
 import { SuiteRegistry } from "../src/evo/suites";
 import { ManagerServer } from "../src/server";
+import { serveRegistryTasks } from "./registry-stub";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -178,6 +180,51 @@ describe("suite task-byte pinning (R49)", () => {
 		expect(((await unpinned.json()) as { error: string }).error).toContain("not pinned to an immutable revision");
 		const pinned = await h.post("/api/evo/suites", manifestFor(`terminal-bench@sha256:${"a".repeat(64)}`));
 		expect(pinned.status).toBe(201);
+	});
+
+	describe("generated-task base image pinning on registry datasets (R60)", () => {
+		const DIGEST = `debian@sha256:${"b".repeat(64)}`;
+		const registryTask = (from: string) => ({
+			t1: { "task.toml": 'name = "t1"\n', "evo-task.json": "{}", "environment/Dockerfile": `FROM ${from}\n` },
+			t2: { "task.toml": 'name = "t2"\n', "environment/Dockerfile": "FROM debian:stable-slim\n" },
+		});
+		const dataset = `terminal-bench@sha256:${"a".repeat(64)}`;
+
+		it("refuses a registry suite whose generated task builds from a mutable tag", async () => {
+			cleanups.push(serveRegistryTasks(registryTask("debian:stable-slim")));
+			const res = await harness().post("/api/evo/suites", manifestFor(dataset));
+			expect(res.status).toBe(422);
+			expect(((await res.json()) as { error: string }).error).toContain("mutable image 'debian:stable-slim'");
+		});
+
+		it("registers a registry suite whose generated task is digest-pinned", async () => {
+			cleanups.push(serveRegistryTasks(registryTask(DIGEST)));
+			const res = await harness().post("/api/evo/suites", manifestFor(dataset));
+			expect(res.status).toBe(201);
+		});
+
+		it("refuses a registry suite whose task is missing, and one whose download fails", async () => {
+			cleanups.push(serveRegistryTasks({}));
+			const missing = await harness().post("/api/evo/suites", manifestFor(dataset));
+			expect(missing.status).toBe(422);
+			expect(JSON.stringify(await missing.json())).toContain("was not found in registry dataset");
+			cleanups.push(
+				setRegistryTaskFetcher(async () => {
+					throw new Error("offline");
+				}),
+			);
+			const failed = await harness().post("/api/evo/suites", manifestFor(dataset));
+			expect(failed.status).toBe(422);
+			expect(JSON.stringify(await failed.json())).toContain("refused rather than registered unchecked");
+		});
+
+		it("still refuses a LOCAL suite with a mutable generated-task tag (R58 guard)", async () => {
+			const local = makeDataset();
+			write(local, "t1/evo-task.json", "{}");
+			const res = await harness().post("/api/evo/suites", manifestFor(local));
+			expect(res.status).toBe(422);
+			expect(((await res.json()) as { error: string }).error).toContain("mutable image");
+		});
 	});
 
 	it("refuses to read a suite whose snapshot was tampered", async () => {

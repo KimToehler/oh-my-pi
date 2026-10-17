@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { experimentDetail } from "../src/experiments";
 import { ManagerServer, resolveArmLaunch } from "../src/server";
 import { RunStore } from "../src/store";
+import "./registry-stub";
 
 /**
  * Contracts under test:

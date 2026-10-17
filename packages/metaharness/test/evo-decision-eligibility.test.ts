@@ -8,6 +8,7 @@ import type { TraceRow } from "../src/store";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import "./registry-stub";
 
 const variant = { expectedSignals: [] } as unknown as VariantRow;
 

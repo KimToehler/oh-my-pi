@@ -18,6 +18,7 @@ import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity
 import { SuiteRegistry } from "../src/evo/suites";
 import { parseVariantRequest, VariantRegistry, variantConfigDir } from "../src/evo/variants";
 import { RunStore } from "../src/store";
+import "./registry-stub";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {

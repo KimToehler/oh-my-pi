@@ -8,6 +8,7 @@ import { parseVariantRequest, VariantRegistry } from "../src/evo/variants";
 import { ManagerServer } from "../src/server";
 import * as runner from "../src/runner";
 import { RunStore } from "../src/store";
+import "./registry-stub";
 
 const SECRET = "sk-leak-sentinel-R43-abcdef123456";
 const EXTRA_SECRET = "sk-extra-sentinel-R43-0123456789ab";
