@@ -26,6 +26,8 @@
 
 ### Fixed
 
+- Fixed ACP prompts sent while omp is still working on its own (todo reminders, background job results) failing with "Agent is already processing"; they are now steered into the running turn
+- Fixed IntelliJ ACP chats needing a prompt sent twice after an agent restart; omp now offers session resume instead of session load to JetBrains IDEs
 - Fixed ACP `edit` and `write` failing for files outside the IDE workspace, such as `~/.jetbrains/acp.json`; external paths now use direct filesystem access while workspace files still update through the editor.
 - Fixed Ctrl+C printing `9;5u` in the shell after force-quitting omp with a third Ctrl+C while it was still closing the session
 - Fixed Smart unexpected-stop recovery continuing finished answers, which added extra "nothing more to add" turns

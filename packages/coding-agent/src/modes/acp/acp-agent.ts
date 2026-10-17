@@ -107,6 +107,14 @@ const ACP_DEFAULT_MODE_ID = "default";
 const ACP_PLAN_MODE_ID = "plan";
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
+/**
+ * `clientInfo._meta.platform` sent by JetBrains IDEs. After a `session/load`
+ * replay they close the turn reserved for the pending prompt (missing
+ * `lastRequestComplete` meta), then treat the agent as idle and fail the next
+ * prompt client-side with "There is active prompt execution". `session/resume`
+ * has no replay, so loadSession is not advertised to them.
+ */
+const INTELLIJ_CLIENT_PLATFORM = "intellij";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
 const PLAN_APPROVE_VALUE = "approve";
@@ -660,6 +668,7 @@ export class AcpAgent implements Agent {
 				args: [ACP_TERMINAL_AUTH_FLAG],
 			});
 		}
+		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentInfo: {
@@ -669,7 +678,7 @@ export class AcpAgent implements Agent {
 			},
 			authMethods,
 			agentCapabilities: {
-				loadSession: true,
+				loadSession: !isIntelliJClient,
 				mcpCapabilities: {
 					http: true,
 					sse: true,
@@ -887,10 +896,9 @@ export class AcpAgent implements Agent {
 				this.#trackPromptEvent(record, event);
 			});
 
-			// Autonomous turns stream without an owning promptTurn, so the implicit-cancel
-			// guard above cannot fire and a client prompt lands on AgentSession's busy
-			// guard. Type that failure for the wire instead of letting transport.ts wrap
-			// it as a generic -32603 internal error.
+			// A prompt landing on a busy session is queued as steer below; AgentBusyError
+			// can still escape builtin commands. Type it for the wire instead of letting
+			// transport.ts wrap it as a generic -32603 internal error.
 			this.#runPromptOrCommand(record, converted.text, converted.images).catch((error: unknown) => {
 				this.#finishPrompt(
 					record,
@@ -1030,7 +1038,10 @@ export class AcpAgent implements Agent {
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
-				const residualAgentInvoked = await record.session.prompt(builtinResult.prompt, { images });
+				const residualAgentInvoked = await record.session.prompt(builtinResult.prompt, {
+					images,
+					streamingBehavior: "steer",
+				});
 				// A residual prompt can itself resolve locally (extension command,
 				// custom-TS command, file prompt template). No agent turn means no
 				// `agent_end`, so the prompt turn must be settled here — same pairing
@@ -1058,7 +1069,10 @@ export class AcpAgent implements Agent {
 		}
 
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
-		const agentInvoked = await record.session.prompt(text, { images });
+		// An autonomous turn (todo reminder, async-job wake) streams without an
+		// owning promptTurn. Steer into it instead of failing busy: the ACP turn then
+		// stays open until that turn and the queued-message drain settle.
+		const agentInvoked = await record.session.prompt(text, { images, streamingBehavior: "steer" });
 		// Extension and custom-TS commands are handled locally inside session.prompt().
 		// An ACP extension command can still call pi.sendUserMessage(), which starts
 		// an async nested prompt through the extension runtime. Keep the ACP turn

@@ -151,7 +151,7 @@ export interface ClientCapabilities {
 	_meta?: Record<string, unknown>;
 }
 /** Implementation identity sent during initialization. */
-export interface Implementation {
+export interface Implementation extends Meta {
 	name: string;
 	version: string;
 	title?: string;

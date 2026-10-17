@@ -1517,6 +1517,30 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
+	it("advertises resume but not loadSession to IntelliJ clients", async () => {
+		// Given/When: a JetBrains client identifies itself via clientInfo._meta.platform.
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({
+			protocolVersion: 1,
+			clientCapabilities: {},
+			clientInfo: { name: "JetBrains.IntelliJ IDEA", version: "262", _meta: { platform: "intellij", jbai: false } },
+		});
+		// Then: no session/load replay path is offered; session/resume remains.
+		expect(response.agentCapabilities).toMatchObject({ loadSession: false, sessionCapabilities: { resume: {} } });
+		await harness.agent.dispose();
+	});
+
+	it("keeps advertising loadSession to non-IntelliJ clients", async () => {
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({
+			protocolVersion: 1,
+			clientCapabilities: {},
+			clientInfo: { name: "zed", version: "1" },
+		});
+		expect(response.agentCapabilities?.loadSession).toBe(true);
+		await harness.agent.dispose();
+	});
+
 	it("reports integer context usage before the first prompt", async () => {
 		const usageSeen = Promise.withResolvers<SessionNotification>();
 		const harness = await createHarness({
@@ -3056,9 +3080,8 @@ describe("ACP agent", () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
 		const session = harness.findSession(created.sessionId)!;
-		// Autonomous turns stream without an owning ACP promptTurn, so prompt()'s
-		// implicit-cancel guard never fires. Mirror AgentSession's contract: a
-		// bare prompt while streaming throws AgentBusyError.
+		// Any AgentBusyError the session raises (e.g. from a builtin command) must
+		// surface as a typed session_busy error.
 		session.isStreaming = true;
 		session.prompt = async (): Promise<boolean> => {
 			if (session.isStreaming) throw new AgentBusyError();
@@ -3077,6 +3100,75 @@ describe("ACP agent", () => {
 		expect(requestError.code).toBe(-32003);
 		expect(requestError.message).toContain("already processing");
 		expect(requestError.data).toEqual({ reason: "session_busy", hint: "steer|followUp|wait" });
+	});
+
+	it("queues a prompt that lands during an autonomous turn as steer and answers after the drain turn", async () => {
+		// Given: an autonomous turn streams with no ACP promptTurn owning it. The
+		// fake mirrors AgentSession: a bare prompt while streaming throws busy; a
+		// steer prompt is only queued, and the running turn later ends on its own.
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.isStreaming = true;
+		const queued: string[] = [];
+		const queuedSignal = Promise.withResolvers<void>();
+		session.prompt = async (text: string, options?: { streamingBehavior?: string }): Promise<boolean> => {
+			if (session.isStreaming && !options?.streamingBehavior) throw new AgentBusyError();
+			if (!session.isStreaming) throw new Error("unexpected idle prompt");
+			queued.push(text);
+			queuedSignal.resolve();
+			return true;
+		};
+		// The first waitForIdle() call marks the ACP turn reaching its end-of-turn
+		// idle wait; holding it models the queued-message drain turn still running.
+		const idleWaitEntered = Promise.withResolvers<void>();
+		const drainDone = Promise.withResolvers<void>();
+		session.waitForIdleBlocker = () => {
+			idleWaitEntered.resolve();
+			return drainDone.promise;
+		};
+		const emit = (event: AgentSessionEvent) => {
+			for (const listener of session.listeners()) listener(event);
+		};
+
+		// When: IntelliJ sends session/prompt mid-turn.
+		let settled = false;
+		const response = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "ping" }] } as PromptRequest)
+			.finally(() => {
+				settled = true;
+			});
+		await Promise.race([queuedSignal.promise, response.catch(() => undefined)]);
+
+		// Then: the prompt is queued as steer, not rejected busy.
+		expect(queued).toEqual(["ping"]);
+
+		// The autonomous turn ends; the response must wait for the drain turn.
+		emit({ type: "agent_end", messages: [makeAssistantMessage("autonomous")] } as AgentSessionEvent);
+		await idleWaitEntered.promise;
+		expect(settled).toBe(false);
+
+		// The queued steer drains in a second turn that answers it.
+		const answer = makeAssistantMessage("pong to ping");
+		emit({
+			type: "message_update",
+			message: answer,
+			assistantMessageEvent: { type: "text_delta", delta: "pong to ping" },
+		} as AgentSessionEvent);
+		emit({ type: "agent_end", messages: [answer] } as AgentSessionEvent);
+		session.isStreaming = false;
+
+		drainDone.resolve();
+		expect((await response).stopReason).toBe("end_turn");
+		const answerChunks = harness.updates.filter(
+			update =>
+				update.sessionId === created.sessionId &&
+				update.update.sessionUpdate === "agent_message_chunk" &&
+				update.update.content.type === "text" &&
+				update.update.content.text === "pong to ping",
+		);
+		expect(answerChunks.length).toBeGreaterThan(0);
+		await harness.agent.dispose();
 	});
 
 	it("keeps closeSession gated while cancel cleanup is pending", async () => {
