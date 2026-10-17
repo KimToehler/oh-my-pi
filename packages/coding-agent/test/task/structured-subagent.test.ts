@@ -381,6 +381,38 @@ describe("structured subagent primitive", () => {
 		expect(dispatched[0]?.inheritedSessionAgents).toEqual([inheritedAgent]);
 		await fs.rm(settled.artifactsDir, { recursive: true, force: true });
 	});
+
+	// Plan review spawns its reviewer as a host step: a parent whose allow-list forbids
+	// every spawn must still get reviewed, while depth and disabled-agent limits hold.
+	it("bypassSpawnPolicy skips only the spawn allow-list", async () => {
+		mockDiscovery();
+		const noSpawns = (overrides: Parameters<typeof session>[0] = {}): ToolSession => {
+			const target = session(overrides);
+			target.getSessionSpawns = () => "";
+			return target;
+		};
+		const dispatched = vi.spyOn(executorModule, "runSubprocess").mockResolvedValue(result());
+
+		await expect(runStructuredSubagent(request({ session: noSpawns() }))).rejects.toThrow("Cannot spawn 'worker'");
+		expect(dispatched).not.toHaveBeenCalled();
+
+		const settled = await runStructuredSubagent(request({ session: noSpawns(), bypassSpawnPolicy: true }));
+		expect(dispatched).toHaveBeenCalledTimes(1);
+		await fs.rm(settled.artifactsDir, { recursive: true, force: true });
+
+		const atMaxDepth = noSpawns({ maxDepth: 1 });
+		atMaxDepth.taskDepth = 1;
+		await expect(runStructuredSubagent(request({ session: atMaxDepth, bypassSpawnPolicy: true }))).rejects.toThrow(
+			"Cannot spawn another agent at task depth 1",
+		);
+		const disabled = noSpawns({
+			settings: Settings.isolated({ "task.disabledAgents": ["worker"], "task.maxRecursionDepth": 2 }),
+		});
+		await expect(runStructuredSubagent(request({ session: disabled, bypassSpawnPolicy: true }))).rejects.toThrow(
+			'Agent "worker" is disabled in settings',
+		);
+		expect(dispatched).toHaveBeenCalledTimes(1);
+	});
 	it("propagates a custom thinking-suffixed role alias through policy, dispatch, and settlement", async () => {
 		const customAgent = { ...AGENT, model: ["@reviewer:high"] };
 		mockDiscovery(customAgent);
