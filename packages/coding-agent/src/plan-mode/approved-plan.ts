@@ -11,7 +11,27 @@ export interface PlanApprovalDetails {
 	planFilePath: string;
 	title: string;
 	planExists: boolean;
+	/** sha256 (hex) of the plan bytes a cross-family review saw; set only when a review completed. */
 	planSha256?: string;
+}
+
+/** Whether a propose result's `details` is the payload that opens the approval UI. */
+export function isPlanApprovalDetails(details: unknown): details is PlanApprovalDetails {
+	if (!details || typeof details !== "object") return false;
+	return (
+		"planFilePath" in details &&
+		"title" in details &&
+		"planExists" in details &&
+		typeof details.planFilePath === "string" &&
+		typeof details.title === "string" &&
+		typeof details.planExists === "boolean" &&
+		(!("planSha256" in details) || details.planSha256 === undefined || typeof details.planSha256 === "string")
+	);
+}
+
+/** sha256 (hex) of exact plan bytes, the binding between reviewed and approved content. */
+export function planContentSha256(planContent: string): string {
+	return new Bun.CryptoHasher("sha256").update(planContent).digest("hex");
 }
 
 /** Validate and normalize the agent-supplied plan title into a safe filename stem.

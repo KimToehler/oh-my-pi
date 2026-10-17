@@ -13,7 +13,7 @@ beforeAll(() => {
  * A completed `write xd://propose` execution with `mode: "execute"` — the event
  * that drives `#handleToolExecutionEnd` into `ctx.handlePlanApproval`.
  */
-function proposeExecuteEnd(): AgentSessionEvent {
+function proposeExecuteEnd(inner: Record<string, unknown> = {}): AgentSessionEvent {
 	return {
 		type: "tool_execution_end",
 		toolCallId: "propose-1",
@@ -26,7 +26,7 @@ function proposeExecuteEnd(): AgentSessionEvent {
 					tool: PROPOSE_DEVICE_NAME,
 					mode: "execute",
 					args: { title: "demo" },
-					inner: { planFilePath: "local://demo-plan.md", title: "demo", planExists: true },
+					inner: { planFilePath: "local://demo-plan.md", title: "demo", planExists: true, ...inner },
 				},
 			},
 		},
@@ -89,5 +89,32 @@ describe("EventController plan-approval dispatch", () => {
 
 		executionTurn.resolve();
 		await executionTurn.promise;
+	});
+
+	// The interactive stale-plan guard compares this hash with the file it reads; a
+	// controller that drops it would silently let changed bytes reach approval.
+	it("forwards a reviewed plan's planSha256 to handlePlanApproval", async () => {
+		let listener: ((event: AgentSessionEvent) => void | Promise<void>) | undefined;
+		const handlePlanApproval = vi.fn(async () => {});
+		const ctx = createInteractiveModeContext({
+			session: {
+				subscribe: fn => {
+					listener = fn;
+					return () => {};
+				},
+			},
+			handlePlanApproval,
+		});
+		new EventController(ctx).subscribeToAgent();
+		if (!listener) throw new Error("subscribeToAgent did not register a listener");
+
+		await listener(proposeExecuteEnd({ planSha256: "ab12" }));
+
+		expect(handlePlanApproval).toHaveBeenCalledWith({
+			planFilePath: "local://demo-plan.md",
+			title: "demo",
+			planExists: true,
+			planSha256: "ab12",
+		});
 	});
 });
