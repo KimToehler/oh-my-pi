@@ -83,10 +83,22 @@ function opts(f: Fixture, over: Partial<MakeOptions> = {}): MakeOptions {
 	};
 }
 
+const savedEnv = { runtime: Bun.env.EVO_CONTAINER_RUNTIME, state: Bun.env.FAKE_DOCKER_STATE, path: Bun.env.PATH };
+
+function restoreEnv(key: string, value: string | undefined): void {
+	if (value === undefined) delete process.env[key];
+	else process.env[key] = value;
+}
+
 beforeEach(async () => {
 	tmp = await fs.mkdtemp(path.join(os.tmpdir(), "evo-task-test-"));
+	process.env.EVO_CONTAINER_RUNTIME = path.join(import.meta.dir, "fixtures/evo-task/fake-docker.sh");
+	process.env.FAKE_DOCKER_STATE = path.join(tmp, "docker-state");
 });
 afterEach(async () => {
+	restoreEnv("EVO_CONTAINER_RUNTIME", savedEnv.runtime);
+	restoreEnv("FAKE_DOCKER_STATE", savedEnv.state);
+	restoreEnv("PATH", savedEnv.path);
 	// Suite task snapshots are read-only directories; restore owner write before deleting.
 	await unlockTree(tmp);
 	await fs.rm(tmp, { recursive: true, force: true });
@@ -108,7 +120,7 @@ describe("evo-task make", () => {
 		expect(toml).not.toContain("[verifier.environment]");
 		expect(await Bun.file(path.join(out, "instruction.md")).text()).toContain("src/value.txt");
 		const dockerfile = await Bun.file(path.join(out, "environment", "Dockerfile")).text();
-		expect(dockerfile).toContain("FROM debian:stable-slim");
+		expect(dockerfile).toMatch(/^FROM debian@sha256:[0-9a-f]{64}\n/);
 		expect(dockerfile).toContain("COPY repo/ /workspace/repo/");
 		expect(await Bun.file(path.join(out, "tests", "test.sh")).text()).toContain("/logs/verifier");
 		expect(await Bun.file(path.join(out, "tests", "test.sh")).text()).toContain("reward.txt");
@@ -136,6 +148,84 @@ describe("evo-task make", () => {
 		await makeTask(opts(f));
 		const result = await verifyTask(path.join(tmp, "out"));
 		expect(result).toEqual({ before: 0, after: 1 });
+	});
+
+	it("verify runs RED and GREEN in the task image under the verifier no-network policy and records the environment", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f));
+		const out = path.join(tmp, "out");
+		await verifyTask(out);
+		const record = (await Bun.file(path.join(out, "calibration.json")).json()) as {
+			before: number;
+			after: number;
+			environment: { mode: string; runtime: string; image: string; verifierNetwork: string };
+		};
+		expect([record.before, record.after]).toEqual([0, 1]);
+		expect(record.environment.mode).toBe("container");
+		expect(record.environment.verifierNetwork).toBe("no-network");
+		expect(record.environment.image).toMatch(/^sha256:/);
+		const calls = (await Bun.file(path.join(tmp, "docker-state", "calls.log")).text()).trim().split("\n");
+		const runs = calls.filter(c => c.startsWith("run "));
+		expect(calls.find(c => c.startsWith("build "))).toMatch(/^build -t \S+ .*environment$/);
+		expect(runs).toHaveLength(2);
+		for (const r of runs) {
+			expect(r).toContain("--network none");
+			expect(r).toContain("/tests:/tests:ro");
+			expect(r).toContain("/logs/verifier");
+		}
+	});
+
+	it("verify refuses to certify a command that only passes on the host (isolated verifier)", async () => {
+		const f = await makeRepo();
+		// Host-only executable and host-only env var: invisible inside the task container.
+		const bin = path.join(tmp, "hostbin");
+		await fs.mkdir(bin);
+		await Bun.write(
+			path.join(bin, "host-only-check"),
+			'#!/bin/sh\n[ "$HOST_ONLY_FLAG" = 1 ] && grep -qx fixed src/value.txt\n',
+		);
+		await fs.chmod(path.join(bin, "host-only-check"), 0o755);
+		process.env.PATH = `${bin}:${savedEnv.path ?? ""}`;
+		process.env.HOST_ONLY_FLAG = "1";
+		try {
+			await makeTask(opts(f, { testCommand: "host-only-check" }));
+			const out = path.join(tmp, "out");
+			// Control: the same task is a valid RED/GREEN task on the host, so only isolation can reject it.
+			expect(await verifyTask(out, { hostUnisolated: true })).toEqual({ before: 0, after: 1 });
+			await expect(verifyTask(out)).rejects.toThrow(/GREEN check failed/);
+			expect(await Bun.file(path.join(out, "calibration.json")).exists()).toBe(false);
+		} finally {
+			delete process.env.HOST_ONLY_FLAG;
+		}
+	});
+
+	it("host-unisolated verification never writes calibration.json", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f));
+		const out = path.join(tmp, "out");
+		expect(await verifyTask(out, { hostUnisolated: true })).toEqual({ before: 0, after: 1 });
+		expect(await Bun.file(path.join(out, "calibration.json")).exists()).toBe(false);
+	});
+
+	it("verify fails when the container runtime is unavailable", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f));
+		process.env.EVO_CONTAINER_RUNTIME = path.join(tmp, "no-such-runtime");
+		await expect(verifyTask(path.join(tmp, "out"))).rejects.toThrow(/container runtime/);
+	});
+
+	it("verify refuses a task whose verifier network is not isolated", async () => {
+		const f = await makeRepo();
+		await makeTask(opts(f));
+		const toml = path.join(tmp, "out", "task.toml");
+		await Bun.write(
+			toml,
+			(await Bun.file(toml).text()).replace(
+				'[verifier]\ntimeout_sec = 900.0\nnetwork_mode = "no-network"',
+				'[verifier]\ntimeout_sec = 900.0\nnetwork_mode = "public"',
+			),
+		);
+		await expect(verifyTask(path.join(tmp, "out"))).rejects.toThrow(/network_mode/);
 	});
 
 	it("suite registration rejects a generated task with no successful calibration", async () => {

@@ -3,6 +3,7 @@ import * as path from "node:path";
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { META_FILE } from "../src/evo/calibration";
+import { resolveBaseImage } from "./evo-task-image";
 import { readFixedModes } from "./evo-task-modes";
 import { assertSafeRef, assertSafeRelPath, fail, type TaskMeta } from "./evo-task-shared";
 import { dockerfile, SOLVE_SH, TEST_SH, taskToml } from "./evo-task-templates";
@@ -110,7 +111,8 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 
 	await Bun.write(path.join(out, "task.toml"), taskToml(o.name));
 	await Bun.write(path.join(out, "instruction.md"), `${o.instruction.trim()}\n`);
-	await Bun.write(path.join(out, "environment", "Dockerfile"), dockerfile(o.baseImage));
+	const baseImage = await resolveBaseImage(o.baseImage, process.env.EVO_CONTAINER_RUNTIME ?? "docker");
+	await Bun.write(path.join(out, "environment", "Dockerfile"), dockerfile(baseImage));
 	await Bun.write(path.join(out, "tests", "test.sh"), TEST_SH);
 	await Bun.write(path.join(out, "tests", "command.txt"), `${o.testCommand}\n`);
 	await Bun.write(path.join(out, "solution", "solve.sh"), SOLVE_SH);

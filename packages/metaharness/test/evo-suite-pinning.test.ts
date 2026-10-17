@@ -149,7 +149,9 @@ describe("suite task-byte pinning (R49)", () => {
 		const parentCfg = h.manager.store.getRun("pin-parent")!.config as Record<string, string>;
 		const childCfg = h.manager.store.getRun("pin-child")!.config as Record<string, string>;
 		expect(parentCfg.dataset).not.toBe(dataset);
-		expect(parentCfg.dataset).toBe(childCfg.dataset);
+		// Each run owns its bytes: distinct run-private directories, identical content and identity.
+		expect(parentCfg.dataset).not.toBe(childCfg.dataset);
+		expect(fs.readFileSync(path.join(parentCfg.dataset, "t1", "tests", "test.sh"), "utf8")).toContain("verify t1");
 		expect(parentCfg.taskHash).toMatch(/^[0-9a-f]{64}$/);
 		expect(childCfg.taskHash).toBe(parentCfg.taskHash);
 		expect(fs.readFileSync(path.join(childCfg.dataset, "t1", "tests", "test.sh"), "utf8")).toContain("verify t1");

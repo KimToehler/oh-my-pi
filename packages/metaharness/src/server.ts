@@ -41,7 +41,7 @@ import {
 	type LaunchRequest,
 	resolveLocalDataset,
 } from "./launch-args";
-import { assertRecordedSuiteIntact } from "./evo/suite-tasks";
+import { removeRunData, stageRecordedRunData, verifyRunData } from "./evo/run-data";
 import { type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
 
 /** PUT /api/experiments/:id body — goal and per-run role/note/label metadata. */
@@ -151,10 +151,12 @@ function resolveEvoInheritance(
 	store: RunStore,
 	cfg: Partial<LaunchRequest>,
 	req: AddArmRequest,
+	jobName: string,
 ): Partial<LaunchRequest> {
 	const inherited: Partial<LaunchRequest> = {};
-	// An arm re-launches the template run's suite snapshot dataset: verify those bytes still match the registered hashes.
-	if (cfg.suiteId) assertRecordedSuiteIntact(store.jobsDir, cfg.suiteId);
+	// An arm never opens the template run's directory: the suite snapshot is re-copied and verified into the new
+	// arm's own run-owned data, so bytes replaced after the template launched cannot reach it.
+	if (cfg.suiteId) inherited.dataset = stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName);
 	for (const key of [
 		"suiteId",
 		"suiteHash",
@@ -250,12 +252,12 @@ export function resolveArmLaunch(store: RunStore, experimentId: string, req: Add
 			throw new Error("evo arms may change only variantId, role, and note");
 		}
 	}
-	const evo = resolveEvoInheritance(store, cfg, req);
+	const evo = resolveEvoInheritance(store, cfg, req, jobName);
 	return {
 		...evo,
 		benchmark: template.benchmark,
 		model: req.model,
-		dataset: template.dataset,
+		dataset: evo.dataset ?? template.dataset,
 		include: include.length > 0 ? include : undefined,
 		tasks: include.length > 0 ? include.length : numberOr(cfg.tasks),
 		concurrency: numberOr(cfg.concurrency),
@@ -286,7 +288,12 @@ export class ManagerServer {
 	readonly jobsDir: string;
 	readonly #host: string | null;
 
-	constructor(jobsDir: string, dbPath?: string, evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {}, host: string | null = null) {
+	constructor(
+		jobsDir: string,
+		dbPath?: string,
+		evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {},
+		host: string | null = null,
+	) {
 		this.jobsDir = jobsDir;
 		this.#host = host;
 		this.#store = new RunStore(jobsDir, dbPath);
@@ -585,7 +592,11 @@ export class ManagerServer {
 					`run ${jobName} records suite '${run.suiteId}' but its config names '${String(recordedSuite)}'; cannot resume`,
 				);
 			}
-			assertRecordedSuiteIntact(this.jobsDir, run.suiteId);
+			verifyRunData(
+				this.jobsDir,
+				run.suiteId,
+				typeof run.config.dataset === "string" ? run.config.dataset : undefined,
+			);
 		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
@@ -723,6 +734,7 @@ export class ManagerServer {
 		assertSafeJobName(jobName);
 		this.#store.deleteRun(jobName);
 		fs.rmSync(path.join(this.jobsDir, jobName), { recursive: true, force: true });
+		removeRunData(this.jobsDir, jobName);
 		fs.rmSync(path.join(this.jobsDir, "_manager", "logs", `${jobName}.log`), { force: true });
 	}
 

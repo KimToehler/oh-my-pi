@@ -9,7 +9,7 @@ import { referencedEnvNamesFromText } from "./models-yaml";
 const decoder = new TextDecoder();
 
 /** Same length-aware rule as `containsHostValue`: long values match as substrings, short ones as whole tokens. */
-function textCarriesSecret(text: string, secrets: readonly string[]): boolean {
+export function textCarriesSecret(text: string, secrets: readonly string[]): boolean {
 	return secrets.some(secret => containsHostValue(text, secret));
 }
 

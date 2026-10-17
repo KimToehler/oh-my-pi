@@ -127,9 +127,12 @@ export function suiteHash(manifest: SuiteManifest, taskHashes: TaskHashes | null
 export class SuiteRegistry {
 	readonly dir: string;
 	readonly #jobsDir: string;
+	readonly #secretValues: () => readonly string[];
 
-	constructor(jobsDir: string) {
+	/** `secretValues` yields the forwarded host credential values; every dataset path and byte is scanned against them. */
+	constructor(jobsDir: string, secretValues: () => readonly string[] = () => []) {
 		this.#jobsDir = jobsDir;
+		this.#secretValues = secretValues;
 		this.dir = path.join(jobsDir, "_evo", "suites");
 	}
 
@@ -141,7 +144,7 @@ export class SuiteRegistry {
 	async register(raw: unknown): Promise<{ suite: StoredSuite; created: boolean }> {
 		const manifest = parseSuiteManifest(raw);
 		// Copy + hash the evaluated bytes first: identity, calibration and every later launch bind to this copy.
-		const pinned = await pinSuiteTasks(this.#jobsDir, manifest);
+		const pinned = await pinSuiteTasks(this.#jobsDir, manifest, this.#secretValues());
 		try {
 			const hash = suiteHash(manifest, pinned.taskHashes);
 			const existing = await this.get(manifest.id);

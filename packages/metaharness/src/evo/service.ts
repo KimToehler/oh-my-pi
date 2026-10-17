@@ -52,7 +52,7 @@ export class EvoService {
 			undefined,
 			this.#secretValues,
 		);
-		this.#suites = new SuiteRegistry(opts.jobsDir);
+		this.#suites = new SuiteRegistry(opts.jobsDir, this.#secretValues);
 		this.#reports = new EvoReports(opts.store, opts.jobsDir, this.#suites);
 	}
 

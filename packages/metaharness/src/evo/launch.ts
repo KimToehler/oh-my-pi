@@ -9,7 +9,8 @@ import { EvoHttpError } from "./boundary";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
-import { assertSuiteTasksIntact, suiteDataset, suiteTaskHash } from "./suite-tasks";
+import { stageRunData } from "./run-data";
+import { suiteTaskHash } from "./suite-tasks";
 import type { StoredSuite } from "./suites";
 import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant, variantConfigDir } from "./variants";
 import type { VariantRow } from "./variant-types";
@@ -93,8 +94,9 @@ export interface EvalLaunchInput {
 export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchRequest> {
 	const { variant, suite, defaults } = input;
 	const manifest = suite.manifest;
-	// Launch-time integrity: the snapshot must still hold the registered task bytes before anything is staged.
-	assertSuiteTasksIntact(input.jobsDir, suite);
+	// Launch-time integrity: stage a RUN-OWNED copy and verify the copy's bytes, so the path Harbor opens is
+	// private to this run and no later replacement of the shared snapshot can change what it evaluates.
+	const dataset = stageRunData(input.jobsDir, suite, input.jobName);
 	// Validate even with an explicit forward list: the file is what the container receives.
 	let modelsText: string;
 	try {
@@ -146,7 +148,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	return {
 		benchmark: "harbor",
 		model: manifest.model,
-		dataset: suiteDataset(input.jobsDir, suite),
+		dataset,
 		include: manifest.include,
 		tasks: manifest.include.length,
 		attempts: manifest.attempts,
