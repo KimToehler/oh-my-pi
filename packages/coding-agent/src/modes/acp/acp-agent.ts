@@ -107,6 +107,14 @@ const ACP_DEFAULT_MODE_ID = "default";
 const ACP_PLAN_MODE_ID = "plan";
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
+/**
+ * `clientInfo._meta.platform` sent by JetBrains IDEs. After a `session/load`
+ * replay they close the turn reserved for the pending prompt (missing
+ * `lastRequestComplete` meta), then treat the agent as idle and fail the next
+ * prompt client-side with "There is active prompt execution". `session/resume`
+ * has no replay, so loadSession is not advertised to them.
+ */
+const INTELLIJ_CLIENT_PLATFORM = "intellij";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
 const PLAN_APPROVE_VALUE = "approve";
@@ -660,6 +668,7 @@ export class AcpAgent implements Agent {
 				args: [ACP_TERMINAL_AUTH_FLAG],
 			});
 		}
+		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentInfo: {
@@ -669,7 +678,7 @@ export class AcpAgent implements Agent {
 			},
 			authMethods,
 			agentCapabilities: {
-				loadSession: true,
+				loadSession: !isIntelliJClient,
 				mcpCapabilities: {
 					http: true,
 					sse: true,

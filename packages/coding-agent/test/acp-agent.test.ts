@@ -1517,6 +1517,30 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
+	it("advertises resume but not loadSession to IntelliJ clients", async () => {
+		// Given/When: a JetBrains client identifies itself via clientInfo._meta.platform.
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({
+			protocolVersion: 1,
+			clientCapabilities: {},
+			clientInfo: { name: "JetBrains.IntelliJ IDEA", version: "262", _meta: { platform: "intellij", jbai: false } },
+		});
+		// Then: no session/load replay path is offered; session/resume remains.
+		expect(response.agentCapabilities).toMatchObject({ loadSession: false, sessionCapabilities: { resume: {} } });
+		await harness.agent.dispose();
+	});
+
+	it("keeps advertising loadSession to non-IntelliJ clients", async () => {
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({
+			protocolVersion: 1,
+			clientCapabilities: {},
+			clientInfo: { name: "zed", version: "1" },
+		});
+		expect(response.agentCapabilities?.loadSession).toBe(true);
+		await harness.agent.dispose();
+	});
+
 	it("reports integer context usage before the first prompt", async () => {
 		const usageSeen = Promise.withResolvers<SessionNotification>();
 		const harness = await createHarness({
