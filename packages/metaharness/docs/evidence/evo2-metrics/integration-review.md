@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `68906f2b27651d79470dfbdf3d826e0eb3f4781c`
+- Head: `7e950b2fec88893bd81df0d3b23c9ee802459193`
 - Result: **PASS**
 
 ## Review history
@@ -55,6 +55,12 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R55: the server bound every interface while the startup message claimed localhost, exposing the unauthenticated API to the local network; loopback is now the default and `--host` is explicit.
 - R56/R57: calibration ran on the host while the deployed verifier runs in the task image under no-network, and dropped transcript lines never made a comparison ineligible; both now fail closed.
 - R58/R59/R60: the suite snapshot handed Harbor a mutable path, task bytes were copied unscanned, and registry tasks skipped the image gate; runs now stage verified private copies, the scan rides the hash walk, and registry bytes are downloaded and gated at registration.
+- R61: config-first variants launched the runner without `--source-root`, so a manager rooted outside the default checkout failed its own preflight; the service root now rides every config-first launch and arm swap.
+- R62/R63: the runner credential guard scanned a hand-picked field subset, and registry task bytes skipped the scan local bytes pass; the guard now scans the whole persisted launch object and registry downloads run the same hash-walk scan.
+- R64: evo launches put the real provider key into the agent environment while agent stdout persisted to `agent/omp.txt`; a manager-hosted provider proxy now holds the key and the agent gets a per-run token.
+- R65/R66: concurrency was missing from the comparison identity, and reports accepted non-terminal runs and a missing post-run source identity; concurrency is now suite policy and reports refuse until both runs are terminal with matching identities.
+- R67/R68: calibration recorded a backend and platform that nothing compared; registration now requires both to equal the suite manifest's declared `environment` and `platform`, on local and registry paths.
+- R69: generated Dockerfiles could not install dependencies at build time, so a test command needing them ran inside the no-network verifier and never calibrated; `--setup-command` renders a build-time `RUN`.
 ## Final verdict
 
-Fresh reviewer over `287c0ef382..68906f2b27` (full branch delta `935046d15b...68906f2b27`): `VERDICT: PASS`, no blockers. The R55–R59 wave before it was reviewed in `51c6b5e0c..287c0ef382` with one blocker (the registry image gate), closed as R60 and re-reviewed PASS.
+Fresh reviewers over each delta of the R61–R69 wave: `117e3d77f2..49018bfe73` raised one blocker (R68, calibration platform unbound), closed and re-reviewed PASS over `49018bfe73..271ee41000`; `271ee41000..7e950b2fec` (R69) `VERDICT: PASS`, no blockers. Full branch delta `935046d15b...7e950b2fec`.
