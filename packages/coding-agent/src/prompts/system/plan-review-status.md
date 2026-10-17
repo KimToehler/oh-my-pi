@@ -1,0 +1,1 @@
+{{#when outcome "==" "okay"}}Cross-family plan review: OKAY ({{reviewer}}).{{/when}}{{#when outcome "==" "cap"}}Cross-family plan review: {{max}} rejection rounds used ({{reviewer}}); plan passed to approval with open blockers.{{/when}}{{#when outcome "==" "unreviewed"}}Cross-family plan review: not reviewed ({{reason}}); plan passed to approval.{{/when}}

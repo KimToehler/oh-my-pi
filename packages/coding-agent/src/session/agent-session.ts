@@ -179,7 +179,16 @@ import { containsMagicKeyword } from "@oh-my-pi/pi-tui/prompt/magic-keywords";
 import { theme } from "@oh-my-pi/pi-tui/theme";
 import { parseTurnBudget } from "../modes/turn-budget";
 import { computeNonMessageTokens } from "@oh-my-pi/pi-tui/status-line/context-usage";
-import { resolveApprovedPlan } from "../plan-mode/approved-plan";
+import {
+	isPlanApprovalDetails,
+	planContentSha256,
+	type ResolvedApprovedPlan,
+	resolveApprovedPlan,
+} from "../plan-mode/approved-plan";
+import { PLAN_REVIEW_MAX_ROUNDS, type PlanReviewOutcome, reviewProposedPlan } from "../plan-mode/plan-review";
+import { cfgPlanReviewEnabled } from "../plan-mode/settings";
+import planReviewRejectPrompt from "../prompts/system/plan-review-reject.md" with { type: "text" };
+import planReviewStatusPrompt from "../prompts/system/plan-review-status.md" with { type: "text" };
 import { listPlanFiles, readPlanFile, resolvePlanFilePath } from "../plan-mode/plan-files";
 import { loadOverallPlanReference } from "../plan-mode/plan-handoff";
 import type { PlanModeState } from "../plan-mode/state";
@@ -912,6 +921,8 @@ export class AgentSession implements SettingsScope {
 	 * review, and cleared at `agent_end` so blocked or failed calls never leak an entry.
 	 */
 	#proposalPlanners = new Map<string, AssistantMessage>();
+	/** Consecutive cross-family REJECTs of the current proposal series (in memory only). */
+	#planReviewRounds = 0;
 	#vibeModeState: VibeModeState | undefined;
 	#goalModeState: GoalModeState | undefined;
 	#goalRuntime: GoalRuntime;
@@ -1640,13 +1651,138 @@ export class AgentSession implements SettingsScope {
 		if (!handler) throw new ToolError(NO_PLAN_AWAITING_APPROVAL);
 		const state = this.getPlanModeState();
 		if (!state?.enabled) throw new ToolError("Plan mode is not active.");
+		const reviewEnabled = cfgPlanReviewEnabled.get(this.settings);
+		const planner = reviewEnabled ? this.#takeReviewablePlanner(call.toolCallId) : undefined;
 		const plan = await resolveApprovedPlan({
 			suppliedTitle: title,
 			statePlanFilePath: state.planFilePath,
 			readPlan: url => this.#readPlanFile(url),
 			listPlanFiles: () => this.#listPlanFiles(),
 		});
-		return handler(plan);
+		if (!planner) return handler(plan);
+		const outcome = await reviewProposedPlan({
+			toolSession: call.toolSession,
+			plannerMessage: planner,
+			plan,
+			settings: this.settings,
+			modelRegistry: this.#modelRegistry,
+			signal: call.signal,
+		});
+		return this.#applyPlanReview({ plan, planner, outcome, handler });
+	}
+
+	/** Structural refusals of an enabled review: the proposal must come from a recorded
+	 *  top-level call that is the last tool call of its message. */
+	#takeReviewablePlanner(toolCallId: string | undefined): AssistantMessage {
+		const planner = this.#takeProposalPlanner(toolCallId);
+		if (!planner) {
+			throw new ToolError("Plan review needs the proposing message: write xd://propose as a top-level tool call.");
+		}
+		const lastToolCall = planner.content.filter(block => block.type === "toolCall").at(-1);
+		if (lastToolCall?.id !== toolCallId)
+			throw new ToolError("Propose the plan as the last tool call of its message.");
+		return planner;
+	}
+
+	async #applyPlanReview(review: {
+		plan: ResolvedApprovedPlan;
+		planner: AssistantMessage;
+		outcome: PlanReviewOutcome;
+		handler: PlanProposalHandler;
+	}): Promise<AgentToolResult<unknown>> {
+		const { plan, outcome, handler } = review;
+		const round = this.#planReviewRounds + 1;
+		const planSha256 = planContentSha256(plan.planContent);
+		const blocking = outcome.kind === "reject" && round <= PLAN_REVIEW_MAX_ROUNDS;
+		this.#appendPlanReviewAudit({ ...review, round, planSha256 });
+		if (blocking) {
+			this.#planReviewRounds = round;
+			this.#promotePlanFilePath(plan.planFilePath);
+			const text = prompt.render(planReviewRejectPrompt, {
+				round,
+				max: PLAN_REVIEW_MAX_ROUNDS,
+				reviewer: outcome.reviewer,
+				blockers: outcome.blockers,
+				title: plan.title,
+			});
+			return { content: [{ type: "text", text }], details: { planReview: { outcome: "reject", round } } };
+		}
+		this.#planReviewRounds = 0;
+		const pass = this.#announcePlanReviewPass(outcome);
+		const result = await handler(plan);
+		const details =
+			pass.bindsBytes && isPlanApprovalDetails(result.details) ? { ...result.details, planSha256 } : result.details;
+		return { ...result, content: [{ type: "text", text: pass.status }, ...result.content], details };
+	}
+
+	/** Notice + fixed status line for an outcome that lets the plan reach the handler.
+	 *  Only a completed review (okay, or the round cap) binds the approved bytes. */
+	#announcePlanReviewPass(outcome: PlanReviewOutcome): { status: string; bindsBytes: boolean } {
+		const max = PLAN_REVIEW_MAX_ROUNDS;
+		switch (outcome.kind) {
+			case "okay":
+				if (outcome.notes.length > 0) {
+					this.emitNotice("info", `Plan review notes:\n${outcome.notes.join("\n")}`, "plan-review");
+				}
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "okay", reviewer: outcome.reviewer, max }),
+					bindsBytes: true,
+				};
+			case "reject": {
+				const blockers = outcome.blockers.map(blocker => `- [${blocker.area}] ${blocker.defect}`).join("\n");
+				this.emitNotice(
+					"warning",
+					`Plan reached approval with open review blockers (${max} rounds used):\n${blockers}`,
+					"plan-review",
+				);
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "cap", reviewer: outcome.reviewer, max }),
+					bindsBytes: true,
+				};
+			}
+			case "unreviewed":
+				this.emitNotice("warning", `Plan not reviewed (${outcome.reason}): ${outcome.detail}`, "plan-review");
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "unreviewed", reason: outcome.reason, max }),
+					bindsBytes: false,
+				};
+			default: {
+				const unreachable: never = outcome;
+				return unreachable;
+			}
+		}
+	}
+
+	#promotePlanFilePath(planFilePath: string): void {
+		const state = this.getPlanModeState();
+		if (!state?.enabled || state.planFilePath === planFilePath) return;
+		this.setPlanModeState({ ...state, planFilePath });
+		this.sessionManager.appendModeChange("plan", { planFilePath });
+	}
+
+	/** One `plan-review` custom entry per review: identities and verdict facts, never reviewer text. */
+	#appendPlanReviewAudit(entry: {
+		plan: ResolvedApprovedPlan;
+		planner: AssistantMessage;
+		outcome: PlanReviewOutcome;
+		round: number;
+		planSha256: string;
+	}): void {
+		const { plan, planner, outcome, round, planSha256 } = entry;
+		const capped = outcome.kind === "reject" && round > PLAN_REVIEW_MAX_ROUNDS;
+		this.sessionManager.appendCustomEntry("plan-review", {
+			planFilePath: plan.planFilePath,
+			planSha256,
+			planner: { provider: planner.provider, model: planner.model, upstreamModel: planner.upstreamModel },
+			plannerClass: outcome.trace.plannerClass,
+			reviewerEntry: outcome.trace.reviewerEntry,
+			answeringModels: outcome.trace.answeringModels,
+			outcome: capped ? "cap" : outcome.kind,
+			reason: outcome.kind === "unreviewed" ? outcome.reason : undefined,
+			round,
+			durationMs: outcome.trace.durationMs,
+			usage: outcome.trace.usage,
+		});
 	}
 
 	async #readPlanFile(planFilePath: string): Promise<string | null> {
@@ -6830,6 +6966,7 @@ export class AgentSession implements SettingsScope {
 	}
 
 	setPlanModeState(state: PlanModeState | undefined): void {
+		if (state?.enabled !== this.#planModeState?.enabled) this.#planReviewRounds = 0;
 		this.#planModeState = state;
 		if (state?.enabled) {
 			this.#planReferenceSent = false;
