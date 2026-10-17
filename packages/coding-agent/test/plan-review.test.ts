@@ -22,6 +22,7 @@ import {
 import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { reviewProposedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-review";
 import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
@@ -487,5 +488,29 @@ describe("plan review runtime", () => {
 		expect(harness.handled.length).toBe(1);
 		expect(resultText(result)).toContain(HANDLER_TEXT);
 		expect(auditEntries(harness)[0]).toMatchObject({ outcome: "unreviewed", reason: "no-verdict" });
+	});
+
+	// A dispatch without a ToolSession cannot spawn any reviewer; that is a reviewer
+	// failure regardless of whether a candidate would have resolved.
+	it("reports reviewer-failed without a tool session even when no reviewer candidate resolves", async () => {
+		const settings = Settings.isolated({ "plan.review.enabled": true, "plan.review.models": [] });
+		const spy = vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue(okay());
+
+		const outcome = await reviewProposedPlan({
+			toolSession: undefined,
+			plannerMessage: plannerMessage("propose-no-session"),
+			plan: { planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" },
+			settings,
+			modelRegistry: new ModelRegistry(authStorage, tempDir.join("models.yml")),
+			signal: undefined,
+		});
+
+		expect(outcome).toMatchObject({
+			kind: "unreviewed",
+			reason: "reviewer-failed",
+			detail: "no tool session to run the reviewer",
+			trace: { plannerClass: "anthropic" },
+		});
+		expect(spy).not.toHaveBeenCalled();
 	});
 });

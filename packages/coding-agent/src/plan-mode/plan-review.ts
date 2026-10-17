@@ -212,6 +212,11 @@ export async function reviewProposedPlan(input: PlanReviewInput): Promise<PlanRe
 	const planner = input.plannerMessage;
 	const plannerClass = modelClass(planner.provider, planner.upstreamModel ?? planner.model);
 	const elapsed = (): number => Date.now() - startedAt;
+	const session = input.toolSession;
+	if (!session) {
+		const trace = { plannerClass, durationMs: elapsed() };
+		return { kind: "unreviewed", reason: "reviewer-failed", detail: "no tool session to run the reviewer", trace };
+	}
 	if (plannerClass === undefined) {
 		const detail = "the proposing model's family is unknown";
 		return { kind: "unreviewed", reason: "planner-unknown", detail, trace: { durationMs: elapsed() } };
@@ -222,11 +227,6 @@ export async function reviewProposedPlan(input: PlanReviewInput): Promise<PlanRe
 			`no candidate of a different family: ${reviewerCandidates(input.settings).join(", ")}`,
 		);
 		return { kind: "unreviewed", reason: "no-reviewer", detail, trace: { plannerClass, durationMs: elapsed() } };
-	}
-	const session = input.toolSession;
-	if (!session) {
-		const trace = { plannerClass, reviewerEntry, durationMs: elapsed() };
-		return { kind: "unreviewed", reason: "reviewer-failed", detail: "no tool session to run the reviewer", trace };
 	}
 	let settled: StructuredSubagentResult;
 	try {
