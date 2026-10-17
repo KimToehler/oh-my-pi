@@ -107,15 +107,17 @@ interface SseClient {
 	state: SseState;
 }
 
-function parseServerArgs(argv: string[]): { port: number; jobsDir: string } {
+function parseServerArgs(argv: string[]): { port: number; jobsDir: string; host: string | null } {
 	let port = 4700;
 	let jobsDir = DEFAULT_JOBS_DIR;
+	let host: string | null = null;
 	for (let i = 0; i < argv.length; i++) {
 		if (argv[i] === "--port" && argv[i + 1]) port = Number(argv[++i]);
 		else if (argv[i] === "--jobs-dir" && argv[i + 1]) jobsDir = path.resolve(argv[++i]);
+		else if (argv[i] === "--host" && argv[i + 1]) host = argv[++i];
 	}
 	if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("--port must be 1..65535");
-	return { port, jobsDir };
+	return { port, jobsDir, host };
 }
 
 /** Job names are single path segments; anything else could escape the jobs dir. */
@@ -282,9 +284,11 @@ export class ManagerServer {
 	#stopped = false;
 	readonly #evo: EvoService;
 	readonly jobsDir: string;
+	readonly #host: string | null;
 
-	constructor(jobsDir: string, dbPath?: string, evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {}) {
+	constructor(jobsDir: string, dbPath?: string, evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {}, host: string | null = null) {
 		this.jobsDir = jobsDir;
+		this.#host = host;
 		this.#store = new RunStore(jobsDir, dbPath);
 		this.#evo = new EvoService({
 			store: this.#store,
@@ -305,6 +309,11 @@ export class ManagerServer {
 		this.#syncTimer = setInterval(() => this.#tick(), 2000);
 		this.#server = Bun.serve({
 			port,
+			// Loopback by default: this API is unauthenticated and serves private evaluation
+			// material (variant diffs, reflection bundles, traces). Serving it on every interface
+			// would hand that material to the local network. Bind another host explicitly with
+			// `--host <addr>` when remote access is genuinely wanted.
+			hostname: this.#host ?? "127.0.0.1",
 			idleTimeout: 0,
 			// Bun bundles the dashboard (React + TSX) from the HTML import and
 			// serves it on the same port as the API — one process, no Vite.
@@ -860,11 +869,13 @@ if (import.meta.main) {
 		__metaharnessHooks?: boolean;
 	};
 	await host.__metaharnessServer?.stop();
-	const { port, jobsDir } = parseServerArgs(process.argv.slice(2));
-	const manager = new ManagerServer(jobsDir);
+	const { port, jobsDir, host: bindHost } = parseServerArgs(process.argv.slice(2));
+	const manager = new ManagerServer(jobsDir, undefined, {}, bindHost);
 	host.__metaharnessServer = manager;
 	const server = manager.start(port);
-	process.stdout.write(`metaharness listening on http://localhost:${server.port} (jobs: ${jobsDir})\n`);
+	process.stdout.write(
+		`metaharness listening on http://${bindHost ?? "127.0.0.1"}:${server.port} (jobs: ${jobsDir})\n`,
+	);
 	// Process-wide hooks register once; `--hot` re-evals reuse them via `host`.
 	if (!host.__metaharnessHooks) {
 		host.__metaharnessHooks = true;
