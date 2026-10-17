@@ -887,10 +887,9 @@ export class AcpAgent implements Agent {
 				this.#trackPromptEvent(record, event);
 			});
 
-			// Autonomous turns stream without an owning promptTurn, so the implicit-cancel
-			// guard above cannot fire and a client prompt lands on AgentSession's busy
-			// guard. Type that failure for the wire instead of letting transport.ts wrap
-			// it as a generic -32603 internal error.
+			// A prompt landing on a busy session is queued as steer below; AgentBusyError
+			// can still escape builtin commands. Type it for the wire instead of letting
+			// transport.ts wrap it as a generic -32603 internal error.
 			this.#runPromptOrCommand(record, converted.text, converted.images).catch((error: unknown) => {
 				this.#finishPrompt(
 					record,
@@ -1030,7 +1029,10 @@ export class AcpAgent implements Agent {
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
-				const residualAgentInvoked = await record.session.prompt(builtinResult.prompt, { images });
+				const residualAgentInvoked = await record.session.prompt(builtinResult.prompt, {
+					images,
+					streamingBehavior: "steer",
+				});
 				// A residual prompt can itself resolve locally (extension command,
 				// custom-TS command, file prompt template). No agent turn means no
 				// `agent_end`, so the prompt turn must be settled here — same pairing
@@ -1058,7 +1060,10 @@ export class AcpAgent implements Agent {
 		}
 
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
-		const agentInvoked = await record.session.prompt(text, { images });
+		// An autonomous turn (todo reminder, async-job wake) streams without an
+		// owning promptTurn. Steer into it instead of failing busy: the ACP turn then
+		// stays open until that turn and the queued-message drain settle.
+		const agentInvoked = await record.session.prompt(text, { images, streamingBehavior: "steer" });
 		// Extension and custom-TS commands are handled locally inside session.prompt().
 		// An ACP extension command can still call pi.sendUserMessage(), which starts
 		// an async nested prompt through the extension runtime. Keep the ACP turn
