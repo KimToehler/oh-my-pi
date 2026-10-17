@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `51c6b5e0c7379ca5ff33094ec9dc8a6f35204f66`
+- Head: `68906f2b27651d79470dfbdf3d826e0eb3f4781c`
 - Result: **PASS**
 
 ## Review history
@@ -52,6 +52,9 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 
 - R53: resume rebuilt the Harbor invocation from the recorded config without the R49 integrity gate, so a tampered suite snapshot could execute on resume under stale hashes; the gate now runs in `resume()` too.
 - R54: the first resume guard trusted the optional `run.config.suiteId` while the durable identity is the `suite_id` column, so a missing or different config value validated the wrong suite; `run.suiteId` is now the identity and both places must agree.
+- R55: the server bound every interface while the startup message claimed localhost, exposing the unauthenticated API to the local network; loopback is now the default and `--host` is explicit.
+- R56/R57: calibration ran on the host while the deployed verifier runs in the task image under no-network, and dropped transcript lines never made a comparison ineligible; both now fail closed.
+- R58/R59/R60: the suite snapshot handed Harbor a mutable path, task bytes were copied unscanned, and registry tasks skipped the image gate; runs now stage verified private copies, the scan rides the hash walk, and registry bytes are downloaded and gated at registration.
 ## Final verdict
 
-Fresh reviewer over `03e6b108..51c6b5e0c` (full branch delta `935046d15b...51c6b5e0c`): `VERDICT: PASS`, no blockers. The R47–R52 wave before it was reviewed in `b74a187f83..c7f0b122b6` with one blocker (the resume gate), closed as R53/R54 and re-reviewed PASS.
+Fresh reviewer over `287c0ef382..68906f2b27` (full branch delta `935046d15b...68906f2b27`): `VERDICT: PASS`, no blockers. The R55–R59 wave before it was reviewed in `51c6b5e0c..287c0ef382` with one blocker (the registry image gate), closed as R60 and re-reviewed PASS.
