@@ -5,7 +5,9 @@ import * as path from "node:path";
 import { compareFitness } from "../src/evo/compare";
 import { computeFitness } from "../src/evo/fitness";
 import type { VariantRow } from "../src/evo/variant-types";
-import { readTrials } from "../src/runner";
+import { classifyHarborPhase } from "../src/evo/failure-phase";
+import type { TranscriptMetrics } from "../src/evo/transcript";
+import { PROVIDER_ROUTE_LOST_MARKER, readTrials } from "../src/runner";
 import { RunStore, type TraceRow } from "../src/store";
 
 const dirs: string[] = [];
@@ -143,5 +145,31 @@ describe("comparison gate by provenance", () => {
 		const c = compareFitness(fit("c", [trial("a", { phase: null })]), fit("b", [trial("a", {})]), variant);
 		expect(c.refusals).toEqual([{ reason: "unknown", count: 1 }]);
 		expect(c.creditedDelta).toBeNull();
+	});
+});
+
+describe("provider route loss", () => {
+	const evidence = {
+		exception: null,
+		reward: 1,
+		transcript: { started: true } as unknown as TranscriptMetrics,
+	};
+	it("providerRouteLost with a verdict is executor_infra_failure", () => {
+		expect(classifyHarborPhase({ ...evidence, providerRouteLost: true })).toBe("executor_infra_failure");
+		expect(classifyHarborPhase({ ...evidence, providerRouteLost: false })).toBe("model_outcome");
+	});
+	it("providerRouteLost overrides even the agent-budget exception", () => {
+		expect(classifyHarborPhase({ ...evidence, exception: "AgentTimeoutError", providerRouteLost: true })).toBe(
+			"executor_infra_failure",
+		);
+	});
+	it("the job-dir marker flips every trial's phase but keeps metrics visible", () => {
+		const jobDir = tmp();
+		seed(jobDir, "t__a", { transcript: ASSISTANT, reward: 1 });
+		seed(jobDir, "t__b", { transcript: ASSISTANT, reward: 0 });
+		fs.writeFileSync(path.join(jobDir, PROVIDER_ROUTE_LOST_MARKER), "");
+		const trials = readTrials(jobDir);
+		expect(trials.map(t => t.phase)).toEqual(["executor_infra_failure", "executor_infra_failure"]);
+		expect(trials.find(t => t.name === "t__a")?.reward).toBe(1);
 	});
 });

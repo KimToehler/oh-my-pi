@@ -30,11 +30,17 @@ export interface PhaseEvidence {
 	reward: number | null;
 	/** Omp transcript summary; null when no transcript was read. */
 	transcript: TranscriptMetrics | null;
+	/**
+	 * The run's provider route was observed dead after harbor returned. Host infrastructure failed, so no
+	 * outcome of this run is evidence about the model; takes precedence over every verdict.
+	 */
+	providerRouteLost?: boolean;
 }
 
 /** Phase of a terminal harbor trial. Missing evidence yields `unknown`, never `model_outcome`. */
 export function classifyHarborPhase(evidence: PhaseEvidence): FailurePhase {
-	const { exception, reward, transcript } = evidence;
+	const { exception, reward, transcript, providerRouteLost } = evidence;
+	if (providerRouteLost === true) return "executor_infra_failure";
 	if (transcript === null) return "unknown";
 	// The agent never produced an assistant message: it/its config overlay never came up.
 	if (!transcript.started) return "variant_startup_failure";

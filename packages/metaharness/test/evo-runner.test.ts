@@ -6,6 +6,7 @@ import { MODEL_ROLE_IDS } from "@oh-my-pi/pi-coding-agent/config/model-roles";
 import { EvoHttpError } from "../src/evo/boundary";
 import { BUILTIN_MODEL_ROLES, executorConfigHash, mergeOverlayConfig, stageAgentOverlay } from "../src/evo/overlay";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
+import { unlockTreeSync } from "../src/evo/task-tree";
 import { harborRunnerArgs } from "../src/launch-args";
 import { buildHarborEnv, buildMountsJson, parseArgs } from "../src/runner";
 
@@ -16,7 +17,11 @@ afterEach(() => {
 
 function tmp(): string {
 	const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "evo-runner-")));
-	cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+	// Staged source trees (`_bench/<job>/source`) are read-only; restore owner write before deleting.
+	cleanups.push(() => {
+		unlockTreeSync(dir);
+		fs.rmSync(dir, { recursive: true, force: true });
+	});
 	return dir;
 }
 
@@ -97,12 +102,15 @@ describe("runner flags", () => {
 });
 
 describe("mounts", () => {
-	it("mounts the source root and the agent overlay read-only for apple-container", () => {
-		const cfg = parseArgs(["--source-root", "/w/tree", "--environment", "apple-container"]);
+	it("mounts the staged source tree, never the live root, plus the agent overlay read-only", () => {
 		const mounts = JSON.parse(
-			buildMountsJson(cfg, { arch: "arm64", depsDir: "/deps", nodeModules: ["node_modules"] }, "/ov") ?? "[]",
+			buildMountsJson(
+				{ arch: "arm64", depsDir: "/deps", nodeModules: ["node_modules"], stagedDir: "/jobs/_bench/j/source" },
+				"/ov",
+			) ?? "[]",
 		) as Array<{ source: string; target: string; read_only: boolean }>;
-		expect(mounts.find(m => m.target === "/opt/omp/src")?.source).toBe("/w/tree");
+		expect(mounts.find(m => m.target === "/opt/omp/src")?.source).toBe("/jobs/_bench/j/source");
+		expect(mounts.some(m => m.source === "/w/tree")).toBe(false);
 		expect(mounts.find(m => m.target === "/opt/omp/agent-overlay")).toEqual({
 			type: "bind",
 			source: "/ov",
@@ -110,8 +118,8 @@ describe("mounts", () => {
 			read_only: true,
 		});
 		expect(mounts.every(m => m.read_only)).toBe(true);
-		expect(buildMountsJson(cfg, null, null)).toBeNull();
-		expect(JSON.parse(buildMountsJson(cfg, null, "/ov") ?? "[]")).toHaveLength(1);
+		expect(buildMountsJson(null, null)).toBeNull();
+		expect(JSON.parse(buildMountsJson(null, "/ov") ?? "[]")).toHaveLength(1);
 	});
 });
 
@@ -836,9 +844,11 @@ describe("runner-config credential persistence", () => {
 		git("init", "-q", "-b", "main");
 		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
 		write(source, "bun.lock", "");
+		write(source, ".gitignore", "*.node\n");
 		write(source, "tracked.txt", "before");
 		git("add", "-A");
 		git("commit", "-q", "-m", "init");
+		write(source, "packages/natives/native/pi_natives.linux-arm64.node", "addon");
 		const preflight = formatSourceIdentity(await sourceIdentity(source));
 		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
 		const { code, out } = await runRunner(
@@ -885,9 +895,11 @@ describe("runner-config credential persistence", () => {
 		git("init", "-q", "-b", "main");
 		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
 		write(source, "bun.lock", "");
+		write(source, ".gitignore", "*.node\n");
 		write(source, "tracked.txt", "before");
 		git("add", "-A");
 		git("commit", "-q", "-m", "init");
+		write(source, "packages/natives/native/pi_natives.linux-arm64.node", "addon");
 		const launch = formatSourceIdentity(await sourceIdentity(source));
 		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
 		const env = { STUB_SOURCE_ROOT: source, STUB_DEPS_DIR: depsDir };

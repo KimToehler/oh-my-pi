@@ -27,6 +27,8 @@ import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
+import { type StagedSource, stageSource, verifyStagedSource } from "./evo/source-stage";
+import { probeProxyLiveness } from "./evo/provider-proxy";
 import { classifyHarborPhase, type FailurePhase } from "./evo/failure-phase";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
 import {
@@ -785,7 +787,7 @@ function probeTrialCost(ompLogPath: string): CostProbe | null {
 }
 
 /** Parse one trial directory into a Trial, or null if it isn't a trial dir yet. */
-function parseTrial(dir: string, name: string): Trial | null {
+function parseTrial(dir: string, name: string, providerRouteLost: boolean): Trial | null {
 	const resultPath = path.join(dir, "result.json");
 	if (!fs.existsSync(resultPath)) {
 		// running: dir exists, no result yet. Use dir mtime as start proxy.
@@ -896,12 +898,17 @@ function parseTrial(dir: string, name: string): Trial | null {
 			exception: exc ? (typeof exc.exception_type === "string" ? exc.exception_type : "error") : null,
 			reward,
 			transcript,
+			providerRouteLost,
 		}),
 		transcript,
 	};
 }
 
+/** Marker the runner writes into the job dir when the provider proxy was dead after harbor returned. Sticky. */
+export const PROVIDER_ROUTE_LOST_MARKER = ".provider-route-lost";
+
 export function readTrials(jobDir: string): Trial[] {
+	const providerRouteLost = fs.existsSync(path.join(jobDir, PROVIDER_ROUTE_LOST_MARKER));
 	let entries: fs.Dirent[] = [];
 	try {
 		entries = fs.readdirSync(jobDir, { withFileTypes: true });
@@ -911,7 +918,7 @@ export function readTrials(jobDir: string): Trial[] {
 	const trials: Trial[] = [];
 	for (const e of entries) {
 		if (!e.isDirectory()) continue;
-		const t = parseTrial(path.join(jobDir, e.name), e.name);
+		const t = parseTrial(path.join(jobDir, e.name), e.name, providerRouteLost);
 		if (t) trials.push(t);
 	}
 	return trials;
@@ -1195,6 +1202,13 @@ export interface SourceMount {
 	depsDir: string;
 	/** Repo-relative node_modules dirs to shadow-mount over the darwin ones. */
 	nodeModules: string[];
+	/** Run-owned read-only staged source tree (`_bench/<job>/source`); the only source the container sees. */
+	stagedDir: string;
+}
+
+/** Deps plan before the source tree is staged. `hostMissing` dirs must exist in the staged tree as mount points. */
+export interface SourcePlan extends Omit<SourceMount, "stagedDir"> {
+	hostMissing: string[];
 }
 
 /**
@@ -1272,7 +1286,7 @@ function sourceDepsStamp(sourceRoot: string, manifests: string[], bunVersion: st
  * daemon's native arch), plus the image's linux `bun` under `bin/`. Rebuilt only when
  * a manifest/lockfile or the pinned bun version changes; TS edits never invalidate it.
  */
-export function prepareSourceDeps(cfg: Config): SourceMount {
+export function prepareSourceDeps(cfg: Config): SourcePlan {
 	const arch = cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
 	const sourceRoot = cfg.sourceRoot;
 	const bunVersion = repoBunVersion(sourceRoot);
@@ -1346,16 +1360,17 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
 	// Shadow-mount every node_modules visible in the host tree (they hold darwin
 	// binaries) with the skeleton's linux one; both sides of each mount must exist.
 	const nodeModules = ["node_modules"];
+	const hostMissing: string[] = [];
 	for (const dir of pkgDirs) {
 		const rel = path.join(dir, "node_modules");
 		const inHost = fs.existsSync(path.join(sourceRoot, rel));
 		const inDeps = fs.existsSync(path.join(depsDir, rel));
 		if (!inHost && !inDeps) continue;
 		if (!inDeps) fs.mkdirSync(path.join(depsDir, rel), { recursive: true });
-		if (!inHost) fs.mkdirSync(path.join(sourceRoot, rel), { recursive: true });
+		if (!inHost) hostMissing.push(rel);
 		nodeModules.push(rel);
 	}
-	return { arch, depsDir, nodeModules };
+	return { arch, depsDir, nodeModules, hostMissing };
 }
 
 /**
@@ -1372,7 +1387,7 @@ function writeComposeOverlay(
 		hostNetwork: cfg.hostNetwork,
 		source: source
 			? {
-					root: cfg.sourceRoot,
+					root: source.stagedDir,
 					target: SOURCE_SRC_MOUNT,
 					depsDir: source.depsDir,
 					nodeModules: source.nodeModules,
@@ -1388,17 +1403,13 @@ function writeComposeOverlay(
  * environments (apple-container): source repo + linux deps tree. Apple
  * Container currently mounts binds read-write regardless of `read_only`.
  */
-export function buildMountsJson(
-	cfg: Config,
-	source: SourceMount | null,
-	agentOverlay: string | null = null,
-): string | null {
+export function buildMountsJson(source: SourceMount | null, agentOverlay: string | null = null): string | null {
 	if (!source && !agentOverlay) return null;
 	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [];
 	if (source) {
 		mounts.push({
 			type: "bind",
-			source: assertPlainPath("--source-root", cfg.sourceRoot),
+			source: assertPlainPath("staged source", source.stagedDir),
 			target: SOURCE_SRC_MOUNT,
 			read_only: true,
 		});
@@ -1786,7 +1797,7 @@ interface BenchmarkRun {
  * environment and travels as a host-sourced `--env` value, so it is never persisted. Returns the URL the containers
  * reach the proxy at. Refuses a config that would also hand the agent a real provider credential.
  */
-function adoptProviderProxy(cfg: Config): string {
+function adoptProviderProxy(cfg: Config): { url: string; probe: () => Promise<boolean> } {
 	const token = process.env[PROXY_TOKEN_ENV];
 	const port = process.env.OMP_EVO_PROXY_PORT;
 	if (!token || !port) {
@@ -1804,7 +1815,7 @@ function adoptProviderProxy(cfg: Config): string {
 	cfg.env[PROXY_TOKEN_ENV] = token;
 	if (!cfg.hostEnvKeys.includes(PROXY_TOKEN_ENV)) cfg.hostEnvKeys.push(PROXY_TOKEN_ENV);
 	const host = cfg.envType === "apple-container" ? VMNET_HOST_IP : "host.docker.internal";
-	return `http://${host}:${port}`;
+	return { url: `http://${host}:${port}`, probe: () => probeProxyLiveness(port, token) };
 }
 
 async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
@@ -1820,7 +1831,8 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		);
 	}
 
-	const proxyUrl = cfg.providerProxy ? adoptProviderProxy(cfg) : null;
+	const proxy = cfg.providerProxy ? adoptProviderProxy(cfg) : null;
+	const proxyUrl = proxy?.url ?? null;
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
 	// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
 	const persisted = { ...cfg, jobName, env: { ...cfg.env } };
@@ -1876,19 +1888,31 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		}
 	}
 
-	if (cfg.agent === "omp" && cfg.sourceIdentity) {
+	const assertLaunchIdentity = async (): Promise<void> => {
+		if (!(cfg.agent === "omp" && cfg.sourceIdentity)) return;
 		const actual = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
 		if (actual !== cfg.sourceIdentity) {
 			throw new Error(
 				`source identity drift for ${cfg.sourceRoot}: expected ${cfg.sourceIdentity}, actual ${actual}`,
 			);
 		}
-	}
+	};
+	await assertLaunchIdentity();
 
-	// source mount (default): repo bind-mounted read-only + cached linux deps tree
+	// source mount (default): run-owned read-only staged tree + cached linux deps tree
 	let source: SourceMount | null = null;
+	let stagedSource: StagedSource | null = null;
 	if (cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
-		source = prepareSourceDeps(cfg);
+		const plan = prepareSourceDeps(cfg);
+		stagedSource = await stageSource({
+			root: cfg.sourceRoot,
+			dest: path.join(benchDir, "source"),
+			arch: plan.arch,
+			mountDirs: plan.hostMissing,
+		});
+		// A host edit while copying would make the staged bytes differ from the launch identity.
+		await assertLaunchIdentity();
+		source = { arch: plan.arch, depsDir: plan.depsDir, nodeModules: plan.nodeModules, stagedDir: stagedSource.dir };
 	}
 
 	// models.yml (gateway)
@@ -1936,7 +1960,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	}
 	const composeOverlayPath =
 		cfg.envType === "docker" ? writeComposeOverlay(benchDir, cfg, source, agentOverlay) : null;
-	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(cfg, source, agentOverlay);
+	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(source, agentOverlay);
 
 	const harborArgs = cfg.resume
 		? buildResumeArgs(cfg, jobDir)
@@ -1972,6 +1996,12 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		runDockerCleanup(cfg.cleanupForce);
 	}
 
+	// Fail closed: a dead proxy or revoked token would make every LLM call fail with no executor exception.
+	if (proxy && !(await proxy.probe())) {
+		throw new Error(
+			"provider proxy liveness probe failed before launch (dead port or revoked token); refusing to start",
+		);
+	}
 	const gatewayForward = startVmnetGatewayForward(cfg);
 	process.stdout.write(dim(`launching harbor → ${logPath}\n`));
 	const logFd = fs.openSync(logPath, "a");
@@ -2025,7 +2055,16 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	}
 
 	if (cfg.agent === "omp" && cfg.sourceIdentity) {
-		await recordPostRunSourceIdentity(cfg, jobName, benchDir, cfg.sourceIdentity);
+		await recordPostRunSourceIdentity(cfg, jobName, benchDir, cfg.sourceIdentity, stagedSource);
+	}
+
+	// Connectivity lost during the run: no trial of it is evidence about the model (see PROVIDER_ROUTE_LOST_MARKER).
+	if (proxy && !(await proxy.probe())) {
+		fs.mkdirSync(jobDir, { recursive: true });
+		fs.writeFileSync(path.join(jobDir, PROVIDER_ROUTE_LOST_MARKER), "");
+		process.stderr.write(
+			yellow("provider proxy unreachable after harbor returned; trials marked executor_infra_failure\n"),
+		);
 	}
 
 	// final summary (printed to the normal screen)
@@ -2051,16 +2090,22 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	return { exitCode, jobName, jobDir, benchDir, tarball, elapsedMs, totals, reportPath };
 }
 
-/** Re-verify the bind-mounted source after the run and persist what was observed; drift is warned, never fatal. */
+/**
+ * Re-verify the sources after the run and persist what was observed; drift is warned, never fatal.
+ * Both the live source root (a host edit during the run) and the staged tree the container ran
+ * (a write through the mount) must still match the launch identity.
+ */
 async function recordPostRunSourceIdentity(
 	cfg: Config,
 	jobName: string,
 	benchDir: string,
 	launchIdentity: string,
+	staged: StagedSource | null,
 ): Promise<void> {
 	let observed: string;
 	try {
 		observed = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
+		if (staged && (await verifyStagedSource(staged)).length > 0) observed = "staged-tree-modified";
 	} catch {
 		observed = "unknown";
 	}

@@ -1,12 +1,24 @@
-/** Source identity of a git worktree: HEAD plus a hash of dirty tracked and untracked content. */
+/** Source identity of a git worktree: HEAD plus a hash of dirty tracked/untracked content and native addons. */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 
+/** Repo-relative dir holding the gitignored native addons the agent loads at runtime. */
+export const NATIVE_ADDON_DIR = "packages/natives/native";
+
+/** Repo-relative paths (sorted) of every `*.node` addon under {@link NATIVE_ADDON_DIR} in `root`. */
+export async function listNativeAddons(root: string): Promise<string[]> {
+	const entries = await fs.readdir(path.join(root, NATIVE_ADDON_DIR)).catch(() => [] as string[]);
+	return entries
+		.filter(name => name.endsWith(".node"))
+		.sort()
+		.map(name => `${NATIVE_ADDON_DIR}/${name}`);
+}
+
 export interface SourceIdentity {
 	/** `git rev-parse HEAD`. */
 	ref: string;
-	/** SHA-256 of the tracked diff against HEAD plus untracked file names/content; null when clean. */
+	/** SHA-256 of the tracked diff, untracked file names/content and native addon bytes; null when clean with no addons. */
 	dirtyHash: string | null;
 }
 
@@ -25,6 +37,11 @@ export function parseSourceIdentity(text: string): SourceIdentity {
 	return { ref, dirtyHash };
 }
 
+/** True when the worktree has no staged, unstaged or untracked non-ignored changes (addons not considered). */
+export async function isTreeClean(root: string): Promise<boolean> {
+	return (await vcs.requireGit(root).statusPorcelain({ untracked: "all" })).trim() === "";
+}
+
 /** Compute the identity of the git worktree rooted exactly at `root`. */
 export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 	const real = await fs.realpath(root).catch(() => {
@@ -37,7 +54,8 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 	const ref = await repo.headSha();
 	if (!ref) throw new Error(`source root has no HEAD commit: ${root}`);
 	const status = await repo.statusPorcelain({ untracked: "all" });
-	if (status.trim() === "") return { ref, dirtyHash: null };
+	const addons = await listNativeAddons(real);
+	if (status.trim() === "" && addons.length === 0) return { ref, dirtyHash: null };
 	const hasher = new Bun.CryptoHasher("sha256");
 	// Length-framed sections in fixed order: staged (index vs HEAD), unstaged (worktree vs index).
 	// Hashing the two sides separately (not one worktree-vs-HEAD diff) keeps a staged edit that was
@@ -72,6 +90,12 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 		} else {
 			frame("type", "other");
 		}
+	}
+	// Gitignored native addons are executed from the source tree, so their bytes are identity.
+	hasher.update(`native-count${addons.length}:`);
+	for (const rel of addons) {
+		frame("path", rel);
+		frame("content", await fs.readFile(path.join(real, rel)));
 	}
 	return { ref, dirtyHash: hasher.digest("hex") };
 }

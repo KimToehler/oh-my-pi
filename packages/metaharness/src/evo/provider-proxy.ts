@@ -19,6 +19,25 @@ interface Registration {
 	routes: ReadonlyMap<string, ProxyRoute>;
 }
 
+/** Authenticated liveness path: 204 for a registered token, 401 otherwise. Never forwarded upstream. */
+export const LIVENESS_PATH = "/_omp/liveness";
+
+/**
+ * Host-side probe of a proxy at `http://127.0.0.1:<port>` with the run's own token. True only on 204: a dead port,
+ * a revoked token, or any other answer means the agent's provider route is gone.
+ */
+export async function probeProxyLiveness(port: number | string, token: string, timeoutMs = 5000): Promise<boolean> {
+	try {
+		const response = await fetch(`http://127.0.0.1:${port}${LIVENESS_PATH}`, {
+			headers: { authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(timeoutMs),
+		});
+		return response.status === 204;
+	} catch {
+		return false;
+	}
+}
+
 export class ProviderProxy {
 	#server: Server<undefined> | null = null;
 	readonly #byToken = new Map<string, Registration>();
@@ -59,6 +78,7 @@ export class ProviderProxy {
 
 	async #handle(request: Request): Promise<Response> {
 		const url = new URL(request.url);
+		if (url.pathname === LIVENESS_PATH) return this.#liveness(request);
 		const outgoing = new Headers();
 		for (const [name, value] of request.headers) if (!DROP_REQUEST.has(name)) outgoing.set(name, value);
 		let registration: Registration | undefined;
@@ -93,6 +113,15 @@ export class ProviderProxy {
 		const headers = new Headers();
 		for (const [name, value] of upstream.headers) if (!DROP_RESPONSE.has(name)) headers.set(name, value);
 		return new Response(upstream.body, { status: upstream.status, headers });
+	}
+
+	#liveness(request: Request): Response {
+		for (const name of AUTH_HEADERS) {
+			const raw = request.headers.get(name);
+			if (raw !== null && this.#byToken.has(raw.replace(/^Bearer\s+/i, "")))
+				return new Response(null, { status: 204 });
+		}
+		return new Response(null, { status: 401 });
 	}
 
 	#routeFor(url: URL, registration: Registration): ProxyRoute | undefined {

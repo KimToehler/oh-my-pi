@@ -149,11 +149,9 @@ describe("path boundary", () => {
 		for (const flag of ["--agent-dir", "--source-root", "--models-yaml", "--jobs-dir", "--path"]) {
 			expect(() => parseArgs([flag, "/w/bad\nline"])).toThrow(`${flag} must not contain NUL or control characters`);
 		}
-		const cfg = parseArgs([]);
-		cfg.sourceRoot = "/w/bad\0root";
-		expect(() => buildMountsJson(cfg, { arch: "arm64", depsDir: "/d", nodeModules: [] }, null)).toThrow(
-			"--source-root must not contain NUL or control characters",
-		);
+		expect(() =>
+			buildMountsJson({ arch: "arm64", depsDir: "/d", nodeModules: [], stagedDir: "/w/bad\0root" }, null),
+		).toThrow("staged source must not contain NUL or control characters");
 		for (const key of ["sourceWorktree", "configDir"]) {
 			expect(() => parseVariantRequest({ mutation: "root", configDir: "/ok", [key]: "/w/bad\nline" })).toThrow(
 				`variant.${key} must not contain NUL or control characters`,
@@ -162,10 +160,11 @@ describe("path boundary", () => {
 	});
 
 	it("keeps Apple JSON mounts exact for metacharacter paths", () => {
-		const cfg = parseArgs([]);
-		cfg.sourceRoot = NASTY[0];
 		const mounts = JSON.parse(
-			buildMountsJson(cfg, { arch: "arm64", depsDir: NASTY[3], nodeModules: ["node_modules"] }, NASTY[1])!,
+			buildMountsJson(
+				{ arch: "arm64", depsDir: NASTY[3], nodeModules: ["node_modules"], stagedDir: NASTY[0] },
+				NASTY[1],
+			)!,
 		) as Array<{ source: string }>;
 		expect(mounts.map(m => m.source)).toEqual([NASTY[0], `${NASTY[3]}/node_modules`, `${NASTY[3]}/bin`, NASTY[1]]);
 	});
