@@ -906,6 +906,12 @@ export class AgentSession implements SettingsScope {
 	/** A single model-only notebook reminder queued for the current prompt generation. */
 	#experimentalContextNotesReminder: { prompt: string; generation: number } | undefined;
 	#planModeState: PlanModeState | undefined;
+	/**
+	 * Assistant message that produced each loop-dispatched `xd://propose` call, keyed by
+	 * tool-call id. Recorded synchronously in `#beforeToolCall`, consumed once by plan
+	 * review, and cleared at `agent_end` so blocked or failed calls never leak an entry.
+	 */
+	#proposalPlanners = new Map<string, AssistantMessage>();
 	#vibeModeState: VibeModeState | undefined;
 	#goalModeState: GoalModeState | undefined;
 	#goalRuntime: GoalRuntime;
@@ -3519,6 +3525,7 @@ export class AgentSession implements SettingsScope {
 			}
 			return processing;
 		}
+		this.#proposalPlanners.clear();
 		const { promise, resolve } = Promise.withResolvers<void>();
 		this.#trackPostPromptTask(promise);
 		this.#inFlightAgentEndMaintenance.add(promise);
@@ -5010,6 +5017,12 @@ export class AgentSession implements SettingsScope {
 		}
 		return this.#ttsr.afterToolCall(ctx);
 	}
+	#takeProposalPlanner(toolCallId: string | undefined): AssistantMessage | undefined {
+		if (toolCallId === undefined) return undefined;
+		const planner = this.#proposalPlanners.get(toolCallId);
+		this.#proposalPlanners.delete(toolCallId);
+		return planner;
+	}
 	/**
 	 * Emits the extension `tool_call` event for a loop-dispatched call at
 	 * arg-prep time — before concurrency scheduling, `tool_execution_start`,
@@ -5021,6 +5034,9 @@ export class AgentSession implements SettingsScope {
 	 * execution still emit there).
 	 */
 	async #beforeToolCall(ctx: BeforeToolCallContext, signal?: AbortSignal): Promise<BeforeToolCallResult | undefined> {
+		// Record before any early return or await: plan review needs the exact message
+		// that proposed, even when TTSR or extensions short-circuit this hook.
+		if (isProposeToolCall(ctx.toolCall)) this.#proposalPlanners.set(ctx.toolCall.id, ctx.assistantMessage);
 		const runner = this.#extensionRunner;
 		runner?.markLoopToolCall?.(ctx.toolCall.id, ctx.tool.name);
 		const ttsrResult = await this.#ttsr.beforeToolCall(ctx);
