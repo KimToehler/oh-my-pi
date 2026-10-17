@@ -256,6 +256,7 @@ describe("evo-task make", () => {
 			model: "m",
 			thinking: "off",
 			environment: "docker",
+			platform: "linux/arm64",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
 			concurrency: 1,

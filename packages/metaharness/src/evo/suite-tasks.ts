@@ -81,7 +81,7 @@ export async function pinSuiteTasks(
 			const keys = manifest.include.map(taskKey);
 			await resolveRegistryTasks(manifest.dataset, keys, scratch, secrets);
 			generatedTaskImages(scratch, keys);
-			await requireCalibratedTasks(scratch, keys, manifest.environment);
+			await requireCalibratedTasks(scratch, keys, manifest.environment, manifest.platform);
 		} finally {
 			await fsp.rm(scratch, { recursive: true, force: true });
 		}
@@ -117,7 +117,7 @@ export async function pinSuiteTasks(
 			taskHashes[key] = hashTaskTree(path.join(stage, key), secrets);
 		}
 		generatedTaskImages(stage, manifest.include.map(taskKey));
-		await requireCalibratedTasks(stage, manifest.include, manifest.environment);
+		await requireCalibratedTasks(stage, manifest.include, manifest.environment, manifest.platform);
 		return {
 			taskHashes,
 			discard,

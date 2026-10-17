@@ -19,6 +19,7 @@ export async function requireCalibratedTasks(
 	root: string,
 	include: readonly string[],
 	environment: string,
+	platform: string,
 ): Promise<void> {
 	for (const task of include) {
 		const dir = path.join(root, key(task));
@@ -39,10 +40,10 @@ export async function requireCalibratedTasks(
 		) {
 			throw new EvoHttpError(422, `task '${task}' has no successful RED/GREEN calibration; run evo-task verify`);
 		}
-		if (env.backend !== environment || typeof env.platform !== "string" || env.platform.length === 0) {
+		if (env.backend !== environment || env.platform !== platform) {
 			throw new EvoHttpError(
 				422,
-				`task '${task}' was calibrated on backend '${env.backend}' via runtime '${env.runtime}' (platform '${env.platform ?? "unrecorded"}'), not the suite environment '${environment}'; re-run evo-task verify on the ${environment} backend (registration cannot re-run calibration)`,
+				`task '${task}' was calibrated on backend '${env.backend}' via runtime '${env.runtime}' platform '${env.platform ?? "unrecorded"}', not the suite environment '${environment}' platform '${platform}'; re-run evo-task verify on the ${environment} backend for ${platform} (registration cannot re-run calibration)`,
 			);
 		}
 		if (record.taskHash !== (await hashTaskDir(dir))) {

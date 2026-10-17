@@ -29,6 +29,8 @@ export interface SuiteManifest {
 	model: string;
 	thinking: string;
 	environment: (typeof SUITE_ENVIRONMENTS)[number];
+	/** `<os>/<arch>` the suite evaluates on; calibration evidence recorded on another platform is refused. */
+	platform: string;
 	/** Decision policy, pre-declared here so it cannot be chosen at read time; see `decision-policy.ts`. */
 	minPairedTasks: number;
 	minAttemptsPerTask: number;
@@ -56,6 +58,7 @@ const FIELDS = [
 	"model",
 	"thinking",
 	"environment",
+	"platform",
 	"minPairedTasks",
 	"minAttemptsPerTask",
 	"concurrency",
@@ -115,6 +118,7 @@ export function parseSuiteManifest(raw: unknown): SuiteManifest {
 		model: requiredString(obj, "model", "suite"),
 		thinking,
 		environment: enumValue(obj, "environment", "suite", SUITE_ENVIRONMENTS),
+		platform: requiredString(obj, "platform", "suite"),
 		minPairedTasks,
 		minAttemptsPerTask,
 		concurrency,

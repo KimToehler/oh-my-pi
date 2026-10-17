@@ -64,6 +64,7 @@ describe("generated-task base image pinning (D1)", () => {
 			model: "m/x",
 			thinking: "medium",
 			environment: "docker",
+			platform: "linux/arm64",
 			minPairedTasks: 1,
 			minAttemptsPerTask: 1,
 			concurrency: 1,

@@ -261,6 +261,7 @@ describe("suite decision policy registration", () => {
 		model: "m/x",
 		thinking: "low",
 		environment: "docker",
+		platform: "linux/arm64",
 		minPairedTasks: 3,
 		minAttemptsPerTask: 2,
 		concurrency: 1,

@@ -65,7 +65,7 @@ function filesOf(dir: string): Record<string, string> {
 	return out;
 }
 
-const manifest = (dataset: string, environment: string) => ({
+const manifest = (dataset: string, environment: string, platform = "linux/arm64") => ({
 	id: `cal-env-${environment}`,
 	split: "search",
 	benchmark: "harbor",
@@ -76,6 +76,7 @@ const manifest = (dataset: string, environment: string) => ({
 	model: "m",
 	thinking: "off",
 	environment,
+	platform,
 	minPairedTasks: 1,
 	minAttemptsPerTask: 1,
 	concurrency: 1,
@@ -149,5 +150,24 @@ describe("calibration is bound to the suite environment (R67)", () => {
 			new SuiteRegistry(tmp("evo-cal-jobs-")).register(manifest(registryDataset, "apple-container")),
 		);
 		expect(message).toContain("apple-container");
+	});
+
+	it("local: a task calibrated on linux/amd64 is refused in a linux/arm64 suite", async () => {
+		const dataset = tmp("evo-cal-ds-");
+		await calibratedTask(dataset, "gen", { platform: "linux/amd64" });
+		const message = await refusal(new SuiteRegistry(tmp("evo-cal-jobs-")).register(manifest(dataset, "docker")));
+		expect(message).toContain("linux/amd64");
+		expect(message).toContain("linux/arm64");
+		expect(message).toContain("platform");
+	});
+
+	it("registry: a task calibrated on linux/amd64 is refused in a linux/arm64 suite", async () => {
+		await registryWith({ platform: "linux/amd64" });
+		const message = await refusal(
+			new SuiteRegistry(tmp("evo-cal-jobs-")).register(manifest(registryDataset, "docker")),
+		);
+		expect(message).toContain("linux/amd64");
+		expect(message).toContain("linux/arm64");
+		expect(message).toContain("platform");
 	});
 });
