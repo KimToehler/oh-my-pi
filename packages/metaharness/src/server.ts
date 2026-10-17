@@ -564,6 +564,13 @@ export class ManagerServer {
 		if (run.variantId && typeof recordedRoot === "string" && recordedRoot) {
 			assertWorktreeOwned(this.jobsDir, recordedRoot, `variant '${run.variantId}' source root`);
 		}
+		// Same launch-time integrity rule as `launch()`: `--resume` rebuilds the harbor invocation
+		// from the recorded config, so a suite snapshot tampered after the original run must not
+		// execute under its stale `suiteHash`/`taskHash`.
+		const recordedSuite = run.config.suiteId;
+		if (typeof recordedSuite === "string" && recordedSuite) {
+			assertRecordedSuiteIntact(this.jobsDir, recordedSuite);
+		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
 		if (!fs.existsSync(path.join(jobDir, "config.json"))) {
