@@ -53,9 +53,16 @@ export class EvoReports {
 		if (!run.suiteId || !suiteHash || !taskHash || !executorConfigHash || !modelsYamlHash || !model) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
-		const postRun = str(cfg.postRunSourceIdentity) ?? this.#recordedPostRunIdentity(run.jobName);
 		const launched = str(cfg.sourceIdentity);
-		if (postRun && launched && postRun !== launched) {
+		if (!launched) throw new EvoHttpError(409, `run '${run.jobName}' did not record its launch source identity`);
+		const postRun = this.#recordedPostRunIdentity(run.jobName);
+		if (!postRun) {
+			throw new EvoHttpError(
+				409,
+				`run '${run.jobName}' has no recorded post-run source identity; it is not comparable`,
+			);
+		}
+		if (postRun !== launched) {
 			throw new EvoHttpError(409, `run '${run.jobName}' source changed during the run; it is not comparable`);
 		}
 		return {
@@ -111,6 +118,9 @@ export class EvoReports {
 	): Promise<Evaluated> {
 		const run = this.#selectRun(variant, suite, jobName, param);
 		const synced = this.#store.syncRun(run.jobName) ?? run;
+		if (synced.status === "running") {
+			throw new EvoHttpError(409, `run '${run.jobName}' has not finished; it cannot be evaluated yet`);
+		}
 		const identity = this.#identity(synced, variant);
 		if (identity.suiteHash !== suite.hash) {
 			throw new EvoHttpError(

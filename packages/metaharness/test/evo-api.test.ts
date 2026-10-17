@@ -107,7 +107,13 @@ interface JobOptions {
 	sourceIdentity?: string;
 	/** Evaluation concurrency recorded in the run config, as the evo launch path records it. */
 	concurrency?: number;
+	/** Post-run identity the runner persists; `null` simulates a runner that has not reached its postflight. */
+	postRunSourceIdentity?: string | null;
+	/** Leave the run row `running` instead of exited. */
+	running?: boolean;
 }
+
+const LAUNCHED = "a".repeat(40);
 
 /** Completed harbor job whose trials have the given rewards and omp transcript markers. */
 function writeJob(
@@ -176,10 +182,19 @@ function writeJob(
 			executorConfigHash: opts.executor ?? "exec-1",
 			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
 			concurrency: opts.concurrency ?? 1,
-			...(opts.sourceIdentity ? { sourceIdentity: opts.sourceIdentity } : {}),
+			sourceIdentity: opts.sourceIdentity ?? LAUNCHED,
 		},
 	});
-	h.manager.store.markExit(jobName, 0);
+	const postRun =
+		opts.postRunSourceIdentity === undefined ? (opts.sourceIdentity ?? LAUNCHED) : opts.postRunSourceIdentity;
+	if (postRun !== null) {
+		write(
+			h.jobsDir,
+			path.join("_bench", jobName, "runner-config.json"),
+			JSON.stringify({ jobName, sourceIdentity: opts.sourceIdentity ?? LAUNCHED, postRunSourceIdentity: postRun }),
+		);
+	}
+	if (!opts.running) h.manager.store.markExit(jobName, 0);
 }
 
 async function seed(h: Harness, suite: typeof SUITE = SUITE) {
@@ -433,6 +448,44 @@ describe("evo REST", () => {
 		expect(ok.rawDelta).toBe(0.5);
 	});
 
+	it("refuses fitness, comparison and reflection until the run is terminal with a matching post-run identity", async () => {
+		const cases: Array<{ label: string; child: JobOptions; error: string }> = [
+			{ label: "running row", child: { running: true }, error: "has not finished" },
+			{
+				label: "missing postflight",
+				child: { postRunSourceIdentity: null },
+				error: "no recorded post-run source identity",
+			},
+			{
+				label: "mismatch",
+				child: { postRunSourceIdentity: "b".repeat(40) },
+				error: "source changed during the run",
+			},
+		];
+		for (const c of cases) {
+			const h = harness();
+			const { suiteHash, rootId, childId } = await seed(h);
+			writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash });
+			writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"], ...c.child });
+			for (const route of ["compare", "fitness", "reflection-bundle"]) {
+				const res = await fetch(`${h.base}/api/evo/variants/${childId}/${route}?suite=search-1`);
+				const status = res.status;
+				const body = await h.json<{ error: string }>(res);
+				expect({ label: c.label, route, status }).toEqual({ label: c.label, route, status: 409 });
+				expect(body.error).toContain(c.error);
+			}
+		}
+		// Clean control: two terminal runs with durable matching identities are decision-eligible.
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"] });
+		const ok = await h.json<{ decisionEligible: boolean }>(
+			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
+		);
+		expect(ok.decisionEligible).toBe(true);
+	});
+
 	it("refuses a comparison whose runs staged different models.yml content", async () => {
 		const h = harness();
 		const { suiteHash, rootId, childId } = await seed(h);
@@ -518,6 +571,7 @@ describe("evo REST", () => {
 			suiteId: "search-1",
 			config: {},
 		});
+		h.manager.store.markExit("evo-child", 0);
 		await expectError(
 			await fetch(`${h.base}/api/evo/variants/${childId}/fitness?suite=search-1`),
 			409,
