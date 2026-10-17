@@ -4,6 +4,9 @@ import type { CalibrationEnvironment } from "../src/evo/calibration";
 import { fail } from "./evo-task-shared";
 import { VERIFIER_NETWORK_MODE } from "./evo-task-templates";
 
+/** Runtime binary -> `SuiteManifest.environment` it provides. Any other runtime (podman, wrappers) cannot certify a suite environment. */
+const BACKENDS: Readonly<Record<string, string>> = { docker: "docker", container: "apple-container" };
+
 interface Captured {
 	code: number;
 	out: string;
@@ -61,6 +64,17 @@ export async function buildContainerRun(taskDir: string, runtime: string, scratc
 	const image = inspect.out.trim();
 	if (inspect.code !== 0 || image.length === 0) fail(`cannot inspect built image ${tag}: ${inspect.err.trim()}`);
 
+	const platformOut = await exec([runtime, "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", tag]);
+	const platform = platformOut.out.trim();
+	if (platformOut.code !== 0 || !/^[a-z0-9]+\/[a-z0-9_.-]+$/i.test(platform)) {
+		fail(`cannot read platform of built image ${tag}: ${platformOut.err.trim() || platform}`);
+	}
+	const runtimeName = path.basename(runtime);
+	const backend = BACKENDS[runtimeName];
+	if (!backend) {
+		fail(`runtime '${runtimeName}' maps to no suite environment; use one of: ${Object.keys(BACKENDS).join(", ")}`);
+	}
+
 	const verify = async (solve: boolean): Promise<number> => {
 		const logDir = path.join(scratch, solve ? "logs-green" : "logs-red");
 		await fs.rm(logDir, { recursive: true, force: true });
@@ -95,7 +109,9 @@ export async function buildContainerRun(taskDir: string, runtime: string, scratc
 		verify,
 		environment: {
 			mode: "container",
-			runtime: path.basename(runtime),
+			runtime: runtimeName,
+			backend,
+			platform,
 			image,
 			verifierNetwork: VERIFIER_NETWORK_MODE,
 		},

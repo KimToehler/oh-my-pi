@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { hashTaskDir } from "../src/evo/calibration";
 import { setRegistryTaskFetcher } from "../src/evo/registry-tasks";
 import { SuiteRegistry } from "../src/evo/suites";
 import { ManagerServer } from "../src/server";
@@ -197,8 +198,26 @@ describe("suite task-byte pinning (R49)", () => {
 			expect(((await res.json()) as { error: string }).error).toContain("mutable image 'debian:stable-slim'");
 		});
 
-		it("registers a registry suite whose generated task is digest-pinned", async () => {
-			cleanups.push(serveRegistryTasks(registryTask(DIGEST)));
+		it("registers a registry suite whose generated task is digest-pinned and calibrated", async () => {
+			const files = registryTask(DIGEST);
+			const scratch = tmp("evo-pin-cal-");
+			for (const [rel, text] of Object.entries(files.t1)) write(scratch, rel, text);
+			const record = {
+				before: 0,
+				after: 1,
+				environment: {
+					mode: "container",
+					runtime: "docker",
+					backend: "docker",
+					platform: "linux/arm64",
+					image: "sha256:abc",
+					verifierNetwork: "no-network",
+				},
+				taskHash: await hashTaskDir(scratch),
+				verifiedAt: "2026-01-01T00:00:00Z",
+			};
+			files.t1["calibration.json"] = JSON.stringify(record);
+			cleanups.push(serveRegistryTasks(files));
 			const res = await harness().post("/api/evo/suites", manifestFor(dataset));
 			expect(res.status).toBe(201);
 		});

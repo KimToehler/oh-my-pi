@@ -32,6 +32,7 @@ image)
 		digest="$(printf '%s%s' "$ref" "${FAKE_IMAGE_SALT:-}" | shasum -a 256 | cut -d' ' -f1)"
 		echo "${ref%%[:@]*}@sha256:$digest"
 		;;
+	*Architecture*) echo "linux/${FAKE_PLATFORM_ARCH:-arm64}" ;;
 	*) echo "sha256:fake-${!#}" ;;
 	esac
 	;;

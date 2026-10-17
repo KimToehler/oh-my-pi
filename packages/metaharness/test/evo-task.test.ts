@@ -92,7 +92,10 @@ function restoreEnv(key: string, value: string | undefined): void {
 
 beforeEach(async () => {
 	tmp = await fs.mkdtemp(path.join(os.tmpdir(), "evo-task-test-"));
-	process.env.EVO_CONTAINER_RUNTIME = path.join(import.meta.dir, "fixtures/evo-task/fake-docker.sh");
+	// Basename selects the suite backend the calibration record claims, so the fake must be named like the real CLI.
+	await fs.mkdir(path.join(tmp, "bin"));
+	await fs.symlink(path.join(import.meta.dir, "fixtures/evo-task/fake-docker.sh"), path.join(tmp, "bin", "docker"));
+	process.env.EVO_CONTAINER_RUNTIME = path.join(tmp, "bin", "docker");
 	process.env.FAKE_DOCKER_STATE = path.join(tmp, "docker-state");
 });
 afterEach(async () => {
@@ -158,10 +161,19 @@ describe("evo-task make", () => {
 		const record = (await Bun.file(path.join(out, "calibration.json")).json()) as {
 			before: number;
 			after: number;
-			environment: { mode: string; runtime: string; image: string; verifierNetwork: string };
+			environment: {
+				mode: string;
+				runtime: string;
+				backend: string;
+				platform: string;
+				image: string;
+				verifierNetwork: string;
+			};
 		};
 		expect([record.before, record.after]).toEqual([0, 1]);
 		expect(record.environment.mode).toBe("container");
+		expect(record.environment.backend).toBe("docker");
+		expect(record.environment.platform).toMatch(/^linux\/\w+$/);
 		expect(record.environment.verifierNetwork).toBe("no-network");
 		expect(record.environment.image).toMatch(/^sha256:/);
 		const calls = (await Bun.file(path.join(tmp, "docker-state", "calls.log")).text()).trim().split("\n");

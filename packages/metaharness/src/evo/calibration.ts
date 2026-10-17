@@ -8,7 +8,12 @@ export const CALIBRATION_FILE = "calibration.json";
 /** Where the RED/GREEN outcomes were measured: the task's generated image under the verifier's network policy. */
 export interface CalibrationEnvironment {
 	mode: "container";
+	/** Runtime binary basename the run used (docker, podman, container, ...). */
 	runtime: string;
+	/** Canonical `SuiteManifest.environment` value this runtime provides; the field registration compares. */
+	backend: string;
+	/** `<os>/<arch>` of the built image, as reported by the runtime. */
+	platform: string;
 	image: string;
 	verifierNetwork: string;
 }

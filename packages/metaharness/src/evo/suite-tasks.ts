@@ -5,10 +5,9 @@
  */
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
 import { isLocalDataset, resolveLocalDataset } from "../launch-args";
 import { EvoHttpError } from "./boundary";
-import { CALIBRATION_FILE, type CalibrationRecord, hashTaskDir, META_FILE } from "./calibration";
+import { requireCalibratedTasks } from "./calibration-gate";
 import { unlockTree } from "./config-snapshot";
 import { generatedTaskImages } from "./image-pins";
 import { resolveRegistryTasks } from "./registry-tasks";
@@ -50,35 +49,6 @@ export function assertSuiteTasksIntact(
 	assertTaskSnapshotIntact(suiteDataDir(jobsDir, suite.hash), `suite '${suite.manifest.id}'`, suite.taskHashes);
 }
 
-/**
- * Generated tasks (entries holding evo-task.json) must carry a calibration.json whose hash still matches the task
- * bytes and whose GREEN reward is 1. Checked against the private copy, so the validated bytes are the pinned bytes.
- */
-async function requireCalibratedTasks(root: string, include: readonly string[]): Promise<void> {
-	for (const task of include) {
-		const dir = path.join(root, taskKey(task));
-		if (!(await Bun.file(path.join(dir, META_FILE)).exists())) continue;
-		let record: Partial<CalibrationRecord> | null = null;
-		try {
-			record = (await Bun.file(path.join(dir, CALIBRATION_FILE)).json()) as Partial<CalibrationRecord>;
-		} catch (err) {
-			if (!isEnoent(err) && !(err instanceof SyntaxError)) throw err;
-		}
-		if (
-			!record ||
-			record.before !== 0 ||
-			record.after !== 1 ||
-			record.environment?.mode !== "container" ||
-			record.environment.verifierNetwork !== "no-network"
-		) {
-			throw new EvoHttpError(422, `task '${task}' has no successful RED/GREEN calibration; run evo-task verify`);
-		}
-		if (record.taskHash !== (await hashTaskDir(dir))) {
-			throw new EvoHttpError(422, `task '${task}' changed since its calibration; re-run evo-task verify`);
-		}
-	}
-}
-
 export interface PinnedTasks {
 	/** Per-task content hashes; null for a digest-pinned registry dataset. */
 	taskHashes: TaskHashes | null;
@@ -111,6 +81,7 @@ export async function pinSuiteTasks(
 			const keys = manifest.include.map(taskKey);
 			await resolveRegistryTasks(manifest.dataset, keys, scratch, secrets);
 			generatedTaskImages(scratch, keys);
+			await requireCalibratedTasks(scratch, keys, manifest.environment);
 		} finally {
 			await fsp.rm(scratch, { recursive: true, force: true });
 		}
@@ -146,7 +117,7 @@ export async function pinSuiteTasks(
 			taskHashes[key] = hashTaskTree(path.join(stage, key), secrets);
 		}
 		generatedTaskImages(stage, manifest.include.map(taskKey));
-		await requireCalibratedTasks(stage, manifest.include);
+		await requireCalibratedTasks(stage, manifest.include, manifest.environment);
 		return {
 			taskHashes,
 			discard,
