@@ -466,7 +466,7 @@ describe("plan review runtime", () => {
 		const CURSOR_PLANNER = { provider: "cursor", model: "claude-4.5-sonnet" } as const;
 
 		/** A real `write` behind the Cursor bridge, reporting to the session like the SDK wires it. */
-		function cursorBridge(harness: Harness): CursorExecHandlers {
+		function cursorBridge(harness: Harness, signal?: AbortSignal): CursorExecHandlers {
 			const writeSession = {
 				...harness.toolSession,
 				hasUI: false,
@@ -478,6 +478,7 @@ describe("plan review runtime", () => {
 				cwd: harness.toolSession.cwd,
 				tools: new Map([["write", new WriteTool(writeSession) as unknown as AgentTool]]),
 				emitEvent: event => harness.session.agent.emitExternalEvent(event),
+				signal,
 			});
 		}
 
@@ -541,6 +542,59 @@ describe("plan review runtime", () => {
 					expect(spy).toHaveBeenCalledTimes(1);
 					expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
 					expect(auditEntries(harness)[0]).toMatchObject({ outcome: "okay", planner: CURSOR_PLANNER });
+				});
+
+				it("cancels the reviewer with the request and leaves no trace of the aborted proposal", async () => {
+					const harness = createHarness();
+					await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+					const started = Promise.withResolvers<AbortSignal | undefined>();
+					const release = Promise.withResolvers<void>();
+					let reviewerSettled: Promise<unknown> = Promise.resolve();
+					const spy = vi
+						.spyOn(structuredSubagentModule, "runStructuredSubagent")
+						.mockImplementationOnce(request => {
+							const run = (async () => {
+								started.resolve(request.signal);
+								const aborted = Promise.withResolvers<void>();
+								request.signal?.addEventListener("abort", () => aborted.resolve(), { once: true });
+								await Promise.race([release.promise, aborted.promise]);
+								if (request.signal?.aborted) {
+									throw new structuredSubagentModule.StructuredSubagentError("execution", "aborted");
+								}
+								return okay();
+							})();
+							reviewerSettled = run.catch(() => undefined);
+							return run;
+						});
+					const controller = new AbortController();
+					const toolCallId = "cursor-propose-aborted";
+
+					const pending = propose(
+						cursorBridge(harness, controller.signal),
+						toolCallId,
+						plannerMessage(toolCallId, CURSOR_PLANNER.provider, CURSOR_PLANNER.model),
+					);
+					const reviewerSignal = await started.promise;
+					controller.abort();
+					release.resolve();
+					await reviewerSettled;
+					const aborted = await pending;
+					// Anything still chained behind the settled reviewer lands now.
+					await Bun.sleep(10);
+
+					expect(reviewerSignal?.aborted).toBe(true);
+					expect(aborted.isError).toBe(true);
+					expect(harness.handled).toEqual([]);
+					expect(auditEntries(harness)).toEqual([]);
+
+					spy.mockResolvedValue(reject());
+					const nextId = "cursor-propose-next";
+					await propose(
+						cursorBridge(harness),
+						nextId,
+						plannerMessage(nextId, CURSOR_PLANNER.provider, CURSOR_PLANNER.model),
+					);
+					expect(auditEntries(harness).map(entry => [entry.outcome, entry.round])).toEqual([["reject", 1]]);
 				});
 
 				it("refuses a bridged proposal whose call carries no proposing message", async () => {

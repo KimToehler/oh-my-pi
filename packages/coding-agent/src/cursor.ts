@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+	abortReasonText,
 	type AgentEvent,
 	type AgentTool,
 	type AgentToolContext,
@@ -153,6 +154,31 @@ interface CursorExecBridgeOptions {
 	 * which is indistinguishable from a server that advertises nothing.
 	 */
 	mcpResources?: CursorMcpResourceAdapter;
+	/**
+	 * Cancellation of the provider request whose frames this bridge answers.
+	 *
+	 * Bridged calls run outside the agent loop, so the turn's abort reaches the
+	 * tools they run only through this: every executed tool receives it as its
+	 * `execute` signal, and a call arriving after it fired never starts. Bind it
+	 * per request with {@link bindCursorExecSignal}; unset, calls cannot be
+	 * cancelled.
+	 */
+	signal?: AbortSignal;
+}
+
+/**
+ * Hand a request's bridge to the provider bound to that request's signal.
+ *
+ * The bridge is built once per session, while each provider request carries
+ * its own signal. Stream wrappers call this with the options they forward, so
+ * the handlers the provider dispatches into stop with the request they serve.
+ * Handlers that are not this bridge pass through unchanged.
+ */
+export function bindCursorExecSignal(
+	handlers: ICursorExecHandlers | undefined,
+	signal: AbortSignal | undefined,
+): ICursorExecHandlers | undefined {
+	return handlers instanceof CursorExecHandlers ? handlers.withSignal(signal) : handlers;
 }
 
 /**
@@ -281,6 +307,16 @@ function buildToolErrorResult(message: string): AgentToolResult<unknown> {
 }
 
 /**
+ * The refusal for a call whose request was cancelled before it could start.
+ * Same wording as the agent loop's own pre-execution abort, so both channels
+ * read alike; no start/end events are emitted for it, since nothing ran.
+ */
+function refuseAbortedCall(signal: AbortSignal, toolCallId: string, toolName: string): ToolResultMessage {
+	const text = `Tool was not executed because the run was aborted: ${abortReasonText(signal)}.`;
+	return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(text), true);
+}
+
+/**
  * Carries the provider's live assistant message on the bridge's own
  * `tool_execution_start`. Bridged calls bypass the agent loop's
  * `beforeToolCall`, so this is how the session learns which message made one.
@@ -320,6 +356,7 @@ async function executeTool(
 		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 		return createToolResultMessage(toolCallId, toolName, result, true);
 	}
+	if (options.signal?.aborted) return refuseAbortedCall(options.signal, toolCallId, toolName);
 
 	// Same rule as synthesizeCursorExecToolCall: optional kwargs must be absent,
 	// not `undefined`, or ArkType validation rejects the call.
@@ -356,7 +393,7 @@ async function executeTool(
 			name: toolName,
 			arguments: toolArgs,
 		});
-		result = await tool.execute(toolCallId, validatedArgs, undefined, onUpdate, bridgeContext.context);
+		result = await tool.execute(toolCallId, validatedArgs, options.signal, onUpdate, bridgeContext.context);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		result = buildToolErrorResult(message);
@@ -555,6 +592,11 @@ function buildTodoSyncResult(
 export class CursorExecHandlers implements ICursorExecHandlers {
 	constructor(private options: CursorExecBridgeOptions) {}
 
+	/** This bridge with every call bound to `signal`; see {@link CursorExecBridgeOptions.signal}. */
+	withSignal(signal: AbortSignal | undefined): CursorExecHandlers {
+		return signal === this.options.signal ? this : new CursorExecHandlers({ ...this.options, signal });
+	}
+
 	/**
 	 * Modern Cursor builds paginate the legacy `read` frame with
 	 * `offset`/`limit`, exactly as `pi_read` does. Dropping them returns the
@@ -652,6 +694,8 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
+		const signal = this.options.signal;
+		if (signal?.aborted) return refuseAbortedCall(signal, toolCallId, toolName);
 
 		const timeoutSeconds = shellTimeoutSeconds(args.timeout);
 		const toolArgs = omitUndefinedArgs({
@@ -712,7 +756,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				name: toolName,
 				arguments: toolArgs,
 			});
-			result = await tool.execute(toolCallId, validatedArgs, undefined, onUpdate, bridgeContext.context);
+			result = await tool.execute(toolCallId, validatedArgs, signal, onUpdate, bridgeContext.context);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			result = buildToolErrorResult(message);
