@@ -1599,6 +1599,77 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 		expect(state.resolvedMcpToolCallIds.has("call-mcp-1")).toBe(true);
 	});
 
+	// The host runs an MCP call outside the agent loop; the live message is its only
+	// proof of which assistant turn made the call (plan review keys identity on it).
+	it("hands the MCP handler the live assistant message holding the call's block", async () => {
+		const output = cursorAssistantMessage();
+		const stream = new AssistantMessageEventStream();
+		const h2Request = { write: () => true } as unknown as Parameters<typeof handleServerMessage>[5];
+		const mcpFrame = (approvalOnly: boolean) =>
+			create(AgentServerMessageSchema, {
+				message: {
+					case: "execServerMessage",
+					value: create(ExecServerMessageSchema, {
+						id: 1,
+						execId: "exec-mcp-message",
+						message: {
+							case: "mcpArgs",
+							value: create(McpArgsSchema, {
+								name: "write",
+								toolName: "write",
+								toolCallId: "call-propose-1",
+								providerIdentifier: "pi-agent",
+								args: { path: encodeJsonValue("xd://propose") },
+								smartModeApprovalOnly: approvalOnly,
+							}),
+						},
+					}),
+				},
+			});
+		const seen: { message: AssistantMessage | undefined; hasBlock: boolean }[] = [];
+		const preflights: (AssistantMessage | undefined)[] = [];
+		const execHandlers: CursorExecHandlers = {
+			async mcp(call) {
+				seen.push({
+					message: call.message,
+					hasBlock: call.message?.content.some(b => b.type === "toolCall" && b.id === call.toolCallId) === true,
+				});
+				return {
+					role: "toolResult",
+					toolCallId: call.toolCallId,
+					toolName: call.toolName,
+					content: [{ type: "text", text: "ok" }],
+					isError: false,
+					timestamp: 1,
+				};
+			},
+			async mcpApprovalPreflight(call) {
+				preflights.push(call.message);
+				return true;
+			},
+		};
+
+		for (const approvalOnly of [true, false]) {
+			await handleServerMessage(
+				mcpFrame(approvalOnly),
+				output,
+				stream,
+				newBlockState(),
+				new Map(),
+				h2Request,
+				execHandlers,
+				undefined,
+				{ sawTokenDelta: false },
+				[],
+			);
+		}
+
+		expect(preflights).toEqual([undefined]);
+		expect(seen.length).toBe(1);
+		expect(seen[0]?.message).toBe(output);
+		expect(seen[0]?.hasBlock).toBe(true);
+	});
+
 	it("leaves an MCP call unpaired when no mcp handler is installed", async () => {
 		// The exception to the pairing rule. Every other exec case synthesizes a
 		// block and marks it resolved unconditionally, but `mcpArgs` only marks it

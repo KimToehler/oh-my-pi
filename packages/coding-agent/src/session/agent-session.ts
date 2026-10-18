@@ -130,6 +130,7 @@ import { expandPromptTemplate, type PromptTemplate } from "../config/prompt-temp
 import { buildServiceTierByFamily, isServiceTierForFamily, serviceTierSettingToTier } from "../config/service-tier";
 import { combine, type SettingsScope } from "../config/registry";
 import type { Settings } from "../config/settings";
+import { cursorBridgeMessage } from "../cursor";
 import { RawSseDebugBuffer } from "@oh-my-pi/pi-tui/apps/debug/raw-sse-buffer";
 import { getEditStore } from "../edit/store";
 import { releaseCompletionHandles } from "../eval/completion-bridge";
@@ -3654,6 +3655,13 @@ export class AgentSession implements SettingsScope {
 				this.agent.abort(TERMINAL_TOOL_RESULT_ABORT_REASON);
 			}
 		}
+		// Cursor runs its bridged calls outside the loop, so `#beforeToolCall` never sees
+		// them. Record before the bridge invokes the tool; this event precedes execution.
+		if (event.type === "tool_execution_start") {
+			const message = cursorBridgeMessage(event);
+			const toolCall = message?.content.find(block => block.type === "toolCall" && block.id === event.toolCallId);
+			if (message && toolCall?.type === "toolCall") this.#recordProposalPlanner(toolCall, message);
+		}
 		if (event.type !== "agent_end") {
 			const processing = this.#processAgentEvent(event);
 			if ((event.type === "message_start" || event.type === "message_end") && isAdvisorCard(event.message)) {
@@ -5153,6 +5161,9 @@ export class AgentSession implements SettingsScope {
 		}
 		return this.#ttsr.afterToolCall(ctx);
 	}
+	#recordProposalPlanner(toolCall: ToolCall, message: AssistantMessage): void {
+		if (isProposeToolCall(toolCall)) this.#proposalPlanners.set(toolCall.id, message);
+	}
 	#takeProposalPlanner(toolCallId: string | undefined): AssistantMessage | undefined {
 		if (toolCallId === undefined) return undefined;
 		const planner = this.#proposalPlanners.get(toolCallId);
@@ -5172,7 +5183,7 @@ export class AgentSession implements SettingsScope {
 	async #beforeToolCall(ctx: BeforeToolCallContext, signal?: AbortSignal): Promise<BeforeToolCallResult | undefined> {
 		// Record before any early return or await: plan review needs the exact message
 		// that proposed, even when TTSR or extensions short-circuit this hook.
-		if (isProposeToolCall(ctx.toolCall)) this.#proposalPlanners.set(ctx.toolCall.id, ctx.assistantMessage);
+		this.#recordProposalPlanner(ctx.toolCall, ctx.assistantMessage);
 		const runner = this.#extensionRunner;
 		runner?.markLoopToolCall?.(ctx.toolCall.id, ctx.tool.name);
 		const ttsrResult = await this.#ttsr.beforeToolCall(ctx);

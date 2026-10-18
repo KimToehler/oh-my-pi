@@ -2832,7 +2832,7 @@ async function handleExecServerMessage(
 				}
 			}
 			const { execResult } = await resolveExecHandler(
-				mcpCall,
+				execHandlers?.mcp ? { ...mcpCall, message: output } : mcpCall,
 				execHandlers?.mcp?.bind(execHandlers),
 				onToolResult,
 				toolResult => buildMcpResultFromToolResult(mcpCall, toolResult),

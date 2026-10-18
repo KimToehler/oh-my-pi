@@ -8,11 +8,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { type } from "@oh-my-pi/omptype";
 import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import type { AssistantMessage, CursorMcpCall } from "@oh-my-pi/pi-ai";
 import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
 import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import {
 	type PlanApprovalDetails,
@@ -25,7 +26,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { reviewProposedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-review";
 import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { type ToolSession, WriteTool } from "@oh-my-pi/pi-coding-agent/tools";
 import { dispatchResolutionDevice, type PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import type { SingleResult, StructuredSubagentOutput } from "@oh-my-pi/pi-tui/tools/task";
@@ -459,6 +460,75 @@ describe("plan review runtime", () => {
 		expect(proposeResult && messageText(proposeResult)).toContain("last tool call of its message");
 		expect(spy).not.toHaveBeenCalled();
 		expect(harness.handled).toEqual([]);
+	});
+
+	describe("Cursor bridge dispatch", () => {
+		const CURSOR_PLANNER = { provider: "cursor", model: "claude-4.5-sonnet" } as const;
+
+		/** A real `write` behind the Cursor bridge, reporting to the session like the SDK wires it. */
+		function cursorBridge(harness: Harness): CursorExecHandlers {
+			const writeSession = {
+				...harness.toolSession,
+				hasUI: false,
+				getSessionFile: () => null,
+				getSessionSpawns: () => "*",
+				settings: Settings.isolated(),
+			} as ToolSession;
+			return new CursorExecHandlers({
+				cwd: harness.toolSession.cwd,
+				tools: new Map([["write", new WriteTool(writeSession) as unknown as AgentTool]]),
+				emitEvent: event => harness.session.agent.emitExternalEvent(event),
+			});
+		}
+
+		function proposeCall(toolCallId: string, message?: AssistantMessage): CursorMcpCall {
+			return {
+				name: "write",
+				toolName: "write",
+				providerIdentifier: "pi-agent",
+				toolCallId,
+				args: { path: "xd://propose", content: "demo" },
+				rawArgs: {},
+				message,
+			};
+		}
+
+		it("reviews a Cursor-executed proposal under the exact proposing message", async () => {
+			const harness = createHarness();
+			await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+			const spy = vi
+				.spyOn(structuredSubagentModule, "runStructuredSubagent")
+				.mockResolvedValue(reviewerResult({ verdict: { verdict: "OKAY", summary: "fine" } }));
+			const toolCallId = "cursor-propose-1";
+
+			const result = await cursorBridge(harness).mcp(
+				proposeCall(toolCallId, plannerMessage(toolCallId, CURSOR_PLANNER.provider, CURSOR_PLANNER.model)),
+			);
+
+			expect(result.isError).toBe(false);
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
+			expect(auditEntries(harness)[0]).toMatchObject({ outcome: "okay", planner: CURSOR_PLANNER });
+		});
+
+		it("refuses a bridged proposal whose call carries no proposing message", async () => {
+			const harness = createHarness();
+			await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+			const spy = vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue(okay());
+			const bridge = cursorBridge(harness);
+
+			const bare = await bridge.mcp(proposeCall("cursor-propose-bare"));
+			const foreign = await bridge.mcp(
+				proposeCall("cursor-propose-foreign", plannerMessage("another-call", CURSOR_PLANNER.provider)),
+			);
+
+			for (const result of [bare, foreign]) {
+				expect(result.isError).toBe(true);
+				expect(resultText(result)).toContain("write xd://propose as a top-level tool call");
+			}
+			expect(spy).not.toHaveBeenCalled();
+			expect(harness.handled).toEqual([]);
+		});
 	});
 
 	it("T5-j disabled review: no reviewer, no status line, the handler result unchanged", async () => {

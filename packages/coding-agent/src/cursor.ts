@@ -13,6 +13,7 @@ import {
 	validateAgentToolArguments,
 } from "@oh-my-pi/pi-agent-core";
 import type {
+	AssistantMessage,
 	CursorMcpCall,
 	CursorMcpResource,
 	CursorMcpResourceContent,
@@ -278,14 +279,36 @@ function buildToolErrorResult(message: string): AgentToolResult<unknown> {
 	};
 }
 
+/**
+ * Carries the provider's live assistant message on the bridge's own
+ * `tool_execution_start`. Bridged calls bypass the agent loop's
+ * `beforeToolCall`, so this is how the session learns which message made one.
+ */
+const kCursorBridgeMessage = Symbol("cursor.bridge.message");
+
+type ToolExecutionStartEvent = Extract<AgentEvent, { type: "tool_execution_start" }>;
+type BridgedToolExecutionStart = ToolExecutionStartEvent & { [kCursorBridgeMessage]?: AssistantMessage };
+
+/** The provider message a bridged `tool_execution_start` executes under, when the provider proved it. */
+export function cursorBridgeMessage(event: ToolExecutionStartEvent): AssistantMessage | undefined {
+	return (event as BridgedToolExecutionStart)[kCursorBridgeMessage];
+}
+
+interface ExecuteToolExtras {
+	/** Runs instead of the registry tool (scoped grep, replace-mode edit). */
+	tool?: CursorBridgeTool;
+	/** Provider message holding this call's block; attached only when it does. */
+	message?: AssistantMessage;
+}
+
 async function executeTool(
 	options: CursorExecBridgeOptions,
 	toolName: string,
 	toolCallId: string,
 	args: Record<string, unknown>,
-	overrideTool?: CursorBridgeTool,
+	extras: ExecuteToolExtras = {},
 ): Promise<ToolResultMessage> {
-	const tool = overrideTool ?? options.getExecutableTool?.(toolName) ?? options.tools.get(toolName);
+	const tool = extras.tool ?? options.getExecutableTool?.(toolName) ?? options.tools.get(toolName);
 	if (!tool) {
 		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 		return createToolResultMessage(toolCallId, toolName, result, true);
@@ -295,7 +318,9 @@ async function executeTool(
 	// not `undefined`, or ArkType validation rejects the call.
 	const toolArgs = omitUndefinedArgs(args);
 
-	options.emitEvent?.({ type: "tool_execution_start", toolCallId, toolName, args: toolArgs });
+	const start: BridgedToolExecutionStart = { type: "tool_execution_start", toolCallId, toolName, args: toolArgs };
+	if (extras.message) start[kCursorBridgeMessage] = extras.message;
+	options.emitEvent?.(start);
 
 	let result: AgentToolResult<unknown>;
 	let isError = false;
@@ -574,7 +599,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				case: args.caseInsensitive === true ? false : undefined,
 				skip: piGrepSkip(args.offset),
 			},
-			scoped,
+			{ tool: scoped },
 		);
 		return toolResultMessage;
 	}
@@ -772,7 +797,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async piEdit(call: Parameters<NonNullable<ICursorExecHandlers["piEdit"]>>[0]) {
 		const edits = call.args.edits.map(edit => ({ old_string: edit.oldText, new_string: edit.newText }));
 		const args = edits.length === 1 ? { path: call.args.path, ...edits[0] } : { path: call.args.path, edits };
-		return await executeTool(this.options, "edit", call.toolCallId, args, this.options.getEditReplaceTool?.());
+		return await executeTool(this.options, "edit", call.toolCallId, args, {
+			tool: this.options.getEditReplaceTool?.(),
+		});
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
@@ -812,7 +839,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				path: glob ? piJoinPath(path, glob) : path || ".",
 				case: ignoreCase === true ? false : undefined,
 			},
-			scoped,
+			{ tool: scoped },
 		);
 	}
 
@@ -1053,7 +1080,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				const message = formatMcpToolErrorMessage(toolName, availableTools);
 				return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(message), true);
 			}
-			return await executeTool(this.options, "edit", toolCallId, normalizeCursorReplaceArgs(args), replaceTool);
+			return await executeTool(this.options, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
+				tool: replaceTool,
+			});
 		}
 		const tool = this.options.getExecutableTool?.(toolName) ?? this.options.tools.get(toolName);
 		if (!tool) {
@@ -1063,7 +1092,10 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
 
-		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args);
+		const message = call.message?.content.some(block => block.type === "toolCall" && block.id === toolCallId)
+			? call.message
+			: undefined;
+		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args, { message });
 		return toolResultMessage;
 	}
 

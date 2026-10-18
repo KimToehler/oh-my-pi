@@ -1400,6 +1400,14 @@ export interface CursorMcpCall {
 	 * not yet been asked about (and fire it twice once the real call arrives).
 	 */
 	approvalOnly?: boolean;
+	/**
+	 * The live assistant message this call executes under, carrying the
+	 * `toolCall` block filed for {@link toolCallId}. Set only on a real
+	 * invocation the provider runs through the host's `mcp` handler. The host
+	 * runs the call itself, outside the agent loop, so this is the only
+	 * provenance tying it to the message that made it.
+	 */
+	message?: AssistantMessage;
 }
 
 export interface CursorTodoSnapshotItem {
