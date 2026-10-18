@@ -884,6 +884,17 @@ describe("evo request hardening", () => {
 			"variant id has invalid percent-encoding",
 		);
 	});
+
+	it("serves the lever taxonomy as markdown on GET and refuses other methods with 405", async () => {
+		const h = harness();
+		const res = await fetch(`${h.base}/api/evo/levers`);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+		expect(await res.text()).toBe(await Bun.file(path.join(import.meta.dir, "../src/evo/prompts/levers.md")).text());
+		const post = await fetch(`${h.base}/api/evo/levers`, { method: "POST", body: "{}" });
+		expect(post.status).toBe(405);
+		expect(await post.json()).toEqual({ error: "method not allowed" });
+	});
 });
 
 describe("evo launch", () => {
