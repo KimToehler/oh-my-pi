@@ -223,7 +223,7 @@ export class SuiteRegistry {
 				taskHashes: stored.taskHashes,
 				createdAt: stored.createdAt,
 			};
-			assertSuiteTasksIntact(this.#jobsDir, suite);
+			await assertSuiteTasksIntact(this.#jobsDir, suite);
 			return suite;
 		} catch (err) {
 			if (isEnoent(err)) return null;

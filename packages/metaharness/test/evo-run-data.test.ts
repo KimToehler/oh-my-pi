@@ -217,7 +217,7 @@ describe("run-owned suite bytes (D1)", () => {
 		const h = harness();
 		const spawned = stubSpawn();
 		const cfg = await launched(h, "exp-base");
-		const arm = h.manager.addArm("exp", { arm: "b", model: "onara/cc/claude-sonnet-5-5" });
+		const arm = await h.manager.addArm("exp", { arm: "b", model: "onara/cc/claude-sonnet-5-5" });
 		const armCfg = h.manager.store.getRun(arm.jobName)!.config as Record<string, string>;
 		expect(armCfg.dataset).toBe(path.join(h.jobsDir, "_evo", "run-data", "exp-b"));
 		expect(armCfg.dataset).not.toBe(cfg.dataset);
@@ -226,7 +226,7 @@ describe("run-owned suite bytes (D1)", () => {
 		spawned.finish();
 		await Bun.sleep(20);
 		tamper(armCfg.dataset);
-		expect(() => h.manager.resume("exp-b")).toThrow(/no longer matches its registered task hash/);
+		await expect(h.manager.resume("exp-b")).rejects.toThrow(/no longer matches its registered task hash/);
 	});
 });
 
@@ -282,7 +282,7 @@ describe("run-data scan for credentials set after registration (R86)", () => {
 		const res = await h.post(`/api/evo/variants/${variantId}/evaluate`, { suiteId: "rd-1", jobName: "exp-base" });
 		expect(res.status).toBe(201);
 		process.env[KEY] = ROTATED;
-		expect(() => h.manager.addArm("exp", { arm: "b", model: "onara/cc/claude-sonnet-5-5" })).toThrow(
+		await expect(h.manager.addArm("exp", { arm: "b", model: "onara/cc/claude-sonnet-5-5" })).rejects.toThrow(
 			/embeds a host credential/,
 		);
 		expect(fs.existsSync(path.join(h.jobsDir, "_evo", "run-data", "exp-b"))).toBe(false);

@@ -129,7 +129,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	// Launch-time integrity: stage a RUN-OWNED copy and verify the copy's bytes, so the path Harbor opens is
 	// private to this run and no later replacement of the shared snapshot can change what it evaluates. The verify
 	// walk also scans for the CURRENT credential values; a key set or rotated after registration was never scanned for.
-	const dataset = stageRunData(input.jobsDir, suite, input.jobName, hostValues);
+	const dataset = await stageRunData(input.jobsDir, suite, input.jobName, hostValues);
 	// The runner never sees these values (the manager strips them from its environment), so the staged source
 	// tree must be scanned here, over the root this launch will stage, before anything is spawned.
 	const fields = variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot);

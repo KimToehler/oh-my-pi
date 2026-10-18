@@ -11,11 +11,12 @@ import { redactSecrets, textCarriesSecret } from "./credential-scan";
 const decoder = new TextDecoder();
 
 /**
- * sha256 over every entry of a task directory (relative path, kind, exec bit, bytes). Synchronous so the launch
- * path can verify without yielding. Symlinks must stay inside the task: an outward link is mutable outside bytes.
+ * sha256 over every entry of a task directory (relative path, kind, exec bit, bytes). Async so a large task tree never
+ * stalls the manager's HTTP server or provider proxy; traversal stays sorted and sequential, so the digest is stable.
+ * Symlinks must stay inside the task: an outward link is mutable outside bytes.
  * With `secrets`, 422 on the first entry whose name or bytes embed a credential value (never echoed).
  */
-export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []): string {
+export async function hashTaskTree(taskRoot: string, secrets: readonly string[] = []): Promise<string> {
 	const live = secrets.filter(value => value.length > 0);
 	const hasher = new Bun.CryptoHasher("sha256");
 	const refuse = (what: string, rel: string): never => {
@@ -24,17 +25,17 @@ export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []):
 			`task ${what} ${redactSecrets(rel, live)} embeds a host credential value; remove it from the dataset`,
 		);
 	};
-	const walk = (rel: string): void => {
-		for (const name of fs.readdirSync(path.join(taskRoot, rel)).sort()) {
+	const walk = async (rel: string): Promise<void> => {
+		for (const name of (await fs.promises.readdir(path.join(taskRoot, rel))).sort()) {
 			const childRel = rel ? `${rel}/${name}` : name;
 			if (live.length > 0 && (textCarriesSecret(name, live) || textCarriesSecret(childRel, live))) {
 				refuse("path", childRel);
 			}
 			const abs = path.join(taskRoot, childRel);
-			const st = fs.lstatSync(abs);
+			const st = await fs.promises.lstat(abs);
 			const key = JSON.stringify(childRel);
 			if (st.isSymbolicLink()) {
-				const target = fs.readlinkSync(abs);
+				const target = await fs.promises.readlink(abs);
 				const resolved = path.resolve(path.dirname(abs), target);
 				if (path.isAbsolute(target) || path.relative(taskRoot, resolved).startsWith("..")) {
 					throw new EvoHttpError(422, `task symlink escapes its directory: ${childRel}`);
@@ -43,9 +44,9 @@ export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []):
 				hasher.update(`${key}\0link:${target}\0`);
 			} else if (st.isDirectory()) {
 				hasher.update(`${key}\0dir\0`);
-				walk(childRel);
+				await walk(childRel);
 			} else if (st.isFile()) {
-				const bytes = fs.readFileSync(abs);
+				const bytes = await fs.promises.readFile(abs);
 				if (live.length > 0 && textCarriesSecret(decoder.decode(bytes), live)) refuse("file", childRel);
 				const body = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 				hasher.update(`${key}\0file:${st.mode & 0o111 ? "x" : "-"}:${body}\0`);
@@ -54,7 +55,7 @@ export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []):
 			}
 		}
 	};
-	walk("");
+	await walk("");
 	return hasher.digest("hex");
 }
 
@@ -62,16 +63,16 @@ export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []):
  * Verify a snapshot directory holds exactly the recorded tasks with the recorded bytes; 422 otherwise. `secrets` are
  * the CURRENT forwarded credential values: a value set or rotated after registration was not scanned for then.
  */
-export function assertTaskSnapshotIntact(
+export async function assertTaskSnapshotIntact(
 	dir: string,
 	label: string,
 	hashes: Record<string, string>,
 	secrets: readonly string[] = [],
-): void {
+): Promise<void> {
 	const expected = Object.keys(hashes).sort();
 	let present: string[];
 	try {
-		present = fs.readdirSync(dir).sort();
+		present = (await fs.promises.readdir(dir)).sort();
 	} catch {
 		throw new EvoHttpError(422, `${label} task snapshot is unreadable; cannot verify its recorded task hashes`);
 	}
@@ -81,7 +82,7 @@ export function assertTaskSnapshotIntact(
 	for (const task of expected) {
 		let actual: string;
 		try {
-			actual = hashTaskTree(path.join(dir, task), secrets);
+			actual = await hashTaskTree(path.join(dir, task), secrets);
 		} catch (err) {
 			if (err instanceof EvoHttpError) throw err;
 			throw new EvoHttpError(422, `${label} task '${task}' snapshot is unreadable; cannot verify its hash`);
@@ -93,16 +94,16 @@ export function assertTaskSnapshotIntact(
 }
 
 /** Drop write permission on a copied tree so an accidental write fails; the per-task hash is the real boundary. */
-export function lockTree(dir: string): void {
-	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+export async function lockTree(dir: string): Promise<void> {
+	for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
 		const abs = path.join(dir, entry.name);
-		if (entry.isDirectory()) lockTree(abs);
-		else if (entry.isFile()) fs.chmodSync(abs, fs.statSync(abs).mode & ~0o222);
+		if (entry.isDirectory()) await lockTree(abs);
+		else if (entry.isFile()) await fs.promises.chmod(abs, (await fs.promises.stat(abs)).mode & ~0o222);
 	}
-	fs.chmodSync(dir, 0o555);
+	await fs.promises.chmod(dir, 0o555);
 }
 
-/** Restore owner write on every directory beneath `dir` (synchronously) so the tree can be deleted. */
+/** Restore owner write on every directory beneath `dir` (synchronously) for synchronous run deletion and tests. */
 export function unlockTreeSync(dir: string): void {
 	let entries: fs.Dirent[];
 	try {

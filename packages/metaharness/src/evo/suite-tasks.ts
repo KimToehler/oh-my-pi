@@ -41,12 +41,12 @@ export function suiteTaskHash(suite: { manifest: SuiteManifest; taskHashes: Task
 	return new Bun.CryptoHasher("sha256").update(canonicalTaskHashes(suite.taskHashes)).digest("hex");
 }
 
-export function assertSuiteTasksIntact(
+export async function assertSuiteTasksIntact(
 	jobsDir: string,
 	suite: { hash: string; manifest: SuiteManifest; taskHashes: TaskHashes | null },
-): void {
+): Promise<void> {
 	if (suite.taskHashes === null) return;
-	assertTaskSnapshotIntact(suiteDataDir(jobsDir, suite.hash), `suite '${suite.manifest.id}'`, suite.taskHashes);
+	await assertTaskSnapshotIntact(suiteDataDir(jobsDir, suite.hash), `suite '${suite.manifest.id}'`, suite.taskHashes);
 }
 
 export interface PinnedTasks {
@@ -114,7 +114,7 @@ export async function pinSuiteTasks(
 			}
 			await fsp.cp(src, path.join(stage, key), { recursive: true, verbatimSymlinks: true });
 			// One walk hashes and credential-scans the COPY: the scanned bytes are exactly the pinned bytes.
-			taskHashes[key] = hashTaskTree(path.join(stage, key), secrets);
+			taskHashes[key] = await hashTaskTree(path.join(stage, key), secrets);
 		}
 		generatedTaskImages(stage, manifest.include.map(taskKey));
 		await requireCalibratedTasks(stage, manifest.include, manifest.environment, manifest.platform);
@@ -123,14 +123,14 @@ export async function pinSuiteTasks(
 			discard,
 			publish: async (suiteHash: string): Promise<void> => {
 				const final = suiteDataDir(jobsDir, suiteHash);
-				lockTree(stage);
+				await lockTree(stage);
 				try {
 					await fsp.rename(stage, final);
 				} catch (err) {
 					// Identical content already published (crashed earlier attempt): keep it, but only if it is intact.
 					const code = typeof err === "object" && err !== null && "code" in err ? err.code : null;
 					if (code !== "EEXIST" && code !== "ENOTEMPTY") throw err;
-					assertTaskSnapshotIntact(final, `suite '${manifest.id}'`, taskHashes);
+					await assertTaskSnapshotIntact(final, `suite '${manifest.id}'`, taskHashes);
 				}
 			},
 		};

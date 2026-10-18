@@ -1,0 +1,14 @@
+{
+  "sourceRepo":"https://github.com/can1357/oh-my-pi.git",
+  "repo":".",
+  "base":"06cb042de9aaccea7c646b12f95e1b22f79aa4d7",
+  "fix":"1450440987a2823e3589821d6d993280f5673587",
+  "name":"output-budget-framing-v2",
+  "instruction":"In `packages/agent/src/output-budget.ts`, export `MESSAGE_FRAMING_TOKENS` and charge a fixed allowance of at least five tokens once per locally counted message. Add framing after the existing 10% content-token margin, so framing itself is not padded. With a provider-reported prompt anchor, charge only messages after the anchor; without one, charge every context message. Preserve existing system/tool framing, absolute headway, minimum cap, and omit-default behavior.",
+  "testCommand":"bun test packages/agent/test/output-budget.test.ts",
+  "setupCommand":"bun install --frozen-lockfile",
+  "testGlobs":["packages/agent/test/output-budget.test.ts"],
+  "baseImage":"oven/bun:1.4.2",
+  "nativeAddons":["linux-arm64"],
+  "expectedCalibration":{"before":0,"after":1}
+}

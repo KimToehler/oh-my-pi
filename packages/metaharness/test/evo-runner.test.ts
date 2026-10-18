@@ -454,7 +454,7 @@ describe("runner-config credential persistence", () => {
 		return bin;
 	}
 
-	async function runRunner(
+	function startRunner(
 		jobsDir: string,
 		jobName: string,
 		extra: string[],
@@ -463,14 +463,14 @@ describe("runner-config credential persistence", () => {
 		stubBodies: Record<string, string> = {},
 		installMode = "published",
 		modelsFile = "models.yml",
-	): Promise<{ code: number; out: string }> {
+	) {
 		const modelsYaml = path.join(jobsDir, modelsFile);
 		fs.writeFileSync(modelsYaml, modelsText);
 		const env: Record<string, string> = { ...(process.env as Record<string, string>), ...hostEnv };
 		delete env.EVO_SENTINEL_KEY;
 		Object.assign(env, hostEnv);
 		env.PATH = `${stubBin(stubBodies)}${path.delimiter}${process.env.PATH ?? ""}`;
-		const proc = Bun.spawn(
+		return Bun.spawn(
 			[
 				process.execPath,
 				RUNNER,
@@ -487,6 +487,10 @@ describe("runner-config credential persistence", () => {
 			],
 			{ env, stdout: "pipe", stderr: "pipe", stdin: "ignore" },
 		);
+	}
+
+	async function runRunner(...args: Parameters<typeof startRunner>): Promise<{ code: number; out: string }> {
+		const proc = startRunner(...args);
 		const [stdout, stderr, code] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 		return { code, out: `${stdout}\n${stderr}` };
 	}
@@ -1009,6 +1013,71 @@ describe("runner-config credential persistence", () => {
 		) as Record<string, unknown>;
 		expect(cfg.sourceIdentityScheme).toBe(2);
 	}, 60_000);
+
+	it("two concurrent source runs build the shared linux deps tree exactly once", async () => {
+		const jobsDir = tmp();
+		const source = makeSourceRepo();
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const entered = path.join(jobsDir, "entered");
+		const release = path.join(jobsDir, "release");
+		fs.mkdirSync(entered);
+		// The fake installer records its entry (marker file + inherited stdout line), then blocks until the parent
+		// creates the release file, so the parent alone decides when the first build finishes.
+		const stubs = {
+			docker:
+				'case "$1" in\n  version) echo arm64;;\n' +
+				'  run) touch "$STUB_ENTERED/$STUB_ID"; echo "stub-installer-entered-$STUB_ID"\n' +
+				'    while [ ! -e "$STUB_RELEASE" ]; do sleep 0.05; done; mkdir -p "$STUB_DEPS_DIR/node_modules";;\nesac',
+			harbor: "",
+		};
+		/** Spawn a runner and expose its merged output as it streams; `waitFor` settles on the first matching chunk. */
+		const start = (id: string) => {
+			const proc = startRunner(
+				jobsDir,
+				`job-deps-${id}`,
+				["--environment", "docker", "--source-root", source, "--source-identity", launch],
+				{ STUB_DEPS_DIR: depsDir, STUB_ENTERED: entered, STUB_RELEASE: release, STUB_ID: id },
+				undefined,
+				stubs,
+				"source",
+			);
+			let text = "";
+			const waiters: Array<{ needles: string[]; resolve: () => void }> = [];
+			const pump = async (stream: ReadableStream<Uint8Array>): Promise<void> => {
+				const decoder = new TextDecoder();
+				for await (const chunk of stream) {
+					text += decoder.decode(chunk, { stream: true });
+					for (const waiter of waiters.filter(w => w.needles.some(n => text.includes(n)))) {
+						waiters.splice(waiters.indexOf(waiter), 1);
+						waiter.resolve();
+					}
+				}
+			};
+			const done = Promise.all([pump(proc.stdout), pump(proc.stderr), proc.exited]).then(([, , code]) => code);
+			const waitFor = (...needles: string[]): Promise<void> => {
+				if (needles.some(n => text.includes(n))) return Promise.resolve();
+				const { promise, resolve } = Promise.withResolvers<void>();
+				waiters.push({ needles, resolve });
+				const exited = done.then(code => {
+					throw new Error(`runner ${id} exited ${code} before printing ${needles.join(" | ")}:\n${text}`);
+				});
+				return Promise.race([promise, exited]);
+			};
+			return { done, waitFor, output: () => text };
+		};
+
+		const a = start("A");
+		await a.waitFor("stub-installer-entered-A");
+		const b = start("B");
+		// Unfixed: B enters its own installer while A's is still running. Fixed: B announces it waits for A's lock.
+		await b.waitFor("stub-installer-entered-B", "waiting for linux-arm64 deps lock");
+		fs.writeFileSync(release, "");
+		const [aCode, bCode] = await Promise.all([a.done, b.done]);
+		expect(fs.readdirSync(entered)).toEqual(["A"]);
+		expect(b.output()).toContain("waiting for linux-arm64 deps lock");
+		expect({ a: aCode, b: bCode }).toEqual({ a: 0, b: 0 });
+	}, 90_000);
 
 	it("refuses a --jobs-dir inside the source root before writing any job output, but allows a reserved root", async () => {
 		const jobsDir = tmp();

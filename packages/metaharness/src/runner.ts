@@ -24,6 +24,7 @@ import { writeComposeOverlayFile } from "./compose-overlay";
 import { assertNoHostCredentialValues, readModelsEnvNames, readModelsEnvNamesSync } from "./evo/models-yaml";
 import { assertProxyForwardsNoCredentials, PROXY_TOKEN_ENV } from "./evo/proxy-models";
 import { modelsScanValues } from "./evo/credential-scan";
+import { withDirLock } from "./evo/dir-lock";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
 import { assertJobsDirOutsideSource } from "./evo/jobs-dir-guard";
@@ -1301,13 +1302,20 @@ function sourceDepsStamp(sourceRoot: string, manifests: string[], bunVersion: st
 	return h.digest("hex");
 }
 
+/** Longest a runner waits for another runner's cold deps install before giving up. */
+const SOURCE_DEPS_LOCK_WAIT_MS = 15 * 60_000;
+const SOURCE_DEPS_LOCK_POLL_MS = 250;
+
 /**
  * Ensure the cached linux deps tree for source mode: a manifest-only skeleton of the
  * workspace with `bun install --production` run inside `oven/bun:<ver>` (matching the
  * daemon's native arch), plus the image's linux `bun` under `bin/`. Rebuilt only when
  * a manifest/lockfile or the pinned bun version changes; TS edits never invalidate it.
+ * The tree is shared by every run in the jobs dir, so the stamp check, rebuild and stamp
+ * write happen under a per-architecture lock: a second runner waits, then sees the first
+ * runner's finished stamp instead of deleting the tree mid-install.
  */
-export function prepareSourceDeps(cfg: Config): SourcePlan {
+export async function prepareSourceDeps(cfg: Config): Promise<SourcePlan> {
 	const arch = cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
 	const sourceRoot = cfg.sourceRoot;
 	const bunVersion = repoBunVersion(sourceRoot);
@@ -1316,68 +1324,85 @@ export function prepareSourceDeps(cfg: Config): SourcePlan {
 	const manifests = sourceManifestFiles(sourceRoot, pkgDirs);
 	const stamp = sourceDepsStamp(sourceRoot, manifests, bunVersion);
 	const stampFile = path.join(depsDir, ".stamp");
-	let current: string | null = null;
-	try {
-		current = fs.readFileSync(stampFile, "utf8").trim();
-	} catch {
-		/* no stamp yet */
-	}
-	if (current !== stamp) {
-		process.stdout.write(dim(`building linux-${arch} deps tree for source mount (one-time per lockfile change)…\n`));
-		fs.rmSync(depsDir, { recursive: true, force: true });
-		fs.mkdirSync(depsDir, { recursive: true });
-		for (const rel of manifests) {
-			const dst = path.join(depsDir, rel);
-			fs.mkdirSync(path.dirname(dst), { recursive: true });
-			fs.copyFileSync(path.join(sourceRoot, rel), dst);
-		}
-		// --ignore-scripts: the skeleton has manifests only, so lifecycle scripts
-		// (root `prepare` → gen:tool-views) would fail; patchedDependencies still apply.
-		const script =
-			'mkdir -p /deps/bin && cp "$(command -v bun)" /deps/bin/bun && cd /deps && bun install --production --omit=optional --ignore-scripts';
-		const image = `oven/bun:${bunVersion}`;
-		const runArgv =
-			cfg.envType === "apple-container"
-				? [
-						"container",
-						"run",
-						"--rm",
-						"--dns",
-						CONTAINER_DNS,
-						"-e",
-						"HOME=/tmp",
-						"-v",
-						`${depsDir}:/deps`,
-						image,
-						"sh",
-						"-c",
-						script,
-					]
-				: [
-						"docker",
-						"run",
-						"--rm",
-						"--platform",
-						`linux/${arch === "x64" ? "amd64" : "arm64"}`,
-						"-e",
-						"HOME=/tmp",
-						"-v",
-						`${depsDir}:/deps`,
-						image,
-						"sh",
-						"-c",
-						script,
-					];
-		const r = spawnSync(runArgv[0], runArgv.slice(1), { stdio: ["ignore", "inherit", "inherit"] });
-		if (r.status !== 0) {
-			fs.rmSync(stampFile, { force: true });
-			throw new Error(`source deps install failed (${runArgv[0]} exit ${r.status})`);
-		}
-		fs.writeFileSync(stampFile, `${stamp}\n`);
-	}
-	if (!fs.existsSync(path.join(depsDir, "node_modules"))) {
-		throw new Error(`source deps tree has no node_modules (${depsDir}); delete it and retry`);
-	}
+	const lockDir = path.join(cfg.jobsDir, "_bench", "locks", `deps-linux-${arch}`);
+	await withDirLock(
+		lockDir,
+		async () => {
+			let current: string | null = null;
+			try {
+				current = fs.readFileSync(stampFile, "utf8").trim();
+			} catch {
+				/* no stamp yet */
+			}
+			if (current !== stamp) {
+				process.stdout.write(
+					dim(`building linux-${arch} deps tree for source mount (one-time per lockfile change)…\n`),
+				);
+				fs.rmSync(depsDir, { recursive: true, force: true });
+				fs.mkdirSync(depsDir, { recursive: true });
+				for (const rel of manifests) {
+					const dst = path.join(depsDir, rel);
+					fs.mkdirSync(path.dirname(dst), { recursive: true });
+					fs.copyFileSync(path.join(sourceRoot, rel), dst);
+				}
+				// --ignore-scripts: the skeleton has manifests only, so lifecycle scripts
+				// (root `prepare` → gen:tool-views) would fail; patchedDependencies still apply.
+				const script =
+					'mkdir -p /deps/bin && cp "$(command -v bun)" /deps/bin/bun && cd /deps && bun install --production --omit=optional --ignore-scripts';
+				const image = `oven/bun:${bunVersion}`;
+				const runArgv =
+					cfg.envType === "apple-container"
+						? [
+								"container",
+								"run",
+								"--rm",
+								"--dns",
+								CONTAINER_DNS,
+								"-e",
+								"HOME=/tmp",
+								"-v",
+								`${depsDir}:/deps`,
+								image,
+								"sh",
+								"-c",
+								script,
+							]
+						: [
+								"docker",
+								"run",
+								"--rm",
+								"--platform",
+								`linux/${arch === "x64" ? "amd64" : "arm64"}`,
+								"-e",
+								"HOME=/tmp",
+								"-v",
+								`${depsDir}:/deps`,
+								image,
+								"sh",
+								"-c",
+								script,
+							];
+				// Async so the lock heartbeat keeps the lock fresh through a long cold install.
+				const proc = Bun.spawn(runArgv, { stdin: "ignore", stdout: "inherit", stderr: "inherit" });
+				const status = await proc.exited;
+				if (status !== 0) {
+					fs.rmSync(stampFile, { force: true });
+					throw new Error(`source deps install failed (${runArgv[0]} exit ${status})`);
+				}
+				// Stamp last: a crash mid-install leaves no stamp, so the next runner rebuilds.
+				fs.writeFileSync(stampFile, `${stamp}\n`);
+			}
+			if (!fs.existsSync(path.join(depsDir, "node_modules"))) {
+				throw new Error(`source deps tree has no node_modules (${depsDir}); delete it and retry`);
+			}
+		},
+		{
+			waitMs: SOURCE_DEPS_LOCK_WAIT_MS,
+			pollMs: SOURCE_DEPS_LOCK_POLL_MS,
+			onWait: () =>
+				process.stdout.write(dim(`waiting for linux-${arch} deps lock (another run is preparing it)…\n`)),
+		},
+	);
 	// Shadow-mount every node_modules that exists on either side with the skeleton's linux one. The staged
 	// tree never copies host node_modules (ignored), so each shadowed dir is created there as a mount point.
 	const nodeModules = ["node_modules"];
@@ -1956,7 +1981,7 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 	let source: SourceMount | null = null;
 	let stagedSource: StagedSource | null = null;
 	if (cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
-		const plan = prepareSourceDeps(cfg);
+		const plan = await prepareSourceDeps(cfg);
 		transient.stagedDir = path.join(benchDir, "source");
 		stagedSource = await stageSource({
 			root: cfg.sourceRoot,
