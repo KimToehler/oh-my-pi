@@ -214,6 +214,42 @@ describe("summarizeOmpTranscript", () => {
 		expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(0.75, 12);
 	});
 
+	describe("task snapshot replays", () => {
+		const call = (u: Json, requests = 3): Json =>
+			toolEnd("t1", "task", { details: { usage: u, results: [{ requests, usage: u }] } });
+
+		it("a replay without cost does not erase a known cost", () => {
+			const file = write(tmpDir(), [call(withCost(usage(100, 10), 2)), call(usage(100, 10))]);
+			const m = summarizeOmpTranscript(file);
+			expect(m.costUsd).toBeCloseTo(2, 12);
+			expect(m.taskSnapshotConflicts).toBe(0);
+		});
+
+		it("keeps the larger known cost when equal replays disagree", () => {
+			const file = write(tmpDir(), [call(withCost(usage(100, 10), 2)), call(withCost(usage(100, 10), 3))]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(3, 12);
+		});
+
+		it("a replay with the same total but conflicting buckets keeps the first and counts one conflict", () => {
+			const file = write(tmpDir(), [call(usage(100, 10)), call(usage(10, 100))]);
+			const m = summarizeOmpTranscript(file);
+			expect([m.inputTokens, m.outputTokens]).toEqual([100, 10]);
+			expect(m.taskSnapshotConflicts).toBe(1);
+		});
+
+		it("a strictly richer replay still replaces", () => {
+			const file = write(tmpDir(), [call(usage(100, 10), 3), call(usage(150, 20, 5), 4)]);
+			const m = summarizeOmpTranscript(file);
+			expect([m.llmCalls, m.inputTokens, m.outputTokens, m.cacheReadTokens]).toEqual([4, 150, 20, 5]);
+			expect(m.taskSnapshotConflicts).toBe(0);
+		});
+
+		it("a clean transcript reports zero conflicts", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(1, 1)), call(usage(100, 10)), call(usage(100, 10))]);
+			expect(summarizeOmpTranscript(file).taskSnapshotConflicts).toBe(0);
+		});
+	});
+
 	it("reports null cost when no usage record carried one, never a silent zero", () => {
 		const file = write(tmpDir(), [assistantEnd(usage(1, 1))]);
 		expect(summarizeOmpTranscript(file).costUsd).toBeNull();
@@ -431,6 +467,31 @@ describe("trial transcript persistence", () => {
 		const resumed = store.listTraces(jobName)[0];
 		expect(resumed.status).toBe("running");
 		expect(resumed.transcript).toBeNull();
+		store.close();
+	});
+
+	it("persists taskSnapshotConflicts through RunStore", () => {
+		const jobsDir = tmpDir();
+		const store = new RunStore(jobsDir);
+		const jobName = "evo-job2";
+		const jobDir = path.join(jobsDir, jobName);
+		fs.mkdirSync(jobDir, { recursive: true });
+		store.registerLaunch({
+			jobName,
+			benchmark: "harbor",
+			dataset: "d",
+			agent: "omp",
+			models: ["m"],
+			pid: process.pid,
+		});
+		const end = (u: Json): Json =>
+			toolEnd("t1", "task", { details: { usage: u, results: [{ requests: 1, usage: u }] } });
+		seedTrial(jobDir, "t__abc", {
+			result: true,
+			lines: [assistantEnd(usage(1, 1)), end(usage(100, 10)), end(usage(10, 100))],
+		});
+		store.syncRun(jobName);
+		expect(store.listTraces(jobName)[0].transcript?.taskSnapshotConflicts).toBe(1);
 		store.close();
 	});
 });

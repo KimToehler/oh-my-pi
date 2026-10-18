@@ -26,6 +26,7 @@ function metrics(over: Partial<TranscriptMetrics> = {}): TranscriptMetrics {
 		startupErrors: [],
 		signals: [],
 		droppedLines: 0,
+		taskSnapshotConflicts: 0,
 		...over,
 	};
 }
@@ -523,6 +524,14 @@ describe("fitness decision verdict (R74)", () => {
 		const r = run(
 			["a", "b"],
 			[trial("a", 1, { transcript: metrics({ droppedLines: 1 }) }), trial("b", 1, { reward: 0 })],
+		);
+		expect(r.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+	});
+
+	it("names lossy_transcript for a task snapshot conflict", () => {
+		const r = run(
+			["a", "b"],
+			[trial("a", 1, { transcript: metrics({ taskSnapshotConflicts: 1 }) }), trial("b", 1, { reward: 0 })],
 		);
 		expect(r.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
 	});

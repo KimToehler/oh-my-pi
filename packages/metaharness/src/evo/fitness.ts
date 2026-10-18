@@ -182,7 +182,9 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 		for (const signal of trial.transcript?.signals ?? []) signalHits[signal] = (signalHits[signal] ?? 0) + 1;
 	}
 	const dataComplete = reasons.length === 0;
-	const lossyTranscriptTrials = decided.filter(t => (t.transcript?.droppedLines ?? 0) > 0).length;
+	const lossyTranscriptTrials = decided.filter(
+		t => (t.transcript?.droppedLines ?? 0) > 0 || (t.transcript?.taskSnapshotConflicts ?? 0) > 0,
+	).length;
 	const ineligibility = evaluateEligibility({
 		policy: input.policy,
 		dataComplete,

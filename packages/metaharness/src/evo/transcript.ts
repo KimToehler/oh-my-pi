@@ -36,6 +36,8 @@ export interface TranscriptMetrics {
 	readonly signals: readonly string[];
 	/** Oversized lines and `{`-prefixed lines that failed JSON parsing. */
 	readonly droppedLines: number;
+	/** Task-call replays whose usage conflicted with the stored snapshot (neither dominated); totals may be wrong. */
+	readonly taskSnapshotConflicts: number;
 }
 
 export interface TranscriptOptions {
@@ -68,6 +70,7 @@ interface Tally {
 	finalStopReason: string | null;
 	started: boolean;
 	droppedLines: number;
+	taskSnapshotConflicts: number;
 	readonly startupErrors: Set<string>;
 	readonly signals: Set<string>;
 	/** Richest delegated-usage snapshot per `task` tool-call ID, folded once at EOF. */
@@ -133,12 +136,16 @@ function onEvent(tally: Tally, event: Record<string, unknown>): void {
 		case "tool_execution_end":
 			if (event.isError === true) tally.toolErrors++;
 			if (event.toolName === "task" && isRecord(event.result)) {
-				recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.result.details, false);
+				if (recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.result.details, false)) {
+					tally.taskSnapshotConflicts++;
+				}
 			}
 			return;
 		case "tool_execution_update":
 			if (event.toolName === "task" && isRecord(event.partialResult)) {
-				recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.partialResult.details, true);
+				if (recordTaskDetails(tally.taskSnapshots, event.toolCallId, event.partialResult.details, true)) {
+					tally.taskSnapshotConflicts++;
+				}
 			}
 			return;
 		case "auto_retry_start":
@@ -207,6 +214,7 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		finalStopReason: null,
 		started: false,
 		droppedLines: 0,
+		taskSnapshotConflicts: 0,
 		startupErrors: new Set(),
 		signals: new Set(),
 		taskSnapshots: new Map(),
@@ -266,5 +274,6 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		startupErrors: [...tally.startupErrors],
 		signals: [...tally.signals].sort(),
 		droppedLines: tally.droppedLines,
+		taskSnapshotConflicts: tally.taskSnapshotConflicts,
 	};
 }

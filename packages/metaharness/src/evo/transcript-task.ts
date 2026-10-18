@@ -62,29 +62,42 @@ function snapshotOf(details: Record<string, unknown>): TaskSnapshot {
 	return snap;
 }
 
-/** True when `next` is at least as rich as `prev`: results, then requests, then total tokens. */
-function atLeastAsRich(next: TaskSnapshot, prev: TaskSnapshot): boolean {
-	if (next.results !== prev.results) return next.results > prev.results;
-	if (next.requests !== prev.requests) return next.requests > prev.requests;
-	return next.usage.reduce((sum, value) => sum + value, 0) >= prev.usage.reduce((sum, value) => sum + value, 0);
+/** True when every component of `a` (results, requests, each usage bucket) is >= the same component of `b`. */
+function dominates(a: TaskSnapshot, b: TaskSnapshot): boolean {
+	return a.results >= b.results && a.requests >= b.requests && a.usage.every((value, i) => value >= b.usage[i]);
 }
 
 /**
  * Record a candidate snapshot for a `task` call. Async updates count only when
- * terminal; a call without an ID is ignored rather than guessed.
+ * terminal; a call without an ID is ignored rather than guessed. A snapshot replaces
+ * the stored one only by component-wise dominance; an equal one never loses a known
+ * cost. Returns true when neither snapshot dominates (conflicting replay): the stored
+ * one is kept and the caller must count the conflict.
  */
 export function recordTaskDetails(
 	snapshots: Map<string, TaskSnapshot>,
 	toolCallId: unknown,
 	details: unknown,
 	requireAsyncTerminal: boolean,
-): void {
-	if (typeof toolCallId !== "string" || !isRecord(details)) return;
+): boolean {
+	if (typeof toolCallId !== "string" || !isRecord(details)) return false;
 	const state = isRecord(details.async) ? details.async.state : undefined;
-	if (requireAsyncTerminal && state !== "completed" && state !== "failed") return;
+	if (requireAsyncTerminal && state !== "completed" && state !== "failed") return false;
 	const snap = snapshotOf(details);
 	const prev = snapshots.get(toolCallId);
-	if (!prev || atLeastAsRich(snap, prev)) snapshots.set(toolCallId, snap);
+	if (!prev) {
+		snapshots.set(toolCallId, snap);
+		return false;
+	}
+	if (dominates(snap, prev)) {
+		if (dominates(prev, snap)) {
+			// Equal in every component: never lose a known cost.
+			const cost = snap.cost === null ? prev.cost : prev.cost === null ? snap.cost : Math.max(snap.cost, prev.cost);
+			snapshots.set(toolCallId, { ...snap, cost });
+		} else snapshots.set(toolCallId, snap);
+		return false;
+	}
+	return !dominates(prev, snap);
 }
 
 /** Fold each call's chosen snapshot into `tally` exactly once. */
