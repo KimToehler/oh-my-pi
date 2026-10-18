@@ -5161,8 +5161,13 @@ export class AgentSession implements SettingsScope {
 		}
 		return this.#ttsr.afterToolCall(ctx);
 	}
+	/** Records the proposing message as it stood when the call started. A Cursor message
+	 *  keeps streaming after its bridged calls start; later blocks never run (the bridge
+	 *  seals the request), so they must not change which message proposed. */
 	#recordProposalPlanner(toolCall: ToolCall, message: AssistantMessage): void {
-		if (isProposeToolCall(toolCall)) this.#proposalPlanners.set(toolCall.id, message);
+		if (isProposeToolCall(toolCall)) {
+			this.#proposalPlanners.set(toolCall.id, { ...message, content: message.content.slice() });
+		}
 	}
 	#takeProposalPlanner(toolCallId: string | undefined): AssistantMessage | undefined {
 		if (toolCallId === undefined) return undefined;

@@ -13,7 +13,7 @@ import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mo
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
+import { bindCursorExecSignal, CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
 import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import {
 	type PlanApprovalDetails,
@@ -465,8 +465,14 @@ describe("plan review runtime", () => {
 	describe("Cursor bridge dispatch", () => {
 		const CURSOR_PLANNER = { provider: "cursor", model: "claude-4.5-sonnet" } as const;
 
-		/** A real `write` behind the Cursor bridge, reporting to the session like the SDK wires it. */
-		function cursorBridge(harness: Harness, signal?: AbortSignal): CursorExecHandlers {
+		/**
+		 * One provider request's bridge over a real `write`, reporting to the session like
+		 * the SDK wires it. `starts` collects the ids of every bridged call that started.
+		 */
+		function cursorBridge(
+			harness: Harness,
+			options: { signal?: AbortSignal; starts?: string[] } = {},
+		): CursorExecHandlers {
 			const writeSession = {
 				...harness.toolSession,
 				hasUI: false,
@@ -477,39 +483,44 @@ describe("plan review runtime", () => {
 			return new CursorExecHandlers({
 				cwd: harness.toolSession.cwd,
 				tools: new Map([["write", new WriteTool(writeSession) as unknown as AgentTool]]),
-				emitEvent: event => harness.session.agent.emitExternalEvent(event),
-				signal,
+				emitEvent: event => {
+					if (event.type === "tool_execution_start") options.starts?.push(event.toolCallId);
+					harness.session.agent.emitExternalEvent(event);
+				},
+				signal: options.signal,
 			});
 		}
 
+		type WriteArgs = { path: string; content: string };
 		type ProposeTransport = (
 			bridge: CursorExecHandlers,
 			toolCallId: string,
 			message: AssistantMessage | undefined,
+			write?: WriteArgs,
 		) => Promise<ToolResultMessage>;
-		const PROPOSE = { path: "xd://propose", content: "demo" } as const;
+		const PROPOSE: WriteArgs = { path: "xd://propose", content: "demo" };
 
-		/** Every Cursor frame family that can carry `write xd://propose` into the host's `write` tool. */
+		/** Every Cursor frame family that can carry a host `write` (and so `write xd://propose`). */
 		const TRANSPORTS: [string, ProposeTransport][] = [
 			[
 				"MCP write",
-				(bridge, toolCallId, message) =>
+				(bridge, toolCallId, message, write = PROPOSE) =>
 					bridge.mcp({
 						name: "write",
 						toolName: "write",
 						providerIdentifier: "pi-agent",
 						toolCallId,
-						args: { ...PROPOSE },
+						args: { ...write },
 						rawArgs: {},
 						message,
 					}),
 			],
 			[
 				"native writeArgs",
-				(bridge, toolCallId, message) =>
+				(bridge, toolCallId, message, write = PROPOSE) =>
 					bridge.write({
-						path: PROPOSE.path,
-						fileText: PROPOSE.content,
+						path: write.path,
+						fileText: write.content,
 						toolCallId,
 						returnFileContentAfterWrite: false,
 						fileBytes: new Uint8Array(),
@@ -518,9 +529,15 @@ describe("plan review runtime", () => {
 			],
 			[
 				"modern piWriteArgs",
-				(bridge, toolCallId, message) => bridge.piWrite({ args: { ...PROPOSE }, toolCallId, message }),
+				(bridge, toolCallId, message, write = PROPOSE) =>
+					bridge.piWrite({ args: { ...write }, toolCallId, message }),
 			],
 		];
+
+		/** The provider appends each newly streamed call to the live message of its request. */
+		function appendWriteCall(message: AssistantMessage, toolCallId: string, write: WriteArgs): void {
+			message.content.push({ type: "toolCall", id: toolCallId, name: "write", arguments: { ...write } });
+		}
 
 		for (const [transport, propose] of TRANSPORTS) {
 			describe(transport, () => {
@@ -542,6 +559,70 @@ describe("plan review runtime", () => {
 					expect(spy).toHaveBeenCalledTimes(1);
 					expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
 					expect(auditEntries(harness)[0]).toMatchObject({ outcome: "okay", planner: CURSOR_PLANNER });
+				});
+
+				it("refuses every later host call of the proposing request before it starts", async () => {
+					const harness = createHarness();
+					await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+					const reviewing = Promise.withResolvers<void>();
+					const release = Promise.withResolvers<void>();
+					const spy = vi
+						.spyOn(structuredSubagentModule, "runStructuredSubagent")
+						.mockResolvedValue(okay())
+						.mockImplementationOnce(async () => {
+							reviewing.resolve();
+							await release.promise;
+							return okay();
+						});
+					const starts: string[] = [];
+					const proposeId = "cursor-propose-final";
+					const message = plannerMessage(proposeId, CURSOR_PLANNER.provider, CURSOR_PLANNER.model);
+					const lateWrite = { path: "late.txt", content: "B" };
+					// The provider keeps streaming into the live message while the proposal is in flight.
+					const submit = harness.toolSession.submitPlanProposal;
+					harness.toolSession.submitPlanProposal = (title, call) => {
+						appendWriteCall(message, "cursor-late-write", lateWrite);
+						appendWriteCall(message, "cursor-second-propose", PROPOSE);
+						return submit?.(title, call) ?? Promise.reject(new Error("no submit"));
+					};
+					const bridge = bindCursorExecSignal(cursorBridge(harness, { starts }), new AbortController().signal);
+					if (!(bridge instanceof CursorExecHandlers)) throw new Error("expected a bound Cursor bridge");
+
+					const pending = propose(bridge, proposeId, message);
+					await Promise.race([reviewing.promise, pending]);
+					const lateCall = propose(bridge, "cursor-late-write", message, lateWrite);
+					const secondCall = propose(bridge, "cursor-second-propose", message);
+					release.resolve();
+					const [proposed, late, second] = await Promise.all([pending, lateCall, secondCall]);
+
+					expect(late.isError).toBe(true);
+					expect(second.isError).toBe(true);
+					expect(await Bun.file(`${harness.toolSession.cwd}/late.txt`).exists()).toBe(false);
+					expect(starts).toEqual([proposeId]);
+					expect(proposed.isError).toBe(false);
+					expect(spy).toHaveBeenCalledTimes(1);
+					expect(harness.handled.length).toBe(1);
+					expect(auditEntries(harness).map(entry => entry.planSha256)).toEqual([planContentSha256(PLAN_TEXT)]);
+				});
+
+				it("leaves the next provider request free to run host calls after a proposal", async () => {
+					const harness = createHarness();
+					await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+					vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue(okay());
+					const base = cursorBridge(harness);
+					const first = bindCursorExecSignal(base, undefined);
+					const next = bindCursorExecSignal(base, undefined);
+					if (!(first instanceof CursorExecHandlers) || !(next instanceof CursorExecHandlers)) {
+						throw new Error("expected bound Cursor bridges");
+					}
+					const proposeId = "cursor-propose-then-next";
+
+					await propose(first, proposeId, plannerMessage(proposeId, CURSOR_PLANNER.provider));
+					const write = { path: "next.txt", content: "next request" };
+					const result = await propose(next, "cursor-next-write", undefined, write);
+
+					expect(result.isError).toBe(false);
+					expect(await Bun.file(`${harness.toolSession.cwd}/next.txt`).text()).toBe("next request");
 				});
 
 				it("cancels the reviewer with the request and leaves no trace of the aborted proposal", async () => {
@@ -570,7 +651,7 @@ describe("plan review runtime", () => {
 					const toolCallId = "cursor-propose-aborted";
 
 					const pending = propose(
-						cursorBridge(harness, controller.signal),
+						cursorBridge(harness, { signal: controller.signal }),
 						toolCallId,
 						plannerMessage(toolCallId, CURSOR_PLANNER.provider, CURSOR_PLANNER.model),
 					);
@@ -601,11 +682,9 @@ describe("plan review runtime", () => {
 					const harness = createHarness();
 					await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
 					const spy = vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue(okay());
-					const bridge = cursorBridge(harness);
-
-					const bare = await propose(bridge, "cursor-propose-bare", undefined);
+					const bare = await propose(cursorBridge(harness), "cursor-propose-bare", undefined);
 					const foreign = await propose(
-						bridge,
+						cursorBridge(harness),
 						"cursor-propose-foreign",
 						plannerMessage("another-call", CURSOR_PLANNER.provider),
 					);

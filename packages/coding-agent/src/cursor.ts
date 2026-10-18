@@ -40,6 +40,7 @@ import { sanitizeText } from "@oh-my-pi/pi-utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
 import type { MCPResourceReadResult } from "./mcp/types";
 import { resolveApproval, resolveApprovalFromContext } from "./tools/approval";
+import { isProposeToolCall } from "./tools/resolve";
 import {
 	confineToWorkspace,
 	resolveReadPathAsync,
@@ -171,7 +172,8 @@ interface CursorExecBridgeOptions {
  *
  * The bridge is built once per session, while each provider request carries
  * its own signal. Stream wrappers call this with the options they forward, so
- * the handlers the provider dispatches into stop with the request they serve.
+ * the handlers the provider dispatches into stop with the request they serve
+ * and share that request's proposal barrier ({@link ProposalBarrier}).
  * Handlers that are not this bridge pass through unchanged.
  */
 export function bindCursorExecSignal(
@@ -317,6 +319,41 @@ function refuseAbortedCall(signal: AbortSignal, toolCallId: string, toolName: st
 }
 
 /**
+ * Finality of a plan proposal within one provider request.
+ *
+ * The agent loop runs `xd://propose` only as the last call of a finished
+ * message, so nothing the model emitted after it ever executes. Cursor runs
+ * calls while the message is still streaming, so the same guarantee needs an
+ * explicit gate: once a proposal starts, every later host call of the same
+ * request is refused before it starts. One barrier per provider request —
+ * {@link CursorExecHandlers.withSignal} mints a fresh one — so a proposal
+ * never blocks a different request.
+ */
+class ProposalBarrier {
+	#proposalCallId: string | undefined;
+
+	/** `sealable: false` is the session-wide root bridge, which serves no single request. */
+	constructor(readonly sealable: boolean) {}
+
+	/** Why a call arriving now must not start, or null while no proposal has started. */
+	get sealedReason(): string | null {
+		if (this.#proposalCallId === undefined) return null;
+		return `Tool was not executed: plan proposal ${this.#proposalCallId} already ended this response. Wait for its result.`;
+	}
+
+	/** Refusal for a call arriving after this request's proposal started, else null. */
+	refusal(toolCallId: string, toolName: string): ToolResultMessage | null {
+		const reason = this.sealedReason;
+		return reason === null ? null : createToolResultMessage(toolCallId, toolName, buildToolErrorResult(reason), true);
+	}
+
+	/** Seal the request when `toolName(args)` is a plan proposal. Call right before it starts. */
+	observe(toolCallId: string, toolName: string, args: Record<string, unknown>): void {
+		if (this.sealable && isProposeToolCall({ name: toolName, arguments: args })) this.#proposalCallId ??= toolCallId;
+	}
+}
+
+/**
  * Carries the provider's live assistant message on the bridge's own
  * `tool_execution_start`. Bridged calls bypass the agent loop's
  * `beforeToolCall`, so this is how the session learns which message made one.
@@ -337,6 +374,11 @@ function provenMessage(call: CursorExecProvenance, toolCallId: string): Assistan
 	return holdsCall ? call.message : undefined;
 }
 
+/** The bridge options plus the barrier of the provider request a call belongs to. */
+interface CursorRequestScope extends CursorExecBridgeOptions {
+	barrier: ProposalBarrier;
+}
+
 interface ExecuteToolExtras {
 	/** Runs instead of the registry tool (scoped grep, replace-mode edit). */
 	tool?: CursorBridgeTool;
@@ -345,7 +387,7 @@ interface ExecuteToolExtras {
 }
 
 async function executeTool(
-	options: CursorExecBridgeOptions,
+	options: CursorRequestScope,
 	toolName: string,
 	toolCallId: string,
 	args: Record<string, unknown>,
@@ -357,10 +399,13 @@ async function executeTool(
 		return createToolResultMessage(toolCallId, toolName, result, true);
 	}
 	if (options.signal?.aborted) return refuseAbortedCall(options.signal, toolCallId, toolName);
+	const sealed = options.barrier.refusal(toolCallId, toolName);
+	if (sealed) return sealed;
 
 	// Same rule as synthesizeCursorExecToolCall: optional kwargs must be absent,
 	// not `undefined`, or ArkType validation rejects the call.
 	const toolArgs = omitUndefinedArgs(args);
+	options.barrier.observe(toolCallId, toolName, toolArgs);
 
 	const start: BridgedToolExecutionStart = { type: "tool_execution_start", toolCallId, toolName, args: toolArgs };
 	if (extras.message) start[kCursorBridgeMessage] = extras.message;
@@ -437,13 +482,15 @@ function refuseByWritePolicy(options: CursorExecBridgeOptions, toolName: string,
 		: `Tool "${toolName}" requires approval, which this channel cannot request.`;
 }
 
-async function executeDelete(options: CursorExecBridgeOptions, pathArg: string, toolCallId: string) {
+async function executeDelete(options: CursorRequestScope, pathArg: string, toolCallId: string) {
 	const toolName = "delete";
 
 	if (!allowsDirectFileMutation(options)) {
 		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 		return createToolResultMessage(toolCallId, toolName, result, true);
 	}
+	const sealed = options.barrier.refusal(toolCallId, toolName);
+	if (sealed) return sealed;
 
 	// Unlike every other frame, this one mutates the filesystem directly instead
 	// of running a registry tool, so no approval wrapper sits in front of it.
@@ -590,11 +637,23 @@ function buildTodoSyncResult(
 }
 
 export class CursorExecHandlers implements ICursorExecHandlers {
-	constructor(private options: CursorExecBridgeOptions) {}
+	readonly #request: CursorRequestScope;
 
-	/** This bridge with every call bound to `signal`; see {@link CursorExecBridgeOptions.signal}. */
+	/** `request` marks a bridge bound to one provider request; only those seal on a proposal. */
+	constructor(
+		private options: CursorExecBridgeOptions,
+		request = false,
+	) {
+		this.#request = { ...options, barrier: new ProposalBarrier(request) };
+	}
+
+	/**
+	 * This bridge for one provider request: every call is bound to `signal`
+	 * (see {@link CursorExecBridgeOptions.signal}) and to a proposal barrier of
+	 * its own, so a request's proposal never seals another request.
+	 */
 	withSignal(signal: AbortSignal | undefined): CursorExecHandlers {
-		return signal === this.options.signal ? this : new CursorExecHandlers({ ...this.options, signal });
+		return new CursorExecHandlers({ ...this.options, signal }, true);
 	}
 
 	/**
@@ -615,13 +674,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.options, "read", toolCallId, { path: composed });
+		return await executeTool(this.#request, "read", toolCallId, { path: composed });
 	}
 
 	async ls(args: Parameters<NonNullable<ICursorExecHandlers["ls"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		// Redirect ls to read tool, which handles directories
-		const toolResultMessage = await executeTool(this.options, "read", toolCallId, { path: args.path });
+		const toolResultMessage = await executeTool(this.#request, "read", toolCallId, { path: args.path });
 		return toolResultMessage;
 	}
 
@@ -639,7 +698,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			contextAfter: args.contextAfter ?? args.context ?? 0,
 		});
 		const toolResultMessage = await executeTool(
-			this.options,
+			this.#request,
 			"grep",
 			toolCallId,
 			{
@@ -657,7 +716,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const content = args.fileText ?? new TextDecoder().decode(args.fileBytes ?? new Uint8Array());
 		const toolResultMessage = await executeTool(
-			this.options,
+			this.#request,
 			"write",
 			toolCallId,
 			{ path: args.path, content },
@@ -668,14 +727,14 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	async delete(args: Parameters<NonNullable<ICursorExecHandlers["delete"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeDelete(this.options, args.path, toolCallId);
+		const toolResultMessage = await executeDelete(this.#request, args.path, toolCallId);
 		return toolResultMessage;
 	}
 
 	async shell(args: Parameters<NonNullable<ICursorExecHandlers["shell"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const timeoutSeconds = shellTimeoutSeconds(args.timeout);
-		const toolResultMessage = await executeTool(this.options, "bash", toolCallId, {
+		const toolResultMessage = await executeTool(this.#request, "bash", toolCallId, {
 			command: args.command,
 			cwd: args.workingDirectory || undefined,
 			timeout: timeoutSeconds,
@@ -696,6 +755,8 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		}
 		const signal = this.options.signal;
 		if (signal?.aborted) return refuseAbortedCall(signal, toolCallId, toolName);
+		const sealed = this.#request.barrier.refusal(toolCallId, toolName);
+		if (sealed) return sealed;
 
 		const timeoutSeconds = shellTimeoutSeconds(args.timeout);
 		const toolArgs = omitUndefinedArgs({
@@ -795,7 +856,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	async diagnostics(args: Parameters<NonNullable<ICursorExecHandlers["diagnostics"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeTool(this.options, "lsp", toolCallId, {
+		const toolResultMessage = await executeTool(this.#request, "lsp", toolCallId, {
 			action: "diagnostics",
 			file: args.path,
 		});
@@ -826,11 +887,11 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(call.toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.options, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
+		return await executeTool(this.#request, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
 	}
 
 	async piBash(call: Parameters<NonNullable<ICursorExecHandlers["piBash"]>>[0]) {
-		return await executeTool(this.options, "bash", call.toolCallId, {
+		return await executeTool(this.#request, "bash", call.toolCallId, {
 			command: call.args.command,
 			timeout: piTimeout(call.args.timeout),
 		});
@@ -851,14 +912,14 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async piEdit(call: Parameters<NonNullable<ICursorExecHandlers["piEdit"]>>[0]) {
 		const edits = call.args.edits.map(edit => ({ old_string: edit.oldText, new_string: edit.newText }));
 		const args = edits.length === 1 ? { path: call.args.path, ...edits[0] } : { path: call.args.path, edits };
-		return await executeTool(this.options, "edit", call.toolCallId, args, {
+		return await executeTool(this.#request, "edit", call.toolCallId, args, {
 			tool: this.options.getEditReplaceTool?.(),
 		});
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
 		return await executeTool(
-			this.options,
+			this.#request,
 			"write",
 			call.toolCallId,
 			{ path: call.args.path, content: call.args.content },
@@ -888,7 +949,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		// path spec, and its `case` flag is case-SENSITIVITY, the inverse of the
 		// frame's `ignore_case`.
 		return await executeTool(
-			this.options,
+			this.#request,
 			"grep",
 			call.toolCallId,
 			{
@@ -911,7 +972,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 */
 	async piFind(call: Parameters<NonNullable<ICursorExecHandlers["piFind"]>>[0]) {
 		const { pattern, path, limit } = call.args;
-		return await executeTool(this.options, "glob", call.toolCallId, {
+		return await executeTool(this.#request, "glob", call.toolCallId, {
 			path: piJoinPath(path, pattern),
 			limit: piLimit(limit),
 		});
@@ -922,7 +983,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 * The frame's entry `limit` is not mapped; see {@link piLsPath}.
 	 */
 	async piLs(call: Parameters<NonNullable<ICursorExecHandlers["piLs"]>>[0]) {
-		return await executeTool(this.options, "read", call.toolCallId, { path: piLsPath(call.args.path) });
+		return await executeTool(this.#request, "read", call.toolCallId, { path: piLsPath(call.args.path) });
 	}
 
 	/**
@@ -984,6 +1045,8 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			}
 			const refusal = refuseByWritePolicy(this.options, "write", downloadPath);
 			if (refusal) throw new Error(refusal);
+			const sealed = this.#request.barrier.sealedReason;
+			if (sealed) throw new Error(sealed);
 		}
 		const mcp = this.options.mcpResources;
 		if (!mcp) return null;
@@ -1137,7 +1200,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				const message = formatMcpToolErrorMessage(toolName, availableTools);
 				return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(message), true);
 			}
-			return await executeTool(this.options, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
+			return await executeTool(this.#request, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
 				tool: replaceTool,
 			});
 		}
@@ -1149,7 +1212,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
 
-		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args, {
+		const toolResultMessage = await executeTool(this.#request, toolName, toolCallId, args, {
 			message: provenMessage(call, toolCallId),
 		});
 		return toolResultMessage;
