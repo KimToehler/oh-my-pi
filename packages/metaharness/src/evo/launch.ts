@@ -7,6 +7,7 @@ import { isEnoent } from "@oh-my-pi/pi-utils";
 import { credentialValuesFromEnv, type LaunchRequest } from "../launch-args";
 import { EvoHttpError } from "./boundary";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
+import { assertJobsDirOutsideSource } from "./jobs-dir-guard";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import { assertSourceClean } from "./source-stage";
@@ -130,7 +131,17 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	// The runner never sees these values (the manager strips them from its environment), so the staged source
 	// tree must be scanned here, over the root this launch will stage, before anything is spawned.
 	const fields = variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot);
-	await assertSourceClean(fields.sourceRoot as string, hostValues);
+	try {
+		assertJobsDirOutsideSource(input.jobsDir, fields.sourceRoot as string);
+	} catch (err) {
+		throw new EvoHttpError(422, err instanceof Error ? err.message : String(err));
+	}
+	// The scan holds the real values and returns the hash of exactly the bytes it scanned. That hash must be the
+	// registered one; the runner then requires the staged bytes to equal the registered bytes, so staged bytes were scanned.
+	const scannedHash = await assertSourceClean(fields.sourceRoot as string, hostValues);
+	if (scannedHash !== variant.sourceDirtyHash) {
+		throw new EvoHttpError(409, "source changed since registration; re-register the variant");
+	}
 	// Provider-proxy launch: the agent receives no host variable at all. Referenced credentials stay in the manager
 	// (the proxy injects them); an explicitly forwarded extra has no proxy route and would reach the agent plaintext.
 	const unroutable = explicit.filter(name => !referenced.includes(name));

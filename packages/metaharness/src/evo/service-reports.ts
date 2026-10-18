@@ -6,6 +6,7 @@ import { badRequest, EvoHttpError } from "./boundary";
 import { assertMatched, type ComparisonReport, compareFitness, type ConditionIdentity } from "./compare";
 import { computeFitness, type FitnessReport } from "./fitness";
 import { buildReflectionBundle } from "./reflection";
+import { SOURCE_IDENTITY_SCHEME } from "./source-identity";
 import type { StoredSuite, SuiteRegistry } from "./suites";
 import type { VariantRow } from "./variant-types";
 
@@ -53,9 +54,16 @@ export class EvoReports {
 		if (!run.suiteId || !suiteHash || !taskHash || !executorConfigHash || !modelsYamlHash || !model) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
+		const saved = this.#savedRunnerConfig(run.jobName);
+		if (saved?.sourceIdentityScheme !== SOURCE_IDENTITY_SCHEME) {
+			throw new EvoHttpError(
+				409,
+				`run '${run.jobName}' predates the execution-manifest source identity; re-evaluate`,
+			);
+		}
 		const launched = str(cfg.sourceIdentity);
 		if (!launched) throw new EvoHttpError(409, `run '${run.jobName}' did not record its launch source identity`);
-		const postRun = this.#recordedPostRunIdentity(run.jobName);
+		const postRun = str(saved.postRunSourceIdentity);
 		if (!postRun) {
 			throw new EvoHttpError(
 				409,
@@ -78,15 +86,13 @@ export class EvoReports {
 		};
 	}
 
-	/** The runner writes the post-run identity to its own `runner-config.json`, not into the launch request. */
-	#recordedPostRunIdentity(jobName: string): string | null {
+	/** The runner writes scheme and post-run identity to its own `runner-config.json`, not into the launch request. */
+	#savedRunnerConfig(jobName: string): Record<string, unknown> | null {
 		try {
 			const saved: unknown = JSON.parse(
 				fs.readFileSync(path.join(this.#jobsDir, "_bench", jobName, "runner-config.json"), "utf8"),
 			);
-			return saved && typeof saved === "object"
-				? str((saved as Record<string, unknown>).postRunSourceIdentity)
-				: null;
+			return saved && typeof saved === "object" && !Array.isArray(saved) ? (saved as Record<string, unknown>) : null;
 		} catch {
 			return null;
 		}

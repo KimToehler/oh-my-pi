@@ -370,7 +370,8 @@ describe("source root", () => {
 		write(root, "f.txt", "2");
 		const actual = formatSourceIdentity(await sourceIdentity(root));
 		expect(actual).not.toBe(expected);
-		expect(actual.startsWith(`${expected}+`)).toBe(true);
+		// R80 hardening: the clean identity already carries `+<hash>`; the edit replaces the hash, ref unchanged.
+		expect(actual.split("+")[0]).toBe(expected.split("+")[0]);
 	});
 });
 
@@ -883,6 +884,141 @@ describe("runner-config credential persistence", () => {
 					`identity keys: ${JSON.stringify(observed)}; out: ${out}`,
 			);
 		}
+	}, 60_000);
+
+	/** Source repo with a gitignored linux addon, as the runner's source mode needs. */
+	function makeSourceRepo(): string {
+		const source = tmp();
+		const git = (...args: string[]): void => {
+			const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: source });
+			if (r.exitCode !== 0) throw new Error(r.stderr.toString());
+		};
+		git("init", "-q", "-b", "main");
+		write(source, "package.json", JSON.stringify({ name: "src", private: true }));
+		write(source, "bun.lock", "");
+		write(source, ".gitignore", "*.node\nnode_modules/\n");
+		write(source, "tracked.txt", "before");
+		git("add", "-A");
+		git("commit", "-q", "-m", "init");
+		write(source, "packages/natives/native/pi_natives.linux-arm64.node", "addon");
+		return source;
+	}
+
+	it("refuses to launch when the staged bytes differ from the registered identity (mutated after the live check)", async () => {
+		const jobsDir = tmp();
+		const source = makeSourceRepo();
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+		const marker = path.join(jobsDir, "harbor-ran");
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-binding",
+			["--environment", "apple-container", "--source-root", source, "--source-identity", launch],
+			{ STUB_SOURCE_ROOT: source, STUB_DEPS_DIR: depsDir, STUB_MARKER: marker },
+			undefined,
+			{
+				// Runs after the early live identity check and before staging: the registered bytes are gone by the copy.
+				container: 'mkdir -p "$STUB_DEPS_DIR/node_modules"\necho mutated > "$STUB_SOURCE_ROOT/tracked.txt"',
+				harbor: 'echo ran > "$STUB_MARKER"',
+			},
+			"source",
+		);
+		expect(code).not.toBe(0);
+		expect(out).toContain("staged source bytes differ from the registered identity");
+		expect(fs.existsSync(marker)).toBe(false);
+	}, 60_000);
+
+	it("refuses a registered identity without a manifest hash, telling the operator to re-register", async () => {
+		const jobsDir = tmp();
+		const source = makeSourceRepo();
+		const bare = (await sourceIdentity(source)).ref;
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-bare",
+			["--environment", "apple-container", "--source-root", source, "--source-identity", bare],
+			{},
+			undefined,
+			{ container: "exit 0" },
+			"source",
+		);
+		expect(code).not.toBe(0);
+		expect(out).toContain("re-register the variant");
+	}, 60_000);
+
+	it("verifies the staged tree immediately before spawning harbor and stamps the identity scheme", async () => {
+		const run = async (name: string, mutate: boolean) => {
+			const jobsDir = tmp();
+			const source = makeSourceRepo();
+			const launch = formatSourceIdentity(await sourceIdentity(source));
+			const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-arm64");
+			const staged = path.join(jobsDir, "_bench", name, "source");
+			const marker = path.join(jobsDir, "harbor-ran");
+			const result = await runRunner(
+				jobsDir,
+				name,
+				["--environment", "docker", "--source-root", source, "--source-identity", launch, "--cleanup"],
+				{ STUB_DEPS_DIR: depsDir, STUB_STAGED: staged, STUB_MARKER: marker, STUB_MUTATE: mutate ? "1" : "" },
+				undefined,
+				{
+					docker:
+						'case "$1" in\n  version) echo arm64;;\n  run) mkdir -p "$STUB_DEPS_DIR/node_modules";;\n' +
+						'  ps) if [ -n "$STUB_MUTATE" ]; then chmod u+w "$STUB_STAGED" "$STUB_STAGED/tracked.txt"; echo tampered > "$STUB_STAGED/tracked.txt"; fi;;\nesac',
+					harbor: 'echo ran > "$STUB_MARKER"',
+				},
+				"source",
+			);
+			return { ...result, ran: fs.existsSync(marker), jobsDir };
+		};
+		const tampered = await run("job-prespawn", true);
+		expect(tampered.code).not.toBe(0);
+		expect(tampered.out).toContain("staged source changed before container start: tracked.txt");
+		expect(tampered.ran).toBe(false);
+		// Negative control: the same launch without the tamper reaches harbor, and runner-config.json carries scheme 2.
+		const clean = await run("job-prespawn-ok", false);
+		expect(clean.out).not.toContain("staged source changed before container start");
+		expect(clean.ran).toBe(true);
+		const cfg = JSON.parse(
+			fs.readFileSync(path.join(clean.jobsDir, "_bench", "job-prespawn-ok", "runner-config.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(cfg.sourceIdentityScheme).toBe(2);
+	}, 60_000);
+
+	it("refuses a --jobs-dir inside the source root before writing any job output, but allows a reserved root", async () => {
+		const jobsDir = tmp();
+		const source = makeSourceRepo();
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const inside = path.join(source, "out");
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-inside",
+			[
+				"--environment",
+				"apple-container",
+				"--source-root",
+				source,
+				"--source-identity",
+				launch,
+				"--jobs-dir",
+				inside,
+			],
+			{},
+			undefined,
+			{ container: "exit 0" },
+			"source",
+		);
+		expect(code).not.toBe(0);
+		expect(out).toContain("lies inside the source root");
+		expect(fs.existsSync(inside)).toBe(false);
+		const { assertJobsDirOutsideSource } = await import("../src/evo/jobs-dir-guard");
+		// Negative controls: a reserved root, a sibling dir and a symlink escaping the source all pass; a symlink into it fails.
+		assertJobsDirOutsideSource(path.join(source, "runs", "harbor"), source);
+		assertJobsDirOutsideSource(path.join(source, ".worktrees", "x", "jobs"), source);
+		assertJobsDirOutsideSource(jobsDir, source);
+		const link = path.join(jobsDir, "link");
+		fs.mkdirSync(path.join(source, "src-out"));
+		fs.symlinkSync(path.join(source, "src-out"), link);
+		expect(() => assertJobsDirOutsideSource(link, source)).toThrow(/lies inside the source root/);
+		expect(() => assertJobsDirOutsideSource(source, source)).toThrow(/lies inside the source root/);
 	}, 60_000);
 
 	it("creates every shadowed node_modules mount point inside the staged source tree", async () => {

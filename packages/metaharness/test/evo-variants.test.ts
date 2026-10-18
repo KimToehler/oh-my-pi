@@ -614,8 +614,10 @@ describe("source identity", () => {
 	it("hashes dirty tracked and untracked content and is stable", async () => {
 		const src = await makeSource();
 		const clean = await sourceIdentity(src);
-		expect(clean.dirtyHash).toBeNull();
+		// R80 hardening: a clean tree carries the manifest hash too (never null).
+		expect(clean.dirtyHash).toMatch(/^[0-9a-f]{64}$/);
 		write(src, "a.txt", "changed\n");
+		expect((await sourceIdentity(src)).dirtyHash).not.toBe(clean.dirtyHash);
 		const dirty1 = await sourceIdentity(src);
 		expect(dirty1.dirtyHash).toMatch(/^[0-9a-f]{64}$/);
 		expect((await sourceIdentity(src)).dirtyHash).toBe(dirty1.dirtyHash);
@@ -624,11 +626,11 @@ describe("source identity", () => {
 		expect(dirty2.dirtyHash).not.toBe(dirty1.dirtyHash);
 		write(src, "new.txt", "untracked two\n");
 		expect((await sourceIdentity(src)).dirtyHash).not.toBe(dirty2.dirtyHash);
-		expect(formatSourceIdentity(clean)).toBe(clean.ref);
+		expect(formatSourceIdentity(clean)).toBe(`${clean.ref}+${clean.dirtyHash}`);
 		await expect(sourceIdentity(path.join(src, "nope"))).rejects.toThrow(/does not exist/);
 	});
 
-	it("hashes staged-only edits, distinguishes them, and separates staged from unstaged content", async () => {
+	it("hashes staged-only edits, distinguishes them, and ignores index history for the same final bytes", async () => {
 		const stagedHash = async (content: string): Promise<string | null> => {
 			const src = await makeSource();
 			write(src, "a.txt", content);
@@ -640,7 +642,8 @@ describe("source identity", () => {
 		expect(one).toMatch(/^[0-9a-f]{64}$/);
 		expect(two).toMatch(/^[0-9a-f]{64}$/);
 		expect(one).not.toBe(two);
-		// Same final worktree bytes, different staging: must not collide.
+		// Contract change (R80): identity is the executed bytes, so index history no longer matters. The same final
+		// worktree bytes give the SAME identity however they were staged; different final bytes differ.
 		const mixed = await makeSource();
 		write(mixed, "a.txt", "final\n");
 		const unstagedOnly = (await sourceIdentity(mixed)).dirtyHash;
@@ -650,7 +653,9 @@ describe("source identity", () => {
 		await git(mixed, "add", "a.txt");
 		write(mixed, "a.txt", "final\n");
 		const stagedThenReverted = (await sourceIdentity(mixed)).dirtyHash;
-		expect(new Set([unstagedOnly, stagedOnly, stagedThenReverted]).size).toBe(3);
+		expect(new Set([unstagedOnly, stagedOnly, stagedThenReverted]).size).toBe(1);
+		write(mixed, "a.txt", "different\n");
+		expect((await sourceIdentity(mixed)).dirtyHash).not.toBe(unstagedOnly);
 	});
 
 	it("frames untracked paths and content so delimiter-shaped names cannot collide", async () => {

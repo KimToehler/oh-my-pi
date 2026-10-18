@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { EvoHttpError } from "../src/evo/boundary";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "../src/evo/launch";
 import { SuiteRegistry } from "../src/evo/suites";
 import { harborRunnerArgs } from "../src/launch-args";
@@ -106,6 +107,8 @@ interface JobOptions {
 	infra?: string;
 	/** Launch `sourceIdentity` recorded in the run config, as the evo launch path records it. */
 	sourceIdentity?: string;
+	/** `sourceIdentityScheme` in runner-config.json; default 2, null omits it (a run from before the scheme). */
+	scheme?: number | null;
 	/** Evaluation concurrency recorded in the run config, as the evo launch path records it. */
 	concurrency?: number;
 	/** Post-run identity the runner persists; `null` simulates a runner that has not reached its postflight. */
@@ -188,11 +191,16 @@ function writeJob(
 	});
 	const postRun =
 		opts.postRunSourceIdentity === undefined ? (opts.sourceIdentity ?? LAUNCHED) : opts.postRunSourceIdentity;
-	if (postRun !== null) {
+	{
 		write(
 			h.jobsDir,
 			path.join("_bench", jobName, "runner-config.json"),
-			JSON.stringify({ jobName, sourceIdentity: opts.sourceIdentity ?? LAUNCHED, postRunSourceIdentity: postRun }),
+			JSON.stringify({
+				jobName,
+				sourceIdentity: opts.sourceIdentity ?? LAUNCHED,
+				sourceIdentityScheme: opts.scheme === undefined ? 2 : opts.scheme,
+				...(postRun === null ? {} : { postRunSourceIdentity: postRun }),
+			}),
 		);
 	}
 	if (!opts.running) h.manager.store.markExit(jobName, 0);
@@ -456,6 +464,21 @@ describe("evo REST", () => {
 		expect((await fetch(`${h.base}/api/evo/variants/${childId}/reflection-bundle?suite=search-1`)).status).toBe(409);
 	});
 
+	it("refuses a run without the execution-manifest identity scheme, never returning a delta", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 0, t2: 1 }, { suiteHash });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"], scheme: null });
+		const refused = await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`);
+		expect(refused.status).toBe(409);
+		expect(((await refused.json()) as { error: string }).error).toContain(
+			"predates the execution-manifest source identity; re-evaluate",
+		);
+		// Negative control: the same run stamped with scheme 2 is comparable.
+		writeJob(h, "evo-child2", childId, { t1: 1, t2: 1 }, { suiteHash, signals: ["fix"] });
+		expect((await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`)).status).toBe(200);
+	});
+
 	it("refuses a comparison whose run recorded post-run source drift", async () => {
 		const h = harness();
 		const { suiteHash, rootId, childId } = await seed(h);
@@ -467,7 +490,12 @@ describe("evo REST", () => {
 			write(
 				h.jobsDir,
 				path.join("_bench", "evo-child", "runner-config.json"),
-				JSON.stringify({ jobName: "evo-child", sourceIdentity: launched, postRunSourceIdentity }),
+				JSON.stringify({
+					jobName: "evo-child",
+					sourceIdentity: launched,
+					sourceIdentityScheme: 2,
+					postRunSourceIdentity,
+				}),
 			);
 		const url = `${h.base}/api/evo/variants/${childId}/compare?suite=search-1`;
 
@@ -882,6 +910,40 @@ describe("evo launch", () => {
 		await expect(buildEvalLaunch(input)).rejects.toThrow(
 			"host env not set for forwarded variables: EVO_TEST_ROUTER_KEY",
 		);
+	});
+
+	it("refuses a launch whose scanned source hash differs from the registered one (409), and a jobs dir inside the source (422)", async () => {
+		const jobsDir = tmp("evo-launch-");
+		const modelsYaml = path.join(jobsDir, "models.yml");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_TEST_ROUTER_KEY\n");
+		process.env.EVO_TEST_ROUTER_KEY = "sentinel-secret-value-123456";
+		cleanups.push(() => {
+			delete process.env.EVO_TEST_ROUTER_KEY;
+		});
+		const defaults: EvoLaunchDefaults = { modelsYaml, forwardEnv: null };
+		const h = harness(defaults);
+		const { rootId } = await seed(h);
+		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
+		const variant = h.manager.store.evo.getVariant(rootId)!;
+		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: h.source };
+		await buildEvalLaunch(input);
+		for (const stale of ["f".repeat(64), null]) {
+			const err = await buildEvalLaunch({ ...input, variant: { ...variant, sourceDirtyHash: stale } }).catch(
+				(e: unknown) => e as EvoHttpError,
+			);
+			expect(err).toMatchObject({
+				status: 409,
+				message: "source changed since registration; re-register the variant",
+			});
+		}
+		// A byte changed after registration is the same refusal.
+		write(h.source, "late-edit.txt", "x");
+		await expect(buildEvalLaunch(input)).rejects.toMatchObject({ status: 409 });
+		fs.rmSync(path.join(h.source, "late-edit.txt"));
+		await buildEvalLaunch(input);
+		// Manager jobs dir inside the source root (outside the reserved roots) is refused before any scan.
+		const inside = path.join(h.source, "jobs");
+		await expect(buildEvalLaunch({ ...input, jobsDir: inside })).rejects.toThrow();
 	});
 
 	it("buildEvalLaunch accepts an env-name apiKey and rejects literals with a stable 422, even with an explicit forward list", async () => {

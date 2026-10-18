@@ -26,8 +26,20 @@ import { assertProxyForwardsNoCredentials, PROXY_TOKEN_ENV } from "./evo/proxy-m
 import { modelsScanValues } from "./evo/credential-scan";
 import { stageAgentOverlay } from "./evo/overlay";
 import { assertPlainPath } from "./evo/path-guard";
-import { formatSourceIdentity, sourceIdentity } from "./evo/source-identity";
-import { removeStagedSource, type StagedSource, stageSource, verifyStagedSource } from "./evo/source-stage";
+import { assertJobsDirOutsideSource } from "./evo/jobs-dir-guard";
+import {
+	formatSourceIdentity,
+	parseRegisteredIdentity,
+	SOURCE_IDENTITY_SCHEME,
+	sourceIdentity,
+} from "./evo/source-identity";
+import {
+	assertStagedMatchesRegistered,
+	removeStagedSource,
+	type StagedSource,
+	stageSource,
+	verifyStagedSource,
+} from "./evo/source-stage";
 import { probeProxyLiveness } from "./evo/provider-proxy";
 import { classifyHarborPhase, type FailurePhase } from "./evo/failure-phase";
 import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
@@ -1845,7 +1857,14 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 	const proxyUrl = proxy?.url ?? null;
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
 	// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
-	const persisted = { ...cfg, jobName, env: { ...cfg.env } };
+	const sourceRun = cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64;
+	// Source runs are stamped with the identity scheme so reports can refuse runs from older schemes.
+	const persisted = {
+		...cfg,
+		jobName,
+		env: { ...cfg.env },
+		...(sourceRun ? { sourceIdentityScheme: SOURCE_IDENTITY_SCHEME } : {}),
+	};
 	for (const key of cfg.hostEnvKeys) delete persisted.env[key];
 	// Reject literal/command apiKeys before anything is persisted or printed.
 	if (cfg.modelsYaml) {
@@ -1874,6 +1893,8 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 		}
 	}
 
+	// Before any job output exists: a jobs dir inside the source root would be inventoried and staged as source.
+	if (sourceRun) assertJobsDirOutsideSource(cfg.jobsDir, cfg.sourceRoot);
 	const jobDir = path.join(cfg.jobsDir, jobName);
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);
 	fs.mkdirSync(benchDir, { recursive: true });
@@ -1900,6 +1921,7 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 
 	const assertLaunchIdentity = async (): Promise<void> => {
 		if (!(cfg.agent === "omp" && cfg.sourceIdentity)) return;
+		parseRegisteredIdentity(cfg.sourceIdentity);
 		const actual = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
 		if (actual !== cfg.sourceIdentity) {
 			throw new Error(
@@ -1924,8 +1946,9 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 				? modelsScanValues(await readModelsEnvNames(cfg.modelsYaml), cfg.env, process.env)
 				: [],
 		});
-		// A host edit while copying would make the staged bytes differ from the launch identity.
-		await assertLaunchIdentity();
+		// Bind the staged bytes directly to the registered identity (manifest hash and HEAD). A mutate-and-restore
+		// during the copy staged bytes the registration never saw, so its hash differs.
+		if (cfg.sourceIdentity) await assertStagedMatchesRegistered(stagedSource, cfg.sourceIdentity, cfg.sourceRoot);
 		source = { arch: plan.arch, depsDir: plan.depsDir, nodeModules: plan.nodeModules, stagedDir: stagedSource.dir };
 	}
 
@@ -2015,6 +2038,12 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 		throw new Error(
 			"provider proxy liveness probe failed before launch (dead port or revoked token); refusing to start",
 		);
+	}
+	// Last check before the container can see the tree. A write after this point (including container writes through
+	// read-write mounts) is only caught by the post-run verification (`staged-tree-modified`).
+	if (stagedSource) {
+		const changed = await verifyStagedSource(stagedSource);
+		if (changed.length > 0) throw new Error(`staged source changed before container start: ${changed.join(", ")}`);
 	}
 	const gatewayForward = startVmnetGatewayForward(cfg);
 	process.stdout.write(dim(`launching harbor → ${logPath}\n`));

@@ -111,6 +111,8 @@ export class VariantRegistry {
 			throw new Error(`source worktree not found: ${req.sourceWorktree}`);
 		});
 		assertWorktreeOwned(this.#jobsDir, worktree, "source worktree");
+		// `source.dirtyHash` is the execution-manifest hash of the worktree bytes. `sourceChanged` and the patch below
+		// stay git-tree based (ref to ref), not manifest based.
 		const source = await sourceIdentity(worktree);
 		if (!(await isTreeClean(worktree))) throw new Error(`source worktree must be clean: ${worktree}`);
 		let sourceChanged: string[] = [];

@@ -1,24 +1,22 @@
-/** Source identity of a git worktree: HEAD plus a hash of dirty tracked/untracked content and native addons. */
+/**
+ * Source identity of a git worktree: HEAD plus the hash of the canonical execution manifest (`execution-manifest.ts`),
+ * i.e. the exact executed bytes. Identities recorded before the manifest scheme (diff-text based) are invalid.
+ */
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { readExecutionManifest } from "./execution-manifest";
+
+/** Written to `runner-config.json` by the runner for every source run; reports refuse a run without it. */
+export const SOURCE_IDENTITY_SCHEME = 2;
 
 /** Repo-relative dir holding the gitignored native addons the agent loads at runtime. */
 export const NATIVE_ADDON_DIR = "packages/natives/native";
 
-/** Repo-relative paths (sorted) of every `*.node` addon under {@link NATIVE_ADDON_DIR} in `root`. */
-export async function listNativeAddons(root: string): Promise<string[]> {
-	const entries = await fs.readdir(path.join(root, NATIVE_ADDON_DIR)).catch(() => [] as string[]);
-	return entries
-		.filter(name => name.endsWith(".node"))
-		.sort()
-		.map(name => `${NATIVE_ADDON_DIR}/${name}`);
-}
-
 export interface SourceIdentity {
 	/** `git rev-parse HEAD`. */
 	ref: string;
-	/** SHA-256 of the tracked diff, untracked file names/content and native addon bytes; null when clean with no addons. */
+	/** Execution manifest hash. Null only for a bare-ref (pre-manifest) identity that was parsed, never computed. */
 	dirtyHash: string | null;
 }
 
@@ -27,6 +25,18 @@ export function formatSourceIdentity(identity: SourceIdentity): string {
 	return identity.dirtyHash ? `${identity.ref}+${identity.dirtyHash}` : identity.ref;
 }
 
+/** Parse an identity that must carry the manifest hash; a bare ref (older scheme) is refused with a re-register hint. */
+export function parseRegisteredIdentity(text: string): SourceIdentity & { dirtyHash: string } {
+	const identity = parseSourceIdentity(text);
+	if (identity.dirtyHash === null) {
+		throw new Error(
+			`source identity '${text}' predates the execution-manifest scheme (no manifest hash); re-register the variant`,
+		);
+	}
+	return identity as SourceIdentity & { dirtyHash: string };
+}
+
+/** Accepts a bare ref only so callers requiring the current scheme can reject it with a clear error. */
 export function parseSourceIdentity(text: string): SourceIdentity {
 	const plus = text.indexOf("+");
 	const ref = plus === -1 ? text : text.slice(0, plus);
@@ -37,13 +47,20 @@ export function parseSourceIdentity(text: string): SourceIdentity {
 	return { ref, dirtyHash };
 }
 
-/** True when the worktree has no staged, unstaged or untracked non-ignored changes (addons not considered). */
+/** True when the worktree has no staged, unstaged or untracked non-ignored changes (ignored files not considered). */
 export async function isTreeClean(root: string): Promise<boolean> {
 	return (await vcs.requireGit(root).statusPorcelain({ untracked: "all" })).trim() === "";
 }
 
-/** Compute the identity of the git worktree rooted exactly at `root`. */
-export async function sourceIdentity(root: string): Promise<SourceIdentity> {
+/**
+ * Compute the identity of the git worktree rooted exactly at `root`. `dirtyHash` is ALWAYS the canonical execution
+ * manifest hash (the exact bytes that run and are staged), clean trees included; index history does not matter, and
+ * sparse-checkout or `assume-unchanged` files are covered because the manifest reads the actual worktree bytes.
+ */
+export async function sourceIdentity(
+	root: string,
+	secrets: readonly string[] = [],
+): Promise<SourceIdentity & { dirtyHash: string }> {
 	const real = await fs.realpath(root).catch(() => {
 		throw new Error(`source root does not exist: ${root}`);
 	});
@@ -53,52 +70,6 @@ export async function sourceIdentity(root: string): Promise<SourceIdentity> {
 	}
 	const ref = await repo.headSha();
 	if (!ref) throw new Error(`source root has no HEAD commit: ${root}`);
-	const status = await repo.statusPorcelain({ untracked: "all" });
-	const addons = await listNativeAddons(real);
-	if (status.trim() === "" && addons.length === 0) return { ref, dirtyHash: null };
-	const hasher = new Bun.CryptoHasher("sha256");
-	// Length-framed sections in fixed order: staged (index vs HEAD), unstaged (worktree vs index).
-	// Hashing the two sides separately (not one worktree-vs-HEAD diff) keeps a staged edit that was
-	// later overwritten in the worktree distinguishable.
-	for (const [label, options] of [
-		["staged", { cached: true, binary: true }],
-		["unstaged", { binary: true }],
-	] as const) {
-		const text = await repo.diffText(options);
-		hasher.update(`${label}${Buffer.byteLength(text)}:`);
-		hasher.update(text);
-	}
-	// Every field is framed as `<byte length>:<bytes>` so no path or content can imitate a delimiter.
-	const frame = (label: string, data: string | Uint8Array): void => {
-		const bytes = typeof data === "string" ? Buffer.from(data) : data;
-		hasher.update(`${label}${bytes.byteLength}:`);
-		hasher.update(bytes);
-	};
-	const untracked = (await repo.lsFiles(true, true)).sort();
-	hasher.update(`untracked-count${untracked.length}:`);
-	for (const rel of untracked) {
-		frame("path", rel);
-		const stat = await fs.lstat(path.join(real, rel)).catch(() => null);
-		if (!stat) {
-			frame("type", "missing");
-		} else if (stat.isSymbolicLink()) {
-			frame("type", "symlink");
-			frame("content", await fs.readlink(path.join(real, rel)));
-		} else if (stat.isFile()) {
-			frame("type", "file");
-			frame("exec", stat.mode & 0o111 ? "1" : "0");
-			frame("content", await fs.readFile(path.join(real, rel)));
-		} else {
-			frame("type", "other");
-		}
-	}
-	// Gitignored native addons are executed from the source tree, so their bytes are identity.
-	hasher.update(`native-count${addons.length}:`);
-	for (const rel of addons) {
-		frame("path", rel);
-		const mode = (await fs.stat(path.join(real, rel))).mode;
-		frame("exec", mode & 0o111 ? "1" : "0");
-		frame("content", await fs.readFile(path.join(real, rel)));
-	}
-	return { ref, dirtyHash: hasher.digest("hex") };
+	const manifest = await readExecutionManifest(real, repo, { secrets });
+	return { ref, dirtyHash: manifest.manifestHash };
 }

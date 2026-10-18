@@ -10,7 +10,11 @@ export interface VariantRow {
 	id: string;
 	configHash: string;
 	sourceRef: string;
-	/** Hash of dirty tracked + untracked source content; null when the source tree is clean. */
+	/**
+	 * Execution-manifest hash (`execution-manifest.ts`) of the exact bytes that run: always present for a variant
+	 * registered under the current scheme, clean trees included. Null only for a pre-manifest registration, which
+	 * launch refuses (re-register). `sourceChanged` and diff reporting stay git-tree based, not manifest based.
+	 */
 	sourceDirtyHash: string | null;
 	/** Variant dir for config variants; the clean git worktree for source variants. */
 	snapshotPath: string;
