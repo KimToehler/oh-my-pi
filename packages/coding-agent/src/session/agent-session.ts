@@ -97,6 +97,7 @@ import {
 	formatDuration,
 	getAgentDbPath,
 	isBunTestRuntime,
+	isEexist,
 	isInteractiveHost,
 	isRecord,
 	logger,
@@ -133,6 +134,7 @@ import { expandPromptTemplate, type PromptTemplate } from "../config/prompt-temp
 import { buildServiceTierByFamily, isServiceTierForFamily, serviceTierSettingToTier } from "../config/service-tier";
 import { combine, type SettingsScope } from "../config/registry";
 import type { Settings } from "../config/settings";
+import { cursorBridgeMessage } from "../cursor";
 import { RawSseDebugBuffer } from "@oh-my-pi/pi-tui/apps/debug/raw-sse-buffer";
 import { getEditStore } from "../edit/store";
 import { releaseCompletionHandles } from "../eval/completion-bridge";
@@ -182,7 +184,16 @@ import { containsMagicKeyword } from "@oh-my-pi/pi-tui/prompt/magic-keywords";
 import { theme } from "@oh-my-pi/pi-tui/theme";
 import { parseTurnBudget } from "../modes/turn-budget";
 import { computeNonMessageTokens } from "@oh-my-pi/pi-tui/status-line/context-usage";
-import { type PlanApprovalDetails, resolveApprovedPlan } from "../plan-mode/approved-plan";
+import {
+	isPlanApprovalDetails,
+	planContentSha256,
+	type ResolvedApprovedPlan,
+	resolveApprovedPlan,
+} from "../plan-mode/approved-plan";
+import { PLAN_REVIEW_MAX_ROUNDS, type PlanReviewOutcome, reviewProposedPlan } from "../plan-mode/plan-review";
+import { cfgPlanReviewEnabled } from "../plan-mode/settings";
+import planReviewRejectPrompt from "../prompts/system/plan-review-reject.md" with { type: "text" };
+import planReviewStatusPrompt from "../prompts/system/plan-review-status.md" with { type: "text" };
 import { listPlanFiles, readPlanFile, resolvePlanFilePath } from "../plan-mode/plan-files";
 import { loadOverallPlanReference } from "../plan-mode/plan-handoff";
 import type { PlanModeState } from "../plan-mode/state";
@@ -247,6 +258,8 @@ import {
 	buildResolveReminderMessage,
 	isPreviewResolutionToolCall,
 	isProposeToolCall,
+	NO_PLAN_AWAITING_APPROVAL,
+	type PlanProposalCall,
 	type PlanProposalHandler,
 	writeDeviceDispatch,
 } from "../tools/resolve";
@@ -254,6 +267,7 @@ import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import { supportsExternalThinking } from "../tools/think";
 import type { TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { throwIfAborted } from "../tools/tool-errors";
 import type { WorkPoolYieldItem } from "../task/workpool-yield";
 import type { AgentDefinition } from "../task/types";
 import type { ModelMention } from "@oh-my-pi/pi-tui/prompt/model-mention-syntax";
@@ -938,6 +952,14 @@ export class AgentSession implements SettingsScope {
 	/** A single model-only notebook reminder queued for the current prompt generation. */
 	#experimentalContextNotesReminder: { prompt: string; generation: number } | undefined;
 	#planModeState: PlanModeState | undefined;
+	/**
+	 * Assistant message that produced each loop-dispatched `xd://propose` call, keyed by
+	 * tool-call id. Recorded synchronously in `#beforeToolCall`, consumed once by plan
+	 * review, and cleared at `agent_end` so blocked or failed calls never leak an entry.
+	 */
+	#proposalPlanners = new Map<string, AssistantMessage>();
+	/** Consecutive cross-family REJECTs of the current proposal series (in memory only). */
+	#planReviewRounds = 0;
 	#vibeModeState: VibeModeState | undefined;
 	#goalModeState: GoalModeState | undefined;
 	#goalRuntime: GoalRuntime;
@@ -1707,22 +1729,180 @@ export class AgentSession implements SettingsScope {
 		return this.#prewalk.restart(source, sourceThinkingLevel, target, targetThinkingLevel);
 	}
 
-	/** Validate the active plan artifact and shape an `xd://propose` result for review-mode hosts. */
-	async preparePlanForReview(title: string): Promise<AgentToolResult<PlanApprovalDetails>> {
+	/**
+	 * Single convergence point of every `xd://propose` dispatch: resolve the
+	 * proposed plan exactly once, then hand the resolved plan to the handler
+	 * installed by the active plan-mode host (interactive, ACP, plan-yolo).
+	 */
+	async submitPlanProposal(title: string, call: PlanProposalCall = {}): Promise<AgentToolResult<unknown>> {
+		throwIfAborted(call.signal);
+		const handler = this.#planProposalHandler;
+		if (!handler) throw new ToolError(NO_PLAN_AWAITING_APPROVAL);
 		const state = this.getPlanModeState();
-		if (!state?.enabled) {
-			throw new ToolError("Plan mode is not active.");
-		}
-		const { planFilePath, title: resolvedTitle } = await resolveApprovedPlan({
+		if (!state?.enabled) throw new ToolError("Plan mode is not active.");
+		const reviewEnabled = cfgPlanReviewEnabled.get(this.settings);
+		const planner = reviewEnabled ? this.#takeReviewablePlanner(call.toolCallId) : undefined;
+		const plan = await resolveApprovedPlan({
 			suppliedTitle: title,
 			statePlanFilePath: state.planFilePath,
 			readPlan: url => this.#readPlanFile(url),
 			listPlanFiles: () => this.#listPlanFiles(),
 		});
-		return {
-			content: [{ type: "text", text: "Plan ready for review." }],
-			details: { planFilePath, title: resolvedTitle, planExists: true },
-		};
+		if (!planner) return handler(plan);
+		const outcome = await reviewProposedPlan({
+			toolSession: call.toolSession,
+			plannerMessage: planner,
+			plan,
+			settings: this.settings,
+			modelRegistry: this.#modelRegistry,
+			signal: call.signal,
+		});
+		return this.#applyPlanReview({ plan, planner, outcome, handler });
+	}
+
+	/** Structural refusals of an enabled review: the proposal must come from a recorded
+	 *  top-level call that is the last tool call of its message. */
+	#takeReviewablePlanner(toolCallId: string | undefined): AssistantMessage {
+		const planner = this.#takeProposalPlanner(toolCallId);
+		if (!planner) {
+			throw new ToolError("Plan review needs the proposing message: write xd://propose as a top-level tool call.");
+		}
+		const lastToolCall = planner.content.filter(block => block.type === "toolCall").at(-1);
+		if (lastToolCall?.id !== toolCallId)
+			throw new ToolError("Propose the plan as the last tool call of its message.");
+		return planner;
+	}
+
+	async #applyPlanReview(review: {
+		plan: ResolvedApprovedPlan;
+		planner: AssistantMessage;
+		outcome: PlanReviewOutcome;
+		handler: PlanProposalHandler;
+	}): Promise<AgentToolResult<unknown>> {
+		const { plan, outcome, handler } = review;
+		const round = this.#planReviewRounds + 1;
+		const planSha256 = planContentSha256(plan.planContent);
+		const blocking = outcome.kind === "reject" && round <= PLAN_REVIEW_MAX_ROUNDS;
+		this.#appendPlanReviewAudit({ ...review, round, planSha256 });
+		if (blocking) {
+			this.#planReviewRounds = round;
+			this.#promotePlanFilePath(plan.planFilePath);
+			const text = prompt.render(planReviewRejectPrompt, {
+				round,
+				max: PLAN_REVIEW_MAX_ROUNDS,
+				reviewer: outcome.reviewer,
+				blockers: outcome.blockers,
+				title: plan.title,
+			});
+			return { content: [{ type: "text", text }], details: { planReview: { outcome: "reject", round } } };
+		}
+		this.#planReviewRounds = 0;
+		const pass = this.#announcePlanReviewPass(outcome);
+		const result = await handler(pass.bindsBytes ? { ...plan, reviewedSha256: planSha256 } : plan);
+		const details =
+			pass.bindsBytes && isPlanApprovalDetails(result.details) ? { ...result.details, planSha256 } : result.details;
+		return { ...result, content: [{ type: "text", text: pass.status }, ...result.content], details };
+	}
+
+	/** Notice + fixed status line for an outcome that lets the plan reach the handler.
+	 *  Only a completed review (okay, or the round cap) binds the approved bytes. */
+	#announcePlanReviewPass(outcome: PlanReviewOutcome): { status: string; bindsBytes: boolean } {
+		const max = PLAN_REVIEW_MAX_ROUNDS;
+		switch (outcome.kind) {
+			case "okay":
+				if (outcome.notes.length > 0) {
+					this.emitNotice("info", `Plan review notes:\n${outcome.notes.join("\n")}`, "plan-review");
+				}
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "okay", reviewer: outcome.reviewer, max }),
+					bindsBytes: true,
+				};
+			case "reject": {
+				const blockers = outcome.blockers.map(blocker => `- [${blocker.area}] ${blocker.defect}`).join("\n");
+				this.emitNotice(
+					"warning",
+					`Plan reached approval with open review blockers (${max} rounds used):\n${blockers}`,
+					"plan-review",
+				);
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "cap", reviewer: outcome.reviewer, max }),
+					bindsBytes: true,
+				};
+			}
+			case "unreviewed":
+				this.emitNotice("warning", `Plan not reviewed (${outcome.reason}): ${outcome.detail}`, "plan-review");
+				return {
+					status: prompt.render(planReviewStatusPrompt, { outcome: "unreviewed", reason: outcome.reason, max }),
+					bindsBytes: false,
+				};
+			default: {
+				const unreachable: never = outcome;
+				return unreachable;
+			}
+		}
+	}
+
+	#promotePlanFilePath(planFilePath: string): void {
+		const state = this.getPlanModeState();
+		if (!state?.enabled || state.planFilePath === planFilePath) return;
+		this.setPlanModeState({ ...state, planFilePath });
+		this.sessionManager.appendModeChange("plan", { planFilePath });
+	}
+
+	/** One `plan-review` custom entry per review: identities and verdict facts, never reviewer text. */
+	#appendPlanReviewAudit(entry: {
+		plan: ResolvedApprovedPlan;
+		planner: AssistantMessage;
+		outcome: PlanReviewOutcome;
+		round: number;
+		planSha256: string;
+	}): void {
+		const { plan, planner, outcome, round, planSha256 } = entry;
+		const capped = outcome.kind === "reject" && round > PLAN_REVIEW_MAX_ROUNDS;
+		this.sessionManager.appendCustomEntry("plan-review", {
+			planFilePath: plan.planFilePath,
+			planSha256,
+			planner: { provider: planner.provider, model: planner.model, upstreamModel: planner.upstreamModel },
+			plannerClass: outcome.trace.plannerClass,
+			reviewerEntry: outcome.trace.reviewerEntry,
+			answeringModels: outcome.trace.answeringModels,
+			outcome: capped ? "cap" : outcome.kind,
+			reason: outcome.kind === "unreviewed" ? outcome.reason : undefined,
+			round,
+			durationMs: outcome.trace.durationMs,
+			usage: outcome.trace.usage,
+		});
+	}
+
+	/**
+	 * Make the exact approved plan bytes the session's execution authority.
+	 *
+	 * The reviewed `planContent` is copied to a content-addressed session-local
+	 * snapshot (`local://approved/<sha256>-<name>`) that nothing else writes, and
+	 * that snapshot becomes the plan reference. Every later consumer — the
+	 * next-turn plan reference, post-compaction re-injection, a handoff that
+	 * names a path — then sees the approved bytes even when the agent-chosen
+	 * plan file changes afterwards. Returns the snapshot's `local://` URL.
+	 */
+	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		const sha256 = planContentSha256(plan.planContent);
+		const name = path.posix.basename(plan.planFilePath.replace(/^local:\/+/, "")) || "PLAN.md";
+		const url = `local://approved/${sha256}-${name}`;
+		const target = resolvePlanFilePath(url, {
+			localProtocolOptions: this.#localProtocolOptions(),
+			cwd: this.sessionManager.getCwd(),
+		});
+		await fs.promises.mkdir(path.dirname(target), { recursive: true });
+		try {
+			await fs.promises.writeFile(target, plan.planContent, { flag: "wx" });
+		} catch (error) {
+			if (!isEexist(error)) throw error;
+			if ((await Bun.file(target).text()) !== plan.planContent) {
+				throw new ToolError(`Approved plan snapshot ${url} does not hold the approved bytes.`);
+			}
+		}
+		this.setPlanReferencePath(url);
+		return url;
 	}
 
 	async #readPlanFile(planFilePath: string): Promise<string | null> {
@@ -1850,9 +2030,9 @@ export class AgentSession implements SettingsScope {
 			getPlanModeState: () => this.getPlanModeState(),
 			setPlanModeState: state => this.setPlanModeState(state),
 			getPlanReferencePath: () => this.getPlanReferencePath(),
+			adoptApprovedPlan: plan => this.adoptApprovedPlan(plan),
 			setPlanProposalHandler: handler => this.setPlanProposalHandler(handler),
 			waitForSessionMessagePersistence: message => this.#waitForSessionMessagePersistence(message),
-			localProtocolOptions: () => this.#localProtocolOptions(),
 		};
 		this.#prewalk = new PrewalkCoordinator(prewalkHost, {
 			prewalk: config.prewalk,
@@ -3639,6 +3819,13 @@ export class AgentSession implements SettingsScope {
 				this.agent.abort(TERMINAL_TOOL_RESULT_ABORT_REASON);
 			}
 		}
+		// Cursor runs its bridged calls outside the loop, so `#beforeToolCall` never sees
+		// them. Record before the bridge invokes the tool; this event precedes execution.
+		if (event.type === "tool_execution_start") {
+			const message = cursorBridgeMessage(event);
+			const toolCall = message?.content.find(block => block.type === "toolCall" && block.id === event.toolCallId);
+			if (message && toolCall?.type === "toolCall") this.#recordProposalPlanner(toolCall, message);
+		}
 		if (event.type !== "agent_end") {
 			const processing = this.#processAgentEvent(event);
 			if ((event.type === "message_start" || event.type === "message_end") && isAdvisorCard(event.message)) {
@@ -3646,6 +3833,7 @@ export class AgentSession implements SettingsScope {
 			}
 			return processing;
 		}
+		this.#proposalPlanners.clear();
 		const { promise, resolve } = Promise.withResolvers<void>();
 		this.#trackPostPromptTask(promise);
 		this.#inFlightAgentEndMaintenance.add(promise);
@@ -5199,6 +5387,20 @@ export class AgentSession implements SettingsScope {
 		}
 		return this.#ttsr.afterToolCall(ctx);
 	}
+	/** Records the proposing message as it stood when the call started. A Cursor message
+	 *  keeps streaming after its bridged calls start; later blocks never run (the bridge
+	 *  seals the request), so they must not change which message proposed. */
+	#recordProposalPlanner(toolCall: ToolCall, message: AssistantMessage): void {
+		if (isProposeToolCall(toolCall)) {
+			this.#proposalPlanners.set(toolCall.id, { ...message, content: message.content.slice() });
+		}
+	}
+	#takeProposalPlanner(toolCallId: string | undefined): AssistantMessage | undefined {
+		if (toolCallId === undefined) return undefined;
+		const planner = this.#proposalPlanners.get(toolCallId);
+		this.#proposalPlanners.delete(toolCallId);
+		return planner;
+	}
 	/**
 	 * Emits the extension `tool_call` event for a loop-dispatched call at
 	 * arg-prep time — before concurrency scheduling, `tool_execution_start`,
@@ -5210,6 +5412,9 @@ export class AgentSession implements SettingsScope {
 	 * execution still emit there).
 	 */
 	async #beforeToolCall(ctx: BeforeToolCallContext, signal?: AbortSignal): Promise<BeforeToolCallResult | undefined> {
+		// Record before any early return or await: plan review needs the exact message
+		// that proposed, even when TTSR or extensions short-circuit this hook.
+		this.#recordProposalPlanner(ctx.toolCall, ctx.assistantMessage);
 		const runner = this.#extensionRunner;
 		runner?.markLoopToolCall?.(ctx.toolCall.id, ctx.tool.name);
 		const ttsrResult = await this.#ttsr.beforeToolCall(ctx);
@@ -7013,6 +7218,7 @@ export class AgentSession implements SettingsScope {
 	}
 
 	setPlanModeState(state: PlanModeState | undefined): void {
+		if (state?.enabled !== this.#planModeState?.enabled) this.#planReviewRounds = 0;
 		this.#planModeState = state;
 		if (state?.enabled) {
 			this.#planReferenceSent = false;

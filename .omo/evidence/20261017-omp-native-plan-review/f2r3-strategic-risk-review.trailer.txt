@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: Once reviewed bytes become execution authority, no agent-visible write path can replace them before or during later ACP, plan-yolo, or post-compaction consumption
+  positive_witness: snapshot A rejects a later write, every subsequent reference or handoff still reads A, and its digest equals the plan-review audit hash
+  negative_control: write local://approved/<hash>-<name> replaces A with B after adoption and a later execution context reads B while audit still records A; this MUST fail
+  observable: overwrite tool result, snapshot bytes after attempted mutation, injected or handed-off bytes, and plan-review audit digest
+  boundary: local protocol write authorization plus AgentSession plan-reference and Prewalk plan-yolo consumption
+END-REVIEW-TRAILER

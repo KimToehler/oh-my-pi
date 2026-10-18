@@ -16,7 +16,14 @@ import {
 	AcpAgent,
 	createAcpExtensionUiContext,
 } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
+import {
+	planContentSha256,
+	type ResolvedApprovedPlan,
+	resolveApprovedPlan,
+} from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import { listPlanFiles, readPlanFile } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
 import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
+import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import type {
 	AgentSession,
 	AgentSessionEvent,
@@ -383,13 +390,13 @@ class FakeAgentSession {
 		this.planModeState = state;
 	}
 
-	planProposalHandler: ((title: string) => Promise<unknown> | unknown) | undefined;
+	planProposalHandler: PlanProposalHandler | undefined;
 
-	setPlanProposalHandler(handler: ((title: string) => Promise<unknown> | unknown) | null): void {
+	setPlanProposalHandler(handler: PlanProposalHandler | null): void {
 		this.planProposalHandler = handler ?? undefined;
 	}
 
-	peekPlanProposalHandler(): ((title: string) => Promise<unknown> | unknown) | undefined {
+	peekPlanProposalHandler(): PlanProposalHandler | undefined {
 		return this.planProposalHandler;
 	}
 
@@ -397,6 +404,14 @@ class FakeAgentSession {
 
 	setPlanReferencePath(path: string): void {
 		this.planReferencePath = path;
+	}
+
+	adoptedPlans: ResolvedApprovedPlan[] = [];
+
+	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		this.adoptedPlans.push(plan);
+		this.planReferencePath = `local://approved/${plan.planFilePath.replace("local://", "")}`;
+		return this.planReferencePath;
 	}
 
 	getToolByName(_name: string): undefined {
@@ -441,6 +456,34 @@ class FakeAgentSession {
 		this.agent.sessionId = this.sessionId;
 		return true;
 	}
+}
+
+/**
+ * Resolve the plan the way `AgentSession.submitPlanProposal` does, then call the installed ACP handler.
+ * `reviewed` stands in for a completed cross-family review, which binds the resolved bytes.
+ */
+async function proposePlan(
+	session: FakeAgentSession,
+	title: string,
+	options: { reviewed?: boolean } = {},
+): Promise<unknown> {
+	const handler = session.planProposalHandler;
+	const state = session.planModeState;
+	if (!handler || !state?.enabled) throw new Error("expected ACP plan mode with a proposal handler");
+	const planPathOptions = {
+		localProtocolOptions: {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		},
+		cwd: session.sessionManager.getCwd(),
+	};
+	const plan = await resolveApprovedPlan({
+		suppliedTitle: title,
+		statePlanFilePath: state.planFilePath,
+		readPlan: url => readPlanFile(url, planPathOptions),
+		listPlanFiles: () => listPlanFiles(planPathOptions),
+	});
+	return handler(options.reviewed ? { ...plan, reviewedSha256: planContentSha256(plan.planContent) } : plan);
 }
 
 function holdPromptStreaming(session: FakeAgentSession): () => void {
@@ -729,27 +772,6 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
-	it("plan-proposal handler errors when the plan file is missing", async () => {
-		const harness = await createHarness();
-		cfgPlanEnabled.set(Settings.instance, true);
-
-		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
-		const session = harness.findSession(created.sessionId)!;
-		await harness.agent.setSessionMode({ sessionId: created.sessionId, modeId: "plan" });
-
-		const handler = session.planProposalHandler;
-
-		// No plan file written → handler surfaces a ToolError telling the
-		// agent to write the plan before requesting approval.
-		await expect(handler!("demo")).rejects.toThrow(/Plan file not found/);
-		// Plan mode must remain active so the agent can recover.
-		expect(session.planModeState?.enabled).toBe(true);
-		expect(typeof session.planProposalHandler).toBe("function");
-
-		harness.abortController.abort();
-		await Bun.sleep(0);
-	});
-
 	it("plan-proposal handler approves the agent-named plan and exits plan mode on submit", async () => {
 		const harness = await createHarness();
 		cfgPlanEnabled.set(Settings.instance, true);
@@ -769,8 +791,7 @@ describe("ACP agent", () => {
 		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
 
 		const updatesBefore = harness.updates.length;
-		const handler = session.planProposalHandler!;
-		const result = (await handler("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 			details: { planFilePath: string; title: string; planExists: boolean };
 		};
@@ -786,6 +807,7 @@ describe("ACP agent", () => {
 		expect(session.planModeState).toBeUndefined();
 		expect(session.planProposalHandler).toBeUndefined();
 		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		expect(session.adoptedPlans).toEqual([]);
 		const approvalUpdates = harness.updates.slice(updatesBefore);
 		// Mode-change notifications reached the client so Zed's UI and config
 		// selector both reflect the approval-driven exit.
@@ -810,6 +832,26 @@ describe("ACP agent", () => {
 		harness.abortController.abort();
 		await Bun.sleep(0);
 	});
+
+	it("plan-proposal handler executes a reviewed plan from its snapshot and names that snapshot", async () => {
+		const harness = await createHarness();
+		const { session } = await enterPlanWithPlanFile(harness);
+
+		const result = (await proposePlan(session, "words-counter", { reviewed: true })) as {
+			content: Array<{ type: string; text: string }>;
+			details: { planFilePath: string };
+		};
+
+		expect(session.adoptedPlans.map(plan => plan.planContent)).toEqual(["# Words Counter\n\nFile contents."]);
+		const snapshotUrl = session.planReferencePath ?? "";
+		expect(snapshotUrl).not.toBe("local://words-counter-plan.md");
+		expect(result.content[0]?.text).toContain(snapshotUrl);
+		expect(result.details.planFilePath).toBe("local://words-counter-plan.md");
+
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
 	it("plan-proposal handler autosaves the approved plan without leaking the path", async () => {
 		const harness = await createHarness();
 		cfgPlanEnabled.set(Settings.instance, true);
@@ -827,8 +869,7 @@ describe("ACP agent", () => {
 		const planPath = resolveLocalUrlToPath("local://words-counter-plan.md", localOptions);
 		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
 
-		const handler = session.planProposalHandler!;
-		const result = (await handler("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 			details: { planFilePath: string; title: string; planExists: boolean };
 		};
@@ -865,8 +906,7 @@ describe("ACP agent", () => {
 		const planPath = resolveLocalUrlToPath("local://words-counter-plan.md", localOptions);
 		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
 
-		const handler = session.planProposalHandler!;
-		const result = (await handler("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 		};
 		const text = result.content[0]?.text ?? "";
@@ -906,8 +946,9 @@ describe("ACP agent", () => {
 		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
 
 		const updatesBefore = harness.updates.length;
-		const handler = session.planProposalHandler!;
-		const result = (await handler("words-counter")) as { content: Array<{ type: string; text: string }> };
+		const result = (await proposePlan(session, "words-counter")) as {
+			content: Array<{ type: string; text: string }>;
+		};
 
 		expect(result.content[0]?.text).toMatch(/refinement requested/i);
 		// Plan file stays put; no rename, no write-access grant.
@@ -917,6 +958,7 @@ describe("ACP agent", () => {
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(typeof session.planProposalHandler).toBe("function");
 		expect(session.planReferencePath).toBeUndefined();
+		expect(session.adoptedPlans).toEqual([]);
 		// No mode-exit notifications were emitted.
 		const postDismissUpdates = harness.updates.slice(updatesBefore);
 		expect(
@@ -975,7 +1017,7 @@ describe("ACP agent", () => {
 		});
 		const { session, planPath } = await enterPlanWithPlanFile(harness);
 
-		const result = (await session.planProposalHandler!("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 		};
 
@@ -1002,7 +1044,7 @@ describe("ACP agent", () => {
 		});
 		const { session, planPath } = await enterPlanWithPlanFile(harness);
 
-		await session.planProposalHandler!("words-counter");
+		await proposePlan(session, "words-counter");
 
 		const toolCalls = updatesAtElicit
 			.map(notification => notification.update)
@@ -1030,7 +1072,7 @@ describe("ACP agent", () => {
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
-		const result = (await session.planProposalHandler!("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 		};
 
@@ -1058,7 +1100,7 @@ describe("ACP agent", () => {
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
-		const result = (await session.planProposalHandler!("words-counter")) as {
+		const result = (await proposePlan(session, "words-counter")) as {
 			content: Array<{ type: string; text: string }>;
 		};
 
@@ -1081,7 +1123,7 @@ describe("ACP agent", () => {
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
-		await session.planProposalHandler!("words-counter");
+		await proposePlan(session, "words-counter");
 
 		expect(planApprovalField(requests[0]).default).toBe("approve:default");
 
@@ -1100,7 +1142,7 @@ describe("ACP agent", () => {
 		session.roleModelCycle = TWO_TIERS;
 
 		for (let attempt = 0; attempt < 3; attempt++) {
-			const result = (await session.planProposalHandler!("words-counter")) as {
+			const result = (await proposePlan(session, "words-counter")) as {
 				content: Array<{ type: string; text: string }>;
 			};
 			expect(result.content[0]?.text).toMatch(/refinement requested/i);

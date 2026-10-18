@@ -44,6 +44,45 @@ describe("bundled agent parsing", () => {
 		).toBe(true);
 	});
 
+	// The plan-review runtime spawns this agent with plan-mode tool forcing and reads the verdict
+	// from its structured output; a widened tool list or a schema that accepts any verdict would
+	// let the reviewer write files or slip an unknown verdict past the outcome rules.
+	it("parses plan-reviewer as a read-only agent whose output schema only accepts OKAY or REJECT", () => {
+		const planReviewer = getBundledAgent("plan-reviewer");
+		expect(planReviewer?.tools).toEqual(["read", "grep", "glob"]);
+
+		const built = buildOutputValidator(planReviewer?.output);
+		expect(built.error).toBeUndefined();
+		const validator = built.validator;
+		if (!validator) throw new Error("plan-reviewer output schema must build a validator");
+
+		expect(
+			validator.validate({
+				verdict: "REJECT",
+				summary: "Plan claims a symbol that does not exist",
+				blockers: [
+					{
+						area: "correctness",
+						defect: "cited function is missing",
+						evidence: "src/a.ts:10",
+						change: "cite the real function",
+					},
+				],
+				notes: ["unverified: runtime ordering"],
+			}).success,
+		).toBe(true);
+		expect(validator.validate({ verdict: "OKAY", summary: "No evidenced blocker" }).success).toBe(true);
+		expect(validator.validate({ verdict: "MAYBE", summary: "x" }).success).toBe(false);
+		// A blocker without evidence is not a blocker: the schema requires every field.
+		expect(
+			validator.validate({
+				verdict: "REJECT",
+				summary: "x",
+				blockers: [{ area: "correctness", defect: "d", change: "c" }],
+			}).success,
+		).toBe(false);
+	});
+
 	// Issue #4761: with `modelRoles.slow: ...:xhigh`, the role's explicit effort
 	// suffix must survive agent-pattern expansion and model resolution for the
 	// bundled agents routed at that role. The executor prefers an explicit

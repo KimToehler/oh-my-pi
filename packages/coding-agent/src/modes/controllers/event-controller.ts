@@ -33,6 +33,7 @@ import { createUsageRowBlock, TurnUsageTally, turnElapsedMs } from "@oh-my-pi/pi
 import { appKey } from "@oh-my-pi/pi-tui/chrome/keybinding-hints";
 import { getSymbolTheme, theme } from "@oh-my-pi/pi-tui/theme";
 import type { InteractiveModeContext } from "../../modes/types";
+import { isPlanApprovalDetails } from "../../plan-mode/approved-plan";
 import type { TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import idleRecapPrompt from "../../prompts/system/recap-user.md" with { type: "text" };
 import type { AgentSessionEvent } from "../../session/agent-session";
@@ -2220,16 +2221,7 @@ export class EventController {
 			const dispatch = writeDeviceDispatch(event.toolName, event.result);
 			const details =
 				dispatch?.tool === PROPOSE_DEVICE_NAME && dispatch.mode === "execute" ? dispatch.inner : undefined;
-			if (
-				details &&
-				typeof details === "object" &&
-				"planFilePath" in details &&
-				"title" in details &&
-				"planExists" in details &&
-				typeof details.planFilePath === "string" &&
-				typeof details.title === "string" &&
-				typeof details.planExists === "boolean"
-			) {
+			if (isPlanApprovalDetails(details)) {
 				// Dispatch the approval WITHOUT blocking the serialized event
 				// dispatch chain. `handlePlanApproval` -> `#approvePlan` awaits
 				// `session.prompt` for the ENTIRE approved-execution turn; awaiting
@@ -2247,6 +2239,7 @@ export class EventController {
 						planFilePath: details.planFilePath,
 						title: details.title,
 						planExists: details.planExists,
+						...(details.planSha256 !== undefined ? { planSha256: details.planSha256 } : {}),
 					})
 					.catch(err => {
 						logger.warn("Plan approval dispatch failed", {

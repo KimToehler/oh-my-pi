@@ -2424,6 +2424,8 @@ export interface SingleResult {
 	index: number;
 	id: string;
 	agent: string;
+	/** Distinct provider/model/upstreamModel of every successful assistant turn the child emitted, in first-seen order. Omitted when no turn produced output. */
+	answeringModels?: Array<{ provider: string; model: string; upstreamModel?: string }>;
 	agentSource: AgentSource;
 	task: string;
 	assignment?: string;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+	abortReasonText,
 	type AgentEvent,
 	type AgentTool,
 	type AgentToolContext,
@@ -13,6 +14,8 @@ import {
 	validateAgentToolArguments,
 } from "@oh-my-pi/pi-agent-core";
 import type {
+	AssistantMessage,
+	CursorExecProvenance,
 	CursorMcpCall,
 	CursorMcpResource,
 	CursorMcpResourceContent,
@@ -37,6 +40,7 @@ import { sanitizeText } from "@oh-my-pi/pi-utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
 import type { MCPResourceReadResult } from "./mcp/types";
 import { resolveApproval, resolveApprovalFromContext } from "./tools/approval";
+import { isProposeToolCall, writeDeviceDispatch } from "./tools/resolve";
 import {
 	confineToWorkspace,
 	resolveReadPathAsync,
@@ -151,6 +155,32 @@ interface CursorExecBridgeOptions {
 	 * which is indistinguishable from a server that advertises nothing.
 	 */
 	mcpResources?: CursorMcpResourceAdapter;
+	/**
+	 * Cancellation of the provider request whose frames this bridge answers.
+	 *
+	 * Bridged calls run outside the agent loop, so the turn's abort reaches the
+	 * tools they run only through this: every executed tool receives it as its
+	 * `execute` signal, and a call arriving after it fired never starts. Bind it
+	 * per request with {@link bindCursorExecSignal}; unset, calls cannot be
+	 * cancelled.
+	 */
+	signal?: AbortSignal;
+}
+
+/**
+ * Hand a request's bridge to the provider bound to that request's signal.
+ *
+ * The bridge is built once per session, while each provider request carries
+ * its own signal. Stream wrappers call this with the options they forward, so
+ * the handlers the provider dispatches into stop with the request they serve
+ * and share that request's proposal barrier ({@link ProposalBarrier}).
+ * Handlers that are not this bridge pass through unchanged.
+ */
+export function bindCursorExecSignal(
+	handlers: ICursorExecHandlers | undefined,
+	signal: AbortSignal | undefined,
+): ICursorExecHandlers | undefined {
+	return handlers instanceof CursorExecHandlers ? handlers.withSignal(signal) : handlers;
 }
 
 /**
@@ -278,24 +308,136 @@ function buildToolErrorResult(message: string): AgentToolResult<unknown> {
 	};
 }
 
+/**
+ * The refusal for a call whose request was cancelled before it could start.
+ * Same wording as the agent loop's own pre-execution abort, so both channels
+ * read alike; no start/end events are emitted for it, since nothing ran.
+ */
+function refuseAbortedCall(signal: AbortSignal, toolCallId: string, toolName: string): ToolResultMessage {
+	const text = `Tool was not executed because the run was aborted: ${abortReasonText(signal)}.`;
+	return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(text), true);
+}
+
+/**
+ * Finality of a plan proposal within one provider request.
+ *
+ * The agent loop runs `xd://propose` only as the last call of a finished
+ * message, so nothing the model emitted after it ever executes. Cursor runs
+ * calls while the message is still streaming, so the same guarantee needs an
+ * explicit gate: once a proposal starts, every later host call of the same
+ * request is refused before it starts. One barrier per provider request —
+ * {@link CursorExecHandlers.withSignal} mints a fresh one — so a proposal
+ * never blocks a different request.
+ *
+ * Finality belongs to a handoff, not to the attempt: once the proposal's
+ * result settles as a failure or a review REJECT, the plan is back in the
+ * model's hands and the same response may refine it and propose again (see
+ * {@link ProposalBarrier.settle}).
+ */
+class ProposalBarrier {
+	#proposalCallId: string | undefined;
+
+	/** `sealable: false` is the session-wide root bridge, which serves no single request. */
+	constructor(readonly sealable: boolean) {}
+
+	/** Why a call arriving now must not start, or null while no proposal has started. */
+	get sealedReason(): string | null {
+		if (this.#proposalCallId === undefined) return null;
+		return `Tool was not executed: plan proposal ${this.#proposalCallId} already ended this response. Wait for its result.`;
+	}
+
+	/** Refusal for a call arriving after this request's proposal started, else null. */
+	refusal(toolCallId: string, toolName: string): ToolResultMessage | null {
+		const reason = this.sealedReason;
+		return reason === null ? null : createToolResultMessage(toolCallId, toolName, buildToolErrorResult(reason), true);
+	}
+
+	/** Seal the request when `toolName(args)` is a plan proposal. Call right before it starts. */
+	observe(toolCallId: string, toolName: string, args: Record<string, unknown>): void {
+		if (this.sealable && isProposeToolCall({ name: toolName, arguments: args })) this.#proposalCallId ??= toolCallId;
+	}
+
+	/**
+	 * Settle the sealing proposal with its finished result. Only an outcome that
+	 * asks for refinement reopens the request; every other result — approval,
+	 * a handoff, or a shape this cannot tell apart from one — stays final.
+	 */
+	settle(result: ToolResultMessage): void {
+		if (this.#proposalCallId === result.toolCallId && awaitsPlanRefinement(result)) {
+			this.#proposalCallId = undefined;
+		}
+	}
+}
+
+/**
+ * Whether a settled proposal handed the plan back to the model: it failed, or
+ * its review blocked it with a REJECT (`AgentSession.submitPlanProposal`).
+ */
+function awaitsPlanRefinement(result: ToolResultMessage): boolean {
+	if (result.isError) return true;
+	const inner = writeDeviceDispatch(result.toolName, result)?.inner;
+	if (!inner || typeof inner !== "object" || !("planReview" in inner)) return false;
+	const review = inner.planReview;
+	return !!review && typeof review === "object" && "outcome" in review && review.outcome === "reject";
+}
+
+/**
+ * Carries the provider's live assistant message on the bridge's own
+ * `tool_execution_start`. Bridged calls bypass the agent loop's
+ * `beforeToolCall`, so this is how the session learns which message made one.
+ */
+const kCursorBridgeMessage = Symbol("cursor.bridge.message");
+
+type ToolExecutionStartEvent = Extract<AgentEvent, { type: "tool_execution_start" }>;
+type BridgedToolExecutionStart = ToolExecutionStartEvent & { [kCursorBridgeMessage]?: AssistantMessage };
+
+/** The provider message a bridged `tool_execution_start` executes under, when the provider proved it. */
+export function cursorBridgeMessage(event: ToolExecutionStartEvent): AssistantMessage | undefined {
+	return (event as BridgedToolExecutionStart)[kCursorBridgeMessage];
+}
+
+/** The provider's message for a call, only when it holds the block filed under `toolCallId`. */
+function provenMessage(call: CursorExecProvenance, toolCallId: string): AssistantMessage | undefined {
+	const holdsCall = call.message?.content.some(block => block.type === "toolCall" && block.id === toolCallId);
+	return holdsCall ? call.message : undefined;
+}
+
+/** The bridge options plus the barrier of the provider request a call belongs to. */
+interface CursorRequestScope extends CursorExecBridgeOptions {
+	barrier: ProposalBarrier;
+}
+
+interface ExecuteToolExtras {
+	/** Runs instead of the registry tool (scoped grep, replace-mode edit). */
+	tool?: CursorBridgeTool;
+	/** Provider message holding this call's block; attached only when it does. */
+	message?: AssistantMessage;
+}
+
 async function executeTool(
-	options: CursorExecBridgeOptions,
+	options: CursorRequestScope,
 	toolName: string,
 	toolCallId: string,
 	args: Record<string, unknown>,
-	overrideTool?: CursorBridgeTool,
+	extras: ExecuteToolExtras = {},
 ): Promise<ToolResultMessage> {
-	const tool = overrideTool ?? options.getExecutableTool?.(toolName) ?? options.tools.get(toolName);
+	const tool = extras.tool ?? options.getExecutableTool?.(toolName) ?? options.tools.get(toolName);
 	if (!tool) {
 		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 		return createToolResultMessage(toolCallId, toolName, result, true);
 	}
+	if (options.signal?.aborted) return refuseAbortedCall(options.signal, toolCallId, toolName);
+	const sealed = options.barrier.refusal(toolCallId, toolName);
+	if (sealed) return sealed;
 
 	// Same rule as synthesizeCursorExecToolCall: optional kwargs must be absent,
 	// not `undefined`, or ArkType validation rejects the call.
 	const toolArgs = omitUndefinedArgs(args);
+	options.barrier.observe(toolCallId, toolName, toolArgs);
 
-	options.emitEvent?.({ type: "tool_execution_start", toolCallId, toolName, args: toolArgs });
+	const start: BridgedToolExecutionStart = { type: "tool_execution_start", toolCallId, toolName, args: toolArgs };
+	if (extras.message) start[kCursorBridgeMessage] = extras.message;
+	options.emitEvent?.(start);
 
 	let result: AgentToolResult<unknown>;
 	let isError = false;
@@ -324,7 +466,7 @@ async function executeTool(
 			name: toolName,
 			arguments: toolArgs,
 		});
-		result = await tool.execute(toolCallId, validatedArgs, undefined, onUpdate, bridgeContext.context);
+		result = await tool.execute(toolCallId, validatedArgs, options.signal, onUpdate, bridgeContext.context);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		result = buildToolErrorResult(message);
@@ -338,7 +480,9 @@ async function executeTool(
 	};
 	options.emitEvent?.({ type: "tool_execution_end", toolCallId, toolName, result: sanitizedFinalResult, isError });
 
-	return bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+	const message = bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+	options.barrier.settle(message);
+	return message;
 }
 
 function allowsDirectFileMutation(options: CursorExecBridgeOptions): boolean {
@@ -368,13 +512,15 @@ function refuseByWritePolicy(options: CursorExecBridgeOptions, toolName: string,
 		: `Tool "${toolName}" requires approval, which this channel cannot request.`;
 }
 
-async function executeDelete(options: CursorExecBridgeOptions, pathArg: string, toolCallId: string) {
+async function executeDelete(options: CursorRequestScope, pathArg: string, toolCallId: string) {
 	const toolName = "delete";
 
 	if (!allowsDirectFileMutation(options)) {
 		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 		return createToolResultMessage(toolCallId, toolName, result, true);
 	}
+	const sealed = options.barrier.refusal(toolCallId, toolName);
+	if (sealed) return sealed;
 
 	// Unlike every other frame, this one mutates the filesystem directly instead
 	// of running a registry tool, so no approval wrapper sits in front of it.
@@ -521,7 +667,24 @@ function buildTodoSyncResult(
 }
 
 export class CursorExecHandlers implements ICursorExecHandlers {
-	constructor(private options: CursorExecBridgeOptions) {}
+	readonly #request: CursorRequestScope;
+
+	/** `request` marks a bridge bound to one provider request; only those seal on a proposal. */
+	constructor(
+		private options: CursorExecBridgeOptions,
+		request = false,
+	) {
+		this.#request = { ...options, barrier: new ProposalBarrier(request) };
+	}
+
+	/**
+	 * This bridge for one provider request: every call is bound to `signal`
+	 * (see {@link CursorExecBridgeOptions.signal}) and to a proposal barrier of
+	 * its own, so a request's proposal never seals another request.
+	 */
+	withSignal(signal: AbortSignal | undefined): CursorExecHandlers {
+		return new CursorExecHandlers({ ...this.options, signal }, true);
+	}
 
 	/**
 	 * Modern Cursor builds paginate the legacy `read` frame with
@@ -541,13 +704,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.options, "read", toolCallId, { path: composed });
+		return await executeTool(this.#request, "read", toolCallId, { path: composed });
 	}
 
 	async ls(args: Parameters<NonNullable<ICursorExecHandlers["ls"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		// Redirect ls to read tool, which handles directories
-		const toolResultMessage = await executeTool(this.options, "read", toolCallId, { path: args.path });
+		const toolResultMessage = await executeTool(this.#request, "read", toolCallId, { path: args.path });
 		return toolResultMessage;
 	}
 
@@ -565,7 +728,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			contextAfter: args.contextAfter ?? args.context ?? 0,
 		});
 		const toolResultMessage = await executeTool(
-			this.options,
+			this.#request,
 			"grep",
 			toolCallId,
 			{
@@ -574,7 +737,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				case: args.caseInsensitive === true ? false : undefined,
 				skip: piGrepSkip(args.offset),
 			},
-			scoped,
+			{ tool: scoped },
 		);
 		return toolResultMessage;
 	}
@@ -582,23 +745,26 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async write(args: Parameters<NonNullable<ICursorExecHandlers["write"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const content = args.fileText ?? new TextDecoder().decode(args.fileBytes ?? new Uint8Array());
-		const toolResultMessage = await executeTool(this.options, "write", toolCallId, {
-			path: args.path,
-			content,
-		});
+		const toolResultMessage = await executeTool(
+			this.#request,
+			"write",
+			toolCallId,
+			{ path: args.path, content },
+			{ message: provenMessage(args, toolCallId) },
+		);
 		return toolResultMessage;
 	}
 
 	async delete(args: Parameters<NonNullable<ICursorExecHandlers["delete"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeDelete(this.options, args.path, toolCallId);
+		const toolResultMessage = await executeDelete(this.#request, args.path, toolCallId);
 		return toolResultMessage;
 	}
 
 	async shell(args: Parameters<NonNullable<ICursorExecHandlers["shell"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const timeoutSeconds = shellDeadlineSeconds(args);
-		const toolResultMessage = await executeTool(this.options, "bash", toolCallId, {
+		const toolResultMessage = await executeTool(this.#request, "bash", toolCallId, {
 			command: args.command,
 			cwd: args.workingDirectory || undefined,
 			timeout: timeoutSeconds,
@@ -617,6 +783,10 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			const result = buildToolErrorResult(`Tool "${toolName}" not available`);
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
+		const signal = this.options.signal;
+		if (signal?.aborted) return refuseAbortedCall(signal, toolCallId, toolName);
+		const sealed = this.#request.barrier.refusal(toolCallId, toolName);
+		if (sealed) return sealed;
 
 		const timeoutSeconds = shellDeadlineSeconds(args);
 		const toolArgs = omitUndefinedArgs({
@@ -677,7 +847,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				name: toolName,
 				arguments: toolArgs,
 			});
-			result = await tool.execute(toolCallId, validatedArgs, undefined, onUpdate, bridgeContext.context);
+			result = await tool.execute(toolCallId, validatedArgs, signal, onUpdate, bridgeContext.context);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			result = buildToolErrorResult(message);
@@ -716,7 +886,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	async diagnostics(args: Parameters<NonNullable<ICursorExecHandlers["diagnostics"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeTool(this.options, "lsp", toolCallId, {
+		const toolResultMessage = await executeTool(this.#request, "lsp", toolCallId, {
 			action: "diagnostics",
 			file: args.path,
 		});
@@ -747,11 +917,11 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(call.toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.options, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
+		return await executeTool(this.#request, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
 	}
 
 	async piBash(call: Parameters<NonNullable<ICursorExecHandlers["piBash"]>>[0]) {
-		return await executeTool(this.options, "bash", call.toolCallId, {
+		return await executeTool(this.#request, "bash", call.toolCallId, {
 			command: call.args.command,
 			timeout: piTimeout(call.args.timeout),
 		});
@@ -772,14 +942,19 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async piEdit(call: Parameters<NonNullable<ICursorExecHandlers["piEdit"]>>[0]) {
 		const edits = call.args.edits.map(edit => ({ old_string: edit.oldText, new_string: edit.newText }));
 		const args = edits.length === 1 ? { path: call.args.path, ...edits[0] } : { path: call.args.path, edits };
-		return await executeTool(this.options, "edit", call.toolCallId, args, this.options.getEditReplaceTool?.());
+		return await executeTool(this.#request, "edit", call.toolCallId, args, {
+			tool: this.options.getEditReplaceTool?.(),
+		});
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
-		return await executeTool(this.options, "write", call.toolCallId, {
-			path: call.args.path,
-			content: call.args.content,
-		});
+		return await executeTool(
+			this.#request,
+			"write",
+			call.toolCallId,
+			{ path: call.args.path, content: call.args.content },
+			{ message: provenMessage(call, call.toolCallId) },
+		);
 	}
 
 	/**
@@ -804,7 +979,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		// path spec, and its `case` flag is case-SENSITIVITY, the inverse of the
 		// frame's `ignore_case`.
 		return await executeTool(
-			this.options,
+			this.#request,
 			"grep",
 			call.toolCallId,
 			{
@@ -812,7 +987,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				path: glob ? piJoinPath(path, glob) : path || ".",
 				case: ignoreCase === true ? false : undefined,
 			},
-			scoped,
+			{ tool: scoped },
 		);
 	}
 
@@ -827,7 +1002,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 */
 	async piFind(call: Parameters<NonNullable<ICursorExecHandlers["piFind"]>>[0]) {
 		const { pattern, path, limit } = call.args;
-		return await executeTool(this.options, "glob", call.toolCallId, {
+		return await executeTool(this.#request, "glob", call.toolCallId, {
 			path: piJoinPath(path, pattern),
 			limit: piLimit(limit),
 		});
@@ -838,7 +1013,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 * The frame's entry `limit` is not mapped; see {@link piLsPath}.
 	 */
 	async piLs(call: Parameters<NonNullable<ICursorExecHandlers["piLs"]>>[0]) {
-		return await executeTool(this.options, "read", call.toolCallId, { path: piLsPath(call.args.path) });
+		return await executeTool(this.#request, "read", call.toolCallId, { path: piLsPath(call.args.path) });
 	}
 
 	/**
@@ -900,6 +1075,8 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			}
 			const refusal = refuseByWritePolicy(this.options, "write", downloadPath);
 			if (refusal) throw new Error(refusal);
+			const sealed = this.#request.barrier.sealedReason;
+			if (sealed) throw new Error(sealed);
 		}
 		const mcp = this.options.mcpResources;
 		if (!mcp) return null;
@@ -1053,7 +1230,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				const message = formatMcpToolErrorMessage(toolName, availableTools);
 				return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(message), true);
 			}
-			return await executeTool(this.options, "edit", toolCallId, normalizeCursorReplaceArgs(args), replaceTool);
+			return await executeTool(this.#request, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
+				tool: replaceTool,
+			});
 		}
 		const tool = this.options.getExecutableTool?.(toolName) ?? this.options.tools.get(toolName);
 		if (!tool) {
@@ -1063,7 +1242,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
 
-		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args);
+		const toolResultMessage = await executeTool(this.#request, toolName, toolCallId, args, {
+			message: provenMessage(call, toolCallId),
+		});
 		return toolResultMessage;
 	}
 

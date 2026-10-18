@@ -2628,10 +2628,12 @@ async function handleExecServerMessage(
 				});
 			}
 			const write = execHandlers?.write?.bind(execHandlers);
+			// An edit-owned write materializes a StrReplace: its block is the
+			// `edit`, so the live message proves nothing about a `write` call.
 			const writeHandler = write
 				? async (writeArgs: typeof args) => {
-						const result = await write(writeArgs);
-						return editOwned ? remapExecHandlerToolName(result, "edit") : result;
+						if (editOwned) return remapExecHandlerToolName(await write(writeArgs), "edit");
+						return await write({ ...writeArgs, message: output });
 					}
 				: undefined;
 			const { execResult } = await resolveExecHandler(
@@ -2832,7 +2834,7 @@ async function handleExecServerMessage(
 				}
 			}
 			const { execResult } = await resolveExecHandler(
-				mcpCall,
+				execHandlers?.mcp ? { ...mcpCall, message: output } : mcpCall,
 				execHandlers?.mcp?.bind(execHandlers),
 				onToolResult,
 				toolResult => buildMcpResultFromToolResult(mcpCall, toolResult),
@@ -3095,7 +3097,7 @@ async function handleExecServerMessage(
 				content: args.content,
 			});
 			const { execResult } = await resolveExecHandler(
-				{ args, toolCallId },
+				{ args, toolCallId, message: output },
 				execHandlers?.piWrite?.bind(execHandlers),
 				onToolResult,
 				buildPiWriteResult,

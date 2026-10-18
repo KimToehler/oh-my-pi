@@ -263,6 +263,25 @@ describe("InteractiveMode plan.defaultOnStartup", () => {
 		expect(resolveXdevTool(xdev, mcpTool.name)).toBeDefined();
 	});
 
+	it("answers a propose with the resolved plan's approval details for the interactive review", async () => {
+		const created = createHarness(Settings.isolated({ "plan.defaultOnStartup": true, "compaction.enabled": false }));
+		await created.init({ suppressWelcomeIntro: true });
+		const planPath = resolveLocalUrlToPath("local://auth-flow-plan.md", {
+			getArtifactsDir: () => session!.sessionManager.getArtifactsDir(),
+			getSessionId: () => session!.sessionManager.getSessionId(),
+		});
+		await Bun.write(planPath, "# Auth flow\n\nSteps.");
+
+		const result = await session!.submitPlanProposal("auth-flow");
+
+		expect(result.details).toEqual({
+			planFilePath: "local://auth-flow-plan.md",
+			title: "auth-flow",
+			planExists: true,
+		});
+		expect(created.planModeEnabled).toBe(true);
+	});
+
 	it("keeps MCP tools discovered after startup when approving the plan", async () => {
 		const planFilePath = "local://PLAN.md";
 		const created = createHarness(Settings.isolated({ "plan.defaultOnStartup": true, "compaction.enabled": false }));

@@ -1,15 +1,29 @@
-import { afterEach, describe, expect, it, vi } from "bun:test";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Api, AssistantMessage, Model } from "@oh-my-pi/pi-ai";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentTool, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type {
+	Api,
+	AssistantMessage,
+	AssistantMessageEventStream,
+	Context,
+	Model,
+	SimpleStreamOptions,
+} from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
 import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type { RetryFallbackRole, ServingModel } from "@oh-my-pi/pi-coding-agent/session/retry-fallback-chains";
 import { TurnRecovery, type TurnRecoveryHost } from "@oh-my-pi/pi-coding-agent/session/turn-recovery";
 import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import type { AgentProgress } from "@oh-my-pi/pi-tui/tools/task";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createSessionDefaults } from "./helpers/session-defaults";
 
 import { cfgRetryFallbackChains } from "@oh-my-pi/pi-coding-agent/session/settings";
@@ -41,10 +55,14 @@ function model(provider: string, id: string): Model<Api> {
  * `fallback` picks what the target does with the switch it was handed:
  * - `"served"` settles a real turn on it, which moves attribution.
  * - `"unproven"` errors on its first request, producing none of the run's work.
+ *
+ * `turns` are finalized assistant messages broadcast as `message_end`: the
+ * `primary` ones before the fallback switch, the `fallback` ones after it.
  */
 function createYieldingSession(
 	fallback: "served" | "unproven" | "none" = "served",
 	beforeYield?: () => Promise<void>,
+	turns: { primary?: AssistantMessage[]; fallback?: AssistantMessage[] } = {},
 ): AgentSession {
 	const listeners: Array<(event: { type: string; [key: string]: unknown }) => void> = [];
 	const session = {
@@ -68,6 +86,9 @@ function createYieldingSession(
 				for (const listener of listeners) listener(event);
 			};
 			await beforeYield?.();
+			for (const message of turns.primary ?? []) {
+				emit({ type: "message_end", message });
+			}
 			if (fallback !== "none") {
 				session.model = model("fallback", "working-model");
 				emit({
@@ -80,6 +101,9 @@ function createYieldingSession(
 					session.servingModel = { selector: "fallback/working-model", isFallback: true };
 					emit({ type: "retry_fallback_succeeded", model: "fallback/working-model", role: "subagent:issue-2750" });
 				}
+			}
+			for (const message of turns.fallback ?? []) {
+				emit({ type: "message_end", message });
 			}
 			emit({
 				type: "tool_execution_end",
@@ -305,6 +329,115 @@ describe("subagent runtime model resolution", () => {
 			enableLsp: false,
 		});
 		expect(persisted).toEqual({ primary: "primary/bad-runtime-model", chain: ["fallback/working-model"] });
+	});
+
+	it("reports every model that answered across a served fallback, in first-seen order", async () => {
+		// Failure mode: a result naming only the final serving model hides the
+		// primary's successful turns, a gateway serving a different upstream model
+		// collapses into the requested id, and failed or empty turns leak in as
+		// answers. Every identity here is distinct from its neighbours so neither
+		// sorting nor last-wins ordering can reproduce the expected list.
+		const turn = (
+			provider: string,
+			id: string,
+			stopReason: AssistantMessage["stopReason"],
+			text: string | undefined,
+			upstreamModel?: string,
+		): AssistantMessage =>
+			({
+				role: "assistant",
+				provider,
+				model: id,
+				...(upstreamModel ? { upstreamModel } : {}),
+				content: text === undefined ? [] : [{ type: "text", text }],
+				stopReason,
+			}) as AssistantMessage;
+		vi.spyOn(sdkModule, "createAgentSession").mockImplementation(async () => {
+			return {
+				session: createYieldingSession("served", undefined, {
+					primary: [
+						turn("primary", "bad-runtime-model", "stop", "primary answer"),
+						// A failed turn keeps its partial block; it still never answered.
+						turn("primary", "errored-model", "error", "partial before the failure"),
+						turn("primary", "bad-runtime-model", "stop", "primary answer again"),
+					],
+					fallback: [
+						turn("fallback", "working-model", "stop", "routed answer", "vendor/served-model"),
+						turn("fallback", "aborted-model", "aborted", "partial before the abort"),
+						turn("fallback", "empty-model", "stop", undefined),
+						turn("fallback", "working-model", "stop", "direct answer"),
+						turn("fallback", "working-model", "stop", "routed answer again", "vendor/served-model"),
+					],
+				}),
+				extensionsResult: {},
+				setToolUIContext: () => {},
+			} as never;
+		});
+
+		const result = await runSubprocess({
+			cwd: "/tmp",
+			agent: { name: "task", description: "test", systemPrompt: "test", source: "bundled" },
+			task: "work",
+			index: 0,
+			id: "answering-models",
+			modelOverride: ["primary/bad-runtime-model", "fallback/working-model"],
+			settings: Settings.isolated({ modelRoles: { default: "primary/bad-runtime-model" } }),
+			modelRegistry: {
+				refresh: async () => {},
+				getAvailable: () => [model("primary", "bad-runtime-model"), model("fallback", "working-model")],
+				getApiKey: async () => "test-key",
+			} as never,
+			enableLsp: false,
+		});
+
+		expect(result.resolvedModelIsFallback).toBe(true);
+		expect(result.answeringModels).toEqual([
+			{ provider: "primary", model: "bad-runtime-model" },
+			{ provider: "fallback", model: "working-model", upstreamModel: "vendor/served-model" },
+			{ provider: "fallback", model: "working-model" },
+		]);
+	});
+
+	it("leaves answeringModels unset when no assistant turn produced output", async () => {
+		const primary = model("primary", "bad-runtime-model");
+		vi.spyOn(sdkModule, "createAgentSession").mockImplementation(async () => {
+			return {
+				session: createYieldingSession("none", undefined, {
+					primary: [
+						{
+							role: "assistant",
+							provider: "primary",
+							model: "bad-runtime-model",
+							content: [],
+							stopReason: "error",
+						} as unknown as AssistantMessage,
+					],
+				}),
+				extensionsResult: {},
+				setToolUIContext: () => {},
+			} as never;
+		});
+
+		const agent: AgentDefinition = { name: "task", description: "test", systemPrompt: "test", source: "bundled" };
+		const settings = Settings.isolated({});
+		settings.setModelRole("default", "primary/bad-runtime-model");
+		const result = await runSubprocess({
+			cwd: "/tmp",
+			agent,
+			task: "work",
+			index: 0,
+			id: "no-answering-models",
+			modelOverride: ["primary/bad-runtime-model"],
+			settings,
+			modelRegistry: {
+				refresh: async () => {},
+				getAvailable: () => [primary],
+				getApiKey: async () => "test-key",
+			} as never,
+			enableLsp: false,
+		});
+
+		expect(result.answeringModels).toBeUndefined();
 	});
 
 	it("does not attribute the run to a fallback that never served a turn", async () => {
@@ -709,4 +842,111 @@ describe("subagent runtime model resolution", () => {
 		expect(childModelPatternFallbackRole).toBe("subagent:issue-4421");
 		expect(childModelPatternDefaultFallbackChain).toEqual(["openai-codex/gpt-5.6-sol"]);
 	});
+});
+
+describe("subagent answering models with an advisor", () => {
+	let tempDir: TempDir;
+	let authStorage: AuthStorage | undefined;
+
+	beforeAll(() => {
+		tempDir = TempDir.createSync("@pi-answering-models-advisor-");
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		authStorage?.close();
+		authStorage = undefined;
+	});
+
+	afterAll(async () => {
+		await tempDir?.remove();
+	});
+
+	const tool = (name: string): AgentTool => ({
+		name,
+		label: name,
+		description: `${name} tool`,
+		parameters: type({}),
+		async execute() {
+			return { content: [{ type: "text", text: "ok" }], details: { status: "success", data: {} } };
+		},
+	});
+
+	it("excludes advisor review turns from the child's answering models", async () => {
+		// Failure mode: the advisor answers on its own model inside the child
+		// session; if its turns leaked into the child's event stream the result
+		// would credit a reviewer model with answering the assignment.
+		const primaryModel = getBundledModel("anthropic", "claude-sonnet-4-5");
+		if (!primaryModel) throw new Error("Expected bundled anthropic/claude-sonnet-4-5");
+		if (!getBundledModel("anthropic", "claude-opus-4-5"))
+			throw new Error("Expected bundled anthropic/claude-opus-4-5");
+		// Mock streams stamp their own identity on every turn, so each side needs
+		// a distinct one or an advisor leak would dedupe into the child's entry.
+		const primary = createMockModel({
+			provider: "child",
+			id: "child-model",
+			responses: [
+				{ content: ["inspecting", { type: "toolCall", name: "read", arguments: {} }] },
+				{ content: [{ type: "toolCall", name: "yield", arguments: {} }] },
+			],
+			handler: { content: ["done"] },
+		});
+		const advisor = createMockModel({
+			provider: "reviewer",
+			id: "reviewer-model",
+			handler: { content: ["review: looks fine"], stopReason: "stop" },
+		});
+		const advisorStreamFn = (
+			requestModel: Model<Api>,
+			context: Context,
+			options?: SimpleStreamOptions,
+		): AssistantMessageEventStream => advisor.stream(requestModel, context, options);
+		authStorage = await AuthStorage.create(":memory:");
+		authStorage.keys.setRuntime("anthropic", "test-key");
+		const registry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
+		let advisorActive = false;
+		vi.spyOn(sdkModule, "createAgentSession").mockImplementation(async options => {
+			if (!options?.sessionManager) throw new Error("Expected child history");
+			const tools = [tool("read"), tool("yield")];
+			const settings = Settings.isolated({
+				"compaction.enabled": false,
+				"todo.enabled": false,
+				// The review of each boundary lands before the child's loop moves on,
+				// so the advisor answers while the run monitor is still attached.
+				"advisor.syncBacklog": "strict",
+			});
+			settings.setModelRole("advisor", "anthropic/claude-opus-4-5");
+			const session = new AgentSession({
+				agent: new Agent({
+					getApiKey: () => "test-key",
+					initialState: { model: primaryModel, systemPrompt: ["Test"], tools },
+					streamFn: primary.stream,
+				}),
+				sessionManager: options.sessionManager,
+				settings,
+				modelRegistry: registry,
+				toolRegistry: new Map(tools.map(entry => [entry.name, entry])),
+				advisorTools: [],
+				advisorStreamFn,
+			});
+			advisorActive = session.setAdvisorEnabled(true);
+			return { session } as CreateAgentSessionResult;
+		});
+
+		const result = await runSubprocess({
+			cwd: tempDir.path(),
+			agent: { name: "task", description: "test", systemPrompt: "test", source: "bundled" },
+			task: "work",
+			index: 0,
+			id: "advised-answering-models",
+			settings: Settings.isolated(),
+			modelRegistry: { refresh: async () => {} } as never,
+			enableLsp: false,
+			keepAlive: false,
+		});
+
+		expect(advisorActive).toBe(true);
+		expect(advisor.calls.length).toBeGreaterThanOrEqual(1);
+		expect(result.answeringModels).toEqual([{ provider: "child", model: "child-model" }]);
+	}, 20_000);
 });

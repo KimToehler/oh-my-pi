@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+
+- Task results can list the models that answered (`answeringModels`)
 ## [18.12.1] - 2026-10-17
 
 ### Breaking Changes

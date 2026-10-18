@@ -1,3 +1,4 @@
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { InternalUrlRouter } from "../internal-urls/router";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 
@@ -10,6 +11,27 @@ export interface PlanApprovalDetails {
 	planFilePath: string;
 	title: string;
 	planExists: boolean;
+	/** sha256 (hex) of the plan bytes a cross-family review saw; set only when a review completed. */
+	planSha256?: string;
+}
+
+/** Whether a propose result's `details` is the payload that opens the approval UI. */
+export function isPlanApprovalDetails(details: unknown): details is PlanApprovalDetails {
+	if (!details || typeof details !== "object") return false;
+	return (
+		"planFilePath" in details &&
+		"title" in details &&
+		"planExists" in details &&
+		typeof details.planFilePath === "string" &&
+		typeof details.title === "string" &&
+		typeof details.planExists === "boolean" &&
+		(!("planSha256" in details) || details.planSha256 === undefined || typeof details.planSha256 === "string")
+	);
+}
+
+/** sha256 (hex) of exact plan bytes, the binding between reviewed and approved content. */
+export function planContentSha256(planContent: string): string {
+	return new Bun.CryptoHasher("sha256").update(planContent).digest("hex");
 }
 
 /** Validate and normalize the agent-supplied plan title into a safe filename stem.
@@ -146,6 +168,10 @@ export interface ResolvedApprovedPlan {
 	planFilePath: string;
 	planContent: string;
 	title: string;
+	/** sha256 (hex) of `planContent`, set by `AgentSession` only when a completed review
+	 *  (okay, or the round cap) bound these bytes. Hosts execute from an immutable
+	 *  snapshot only when it is set; otherwise they keep the agent-chosen `planFilePath`. */
+	reviewedSha256?: string;
 }
 
 /** Locate the plan file the agent wrote and finalize its title — without
@@ -187,6 +213,15 @@ export async function resolveApprovedPlan(input: ResolveApprovedPlanInput): Prom
 	throw new ToolError(
 		`Plan file not found at ${target}. Write the finalized plan to ${target} before requesting approval.`,
 	);
+}
+
+/** The `xd://propose` result for hosts that open their own approval UI from
+ *  `PlanApprovalDetails` (the interactive event-controller path). */
+export function planReviewResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
+	return {
+		content: [{ type: "text", text: "Plan ready for review." }],
+		details: { planFilePath: plan.planFilePath, title: plan.title, planExists: true },
+	};
 }
 
 function finalizeApprovedPlan(planFilePath: string, planContent: string, suppliedTitle: unknown): ResolvedApprovedPlan {

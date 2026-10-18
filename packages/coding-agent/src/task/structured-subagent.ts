@@ -137,6 +137,12 @@ export interface StructuredSubagentRequest {
 	isolation?: StructuredSubagentIsolationControls;
 	/** The parent agent name forbidden from recursively spawning itself. */
 	blockedAgent?: string;
+	/**
+	 * Skip only the parent's spawn allow-list. For host-initiated children (plan
+	 * review) that are not a delegation by the agent; depth, recursion and
+	 * disabled-agent checks still apply.
+	 */
+	bypassSpawnPolicy?: boolean;
 	/** Preserve a completed temporary artifacts directory for an agent:// handle. */
 	retainArtifacts?: boolean;
 	/**
@@ -298,6 +304,7 @@ function assertDepthAndSpawnAllowed(request: StructuredSubagentRequest, agentNam
 			`Cannot spawn ${blockedAgent} agent from within itself (recursion prevention). Use a different agent type.`,
 		);
 	}
+	if (request.bypassSpawnPolicy) return;
 	const spawnPolicy = resolveSpawnPolicy(request.session.getSessionSpawns());
 	if (!spawnPolicy.enabled || (spawnPolicy.allowedAgents !== null && !spawnPolicy.allowedAgents.includes(agentName))) {
 		throw new StructuredSubagentError(

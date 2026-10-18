@@ -1,4 +1,10 @@
-import type { AgentOptions, AgentTelemetryConfig, AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import type {
+	AgentOptions,
+	AgentTelemetryConfig,
+	AgentTool,
+	AgentToolContext,
+	AgentToolResult,
+} from "@oh-my-pi/pi-agent-core";
 import type { EditStore } from "@oh-my-pi/pi-natives";
 import type { FetchImpl, ImageContent, Model, ServiceTierByFamily, ToolChoice } from "@oh-my-pi/pi-ai";
 import { logger } from "@oh-my-pi/pi-utils";
@@ -68,7 +74,7 @@ import { MemoryReflectTool } from "./memory-reflect";
 import { MemoryRetainTool } from "./memory-retain";
 import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
-import type { PlanProposalHandler } from "./resolve";
+import type { PlanProposalCall, PlanProposalHandler } from "./resolve";
 import { SecurityScanTool } from "./security-scan";
 import { supportsExternalThinking, ThinkTool } from "./think";
 import { type TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
@@ -498,9 +504,11 @@ export interface ToolSession {
 	peekPendingInvoker?(): ((input: unknown) => Promise<unknown> | unknown) | undefined;
 	/** Clear stale pending preview markers when a resolution dispatch cannot run them. */
 	clearPendingInvokers?(): void;
-	/** Peek the plan-proposal handler installed by plan mode. `xd://propose` dispatches the
-	 *  written plan title to it. */
+	/** Peek the plan-proposal handler installed by plan mode. */
 	peekPlanProposalHandler?(): PlanProposalHandler | undefined;
+	/** Submit the plan title written to `xd://propose`: resolve the plan once and hand it to
+	 *  the installed plan-proposal handler. */
+	submitPlanProposal?(title: string, call: PlanProposalCall): Promise<AgentToolResult<unknown>>;
 	/** Register or clear the plan-proposal handler. Passing `null` clears it. */
 	setPlanProposalHandler?(handler: PlanProposalHandler | null): void;
 	/** Get active checkpoint state if any. */

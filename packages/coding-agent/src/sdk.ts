@@ -87,7 +87,7 @@ import { loadPromptTemplates as loadPromptTemplatesInternal, type PromptTemplate
 import { buildServiceTierByFamily } from "./config/service-tier";
 import { bindEffects, combine } from "./config/registry";
 import { Settings } from "./config/settings";
-import { CursorExecHandlers, type CursorMcpResourceAdapter } from "./cursor";
+import { bindCursorExecSignal, CursorExecHandlers, type CursorMcpResourceAdapter } from "./cursor";
 import { createBridgeEditTool, createBridgeGrepFactory } from "./cursor-bridge-tools";
 import "./discovery";
 import { LiveImageUrlService } from "./blob-broker/service";
@@ -2440,6 +2440,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			clearPendingInvokers: () => session.clearPendingInvokers(),
 			peekPlanProposalHandler: () => session.peekPlanProposalHandler(),
 			setPlanProposalHandler: handler => session.setPlanProposalHandler(handler),
+			submitPlanProposal: (title, call) => session.submitPlanProposal(title, call),
 			allocateOutputArtifact: async toolType => {
 				try {
 					return await sessionManager.allocateArtifactPath(toolType);
@@ -4502,6 +4503,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				};
 				const stream = primaryStreamFn(streamModel, context, {
 					...merged,
+					cursorExecHandlers: bindCursorExecSignal(merged.cursorExecHandlers, merged.signal),
 					...(fallbackCreditRedemption !== undefined ? { fallbackCreditRedemption } : {}),
 				});
 				// Every request through this streamFn is this session's own main

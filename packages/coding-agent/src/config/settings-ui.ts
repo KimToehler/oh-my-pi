@@ -5,7 +5,7 @@ import { isSettingsInitialized, Settings, settings } from "./settings";
 import { orderedSettings } from "./all-settings";
 import { type AnySetting, lookup } from "./registry";
 
-import { cfgPlanAutosave, cfgPlanEnabled } from "../plan-mode/settings";
+import { cfgPlanAutosave, cfgPlanEnabled, cfgPlanReviewEnabled } from "../plan-mode/settings";
 import {
 	cfgRetryUsageAwareFallback,
 	cfgDefaultThinkingLevel,
@@ -36,6 +36,7 @@ const CONDITIONS: Record<string, () => boolean> = {
 	usageAwareFallbackEnabled: whenSettings(s => cfgRetryUsageAwareFallback.get(s) === true),
 	planModeEnabled: whenSettings(s => cfgPlanEnabled.get(s)),
 	planAutosaveEnabled: whenSettings(s => cfgPlanEnabled.get(s) && cfgPlanAutosave.get(s)),
+	planReviewEnabled: whenSettings(s => cfgPlanEnabled.get(s) && cfgPlanReviewEnabled.get(s)),
 	// The editor writes the global layer; hide it so a project-supplied list is never promoted to global.
 	contextFilesExtraNotProject: whenSettings(s => cfgContextFilesExtra.provenance(s) !== "project"),
 };

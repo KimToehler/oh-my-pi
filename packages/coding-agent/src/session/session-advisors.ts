@@ -84,7 +84,7 @@ import {
 import { MODEL_ROLES } from "../config/model-roles";
 import { serviceTierForAllFamilies, serviceTierSettingToTier } from "../config/service-tier";
 import type { Settings } from "../config/settings";
-import { CursorExecHandlers, type CursorMcpResourceAdapter } from "../cursor";
+import { bindCursorExecSignal, CursorExecHandlers, type CursorMcpResourceAdapter } from "../cursor";
 import { bridgeToolMap } from "../cursor-bridge-tools";
 import { estimateContextToolSchemaTokens } from "@oh-my-pi/pi-tui/status-line/context-usage";
 import type { PlanModeState } from "../plan-mode/state";
@@ -1407,6 +1407,7 @@ export class SessionAdvisors {
 				const options = {
 					...streamOptions,
 					preferWebsockets: streamOptions?.preferWebsockets ?? this.#host.preferWebsockets(),
+					cursorExecHandlers: bindCursorExecSignal(streamOptions?.cursorExecHandlers, streamOptions?.signal),
 				};
 				if (requestModel.api === "openai-codex-responses") {
 					return baseAdvisorStreamFn(requestModel, context, {

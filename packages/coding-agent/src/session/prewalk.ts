@@ -4,10 +4,8 @@ import type { Model, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { logger, prompt } from "@oh-my-pi/pi-utils";
 import type { AutoPrewalkDecision } from "../auto-prewalk/classifier";
 import type { Settings } from "../config/settings";
-import type { LocalProtocolOptions } from "../internal-urls";
-import { resolveApprovedPlan } from "../plan-mode/approved-plan";
+import type { ResolvedApprovedPlan } from "../plan-mode/approved-plan";
 import { autosaveApprovedPlan } from "../plan-mode/plan-autosave";
-import { listPlanFiles, readPlanFile } from "../plan-mode/plan-files";
 import type { PlanModeState } from "../plan-mode/state";
 import planYoloHandoffPrompt from "../prompts/system/plan-yolo-handoff.md" with { type: "text" };
 import prewalkChecklistPrompt from "../prompts/system/prewalk-checklist.md" with { type: "text" };
@@ -93,9 +91,13 @@ export interface PrewalkCoordinatorHost {
 	getPlanModeState(): PlanModeState | undefined;
 	setPlanModeState(state: PlanModeState | undefined): void;
 	getPlanReferencePath(): string;
+	/**
+	 * Snapshot the approved plan bytes as the session's plan reference and return
+	 * the snapshot's URL (`AgentSession.adoptApprovedPlan`).
+	 */
+	adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string>;
 	setPlanProposalHandler(handler: PlanProposalHandler | null): void;
 	waitForSessionMessagePersistence(message: AgentMessage): Promise<void>;
-	localProtocolOptions(): LocalProtocolOptions;
 }
 
 /** Initial state for prewalk and plan-yolo startup flows. */
@@ -514,7 +516,7 @@ export class PrewalkCoordinator {
 			enabled: previousEnabledTools.filter(name => !isMCPToolName(name)),
 			mounted: previousMountedTools.filter(name => !isMCPToolName(name)),
 		};
-		this.#host.setPlanProposalHandler(title => this.#finalizePlanYoloProposal(title));
+		this.#host.setPlanProposalHandler(plan => this.#finalizePlanYoloProposal(plan));
 	}
 
 	#scrubPlanNudge(liveMessages?: AgentMessage[], includeContinuation = false): void {
@@ -541,24 +543,14 @@ export class PrewalkCoordinator {
 		}
 	}
 
-	async #finalizePlanYoloProposal(title: string): Promise<AgentToolResult<unknown>> {
+	async #finalizePlanYoloProposal(plan: ResolvedApprovedPlan): Promise<AgentToolResult<unknown>> {
 		const planYolo = this.#planYolo;
 		const state = this.#host.getPlanModeState();
 		if (!planYolo || !state?.enabled) throw new ToolError("Plan mode is not active.");
-		const {
-			planFilePath,
-			planContent,
-			title: resolvedTitle,
-		} = await resolveApprovedPlan({
-			suppliedTitle: title,
-			statePlanFilePath: state.planFilePath,
-			readPlan: url =>
-				readPlanFile(url, {
-					localProtocolOptions: this.#host.localProtocolOptions(),
-					cwd: this.#host.sessionManager.getCwd(),
-				}),
-			listPlanFiles: () => listPlanFiles({ localProtocolOptions: this.#host.localProtocolOptions() }),
-		});
+		const { planContent, title: resolvedTitle } = plan;
+		// The executor reads the plan from this path. When a review bound the bytes it
+		// must hold them for good, since the agent-chosen file may still change.
+		const planFilePath = plan.reviewedSha256 ? await this.#host.adoptApprovedPlan(plan) : plan.planFilePath;
 		let autosavedPlan: string | null = null;
 		try {
 			autosavedPlan = await autosaveApprovedPlan({
@@ -610,13 +602,14 @@ export class PrewalkCoordinator {
 			role: "custom",
 			customType: PLAN_YOLO_HANDOFF_MESSAGE_TYPE,
 			content: prompt.render(planYoloHandoffPrompt, { planFilePath, title: resolvedTitle }),
+			details: { planFilePath },
 			attribution: "agent",
 			display: false,
 			timestamp: Date.now(),
 		});
 		return {
 			content: [{ type: "text", text: `Plan approved. Implementing now with ${planYolo.target.id}.` }],
-			details: { planFilePath, title: resolvedTitle, planExists: true },
+			details: { planFilePath: plan.planFilePath, title: resolvedTitle, planExists: true },
 		};
 	}
 }

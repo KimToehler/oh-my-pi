@@ -269,7 +269,7 @@ describe("AgentSession computer display hold per turn", () => {
 			during = computerTurnInFlight(owner);
 			return { content: [{ type: "text", text: "approved" }] };
 		});
-		await target.peekPlanProposalHandler()!("plan");
+		await target.peekPlanProposalHandler()!({ planFilePath: "local://plan.md", planContent: "plan", title: "plan" });
 		expect(during).toBeUndefined();
 		expect(computerTurnInFlight(owner)).toBe(2);
 		await target.abort();

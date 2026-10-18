@@ -60,3 +60,48 @@ export const cfgPlanAutosaveDir = register({
 		condition: "planAutosaveEnabled",
 	},
 });
+
+export const cfgPlanReviewEnabled = register({
+	id: "plan.review.enabled",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "tasks",
+		group: "Modes",
+		label: "Cross-family Plan Review",
+		description:
+			"Before a plan reaches approval, a reviewer from a different model family checks it. A rejection goes back to the planner (at most 2 rounds); a review that cannot run never blocks.",
+		condition: "planModeEnabled",
+	},
+});
+
+export const cfgPlanReviewAgent = register({
+	id: "plan.review.agent",
+	type: "string",
+	default: "plan-reviewer",
+	ui: {
+		tab: "tasks",
+		group: "Modes",
+		label: "Plan Review Agent",
+		description:
+			"Agent that reviews proposed plans. Any discovered agent works, e.g. a user ~/.omp/agent/agents/momus.md; the default is the bundled plan-reviewer.",
+		condition: "planReviewEnabled",
+	},
+});
+
+const DEFAULT_PLAN_REVIEW_MODELS: readonly string[] = ["@advisor", "@slow", "@default"];
+
+export const cfgPlanReviewModels = register({
+	id: "plan.review.models",
+	type: "array",
+	default: DEFAULT_PLAN_REVIEW_MODELS,
+	ui: {
+		tab: "tasks",
+		group: "Modes",
+		label: "Plan Review Models",
+		editor: "json",
+		description:
+			"Reviewer model candidates in order; the first whose model family differs from the planner's is used",
+		condition: "planReviewEnabled",
+	},
+});
