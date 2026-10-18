@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -40,6 +40,88 @@ function write(dir: string, lines: ReadonlyArray<Json | string>, name = "omp.txt
 }
 
 describe("summarizeOmpTranscript", () => {
+	describe("transcriptComplete", () => {
+		const agentEnd: Json = { type: "agent_end", messages: [] };
+
+		it("is true when the file ends with a top-level agent_end", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(1, 1)), agentEnd]);
+			expect(summarizeOmpTranscript(file).transcriptComplete).toBe(true);
+		});
+
+		it("is false for a valid prefix that stops before agent_end", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(1, 1)), { type: "turn_end" }]);
+			const m = summarizeOmpTranscript(file);
+			expect(m.started).toBe(true);
+			expect(m.droppedLines).toBe(0);
+			expect(m.transcriptComplete).toBe(false);
+		});
+
+		it("ignores a nested agent_end that is not a top-level record", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(1, 1)), { type: "x", payload: { type: "agent_end" } }]);
+			expect(summarizeOmpTranscript(file).transcriptComplete).toBe(false);
+		});
+
+		it("is false with no counts for an unreadable path (directory)", () => {
+			const m = summarizeOmpTranscript(tmpDir());
+			expect(m.transcriptComplete).toBe(false);
+			expect(m.started).toBe(false);
+		});
+
+		it("is false when a read throws mid-file, keeping the partial counts", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(5, 6)), agentEnd]);
+			const real = fs.readSync;
+			let calls = 0;
+			const spy = spyOn(fs, "readSync").mockImplementation(((...args: Parameters<typeof fs.readSync>) => {
+				if (++calls > 1) throw new Error("EIO");
+				return real(...args);
+			}) as typeof fs.readSync);
+			try {
+				const m = summarizeOmpTranscript(file, { chunkBytes: 16 });
+				expect(m.transcriptComplete).toBe(false);
+				expect(m.llmCalls).toBe(0);
+			} finally {
+				spy.mockRestore();
+			}
+			// Whole file in one chunk, then the next read throws: partial counts survive.
+			calls = 0;
+			const spy2 = spyOn(fs, "readSync").mockImplementation(((...args: Parameters<typeof fs.readSync>) => {
+				if (++calls > 1) throw new Error("EIO");
+				return real(...args);
+			}) as typeof fs.readSync);
+			try {
+				const m = summarizeOmpTranscript(file);
+				expect(m.llmCalls).toBe(1);
+				expect(m.inputTokens).toBe(5);
+				expect(m.transcriptComplete).toBe(false);
+			} finally {
+				spy2.mockRestore();
+			}
+		});
+
+		it("round-trips through RunStore; a prefix is stored false", () => {
+			const jobsDir = tmpDir();
+			const store = new RunStore(jobsDir);
+			const jobName = "evo-job3";
+			const jobDir = path.join(jobsDir, jobName);
+			fs.mkdirSync(jobDir, { recursive: true });
+			store.registerLaunch({
+				jobName,
+				benchmark: "harbor",
+				dataset: "d",
+				agent: "omp",
+				models: ["m"],
+				pid: process.pid,
+			});
+			seedTrial(jobDir, "full__abc", { result: true, lines: [assistantEnd(usage(1, 1)), agentEnd] });
+			seedTrial(jobDir, "cut__abc", { result: true, lines: [assistantEnd(usage(1, 1))] });
+			store.syncRun(jobName);
+			const byName = new Map(store.listTraces(jobName).map(t => [t.name, t.transcript?.transcriptComplete]));
+			expect(byName.get("full__abc")).toBe(true);
+			expect(byName.get("cut__abc")).toBe(false);
+			store.close();
+		});
+	});
+
 	it("counts main usage once and task aggregate usage once, never adding child usage twice", () => {
 		const file = write(tmpDir(), [
 			assistantEnd(usage(100, 10, 50, 5)),

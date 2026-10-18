@@ -182,8 +182,13 @@ export function computeFitness(input: FitnessInput): FitnessReport {
 		for (const signal of trial.transcript?.signals ?? []) signalHits[signal] = (signalHits[signal] ?? 0) + 1;
 	}
 	const dataComplete = reasons.length === 0;
+	// A transcript that never reached `agent_end` (or could not be fully read) undercounts, like a dropped line.
+	// Trials with no transcript at all are non-model by phase; evaluateEligibility checks non_model_phase before lossy_transcript.
 	const lossyTranscriptTrials = decided.filter(
-		t => (t.transcript?.droppedLines ?? 0) > 0 || (t.transcript?.taskSnapshotConflicts ?? 0) > 0,
+		t =>
+			(t.transcript?.droppedLines ?? 0) > 0 ||
+			(t.transcript?.taskSnapshotConflicts ?? 0) > 0 ||
+			(t.transcript != null && t.transcript.transcriptComplete !== true),
 	).length;
 	const ineligibility = evaluateEligibility({
 		policy: input.policy,

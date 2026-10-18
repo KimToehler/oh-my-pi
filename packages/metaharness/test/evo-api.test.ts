@@ -156,6 +156,7 @@ function writeJob(
 				},
 			}),
 			...(opts.signals ?? []).map(id => `EVO-MARK:${id}`),
+			JSON.stringify({ type: "agent_end", messages: [] }),
 		];
 		write(trial, "agent/omp.txt", `${events.join("\n")}\n`);
 	}

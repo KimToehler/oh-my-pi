@@ -171,6 +171,101 @@ describe("ProviderProxy", () => {
 	});
 });
 
+describe("provider proxy response redaction", () => {
+	const KEY = "sk-real-upstream-key-R88-0123456789";
+	const enc = new TextEncoder();
+	function streamOf(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
+		return new ReadableStream({
+			start(c) {
+				for (const chunk of chunks) c.enqueue(chunk);
+				c.close();
+			},
+		});
+	}
+	function setup(upstream: () => Response, headers: Record<string, string> = {}) {
+		const proxy = new ProviderProxy((async () => upstream()) as unknown as typeof fetch);
+		cleanups.push(() => proxy.stop());
+		const token = proxy.register(
+			"job",
+			new Map([["onara", { upstream: "http://up.invalid/v1", apiKey: KEY, headers }]]),
+		);
+		return () =>
+			fetch(`http://127.0.0.1:${proxy.port}/onara/chat`, { headers: { authorization: `Bearer ${token}` } });
+	}
+
+	it("redacts the injected key echoed in a JSON error body", async () => {
+		const body = JSON.stringify({ error: `bad key ${KEY} rejected` });
+		const call = setup(
+			() =>
+				new Response(body, {
+					status: 401,
+					headers: { "content-type": "application/json", "content-length": String(body.length) },
+				}),
+		);
+		const res = await call();
+		const text = await res.text();
+		expect(res.status).toBe(401);
+		expect(text).toBe(JSON.stringify({ error: "bad key *** rejected" }));
+		expect(text).not.toContain(KEY);
+	});
+
+	it("redacts a key split across two chunks at its midpoint", async () => {
+		const bytes = enc.encode(`prefix ${KEY} suffix`);
+		const mid = enc.encode(`prefix ${KEY.slice(0, Math.floor(KEY.length / 2))}`).length;
+		const call = setup(() => new Response(streamOf([bytes.slice(0, mid), bytes.slice(mid)])));
+		expect(await (await call()).text()).toBe("prefix *** suffix");
+	});
+
+	it("drops response headers carrying the key and credential header names", async () => {
+		const call = setup(
+			() =>
+				new Response("ok", {
+					headers: { "x-debug": `got ${KEY}`, authorization: "Bearer other", "x-api-key": "z", "x-safe": "fine" },
+				}),
+		);
+		const res = await call();
+		expect(res.headers.get("x-debug")).toBeNull();
+		expect(res.headers.get("authorization")).toBeNull();
+		expect(res.headers.get("x-api-key")).toBeNull();
+		expect(res.headers.get("x-safe")).toBe("fine");
+		expect(await res.text()).toBe("ok");
+	});
+
+	it("redacts a configured header value echoed in the body", async () => {
+		const ORG = "org-secret-R88-987654321";
+		const call = setup(() => new Response(`org=${ORG}`), { "x-org": ORG });
+		expect(await (await call()).text()).toBe("org=***");
+	});
+
+	it("streams a secret-free SSE response unchanged and incrementally", async () => {
+		let ctl!: ReadableStreamDefaultController<Uint8Array>;
+		const body = new ReadableStream<Uint8Array>({
+			start(c) {
+				ctl = c;
+			},
+		});
+		const first = enc.encode(`data: ${"a".repeat(200)}\n\n`);
+		const second = enc.encode("data: two\n\n");
+		const call = setup(() => new Response(body, { headers: { "content-type": "text/event-stream" } }));
+		// Upstream stays open after the first event; headers flush with it.
+		ctl.enqueue(first);
+		const res = await call();
+		const reader = res.body!.getReader();
+		const early = await reader.read();
+		expect(early.done).toBe(false);
+		expect(early.value?.length).toBeGreaterThan(0);
+		ctl.enqueue(second);
+		ctl.close();
+		const parts: Uint8Array[] = [early.value!];
+		for (;;) {
+			const r = await reader.read();
+			if (r.done) break;
+			parts.push(r.value);
+		}
+		expect(Buffer.concat(parts).toString()).toBe(`data: ${"a".repeat(200)}\n\ndata: two\n\n`);
+	});
+});
+
 describe("provider proxy liveness", () => {
 	const routes = new Map([["onara", { upstream: "http://upstream.invalid/v1", apiKey: "k", headers: {} }]]);
 	it("204 for a live token, 401 after unregister and after stop; never forwards upstream", async () => {

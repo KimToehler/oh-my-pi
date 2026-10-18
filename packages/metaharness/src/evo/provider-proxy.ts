@@ -5,6 +5,7 @@
  */
 import * as crypto from "node:crypto";
 import type { Server } from "bun";
+import { containsHostValue } from "../launch-args";
 import type { ProxyRoute } from "./proxy-models";
 
 /** Headers an SDK may carry its credential in. The token is replaced in whichever one it arrived in. */
@@ -13,6 +14,58 @@ const AUTH_HEADERS = ["authorization", "x-api-key", "api-key", "x-goog-api-key"]
 const DROP_REQUEST = new Set(["host", "connection", "content-length", "accept-encoding", "transfer-encoding"]);
 /** Response headers invalidated by fetch having already decoded the body. */
 const DROP_RESPONSE = new Set(["content-encoding", "content-length", "transfer-encoding", "connection"]);
+/** Response headers that name a credential; dropped regardless of value. */
+const CREDENTIAL_RESPONSE_HEADERS: Record<string, true> = {
+	authorization: true,
+	"x-api-key": true,
+	"proxy-authorization": true,
+};
+const REDACTED = new TextEncoder().encode("***");
+
+/** Real credentials injected into the upstream request: the route key and every configured header value. */
+function routeSecrets(route: ProxyRoute): string[] {
+	return [route.apiKey, ...Object.values(route.headers)].filter((v): v is string => typeof v === "string" && v !== "");
+}
+
+/**
+ * Byte-level redaction of every secret occurrence, including matches spanning chunk boundaries: the last
+ * `maxSecretLength - 1` bytes stay buffered until more data or end of stream arrives.
+ */
+function redactingStream(secrets: string[]): TransformStream<Uint8Array, Uint8Array> {
+	const needles = secrets.map(secret => Buffer.from(secret));
+	const hold = Math.max(...needles.map(n => n.length)) - 1;
+	let carry = Buffer.alloc(0);
+	const scan = (data: Buffer, limit: number, emit: (bytes: Uint8Array) => void): number => {
+		let pos = 0;
+		for (;;) {
+			let at = -1;
+			let len = 0;
+			for (const needle of needles) {
+				const found = data.indexOf(needle, pos);
+				if (found !== -1 && found < limit && (at === -1 || found < at || (found === at && needle.length > len))) {
+					at = found;
+					len = needle.length;
+				}
+			}
+			if (at === -1) break;
+			if (at > pos) emit(data.subarray(pos, at));
+			emit(REDACTED);
+			pos = at + len;
+		}
+		if (limit > pos) emit(data.subarray(pos, limit));
+		return Math.max(pos, limit);
+	};
+	return new TransformStream<Uint8Array, Uint8Array>({
+		transform(chunk, controller) {
+			const data = Buffer.concat([carry, chunk]);
+			const used = scan(data, Math.max(0, data.length - hold), bytes => controller.enqueue(bytes.slice()));
+			carry = data.subarray(used);
+		},
+		flush(controller) {
+			scan(carry, carry.length, bytes => controller.enqueue(bytes.slice()));
+		},
+	});
+}
 
 interface Registration {
 	jobName: string;
@@ -110,9 +163,17 @@ export class ProviderProxy {
 			redirect: "manual",
 		}).catch(() => null);
 		if (!upstream) return new Response("upstream unreachable", { status: 502 });
+		const secrets = routeSecrets(route);
 		const headers = new Headers();
-		for (const [name, value] of upstream.headers) if (!DROP_RESPONSE.has(name)) headers.set(name, value);
-		return new Response(upstream.body, { status: upstream.status, headers });
+		for (const [name, value] of upstream.headers) {
+			if (DROP_RESPONSE.has(name) || CREDENTIAL_RESPONSE_HEADERS[name]) continue;
+			if (secrets.some(secret => containsHostValue(value, secret))) continue;
+			headers.set(name, value);
+		}
+		// Length may change on redaction and fetch already decoded the body: content-length is never forwarded.
+		const body =
+			upstream.body && secrets.length ? upstream.body.pipeThrough(redactingStream(secrets)) : upstream.body;
+		return new Response(body, { status: upstream.status, headers });
 	}
 
 	#liveness(request: Request): Response {

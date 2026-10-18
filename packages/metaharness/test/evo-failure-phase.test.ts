@@ -20,7 +20,7 @@ afterEach(() => {
 	for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const ASSISTANT = `${JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", usage: { input: 1, output: 1 } } })}\n`;
+const ASSISTANT = `${JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", usage: { input: 1, output: 1 } } })}\n${JSON.stringify({ type: "agent_end", messages: [] })}\n`;
 
 /** Seed a finished harbor trial; `transcript` is the omp.txt body (empty = agent never produced a message). */
 function seed(

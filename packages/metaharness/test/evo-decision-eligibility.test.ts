@@ -177,7 +177,7 @@ describe("decision eligibility", () => {
 	}
 
 	describe("lossy transcripts fail closed", () => {
-		const lossy = (n: number, conflicts = 0) => ({
+		const lossy = (n: number, conflicts = 0, complete = true) => ({
 			transcript: {
 				llmCalls: 1,
 				llmErrors: 0,
@@ -197,6 +197,7 @@ describe("decision eligibility", () => {
 				signals: [],
 				droppedLines: n,
 				taskSnapshotConflicts: conflicts,
+				transcriptComplete: complete,
 			},
 		});
 		const rewardsC = { a: [1], b: [1], c: [0], d: [1] };
@@ -235,6 +236,20 @@ describe("decision eligibility", () => {
 		for (const which of ["child", "baseline"] as const) {
 			it(`a task snapshot conflict on the ${which} refuses with lossy_transcript`, () => {
 				const over = { a__1: lossy(0, 1) };
+				const c = compareFitness(
+					side("c", rewardsC, POLICY, which === "child" ? over : {}),
+					side("b", rewardsB, POLICY, which === "baseline" ? over : {}),
+					variant,
+				);
+				expect(c.decisionEligible).toBe(false);
+				expect(c.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+				expect(c.creditedDelta).toBeNull();
+			});
+		}
+
+		for (const which of ["child", "baseline"] as const) {
+			it(`an incomplete transcript (no agent_end) on the ${which} refuses with lossy_transcript`, () => {
+				const over = { a__1: lossy(0, 0, false) };
 				const c = compareFitness(
 					side("c", rewardsC, POLICY, which === "child" ? over : {}),
 					side("b", rewardsB, POLICY, which === "baseline" ? over : {}),

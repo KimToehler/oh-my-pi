@@ -6,6 +6,7 @@
  */
 import * as fs from "node:fs";
 import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { recordToolSignals } from "./transcript-signals";
 import {
 	addCost,
 	finalCost,
@@ -46,6 +47,8 @@ export interface TranscriptMetrics {
 	readonly droppedLines: number;
 	/** Task-call replays whose usage conflicted with the stored snapshot (neither dominated); totals may be wrong. */
 	readonly taskSnapshotConflicts: number;
+	/** True only when the whole file was read without error AND a top-level `agent_end` record was parsed. */
+	readonly transcriptComplete: boolean;
 }
 
 export interface TranscriptOptions {
@@ -81,6 +84,10 @@ interface Tally {
 	started: boolean;
 	droppedLines: number;
 	taskSnapshotConflicts: number;
+	/** A top-level `agent_end` record was parsed (omp print mode ends every completed run with one). */
+	sawAgentEnd: boolean;
+	/** An open/read error cut the scan short. */
+	readFailed: boolean;
 	readonly startupErrors: Set<string>;
 	readonly signals: Set<string>;
 	/** Richest delegated-usage snapshot per `task` tool-call ID, folded once at EOF. */
@@ -99,32 +106,6 @@ function addUsage(tally: Tally, usage: Record<string, unknown>): void {
 	addCost(tally, usageCost(usage));
 }
 
-function readSignalPath(tally: Tally, pathArg: unknown): void {
-	if (typeof pathArg !== "string") return;
-	for (const scheme of ["skill", "rule"] as const) {
-		const prefix = `${scheme}://`;
-		if (!pathArg.startsWith(prefix)) continue;
-		const name = pathArg.slice(prefix.length).split(/[/?#]/, 1)[0];
-		if (name) tally.signals.add(`${scheme}:${name}`);
-	}
-}
-
-function taskAgentSignals(tally: Tally, args: Record<string, unknown>): void {
-	const agents: unknown[] = [args.agent];
-	if (Array.isArray(args.tasks)) for (const item of args.tasks) agents.push(isRecord(item) ? item.agent : undefined);
-	for (const agent of agents) if (typeof agent === "string" && agent) tally.signals.add(`agent:${agent}`);
-}
-
-function onToolStart(tally: Tally, event: Record<string, unknown>): void {
-	tally.toolCalls++;
-	if (typeof event.toolName !== "string" || !event.toolName) return;
-	tally.signals.add(`tool:${event.toolName}`);
-	const args = isRecord(event.args) ? event.args : undefined;
-	if (!args) return;
-	if (event.toolName === "read") readSignalPath(tally, args.path);
-	else if (event.toolName === "task") taskAgentSignals(tally, args);
-}
-
 function onEvent(tally: Tally, event: Record<string, unknown>): void {
 	switch (event.type) {
 		case "message_end": {
@@ -141,7 +122,8 @@ function onEvent(tally: Tally, event: Record<string, unknown>): void {
 			tally.turns++;
 			return;
 		case "tool_execution_start":
-			onToolStart(tally, event);
+			tally.toolCalls++;
+			recordToolSignals(tally.signals, event);
 			return;
 		case "tool_execution_end":
 			if (event.isError === true) tally.toolErrors++;
@@ -198,7 +180,9 @@ function onLine(tally: Tally, raw: string): void {
 		tally.droppedLines++;
 		return;
 	}
-	if (isRecord(parsed)) onEvent(tally, parsed);
+	if (!isRecord(parsed)) return;
+	if (parsed.type === "agent_end") tally.sawAgentEnd = true;
+	onEvent(tally, parsed);
 }
 
 /**
@@ -226,6 +210,8 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		started: false,
 		droppedLines: 0,
 		taskSnapshotConflicts: 0,
+		sawAgentEnd: false,
+		readFailed: false,
 		startupErrors: new Set(),
 		signals: new Set(),
 		taskSnapshots: new Map(),
@@ -262,7 +248,8 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		}
 		if (!discarding && remainder.length > 0) onLine(tally, remainder.toString("utf8"));
 	} catch {
-		/* unreadable transcript: report whatever was accumulated */
+		// Unreadable transcript: keep the partial counts but mark the run incomplete.
+		tally.readFailed = true;
 	} finally {
 		if (fd !== null) fs.closeSync(fd);
 	}
@@ -286,5 +273,6 @@ export function summarizeOmpTranscript(file: string, options: TranscriptOptions 
 		signals: [...tally.signals].sort(),
 		droppedLines: tally.droppedLines,
 		taskSnapshotConflicts: tally.taskSnapshotConflicts,
+		transcriptComplete: tally.sawAgentEnd && !tally.readFailed,
 	};
 }

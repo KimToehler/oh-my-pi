@@ -31,6 +31,7 @@ function metrics(over: Partial<TranscriptMetrics> = {}): TranscriptMetrics {
 		signals: [],
 		droppedLines: 0,
 		taskSnapshotConflicts: 0,
+		transcriptComplete: true,
 		...over,
 	};
 }
@@ -564,6 +565,27 @@ describe("fitness decision verdict (R74)", () => {
 			[trial("a", 1, { transcript: metrics({ taskSnapshotConflicts: 1 }) }), trial("b", 1, { reward: 0 })],
 		);
 		expect(r.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+	});
+
+	it("names lossy_transcript for a transcript that never reached agent_end", () => {
+		const r = run(
+			["a", "b"],
+			[trial("a", 1, { transcript: metrics({ transcriptComplete: false }) }), trial("b", 1, { reward: 0 })],
+		);
+		expect(r.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
+		expect(r.lossyTranscriptTrials).toBe(1);
+	});
+
+	it("keeps a trial with no transcript non_model_phase, not lossy_transcript", () => {
+		const r = run(
+			["a", "b"],
+			[
+				trial("a", 1, { transcript: null, phase: "executor_infra_failure", status: "error", reward: null }),
+				trial("b", 1, { reward: 0 }),
+			],
+		);
+		expect(r.ineligibility).toMatchObject({ reason: "non_model_phase" });
+		expect(r.lossyTranscriptTrials).toBe(0);
 	});
 
 	it("names underpowered against the declared policy", () => {

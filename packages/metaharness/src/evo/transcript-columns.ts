@@ -20,6 +20,7 @@ export const TRANSCRIPT_COLUMNS: ReadonlyArray<readonly [name: string, sqlType: 
 	["signals_json", "TEXT"],
 	["dropped_lines", "INTEGER"],
 	["task_snapshot_conflicts", "INTEGER"],
+	["transcript_complete", "INTEGER"],
 ];
 
 /** Column names in bind order for {@link transcriptParams}. */
@@ -47,6 +48,7 @@ export function transcriptParams(t: TranscriptMetrics | null | undefined): Array
 		JSON.stringify(t.signals),
 		t.droppedLines,
 		t.taskSnapshotConflicts,
+		t.transcriptComplete ? 1 : 0,
 	];
 }
 
@@ -85,5 +87,7 @@ export function rowToTranscript(row: Record<string, unknown>): TranscriptMetrics
 		signals: strings(row.signals_json),
 		droppedLines: Number(row.dropped_lines),
 		taskSnapshotConflicts: Number(row.task_snapshot_conflicts ?? 0),
+		// Null (pre-column row) is unknown, which is not complete.
+		transcriptComplete: Number(row.transcript_complete ?? 0) === 1,
 	};
 }
