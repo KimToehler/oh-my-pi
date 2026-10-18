@@ -142,6 +142,7 @@ Eighteen review waves raised 6, 5, 7 and 7 blockers in the last four F2 waves wi
 - Integrity binding for `postRunSourceIdentity` (owner-writable host file).
 - Streaming hashing and scanning for large staged files instead of whole-file buffers.
 - Subagent tool-call counts: the omp `task` result carries no child tool count, so `toolCalls` covers the main agent only. Needs a wire-format change in `packages/coding-agent`/`packages/tui`.
+- `POST /api/runs` onto a job dir that `discover()` backfilled answers `run <job> is already running` although no process exists; the launch is correctly refused, only the message is misleading.
 
 ## TODOs
 - [x] R1. Create parent directories before materializing nested whitelisted config files (`packages/metaharness/src/evo/config-snapshot.ts`). Dismissed as false positive: `Bun.write` creates parent directories; a nested-materialization probe passed before any change, and `evo-variants.test.ts` "concurrent registration" already reads `config/rules/r.md` from a registered variant.
@@ -231,8 +232,8 @@ Eighteen review waves raised 6, 5, 7 and 7 blockers in the last four F2 waves wi
 - [x] Not fixed, by decision (F3 EvoF3Review49 finding 1): `toolCalls` counts main-agent tool starts only, because omp `task` results carry no child tool count. The Approach (§1) included subagent usage and requests, not subagent tool calls; frozen invariant 1 was corrected to that scope and subagent tool counts became a follow-up. `TranscriptMetrics.toolCalls` documents the scope. Suite after R83–R84: 440 pass, 0 fail.
 - [x] R85 (F3 EvoF3Review50, HIGH; frozen invariant 6): R81 protected only `ManagerServer.launch()`. A direct fresh `runner.ts --job-name <used>` still entered an existing `<jobsDir>/<job>`, and after Harbor returned, `readTrials`/`readJobResult` read the old `result.json` and trial dirs as the fresh run's results. Fix: before `_bench/<job>` or `runner-config.json` is written, a non-resume, non-dry run refuses when the job dir holds anything except the manager's own `manager.json`, naming up to three entries and pointing at `--resume`. RED by mutation (the guard disabled): "refuses a fresh run into a job dir that already holds harbor output and never spawns harbor" fails; its control "a manager-created job dir holding only manager.json is not prior output" passes either way.
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
-- [ ] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over main...feat/evo-metrics because change spans store, runner, server, Python agent, task generation, and API layers
+- [x] F1. Manual QA on real metaharness REST + Harbor/Docker surfaces, one evidence path per Verification scenario, on head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 ## Merge gate
 - Author's risk assessment: High local benchmark risk; wrong accounting can select regressions, duplicate subagent cost, leak router credentials, or compare unmatched task/model/source conditions. Production task runtime now emits settled async result/usage in progress details; behavior/control flow unchanged but metric consumers may depend on payload.

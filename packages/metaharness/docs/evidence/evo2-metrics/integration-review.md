@@ -1,7 +1,7 @@
 # Evo2 metrics integration review
 
 - Base: `main` (`935046d15b61d55788cd1e015b151a1ca3eb7e70`)
-- Head: `7e950b2fec88893bd81df0d3b23c9ee802459193`
+- Head: `2cead0f40a71ff6ec9b10d8e5a17628b40ecb9cd`
 - Result: **PASS**
 
 ## Review history
@@ -61,6 +61,10 @@ Scope decision (user): the credential invariant covers accidental persistence; d
 - R65/R66: concurrency was missing from the comparison identity, and reports accepted non-terminal runs and a missing post-run source identity; concurrency is now suite policy and reports refuse until both runs are terminal with matching identities.
 - R67/R68: calibration recorded a backend and platform that nothing compared; registration now requires both to equal the suite manifest's declared `environment` and `platform`, on local and registry paths.
 - R69: generated Dockerfiles could not install dependencies at build time, so a test command needing them ran inside the no-network verifier and never calibrated; `--setup-command` renders a build-time `RUN`.
+- R70–R76: task-reference traversal, proxy liveness, staged source tree, cost scope, fitness verdict, signal-gate noop, held-out counter.
+- R77–R80: the staged source tree and the identity were two derivations; credential copy, added files, exec bits, scan/copy race, mount points and a missing generated module all followed from that. R80 replaced both with one canonical execution manifest.
+- Scope freeze (user decision): after 6, 5, 7 and 7 blockers in four F2 waves without convergence, the gate judges only the seven frozen invariants in the plan; other findings become follow-ups.
+- R81–R85: fresh runs inheriting old trials (manager and direct runner), task-snapshot replacement losing data, partial cost reported as complete, and the staged proxy-rewritten models bytes outside the comparison conditions.
 ## Final verdict
 
-Fresh reviewers over each delta of the R61–R69 wave: `117e3d77f2..49018bfe73` raised one blocker (R68, calibration platform unbound), closed and re-reviewed PASS over `49018bfe73..271ee41000`; `271ee41000..7e950b2fec` (R69) `VERDICT: PASS`, no blockers. Full branch delta `935046d15b...7e950b2fec`.
+Fresh whole-branch reviewer EvoF3Review51 over `935046d15b...2cead0f40a`, judged against the seven frozen invariants: all seven `held`, no blockers, `VERDICT: PASS`. Follow-ups recorded in the plan.
