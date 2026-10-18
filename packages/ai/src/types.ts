@@ -1385,7 +1385,25 @@ export interface CursorExecPairing {
 	toolName: string;
 }
 
-export interface CursorMcpCall {
+/**
+ * Provenance for a call the provider runs through a host handler, outside the
+ * agent loop. Carried by the write-capable families (`mcp`, `write`,
+ * `piWrite`): each can reach the host's `write` tool, whose plan-proposal
+ * path needs the exact message that made the call.
+ */
+export interface CursorExecProvenance {
+	/**
+	 * The live assistant message this call executes under, carrying the
+	 * `toolCall` block the provider filed for the call's id. Set only on a real
+	 * invocation of the host handler, never on an approval probe or a handoff.
+	 * The host runs the call itself, so this is the only provenance tying it to
+	 * the message that made it; a host MUST ignore a message that does not hold
+	 * the call's block.
+	 */
+	message?: AssistantMessage;
+}
+
+export interface CursorMcpCall extends CursorExecProvenance {
 	name: string;
 	providerIdentifier: string;
 	toolName: string;
@@ -1400,15 +1418,13 @@ export interface CursorMcpCall {
 	 * not yet been asked about (and fire it twice once the real call arrives).
 	 */
 	approvalOnly?: boolean;
-	/**
-	 * The live assistant message this call executes under, carrying the
-	 * `toolCall` block filed for {@link toolCallId}. Set only on a real
-	 * invocation the provider runs through the host's `mcp` handler. The host
-	 * runs the call itself, outside the agent loop, so this is the only
-	 * provenance tying it to the message that made it.
-	 */
-	message?: AssistantMessage;
 }
+
+/**
+ * A legacy native `writeArgs` frame. Provenance is absent when the write
+ * materializes a native StrReplace, whose block is an `edit`, not this write.
+ */
+export type CursorWriteCall = WriteArgs & CursorExecProvenance;
 
 export interface CursorTodoSnapshotItem {
 	content: string;
@@ -1475,6 +1491,9 @@ export interface CursorPiCall<TArgs> {
 	toolCallId: string;
 }
 
+/** A modern `piWriteArgs` frame; provenance rides the minted {@link CursorPiCall.toolCallId}. */
+export type CursorPiWriteCall = CursorPiCall<PiWriteExecArgs> & CursorExecProvenance;
+
 /** One resource a host's MCP servers advertise. */
 export interface CursorMcpResource {
 	uri: string;
@@ -1512,7 +1531,7 @@ export interface CursorExecHandlers {
 	read?: (args: ReadArgs) => Promise<CursorExecHandlerResult<ReadResult>>;
 	ls?: (args: LsArgs) => Promise<CursorExecHandlerResult<LsResult>>;
 	grep?: (args: GrepArgs) => Promise<CursorExecHandlerResult<GrepResult>>;
-	write?: (args: WriteArgs) => Promise<CursorExecHandlerResult<WriteResult>>;
+	write?: (args: CursorWriteCall) => Promise<CursorExecHandlerResult<WriteResult>>;
 	delete?: (args: DeleteArgs) => Promise<CursorExecHandlerResult<DeleteResult>>;
 	shell?: (args: ShellArgs) => Promise<CursorExecHandlerResult<ShellResult>>;
 	shellStream?: (
@@ -1543,7 +1562,7 @@ export interface CursorExecHandlers {
 	piRead?: (call: CursorPiCall<PiReadExecArgs>) => Promise<CursorExecHandlerResult<PiReadExecResult>>;
 	piBash?: (call: CursorPiCall<PiBashExecArgs>) => Promise<CursorExecHandlerResult<PiBashExecResult>>;
 	piEdit?: (call: CursorPiCall<PiEditExecArgs>) => Promise<CursorExecHandlerResult<PiEditExecResult>>;
-	piWrite?: (call: CursorPiCall<PiWriteExecArgs>) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
+	piWrite?: (call: CursorPiWriteCall) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
 	piGrep?: (call: CursorPiCall<PiGrepExecArgs>) => Promise<CursorExecHandlerResult<PiGrepExecResult>>;
 	piFind?: (call: CursorPiCall<PiFindExecArgs>) => Promise<CursorExecHandlerResult<PiFindExecResult>>;
 	piLs?: (call: CursorPiCall<PiLsExecArgs>) => Promise<CursorExecHandlerResult<PiLsExecResult>>;

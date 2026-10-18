@@ -14,6 +14,7 @@ import {
 } from "@oh-my-pi/pi-agent-core";
 import type {
 	AssistantMessage,
+	CursorExecProvenance,
 	CursorMcpCall,
 	CursorMcpResource,
 	CursorMcpResourceContent,
@@ -292,6 +293,12 @@ type BridgedToolExecutionStart = ToolExecutionStartEvent & { [kCursorBridgeMessa
 /** The provider message a bridged `tool_execution_start` executes under, when the provider proved it. */
 export function cursorBridgeMessage(event: ToolExecutionStartEvent): AssistantMessage | undefined {
 	return (event as BridgedToolExecutionStart)[kCursorBridgeMessage];
+}
+
+/** The provider's message for a call, only when it holds the block filed under `toolCallId`. */
+function provenMessage(call: CursorExecProvenance, toolCallId: string): AssistantMessage | undefined {
+	const holdsCall = call.message?.content.some(block => block.type === "toolCall" && block.id === toolCallId);
+	return holdsCall ? call.message : undefined;
 }
 
 interface ExecuteToolExtras {
@@ -607,10 +614,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async write(args: Parameters<NonNullable<ICursorExecHandlers["write"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const content = args.fileText ?? new TextDecoder().decode(args.fileBytes ?? new Uint8Array());
-		const toolResultMessage = await executeTool(this.options, "write", toolCallId, {
-			path: args.path,
-			content,
-		});
+		const toolResultMessage = await executeTool(
+			this.options,
+			"write",
+			toolCallId,
+			{ path: args.path, content },
+			{ message: provenMessage(args, toolCallId) },
+		);
 		return toolResultMessage;
 	}
 
@@ -803,10 +813,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
-		return await executeTool(this.options, "write", call.toolCallId, {
-			path: call.args.path,
-			content: call.args.content,
-		});
+		return await executeTool(
+			this.options,
+			"write",
+			call.toolCallId,
+			{ path: call.args.path, content: call.args.content },
+			{ message: provenMessage(call, call.toolCallId) },
+		);
 	}
 
 	/**
@@ -1092,10 +1105,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
 
-		const message = call.message?.content.some(block => block.type === "toolCall" && block.id === toolCallId)
-			? call.message
-			: undefined;
-		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args, { message });
+		const toolResultMessage = await executeTool(this.options, toolName, toolCallId, args, {
+			message: provenMessage(call, toolCallId),
+		});
 		return toolResultMessage;
 	}
 

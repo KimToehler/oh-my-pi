@@ -12,11 +12,19 @@ import {
 	type ToolCallState,
 } from "@oh-my-pi/pi-ai/providers/cursor";
 import { streamCursor as lazyStreamCursor, setCursorProviderModule } from "@oh-my-pi/pi-ai/providers/register-builtins";
-import type { AssistantMessage, Context, CursorExecHandlers, Model, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import type {
+	AssistantMessage,
+	Context,
+	CursorExecHandlers,
+	CursorPiWriteCall,
+	CursorWriteCall,
+	Model,
+	ToolResultMessage,
+} from "@oh-my-pi/pi-ai/types";
 import { kCursorExecResolved } from "@oh-my-pi/pi-ai/utils/block-symbols";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import type { McpResult, ReadResult } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import type { ExecServerMessage, McpResult, ReadResult } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
 import {
 	type AgentRunRequest,
 	AgentServerMessageSchema,
@@ -27,12 +35,14 @@ import {
 	McpSuccessSchema,
 	McpTextContentSchema,
 	McpToolResultContentItemSchema,
+	PiWriteExecArgsSchema,
 	ReadArgsSchema,
 	ReadErrorSchema,
 	ReadRejectedSchema,
 	ReadResultSchema,
 	ReadSuccessSchema,
 	ShellArgsSchema,
+	WriteArgsSchema,
 } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
 import { create, encodeJsonValue } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 import { logger } from "@oh-my-pi/pi-utils";
@@ -1668,6 +1678,107 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 		expect(seen.length).toBe(1);
 		expect(seen[0]?.message).toBe(output);
 		expect(seen[0]?.hasBlock).toBe(true);
+	});
+
+	// Native `writeArgs` and modern `piWriteArgs` reach the host's `write` tool too, so
+	// `write xd://propose` through either needs the same proof of its proposing turn.
+	describe("hands write-family handlers the live message holding their write block", () => {
+		const h2Request = { write: () => true } as unknown as Parameters<typeof handleServerMessage>[5];
+		const writeResult = (toolCallId: string): ToolResultMessage => ({
+			role: "toolResult",
+			toolCallId,
+			toolName: "write",
+			content: [{ type: "text", text: "ok" }],
+			isError: false,
+			timestamp: 1,
+		});
+		const dispatch = (
+			message: ExecServerMessage["message"],
+			output: AssistantMessage,
+			handlers: CursorExecHandlers,
+		) =>
+			handleServerMessage(
+				create(AgentServerMessageSchema, {
+					message: {
+						case: "execServerMessage",
+						value: create(ExecServerMessageSchema, { id: 1, execId: `exec-${message.case}`, message }),
+					},
+				}),
+				output,
+				new AssistantMessageEventStream(),
+				newBlockState(),
+				new Map(),
+				h2Request,
+				handlers,
+				undefined,
+				{ sawTokenDelta: false },
+				[],
+			);
+		const writeBlock = (message: AssistantMessage | undefined, toolCallId: string) =>
+			message?.content.find(b => b.type === "toolCall" && b.id === toolCallId);
+
+		const recordWrites = (seen: { message: AssistantMessage | undefined; toolCallId: string }[]) => ({
+			async write(call: CursorWriteCall) {
+				seen.push({ message: call.message, toolCallId: call.toolCallId });
+				return writeResult(call.toolCallId);
+			},
+			async piWrite(call: CursorPiWriteCall) {
+				seen.push({ message: call.message, toolCallId: call.toolCallId });
+				return writeResult(call.toolCallId);
+			},
+		});
+
+		it("native writeArgs", async () => {
+			const output = cursorAssistantMessage();
+			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
+			await dispatch(
+				{
+					case: "writeArgs",
+					value: create(WriteArgsSchema, { path: "xd://propose", fileText: "demo", toolCallId: "call-w-1" }),
+				},
+				output,
+				recordWrites(seen),
+			);
+
+			expect(seen).toEqual([{ message: output, toolCallId: "call-w-1" }]);
+			expect(writeBlock(seen[0]?.message, "call-w-1")).toMatchObject({
+				name: "write",
+				arguments: { path: "xd://propose" },
+			});
+		});
+
+		it("withholds it from a native write that materializes a StrReplace edit", async () => {
+			const output = cursorAssistantMessage();
+			output.content.push({ type: "toolCall", id: "call-edit-1", name: "edit", arguments: { path: "/a.ts" } });
+			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
+			await dispatch(
+				{
+					case: "writeArgs",
+					value: create(WriteArgsSchema, { path: "/a.ts", fileText: "x", toolCallId: "call-edit-1" }),
+				},
+				output,
+				recordWrites(seen),
+			);
+
+			expect(seen).toEqual([{ message: undefined, toolCallId: "call-edit-1" }]);
+		});
+
+		it("modern piWriteArgs, under the minted id", async () => {
+			const output = cursorAssistantMessage();
+			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
+			await dispatch(
+				{ case: "piWriteArgs", value: create(PiWriteExecArgsSchema, { path: "xd://propose", content: "demo" }) },
+				output,
+				recordWrites(seen),
+			);
+
+			expect(seen.length).toBe(1);
+			expect(seen[0]?.message).toBe(output);
+			expect(writeBlock(seen[0]?.message, seen[0]?.toolCallId ?? "")).toMatchObject({
+				name: "write",
+				arguments: { path: "xd://propose" },
+			});
+		});
 	});
 
 	it("leaves an MCP call unpaired when no mcp handler is installed", async () => {
