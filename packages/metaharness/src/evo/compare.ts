@@ -1,6 +1,15 @@
 /** Matched-condition parent/child comparison with confound guards and signal-gated credit. */
 import { EvoHttpError } from "./boundary";
-import { evaluateEligibility, type Ineligibility, type Interval, interval, NON_MODEL_PHASES } from "./decision-policy";
+import {
+	type DataGateInput,
+	evaluateDataGates,
+	evaluateEligibility,
+	type Ineligibility,
+	type Interval,
+	interval,
+	NON_MODEL_PHASES,
+} from "./decision-policy";
+import { compareEfficiency, type EfficiencyReport } from "./efficiency";
 import type { FailurePhase } from "./failure-phase";
 import { type FitnessReport, mean } from "./fitness";
 import type { VariantRow } from "./variant-types";
@@ -81,8 +90,8 @@ export interface ComparisonReport extends Interval {
 	dataComplete: boolean;
 	/**
 	 * `dataComplete` AND no non-model trials AND no lossy transcripts AND the suite's pre-declared policy is met AND the paired deltas have
-	 * variance to state an interval. Every decision-valued field (`creditedDelta`, wins/ties/losses, interval, and
-	 * the cost/call/token deltas) is null unless this is true.
+	 * variance to state an interval. Every reward decision field (`creditedDelta`, wins/ties/losses, interval) is null
+	 * unless this is true; `efficiency` has its own eligibility.
 	 */
 	decisionEligible: boolean;
 	/** Why `decisionEligible` is false; null when eligible. */
@@ -99,13 +108,11 @@ export interface ComparisonReport extends Interval {
 	missingSignals: string[];
 	signalsSatisfied: boolean;
 	deltas: TaskDelta[];
-	callsDelta: number | null;
-	outputTokensDelta: number | null;
-	costUsdDelta: number | null;
-}
-
-function diff(a: number | null, b: number | null): number | null {
-	return a === null || b === null ? null : a - b;
+	/**
+	 * Paired spend ratios with intervals. Shares the data, provenance, transcript and power gates but not reward
+	 * variance, so equal rewards on every task still yield an efficiency estimate.
+	 */
+	efficiency: EfficiencyReport;
 }
 
 function refusalsOf(child: FitnessReport, baseline: FitnessReport): Refusal[] {
@@ -141,7 +148,7 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 	// Every paired task must also carry a reward on both sides, or the paired set is partial.
 	const dataComplete =
 		child.dataComplete && baseline.dataComplete && missingInChild.size === 0 && missingInBaseline.size === 0;
-	const ineligibility = evaluateEligibility({
+	const gateInput: DataGateInput = {
 		// Suite identity is matched upstream, so both sides carry the same policy and attempts.
 		policy: child.policy,
 		dataComplete,
@@ -150,8 +157,8 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		lossyTranscriptTrials: child.lossyTranscriptTrials + baseline.lossyTranscriptTrials,
 		pairedTasks: deltas.length,
 		attemptsPerTask: Math.min(child.attemptsPerTask, baseline.attemptsPerTask),
-		deltas: values,
-	});
+	};
+	const ineligibility = evaluateEligibility({ ...gateInput, deltas: values });
 	const eligible = ineligibility === null;
 	// Shared-task view stays as a diagnostic (`rawDelta`, `deltas`); every decision-valued field needs eligibility.
 	const credited = !eligible ? null : rawDelta !== null && rawDelta > 0 && !signalsSatisfied ? 0 : rawDelta;
@@ -183,12 +190,6 @@ export function compareFitness(child: FitnessReport, baseline: FitnessReport, va
 		missingSignals,
 		signalsSatisfied,
 		deltas,
-		callsDelta: eligible ? diff(child.meanLlmCalls, baseline.meanLlmCalls) : null,
-		outputTokensDelta: eligible ? diff(child.meanOutputTokens, baseline.meanOutputTokens) : null,
-		// Cost is a decision number only when every terminal trial on both sides carries a transcript cost.
-		costUsdDelta:
-			eligible && child.costMissingTrials === 0 && baseline.costMissingTrials === 0
-				? diff(child.meanCostUsd, baseline.meanCostUsd)
-				: null,
+		efficiency: compareEfficiency(child, baseline, evaluateDataGates(gateInput)),
 	};
 }

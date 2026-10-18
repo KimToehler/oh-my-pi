@@ -29,6 +29,9 @@ export type Ineligibility =
 	  }
 	| { reason: "no_variance"; pairedTasks: number };
 
+/** Gates every comparison quantity shares: data, provenance, transcript completeness, declared power. */
+export type DataGateIneligibility = Exclude<Ineligibility, { reason: "no_variance" }>;
+
 /** Phases that make a trial non-decisionable, in the order refusals are reported. */
 export const NON_MODEL_PHASES = [
 	"variant_startup_failure",
@@ -78,7 +81,7 @@ export function pooledWithinTaskVariance(attemptRewards: ReadonlyArray<readonly 
 	return df === 0 ? null : ss / df;
 }
 
-export interface EligibilityInput {
+export interface DataGateInput {
 	policy: DecisionPolicy;
 	dataComplete: boolean;
 	incompleteReasons: string[];
@@ -87,6 +90,9 @@ export interface EligibilityInput {
 	lossyTranscriptTrials: number;
 	pairedTasks: number;
 	attemptsPerTask: number;
+}
+
+export interface EligibilityInput extends DataGateInput {
 	/** Paired per-task deltas over which the interval is stated. */
 	deltas: readonly number[];
 }
@@ -99,6 +105,15 @@ export interface EligibilityInput {
  * `withinTaskVariance` on the fitness report.
  */
 export function evaluateEligibility(input: EligibilityInput): Ineligibility | null {
+	const gate = evaluateDataGates(input);
+	if (gate) return gate;
+	const { sd } = interval(input.deltas, input.deltas.reduce((a, b) => a + b, 0) / Math.max(input.deltas.length, 1));
+	if (sd === null || sd === 0) return { reason: "no_variance", pairedTasks: input.pairedTasks };
+	return null;
+}
+
+/** The first four gates of {@link evaluateEligibility}, in the same order; they do not depend on any delta. */
+export function evaluateDataGates(input: DataGateInput): DataGateIneligibility | null {
 	if (!input.dataComplete) return { reason: "incomplete", reasons: input.incompleteReasons };
 	if (input.nonModelPhases.length > 0) return { reason: "non_model_phase", phases: input.nonModelPhases };
 	// Any dropped line means call/token totals undercount; there is no pre-declared tolerated fraction, so none is read.
@@ -115,7 +130,5 @@ export function evaluateEligibility(input: EligibilityInput): Ineligibility | nu
 			minAttemptsPerTask: policy.minAttemptsPerTask,
 		};
 	}
-	const { sd } = interval(input.deltas, input.deltas.reduce((a, b) => a + b, 0) / Math.max(input.deltas.length, 1));
-	if (sd === null || sd === 0) return { reason: "no_variance", pairedTasks };
 	return null;
 }
