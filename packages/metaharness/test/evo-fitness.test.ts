@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { assertMatched, type ConditionIdentity, compareFitness } from "../src/evo/compare";
 import { tCritical95 } from "../src/evo/decision-policy";
 import { computeFitness } from "../src/evo/fitness";
 import { buildReflectionBundle } from "../src/evo/reflection";
+import { summarizeOmpTranscript } from "../src/evo/transcript";
 import type { TranscriptMetrics } from "../src/evo/transcript";
 import type { VariantRow } from "../src/evo/variant-types";
 import type { TraceRow } from "../src/store";
@@ -371,6 +375,7 @@ describe("comparison", () => {
 		model: "m",
 		executorConfigHash: "e",
 		modelsYamlHash: "m",
+		stagedModelsHash: "s",
 		sourceRef: "r",
 		sourceDirtyHash: null,
 		concurrency: 4,
@@ -475,6 +480,31 @@ describe("cost scope (R73)", () => {
 		expect(c.costUsdDelta).toBeNull();
 		const whole = compareFitness(sideOf("c2", [0.2, 0.4]), baseline, variant([]));
 		expect(whole.costUsdDelta).toBeCloseTo(0.1, 12);
+	});
+
+	it("a partially costed transcript marks the trial cost-missing and nulls costUsdDelta", () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "evo-fit-cost-"));
+		try {
+			const u = (cost?: number) => ({
+				input: 1,
+				output: 1,
+				cacheRead: 0,
+				cacheWrite: 0,
+				...(cost === undefined ? {} : { cost: { total: cost } }),
+			});
+			const msg = (cost?: number) =>
+				JSON.stringify({ type: "message_end", message: { role: "assistant", usage: u(cost) } });
+			const file = path.join(dir, "omp.txt");
+			fs.writeFileSync(file, `${msg(0.1)}\n${msg()}\n`);
+			const partial = summarizeOmpTranscript(file).costUsd;
+			expect(partial).toBeNull();
+			const child = sideOf("c", [0.2, partial]);
+			expect(child.costMissingTrials).toBe(1);
+			const c = compareFitness(child, sideOf("p", [0.2, 0.2], [0, 0]), variant([]));
+			expect(c.costUsdDelta).toBeNull();
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("reports null mean cost when no trial has one", () => {

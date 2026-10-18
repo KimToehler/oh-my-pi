@@ -250,6 +250,62 @@ describe("summarizeOmpTranscript", () => {
 		});
 	});
 
+	describe("partial cost is unknown (R83)", () => {
+		it("main usage without cost after a costed one makes cost null", () => {
+			const file = write(tmpDir(), [assistantEnd(withCost(usage(1, 1), 0.1)), assistantEnd(usage(1, 1))]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeNull();
+		});
+
+		it("a later costed record does not resurrect an unknown total", () => {
+			const file = write(tmpDir(), [assistantEnd(usage(1, 1)), assistantEnd(withCost(usage(1, 1), 0.1))]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeNull();
+		});
+
+		it("a message without a usage object does not poison the total", () => {
+			const file = write(tmpDir(), [assistantEnd(withCost(usage(1, 1), 0.1)), assistantEnd(undefined)]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(0.1, 12);
+		});
+
+		it("task results[] with one uncosted child makes the snapshot and trial cost null", () => {
+			const file = write(tmpDir(), [
+				assistantEnd(withCost(usage(1, 1), 0.1)),
+				toolEnd("t1", "task", {
+					details: {
+						results: [
+							{ requests: 2, usage: withCost(usage(10, 1), 0.5) },
+							{ requests: 5, usage: usage(20, 2) },
+						],
+					},
+				}),
+			]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeNull();
+		});
+
+		it("an equal replay with a known cost fills in an unknown snapshot cost", () => {
+			const unknown = toolEnd("t1", "task", { details: { usage: usage(100, 10), results: [{ requests: 3 }] } });
+			const known = toolEnd("t1", "task", {
+				details: { usage: withCost(usage(100, 10), 2), results: [{ requests: 3 }] },
+			});
+			expect(summarizeOmpTranscript(write(tmpDir(), [unknown, known])).costUsd).toBeCloseTo(2, 12);
+		});
+
+		it("all records costed still sum (control)", () => {
+			const file = write(tmpDir(), [
+				assistantEnd(withCost(usage(1, 1), 0.1)),
+				assistantEnd(withCost(usage(1, 1), 0.2)),
+				toolEnd("t1", "task", {
+					details: {
+						results: [
+							{ requests: 2, usage: withCost(usage(10, 1), 0.5) },
+							{ requests: 5, usage: withCost(usage(20, 2), 0.25) },
+						],
+					},
+				}),
+			]);
+			expect(summarizeOmpTranscript(file).costUsd).toBeCloseTo(1.05, 12);
+		});
+	});
+
 	it("reports null cost when no usage record carried one, never a silent zero", () => {
 		const file = write(tmpDir(), [assistantEnd(usage(1, 1))]);
 		expect(summarizeOmpTranscript(file).costUsd).toBeNull();
