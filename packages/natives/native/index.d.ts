@@ -43,10 +43,29 @@ export declare class DesktopSession {
    * behind the worker, so it answers at once even while a request is stuck.
    */
   get screenState(): DesktopScreenState
+  /**
+   * Keeps the display awake from the next activity request until
+   * `releaseDisplayAwake()`, however long the session sits idle in between,
+   * instead of for the grace period after the last request. An agent calls
+   * this when it acts inside a turn.
+   */
+  holdDisplayUntilReleased(): void
+  /**
+   * Lets the display sleep now if a turn holds it, without waiting behind
+   * queued requests, and returns later activity to the grace period. Activity
+   * outside a turn keeps its grace. An agent calls this when its turn ends.
+   */
+  releaseDisplayAwake(): void
+  /**
+   * How many times the user's physical Escape has stopped takeover input in
+   * this session, or under its `escapeStopKey`. Host cancels, retirement and
+   * release never count, so a rise tells the host the user stopped the work.
+   */
+  get escapeStops(): number
   listDisplays(): Promise<Array<DesktopDisplay>>
   listWindows(): Promise<Array<DesktopWindow>>
   listApplications(options?: ApplicationQuery | undefined | null): Promise<Array<Application>>
-  openApplication(id: string, options?: ApplicationOpenOptions | undefined | null): Promise<Application>
+  openApplication(id: string, options?: ApplicationOpenOptions | undefined | null): Promise<OpenedApplication>
   /**
    * Capture and accessibility share one serialized request. Neither a failed
    * snapshot nor an abandoned reply replaces the last delivered input frame.
@@ -93,8 +112,20 @@ export declare class DesktopSession {
   axParent(reference: string): Promise<AxNode | undefined | null>
   axPerform(reference: string, action: string): Promise<undefined>
   axSetValue(reference: string, value: string): Promise<undefined>
+  /**
+   * Selects `text` in the element's value by accessibility, or places a
+   * caret at its start or end, without focus change or keystrokes.
+   */
+  axSelectText(reference: string, text: string, opts?: AxSelectTextOptions | undefined | null): Promise<AxTextSelection>
   axFocus(reference: string): Promise<undefined>
   axClick(reference: string, opts?: PointerOptions | undefined | null): Promise<undefined>
+  /**
+   * Types `text` into the element: native text fields take it by AX
+   * insertion, other elements as keystrokes once they hold keyboard focus.
+   */
+  axType(reference: string, text: string, opts?: PointerOptions | undefined | null): Promise<undefined>
+  /** Presses a key chord in the element once it holds keyboard focus. */
+  axKeyChord(reference: string, keys: Array<string>, opts?: PointerOptions | undefined | null): Promise<undefined>
   /**
    * Immediately cancel operations submitted before this call. Later
    * operations may proceed.
@@ -1171,6 +1202,16 @@ export interface AxQuery {
   limit?: number
 }
 
+/** Where `axSelectText` looks for its text and what it selects there. */
+export interface AxSelectTextOptions {
+  /** Text that must directly precede the match. */
+  prefix?: string
+  /** Text that must directly follow the match. */
+  suffix?: string
+  /** `text` (default) selects the match; `start` and `end` place a caret. */
+  select?: string
+}
+
 export interface AxSnapshot {
   text: string
   nodeCount: number
@@ -1181,6 +1222,19 @@ export interface AxSnapshotOptions {
   maxDepth?: number
   maxNodes?: number
   all?: boolean
+}
+
+/** The selection read back after `axSelectText`, in UTF-16 code units. */
+export interface AxTextSelection {
+  start: number
+  length: number
+  /** The selected text, empty for a caret. */
+  text: string
+  /**
+   * Whether the element is focused in its app: typing and AX insertion
+   * act on the focused element.
+   */
+  focused: boolean
 }
 
 export interface BlockParseOptions {
@@ -1319,8 +1373,10 @@ export interface DesktopCapabilities {
   heldInput: boolean
   spaces: boolean
   /**
-   * Native global Escape cancellation while input/control ownership is held.
-   * Wayland requires the host interrupt action instead.
+   * Native global Escape cancellation of takeover input (`takeover: true`,
+   * held control, desktop/display-level input, raises, activating launches).
+   * Without held control, background window input never watches the user's
+   * keys; it and Wayland stop only through the host interrupt.
    */
   globalEscape: boolean
   capturePermission: string
@@ -1425,8 +1481,19 @@ export interface DesktopScreenState {
   displayAsleep: boolean
 }
 
+/**
+ * Physical-Escape stops counted under `key` by every desktop session created
+ * with it, including closed ones, until the key is forgotten.
+ */
+export declare function desktopEscapeStops(key: string): number
+
 export interface DesktopSessionOptions {
   display?: string
+  /**
+   * Sessions created with the same key share one physical-Escape stop
+   * count, which `desktopEscapeStops` reads after they close.
+   */
+  escapeStopKey?: string
 }
 
 /** One capturable top-level window in global logical desktop coordinates. */
@@ -1781,13 +1848,17 @@ export interface EnclosingBoundaryOptions {
  * the calling thread.
  *
  * The input image is decoded and resized to the requested pixel dimensions
- * before encoding. Prefer [`encode_sixel_async`] unless the caller cannot
- * wait: the decode, resize and dither block the JS thread.
+ * (not resampled when it already has them), then partial alpha is composited
+ * against `background_rgb` (packed `0xRRGGBB`). Fully transparent pixels
+ * remain transparent. Encoding uses whole 6-pixel bands: a partial last band
+ * is dropped, see [`band_rows`]. Prefer
+ * [`encode_sixel_async`] unless the caller cannot wait: the decode, resize
+ * and dither block the JS thread.
  *
  * # Errors
  * Returns an error if decoding, resizing, or SIXEL encoding fails.
  */
-export declare function encodeSixel(bytes: Uint8Array, targetWidthPx: number, targetHeightPx: number): string
+export declare function encodeSixel(bytes: Uint8Array, targetWidthPx: number, targetHeightPx: number, backgroundRgb: number): string
 
 /**
  * Same result as [`encode_sixel`], but the decode, resize and dither run on
@@ -1796,7 +1867,7 @@ export declare function encodeSixel(bytes: Uint8Array, targetWidthPx: number, ta
  * # Errors
  * Rejects if decoding, resizing, or SIXEL encoding fails.
  */
-export declare function encodeSixelAsync(bytes: Uint8Array, targetWidthPx: number, targetHeightPx: number): Promise<string>
+export declare function encodeSixelAsync(bytes: Uint8Array, targetWidthPx: number, targetHeightPx: number, backgroundRgb: number): Promise<string>
 
 /** Tokenizer encoding to use. */
 export declare enum Encoding {
@@ -1884,6 +1955,9 @@ export declare enum FileType {
   /** Symbolic link. */
   Symlink = 3
 }
+
+/** Drops the stop count kept under `key` once no session will use it again. */
+export declare function forgetDesktopEscapeStops(key: string): void
 
 /** Fuzzy file path search for autocomplete. */
 export declare function fuzzyFind(options: FuzzyFindOptions): Promise<FuzzyFindResult>
@@ -2726,6 +2800,20 @@ export declare function notebookToEditableText(json: string, displayPath: string
 
 /** Check syntax through the shared parse cache without constructing a summary. */
 export declare function parseCodeStatus(options: ParseStatusOptions): ParseStatus
+
+/**
+ * An opened application: its [`Application`] fields and the window it
+ * shows. On macOS `window` is its frontmost window once one is on screen;
+ * other platforms report none.
+ */
+export interface OpenedApplication {
+  id: string
+  name: string
+  path: string
+  running: boolean
+  pid?: number
+  window?: DesktopWindow
+}
 
 /** Parsed Kitty keyboard protocol sequence result for a Kitty input sequence. */
 export interface ParsedKittyResult {

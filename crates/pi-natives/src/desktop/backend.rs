@@ -9,11 +9,19 @@ use super::{
 	frame::FrameGeometry,
 	keys::KeyName,
 	menus::DesktopMenuItem,
+	text_range::TextSelectRequest,
 	types::{
-		CaptureCaps, DesktopCapabilities, DesktopDisplay, DesktopWindow, DisplaySelector,
-		ScreenState, Target,
+		AxTextSelection, CaptureCaps, DesktopCapabilities, DesktopDisplay, DesktopWindow,
+		DisplaySelector, ScreenState, Target,
 	},
 };
+
+/// Whether an AX `perform` action names a raise: `raise` in any case, or the
+/// native `AXRaise`. Matches the macOS action naming, so a raise that arms the
+/// physical-Escape stop is exactly a raise that runs as `AXRaise`.
+pub(crate) fn is_raise_action(action: &str) -> bool {
+	action.trim().eq_ignore_ascii_case("raise") || action == "AXRaise"
+}
 
 /// How window-targeted input reaches its target.
 ///
@@ -104,6 +112,34 @@ pub enum PointerEvent {
 /// A held prevent-idle-display-sleep assertion; dropping it releases it.
 pub type DisplayAwakeHold = Box<dyn Send>;
 
+/// Keyboard input addressed to one accessibility element.
+#[derive(Debug, Clone)]
+pub enum ElementInput {
+	Text(String),
+	Chord(Vec<KeyName>),
+}
+
+/// Where an application's keyboard focus is, read when an element it was
+/// given to did not report holding it.
+#[derive(Clone, Default)]
+pub struct KeyboardFocus {
+	/// The window holding keyboard focus, when it can be identified.
+	pub window:  Option<String>,
+	/// The application's focused element, when it reports one.
+	pub element: Option<AxHandle>,
+}
+
+/// Outcome of keyboard input addressed to an element.
+pub enum ElementDelivery {
+	Delivered,
+	/// The element never reported keyboard focus; nothing was sent.
+	#[cfg_attr(
+		not(target_os = "macos"),
+		allow(dead_code, reason = "only macOS reads which element holds keyboard focus")
+	)]
+	Unfocused(KeyboardFocus),
+}
+
 pub trait Backend: Send {
 	fn capabilities(&mut self) -> DesktopCapabilities;
 	fn displays(&mut self) -> CoreResult<Vec<DesktopDisplay>>;
@@ -166,6 +202,27 @@ pub trait Backend: Send {
 		mode: DeliveryMode,
 		token: &OperationToken,
 	) -> CoreResult<()>;
+	/// Types or presses `input` into `element`, a live element of window
+	/// `target`. Backends that cannot read which element holds keyboard focus
+	/// focus it and send through the window's keyboard path.
+	fn element_input(
+		&mut self,
+		target: &Target,
+		element: &AxHandle,
+		input: &ElementInput,
+		mode: DeliveryMode,
+		token: &OperationToken,
+	) -> CoreResult<ElementDelivery> {
+		self
+			.ax()
+			.ok_or_else(DesktopError::ax_unsupported)?
+			.focus(element)?;
+		match input {
+			ElementInput::Text(text) => self.type_text(target, text, mode, token)?,
+			ElementInput::Chord(keys) => self.key_chord(target, keys, mode, token)?,
+		}
+		Ok(ElementDelivery::Delivered)
+	}
 	fn hold_keys(
 		&mut self,
 		target: &Target,
@@ -216,6 +273,18 @@ pub trait AxBackend {
 	fn perform(&mut self, h: &AxHandle, action: &str) -> CoreResult<()>;
 	fn set_value(&mut self, h: &AxHandle, value: &str) -> CoreResult<()>;
 	fn focus(&mut self, h: &AxHandle) -> CoreResult<()>;
+	/// Selects the text `request` names in the element's value, leaving the
+	/// value unchanged, and returns the selection read back.
+	fn select_text(
+		&mut self,
+		_h: &AxHandle,
+		_request: &TextSelectRequest,
+	) -> CoreResult<AxTextSelection> {
+		Err(DesktopError::new(
+			super::error::ErrorCode::Unsupported,
+			"selecting text by accessibility is available only on macOS",
+		))
+	}
 	fn element_at(&mut self, x: f64, y: f64) -> CoreResult<Option<AxHandle>>;
 	fn focused_element(&mut self) -> CoreResult<Option<AxHandle>>;
 	fn attributes(&mut self, h: &AxHandle) -> CoreResult<Vec<(String, String)>>;
@@ -224,5 +293,11 @@ pub trait AxBackend {
 	/// it, so a ref is never renewed onto the newcomer.
 	fn alive(&mut self, _h: &AxHandle) -> bool {
 		true
+	}
+	/// Whether the app has provably destroyed the element `h` was read from,
+	/// rather than a request on it failing on another element. Only then does
+	/// a `StaleRef` name the one element left with its fields.
+	fn destroyed(&mut self, _h: &AxHandle) -> bool {
+		false
 	}
 }
