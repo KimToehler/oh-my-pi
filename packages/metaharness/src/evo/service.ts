@@ -1,4 +1,4 @@
-/** `/api/evo/*` request handling: variants, suites, evaluation, fitness, compare, reflection bundle. */
+/** `/api/evo/*` request handling: variants, suites, evaluation, fitness, compare, reflection bundle, lever taxonomy. */
 import * as path from "node:path";
 import type { LaunchRequest } from "../launch-args";
 import type { RunStore } from "../store";
@@ -18,6 +18,7 @@ import { EvoReports } from "./service-reports";
 import { type StoredSuite, SuiteRegistry } from "./suites";
 import type { VariantRow } from "./variant-types";
 import { parseVariantRequest, VariantRegistry } from "./variants";
+import leversDoc from "./prompts/levers.md" with { type: "text" };
 
 export interface EvoServiceOptions {
 	store: RunStore;
@@ -98,6 +99,12 @@ export class EvoService {
 				const { suite, created } = await this.#suites.register(await this.#body(request));
 				return Response.json(suite, { status: created ? 201 : 200 });
 			}
+		}
+		if (p === "/api/evo/levers") {
+			if (method === "GET") {
+				return new Response(leversDoc, { headers: { "content-type": "text/markdown; charset=utf-8" } });
+			}
+			return Response.json({ error: "method not allowed" }, { status: 405 });
 		}
 		const m = p.match(/^\/api\/evo\/variants\/([^/]+)(?:\/(evaluate|fitness|compare|reflection-bundle))?$/);
 		if (!m) return Response.json({ error: "not found" }, { status: 404 });
