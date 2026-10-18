@@ -2020,10 +2020,12 @@ export class AcpAgent implements Agent {
 				details,
 			};
 		}
-		// Approved. The next turn injects the plan as context from an immutable
-		// snapshot of the approved bytes; the agent-chosen file keeps its name and
-		// may change later without changing what gets executed.
-		await session.adoptApprovedPlan(plan);
+		// Approved. The next turn injects the plan as context from the plan reference.
+		// A plan whose bytes a review bound executes from an immutable snapshot of those
+		// bytes, so later edits to the agent-chosen file cannot change what gets executed.
+		let executionPlanPath = planFilePath;
+		if (plan.reviewedSha256) executionPlanPath = await session.adoptApprovedPlan(plan);
+		else session.setPlanReferencePath(planFilePath);
 		session.setPlanProposalHandler?.(null);
 		session.setPlanModeState(undefined);
 		let autosaveFailed = false;
@@ -2074,7 +2076,7 @@ export class AcpAgent implements Agent {
 			content: [
 				{
 					type: "text" as const,
-					text: `Plan approved at ${planFilePath}. Plan mode exited; proceed with the implementation.${modelNote}${autosaveNote}`,
+					text: `Plan approved at ${executionPlanPath}. Plan mode exited; proceed with the implementation.${modelNote}${autosaveNote}`,
 				},
 			],
 			details,

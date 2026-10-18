@@ -39,6 +39,12 @@ const OPENAI_REVIEWER = { provider: "openai", model: "gpt-4o" } as const;
 const PLAN_URL = "local://demo-plan.md";
 const PLAN_TEXT = "# Demo plan\n\nShip it.\n";
 const HANDLER_TEXT = "handled by host";
+const BOUND_PLAN: ResolvedApprovedPlan = {
+	planFilePath: PLAN_URL,
+	planContent: PLAN_TEXT,
+	title: "demo",
+	reviewedSha256: planContentSha256(PLAN_TEXT),
+};
 const BLOCKER = {
 	area: "correctness",
 	defect: "cites a missing\tfunction",
@@ -270,7 +276,7 @@ describe("plan review runtime", () => {
 
 		const result = await propose(harness);
 
-		expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
+		expect(harness.handled).toEqual([BOUND_PLAN]);
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(result.content.length).toBe(2);
 		expect(result.content.at(1)).toEqual({ type: "text", text: HANDLER_TEXT });
@@ -315,7 +321,7 @@ describe("plan review runtime", () => {
 		const capped = await propose(harness);
 		const afterReset = await propose(harness);
 
-		expect(harness.handled.length).toBe(1);
+		expect(harness.handled).toEqual([BOUND_PLAN]);
 		expect(resultText(capped)).toContain(HANDLER_TEXT);
 		expect((capped.details as PlanApprovalDetails).planSha256).toBe(planContentSha256(PLAN_TEXT));
 		expect(
@@ -339,7 +345,7 @@ describe("plan review runtime", () => {
 
 		const result = await propose(harness);
 
-		expect(harness.handled.length).toBe(1);
+		expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
 		expect(resultText(result)).toContain(HANDLER_TEXT);
 		expect(resultText(result)).not.toContain("cites a missing");
 		expect((result.details as PlanApprovalDetails).planSha256).toBeUndefined();
@@ -559,7 +565,7 @@ describe("plan review runtime", () => {
 
 					expect(result.isError).toBe(false);
 					expect(spy).toHaveBeenCalledTimes(1);
-					expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
+					expect(harness.handled).toEqual([BOUND_PLAN]);
 					expect(auditEntries(harness)[0]).toMatchObject({ outcome: "okay", planner: CURSOR_PLANNER });
 				});
 
@@ -767,9 +773,23 @@ describe("plan review runtime", () => {
 		const result = await harness.session.submitPlanProposal("demo", { toolCallId: "unrecorded" });
 
 		expect(spy).not.toHaveBeenCalled();
+		expect(harness.handled).toEqual([{ planFilePath: PLAN_URL, planContent: PLAN_TEXT, title: "demo" }]);
 		expect(result.content).toEqual([{ type: "text", text: HANDLER_TEXT }]);
 		expect(result.details).toEqual({ planFilePath: PLAN_URL, title: "demo", planExists: true });
 		expect(auditEntries(harness)).toEqual([]);
+	});
+
+	it("refuses to adopt a snapshot path that already holds other bytes and keeps the plan reference", async () => {
+		const harness = createHarness();
+		const snapshotUrl = `local://approved/${planContentSha256(PLAN_TEXT)}-demo-plan.md`;
+		await Bun.write(harness.planPath(snapshotUrl), "# Planted plan\n");
+		const referenceBefore = harness.session.getPlanReferencePath();
+
+		await expect(harness.session.adoptApprovedPlan(BOUND_PLAN)).rejects.toThrow("does not hold the approved bytes");
+
+		expect(harness.session.getPlanReferencePath()).toBe(referenceBefore);
+		expect(referenceBefore).not.toBe(snapshotUrl);
+		expect(await Bun.file(harness.planPath(snapshotUrl)).text()).toBe("# Planted plan\n");
 	});
 
 	it("T5-k an invalid structured verdict is unreviewed/no-verdict and passes", async () => {

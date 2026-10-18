@@ -168,6 +168,10 @@ export interface ResolvedApprovedPlan {
 	planFilePath: string;
 	planContent: string;
 	title: string;
+	/** sha256 (hex) of `planContent`, set by `AgentSession` only when a completed review
+	 *  (okay, or the round cap) bound these bytes. Hosts execute from an immutable
+	 *  snapshot only when it is set; otherwise they keep the agent-chosen `planFilePath`. */
+	reviewedSha256?: string;
 }
 
 /** Locate the plan file the agent wrote and finalize its title — without

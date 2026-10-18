@@ -16,7 +16,11 @@ import {
 	AcpAgent,
 	createAcpExtensionUiContext,
 } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
-import { type ResolvedApprovedPlan, resolveApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import {
+	planContentSha256,
+	type ResolvedApprovedPlan,
+	resolveApprovedPlan,
+} from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
 import { listPlanFiles, readPlanFile } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
 import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
 import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
@@ -454,8 +458,15 @@ class FakeAgentSession {
 	}
 }
 
-/** Resolve the plan the way `AgentSession.submitPlanProposal` does, then call the installed ACP handler. */
-async function proposePlan(session: FakeAgentSession, title: string): Promise<unknown> {
+/**
+ * Resolve the plan the way `AgentSession.submitPlanProposal` does, then call the installed ACP handler.
+ * `reviewed` stands in for a completed cross-family review, which binds the resolved bytes.
+ */
+async function proposePlan(
+	session: FakeAgentSession,
+	title: string,
+	options: { reviewed?: boolean } = {},
+): Promise<unknown> {
 	const handler = session.planProposalHandler;
 	const state = session.planModeState;
 	if (!handler || !state?.enabled) throw new Error("expected ACP plan mode with a proposal handler");
@@ -472,7 +483,7 @@ async function proposePlan(session: FakeAgentSession, title: string): Promise<un
 		readPlan: url => readPlanFile(url, planPathOptions),
 		listPlanFiles: () => listPlanFiles(planPathOptions),
 	});
-	return handler(plan);
+	return handler(options.reviewed ? { ...plan, reviewedSha256: planContentSha256(plan.planContent) } : plan);
 }
 
 function holdPromptStreaming(session: FakeAgentSession): () => void {
@@ -795,13 +806,8 @@ describe("ACP agent", () => {
 		// Mode + handler are cleared; the agent regains write tools next turn.
 		expect(session.planModeState).toBeUndefined();
 		expect(session.planProposalHandler).toBeUndefined();
-		expect(session.adoptedPlans).toEqual([
-			{
-				planFilePath: "local://words-counter-plan.md",
-				planContent: "# Words Counter\n\nFile contents.",
-				title: "words-counter",
-			},
-		]);
+		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		expect(session.adoptedPlans).toEqual([]);
 		const approvalUpdates = harness.updates.slice(updatesBefore);
 		// Mode-change notifications reached the client so Zed's UI and config
 		// selector both reflect the approval-driven exit.
@@ -826,6 +832,26 @@ describe("ACP agent", () => {
 		harness.abortController.abort();
 		await Bun.sleep(0);
 	});
+
+	it("plan-proposal handler executes a reviewed plan from its snapshot and names that snapshot", async () => {
+		const harness = await createHarness();
+		const { session } = await enterPlanWithPlanFile(harness);
+
+		const result = (await proposePlan(session, "words-counter", { reviewed: true })) as {
+			content: Array<{ type: string; text: string }>;
+			details: { planFilePath: string };
+		};
+
+		expect(session.adoptedPlans.map(plan => plan.planContent)).toEqual(["# Words Counter\n\nFile contents."]);
+		const snapshotUrl = session.planReferencePath ?? "";
+		expect(snapshotUrl).not.toBe("local://words-counter-plan.md");
+		expect(result.content[0]?.text).toContain(snapshotUrl);
+		expect(result.details.planFilePath).toBe("local://words-counter-plan.md");
+
+		harness.abortController.abort();
+		await Bun.sleep(0);
+	});
+
 	it("plan-proposal handler autosaves the approved plan without leaking the path", async () => {
 		const harness = await createHarness();
 		cfgPlanEnabled.set(Settings.instance, true);
@@ -889,7 +915,7 @@ describe("ACP agent", () => {
 		expect(text).toMatch(/autosave failed/);
 		expect(text).not.toContain(harness.cwdA);
 		expect(session.planModeState).toBeUndefined();
-		expect(session.adoptedPlans.map(plan => plan.planContent)).toEqual(["# Words Counter\n\nFile contents."]);
+		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
 
 		harness.abortController.abort();
 		await Bun.sleep(0);

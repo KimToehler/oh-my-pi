@@ -85,10 +85,9 @@ export interface PrewalkCoordinatorHost {
 	getPlanReferencePath(): string;
 	/**
 	 * Snapshot the approved plan bytes as the session's plan reference and return
-	 * the snapshot's URL (`AgentSession.adoptApprovedPlan`). Hosts without
-	 * session-local storage omit it and hand off the proposed path.
+	 * the snapshot's URL (`AgentSession.adoptApprovedPlan`).
 	 */
-	adoptApprovedPlan?(plan: ResolvedApprovedPlan): Promise<string>;
+	adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string>;
 	setPlanProposalHandler(handler: PlanProposalHandler | null): void;
 	waitForSessionMessagePersistence(message: AgentMessage): Promise<void>;
 }
@@ -440,9 +439,9 @@ export class PrewalkCoordinator {
 		const state = this.#host.getPlanModeState();
 		if (!planYolo || !state?.enabled) throw new ToolError("Plan mode is not active.");
 		const { planContent, title: resolvedTitle } = plan;
-		// The executor reads the plan from this path, so it must hold the approved bytes
-		// for good: the agent-chosen plan file may still change after approval.
-		const planFilePath = (await this.#host.adoptApprovedPlan?.(plan)) ?? plan.planFilePath;
+		// The executor reads the plan from this path. When a review bound the bytes it
+		// must hold them for good, since the agent-chosen file may still change.
+		const planFilePath = plan.reviewedSha256 ? await this.#host.adoptApprovedPlan(plan) : plan.planFilePath;
 		let autosavedPlan: string | null = null;
 		try {
 			autosavedPlan = await autosaveApprovedPlan({

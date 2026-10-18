@@ -187,6 +187,9 @@ describe("plan-yolo approval autosave", () => {
 				planModeState = state;
 			},
 			getPlanReferencePath: () => "",
+			adoptApprovedPlan: async () => {
+				throw new Error("an unreviewed plan is never snapshotted");
+			},
 			setPlanProposalHandler: handler => {
 				capturedHandler = handler ?? undefined;
 			},

@@ -1711,7 +1711,7 @@ export class AgentSession implements SettingsScope {
 		}
 		this.#planReviewRounds = 0;
 		const pass = this.#announcePlanReviewPass(outcome);
-		const result = await handler(plan);
+		const result = await handler(pass.bindsBytes ? { ...plan, reviewedSha256: planSha256 } : plan);
 		const details =
 			pass.bindsBytes && isPlanApprovalDetails(result.details) ? { ...result.details, planSha256 } : result.details;
 		return { ...result, content: [{ type: "text", text: pass.status }, ...result.content], details };

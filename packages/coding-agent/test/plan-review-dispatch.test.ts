@@ -5,9 +5,11 @@
  * OKAY runs the installer once, with exactly the plan bytes the reviewer was shown.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import type { ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
@@ -28,7 +30,7 @@ import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/st
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { dispatchResolutionDevice } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
-import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { getConfigRootDir, isEnoent, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import type {
 	AgentSideConnection,
 	CreateElicitationRequest,
@@ -128,7 +130,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 	 * A real session whose model proposes `demo` through a `write` tool that dispatches
 	 * `xd://propose` from inside the loop, so `#beforeToolCall` records the planner.
 	 */
-	function createHarness(): Harness {
+	function createHarness(options: { reviewEnabled?: boolean } = {}): Harness {
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("Expected bundled anthropic model to exist");
 		const cwd = tempDir.path();
@@ -183,7 +185,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 				"compaction.enabled": false,
 				"retry.enabled": false,
 				"plan.autosave": true,
-				"plan.review.enabled": true,
+				"plan.review.enabled": options.reviewEnabled ?? true,
 				"plan.review.models": ["openai/gpt-4o"],
 			}),
 			modelRegistry: new ModelRegistry(authStorage, tempDir.join("models.yml")),
@@ -230,13 +232,17 @@ describe("plan review through the real agent loop, per approval installer", () =
 		await harness.session.waitForIdle();
 	}
 
-	/** The xdev `inner` details of the loop's propose tool result. */
-	function proposeInner(harness: Harness): Record<string, unknown> {
+	function proposeToolResult(harness: Harness): ToolResultMessage {
 		const proposeResult = harness.session.agent.state.messages.find(
 			(message: AgentMessage) => message.role === "toolResult" && message.toolName === "write",
 		);
 		if (!proposeResult || proposeResult.role !== "toolResult") throw new Error("propose produced no tool result");
-		const details = proposeResult.details as { xdev?: { inner?: Record<string, unknown> } } | undefined;
+		return proposeResult;
+	}
+
+	/** The xdev `inner` details of the loop's propose tool result. */
+	function proposeInner(harness: Harness): Record<string, unknown> {
+		const details = proposeToolResult(harness).details as { xdev?: { inner?: Record<string, unknown> } } | undefined;
 		return details?.xdev?.inner ?? {};
 	}
 
@@ -256,6 +262,15 @@ describe("plan review through the real agent loop, per approval installer", () =
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
+	}
+
+	async function approvedSnapshots(harness: Harness): Promise<string[]> {
+		try {
+			return await fs.readdir(localPath(harness, "local://approved"));
+		} catch (error) {
+			if (isEnoent(error)) return [];
+			throw error;
+		}
 	}
 
 	function expectReviewedBytesReachedInstaller(assignments: string[], handled: ResolvedApprovedPlan[]): void {
@@ -386,6 +401,24 @@ describe("plan review through the real agent loop, per approval installer", () =
 			expect(handedBytes).toBe(PLAN_TEXT);
 			expect(planContentSha256(handedBytes)).toBe(reviewAuditSha(harness) as string);
 		});
+
+		it("review disabled: the executor is handed the agent-chosen plan file and no snapshot is written", async () => {
+			const harness = createHarness({ reviewEnabled: false });
+			const { switches, targetId } = await installPlanYolo(harness);
+
+			await driveProposal(harness);
+
+			const handoffs = harness.session.agent.state.messages.filter(
+				message => message.role === "custom" && message.customType === "plan-yolo-handoff",
+			);
+			expect(handoffs.length).toBe(1);
+			const handoff = handoffs[0];
+			const details = handoff?.role === "custom" ? (handoff.details as { planFilePath?: string }) : undefined;
+			expect(details?.planFilePath).toBe(PLAN_URL);
+			expect(handoff && messageContent(handoff)).toContain(PLAN_URL);
+			expect(switches).toEqual([targetId]);
+			expect(await approvedSnapshots(harness)).toEqual([]);
+		});
 	});
 
 	describe("ACP installer (AcpAgent plan mode)", () => {
@@ -471,6 +504,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 
 			const referenceUrl = harness.session.getPlanReferencePath();
 			expect(referenceUrl).not.toBe(PLAN_URL);
+			expect(messageContent(proposeToolResult(harness))).toContain(referenceUrl);
 			const referencedBytes = await Bun.file(localPath(harness, referenceUrl)).text();
 			expect(referencedBytes).toBe(PLAN_TEXT);
 			expect(planContentSha256(referencedBytes)).toBe(reviewAuditSha(harness) as string);
@@ -481,6 +515,19 @@ describe("plan review through the real agent loop, per approval installer", () =
 			const injected = references[0] ? messageContent(references[0]) : "";
 			expect(injected).toContain(PLAN_TEXT.trim());
 			expect(injected).not.toContain("Swapped plan");
+		});
+
+		it("review disabled: approval references the agent-chosen plan file and no snapshot is written", async () => {
+			const harness = createHarness({ reviewEnabled: false });
+			const { elicitations } = await installAcp(harness);
+
+			await driveProposal(harness);
+
+			expect(elicitations.length).toBe(1);
+			expect(harness.session.getPlanModeState()).toBeUndefined();
+			expect(harness.session.getPlanReferencePath()).toBe(PLAN_URL);
+			expect(messageContent(proposeToolResult(harness))).toContain(PLAN_URL);
+			expect(await approvedSnapshots(harness)).toEqual([]);
 		});
 	});
 });
