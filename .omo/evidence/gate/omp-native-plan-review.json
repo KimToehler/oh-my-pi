@@ -1,0 +1,37 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/omp-native-plan-review.md",
+  "plan_sha256": "2524bc967097e283bc03101b545d9588548503cdf1863694b7a2258e86c5f738",
+  "reviewed_sha": "835722c685b8bf2ebcc247c29f27719f27a758b1",
+  "diff_base": "d82e14a379c726d9e1d6185f44782c543b4faf89",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Mandatory concurrency-state class (proposal state machine, request-local barrier, snapshot authority) plus public SDK handler shape; both reviewers run.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": ["onara/cc/claude-opus-5-5", "onara/cc/claude-haiku-5-5"],
+  "qa": [
+    { "name": "ACP review on, snapshot authority (head 835722c685)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1r3-acp-on.txt" },
+    { "name": "ACP review off, pre-feature behaviour (head 835722c685)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1r3-acp-off.txt" },
+    { "name": "plan-yolo review on, snapshot authority (head 835722c685)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1r3-yolo-on.txt" },
+    { "name": "plan-yolo review off, pre-feature behaviour (head 835722c685)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1r3-yolo-off.txt" },
+    { "name": "TUI happy path with review on (head 5d3d32613f, TUI unchanged since)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1r2-a.txt" },
+    { "name": "TUI reject, Esc abort, disabled (head 120957c8fb, TUI unchanged since)", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/f1-summary.md" },
+    { "name": "Focused suites and bun check on head", "passed": true, "artifact": ".omo/evidence/20261017-omp-native-plan-review/task-13-omp-native-plan-review.txt" }
+  ],
+  "whole_diff": { "run": true, "reason": "F3 round 6 PASS on 5d3d32613f; Todo 13 delta audited by F2 round 3 implementation-audit" },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cc/claude-opus-5-5", "independence": "same-model" },
+    { "invocation": "strategic-risk-review", "agent": "oracle", "model": "onara/cx/gpt-5.6-sol", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": ".omo/evidence/20261017-omp-native-plan-review/f2r3-implementation-audit.trailer.txt", "trailer_sha256": "f8e52ef78810da88629c3f9340555b0dd35c683a510eebd2e880f841a706087e", "note": "B1 review-disabled-behavior-drift closed by 835722c685; non-blocking notes recorded as follow-ups" },
+    { "invocation": "strategic-risk-review", "verdict": "FAIL", "trailer_artifact": ".omo/evidence/20261017-omp-native-plan-review/f2r3-strategic-risk-review.trailer.txt", "trailer_sha256": "e9860a02f8cab6e5f64329dd1c2508d3ce92bd93bac90d067f8fa65b1cdc355a", "note": "S1 mutable-content-addressed-execution-authority: local://approved snapshot writable after adoption; overridden by user, follow-up" }
+  ],
+  "blockers": [
+    { "id": "B1", "severity": "medium", "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:2026", "coverage": "packages/coding-agent/test/plan-review-dispatch.test.ts::review disabled: approval references the agent-chosen plan file and no snapshot is written", "fix_sha": "835722c685b8bf2ebcc247c29f27719f27a758b1" },
+    { "id": "S1", "severity": "medium", "location": "packages/coding-agent/src/session/agent-session.ts:1800", "coverage": "not-testable:accepted by user override; snapshot writability after adoption is a follow-up (read-only handle or digest check on reread)" }
+  ],
+  "override": {
+    "by": "Tim (repository owner), chat decision 2026-10-18 after F2 round 3",
+    "reason": "Strategic finding S1 needs an agent with full write access after approval to overwrite its own reviewed snapshot; same exposure existed for the mutable plan file before this feature. Feature is opt-in and default off. Accepted for the local fork; tracked as follow-up (read-only snapshot handle or digest check on reread)."
+  }
+}

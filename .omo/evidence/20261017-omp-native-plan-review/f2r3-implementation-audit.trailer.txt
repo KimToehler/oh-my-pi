@@ -1,0 +1,18 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: When the approval-time snapshot adoption refuses (the snapshot path holds foreign bytes), the ACP and plan-yolo hosts leave plan mode enabled, keep the proposal handler installed, perform no execution-model switch and emit no handoff, so a tamper refusal can never become a half-applied approval
+  positive_witness: approved ACP elicitation with a reviewed plan and a pre-planted mismatching local://approved/<sha>-<name>; propose result isError, getPlanModeState().enabled stays true, no applyRoleModel call, no current_mode_update to default, no plan-yolo-handoff steer
+  negative_control: an implementation that calls setPlanModeState(undefined) or setModelTemporary before adoptApprovedPlan; after the throw plan mode is off and the model switched while the plan reference is unchanged; this MUST fail
+  observable: propose tool result isError flag, getPlanModeState(), recorded model switches, count of plan-yolo-handoff custom messages
+  boundary: AcpAgent#handleAcpPlanProposal and PrewalkCoordinator#finalizePlanYoloProposal around their adoptApprovedPlan call
+- invariant: An enabled review that ends unreviewed (e.g. family-unverified) hands the host a plan without a review hash, so the execution reference stays the agent-chosen file and no local://approved entry is created
+  positive_witness: review enabled, answeringModels share the planner class; ACP approval sets getPlanReferencePath() to local://<slug>-plan.md and the local/approved directory does not exist
+  negative_control: bindsBytes true for unreviewed; a snapshot appears and the approval text names local://approved/...; this MUST fail
+  observable: getPlanReferencePath(), readdir of local/approved, approval tool result text
+  boundary: AgentSession#applyPlanReview / #announcePlanReviewPass feeding AcpAgent#handleAcpPlanProposal
+END-REVIEW-TRAILER
