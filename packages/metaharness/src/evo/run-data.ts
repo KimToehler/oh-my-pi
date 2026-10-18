@@ -7,6 +7,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { EvoHttpError } from "./boundary";
+import { unlockTree } from "./config-snapshot";
 import { assertTaskSnapshotIntact, lockTree, unlockTreeSync } from "./task-tree";
 import { suiteDataDir, type TaskHashes } from "./suite-tasks";
 import type { SuiteManifest } from "./suites";
@@ -26,27 +27,46 @@ export function runDataDir(jobsDir: string, jobName: string): string {
  * `_evo/run-data/<job>` and verified AFTER the copy; an existing copy is reused only when it still verifies.
  * `secrets` are the current forwarded credential values: the verify walk over the copy also scans for them, because
  * a value set or rotated after registration was never scanned for. A hit removes the copy (422, value redacted).
+ * Two concurrent stagings for one job race only on the final rename: the loser re-verifies the winner's copy, so the
+ * caller's own duplicate-job check reports the conflict instead of a misleading unreadable-snapshot error.
  */
-export function stageRunData(jobsDir: string, suite: RunSuite, jobName: string, secrets: readonly string[]): string {
+export async function stageRunData(
+	jobsDir: string,
+	suite: RunSuite,
+	jobName: string,
+	secrets: readonly string[],
+): Promise<string> {
 	if (suite.taskHashes === null) return suite.manifest.dataset;
 	const label = `suite '${suite.manifest.id}'`;
 	const final = runDataDir(jobsDir, jobName);
 	if (fs.existsSync(final)) {
-		assertTaskSnapshotIntact(final, `${label} run data`, suite.taskHashes, secrets);
+		await assertTaskSnapshotIntact(final, `${label} run data`, suite.taskHashes, secrets);
 		return final;
 	}
 	const stage = `${final}.tmp-${crypto.randomUUID()}`;
+	let published = false;
 	try {
-		fs.mkdirSync(path.dirname(stage), { recursive: true });
-		fs.cpSync(suiteDataDir(jobsDir, suite.hash), stage, { recursive: true, verbatimSymlinks: true });
-		assertTaskSnapshotIntact(stage, `${label} task`, suite.taskHashes, secrets);
-		lockTree(stage);
-		fs.renameSync(stage, final);
+		await fs.promises.mkdir(path.dirname(stage), { recursive: true });
+		await fs.promises.cp(suiteDataDir(jobsDir, suite.hash), stage, { recursive: true, verbatimSymlinks: true });
+		await assertTaskSnapshotIntact(stage, `${label} task`, suite.taskHashes, secrets);
+		await lockTree(stage);
+		try {
+			await fs.promises.rename(stage, final);
+			published = true;
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			if (code !== "EEXIST" && code !== "ENOTEMPTY") throw err;
+		}
 	} catch (err) {
-		unlockTreeSync(stage);
-		fs.rmSync(stage, { recursive: true, force: true });
+		await unlockTree(stage);
+		await fs.promises.rm(stage, { recursive: true, force: true });
 		if (err instanceof EvoHttpError) throw err;
 		throw new EvoHttpError(422, `${label} task snapshot is unreadable; cannot stage run data`);
+	}
+	if (!published) {
+		await unlockTree(stage);
+		await fs.promises.rm(stage, { recursive: true, force: true });
+		await assertTaskSnapshotIntact(final, `${label} run data`, suite.taskHashes, secrets);
 	}
 	return final;
 }
@@ -71,7 +91,7 @@ export function stageRecordedRunData(
 	suiteId: string,
 	jobName: string,
 	secrets: readonly string[],
-): string {
+): Promise<string> {
 	return stageRunData(jobsDir, readRecordedSuite(jobsDir, suiteId), jobName, secrets);
 }
 
@@ -79,7 +99,7 @@ export function stageRecordedRunData(
  * Re-verify the dataset a recorded run will (re)open against its registered suite. Accepts only a run-data copy or
  * the suite's own snapshot (runs recorded before staging existed); anything else is not a path we pinned.
  */
-export function verifyRunData(jobsDir: string, suiteId: string, dataset: string | undefined): void {
+export async function verifyRunData(jobsDir: string, suiteId: string, dataset: string | undefined): Promise<void> {
 	const suite = readRecordedSuite(jobsDir, suiteId);
 	if (suite.taskHashes === null) return;
 	const owned = path.resolve(jobsDir, "_evo", "run-data") + path.sep;
@@ -88,7 +108,7 @@ export function verifyRunData(jobsDir: string, suiteId: string, dataset: string 
 	if (target !== snapshot && !target.startsWith(owned)) {
 		throw new EvoHttpError(422, `run dataset '${String(dataset)}' is not owned data of suite '${suiteId}'`);
 	}
-	assertTaskSnapshotIntact(target, `suite '${suiteId}' run data`, suite.taskHashes);
+	await assertTaskSnapshotIntact(target, `suite '${suiteId}' run data`, suite.taskHashes);
 }
 
 /** Drop a run's staged copy (run deletion). Missing is fine. */

@@ -824,8 +824,14 @@ impl GitRepo {
 		let mut platform = status_with_fresh_index(&repo, "git ls-files")?
 			.untracked_files(gix::status::UntrackedFiles::Files);
 		if !exclude_standard {
+			// `Matching` alone collapses an ignored directory into one entry;
+			// the deletion mode makes the walk recurse through it the way
+			// `git ls-files --others` does, stopping at nested repositories.
 			platform = platform.dirwalk_options(|opts| {
 				opts.emit_ignored(Some(gix::dir::walk::EmissionMode::Matching))
+					.for_deletion(Some(
+						gix::dir::walk::ForDeletionMode::FindNonBareRepositoriesInIgnoredDirectories,
+					))
 			});
 		}
 		let iter = platform
@@ -844,7 +850,12 @@ impl GitRepo {
 					|| (!exclude_standard
 						&& matches!(entry.status, gix::dir::entry::Status::Ignored(_)));
 				if wanted {
-					out.push(bytes_to_path(entry.rela_path.as_bstr()));
+					let mut path = bytes_to_path(entry.rela_path.as_bstr());
+					// git names a nested repository as `dir/`, never its contents.
+					if entry.disk_kind == Some(gix::dir::entry::Kind::Repository) {
+						path.push('/');
+					}
+					out.push(path);
 				}
 			}
 		}
@@ -1467,6 +1478,47 @@ mod tests {
 		assert!(super::super::cli::is_truncated(&capped), "fixture must overflow the cap");
 
 		let listed = with_capture_limit(256, || repo.ls_files(true, true))?;
+		assert_eq!(listed, expected);
+		Ok(())
+	}
+
+	#[test]
+	fn ls_files_without_exclude_standard_matches_git_when_the_capture_truncates() -> TestResult {
+		let (dir, repo) = repo()?;
+		let root = dir.path();
+		commit(root, ".gitignore", "ignored/\n*.log\n", "ignore")?;
+		fs::write(root.join("visible.txt"), "x")?;
+		fs::write(root.join("top.log"), "x")?;
+		// An ignored directory deep enough to overflow the cap: git lists each
+		// file beneath it, never the directory itself.
+		let deep = root.join("ignored").join("deep");
+		fs::create_dir_all(&deep)?;
+		untracked_fixture(&deep, 60)?;
+		// Nested repositories, one ignored and one visible: git reports each as
+		// a single `dir/` entry and does not descend into it.
+		for nested in [root.join("ignored").join("inner"), root.join("outer")] {
+			fs::create_dir_all(&nested)?;
+			git(&nested, &["init", "-q", "-b", "main"])?;
+			fs::write(nested.join("file.txt"), "x")?;
+		}
+		let canonical: Vec<String> = git(root, &["ls-files", "-z", "--others"])?
+			.split('\0')
+			.filter(|path| !path.is_empty())
+			.map(str::to_owned)
+			.collect();
+		assert!(canonical.contains(&"ignored/inner/".to_owned()));
+		assert!(canonical.contains(&"outer/".to_owned()));
+		let capped = cli_text_owned_capped(
+			root,
+			&["ls-files".to_owned(), "-z".to_owned(), "--others".to_owned()],
+			super::super::cli::SYNC_TIMEOUT,
+			256,
+		)?;
+		assert!(super::super::cli::is_truncated(&capped), "fixture must overflow the cap");
+
+		let mut expected = canonical;
+		expected.sort();
+		let listed = with_capture_limit(256, || repo.ls_files(true, false))?;
 		assert_eq!(listed, expected);
 		Ok(())
 	}

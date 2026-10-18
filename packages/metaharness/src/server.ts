@@ -3,7 +3,10 @@
  * metaharness server: REST + SSE API over the run store, static web
  * dashboard, and a launcher that spawns the CLI runner as a managed child.
  *
- *   bun src/server.ts [--port 4700] [--jobs-dir <path>]
+ *   bun src/server.ts [--port 4700] [--jobs-dir <path>] [--host <addr>] [--source-root <path>]
+ *
+ * `--source-root` names the checkout evo config-first variants evaluate; it defaults to this repository. Point it
+ * at a dedicated, stable worktree so the server's own checkout (and its ignored caches) never becomes source identity.
  *
  * API:
  *   GET    /api/experiments[?q=]          → experiment summaries across all benchmarks
@@ -110,17 +113,24 @@ interface SseClient {
 	state: SseState;
 }
 
-function parseServerArgs(argv: string[]): { port: number; jobsDir: string; host: string | null } {
+export function parseServerArgs(argv: string[]): {
+	port: number;
+	jobsDir: string;
+	host: string | null;
+	sourceRoot: string | undefined;
+} {
 	let port = 4700;
 	let jobsDir = DEFAULT_JOBS_DIR;
 	let host: string | null = null;
+	let sourceRoot: string | undefined;
 	for (let i = 0; i < argv.length; i++) {
 		if (argv[i] === "--port" && argv[i + 1]) port = Number(argv[++i]);
 		else if (argv[i] === "--jobs-dir" && argv[i + 1]) jobsDir = path.resolve(argv[++i]);
 		else if (argv[i] === "--host" && argv[i + 1]) host = argv[++i];
+		else if (argv[i] === "--source-root" && argv[i + 1]) sourceRoot = path.resolve(argv[++i]);
 	}
 	if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("--port must be 1..65535");
-	return { port, jobsDir, host };
+	return { port, jobsDir, host, sourceRoot };
 }
 
 /** Job names are single path segments; anything else could escape the jobs dir. */
@@ -150,13 +160,13 @@ function pidAlive(pid: number | null): boolean {
  * no runs to inherit from or the arm name is taken.
  */
 /** Evo identity fields an arm inherits from its template run; a new `variantId` re-derives the variant ones. */
-function resolveEvoInheritance(
+async function resolveEvoInheritance(
 	store: RunStore,
 	cfg: Partial<LaunchRequest>,
 	req: AddArmRequest,
 	jobName: string,
 	defaultSourceRoot: string,
-): Partial<LaunchRequest> {
+): Promise<Partial<LaunchRequest>> {
 	const inherited: Partial<LaunchRequest> = {};
 	// An arm never opens the template run's directory: the suite snapshot is re-copied and verified into the new
 	// arm's own run-owned data, so bytes replaced after the template launched cannot reach it. The verify walk scans
@@ -164,7 +174,7 @@ function resolveEvoInheritance(
 	if (cfg.suiteId) {
 		const names = typeof cfg.modelsYaml === "string" ? readModelsEnvNamesSync(cfg.modelsYaml) : [];
 		const secrets = credentialValuesFromEnv([...new Set([...names, ...(cfg.envNames ?? [])])], process.env);
-		inherited.dataset = stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName, secrets);
+		inherited.dataset = await stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName, secrets);
 	}
 	for (const key of [
 		"suiteId",
@@ -216,12 +226,12 @@ function resolveEvoInheritance(
 	return { ...inherited, ...fields };
 }
 
-export function resolveArmLaunch(
+export async function resolveArmLaunch(
 	store: RunStore,
 	experimentId: string,
 	req: AddArmRequest,
 	defaultSourceRoot: string,
-): LaunchRequest {
+): Promise<LaunchRequest> {
 	if (!req.arm || /[^\w.-]/.test(req.arm)) throw new Error("arm must be a non-empty [A-Za-z0-9_.-] token");
 	if (!req.model) throw new Error("model is required");
 	const siblings = store.listRuns().filter(r => experimentOf(r.jobName) === experimentId);
@@ -274,7 +284,7 @@ export function resolveArmLaunch(
 			throw new Error("evo arms may change only variantId, role, and note");
 		}
 	}
-	const evo = resolveEvoInheritance(store, cfg, req, jobName, defaultSourceRoot);
+	const evo = await resolveEvoInheritance(store, cfg, req, jobName, defaultSourceRoot);
 	return {
 		...evo,
 		benchmark: template.benchmark,
@@ -440,7 +450,7 @@ export class ManagerServer {
 			if (armMatch && request.method === "POST") {
 				const id = decodeURIComponent(armMatch[1]);
 				const body = (await request.json()) as AddArmRequest;
-				return Response.json(this.addArm(id, body), { status: 201 });
+				return Response.json(await this.addArm(id, body), { status: 201 });
 			}
 			if (p === "/api/runs" && request.method === "GET") {
 				const experiment = url.searchParams.get("experiment");
@@ -466,7 +476,7 @@ export class ManagerServer {
 			if (resumeMatch && request.method === "POST") {
 				const jobName = decodeURIComponent(resumeMatch[1]);
 				const body = (await request.json().catch(() => ({}))) as { filterErrorTypes?: string[] };
-				return Response.json(this.resume(jobName, body), { status: 201 });
+				return Response.json(await this.resume(jobName, body), { status: 201 });
 			}
 			const cancelMatch = p.match(/^\/api\/runs\/([^/]+)\/cancel$/);
 			if (cancelMatch && request.method === "POST") {
@@ -595,8 +605,11 @@ export class ManagerServer {
 	 * re-specifying. `filterErrorTypes` overrides the default retry set
 	 * (every exception type recorded in the job's result.json).
 	 */
-	resume(jobName: string, opts: { filterErrorTypes?: string[] } = {}): { jobName: string; pid: number } {
-		const run = this.#store.getRun(jobName);
+	async resume(
+		jobName: string,
+		opts: { filterErrorTypes?: string[] } = {},
+	): Promise<{ jobName: string; pid: number }> {
+		let run = this.#store.getRun(jobName);
 		if (!run) throw new Error(`run ${jobName} not found`);
 		if (run.benchmark !== "harbor")
 			throw new Error(`resume supports only harbor runs (${jobName} is ${run.benchmark})`);
@@ -626,11 +639,17 @@ export class ManagerServer {
 					`run ${jobName} records suite '${run.suiteId}' but its config names '${String(recordedSuite)}'; cannot resume`,
 				);
 			}
-			verifyRunData(
+			await verifyRunData(
 				this.jobsDir,
 				run.suiteId,
 				typeof run.config.dataset === "string" ? run.config.dataset : undefined,
 			);
+			// The verify walk yields: a concurrent delete or resume of this run may have landed meanwhile.
+			// Nothing below awaits before the spawn, so this re-check is the last word.
+			const current = this.#store.getRun(jobName);
+			if (!current) throw new Error(`run ${jobName} not found`);
+			if (this.#runLive(current)) throw new Error(`run ${jobName} is already running`);
+			run = current;
 		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
@@ -794,8 +813,14 @@ export class ManagerServer {
 	}
 
 	/** Add a comparable arm to an existing experiment, inheriting its sample + config. */
-	addArm(experimentId: string, req: AddArmRequest): { jobName: string; pid: number } {
-		return this.launch(resolveArmLaunch(this.#store, experimentId, req, this.#sourceRoot));
+	async addArm(experimentId: string, req: AddArmRequest): Promise<{ jobName: string; pid: number }> {
+		const request = await resolveArmLaunch(this.#store, experimentId, req, this.#sourceRoot);
+		// Staging the arm's run data yields; a concurrent request may have taken the arm name meanwhile.
+		// `launch` runs synchronously from here through registerLaunch, so this check cannot be overtaken.
+		if (this.#store.getRun(request.jobName as string)) {
+			throw new Error(`arm '${req.arm}' already exists in '${experimentId}'`);
+		}
+		return this.launch(request);
 	}
 
 	/** Cancel a managed run. SIGTERM first so the runner forwards the signal to
@@ -936,8 +961,8 @@ if (import.meta.main) {
 		__metaharnessHooks?: boolean;
 	};
 	await host.__metaharnessServer?.stop();
-	const { port, jobsDir, host: bindHost } = parseServerArgs(process.argv.slice(2));
-	const manager = new ManagerServer(jobsDir, undefined, {}, bindHost);
+	const { port, jobsDir, host: bindHost, sourceRoot } = parseServerArgs(process.argv.slice(2));
+	const manager = new ManagerServer(jobsDir, undefined, { sourceRoot }, bindHost);
 	host.__metaharnessServer = manager;
 	const server = manager.start(port);
 	process.stdout.write(

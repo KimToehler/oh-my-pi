@@ -79,6 +79,32 @@ bun run serve --port 4700
 State lives in `<jobs-dir>/_manager/metaharness.sqlite`; the filesystem
 stays the source of truth and historical CLI runs are auto-discovered.
 
+## Stable evaluated source and Linux native addon
+
+Evaluated source is staged from `--source-root` (default: the checkout running the server). The main
+checkout carries ignored state that becomes part of source identity (`target/` ≈ 6 GiB, package `dist`,
+IDE state, agent evidence). Point the server at a dedicated plain worktree instead:
+
+```sh
+SOURCE=$ROOT/.worktrees/evo-source-<sha12>
+git worktree add --detach "$SOURCE" <implementation-sha>   # plain checkout; no copy-on-write clone of ignored caches
+(cd "$SOURCE" && bun install --frozen-lockfile)            # creates packages/coding-agent/src/export/html/tool-views.generated.js
+bun packages/metaharness/scripts/evo-native-addon.ts install \
+  --repo "$SOURCE" --ref HEAD --target linux-arm64 --dest "$SOURCE"
+bun packages/metaharness/src/server.ts --source-root "$SOURCE" --jobs-dir <dir>
+```
+
+`evo-native-addon.ts install` reads `packages/natives/package.json` at `--ref` (never the working tree),
+fetches exactly `@oh-my-pi/pi-natives-<target>@<that version>` from npm, verifies the `sha512` SRI before
+extraction, and copies every `pi_natives.<target>*.node` member into `<dest>/packages/natives/native/`.
+`--target` is `linux-arm64` or `linux-x64` (repeatable); it prints the installed records as JSON. Use the
+architecture Docker reports (`docker version --format '{{.Server.Arch}}'`).
+
+`evo-task.ts make --native-addon linux-arm64|linux-x64` (repeatable, no duplicates) embeds the same verified
+addon, taken at the **base** commit's version, into `environment/repo` before the task hash is computed, and
+records `nativeAddons` (target, package, version, integrity, files) in `evo-task.json` (`[]` when none).
+Keep `--setup-command` for real build-time setup such as `bun install --frozen-lockfile`, not binary download.
+
 ## Native Terminal-Bench 2.1 runner
 
 `bench:tb` bypasses Harbor and Docker. It boots each task's published OCI

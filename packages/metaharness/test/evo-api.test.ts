@@ -1345,7 +1345,7 @@ describe("evo launch", () => {
 			suiteId: "search-1",
 			config: { ...launch },
 		});
-		const arm = resolveArmLaunch(
+		const arm = await resolveArmLaunch(
 			h.manager.store,
 			"exp",
 			{ arm: "child", model: SUITE.model, variantId: childId },
@@ -1363,15 +1363,15 @@ describe("evo launch", () => {
 		expect(arm.executorConfigHash).toBe(launch.executorConfigHash);
 		expect(arm.stagedConfigHash).toBe(launch.stagedConfigHash); // both lack config.yml; AGENTS.md is not part of it
 		expect(arm.agentDir).toContain(childId);
-		expect(() =>
+		await expect(
 			resolveArmLaunch(h.manager.store, "exp", { arm: "m", model: "other/model", variantId: childId }, h.source),
-		).toThrow(`evo arms keep the suite model '${SUITE.model}'; got 'other/model'`);
-		expect(() =>
+		).rejects.toThrow(`evo arms keep the suite model '${SUITE.model}'; got 'other/model'`);
+		await expect(
 			resolveArmLaunch(h.manager.store, "exp", { arm: "p", model: SUITE.model, prewalk: {} }, h.source),
-		).toThrow("evo arms may change only variantId, role, and note");
+		).rejects.toThrow("evo arms may change only variantId, role, and note");
 	});
 
-	it("refuses an arm that inherits an external source root from an evo template", () => {
+	it("refuses an arm that inherits an external source root from an evo template", async () => {
 		const h = harness();
 		const required = path.join(h.jobsDir, "_evo", "worktrees");
 		const inside = path.join(required, "wt-1");
@@ -1393,19 +1393,23 @@ describe("evo launch", () => {
 		template("in-base", { variantId: "v-old", sourceRoot: inside });
 		template("plain-base", { sourceRoot: repo });
 		// No variantId on the request: the template's identity is inherited verbatim.
-		expect(() => resolveArmLaunch(h.manager.store, "ext", { arm: "a", model: SUITE.model }, h.source)).toThrow(
+		await expect(
+			resolveArmLaunch(h.manager.store, "ext", { arm: "a", model: SUITE.model }, h.source),
+		).rejects.toThrow(
 			`inherited variant 'v-old' source root must be a task-owned worktree under ${required}: ${external}`,
 		);
-		expect(resolveArmLaunch(h.manager.store, "in", { arm: "a", model: SUITE.model }, h.source)).toMatchObject({
+		expect(await resolveArmLaunch(h.manager.store, "in", { arm: "a", model: SUITE.model }, h.source)).toMatchObject({
 			variantId: "v-old",
 			sourceRoot: inside,
 		});
-		expect(resolveArmLaunch(h.manager.store, "plain", { arm: "a", model: SUITE.model }, h.source)).toMatchObject({
+		expect(
+			await resolveArmLaunch(h.manager.store, "plain", { arm: "a", model: SUITE.model }, h.source),
+		).toMatchObject({
 			sourceRoot: repo,
 		});
 	});
 
-	it("refuses to resume an evo run whose recorded source root is external", () => {
+	it("refuses to resume an evo run whose recorded source root is external", async () => {
 		const h = harness();
 		const required = path.join(h.jobsDir, "_evo", "worktrees");
 		const inside = path.join(required, "wt-1");
@@ -1432,15 +1436,15 @@ describe("evo launch", () => {
 			if (withConfig) write(path.join(h.jobsDir, jobName), "config.json", "{}");
 		};
 		register("ext-run", "v-old", external, true);
-		expect(() => h.manager.resume("ext-run")).toThrow(
+		await expect(h.manager.resume("ext-run")).rejects.toThrow(
 			`variant 'v-old' source root must be a task-owned worktree under ${required}: ${external}`,
 		);
 		// Positive controls stop at the next precondition (missing harbor config.json) instead of
 		// spawning a real runner: reaching that error proves the ownership guard did not fire.
 		register("in-run", "v-old", inside, false);
-		expect(() => h.manager.resume("in-run")).toThrow("in-run has no harbor config.json to resume from");
+		await expect(h.manager.resume("in-run")).rejects.toThrow("in-run has no harbor config.json to resume from");
 		register("plain-run", undefined, repo, false);
-		expect(() => h.manager.resume("plain-run")).toThrow("plain-run has no harbor config.json to resume from");
+		await expect(h.manager.resume("plain-run")).rejects.toThrow("plain-run has no harbor config.json to resume from");
 	});
 });
 

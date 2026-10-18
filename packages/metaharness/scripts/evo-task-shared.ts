@@ -1,3 +1,5 @@
+import type { NativeAddonRecord } from "./evo-native-addon";
+
 export interface TaskMeta {
 	base: string;
 	fix: string;
@@ -5,6 +7,7 @@ export interface TaskMeta {
 	solutionFiles: string[];
 	deletedFiles: string[];
 	setupCommand: string | null;
+	nativeAddons: NativeAddonRecord[];
 }
 
 export interface VerifyResult {

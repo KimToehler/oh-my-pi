@@ -4,7 +4,8 @@
  * Private-suite task generator for Evo2 evaluation.
  *
  *   evo-task.ts make   --repo R --base B --fix F --name N --instruction T --test-command C
- *                      [--setup-command S] --test-glob G [--test-glob G…] --base-image I --output DIR
+ *                      [--setup-command S] [--native-addon linux-arm64|linux-x64 …] --test-glob G [--test-glob G…]
+ *                      --base-image I --output DIR
  *   evo-task.ts verify --task DIR
  *
  * `make` emits a Harbor task (schema 1.3) for the base→fix change: `environment/repo/` holds the
@@ -15,6 +16,7 @@
  * Docker image under the verifier's no-network policy (runtime: $EVO_CONTAINER_RUNTIME, default `docker`).
  * `--host-unisolated` runs the same check on the host shell as a diagnostic and never writes calibration.json.
  */
+import { parseNativeAddonTargets } from "./evo-native-addon";
 import { fail } from "./evo-task-shared";
 import { type MakeOptions, makeTask } from "./evo-task-make";
 import { verifyTask } from "./evo-task-verify";
@@ -22,12 +24,14 @@ import { verifyTask } from "./evo-task-verify";
 export function parseMakeArgs(argv: string[]): MakeOptions {
 	const vals: Record<string, string> = {};
 	const testGlobs: string[] = [];
+	const nativeAddons: string[] = [];
 	for (let i = 0; i < argv.length; i += 2) {
 		const flag = argv[i];
 		const value = argv[i + 1];
 		if (!flag.startsWith("--")) fail(`unexpected argument ${flag}`);
 		if (value === undefined) fail(`${flag} requires a value`);
 		if (flag === "--test-glob") testGlobs.push(value);
+		else if (flag === "--native-addon") nativeAddons.push(value);
 		else vals[flag] = value;
 	}
 	const need = (flag: string): string => vals[flag] ?? fail(`${flag} is required`);
@@ -42,6 +46,7 @@ export function parseMakeArgs(argv: string[]): MakeOptions {
 		testGlobs,
 		baseImage: need("--base-image"),
 		output: need("--output"),
+		nativeAddons: parseNativeAddonTargets(nativeAddons, "--native-addon"),
 	};
 }
 

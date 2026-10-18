@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { encodeArchive } from "@oh-my-pi/pi-utils/ar";
+import { type NativeAddonRecord, setNativeAddonFetch } from "../scripts/evo-native-addon";
 import { parseMakeArgs } from "../scripts/evo-task";
 import { type MakeOptions, makeTask } from "../scripts/evo-task-make";
 import { verifyTask } from "../scripts/evo-task-verify";
@@ -79,6 +81,7 @@ function opts(f: Fixture, over: Partial<MakeOptions> = {}): MakeOptions {
 		testGlobs: ["tests/**"],
 		baseImage: "debian:stable-slim",
 		output: path.join(tmp, "out"),
+		nativeAddons: [],
 		...over,
 	};
 }
@@ -427,6 +430,32 @@ describe("example descriptor", () => {
 			testGlobs: ["packages/coding-agent/test/web/search/read-limited-text.test.ts"],
 		});
 	});
+
+	it("output-budget-framing descriptor is a runnable make invocation over refs that change the hidden test", async () => {
+		const d = (await Bun.file(
+			path.join(import.meta.dir, "..", "examples", "evo-task-output-budget-framing.json"),
+		).json()) as Record<string, unknown> & { testGlobs: string[]; nativeAddons: string[] };
+		const argv = ["--output", "out"];
+		for (const key of ["repo", "base", "fix", "name", "instruction", "baseImage"] as const) {
+			argv.push(`--${key.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`, String(d[key]));
+		}
+		argv.push("--test-command", String(d.testCommand), "--setup-command", String(d.setupCommand));
+		for (const glob of d.testGlobs) argv.push("--test-glob", glob);
+		for (const target of d.nativeAddons) argv.push("--native-addon", target);
+		const opts = parseMakeArgs(argv);
+		expect(opts.nativeAddons).toEqual(["linux-arm64"]);
+		// The verifier runs only the hidden test; dependency install stays a build-time step.
+		expect(opts.testCommand).toBe(`bun test ${d.testGlobs.join(" ")}`);
+		expect(opts.setupCommand).toBe("bun install --frozen-lockfile");
+		expect(d.expectedCalibration).toEqual({ before: 0, after: 1 });
+		// The refs exist in this repository and the hidden test differs between them, so `make` has a test to hide.
+		const repoRoot = path.resolve(import.meta.dir, "..", "..", "..");
+		const changed = Bun.spawnSync(["git", "diff", "--name-only", opts.base, opts.fix, "--", ...opts.testGlobs], {
+			cwd: repoRoot,
+		});
+		expect(changed.exitCode).toBe(0);
+		expect(changed.stdout.toString().trim().split("\n")).toEqual(opts.testGlobs);
+	});
 });
 
 describe("setup command (build-time dependency install)", () => {
@@ -486,5 +515,180 @@ describe("setup command (build-time dependency install)", () => {
 		];
 		expect(parseMakeArgs(args).setupCommand).toBeUndefined();
 		expect(parseMakeArgs([...args, "--setup-command", "bun install"]).setupCommand).toBe("bun install");
+	});
+});
+
+describe("native addon embedding", () => {
+	const META_URL_PREFIX = "https://registry.npmjs.org/@oh-my-pi%2Fpi-natives-linux-arm64/";
+	const addonBytes = new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 1, 2, 3, 4]);
+	let restoreFetch: (() => void) | undefined;
+	let requested: string[] = [];
+
+	function sri(bytes: Uint8Array): string {
+		return `sha512-${new Bun.CryptoHasher("sha512").update(bytes).digest("base64")}`;
+	}
+
+	async function tarball(members: Record<string, string | Uint8Array>): Promise<Uint8Array> {
+		return encodeArchive("tar.gz", Object.entries(members));
+	}
+
+	/** Serve one version of the arm64 package from an in-memory registry; `integrity` overrides the advertised SRI. */
+	function serveRegistry(version: string, tgz: Uint8Array, integrity: string = sri(tgz)): void {
+		restoreFetch = setNativeAddonFetch(async url => {
+			requested.push(url);
+			if (url === `${META_URL_PREFIX}${version}`) {
+				return Response.json({ dist: { tarball: "https://registry.test/addon.tgz", integrity } });
+			}
+			if (url === "https://registry.test/addon.tgz") return new Response(tgz);
+			return new Response("not found", { status: 404 });
+		});
+	}
+
+	async function natives(version: string): Promise<Record<string, string>> {
+		return { "packages/natives/package.json": `${JSON.stringify({ name: "@oh-my-pi/pi-natives", version })}\n` };
+	}
+
+	async function versionedFixture(baseVersion: string, fixVersion: string): Promise<Fixture> {
+		const repo = path.join(tmp, "repo");
+		await fs.mkdir(repo);
+		await sh(repo, "git", "init", "-q", "-b", "main");
+		const base = await commit(repo, { "src/value.txt": "broken\n", ...(await natives(baseVersion)) }, "base");
+		const fix = await commit(
+			repo,
+			{
+				...(await natives(fixVersion)),
+				"src/value.txt": "fixed\n",
+				"tests/check.sh": "#!/usr/bin/env bash\ngrep -qx fixed src/value.txt\n",
+			},
+			"fix",
+		);
+		return { repo, base, fix };
+	}
+
+	beforeEach(() => {
+		requested = [];
+	});
+	afterEach(() => {
+		restoreFetch?.();
+		restoreFetch = undefined;
+	});
+
+	it("parseMakeArgs collects repeatable targets and rejects unknown or duplicate ones", () => {
+		const args = [
+			"--repo",
+			"r",
+			"--base",
+			"b",
+			"--fix",
+			"f",
+			"--name",
+			"n",
+			"--instruction",
+			"i",
+			"--test-command",
+			"c",
+			"--test-glob",
+			"g",
+			"--base-image",
+			"img",
+			"--output",
+			"o",
+		];
+		expect(parseMakeArgs(args).nativeAddons).toEqual([]);
+		expect(
+			parseMakeArgs([...args, "--native-addon", "linux-arm64", "--native-addon", "linux-x64"]).nativeAddons,
+		).toEqual(["linux-arm64", "linux-x64"]);
+		expect(() => parseMakeArgs([...args, "--native-addon", "darwin-arm64"])).toThrow(/native-addon/);
+		expect(() => parseMakeArgs([...args, "--native-addon", "linux-x64", "--native-addon", "linux-x64"])).toThrow(
+			/duplicate/,
+		);
+	});
+
+	it("makeTask rejects invalid or duplicate targets before creating output", async () => {
+		const f = await versionedFixture("1.2.3", "9.9.9");
+		serveRegistry("1.2.3", await tarball({}));
+		// biome-ignore lint/suspicious/noExplicitAny: deliberately invalid target for the boundary check
+		const bad = ["linux-riscv"] as any;
+		await expect(makeTask(opts(f, { nativeAddons: bad }))).rejects.toThrow(/native-addon/);
+		await expect(makeTask(opts(f, { nativeAddons: ["linux-x64", "linux-x64"] }))).rejects.toThrow(/duplicate/);
+		expect(await fs.stat(path.join(tmp, "out")).catch(() => null)).toBeNull();
+		expect(requested).toEqual([]);
+	});
+
+	it("embeds the BASE-version addon bytes and records integrity and repo-relative files", async () => {
+		const f = await versionedFixture("1.2.3", "9.9.9");
+		const tgz = await tarball({
+			"package/package.json": "{}",
+			"package/pi_natives.linux-arm64.node": addonBytes,
+			"package/pi_natives.linux-x64.node": new Uint8Array([9]),
+		});
+		serveRegistry("1.2.3", tgz);
+		const meta = await makeTask(opts(f, { nativeAddons: ["linux-arm64"] }));
+		const out = path.join(tmp, "out");
+		const rel = "packages/natives/native/pi_natives.linux-arm64.node";
+		expect(await Bun.file(path.join(out, "environment", "repo", rel)).bytes()).toEqual(addonBytes);
+		expect(
+			await Bun.file(
+				path.join(out, "environment", "repo", "packages/natives/native/pi_natives.linux-x64.node"),
+			).exists(),
+		).toBe(false);
+		const record: NativeAddonRecord = {
+			target: "linux-arm64",
+			packageName: "@oh-my-pi/pi-natives-linux-arm64",
+			version: "1.2.3",
+			integrity: sri(tgz),
+			files: [rel],
+		};
+		expect(meta.nativeAddons).toEqual([record]);
+		const written = (await Bun.file(path.join(out, "evo-task.json")).json()) as { nativeAddons: NativeAddonRecord[] };
+		expect(written.nativeAddons).toEqual([record]);
+		expect(requested.some(u => u.endsWith("/9.9.9"))).toBe(false);
+	});
+
+	it("fails on integrity mismatch without producing task metadata", async () => {
+		const f = await versionedFixture("1.2.3", "1.2.3");
+		const tgz = await tarball({ "package/pi_natives.linux-arm64.node": addonBytes });
+		serveRegistry("1.2.3", tgz, sri(new Uint8Array([1])));
+		await expect(makeTask(opts(f, { nativeAddons: ["linux-arm64"] }))).rejects.toThrow(/integrity/);
+		expect(await Bun.file(path.join(tmp, "out", "evo-task.json")).exists()).toBe(false);
+		expect(
+			await Bun.file(
+				path.join(tmp, "out", "environment/repo/packages/natives/native/pi_natives.linux-arm64.node"),
+			).exists(),
+		).toBe(false);
+	});
+
+	it("fails when the archive has no matching addon member", async () => {
+		const f = await versionedFixture("1.2.3", "1.2.3");
+		serveRegistry("1.2.3", await tarball({ "package/pi_natives.linux-x64.node": addonBytes }));
+		await expect(makeTask(opts(f, { nativeAddons: ["linux-arm64"] }))).rejects.toThrow(
+			/no .*pi_natives\.linux-arm64/,
+		);
+		expect(await Bun.file(path.join(tmp, "out", "evo-task.json")).exists()).toBe(false);
+	});
+
+	it("fails on non-2xx registry responses and malformed metadata", async () => {
+		const f = await versionedFixture("1.2.3", "1.2.3");
+		restoreFetch = setNativeAddonFetch(async () => new Response("nope", { status: 404 }));
+		await expect(makeTask(opts(f, { nativeAddons: ["linux-arm64"] }))).rejects.toThrow(/404/);
+		restoreFetch();
+		restoreFetch = setNativeAddonFetch(async () =>
+			Response.json({ dist: { tarball: "https://x/y.tgz", integrity: "sha1-abc" } }),
+		);
+		await fs.rm(path.join(tmp, "out"), { recursive: true, force: true });
+		await expect(makeTask(opts(f, { nativeAddons: ["linux-arm64"] }))).rejects.toThrow(/sha512/);
+	});
+
+	it("without --native-addon the layout is unchanged apart from explicit empty nativeAddons", async () => {
+		const f = await makeRepo();
+		const meta = await makeTask(opts(f));
+		const out = path.join(tmp, "out");
+		expect(meta.nativeAddons).toEqual([]);
+		const written = (await Bun.file(path.join(out, "evo-task.json")).json()) as Record<string, unknown>;
+		expect(Object.keys(written).sort()).toEqual(
+			["base", "deletedFiles", "fix", "nativeAddons", "setupCommand", "solutionFiles", "testFiles"].sort(),
+		);
+		expect(written.nativeAddons).toEqual([]);
+		expect(await fs.stat(path.join(out, "environment", "repo", "packages")).catch(() => null)).toBeNull();
 	});
 });

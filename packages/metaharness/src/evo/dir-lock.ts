@@ -14,6 +14,8 @@ export interface LockOptions {
 	/** A lock whose mtime is older than this becomes a reclaim candidate (owner liveness still decides). */
 	staleMs?: number;
 	pollMs?: number;
+	/** Called once, after the first failed acquisition, so a long wait can be announced. */
+	onWait?: () => void;
 }
 
 const DEFAULT_WAIT_MS = 60_000;
@@ -116,9 +118,14 @@ export async function withDirLock<T>(lockDir: string, fn: () => Promise<T>, opts
 	await fs.mkdir(path.dirname(lockDir), { recursive: true });
 	const deadline = Date.now() + waitMs;
 	let owner: Owner | null;
+	let waited = false;
 	for (;;) {
 		owner = await tryAcquire(lockDir);
 		if (owner) break;
+		if (!waited) {
+			waited = true;
+			opts.onWait?.();
+		}
 		await breakIfAbandoned(lockDir, staleMs);
 		if (Date.now() >= deadline) {
 			throw new EvoHttpError(503, `timed out waiting for lock ${path.basename(lockDir)}`);

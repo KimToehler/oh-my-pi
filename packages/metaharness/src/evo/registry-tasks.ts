@@ -79,8 +79,8 @@ export async function resolveRegistryTasks(
 	for (const key of keys) {
 		const src = findTaskDir(raw, key);
 		if (!src) throw new EvoHttpError(422, `task '${key}' was not found in registry dataset '${dataset}'`);
-		hashTaskTree(src, secrets);
-		fs.cpSync(src, path.join(dest, key), { recursive: true, verbatimSymlinks: true });
+		await hashTaskTree(src, secrets);
+		await fs.promises.cp(src, path.join(dest, key), { recursive: true, verbatimSymlinks: true });
 	}
-	fs.rmSync(raw, { recursive: true, force: true });
+	await fs.promises.rm(raw, { recursive: true, force: true });
 }

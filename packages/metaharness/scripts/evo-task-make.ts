@@ -3,6 +3,13 @@ import * as path from "node:path";
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { META_FILE } from "../src/evo/calibration";
+import {
+	type FetchedNativeAddon,
+	fetchNativeAddon,
+	type NativeAddonTarget,
+	parseNativeAddonTargets,
+	writeNativeAddon,
+} from "./evo-native-addon";
 import { resolveBaseImage } from "./evo-task-image";
 import { readFixedModes } from "./evo-task-modes";
 import { assertSafeRef, assertSafeRelPath, fail, type TaskMeta } from "./evo-task-shared";
@@ -19,6 +26,8 @@ export interface MakeOptions {
 	testGlobs: string[];
 	baseImage: string;
 	output: string;
+	/** Verified Linux native addons embedded into the base snapshot (deduplicated). */
+	nativeAddons: NativeAddonTarget[];
 }
 
 const NAME_RE = /^[a-z0-9][a-z0-9._-]*$/;
@@ -38,6 +47,7 @@ export function validateOptions(o: MakeOptions): void {
 	if (!/^[^\s\u0000]+$/.test(o.baseImage)) fail("--base-image must be a single token without whitespace");
 	assertSafeRef(o.base);
 	assertSafeRef(o.fix);
+	parseNativeAddonTargets(o.nativeAddons, "--native-addon");
 }
 
 async function resolveCommit(git: VcsGitRepo, ref: string): Promise<string> {
@@ -107,12 +117,16 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	if (solutionFiles.length + deletedFiles.length === 0) fail("fix changes only test files; no solution to verify");
 
 	const modes = await readFixedModes(repo, fix, [...testFiles, ...solutionFiles]);
+	// Download and verify addons before touching the output directory: a bad registry answer leaves nothing behind.
+	const addons: FetchedNativeAddon[] = [];
+	for (const target of o.nativeAddons) addons.push(await fetchNativeAddon(repo, base, target));
 	const out = path.resolve(o.output);
 	const existing = await fs.readdir(out).catch(() => null);
 	if (existing && existing.length > 0) fail(`output ${out} exists and is not empty`);
 	await fs.mkdir(path.join(out, "tests", "files"), { recursive: true });
 	await fs.mkdir(path.join(out, "solution", "files"), { recursive: true });
 	await archiveBase(repo, base, path.join(out, "environment", "repo"));
+	for (const addon of addons) await writeNativeAddon(addon, path.join(out, "environment", "repo"));
 
 	await Bun.write(path.join(out, "task.toml"), taskToml(o.name));
 	await Bun.write(path.join(out, "instruction.md"), `${o.instruction.trim()}\n`);
@@ -127,7 +141,15 @@ export async function makeTask(o: MakeOptions): Promise<TaskMeta> {
 	for (const f of testFiles) await writeFixedFile(git, fix, f, path.join(out, "tests", "files"), modes[f]);
 	for (const f of solutionFiles) await writeFixedFile(git, fix, f, path.join(out, "solution", "files"), modes[f]);
 
-	const meta: TaskMeta = { base, fix, testFiles, solutionFiles, deletedFiles, setupCommand: o.setupCommand ?? null };
+	const meta: TaskMeta = {
+		base,
+		fix,
+		testFiles,
+		solutionFiles,
+		deletedFiles,
+		setupCommand: o.setupCommand ?? null,
+		nativeAddons: addons.map(a => a.record),
+	};
 	await Bun.write(path.join(out, META_FILE), `${JSON.stringify(meta, null, 2)}\n`);
 	return meta;
 }

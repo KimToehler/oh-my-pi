@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { experimentDetail } from "../src/experiments";
 import { parseArgs } from "../src/runner";
-import { ManagerServer, resolveArmLaunch } from "../src/server";
+import { ManagerServer, parseServerArgs, resolveArmLaunch } from "../src/server";
 import { RunStore } from "../src/store";
 import "./registry-stub";
 
@@ -535,7 +535,7 @@ describe("ManagerServer API", () => {
 });
 
 describe("resolveArmLaunch", () => {
-	it("inherits dataset + exact task sample + scale from a sibling arm", () => {
+	it("inherits dataset + exact task sample + scale from a sibling arm", async () => {
 		const store = new RunStore(makeJobsDir());
 		cleanups.push(() => store.close());
 		store.registerLaunch({
@@ -554,7 +554,7 @@ describe("resolveArmLaunch", () => {
 			},
 		});
 
-		const launch = resolveArmLaunch(
+		const launch = await resolveArmLaunch(
 			store,
 			"exp",
 			{
@@ -578,7 +578,7 @@ describe("resolveArmLaunch", () => {
 		expect(launch.prewalk?.into).toBe("google/gemini-3.5-flash");
 	});
 
-	it("prefers the sibling with a recorded include list over newer include-less siblings", () => {
+	it("prefers the sibling with a recorded include list over newer include-less siblings", async () => {
 		const store = new RunStore(makeJobsDir());
 		cleanups.push(() => store.close());
 		// Older sibling carries the authoritative sample…
@@ -602,12 +602,12 @@ describe("resolveArmLaunch", () => {
 			config: {},
 		});
 
-		const launch = resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" }, "/src");
+		const launch = await resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" }, "/src");
 		expect(launch.include).toEqual(["swe-bench/astropy__astropy-1", "swe-bench/django__django-2"]);
 		expect(launch.tasks).toBe(2);
 	});
 
-	it("rejects a duplicate arm and an unknown experiment", () => {
+	it("rejects a duplicate arm and an unknown experiment", async () => {
 		const store = new RunStore(makeJobsDir());
 		cleanups.push(() => store.close());
 		store.registerLaunch({
@@ -619,8 +619,26 @@ describe("resolveArmLaunch", () => {
 			pid: 1,
 			config: { include: ["t1"] },
 		});
-		expect(() => resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" }, "/src")).toThrow(/already exists/);
-		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" }, "/src")).toThrow(/no runs to inherit/);
+		await expect(resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" }, "/src")).rejects.toThrow(
+			/already exists/,
+		);
+		await expect(resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" }, "/src")).rejects.toThrow(
+			/no runs to inherit/,
+		);
+	});
+});
+
+describe("parseServerArgs", () => {
+	it("resolves --source-root to an absolute path and leaves it unset when omitted", () => {
+		const parsed = parseServerArgs(["--source-root", "rel/source", "--jobs-dir", "rel/jobs", "--port", "4801"]);
+		expect(parsed).toMatchObject({
+			port: 4801,
+			jobsDir: path.resolve("rel/jobs"),
+			sourceRoot: path.resolve("rel/source"),
+			host: null,
+		});
+		// Omitted: the manager falls back to `defaultSourceRoot()`; no flag value is invented.
+		expect(parseServerArgs([]).sourceRoot).toBeUndefined();
 	});
 });
 
@@ -789,7 +807,7 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		expect(cfg.sourceIdentity).not.toBe(formatSourceIdentity(await sourceIdentity(defaultRoot)));
 		// Arm variant swap repeats the same launch fields.
 		store.syncAll();
-		const arm = manager.addArm("rootexp", { arm: "swap", model: SUITE.model, variantId });
+		const arm = await manager.addArm("rootexp", { arm: "swap", model: SUITE.model, variantId });
 		const armArgv = argvs.find(a => a.includes(arm.jobName))!;
 		expect(armArgv[armArgv.indexOf("--source-root") + 1]).toBe(source);
 	});
@@ -895,13 +913,13 @@ describe("fresh launch never reuses an existing job name", () => {
 		expect(manager.store.getRun("brand-new")?.status).toBe("running");
 	});
 
-	it("resume of a terminal job still works and keeps its trials", () => {
+	it("resume of a terminal job still works and keeps its trials", async () => {
 		const jobsDir = makeJobsDir();
 		const manager = terminalJob(jobsDir, "old-run");
 		const { argvs } = stubSpawn();
 		const before = manager.store.listTraces("old-run");
 		expect(before.length).toBe(3);
-		expect(manager.resume("old-run")).toMatchObject({ jobName: "old-run" });
+		expect(await manager.resume("old-run")).toMatchObject({ jobName: "old-run" });
 		expect(argvs[0]).toContain("--resume");
 		expect(manager.store.getRun("old-run")?.status).toBe("running");
 		expect(manager.store.listTraces("old-run")).toEqual(before);
