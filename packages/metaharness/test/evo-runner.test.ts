@@ -512,6 +512,33 @@ describe("runner-config credential persistence", () => {
 		expect(scanForSentinel(jobsDir)).toEqual([]);
 	}, 30_000);
 
+	it("refuses a fresh run into a job dir that already holds harbor output and never spawns harbor", async () => {
+		const jobsDir = tmp();
+		const jobDir = path.join(jobsDir, "job-reused");
+		fs.mkdirSync(path.join(jobDir, "task__old"), { recursive: true });
+		fs.writeFileSync(path.join(jobDir, "result.json"), JSON.stringify({ n_total_trials: 1 }));
+		fs.writeFileSync(
+			path.join(jobDir, "task__old", "result.json"),
+			JSON.stringify({ verifier_result: { rewards: { reward: 1 } } }),
+		);
+		const marker = path.join(jobsDir, "harbor-was-spawned");
+		const { code, out } = await runRunner(jobsDir, "job-reused", [], {}, undefined, { harbor: `touch "${marker}"` });
+		expect(code).not.toBe(0);
+		expect(out).toContain("already has harbor output");
+		expect(out).toContain("--resume job-reused");
+		expect(fs.existsSync(marker)).toBe(false);
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-reused", "runner-config.json"))).toBe(false);
+	}, 30_000);
+
+	it("a manager-created job dir holding only manager.json is not prior output", async () => {
+		const jobsDir = tmp();
+		fs.mkdirSync(path.join(jobsDir, "job-managed"), { recursive: true });
+		fs.writeFileSync(path.join(jobsDir, "job-managed", "manager.json"), "{}");
+		const { out } = await runRunner(jobsDir, "job-managed", []);
+		expect(out).not.toContain("already has harbor output");
+		expect(fs.existsSync(path.join(jobsDir, "_bench", "job-managed", "runner-config.json"))).toBe(true);
+	}, 30_000);
+
 	const HEADER_SECRET = "evo-header-secret-7b1c2d";
 	const DRY_RUN_MARKER = "evo-dry-run-marker";
 	const VALID_PROVIDER = "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n";

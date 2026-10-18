@@ -1907,6 +1907,16 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 	// Before any job output exists: a jobs dir inside the source root would be inventoried and staged as source.
 	if (sourceRun) assertJobsDirOutsideSource(cfg.jobsDir, cfg.sourceRoot);
 	const jobDir = path.join(cfg.jobsDir, jobName);
+	// A fresh run never re-enters a job that Harbor already wrote to: its result.json and trial dirs would be read back
+	// as this run's results. The manager pre-creates the dir with only manager.json, so that alone is not prior output.
+	if (!cfg.resume && !cfg.dryRun) {
+		const prior = fs.existsSync(jobDir) ? fs.readdirSync(jobDir).filter(name => name !== "manager.json") : [];
+		if (prior.length > 0) {
+			throw new Error(
+				`job ${jobName} already has harbor output (${prior.slice(0, 3).join(", ")}${prior.length > 3 ? ", …" : ""}); choose a new --job-name or use --resume ${jobName}`,
+			);
+		}
+	}
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);
 	fs.mkdirSync(benchDir, { recursive: true });
 	if (!cfg.resume && !cfg.dryRun) {
