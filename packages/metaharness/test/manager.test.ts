@@ -821,3 +821,89 @@ describe("EvoService evaluate job-name uniqueness", () => {
 		expect((await service.handle(req(), url))?.status).toBe(201);
 	});
 });
+
+describe("fresh launch never reuses an existing job name", () => {
+	/** Stub Bun.spawn only: launch, #spawnRunner and registerLaunch stay production code. */
+	function stubSpawn(): { argvs: string[][] } {
+		const argvs: string[][] = [];
+		const bun: { spawn: unknown } = Bun;
+		const original = bun.spawn;
+		bun.spawn = (argv: string[]) => {
+			argvs.push(argv);
+			return { pid: process.pid, exited: new Promise<number>(() => {}) };
+		};
+		cleanups.push(() => {
+			bun.spawn = original;
+		});
+		return { argvs };
+	}
+
+	function terminalJob(jobsDir: string, jobName: string): ManagerServer {
+		writeFixtureJob(jobsDir, jobName);
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		manager.store.registerLaunch({
+			benchmark: "harbor",
+			jobName,
+			dataset: "test-dataset@1.0",
+			agent: "omp",
+			models: ["m/x"],
+			pid: 999999999,
+		});
+		manager.store.syncRun(jobName);
+		manager.store.markExit(jobName, 1, false);
+		return manager;
+	}
+
+	it("refuses a terminal job name with persisted trials and leaves its trials untouched", () => {
+		const jobsDir = makeJobsDir();
+		const manager = terminalJob(jobsDir, "old-run");
+		const { argvs } = stubSpawn();
+		const before = manager.store.listTraces("old-run");
+		expect(before.length).toBe(3);
+		expect(manager.store.getRun("old-run")?.status).toBe("failed");
+		expect(() => manager.launch({ model: "m/x", jobName: "old-run" })).toThrow(
+			"run old-run already exists; choose a new job name or resume it",
+		);
+		expect(argvs).toEqual([]);
+		expect(manager.store.listTraces("old-run")).toEqual(before);
+		expect(manager.store.getRun("old-run")?.status).toBe("failed");
+	});
+
+	it("refuses a name whose job dir exists without a row, creating nothing", () => {
+		const jobsDir = makeJobsDir();
+		writeFixtureJob(jobsDir, "orphan-dir");
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		const { argvs } = stubSpawn();
+		expect(manager.store.getRun("orphan-dir")).toBeNull();
+		const before = fs.readdirSync(path.join(jobsDir, "orphan-dir")).sort();
+		expect(() => manager.launch({ model: "m/x", jobName: "orphan-dir" })).toThrow(
+			"run orphan-dir already exists; choose a new job name or resume it",
+		);
+		expect(argvs).toEqual([]);
+		expect(manager.store.getRun("orphan-dir")).toBeNull();
+		expect(fs.readdirSync(path.join(jobsDir, "orphan-dir")).sort()).toEqual(before);
+	});
+
+	it("still launches a brand-new name (negative control)", () => {
+		const jobsDir = makeJobsDir();
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		stubSpawn();
+		expect(manager.launch({ model: "m/x", jobName: "brand-new" })).toMatchObject({ jobName: "brand-new" });
+		expect(manager.store.getRun("brand-new")?.status).toBe("running");
+	});
+
+	it("resume of a terminal job still works and keeps its trials", () => {
+		const jobsDir = makeJobsDir();
+		const manager = terminalJob(jobsDir, "old-run");
+		const { argvs } = stubSpawn();
+		const before = manager.store.listTraces("old-run");
+		expect(before.length).toBe(3);
+		expect(manager.resume("old-run")).toMatchObject({ jobName: "old-run" });
+		expect(argvs[0]).toContain("--resume");
+		expect(manager.store.getRun("old-run")?.status).toBe("running");
+		expect(manager.store.listTraces("old-run")).toEqual(before);
+	});
+});

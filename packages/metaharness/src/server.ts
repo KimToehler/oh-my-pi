@@ -532,6 +532,11 @@ export class ManagerServer {
 		if (this.#children.has(jobName) || existing?.status === "running") {
 			throw new Error(`run ${jobName} is already running`);
 		}
+		// A fresh launch never re-enters an existing job: old trial rows and harbor trial dirs would
+		// otherwise survive and be reported as this run's results. `resume` is the only re-entry path.
+		if (existing || fs.existsSync(path.join(this.jobsDir, jobName))) {
+			throw new Error(`run ${jobName} already exists; choose a new job name or resume it`);
+		}
 		// Validate before any job dir exists so a bad path leaves no debris for discover().
 		if (benchmark === "harbor" && isLocalDataset(dataset)) resolveLocalDataset(dataset);
 		const jobDir = path.join(this.jobsDir, jobName);
