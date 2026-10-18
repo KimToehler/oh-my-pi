@@ -1,0 +1,134 @@
+/**
+ * Provider-proxy view of a fixed evo `models.yml`. The host-side routes (real upstream URL + real credential) are
+ * derived here for the manager's proxy; the agent-side copy is rewritten so every credentialed provider points at
+ * the proxy with a per-run token and carries no header or key of its own.
+ */
+import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
+import { EvoHttpError } from "./boundary";
+
+/** Env var NAME the agent resolves its per-run proxy credential from. The value is a token, never a provider key. */
+export const PROXY_TOKEN_ENV = "OMP_EVO_PROXY_TOKEN";
+
+export interface ProxyRoute {
+	/** Real provider base URL requests are forwarded to. */
+	upstream: string;
+	/** Real credential; replaces the per-run token in whatever header the agent put it in. */
+	apiKey: string | undefined;
+	/** Extra upstream headers resolved from host env (models.yml `headers`). */
+	headers: Record<string, string>;
+}
+
+function fail(detail: string): EvoHttpError {
+	return new EvoHttpError(422, `models.yml ${detail}`);
+}
+
+function parse(text: string): Record<string, unknown> {
+	let parsed: unknown;
+	try {
+		parsed = Bun.YAML.parse(text);
+	} catch {
+		throw fail("is not valid YAML");
+	}
+	return isRecord(parsed) ? parsed : {};
+}
+
+/** Dotted paths of every `apiKey`/`headers` key below `node`; used to find credentials the proxy cannot route. */
+function credentialPaths(node: unknown, where: string, out: string[]): void {
+	if (Array.isArray(node)) {
+		node.forEach((item, i) => credentialPaths(item, `${where}[${i}]`, out));
+		return;
+	}
+	if (!isRecord(node)) return;
+	for (const [key, value] of Object.entries(node)) {
+		const here = where ? `${where}.${key}` : key;
+		if (key === "apiKey" || key === "headers") out.push(here);
+		else credentialPaths(value, here, out);
+	}
+}
+
+/** `[provider, config]` for each provider that carries a credential; throws when one cannot be proxied. */
+function credentialedProviders(tree: Record<string, unknown>): Array<[string, Record<string, unknown>]> {
+	const found: string[] = [];
+	credentialPaths(tree, "", found);
+	const providers = isRecord(tree.providers) ? tree.providers : {};
+	const result: Array<[string, Record<string, unknown>]> = [];
+	const routable = new Set<string>();
+	for (const [name, config] of Object.entries(providers)) {
+		if (!isRecord(config)) continue;
+		const own = ["apiKey", "headers"].filter(key => key in config);
+		for (const key of own) routable.add(`providers.${name}.${key}`);
+		if (own.length === 0) continue;
+		if (typeof config.baseUrl !== "string" || config.baseUrl === "") {
+			throw fail(`providers.${name} carries a credential but no baseUrl; the provider proxy needs an upstream URL`);
+		}
+		result.push([name, config]);
+	}
+	const stray = found.find(path => !routable.has(path));
+	if (stray) {
+		throw fail(`${stray} is a credential below the provider level; the provider proxy cannot route it`);
+	}
+	return result;
+}
+
+/** Host-side routes keyed by provider name. Throws 422 when the file has a credential the proxy cannot route. */
+export function proxyRoutesFromModels(text: string, env: Record<string, string | undefined>): Map<string, ProxyRoute> {
+	const routes = new Map<string, ProxyRoute>();
+	for (const [name, config] of credentialedProviders(parse(text))) {
+		const headers: Record<string, string> = {};
+		if (isRecord(config.headers)) {
+			for (const [header, envName] of Object.entries(config.headers)) {
+				const value = typeof envName === "string" ? env[envName] : undefined;
+				if (value !== undefined) headers[header] = value;
+			}
+		}
+		const keyName = typeof config.apiKey === "string" ? config.apiKey : undefined;
+		routes.set(name, {
+			upstream: config.baseUrl as string,
+			apiKey: keyName === undefined ? undefined : env[keyName],
+			headers,
+		});
+	}
+	return routes;
+}
+
+/**
+ * Fixed stand-in for the runtime proxy endpoint when computing the staged-models identity. The real endpoint (host
+ * and random port) is transport, not executor semantics, so it is excluded from the condition on purpose; every other
+ * byte the agent sees is `rewriteModelsForProxy(raw, endpoint)`, hence raw hash + this canonical hash cover them.
+ */
+export const PROXY_ENDPOINT_PLACEHOLDER = "http://omp-evo-proxy.invalid";
+
+/** sha256 of the staged models.yml with the endpoint canonicalized to `PROXY_ENDPOINT_PLACEHOLDER`. */
+export function canonicalStagedModelsHash(rawText: string): string {
+	return new Bun.CryptoHasher("sha256")
+		.update(rewriteModelsForProxy(rawText, PROXY_ENDPOINT_PLACEHOLDER))
+		.digest("hex");
+}
+
+/** Agent-side models.yml: credentialed providers point at `proxyUrl/<provider>` and authenticate with the token env. */
+export function rewriteModelsForProxy(text: string, proxyUrl: string): string {
+	const tree = parse(text);
+	for (const [name, config] of credentialedProviders(tree)) {
+		config.baseUrl = `${proxyUrl.replace(/\/+$/, "")}/${encodeURIComponent(name)}`;
+		config.apiKey = PROXY_TOKEN_ENV;
+		delete config.headers;
+	}
+	return `# Generated by metaharness evo provider proxy: no provider credential is present in this file.\n${Bun.YAML.stringify(tree, null, 2)}\n`;
+}
+
+/**
+ * Refuse a launch whose agent-visible environment would carry a models.yml credential: every credential env NAME must
+ * stay out of the forwarded list, since forwarding it hands the agent the real key the proxy exists to withhold.
+ */
+export function assertProxyForwardsNoCredentials(
+	forwarded: readonly string[],
+	credentialNames: readonly string[],
+): void {
+	const leaked = forwarded.filter(name => credentialNames.includes(name));
+	if (leaked.length > 0) {
+		throw new EvoHttpError(
+			422,
+			`provider proxy launch must not forward credential env ${leaked.join(", ")} into the agent; the proxy holds it host-side`,
+		);
+	}
+}

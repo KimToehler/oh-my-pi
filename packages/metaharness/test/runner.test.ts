@@ -8,8 +8,29 @@ import {
 	collectForwardEnv,
 	parseArgs,
 	readTrials,
+	resolveBunImageVersion,
 	resolveResumeConfig,
 } from "../src/runner";
+
+describe("resolveBunImageVersion", () => {
+	it("returns an exact pinned version as-is", () => {
+		expect(resolveBunImageVersion("bun@1.4.2", "1.9.9")).toBe("1.4.2");
+	});
+	it("resolves a range to the host bun version when satisfied, as a valid docker tag", () => {
+		const v = resolveBunImageVersion("bun@>=1.4", "1.4.2");
+		expect(v).toBe("1.4.2");
+		expect(v).toMatch(/^[\w][\w.-]{0,127}$/);
+	});
+	it("throws when the host bun does not satisfy the range", () => {
+		expect(() => resolveBunImageVersion("bun@>=1.5", "1.4.2")).toThrow(/does not satisfy/);
+	});
+	it("falls back to 1.4.0 for non-bun package managers", () => {
+		expect(resolveBunImageVersion("npm@10.0.0", "1.4.2")).toBe("1.4.0");
+	});
+	it("falls back to 1.4.0 when packageManager is missing", () => {
+		expect(resolveBunImageVersion(undefined, "1.4.2")).toBe("1.4.0");
+	});
+});
 
 describe("generic agent-arg / env passthrough", () => {
 	it("forwards repeated --agent-arg as a JSON array the in-container agent can parse", () => {

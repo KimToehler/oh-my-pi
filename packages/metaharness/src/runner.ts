@@ -20,14 +20,46 @@ import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/mo
  *   metaharness harbor --help
  */
 import type { Server } from "bun";
-import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
+import { writeComposeOverlayFile } from "./compose-overlay";
+import { assertNoHostCredentialValues, readModelsEnvNames, readModelsEnvNamesSync } from "./evo/models-yaml";
+import { assertProxyForwardsNoCredentials, PROXY_TOKEN_ENV } from "./evo/proxy-models";
+import { modelsScanValues } from "./evo/credential-scan";
+import { stageAgentOverlay } from "./evo/overlay";
+import { assertPlainPath } from "./evo/path-guard";
+import { assertJobsDirOutsideSource } from "./evo/jobs-dir-guard";
+import {
+	formatSourceIdentity,
+	parseRegisteredIdentity,
+	SOURCE_IDENTITY_SCHEME,
+	sourceIdentity,
+} from "./evo/source-identity";
+import {
+	assertStagedMatchesRegistered,
+	removeStagedSource,
+	type StagedSource,
+	stageSource,
+	verifyStagedSource,
+} from "./evo/source-stage";
+import { probeProxyLiveness } from "./evo/provider-proxy";
+import { classifyHarborPhase, type FailurePhase } from "./evo/failure-phase";
+import { summarizeOmpTranscript, type TranscriptMetrics } from "./evo/transcript";
+import {
+	credentialValuesFromEnv,
+	defaultJobName,
+	findCredentialLeaks,
+	harborRunnerArgs,
+	type LaunchRequest,
+} from "./launch-args";
 
 // ────────────────────────────────────────────────────────────────────── config
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..");
 const PKG_DIR = path.resolve(import.meta.dir, "..");
 const AGENT_DIR = path.join(PKG_DIR, "agent");
-const CODING_AGENT_DIR = path.join(REPO_ROOT, "packages", "coding-agent");
+/** Coding-agent package dir inside a source root. */
+function codingAgentDir(sourceRoot: string): string {
+	return path.join(sourceRoot, "packages", "coding-agent");
+}
 const AGENT_IMPORT_PATH = "omp_local:OmpLocal";
 const PI_UPSTREAM_IMPORT_PATH = "pi_upstream:PiUpstream";
 /** Upstream `@earendil-works/pi-coding-agent` version pinned for `--agent pi`. */
@@ -38,6 +70,8 @@ const MANAGED_AGENTS: Record<string, true> = { omp: true, pi: true };
 /** Container-side mount points for `--install source` (must match omp_local.py defaults). */
 const SOURCE_SRC_MOUNT = "/opt/omp/src";
 const SOURCE_BIN_MOUNT = "/opt/omp/bin";
+/** Container-side mount of the staged agent overlay (must match omp_local.py's OMP_BENCH_AGENT_OVERLAY). */
+const AGENT_OVERLAY_MOUNT = "/opt/omp/agent-overlay";
 
 /** Host address containers see on Apple Container's vmnet (bridge) network. */
 const VMNET_HOST_IP = "192.168.64.1";
@@ -95,6 +129,41 @@ export interface Config {
 	envType: "docker" | "apple-container";
 	passthrough: string[];
 	env: Record<string, string>;
+	/** `--env KEY` names whose values come from the host; values are never snapshotted. */
+	hostEnvKeys: string[];
+	/** Variant agent dir staged into a read-only overlay mounted at `~/.omp/agent`. */
+	agentDir: string | null;
+	/** Registered sha256 of `agentDir`; the overlay is staged only from bytes that still hash to it (`--agent-dir-hash`). */
+	agentDirHash: string | null;
+	/** Repo/worktree mounted as the omp source and used for dependency hashing. */
+	sourceRoot: string;
+	/** Expected `<ref>[+<dirtyHash>]` identity of `sourceRoot`; checked before spawn. */
+	sourceIdentity: string | null;
+	/**
+	 * Identity of `sourceRoot` re-read after harbor returned; persisted to runner-config.json
+	 * (`unknown` when recomputation failed). Differs from `sourceIdentity` when the bind-mounted
+	 * source changed during the run, which makes the run non-comparable.
+	 */
+	postRunSourceIdentity?: string;
+	/** Fixed container-safe models.yml used instead of generated gateway routing. */
+	modelsYaml: string | null;
+	/** Expected sha256 of the `modelsYaml` bytes; verified before the file is staged (`--models-yaml-hash`). */
+	modelsYamlHash: string | null;
+	/** Expected sha256 of the proxy-rewritten models.yml, endpoint canonicalized (`--staged-models-hash`). */
+	stagedModelsHash: string | null;
+	/** Provider traffic goes through the manager's host proxy; the agent gets a per-run token, never a provider key. */
+	providerProxy: boolean;
+}
+
+/** Throw unless `cfg.modelsYaml` bytes hash to the recorded `--models-yaml-hash` (no-op without one). */
+function assertModelsYamlHash(cfg: Config): void {
+	if (!cfg.modelsYaml || !cfg.modelsYamlHash) return;
+	const actual = new Bun.CryptoHasher("sha256").update(fs.readFileSync(cfg.modelsYaml)).digest("hex");
+	if (actual !== cfg.modelsYamlHash) {
+		throw new Error(
+			`models.yml hash mismatch for ${cfg.modelsYaml}: expected ${cfg.modelsYamlHash}, actual ${actual}`,
+		);
+	}
 }
 
 function defaultConfig(): Config {
@@ -137,6 +206,15 @@ function defaultConfig(): Config {
 		envType: "docker",
 		passthrough: [],
 		env: {},
+		hostEnvKeys: [],
+		agentDir: null,
+		agentDirHash: null,
+		sourceRoot: REPO_ROOT,
+		sourceIdentity: null,
+		modelsYaml: null,
+		modelsYamlHash: null,
+		stagedModelsHash: null,
+		providerProxy: false,
 	};
 }
 
@@ -163,6 +241,15 @@ Model / agent:
       --setting <key=value>      omp setting for the container config, e.g. edit.mode=sloppy (repeatable; JSON values)
       --env <KEY[=VALUE]>        Forward env into omp container (repeatable).
                                  KEY alone forwards host value; host PI_* auto-forwarded.
+                                 Credentials named by --models-yaml apiKey must use the KEY form.
+      --agent-dir <path>         Variant agent dir (AGENTS.md, config.yml, rules/, skills/, ...) staged into a
+                                 read-only overlay; the fixed model owns routing/retry, --setting wins last
+      --agent-dir-hash <hex>     Expected sha256 of --agent-dir content; mismatch aborts staging
+      --source-root <path>       Git worktree mounted as the omp source (default: this repo)
+      --source-identity <id>     Expected <HEAD>[+<dirty hash>] of --source-root; mismatch aborts the launch
+      --models-yaml <path>       Fixed models.yml for the container (works with --no-gateway)
+      --models-yaml-hash <hex>   Expected sha256 of --models-yaml; mismatch aborts the launch
+      --staged-models-hash <hex> Expected sha256 of the proxy-rewritten models.yml (endpoint canonicalized)
 
 Dataset / scale:
   -l, --tasks <N>                Max tasks (default 20)
@@ -171,11 +258,13 @@ Dataset / scale:
   -i, --include <glob>           Include task name (repeatable)
   -x, --exclude <glob>           Exclude task name (repeatable)
   -d, --dataset <name@ver>       Default terminal-bench@2.0
+      --path <dir>               Local Harbor task/dataset directory (harbor run --path); replaces -d
 
 Gateway (auth, no keys in container):
       --gateway-url <url>        Default http://host.docker.internal:4000
       --gateway-token <tok>      Default "no-auth" (gateway runs --no-auth)
       --providers <csv>          Providers to route (default: model provider + anthropic,openai-codex)
+      --provider-proxy           Route provider traffic through the manager's host proxy (env OMP_EVO_PROXY_PORT/TOKEN); no key enters the agent
       --no-gateway               Pass host provider API keys into containers instead
       --web-search               Enable omp web_search (off by default; can't auth via gateway)
       --allow-host <host>        harbor --allow-agent-host (repeatable)
@@ -312,6 +401,9 @@ export function parseArgs(argv: string[]): Config {
 			case "--dataset":
 				cfg.dataset = take(arg);
 				break;
+			case "--path":
+				cfg.dataset = path.resolve(assertPlainPath("--path", take(arg)));
+				break;
 
 			case "--gateway-url":
 				cfg.gatewayUrl = take(arg);
@@ -327,8 +419,43 @@ export function parseArgs(argv: string[]): Config {
 						.filter(Boolean),
 				);
 				break;
+			case "--agent-dir":
+				cfg.agentDir = path.resolve(assertPlainPath("--agent-dir", take(arg)));
+				break;
+			case "--agent-dir-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("--agent-dir-hash must be 64 lowercase hex characters");
+				cfg.agentDirHash = value;
+				break;
+			}
+			case "--source-root":
+				cfg.sourceRoot = path.resolve(assertPlainPath("--source-root", take(arg)));
+				break;
+			case "--source-identity":
+				cfg.sourceIdentity = take(arg);
+				break;
+			case "--models-yaml":
+				cfg.modelsYaml = path.resolve(assertPlainPath("--models-yaml", take(arg)));
+				break;
+			case "--models-yaml-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value))
+					throw new Error("--models-yaml-hash must be 64 lowercase hex characters");
+				cfg.modelsYamlHash = value;
+				break;
+			}
+			case "--staged-models-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value))
+					throw new Error("--staged-models-hash must be 64 lowercase hex characters");
+				cfg.stagedModelsHash = value;
+				break;
+			}
 			case "--no-gateway":
 				cfg.gateway = false;
+				break;
+			case "--provider-proxy":
+				cfg.providerProxy = true;
 				break;
 			case "--web-search":
 				cfg.webSearch = true;
@@ -338,7 +465,7 @@ export function parseArgs(argv: string[]): Config {
 				break;
 			case "-o":
 			case "--jobs-dir":
-				cfg.jobsDir = path.resolve(take(arg));
+				cfg.jobsDir = path.resolve(assertPlainPath("--jobs-dir", take(arg)));
 				break;
 			case "--job-name":
 				cfg.jobName = take(arg);
@@ -379,9 +506,13 @@ export function parseArgs(argv: string[]): Config {
 				const eq2 = spec.indexOf("=");
 				if (eq2 === -1) {
 					const hostVal = process.env[spec];
-					if (hostVal !== undefined) cfg.env[spec] = hostVal;
+					if (hostVal !== undefined) {
+						cfg.env[spec] = hostVal;
+						if (!cfg.hostEnvKeys.includes(spec)) cfg.hostEnvKeys.push(spec);
+					}
 				} else {
 					cfg.env[spec.slice(0, eq2)] = spec.slice(eq2 + 1);
+					cfg.hostEnvKeys = cfg.hostEnvKeys.filter(key => key !== spec.slice(0, eq2));
 				}
 				break;
 			}
@@ -450,6 +581,11 @@ export function resolveResumeConfig(cli: Config): Config {
 			`--resume: no recorded launch config for ${jobName} ` +
 				`(missing both _bench/${jobName}/runner-config.json and ${jobName}/manager.json)`,
 		);
+	}
+	// Host-sourced env values are never snapshotted; re-read them from this shell.
+	for (const key of cfg.hostEnvKeys ?? []) {
+		const value = process.env[key];
+		if (value !== undefined) cfg.env[key] = value;
 	}
 	cfg.jobsDir = jobsDir;
 	cfg.jobName = jobName;
@@ -532,6 +668,10 @@ export interface Trial {
 	tokCache: number;
 	durationMs: number;
 	detail: string;
+	/** Failure provenance; null while running. */
+	phase: FailurePhase | null;
+	/** Terminal-trial transcript metrics; null while running. */
+	transcript: TranscriptMetrics | null;
 }
 
 interface AgentCtxLike {
@@ -670,7 +810,7 @@ function probeTrialCost(ompLogPath: string): CostProbe | null {
 }
 
 /** Parse one trial directory into a Trial, or null if it isn't a trial dir yet. */
-function parseTrial(dir: string, name: string): Trial | null {
+function parseTrial(dir: string, name: string, providerRouteLost: boolean): Trial | null {
 	const resultPath = path.join(dir, "result.json");
 	if (!fs.existsSync(resultPath)) {
 		// running: dir exists, no result yet. Use dir mtime as start proxy.
@@ -698,6 +838,8 @@ function parseTrial(dir: string, name: string): Trial | null {
 			tokCache,
 			durationMs: Date.now() - started,
 			detail: "",
+			phase: null,
+			transcript: null,
 		};
 	}
 	// Trial finished: usage now comes from result.json; drop the live-parse state.
@@ -764,10 +906,32 @@ function parseTrial(dir: string, name: string): Trial | null {
 	} else {
 		status = "fail";
 	}
-	return { name, status, reward, costUsd, tokIn, tokOut, tokCache, durationMs, detail };
+	const transcript = summarizeOmpTranscript(path.join(dir, "agent", "omp.txt"));
+	return {
+		name,
+		status,
+		reward,
+		costUsd,
+		tokIn,
+		tokOut,
+		tokCache,
+		durationMs,
+		detail,
+		phase: classifyHarborPhase({
+			exception: exc ? (typeof exc.exception_type === "string" ? exc.exception_type : "error") : null,
+			reward,
+			transcript,
+			providerRouteLost,
+		}),
+		transcript,
+	};
 }
 
+/** Marker the runner writes into the job dir when the provider proxy was dead after harbor returned. Sticky. */
+export const PROVIDER_ROUTE_LOST_MARKER = ".provider-route-lost";
+
 export function readTrials(jobDir: string): Trial[] {
+	const providerRouteLost = fs.existsSync(path.join(jobDir, PROVIDER_ROUTE_LOST_MARKER));
 	let entries: fs.Dirent[] = [];
 	try {
 		entries = fs.readdirSync(jobDir, { withFileTypes: true });
@@ -777,7 +941,7 @@ export function readTrials(jobDir: string): Trial[] {
 	const trials: Trial[] = [];
 	for (const e of entries) {
 		if (!e.isDirectory()) continue;
-		const t = parseTrial(path.join(jobDir, e.name), e.name);
+		const t = parseTrial(path.join(jobDir, e.name), e.name, providerRouteLost);
 		if (t) trials.push(t);
 	}
 	return trials;
@@ -1010,8 +1174,8 @@ function which(bin: string): string | null {
 	return r.status === 0 && out ? out : null;
 }
 
-function readPkgVersion(): string {
-	const raw = readJson(path.join(CODING_AGENT_DIR, "package.json"));
+function readPkgVersion(cfg: Config): string {
+	const raw = readJson(path.join(codingAgentDir(cfg.sourceRoot), "package.json"));
 	if (raw && typeof raw === "object") {
 		const v = (raw as Record<string, unknown>).version;
 		if (typeof v === "string") return v;
@@ -1019,10 +1183,10 @@ function readPkgVersion(): string {
 	return "latest";
 }
 
-function buildTarball(benchDir: string): string {
+function buildTarball(benchDir: string, cfg: Config): string {
 	process.stdout.write(dim("packing local omp (bun pm pack)…\n"));
 	const r = spawnSync("bun", ["pm", "pack", "--destination", benchDir], {
-		cwd: CODING_AGENT_DIR,
+		cwd: codingAgentDir(cfg.sourceRoot),
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
@@ -1061,16 +1225,33 @@ export interface SourceMount {
 	depsDir: string;
 	/** Repo-relative node_modules dirs to shadow-mount over the darwin ones. */
 	nodeModules: string[];
+	/** Run-owned read-only staged source tree (`_bench/<job>/source`); the only source the container sees. */
+	stagedDir: string;
 }
 
-/** Bun version pinned by the repo's `packageManager` field. */
-function repoBunVersion(): string {
-	const raw = readJson(path.join(REPO_ROOT, "package.json"));
-	if (raw && typeof raw === "object") {
-		const pm = (raw as Record<string, unknown>).packageManager;
-		if (typeof pm === "string" && pm.startsWith("bun@")) return pm.slice("bun@".length);
-	}
-	return "1.4.0";
+/** Deps plan before the source tree is staged; every `nodeModules` dir becomes a mount point in the staged tree. */
+export type SourcePlan = Omit<SourceMount, "stagedDir">;
+
+/**
+ * Concrete bun version for the `oven/bun:<version>` image tag. An exact `packageManager`
+ * pin is used as-is; a semver range (e.g. `bun@>=1.4`) resolves to the host bun version
+ * when it satisfies the range, otherwise throws.
+ */
+export function resolveBunImageVersion(packageManager: unknown, hostBunVersion: string): string {
+	if (typeof packageManager !== "string" || !packageManager.startsWith("bun@")) return "1.4.0";
+	const spec = packageManager.slice("bun@".length);
+	if (/^\d+\.\d+\.\d+$/.test(spec)) return spec;
+	if (Bun.semver.satisfies(hostBunVersion, spec)) return hostBunVersion;
+	throw new Error(
+		`packageManager ${packageManager} does not pin an exact bun version and host bun ${hostBunVersion} does not satisfy it; pin an exact version`,
+	);
+}
+
+/** Bun version for the repo's `packageManager` field, resolved to a concrete image tag. */
+function repoBunVersion(sourceRoot: string): string {
+	const raw = readJson(path.join(sourceRoot, "package.json"));
+	const pm = raw && typeof raw === "object" ? (raw as Record<string, unknown>).packageManager : undefined;
+	return resolveBunImageVersion(pm, Bun.version);
 }
 
 /** Native arch of the docker daemon (what non-emulated task containers run as). */
@@ -1083,13 +1264,13 @@ function dockerServerArch(): "arm64" | "x64" {
 }
 
 /** Workspace member dirs (repo-relative), expanded from root package.json `workspaces.packages`. */
-function workspacePackageDirs(): string[] {
-	const raw = readJson(path.join(REPO_ROOT, "package.json")) as {
+function workspacePackageDirs(sourceRoot: string): string[] {
+	const raw = readJson(path.join(sourceRoot, "package.json")) as {
 		workspaces?: { packages?: string[] };
 	} | null;
 	const dirs = new Set<string>();
 	for (const pattern of raw?.workspaces?.packages ?? []) {
-		for (const match of new Bun.Glob(`${pattern}/package.json`).scanSync({ cwd: REPO_ROOT })) {
+		for (const match of new Bun.Glob(`${pattern}/package.json`).scanSync({ cwd: sourceRoot })) {
 			dirs.add(path.dirname(match));
 		}
 	}
@@ -1097,10 +1278,10 @@ function workspacePackageDirs(): string[] {
 }
 
 /** Manifest files (repo-relative) that fully determine a `bun install` result. */
-function sourceManifestFiles(pkgDirs: string[]): string[] {
+function sourceManifestFiles(sourceRoot: string, pkgDirs: string[]): string[] {
 	const files = ["package.json", "bun.lock"];
-	if (fs.existsSync(path.join(REPO_ROOT, "bunfig.toml"))) files.push("bunfig.toml");
-	const patchesDir = path.join(REPO_ROOT, "patches");
+	if (fs.existsSync(path.join(sourceRoot, "bunfig.toml"))) files.push("bunfig.toml");
+	const patchesDir = path.join(sourceRoot, "patches");
 	if (fs.existsSync(patchesDir)) {
 		for (const f of fs.readdirSync(patchesDir).sort()) files.push(path.join("patches", f));
 	}
@@ -1108,13 +1289,13 @@ function sourceManifestFiles(pkgDirs: string[]): string[] {
 	return files;
 }
 
-function sourceDepsStamp(manifests: string[], bunVersion: string): string {
+function sourceDepsStamp(sourceRoot: string, manifests: string[], bunVersion: string): string {
 	const h = new Bun.CryptoHasher("sha256");
 	h.update(`bun@${bunVersion}\0source-deps-v1\0`);
 	for (const rel of manifests) {
 		h.update(rel);
 		h.update("\0");
-		h.update(fs.readFileSync(path.join(REPO_ROOT, rel)));
+		h.update(fs.readFileSync(path.join(sourceRoot, rel)));
 		h.update("\0");
 	}
 	return h.digest("hex");
@@ -1126,13 +1307,14 @@ function sourceDepsStamp(manifests: string[], bunVersion: string): string {
  * daemon's native arch), plus the image's linux `bun` under `bin/`. Rebuilt only when
  * a manifest/lockfile or the pinned bun version changes; TS edits never invalidate it.
  */
-export function prepareSourceDeps(cfg: Config): SourceMount {
+export function prepareSourceDeps(cfg: Config): SourcePlan {
 	const arch = cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
-	const bunVersion = repoBunVersion();
+	const sourceRoot = cfg.sourceRoot;
+	const bunVersion = repoBunVersion(sourceRoot);
 	const depsDir = path.join(cfg.jobsDir, "_bench", "_deps", `linux-${arch}`);
-	const pkgDirs = workspacePackageDirs();
-	const manifests = sourceManifestFiles(pkgDirs);
-	const stamp = sourceDepsStamp(manifests, bunVersion);
+	const pkgDirs = workspacePackageDirs(sourceRoot);
+	const manifests = sourceManifestFiles(sourceRoot, pkgDirs);
+	const stamp = sourceDepsStamp(sourceRoot, manifests, bunVersion);
 	const stampFile = path.join(depsDir, ".stamp");
 	let current: string | null = null;
 	try {
@@ -1147,7 +1329,7 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
 		for (const rel of manifests) {
 			const dst = path.join(depsDir, rel);
 			fs.mkdirSync(path.dirname(dst), { recursive: true });
-			fs.copyFileSync(path.join(REPO_ROOT, rel), dst);
+			fs.copyFileSync(path.join(sourceRoot, rel), dst);
 		}
 		// --ignore-scripts: the skeleton has manifests only, so lifecycle scripts
 		// (root `prepare` → gen:tool-views) would fail; patchedDependencies still apply.
@@ -1196,16 +1378,15 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
 	if (!fs.existsSync(path.join(depsDir, "node_modules"))) {
 		throw new Error(`source deps tree has no node_modules (${depsDir}); delete it and retry`);
 	}
-	// Shadow-mount every node_modules visible in the host tree (they hold darwin
-	// binaries) with the skeleton's linux one; both sides of each mount must exist.
+	// Shadow-mount every node_modules that exists on either side with the skeleton's linux one. The staged
+	// tree never copies host node_modules (ignored), so each shadowed dir is created there as a mount point.
 	const nodeModules = ["node_modules"];
 	for (const dir of pkgDirs) {
 		const rel = path.join(dir, "node_modules");
-		const inHost = fs.existsSync(path.join(REPO_ROOT, rel));
+		const inHost = fs.existsSync(path.join(sourceRoot, rel));
 		const inDeps = fs.existsSync(path.join(depsDir, rel));
 		if (!inHost && !inDeps) continue;
 		if (!inDeps) fs.mkdirSync(path.join(depsDir, rel), { recursive: true });
-		if (!inHost) fs.mkdirSync(path.join(REPO_ROOT, rel), { recursive: true });
 		nodeModules.push(rel);
 	}
 	return { arch, depsDir, nodeModules };
@@ -1215,21 +1396,25 @@ export function prepareSourceDeps(cfg: Config): SourceMount {
  * Compose overlay applied to every trial's `main` service: host networking and/or the
  * read-only source + linux-deps mounts. Returns null when nothing needs overlaying.
  */
-function writeComposeOverlay(benchDir: string, cfg: Config, source: SourceMount | null): string | null {
-	const lines: string[] = [];
-	if (cfg.hostNetwork) lines.push('    network_mode: "host"');
-	if (source) {
-		lines.push("    volumes:");
-		lines.push(`      - ${REPO_ROOT}:${SOURCE_SRC_MOUNT}:ro`);
-		for (const rel of source.nodeModules) {
-			lines.push(`      - ${path.join(source.depsDir, rel)}:${SOURCE_SRC_MOUNT}/${rel}:ro`);
-		}
-		lines.push(`      - ${path.join(source.depsDir, "bin")}:${SOURCE_BIN_MOUNT}:ro`);
-	}
-	if (lines.length === 0) return null;
-	const file = path.join(benchDir, "omp-compose-overlay.yaml");
-	fs.writeFileSync(file, `${["services:", "  main:", ...lines].join("\n")}\n`);
-	return file;
+function writeComposeOverlay(
+	benchDir: string,
+	cfg: Config,
+	source: SourceMount | null,
+	agentOverlay: string | null,
+): string | null {
+	return writeComposeOverlayFile(benchDir, {
+		hostNetwork: cfg.hostNetwork,
+		source: source
+			? {
+					root: source.stagedDir,
+					target: SOURCE_SRC_MOUNT,
+					depsDir: source.depsDir,
+					nodeModules: source.nodeModules,
+					binTarget: SOURCE_BIN_MOUNT,
+				}
+			: null,
+		agentOverlay: agentOverlay ? { host: agentOverlay, target: AGENT_OVERLAY_MOUNT } : null,
+	});
 }
 
 /**
@@ -1237,20 +1422,32 @@ function writeComposeOverlay(benchDir: string, cfg: Config, source: SourceMount 
  * environments (apple-container): source repo + linux deps tree. Apple
  * Container currently mounts binds read-write regardless of `read_only`.
  */
-function buildMountsJson(source: SourceMount | null): string | null {
-	if (!source) return null;
-	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [
-		{ type: "bind", source: REPO_ROOT, target: SOURCE_SRC_MOUNT, read_only: true },
-	];
-	for (const rel of source.nodeModules) {
+export function buildMountsJson(source: SourceMount | null, agentOverlay: string | null = null): string | null {
+	if (!source && !agentOverlay) return null;
+	const mounts: Array<{ type: "bind"; source: string; target: string; read_only: true }> = [];
+	if (source) {
 		mounts.push({
 			type: "bind",
-			source: path.join(source.depsDir, rel),
-			target: `${SOURCE_SRC_MOUNT}/${rel}`,
+			source: assertPlainPath("staged source", source.stagedDir),
+			target: SOURCE_SRC_MOUNT,
+			read_only: true,
+		});
+		for (const rel of source.nodeModules) {
+			mounts.push({
+				type: "bind",
+				source: path.join(source.depsDir, rel),
+				target: `${SOURCE_SRC_MOUNT}/${rel}`,
+				read_only: true,
+			});
+		}
+		mounts.push({
+			type: "bind",
+			source: path.join(source.depsDir, "bin"),
+			target: SOURCE_BIN_MOUNT,
 			read_only: true,
 		});
 	}
-	mounts.push({ type: "bind", source: path.join(source.depsDir, "bin"), target: SOURCE_BIN_MOUNT, read_only: true });
+	if (agentOverlay) mounts.push({ type: "bind", source: agentOverlay, target: AGENT_OVERLAY_MOUNT, read_only: true });
 	return JSON.stringify(mounts);
 }
 
@@ -1433,6 +1630,8 @@ const FORWARD_ENV_DENYLIST = new Set([
  * container-hostile dir/profile/session keys) plus explicit `--env` entries,
  * which always win and bypass the denylist.
  */
+export { modelsScanValues };
+
 export function collectForwardEnv(cfg: Config): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const [k, v] of Object.entries(process.env)) {
@@ -1449,6 +1648,7 @@ export function buildHarborEnv(
 	tarball: string | null,
 	version: string,
 	source: SourceMount | null = null,
+	agentOverlay: string | null = null,
 ): Record<string, string> {
 	const env: Record<string, string> = { ...(process.env as Record<string, string>) };
 	// Drop any stale OMP_BENCH_FORWARD_ENV inherited from the caller's shell before
@@ -1480,8 +1680,11 @@ export function buildHarborEnv(
 	if (Object.keys(cfg.settings).length > 0) env.OMP_BENCH_SETTINGS = JSON.stringify(cfg.settings);
 	if (cfg.webSearch) env.OMP_BENCH_WEB_SEARCH = "1";
 	env.OMP_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
+	env.OMP_BENCH_PROVIDER_PROXY = cfg.providerProxy ? "1" : "0";
+	delete env.OMP_BENCH_AGENT_OVERLAY;
+	if (agentOverlay) env.OMP_BENCH_AGENT_OVERLAY = AGENT_OVERLAY_MOUNT;
+	if (modelsYaml) env.OMP_BENCH_MODELS_YAML = modelsYaml;
 	if (cfg.gateway) {
-		env.OMP_BENCH_MODELS_YAML = modelsYaml;
 		env.OMP_BENCH_GATEWAY_URL = cfg.gatewayUrl;
 		env.OMP_BENCH_GATEWAY_TOKEN = cfg.gatewayToken;
 		env.OMP_BENCH_GATEWAY_PROVIDERS = deriveProviders(cfg).join(",");
@@ -1608,7 +1811,47 @@ interface BenchmarkRun {
 	reportPath: string | null;
 }
 
+/**
+ * Provider-proxy launches: the per-run token (the only secret the agent receives) comes from the runner's own host
+ * environment and travels as a host-sourced `--env` value, so it is never persisted. Returns the URL the containers
+ * reach the proxy at. Refuses a config that would also hand the agent a real provider credential.
+ */
+function adoptProviderProxy(cfg: Config): { url: string; probe: () => Promise<boolean> } {
+	const token = process.env[PROXY_TOKEN_ENV];
+	const port = process.env.OMP_EVO_PROXY_PORT;
+	if (!token || !port) {
+		throw new Error(
+			`--provider-proxy requires ${PROXY_TOKEN_ENV} and OMP_EVO_PROXY_PORT from the manager environment`,
+		);
+	}
+	if (cfg.agent !== "omp" || !cfg.agentDir || !cfg.modelsYaml) {
+		throw new Error(
+			"--provider-proxy requires --agent omp with --agent-dir and --models-yaml (the proxy rewrite is applied to the overlay)",
+		);
+	}
+	const credentialNames = readModelsEnvNamesSync(cfg.modelsYaml);
+	assertProxyForwardsNoCredentials(Object.keys(cfg.env), credentialNames);
+	cfg.env[PROXY_TOKEN_ENV] = token;
+	if (!cfg.hostEnvKeys.includes(PROXY_TOKEN_ENV)) cfg.hostEnvKeys.push(PROXY_TOKEN_ENV);
+	const host = cfg.envType === "apple-container" ? VMNET_HOST_IP : "host.docker.internal";
+	return { url: `http://${host}:${port}`, probe: () => probeProxyLiveness(port, token) };
+}
+
+/**
+ * The staged source tree is transient: once the run (and its postflight verification) is over, or on any failure
+ * path, it is removed so no copy of the worktree (untracked files included) persists in the job dir. A resume
+ * restages from the live root and re-checks the launch identity, so it never needs the old tree.
+ */
 async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
+	const transient: { stagedDir: string | null } = { stagedDir: null };
+	try {
+		return await runBenchmarkWith(cfg, transient);
+	} finally {
+		if (transient.stagedDir) await removeStagedSource(transient.stagedDir);
+	}
+}
+
+async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | null }): Promise<BenchmarkRun> {
 	if (!which("harbor")) {
 		throw new Error("harbor not found on PATH. Install with: uv tool install harbor");
 	}
@@ -1621,17 +1864,68 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		);
 	}
 
+	const proxy = cfg.providerProxy ? adoptProviderProxy(cfg) : null;
+	const proxyUrl = proxy?.url ?? null;
 	const jobName = cfg.jobName ?? defaultJobName(cfg.models[0] ?? "model");
+	// Host-sourced `--env KEY` values are secrets: persist the names only (resume re-reads them).
+	const sourceRun = cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64;
+	// Source runs are stamped with the identity scheme so reports can refuse runs from older schemes.
+	const persisted = {
+		...cfg,
+		jobName,
+		env: { ...cfg.env },
+		...(sourceRun ? { sourceIdentityScheme: SOURCE_IDENTITY_SCHEME } : {}),
+	};
+	for (const key of cfg.hostEnvKeys) delete persisted.env[key];
+	// Reject literal/command apiKeys before anything is persisted or printed.
+	if (cfg.modelsYaml) {
+		assertModelsYamlHash(cfg);
+		const credentialNames = await readModelsEnvNames(cfg.modelsYaml);
+		assertNoHostCredentialValues(
+			await Bun.file(cfg.modelsYaml).text(),
+			modelsScanValues(credentialNames, cfg.env, process.env),
+		);
+		const explicit = credentialNames.filter(name => name in cfg.env && !cfg.hostEnvKeys.includes(name));
+		// Scan the complete persisted launch object, path-bearing fields (jobName, modelsYaml, agentDir, ...) included.
+		const leaked = findCredentialLeaks(
+			persisted,
+			credentialNames,
+			credentialValuesFromEnv(credentialNames, process.env),
+		);
+		const offenders = [...new Set([...explicit, ...leaked])].sort();
+		const named = offenders.filter(name => name !== "<host value>");
+		if (offenders.length > 0) {
+			throw new Error(
+				`credential env ${offenders.join(", ")} referenced by --models-yaml must not be passed as KEY=VALUE; ` +
+					(named.length > 0
+						? `use ${named.map(name => `--env ${name}`).join(" ")} so the value is read from the host environment`
+						: "forward credentials only with --env NAME"),
+			);
+		}
+	}
+
+	// Before any job output exists: a jobs dir inside the source root would be inventoried and staged as source.
+	if (sourceRun) assertJobsDirOutsideSource(cfg.jobsDir, cfg.sourceRoot);
 	const jobDir = path.join(cfg.jobsDir, jobName);
+	// A fresh run never re-enters a job that Harbor already wrote to: its result.json and trial dirs would be read back
+	// as this run's results. The manager pre-creates the dir with only manager.json, so that alone is not prior output.
+	if (!cfg.resume && !cfg.dryRun) {
+		const prior = fs.existsSync(jobDir) ? fs.readdirSync(jobDir).filter(name => name !== "manager.json") : [];
+		if (prior.length > 0) {
+			throw new Error(
+				`job ${jobName} already has harbor output (${prior.slice(0, 3).join(", ")}${prior.length > 3 ? ", …" : ""}); choose a new --job-name or use --resume ${jobName}`,
+			);
+		}
+	}
 	const benchDir = path.join(cfg.jobsDir, "_bench", jobName);
 	fs.mkdirSync(benchDir, { recursive: true });
 	if (!cfg.resume && !cfg.dryRun) {
 		// Snapshot the resolved launch config so a later `--resume <job>` can
 		// rebuild the exact same invocation without re-specifying flags.
-		fs.writeFileSync(path.join(benchDir, "runner-config.json"), JSON.stringify({ ...cfg, jobName }, null, "\t"));
+		fs.writeFileSync(path.join(benchDir, "runner-config.json"), JSON.stringify(persisted, null, "\t"));
 	}
 
-	const version = readPkgVersion();
+	const version = readPkgVersion(cfg);
 
 	// tarball (local install only)
 	let tarball: string | null = cfg.tarball;
@@ -1639,23 +1933,54 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		if (tarball) {
 			process.stdout.write(dim(`using tarball ${tarball}\n`));
 		} else if (cfg.build) {
-			tarball = buildTarball(path.join(cfg.jobsDir, "_bench"));
+			tarball = buildTarball(path.join(cfg.jobsDir, "_bench"), cfg);
 		} else {
 			tarball = newestTarball(path.join(cfg.jobsDir, "_bench"));
 			if (!tarball) throw new Error("--no-build but no tarball found; pass --tarball or drop --no-build");
 		}
 	}
 
-	// source mount (default): repo bind-mounted read-only + cached linux deps tree
+	const assertLaunchIdentity = async (): Promise<void> => {
+		if (!(cfg.agent === "omp" && cfg.sourceIdentity)) return;
+		parseRegisteredIdentity(cfg.sourceIdentity);
+		const actual = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
+		if (actual !== cfg.sourceIdentity) {
+			throw new Error(
+				`source identity drift for ${cfg.sourceRoot}: expected ${cfg.sourceIdentity}, actual ${actual}`,
+			);
+		}
+	};
+	await assertLaunchIdentity();
+
+	// source mount (default): run-owned read-only staged tree + cached linux deps tree
 	let source: SourceMount | null = null;
+	let stagedSource: StagedSource | null = null;
 	if (cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
-		source = prepareSourceDeps(cfg);
+		const plan = prepareSourceDeps(cfg);
+		transient.stagedDir = path.join(benchDir, "source");
+		stagedSource = await stageSource({
+			root: cfg.sourceRoot,
+			dest: path.join(benchDir, "source"),
+			arch: plan.arch,
+			mountDirs: plan.nodeModules,
+			secrets: cfg.modelsYaml
+				? modelsScanValues(await readModelsEnvNames(cfg.modelsYaml), cfg.env, process.env)
+				: [],
+		});
+		// Bind the staged bytes directly to the registered identity (manifest hash and HEAD). A mutate-and-restore
+		// during the copy staged bytes the registration never saw, so its hash differs.
+		if (cfg.sourceIdentity) await assertStagedMatchesRegistered(stagedSource, cfg.sourceIdentity, cfg.sourceRoot);
+		source = { arch: plan.arch, depsDir: plan.depsDir, nodeModules: plan.nodeModules, stagedDir: stagedSource.dir };
 	}
 
 	// models.yml (gateway)
 	let modelsYaml = "";
+	if (cfg.agent === "omp" && cfg.modelsYaml) {
+		if (!fs.existsSync(cfg.modelsYaml)) throw new Error(`--models-yaml not found: ${cfg.modelsYaml}`);
+		modelsYaml = cfg.modelsYaml;
+	}
 	if (cfg.agent === "omp" && cfg.gateway) {
-		modelsYaml = writeModelsYaml(benchDir, cfg);
+		if (!modelsYaml) modelsYaml = writeModelsYaml(benchDir, cfg);
 		if (!gatewayHealthOk(cfg.gatewayUrl)) {
 			process.stderr.write(
 				yellow(
@@ -1664,20 +1989,49 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			);
 		}
 	}
-	const composeOverlayPath = cfg.envType === "docker" ? writeComposeOverlay(benchDir, cfg, source) : null;
-	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(source);
+	let agentOverlay: string | null = null;
+	if (cfg.agent === "omp" && cfg.agentDir) {
+		if (!cfg.modelsYaml)
+			throw new Error("--agent-dir requires --models-yaml (the overlay carries the fixed models.yml)");
+		if (!cfg.thinking) throw new Error("--agent-dir requires --thinking (the fixed executor level)");
+		if (!cfg.modelsYamlHash)
+			throw new Error("--agent-dir requires --models-yaml-hash (the recorded identity of the fixed models.yml)");
+		assertModelsYamlHash(cfg);
+		agentOverlay = (
+			await stageAgentOverlay({
+				variantConfigDir: cfg.agentDir,
+				expectedConfigHash: cfg.agentDirHash ?? undefined,
+				dest: path.join(benchDir, "agent-overlay"),
+				spec: {
+					model: cfg.models[0],
+					thinking: cfg.thinking,
+					webSearch: cfg.webSearch,
+					findTool: cfg.tools?.includes("find") ?? false,
+					settings: cfg.settings,
+				},
+				modelsYaml: cfg.modelsYaml,
+				expectedModelsYamlHash: cfg.modelsYamlHash,
+				secretValues: Object.values(cfg.env),
+				providerProxyUrl: proxyUrl ?? undefined,
+				expectedStagedModelsHash: cfg.stagedModelsHash ?? undefined,
+			})
+		).dir;
+	}
+	const composeOverlayPath =
+		cfg.envType === "docker" ? writeComposeOverlay(benchDir, cfg, source, agentOverlay) : null;
+	const mountsJson = cfg.envType === "docker" ? null : buildMountsJson(source, agentOverlay);
 
 	const harborArgs = cfg.resume
 		? buildResumeArgs(cfg, jobDir)
 		: buildHarborArgs(cfg, jobName, modelsYaml, tarball, composeOverlayPath, mountsJson);
-	const harborEnv = buildHarborEnv(cfg, modelsYaml, tarball, version, source);
+	const harborEnv = buildHarborEnv(cfg, modelsYaml, tarball, version, source, agentOverlay);
 	const logPath = path.join(benchDir, "harbor.log");
 	if (cfg.dryRun) {
 		process.stdout.write(bold("\nharbor command:\n"));
 		process.stdout.write(`harbor ${harborArgs.join(" ")}\n\n`);
 		if (modelsYaml) {
-			process.stdout.write(bold("models.yml:\n"));
-			process.stdout.write(`${fs.readFileSync(modelsYaml, "utf8")}\n`);
+			const digest = new Bun.CryptoHasher("sha256").update(fs.readFileSync(modelsYaml)).digest("hex");
+			process.stdout.write(`${bold("models.yml:")} ${modelsYaml} (sha256 ${digest})\n`);
 		}
 		process.stdout.write(bold("omp env:\n"));
 		for (const key in harborEnv) {
@@ -1701,6 +2055,18 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		runDockerCleanup(cfg.cleanupForce);
 	}
 
+	// Fail closed: a dead proxy or revoked token would make every LLM call fail with no executor exception.
+	if (proxy && !(await proxy.probe())) {
+		throw new Error(
+			"provider proxy liveness probe failed before launch (dead port or revoked token); refusing to start",
+		);
+	}
+	// Last check before the container can see the tree. A write after this point (including container writes through
+	// read-write mounts) is only caught by the post-run verification (`staged-tree-modified`).
+	if (stagedSource) {
+		const changed = await verifyStagedSource(stagedSource);
+		if (changed.length > 0) throw new Error(`staged source changed before container start: ${changed.join(", ")}`);
+	}
 	const gatewayForward = startVmnetGatewayForward(cfg);
 	process.stdout.write(dim(`launching harbor → ${logPath}\n`));
 	const logFd = fs.openSync(logPath, "a");
@@ -1753,6 +2119,19 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		process.off("SIGTERM", onSig);
 	}
 
+	if (cfg.agent === "omp" && cfg.sourceIdentity) {
+		await recordPostRunSourceIdentity(cfg, jobName, benchDir, cfg.sourceIdentity, stagedSource);
+	}
+
+	// Connectivity lost during the run: no trial of it is evidence about the model (see PROVIDER_ROUTE_LOST_MARKER).
+	if (proxy && !(await proxy.probe())) {
+		fs.mkdirSync(jobDir, { recursive: true });
+		fs.writeFileSync(path.join(jobDir, PROVIDER_ROUTE_LOST_MARKER), "");
+		process.stderr.write(
+			yellow("provider proxy unreachable after harbor returned; trials marked executor_infra_failure\n"),
+		);
+	}
+
 	// final summary (printed to the normal screen)
 	const trials = readTrials(jobDir);
 	const totals = aggregate(trials, readJobResult(jobDir), expected);
@@ -1774,6 +2153,54 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	process.stdout.write(`${dim("trials:")} ${jobDir}\n`);
 	if (exitCode !== 0) process.stdout.write(yellow(`harbor exited ${exitCode}; see harbor.log\n`));
 	return { exitCode, jobName, jobDir, benchDir, tarball, elapsedMs, totals, reportPath };
+}
+
+/**
+ * Re-verify the sources after the run and persist what was observed; drift is warned, never fatal.
+ * Both the live source root (a host edit during the run) and the staged tree the container ran
+ * (a write through the mount) must still match the launch identity.
+ */
+async function recordPostRunSourceIdentity(
+	cfg: Config,
+	jobName: string,
+	benchDir: string,
+	launchIdentity: string,
+	staged: StagedSource | null,
+): Promise<void> {
+	let observed: string;
+	try {
+		observed = formatSourceIdentity(await sourceIdentity(cfg.sourceRoot));
+		if (staged && (await verifyStagedSource(staged)).length > 0) observed = "staged-tree-modified";
+	} catch {
+		observed = "unknown";
+	}
+	const file = path.join(benchDir, "runner-config.json");
+	let record: Record<string, unknown> = { jobName, sourceIdentity: launchIdentity };
+	try {
+		const existing: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+		if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+			record = existing as Record<string, unknown>;
+		}
+	} catch {
+		/* no readable snapshot (resume path): start from the minimal record */
+	}
+	// Drift is sticky for the job's lifetime: a later run (resume) must not overwrite a recorded
+	// mismatch with a matching value, since retained trials ran against the changed source.
+	const recorded = record.postRunSourceIdentity;
+	const stickyDrift = typeof recorded === "string" && recorded !== launchIdentity;
+	if (!stickyDrift) {
+		record.postRunSourceIdentity = observed;
+		fs.mkdirSync(benchDir, { recursive: true });
+		fs.writeFileSync(file, JSON.stringify(record, null, "\t"));
+	}
+	if (stickyDrift || observed !== launchIdentity) {
+		const shown = stickyDrift ? (recorded as string) : observed;
+		process.stdout.write(
+			yellow(
+				`warning: source identity drift after run for ${cfg.sourceRoot}: launched ${launchIdentity}, now ${shown}; run is not comparable\n`,
+			),
+		);
+	}
 }
 
 async function main(): Promise<void> {

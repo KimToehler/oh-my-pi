@@ -1,0 +1,58 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": "packages/metaharness/docs/evidence/evo2-metrics/plan.md",
+  "plan_sha256": "3e407ac20f05c2c2790a93fffb9425e4957d240e3fc18f0db93e198cc560490a",
+  "reviewed_sha": "c59883fdbd06983dc683f4a27f45427265e7fe77",
+  "diff_base": "935046d15b61d55788cd1e015b151a1ca3eb7e70",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Change spans the metaharness runner, server, store, the whole new src/evo surface and the coding-agent task tool, so the whole-diff review ran alongside the implementation audit.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5"
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": "packages/metaharness/docs/evidence/evo2-metrics/trailers/implementation-audit.txt",
+      "trailer_sha256": "0e06642d6d3d686d62f853eabe3e0db111fb18aab5326ac944e5c3cd6e28530e"
+    }
+  ],
+  "blockers": [],
+  "qa": [
+    {
+      "name": "manual QA matrix, 37 scenarios on head c59883fdbd",
+      "passed": true,
+      "artifact": "packages/metaharness/docs/evidence/evo2-metrics/manual-qa.md"
+    },
+    {
+      "name": "metaharness package gates: bun test 235 pass 0 fail, bun run check exit 0",
+      "passed": true,
+      "artifact": "packages/metaharness/docs/evidence/evo2-metrics/manual-qa.md"
+    },
+    {
+      "name": "real Harbor/Docker omp trial evo-smoke11, persisted metrics equal an independent JSONL count",
+      "passed": true,
+      "artifact": "packages/metaharness/docs/evidence/evo2-metrics/manual-qa.md"
+    },
+    {
+      "name": "whole-diff review (F3) over 933b2d240b..c59883fdbd, VERDICT PASS, no blockers",
+      "passed": true,
+      "artifact": "packages/metaharness/docs/evidence/evo2-metrics/integration-review.md"
+    }
+  ]
+}

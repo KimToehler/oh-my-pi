@@ -61,6 +61,7 @@ function traceRow(overrides: Partial<TraceRow>): TraceRow {
 		detail: "",
 		updatedAt: Date.now(),
 		tracePath: null,
+		transcript: null,
 		...overrides,
 	};
 }

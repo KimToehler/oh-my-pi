@@ -182,6 +182,41 @@ known-correct fix for a failed task), `--concurrency` (default 8).
   fail setup with an arch-mismatch error — use `--binary` for those.
 - **The repo is visible (read-only) inside task containers** in source mode;
   fine for curated benchmarks, but don't point it at untrusted tasks.
+- **Source mode runs a staged copy, bound to the source identity.** The
+  container mounts a run-owned read-only copy of an execution manifest: tracked
+  files at their worktree state, untracked files and every gitignored file,
+  except anything under `node_modules` and the top-level `runs/`, `.worktrees/`,
+  `.worktree/`, `.wt/` (tracked files under those reserved roots refuse the
+  launch, as does a `--jobs-dir` inside the source root outside them). A source
+  identity is `<HEAD>+<manifest hash>`, always with the hash, clean trees
+  included: it covers exactly the bytes that run (path, exec bit, content or
+  symlink target), so index history does not matter, and sparse-checkout or
+  `assume-unchanged` files are covered because the actual worktree bytes are
+  read. The runner binds the staged manifest hash directly to the registered
+  identity (and HEAD to its ref); the manager requires the credential-scanned
+  hash to equal the registered one (409 otherwise). Immediately before
+  `harbor` is spawned the staged tree is verified again and any difference
+  refuses the launch. Documented residual: the post-run verification proves
+  only the FINAL staged state. A write after that check, including container
+  writes through Apple's read-write mounts, is recorded as
+  `staged-tree-modified` (and the run refused for comparison) only if it is
+  still present when the run ends; a mutation restored before the run ends is
+  not detected. Strict execution binding needs an immutable handoff, which is
+  out of scope. Sockets, FIFOs, devices, nested repositories, directories that
+  are not index gitlinks, and paths that collide under NFKC plus lower- or
+  upper-case folding refuse the launch. Submodule gitlinks (index entries of
+  mode 160000, read with `git ls-files -s -z`) carry no bytes and are skipped,
+  checked out or not. Credential values in any staged file refuse the launch
+  too, so
+  remove such a file or move it outside the source root. Runs carry
+  `sourceIdentityScheme: 2`; runs and variants registered before this scheme
+  are refused (re-evaluate, re-register).
+- **Models identity covers the staged bytes, minus the proxy endpoint.** Evo
+  conditions record `modelsYamlHash` (raw file) and `stagedModelsHash` (the
+  provider-proxy rewrite with a fixed placeholder endpoint); the runtime proxy
+  host and port are transport, not executor semantics, and are excluded on
+  purpose. The runner re-derives `stagedModelsHash` before staging and refuses
+  a mismatch.
 - **Apple Container specifics.** `--environment apple-container` needs
   `brew install container && container system start` (macOS 26+, Apple
   silicon). `--host-network` and `--cleanup*` are docker-only, and bind

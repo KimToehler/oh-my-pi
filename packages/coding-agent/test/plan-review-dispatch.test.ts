@@ -331,6 +331,8 @@ describe("plan review through the real agent loop, per approval installer", () =
 				configuredThinkingLevel: () => live.configuredThinkingLevel(),
 				restoreThinkingLevel: () => {},
 				resolveDefaultPrewalk: () => undefined,
+				resolveAutoPrewalkTarget: () => undefined,
+				classifyAutoPrewalk: async () => undefined,
 				emitNotice: (level, message, source) => live.emitNotice(level, message, source),
 				setModelTemporary: async model => {
 					switches.push(model.id);

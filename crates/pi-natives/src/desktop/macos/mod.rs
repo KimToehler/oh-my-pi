@@ -2,19 +2,27 @@ mod ax;
 mod capture;
 mod date;
 mod input;
+mod key_reroute;
+mod permission;
 mod process;
 mod session;
 mod skylight;
 mod spaces;
 
-pub(super) use ax::menus;
+pub(super) use ax::{ax_window_ids, has_open_window, menus};
+pub(super) use capture::{application_windows, has_onscreen_window};
 use image::RgbaImage;
 use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
 pub(super) use session::screen_state;
+pub(super) use spaces::window_on_another_space;
 
 use self::{ax::MacAx, capture::MacCapture, input::MacInput};
 use super::{
-	backend::{AxBackend, Backend, DeliveryMode, DisplayAwakeHold, PointerEvent},
+	ax::AxHandle,
+	backend::{
+		AxBackend, Backend, DeliveryMode, DisplayAwakeHold, ElementDelivery, ElementInput,
+		PointerEvent,
+	},
 	control::OperationToken,
 	error::{CoreResult, DesktopError},
 	frame::FrameGeometry,
@@ -44,9 +52,7 @@ impl MacosBackend {
 		if ax::is_trusted() {
 			Ok(())
 		} else {
-			Err(DesktopError::permission_denied(
-				"macOS Accessibility permission is required for native input",
-			))
+			Err(permission::denied("Accessibility"))
 		}
 	}
 }
@@ -54,7 +60,7 @@ impl MacosBackend {
 impl Backend for MacosBackend {
 	fn capabilities(&mut self) -> DesktopCapabilities {
 		let capture_permission = capture::capture_permission();
-		let input_permission = ax::is_trusted();
+		let ax_trusted = ax::is_trusted();
 		let display_count = if capture_permission {
 			self
 				.capture
@@ -68,18 +74,18 @@ impl Backend for MacosBackend {
 			backend: "quartz".to_string(),
 			display_server: Some("Quartz WindowServer".to_string()),
 			capture: capture::capture_available() && capture_permission && display_count > 0,
-			input: input_permission,
-			ax: input_permission,
-			background_window_input: input_permission && skylight::is_available(),
+			input: ax_trusted,
+			ax: ax_trusted,
+			background_window_input: ax_trusted && skylight::is_available(),
 			takeover: skylight::takeover_available(),
 			applications: super::applications::supported(),
-			menus: input_permission,
-			held_input: input_permission,
+			menus: ax_trusted,
+			held_input: ax_trusted,
 			spaces: spaces::supported(),
-			global_escape: true,
+			global_escape: permission::listen_events(),
 			capture_permission: permission_label(capture_permission),
-			input_permission: permission_label(input_permission),
-			ax_permission: permission_label(input_permission),
+			input_permission: permission_label(permission::post_events()),
+			ax_permission: permission_label(ax_trusted),
 			display_count,
 			screen_locked: screen.locked,
 			display_asleep: screen.display_asleep,
@@ -146,6 +152,24 @@ impl Backend for MacosBackend {
 		token.check()?;
 		Self::require_input_permission()?;
 		self.input.key_chord(target, keys, mode, &self.capture)
+	}
+
+	fn element_input(
+		&mut self,
+		target: &Target,
+		element: &AxHandle,
+		input: &ElementInput,
+		mode: DeliveryMode,
+		token: &OperationToken,
+	) -> CoreResult<ElementDelivery> {
+		token.check()?;
+		Self::require_input_permission()?;
+		let Target::Window(id) = target else {
+			return Err(DesktopError::invalid_target("element input needs the element's window"));
+		};
+		self
+			.input
+			.element_input(id, ax::mac_handle(element)?, input, mode, &self.capture)
 	}
 
 	fn hold_keys(

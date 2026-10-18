@@ -13,7 +13,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
 import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
+import type { SingleResult, TaskToolDetails } from "@oh-my-pi/pi-tui/tools/task";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
@@ -68,7 +68,11 @@ function taskResults(messages: AgentMessage[]): ToolResultMessage[] {
 	);
 }
 
-async function harness(options: Partial<CreateAgentSessionOptions> = {}, inline = "off") {
+async function harness(
+	options: Partial<CreateAgentSessionOptions> = {},
+	inline = "off",
+	child: Partial<SingleResult> = {},
+) {
 	const root = TempDir.createSync("@pi-task-guidance-");
 	roots.push(root);
 	const auth = createInMemoryAuthStorage();
@@ -97,6 +101,7 @@ async function harness(options: Partial<CreateAgentSessionOptions> = {}, inline 
 			durationMs: 1,
 			tokens: 0,
 			requests: 1,
+			...child,
 		} satisfies SingleResult;
 	});
 	const mock = createMockModel({
@@ -149,7 +154,7 @@ async function harness(options: Partial<CreateAgentSessionOptions> = {}, inline 
 		});
 		return mock.stream(model, context, streamOptions);
 	};
-	return { session, requests, mock };
+	return { session, requests, mock, release: gate.resolve };
 }
 
 describe("SDK async task guidance", () => {
@@ -197,4 +202,51 @@ describe("SDK async task guidance", () => {
 			]);
 		},
 	);
+});
+
+describe("SDK async task child metrics", () => {
+	it("reports child requests and aggregate usage in the terminal async task update", async () => {
+		const usage = {
+			input: 120,
+			output: 30,
+			cacheRead: 40,
+			cacheWrite: 7,
+			totalTokens: 197,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		};
+		const { session, release } = await harness({}, "off", { requests: 4, usage });
+		const ends: Array<{ toolCallId: string; details: TaskToolDetails | undefined }> = [];
+		const updates: Array<{ toolCallId: string; details: TaskToolDetails | undefined }> = [];
+		session.subscribe(event => {
+			if (event.type === "tool_execution_end" && event.toolName === "task") {
+				const result: { details?: TaskToolDetails } = event.result;
+				ends.push({ toolCallId: event.toolCallId, details: result.details });
+			} else if (event.type === "tool_execution_update" && event.toolName === "task") {
+				const partial: { details?: TaskToolDetails } | undefined = event.partialResult;
+				updates.push({ toolCallId: event.toolCallId, details: partial?.details });
+			}
+		});
+
+		// Prompt returns while every child is still gated.
+		await session.prompt("Delegate two independent inspections");
+		expect(ends.map(event => event.details?.async?.state)).toEqual(["running", "running"]);
+		for (const event of ends) {
+			expect(event.details?.results).toEqual([]);
+			expect(event.details?.usage).toBeUndefined();
+		}
+
+		release();
+		await Promise.all(session.asyncJobManager?.getAllJobs().map(job => job.promise) ?? []);
+
+		for (const id of ["first", "second"]) {
+			const terminal = updates.filter(
+				event => event.toolCallId === id && event.details?.async?.state === "completed",
+			);
+			expect(terminal.length).toBeGreaterThan(0);
+			const details = terminal[terminal.length - 1].details;
+			expect(details?.results.map(r => r.requests)).toEqual([4]);
+			expect(details?.results[0]?.usage).toMatchObject({ input: 120, output: 30, cacheRead: 40, cacheWrite: 7 });
+			expect(details?.usage).toMatchObject({ input: 120, output: 30, cacheRead: 40, cacheWrite: 7 });
+		}
+	});
 });
