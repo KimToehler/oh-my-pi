@@ -32,7 +32,15 @@ const DEFAULT_LIMITS: ConfigLimits = {
 	maxTotalBytes: MAX_CONFIG_TOTAL_BYTES,
 };
 
-const WHITELIST_FILES = ["AGENTS.md", "config.yml"] as const;
+const WHITELIST_FILES = [
+	"AGENTS.md",
+	"config.yml",
+	"SYSTEM.md",
+	"SYSTEM_TEMPLATE.md",
+	"APPEND_SYSTEM.md",
+	"RULES.md",
+	"PERSONALITY.md",
+] as const;
 const WHITELIST_DIRS = ["rules", "skills", "agents", "extensions"] as const;
 
 const SECRET_NAMES = [

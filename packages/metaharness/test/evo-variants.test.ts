@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -12,6 +12,7 @@ import {
 import { withDirLock } from "../src/evo/dir-lock";
 import { EvoHttpError } from "../src/evo/boundary";
 import { EvoStore } from "../src/evo/evo-store";
+import * as genomeValidate from "../src/evo/genome-validate";
 import { variantLaunchFields } from "../src/evo/launch";
 import { stageAgentOverlay } from "../src/evo/overlay";
 import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
@@ -138,6 +139,132 @@ describe("config snapshot", () => {
 	});
 });
 
+describe("genome prompt files and structural validation", () => {
+	const ALLOW = "---\nalwaysApply: true\n---\n";
+
+	it("snapshots the five prompt files and binds their bytes into the hash", async () => {
+		const files = {
+			"AGENTS.md": "a\n",
+			"SYSTEM.md": "s\n",
+			"SYSTEM_TEMPLATE.md": "t\n",
+			"APPEND_SYSTEM.md": "p\n",
+			"RULES.md": "r\n",
+			"PERSONALITY.md": "q\n",
+		};
+		const collected = await collectConfig(agentDir(files));
+		expect(collected.map(f => f.rel)).toEqual([
+			"AGENTS.md",
+			"APPEND_SYSTEM.md",
+			"PERSONALITY.md",
+			"RULES.md",
+			"SYSTEM.md",
+			"SYSTEM_TEMPLATE.md",
+		]);
+		const changed = await collectConfig(agentDir({ ...files, "SYSTEM.md": "other\n" }));
+		expect(hashConfig(changed)).not.toBe(hashConfig(collected));
+	});
+
+	const rejected: Array<[string, Record<string, string>, string[]]> = [
+		["inert rule", { "rules/r.md": "plain" }, ["rules/r.md: inert rule"]],
+		[
+			"bad regex",
+			{ "rules/r.md": '---\ncondition: "(foo"\n---\nx' },
+			["rules/r.md: condition '(foo' is not a valid regex"],
+		],
+		["skill without description", { "skills/s/SKILL.md": "body" }, ["skills/s/SKILL.md: description is required"]],
+		["loose skill file", { "skills/x.md": "x" }, ["skills/x.md: skills/ files must live in skills/<name>/"]],
+		[
+			"agent without description",
+			{ "agents/a.md": "---\nname: a\n---\nx" },
+			["agents/a.md: name and description are required"],
+		],
+		[
+			"unrenderable template",
+			{ "SYSTEM_TEMPLATE.md": "{{#if a}}x" },
+			["SYSTEM_TEMPLATE.md: template does not render"],
+		],
+		[
+			"template shadowed by SYSTEM.md",
+			{ "SYSTEM.md": "s", "SYSTEM_TEMPLATE.md": "t" },
+			["SYSTEM_TEMPLATE.md: ignored because SYSTEM.md is present"],
+		],
+		[
+			"executor-owned key",
+			{ "config.yml": "retry:\n  enabled: true\n" },
+			["config.yml: key 'retry' is owned by the executor"],
+		],
+		[
+			"extension syntax error",
+			{ "extensions/e.ts": "export default function(){ const x = ;}" },
+			["extensions/e.ts: syntax error"],
+		],
+		["blank prompt file", { "APPEND_SYSTEM.md": "  \n" }, ["APPEND_SYSTEM.md: empty file has no effect"]],
+		[
+			"package.json without manifest",
+			{ "extensions/p/package.json": "{}", "extensions/p/main.ts": "export default function () {}" },
+			["extensions/p/package.json: extension directory loads nothing"],
+		],
+		[
+			"unresolvable declared extension",
+			{ "extensions/p/package.json": '{"omp":{"extensions":["./missing.ts"]}}' },
+			["extensions/p/package.json: declared extension './missing.ts' does not resolve"],
+		],
+		[
+			"two problems in one message",
+			{ "agents/a.md": "x", "rules/r.md": "plain" },
+			["agents/a.md: name and description are required", "; rules/r.md: inert rule"],
+		],
+	];
+	for (const [name, files, fragments] of rejected) {
+		it(`rejects ${name} as apply_failed and publishes nothing`, async () => {
+			const { store, registry } = await setup();
+			const err = await registry.register(root(agentDir({ "AGENTS.md": "a\n", ...files }))).catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(EvoHttpError);
+			expect((err as EvoHttpError).status).toBe(422);
+			expect((err as EvoHttpError).body.outcome).toBe("apply_failed");
+			for (const fragment of fragments) expect((err as EvoHttpError).message).toContain(fragment);
+			expect(store.evo.listVariants()).toEqual([]);
+		});
+	}
+
+	it("registers a genome that uses every lever validly", async () => {
+		const { registry } = await setup();
+		const result = await registry.register(
+			root(
+				agentDir({
+					"AGENTS.md": "a\n",
+					"SYSTEM.md": "s\n",
+					"APPEND_SYSTEM.md": "p\n",
+					"RULES.md": "r\n",
+					"PERSONALITY.md": "q\n",
+					"rules/todo.md": '---\ncondition: "TODO"\n---\nNo TODOs.\n',
+					"rules/always.md": `${ALLOW}Always.\n`,
+					"skills/s/SKILL.md": "---\ndescription: d\n---\nbody\n",
+					"agents/a.md": "---\nname: a\ndescription: d\nthinking-level: low\n---\nbody\n",
+					"extensions/e.ts": "export default function () {}\n",
+					"extensions/pkg/package.json": '{"omp":{"extensions":["./main.ts"]}}',
+					"extensions/pkg/main.ts": "export default function () {}\n",
+					"config.yml": "compaction:\n  enabled: true\n",
+				}),
+			),
+		);
+		expect(result.proposal.outcome).toBe("applied");
+	});
+
+	it("does not re-validate an inherited snapshot when the child supplies no configDir", async () => {
+		const { registry } = await setup();
+		const spy = spyOn(genomeValidate, "assertGenomeValid").mockImplementation(() => {});
+		cleanups.push(() => spy.mockRestore());
+		const parent = await registry.register(root(agentDir({ "AGENTS.md": "a\n", "rules/r.md": "plain" })));
+		spy.mockRestore();
+		const child = await registry.register(
+			parseVariantRequest({ mutation: "autonomous", parentId: parent.variant.id }),
+		);
+		expect(child.proposal.outcome).toBe("noop");
+		expect(child.variant.id).toBe(parent.variant.id);
+	});
+});
+
 describe("symlink target checks", () => {
 	const SENTINEL = "sentinel-secret-bytes-ABCDEF123456";
 
@@ -257,7 +384,7 @@ describe("variant registry noop signal gate (R75)", () => {
 describe("variant registry", () => {
 	it("registers root, reuses parent on identical content (noop), and links a changed child", async () => {
 		const { jobsDir, store, registry } = await setup();
-		const rootDir = agentDir({ "AGENTS.md": "base\n", "config.yml": "retry:\n  enabled: true\n" });
+		const rootDir = agentDir({ "AGENTS.md": "base\n", "config.yml": "compaction:\n  enabled: true\n" });
 		const rootResult = await registry.register(root(rootDir));
 		expect(rootResult.created).toBe(true);
 		expect(rootResult.proposal.outcome).toBe("applied");
@@ -276,7 +403,7 @@ describe("variant registry", () => {
 		expect(noop.variant.id).toBe(rootResult.variant.id);
 		expect(noop.proposal.candidateVariantId).toBe(rootResult.variant.id);
 
-		const childDir = agentDir({ "AGENTS.md": "base\nplus\n", "config.yml": "retry:\n  enabled: true\n" });
+		const childDir = agentDir({ "AGENTS.md": "base\nplus\n", "config.yml": "compaction:\n  enabled: true\n" });
 		const child = await registry.register(
 			parseVariantRequest({
 				mutation: "revision",
@@ -306,13 +433,17 @@ describe("variant registry", () => {
 
 	it("treats a permission-only change as a new variant", async () => {
 		const { store, registry } = await setup();
-		const files = { "AGENTS.md": "base\n", "skills/run.sh": "#!/bin/sh\necho hi\n" };
+		const files = {
+			"AGENTS.md": "base\n",
+			"skills/run/SKILL.md": "---\ndescription: run helper\n---\nRun run.sh.\n",
+			"skills/run/run.sh": "#!/bin/sh\necho hi\n",
+		};
 		const exec = agentDir(files);
-		fs.chmodSync(path.join(exec, "skills/run.sh"), 0o755);
+		fs.chmodSync(path.join(exec, "skills/run/run.sh"), 0o755);
 		const plain = agentDir(files);
-		fs.chmodSync(path.join(plain, "skills/run.sh"), 0o644);
+		fs.chmodSync(path.join(plain, "skills/run/run.sh"), 0o644);
 		const same = agentDir(files);
-		fs.chmodSync(path.join(same, "skills/run.sh"), 0o755);
+		fs.chmodSync(path.join(same, "skills/run/run.sh"), 0o755);
 
 		const rootResult = await registry.register(root(exec));
 		const child = await registry.register(
@@ -321,8 +452,8 @@ describe("variant registry", () => {
 		expect(child.proposal.outcome).toBe("applied");
 		expect(child.created).toBe(true);
 		expect(child.variant.id).not.toBe(rootResult.variant.id);
-		expect(child.variant.changedFiles).toEqual(["skills/run.sh"]);
-		expect(fs.readFileSync(child.variant.diffPath, "utf8")).toContain("skills/run.sh");
+		expect(child.variant.changedFiles).toEqual(["skills/run/run.sh"]);
+		expect(fs.readFileSync(child.variant.diffPath, "utf8")).toContain("skills/run/run.sh");
 
 		const noop = await registry.register(
 			parseVariantRequest({ mutation: "autonomous", parentId: rootResult.variant.id, configDir: same }),
@@ -366,7 +497,7 @@ describe("variant registry", () => {
 				mutation: "crossover",
 				parentId: a.variant.id,
 				donorVariantId: donor.variant.id,
-				configDir: agentDir({ "AGENTS.md": "a", "rules/x.md": "from donor" }),
+				configDir: agentDir({ "AGENTS.md": "a", "rules/x.md": "---\nalwaysApply: true\n---\nfrom donor" }),
 			}),
 		);
 		expect(cross.variant.parentId).toBe(a.variant.id);
@@ -504,7 +635,9 @@ describe("registered snapshot integrity", () => {
 
 	it("publishes non-writable directories, and rehash still catches an unlink+replace by the owner", async () => {
 		const { jobsDir, registry, source } = await setup();
-		const { variant } = await registry.register(root(agentDir({ "AGENTS.md": "a", "rules/r.md": "r" })));
+		const { variant } = await registry.register(
+			root(agentDir({ "AGENTS.md": "a", "rules/r.md": "---\nalwaysApply: true\n---\nr" })),
+		);
 		const dir = variantConfigDir(jobsDir, variant.id);
 		expect(fs.statSync(dir).mode & 0o222).toBe(0);
 		expect(fs.statSync(path.join(dir, "rules")).mode & 0o222).toBe(0);
@@ -933,12 +1066,12 @@ describe("materialization failures", () => {
 });
 
 describe("concurrent registration", () => {
-	const cfgFiles = { "AGENTS.md": "same\n", "rules/r.md": "r\n" };
+	const cfgFiles = { "AGENTS.md": "same\n", "rules/r.md": "---\nalwaysApply: true\n---\nr\n" };
 
 	function verifyIntact(jobsDir: string, id: string): void {
 		const dir = path.join(jobsDir, "_evo", "variants", id);
 		expect(fs.readFileSync(path.join(dir, "config", "AGENTS.md"), "utf8")).toBe("same\n");
-		expect(fs.readFileSync(path.join(dir, "config", "rules", "r.md"), "utf8")).toBe("r\n");
+		expect(fs.readFileSync(path.join(dir, "config", "rules", "r.md"), "utf8")).toBe(cfgFiles["rules/r.md"]);
 		expect(fs.existsSync(path.join(dir, "diff.patch"))).toBe(true);
 		expect(fs.readdirSync(path.join(jobsDir, "_evo", "tmp"))).toEqual([]);
 	}

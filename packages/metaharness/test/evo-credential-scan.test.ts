@@ -244,7 +244,7 @@ describe("credential scan covers filenames and the generated diff (R44)", () => 
 		fs.writeFileSync(path.join(cfg, "AGENTS.md"), `old ${SECRET}\n`);
 		fs.chmodSync(cfg, 0o555);
 		const child = tmp("evo-cred-agent-");
-		write(child, "rules/new.md", "new rule\n");
+		write(child, "rules/new.md", "---\nalwaysApply: true\n---\nnew rule\n");
 		const variantsBefore = fs.readdirSync(path.join(jobsDir, "_evo", "variants")).sort();
 		const err = await error(
 			reg.register(parseVariantRequest({ mutation: "manual", parentId: parent.variant.id, configDir: child })),
@@ -313,7 +313,11 @@ describe("credential scan covers filenames and the generated diff (R44)", () => 
 				.trim(),
 		).toBe("");
 		const ok = tmp("evo-cred-agent-");
-		write(ok, "rules/EVO_CRED_REFERENCED.md", "set EVO_CRED_REFERENCED in the environment\n");
+		write(
+			ok,
+			"rules/EVO_CRED_REFERENCED.md",
+			"---\nalwaysApply: true\n---\nset EVO_CRED_REFERENCED in the environment\n",
+		);
 		expect((await post(ok)).status).toBe(201);
 	});
 });

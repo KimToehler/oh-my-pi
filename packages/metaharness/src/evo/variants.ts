@@ -10,6 +10,7 @@ import { EvoHttpError } from "./boundary";
 import { assertDiffClean, assertGenomeClean, redactSecrets } from "./credential-scan";
 import { type ConfigFile, collectConfig, diffConfigs, hashConfig, unlockTree } from "./config-snapshot";
 import { withDirLock } from "./dir-lock";
+import { assertGenomeValid } from "./genome-validate";
 import type { EvoStore } from "./evo-store";
 import { publishSnapshot } from "./snapshot-publish";
 import { type SourceIdentity, isTreeClean, sourceIdentity } from "./source-identity";
@@ -104,6 +105,7 @@ export class VariantRegistry {
 		const configHash = hashConfig(files);
 		if (!req.sourceWorktree) {
 			assertGenomeClean(files, "", this.#secretValues());
+			if (req.configDir) assertGenomeValid(files);
 			const source = parent ? sourceOf(parent) : await sourceIdentity(this.#defaultSourceRoot);
 			return { files, configHash, source, snapshotPath: null, sourceChanged: [], sourcePatch: "" };
 		}
@@ -125,6 +127,7 @@ export class VariantRegistry {
 			sourcePatch = await repo.diffTree(parent.sourceRef, source.ref, false);
 		}
 		assertGenomeClean(files, sourcePatch, this.#secretValues());
+		if (req.configDir) assertGenomeValid(files);
 		return { files, configHash, source, snapshotPath: worktree, sourceChanged, sourcePatch };
 	}
 
