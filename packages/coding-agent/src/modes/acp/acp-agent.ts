@@ -2020,9 +2020,10 @@ export class AcpAgent implements Agent {
 				details,
 			};
 		}
-		// Approved. Set the plan reference so the next turn injects the plan
-		// content as context (the file keeps its agent-chosen name — no rename),
-		session.setPlanReferencePath(planFilePath);
+		// Approved. The next turn injects the plan as context from an immutable
+		// snapshot of the approved bytes; the agent-chosen file keeps its name and
+		// may change later without changing what gets executed.
+		await session.adoptApprovedPlan(plan);
 		session.setPlanProposalHandler?.(null);
 		session.setPlanModeState(undefined);
 		let autosaveFailed = false;

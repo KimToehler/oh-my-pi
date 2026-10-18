@@ -95,6 +95,7 @@ import {
 	formatDuration,
 	getAgentDbPath,
 	isBunTestRuntime,
+	isEexist,
 	isInteractiveHost,
 	isRecord,
 	logger,
@@ -1786,6 +1787,37 @@ export class AgentSession implements SettingsScope {
 		});
 	}
 
+	/**
+	 * Make the exact approved plan bytes the session's execution authority.
+	 *
+	 * The reviewed `planContent` is copied to a content-addressed session-local
+	 * snapshot (`local://approved/<sha256>-<name>`) that nothing else writes, and
+	 * that snapshot becomes the plan reference. Every later consumer — the
+	 * next-turn plan reference, post-compaction re-injection, a handoff that
+	 * names a path — then sees the approved bytes even when the agent-chosen
+	 * plan file changes afterwards. Returns the snapshot's `local://` URL.
+	 */
+	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		const sha256 = planContentSha256(plan.planContent);
+		const name = path.posix.basename(plan.planFilePath.replace(/^local:\/+/, "")) || "PLAN.md";
+		const url = `local://approved/${sha256}-${name}`;
+		const target = resolvePlanFilePath(url, {
+			localProtocolOptions: this.#localProtocolOptions(),
+			cwd: this.sessionManager.getCwd(),
+		});
+		await fs.promises.mkdir(path.dirname(target), { recursive: true });
+		try {
+			await fs.promises.writeFile(target, plan.planContent, { flag: "wx" });
+		} catch (error) {
+			if (!isEexist(error)) throw error;
+			if ((await Bun.file(target).text()) !== plan.planContent) {
+				throw new ToolError(`Approved plan snapshot ${url} does not hold the approved bytes.`);
+			}
+		}
+		this.setPlanReferencePath(url);
+		return url;
+	}
+
 	async #readPlanFile(planFilePath: string): Promise<string | null> {
 		return readPlanFile(planFilePath, {
 			localProtocolOptions: this.#localProtocolOptions(),
@@ -1891,6 +1923,7 @@ export class AgentSession implements SettingsScope {
 			getPlanModeState: () => this.getPlanModeState(),
 			setPlanModeState: state => this.setPlanModeState(state),
 			getPlanReferencePath: () => this.getPlanReferencePath(),
+			adoptApprovedPlan: plan => this.adoptApprovedPlan(plan),
 			setPlanProposalHandler: handler => this.setPlanProposalHandler(handler),
 			waitForSessionMessagePersistence: message => this.#waitForSessionMessagePersistence(message),
 		};

@@ -16,7 +16,7 @@ import {
 	AcpAgent,
 	createAcpExtensionUiContext,
 } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
-import { resolveApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
+import { type ResolvedApprovedPlan, resolveApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
 import { listPlanFiles, readPlanFile } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
 import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
 import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
@@ -400,6 +400,14 @@ class FakeAgentSession {
 
 	setPlanReferencePath(path: string): void {
 		this.planReferencePath = path;
+	}
+
+	adoptedPlans: ResolvedApprovedPlan[] = [];
+
+	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		this.adoptedPlans.push(plan);
+		this.planReferencePath = `local://approved/${plan.planFilePath.replace("local://", "")}`;
+		return this.planReferencePath;
 	}
 
 	getToolByName(_name: string): undefined {
@@ -787,7 +795,13 @@ describe("ACP agent", () => {
 		// Mode + handler are cleared; the agent regains write tools next turn.
 		expect(session.planModeState).toBeUndefined();
 		expect(session.planProposalHandler).toBeUndefined();
-		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		expect(session.adoptedPlans).toEqual([
+			{
+				planFilePath: "local://words-counter-plan.md",
+				planContent: "# Words Counter\n\nFile contents.",
+				title: "words-counter",
+			},
+		]);
 		const approvalUpdates = harness.updates.slice(updatesBefore);
 		// Mode-change notifications reached the client so Zed's UI and config
 		// selector both reflect the approval-driven exit.
@@ -875,7 +889,7 @@ describe("ACP agent", () => {
 		expect(text).toMatch(/autosave failed/);
 		expect(text).not.toContain(harness.cwdA);
 		expect(session.planModeState).toBeUndefined();
-		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		expect(session.adoptedPlans.map(plan => plan.planContent)).toEqual(["# Words Counter\n\nFile contents."]);
 
 		harness.abortController.abort();
 		await Bun.sleep(0);
@@ -918,6 +932,7 @@ describe("ACP agent", () => {
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(typeof session.planProposalHandler).toBe("function");
 		expect(session.planReferencePath).toBeUndefined();
+		expect(session.adoptedPlans).toEqual([]);
 		// No mode-exit notifications were emitted.
 		const postDismissUpdates = harness.updates.slice(updatesBefore);
 		expect(

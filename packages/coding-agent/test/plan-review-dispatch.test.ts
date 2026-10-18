@@ -73,6 +73,14 @@ function reviewerResult(verdict: Verdict): StructuredSubagentResult {
 	};
 }
 
+function messageContent(message: AgentMessage): string {
+	if (!("content" in message)) return "";
+	const content = message.content;
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	return content.map(block => (block.type === "text" ? block.text : "")).join("\n");
+}
+
 /** The plan body inside the reviewer assignment's fenced block (fence length adapts to the plan). */
 function reviewedPlanText(assignment: string): string | undefined {
 	return /(`{3,})markdown\n([\s\S]*?)\n\1/.exec(assignment)?.[2];
@@ -236,6 +244,20 @@ describe("plan review through the real agent loop, per approval installer", () =
 		return path.join(harness.cwd, ".omp", "plans", AUTOSAVE_FILE);
 	}
 
+	function reviewAuditSha(harness: Harness): unknown {
+		const audit = harness.session.sessionManager
+			.getEntries()
+			.find(entry => entry.type === "custom" && entry.customType === "plan-review");
+		return audit?.type === "custom" ? (audit.data as { planSha256?: unknown }).planSha256 : undefined;
+	}
+
+	function localPath(harness: Harness, url: string): string {
+		return resolveLocalUrlToPath(url, {
+			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
+			getSessionId: () => harness.session.sessionManager.getSessionId(),
+		});
+	}
+
 	function expectReviewedBytesReachedInstaller(assignments: string[], handled: ResolvedApprovedPlan[]): void {
 		expect(assignments.length).toBe(1);
 		expect(handled.length).toBe(1);
@@ -307,6 +329,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 				getPlanModeState: () => live.getPlanModeState(),
 				setPlanModeState: state => live.setPlanModeState(state),
 				getPlanReferencePath: () => live.getPlanReferencePath(),
+				adoptApprovedPlan: plan => live.adoptApprovedPlan(plan),
 				setPlanProposalHandler: handler => live.setPlanProposalHandler(handler),
 				waitForSessionMessagePersistence: async () => {},
 			};
@@ -339,6 +362,29 @@ describe("plan review through the real agent loop, per approval installer", () =
 			expect(switches).toEqual([targetId]);
 			expect(harness.session.getPlanModeState()).toBeUndefined();
 			expect(await Bun.file(autosavePath(harness)).text()).toBe(PLAN_TEXT);
+		});
+
+		it("OKAY: the executor is handed the reviewed bytes, not the plan file edited afterwards", async () => {
+			const harness = createHarness();
+			await installPlanYolo(harness);
+			stubReviewer("OKAY");
+
+			await driveProposal(harness);
+			await Bun.write(harness.planPath, "# Swapped plan\n");
+
+			const handoffs = harness.session.agent.state.messages.filter(
+				message => message.role === "custom" && message.customType === "plan-yolo-handoff",
+			);
+			expect(handoffs.length).toBe(1);
+			const handoff = handoffs[0];
+			const details = handoff?.role === "custom" ? (handoff.details as { planFilePath?: string }) : undefined;
+			const handedUrl = details?.planFilePath ?? "";
+			expect(handedUrl).toStartWith("local://");
+			expect(handedUrl).not.toBe(PLAN_URL);
+			expect(handoff && messageContent(handoff)).toContain(handedUrl);
+			const handedBytes = await Bun.file(localPath(harness, handedUrl)).text();
+			expect(handedBytes).toBe(PLAN_TEXT);
+			expect(planContentSha256(handedBytes)).toBe(reviewAuditSha(harness) as string);
 		});
 	});
 
@@ -401,7 +447,6 @@ describe("plan review through the real agent loop, per approval installer", () =
 			expectReviewedBytesReachedInstaller(assignments, handled);
 			expect(elicitations.length).toBe(1);
 			expect(harness.session.getPlanModeState()).toBeUndefined();
-			expect(harness.session.getPlanReferencePath()).toBe(PLAN_URL);
 			expect(await Bun.file(autosavePath(harness)).text()).toBe(PLAN_TEXT);
 			expect(
 				updates
@@ -412,6 +457,30 @@ describe("plan review through the real agent loop, per approval installer", () =
 							notification.update.currentModeId === "default",
 					),
 			).toBe(true);
+		});
+
+		it("OKAY: the next execution turn carries the reviewed bytes, not the plan file edited afterwards", async () => {
+			const harness = createHarness();
+			await installAcp(harness);
+			stubReviewer("OKAY");
+
+			await driveProposal(harness);
+			await Bun.write(harness.planPath, "# Swapped plan\n");
+			await harness.session.prompt("implement it");
+			await harness.session.waitForIdle();
+
+			const referenceUrl = harness.session.getPlanReferencePath();
+			expect(referenceUrl).not.toBe(PLAN_URL);
+			const referencedBytes = await Bun.file(localPath(harness, referenceUrl)).text();
+			expect(referencedBytes).toBe(PLAN_TEXT);
+			expect(planContentSha256(referencedBytes)).toBe(reviewAuditSha(harness) as string);
+			const references = harness.session.agent.state.messages.filter(
+				message => message.role === "custom" && message.customType === "plan-mode-reference",
+			);
+			expect(references.length).toBe(1);
+			const injected = references[0] ? messageContent(references[0]) : "";
+			expect(injected).toContain(PLAN_TEXT.trim());
+			expect(injected).not.toContain("Swapped plan");
 		});
 	});
 });
