@@ -40,7 +40,7 @@ import { sanitizeText } from "@oh-my-pi/pi-utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
 import type { MCPResourceReadResult } from "./mcp/types";
 import { resolveApproval, resolveApprovalFromContext } from "./tools/approval";
-import { isProposeToolCall } from "./tools/resolve";
+import { isProposeToolCall, writeDeviceDispatch } from "./tools/resolve";
 import {
 	confineToWorkspace,
 	resolveReadPathAsync,
@@ -328,6 +328,11 @@ function refuseAbortedCall(signal: AbortSignal, toolCallId: string, toolName: st
  * request is refused before it starts. One barrier per provider request —
  * {@link CursorExecHandlers.withSignal} mints a fresh one — so a proposal
  * never blocks a different request.
+ *
+ * Finality belongs to a handoff, not to the attempt: once the proposal's
+ * result settles as a failure or a review REJECT, the plan is back in the
+ * model's hands and the same response may refine it and propose again (see
+ * {@link ProposalBarrier.settle}).
  */
 class ProposalBarrier {
 	#proposalCallId: string | undefined;
@@ -351,6 +356,29 @@ class ProposalBarrier {
 	observe(toolCallId: string, toolName: string, args: Record<string, unknown>): void {
 		if (this.sealable && isProposeToolCall({ name: toolName, arguments: args })) this.#proposalCallId ??= toolCallId;
 	}
+
+	/**
+	 * Settle the sealing proposal with its finished result. Only an outcome that
+	 * asks for refinement reopens the request; every other result — approval,
+	 * a handoff, or a shape this cannot tell apart from one — stays final.
+	 */
+	settle(result: ToolResultMessage): void {
+		if (this.#proposalCallId === result.toolCallId && awaitsPlanRefinement(result)) {
+			this.#proposalCallId = undefined;
+		}
+	}
+}
+
+/**
+ * Whether a settled proposal handed the plan back to the model: it failed, or
+ * its review blocked it with a REJECT (`AgentSession.submitPlanProposal`).
+ */
+function awaitsPlanRefinement(result: ToolResultMessage): boolean {
+	if (result.isError) return true;
+	const inner = writeDeviceDispatch(result.toolName, result)?.inner;
+	if (!inner || typeof inner !== "object" || !("planReview" in inner)) return false;
+	const review = inner.planReview;
+	return !!review && typeof review === "object" && "outcome" in review && review.outcome === "reject";
 }
 
 /**
@@ -452,7 +480,9 @@ async function executeTool(
 	};
 	options.emitEvent?.({ type: "tool_execution_end", toolCallId, toolName, result: sanitizedFinalResult, isError });
 
-	return bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+	const message = bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+	options.barrier.settle(message);
+	return message;
 }
 
 function allowsDirectFileMutation(options: CursorExecBridgeOptions): boolean {

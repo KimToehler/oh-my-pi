@@ -188,6 +188,43 @@ describe("Cursor bridge cancellation", () => {
 		expect(started).toEqual(["propose", "next-request"]);
 	});
 
+	it("reopens a request whose plan proposal failed, so the same response can retry", async () => {
+		const write: AgentTool = {
+			name: "write",
+			label: "Write",
+			description: "Fails the first proposal.",
+			parameters: type({ path: "string", content: "string" }),
+			execute: async () => {
+				throw new Error("Plan file not found");
+			},
+		};
+		const bash: AgentTool = {
+			name: "bash",
+			label: "Bash",
+			description: "Runs once the failed proposal settled.",
+			parameters: type({ command: "string", "cwd?": "string", "timeout?": "number" }),
+			execute: async () => ({ content: [{ type: "text", text: "ran" }] }),
+		};
+		const started: string[] = [];
+		const request = new CursorExecHandlers({
+			cwd: ".",
+			tools: new Map([
+				["write", write],
+				["bash", bash],
+			]),
+			emitEvent: event => {
+				if (event.type === "tool_execution_start") started.push(event.toolCallId);
+			},
+		}).withSignal(new AbortController().signal);
+
+		const failed = await request.piWrite({ args: { path: "xd://propose", content: "demo" }, toolCallId: "propose" });
+		const retry = await request.piBash({ args: { command: "echo fix" }, toolCallId: "after-failure" } as never);
+
+		expect(failed.isError).toBe(true);
+		expect(retry.isError).toBe(false);
+		expect(started).toEqual(["propose", "after-failure"]);
+	});
+
 	it("aborts a primary-session bridged tool when the session aborts its turn", async () => {
 		using tempDir = TempDir.createSync("@pi-cursor-bridge-cancel-");
 		const probe = createProbe();
