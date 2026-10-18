@@ -25,8 +25,25 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Server, Subprocess } from "bun";
 import { BENCHMARK_DEFINITIONS } from "./benchmarks";
+import { defaultEvoLaunch, type EvoLaunchDefaults, variantLaunchFields } from "./evo/launch";
+import { defaultSourceRoot, EvoService } from "./evo/service";
+import { readModelsEnvNamesSync } from "./evo/models-yaml";
+import { ProviderProxy } from "./evo/provider-proxy";
+import { PROXY_TOKEN_ENV, proxyRoutesFromModels } from "./evo/proxy-models";
+import { normalizeOmpTranscript } from "./evo/trace-entries";
+import { assertVariantSnapshotIntact, assertWorktreeOwned, isSourceVariant } from "./evo/variants";
 import { buildExperiments, experimentDetail, experimentOf } from "./experiments";
-import { defaultJobName, harborRunnerArgs, type LaunchRequest } from "./launch-args";
+import {
+	assertLaunchEnvSafe,
+	credentialValuesFromEnv,
+	defaultJobName,
+	effectiveModelsYaml,
+	harborRunnerArgs,
+	isLocalDataset,
+	type LaunchRequest,
+	resolveLocalDataset,
+} from "./launch-args";
+import { removeRunData, stageRecordedRunData, verifyRunData } from "./evo/run-data";
 import { type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
 
 /** PUT /api/experiments/:id body — goal and per-run role/note/label metadata. */
@@ -50,6 +67,18 @@ const DEFAULT_JOBS_DIR = path.join(REPO_ROOT, "runs", "harbor");
 
 export type { LaunchRequest } from "./launch-args";
 
+/** Run identity owned by the evo service; the generic launch route must never accept it from callers. */
+const EVO_IDENTITY_FIELDS = [
+	"variantId",
+	"suiteId",
+	"suiteHash",
+	"taskHash",
+	"stagedConfigHash",
+	"executorConfigHash",
+	"modelsYamlHash",
+	"stagedModelsHash",
+] as const;
+
 /** POST /api/experiments/:id/arms body — a new comparable arm; sample+config inherited. */
 export interface AddArmRequest {
 	/** Arm label; becomes the `<id>-<arm>` job name. */
@@ -61,6 +90,8 @@ export interface AddArmRequest {
 	role?: RunRole;
 	note?: string;
 	extraArgs?: string[];
+	/** Evo arms may swap only the variant; suite, executor, source root, and tasks stay inherited. */
+	variantId?: string;
 }
 
 interface ManagedChild {
@@ -79,15 +110,17 @@ interface SseClient {
 	state: SseState;
 }
 
-function parseServerArgs(argv: string[]): { port: number; jobsDir: string } {
+function parseServerArgs(argv: string[]): { port: number; jobsDir: string; host: string | null } {
 	let port = 4700;
 	let jobsDir = DEFAULT_JOBS_DIR;
+	let host: string | null = null;
 	for (let i = 0; i < argv.length; i++) {
 		if (argv[i] === "--port" && argv[i + 1]) port = Number(argv[++i]);
 		else if (argv[i] === "--jobs-dir" && argv[i + 1]) jobsDir = path.resolve(argv[++i]);
+		else if (argv[i] === "--host" && argv[i + 1]) host = argv[++i];
 	}
 	if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("--port must be 1..65535");
-	return { port, jobsDir };
+	return { port, jobsDir, host };
 }
 
 /** Job names are single path segments; anything else could escape the jobs dir. */
@@ -116,7 +149,79 @@ function pidAlive(pid: number | null): boolean {
  * prewalk, role, note, extra args) come from `req`. Throws if the experiment has
  * no runs to inherit from or the arm name is taken.
  */
-export function resolveArmLaunch(store: RunStore, experimentId: string, req: AddArmRequest): LaunchRequest {
+/** Evo identity fields an arm inherits from its template run; a new `variantId` re-derives the variant ones. */
+function resolveEvoInheritance(
+	store: RunStore,
+	cfg: Partial<LaunchRequest>,
+	req: AddArmRequest,
+	jobName: string,
+	defaultSourceRoot: string,
+): Partial<LaunchRequest> {
+	const inherited: Partial<LaunchRequest> = {};
+	// An arm never opens the template run's directory: the suite snapshot is re-copied and verified into the new
+	// arm's own run-owned data, so bytes replaced after the template launched cannot reach it. The verify walk scans
+	// for the CURRENT values of the credentials the recorded models file references (set or rotated since registration).
+	if (cfg.suiteId) {
+		const names = typeof cfg.modelsYaml === "string" ? readModelsEnvNamesSync(cfg.modelsYaml) : [];
+		const secrets = credentialValuesFromEnv([...new Set([...names, ...(cfg.envNames ?? [])])], process.env);
+		inherited.dataset = stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName, secrets);
+	}
+	for (const key of [
+		"suiteId",
+		"suiteHash",
+		"taskHash",
+		"thinking",
+		"modelsYaml",
+		"noGateway",
+		"providerProxy",
+		"envNames",
+		"executorConfigHash",
+		"modelsYamlHash",
+		"stagedModelsHash",
+	] as const) {
+		if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
+	}
+	if (!req.variantId) {
+		for (const key of [
+			"variantId",
+			"agentDir",
+			"agentDirHash",
+			"sourceRoot",
+			"sourceIdentity",
+			"stagedConfigHash",
+		] as const) {
+			if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
+		}
+		// An inherited variant never passes through variantLaunchFields, so verify its snapshot here too.
+		const inheritedVariant = cfg.variantId ? store.evo.getVariant(cfg.variantId) : null;
+		if (inheritedVariant) assertVariantSnapshotIntact(store.jobsDir, inheritedVariant);
+		// A plain harbor run may point `sourceRoot` at any repo; only an evo variant run must stay in a worktree.
+		// Config-first variants legitimately carry the service default root; unknown variants stay guarded.
+		if (cfg.variantId && cfg.sourceRoot && (!inheritedVariant || isSourceVariant(store.jobsDir, inheritedVariant))) {
+			assertWorktreeOwned(store.jobsDir, cfg.sourceRoot, `inherited variant '${cfg.variantId}' source root`);
+		}
+		return inherited;
+	}
+	const variant = store.evo.getVariant(req.variantId);
+	if (!variant) throw new Error(`variant '${req.variantId}' not found`);
+	if (!cfg.suiteId || !cfg.model || !cfg.thinking) {
+		throw new Error("variantId can only be swapped on an arm whose template run is an evo evaluation");
+	}
+	const fields = variantLaunchFields(
+		store.jobsDir,
+		variant,
+		{ model: cfg.model, thinking: cfg.thinking },
+		defaultSourceRoot,
+	);
+	return { ...inherited, ...fields };
+}
+
+export function resolveArmLaunch(
+	store: RunStore,
+	experimentId: string,
+	req: AddArmRequest,
+	defaultSourceRoot: string,
+): LaunchRequest {
 	if (!req.arm || /[^\w.-]/.test(req.arm)) throw new Error("arm must be a non-empty [A-Za-z0-9_.-] token");
 	if (!req.model) throw new Error("model is required");
 	const siblings = store.listRuns().filter(r => experimentOf(r.jobName) === experimentId);
@@ -163,10 +268,18 @@ export function resolveArmLaunch(store: RunStore, experimentId: string, req: Add
 	const jobName = `${experimentId}-${req.arm}`;
 	if (store.getRun(jobName)) throw new Error(`arm '${req.arm}' already exists in '${experimentId}'`);
 	const conditions = strings(cfg.conditions);
+	if (cfg.suiteId) {
+		if (req.model !== cfg.model) throw new Error(`evo arms keep the suite model '${cfg.model}'; got '${req.model}'`);
+		if (req.prewalk || (req.extraArgs && req.extraArgs.length > 0) || (req.include && req.include.length > 0)) {
+			throw new Error("evo arms may change only variantId, role, and note");
+		}
+	}
+	const evo = resolveEvoInheritance(store, cfg, req, jobName, defaultSourceRoot);
 	return {
+		...evo,
 		benchmark: template.benchmark,
 		model: req.model,
-		dataset: template.dataset,
+		dataset: evo.dataset ?? template.dataset,
 		include: include.length > 0 ? include : undefined,
 		tasks: include.length > 0 ? include.length : numberOr(cfg.tasks),
 		concurrency: numberOr(cfg.concurrency),
@@ -193,11 +306,30 @@ export class ManagerServer {
 	#syncTimer: Timer | undefined;
 	#server: Server<undefined> | null = null;
 	#stopped = false;
+	readonly #evo: EvoService;
+	/** Holds real provider credentials for evo runs; created lazily, never exposes them to a runner or agent. */
+	readonly #proxy = new ProviderProxy();
+	readonly #sourceRoot: string;
 	readonly jobsDir: string;
+	readonly #host: string | null;
 
-	constructor(jobsDir: string, dbPath?: string) {
+	constructor(
+		jobsDir: string,
+		dbPath?: string,
+		evo: { sourceRoot?: string; defaults?: EvoLaunchDefaults } = {},
+		host: string | null = null,
+	) {
 		this.jobsDir = jobsDir;
+		this.#host = host;
 		this.#store = new RunStore(jobsDir, dbPath);
+		this.#sourceRoot = evo.sourceRoot ?? defaultSourceRoot();
+		this.#evo = new EvoService({
+			store: this.#store,
+			jobsDir,
+			sourceRoot: this.#sourceRoot,
+			defaults: evo.defaults ?? defaultEvoLaunch(),
+			launch: request => this.launch(request),
+		});
 	}
 
 	get store(): RunStore {
@@ -210,6 +342,11 @@ export class ManagerServer {
 		this.#syncTimer = setInterval(() => this.#tick(), 2000);
 		this.#server = Bun.serve({
 			port,
+			// Loopback by default: this API is unauthenticated and serves private evaluation
+			// material (variant diffs, reflection bundles, traces). Serving it on every interface
+			// would hand that material to the local network. Bind another host explicitly with
+			// `--host <addr>` when remote access is genuinely wanted.
+			hostname: this.#host ?? "127.0.0.1",
 			idleTimeout: 0,
 			// Bun bundles the dashboard (React + TSX) from the HTML import and
 			// serves it on the same port as the API — one process, no Vite.
@@ -234,6 +371,7 @@ export class ManagerServer {
 		}
 		this.#sse.clear();
 		this.#server?.stop(true);
+		this.#proxy.stop();
 		this.#store.close();
 	}
 
@@ -263,6 +401,8 @@ export class ManagerServer {
 		const url = new URL(request.url);
 		const p = url.pathname;
 		try {
+			const evo = await this.#evo.handle(request, url);
+			if (evo) return evo;
 			if (p === "/api/events") return this.#sseResponse();
 			if (p === "/api/benchmarks" && request.method === "GET") {
 				return Response.json(BENCHMARK_DEFINITIONS);
@@ -314,6 +454,12 @@ export class ManagerServer {
 			}
 			if (p === "/api/runs" && request.method === "POST") {
 				const body = (await request.json()) as LaunchRequest;
+				const spoofed = EVO_IDENTITY_FIELDS.filter(field => field in (body ?? {}));
+				if (spoofed.length > 0) {
+					throw new Error(
+						`evo identity fields (${spoofed.join(", ")}) cannot be set on /api/runs; use POST /api/evo/variants/:id/evaluate`,
+					);
+				}
 				return Response.json(this.launch(body), { status: 201 });
 			}
 			const resumeMatch = p.match(/^\/api\/runs\/([^/]+)\/resume$/);
@@ -383,13 +529,23 @@ export class ManagerServer {
 		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
 			throw new Error(`unsupported benchmark: ${benchmark}`);
 		}
+		const names = [...new Set(effectiveModelsYaml(request).flatMap(file => readModelsEnvNamesSync(file)))].sort();
+		assertLaunchEnvSafe(request, benchmark, { names, values: credentialValuesFromEnv(names, process.env) });
 		const dataset =
 			request.dataset ??
 			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");
 		const jobName = request.jobName ?? defaultJobName(request.model);
-		if (this.#children.has(jobName) || this.#store.getRun(jobName)?.status === "running") {
+		const existing = this.#store.getRun(jobName);
+		if (this.#children.has(jobName) || existing?.status === "running") {
 			throw new Error(`run ${jobName} is already running`);
 		}
+		// A fresh launch never re-enters an existing job: old trial rows and harbor trial dirs would
+		// otherwise survive and be reported as this run's results. `resume` is the only re-entry path.
+		if (existing || fs.existsSync(path.join(this.jobsDir, jobName))) {
+			throw new Error(`run ${jobName} already exists; choose a new job name or resume it`);
+		}
+		// Validate before any job dir exists so a bad path leaves no debris for discover().
+		if (benchmark === "harbor" && isLocalDataset(dataset)) resolveLocalDataset(dataset);
 		const jobDir = path.join(this.jobsDir, jobName);
 		fs.mkdirSync(jobDir, { recursive: true });
 
@@ -424,6 +580,8 @@ export class ManagerServer {
 			config: { ...request },
 			role: request.role,
 			note: request.note,
+			variantId: request.variantId,
+			suiteId: request.suiteId,
 		});
 		if (request.goal) this.#store.setExperimentGoal(experimentOf(jobName), request.goal);
 		return { jobName, pid };
@@ -448,6 +606,32 @@ export class ManagerServer {
 		if (this.#runLive(run)) {
 			throw new Error(`run ${jobName} is already running`);
 		}
+		// `--resume` rebuilds the launch from the recorded config, so an evo variant run recorded before
+		// the containment rule existed must be re-checked here; plain harbor runs keep their repo root.
+		const recordedRoot = run.config.sourceRoot;
+		const resumedVariant = run.variantId ? this.#store.evo.getVariant(run.variantId) : null;
+		const configFirst = resumedVariant !== null && !isSourceVariant(this.jobsDir, resumedVariant);
+		if (run.variantId && typeof recordedRoot === "string" && recordedRoot && !configFirst) {
+			assertWorktreeOwned(this.jobsDir, recordedRoot, `variant '${run.variantId}' source root`);
+		}
+		// Same launch-time integrity rule as `launch()`: `--resume` rebuilds the harbor invocation
+		// from the recorded config, so a suite snapshot tampered after the original run must not
+		// execute under its stale `suiteHash`/`taskHash`. `suite_id` is the durable run identity:
+		// an evo row must name its suite in both places and both must agree, while a plain harbor
+		// row (null suite) carries nothing to validate.
+		if (run.suiteId !== null) {
+			const recordedSuite = run.config.suiteId;
+			if (typeof recordedSuite !== "string" || recordedSuite !== run.suiteId) {
+				throw new Error(
+					`run ${jobName} records suite '${run.suiteId}' but its config names '${String(recordedSuite)}'; cannot resume`,
+				);
+			}
+			verifyRunData(
+				this.jobsDir,
+				run.suiteId,
+				typeof run.config.dataset === "string" ? run.config.dataset : undefined,
+			);
+		}
 		if (run.status === "running") this.#store.markExit(jobName, null, true);
 		const jobDir = path.join(this.jobsDir, jobName);
 		if (!fs.existsSync(path.join(jobDir, "config.json"))) {
@@ -471,6 +655,8 @@ export class ManagerServer {
 			config: run.config,
 			role: run.role,
 			note: run.note,
+			variantId: run.variantId ?? undefined,
+			suiteId: run.suiteId ?? undefined,
 		});
 		return { jobName, pid };
 	}
@@ -485,7 +671,7 @@ export class ManagerServer {
 			cwd,
 			stdout: logFile,
 			stderr: logFile,
-			env: { ...process.env },
+			env: this.#runnerEnv(record),
 			// Own process group: a manager restart (Ctrl+C / --hot dev cycle) must
 			// not deliver terminal signals to runners — that killed live runs.
 			detached: true,
@@ -496,6 +682,7 @@ export class ManagerServer {
 			try {
 				fs.closeSync(logFile);
 			} catch {}
+			this.#proxy.unregister(jobName);
 			// A retired instance (--hot reload) must not touch the closed store;
 			// the successor's pid sweep reconciles this run from disk instead.
 			if (this.#stopped) return;
@@ -509,6 +696,26 @@ export class ManagerServer {
 		this.#store.registerLaunch({ ...record, pid: proc.pid });
 		this.#tick();
 		return proc.pid;
+	}
+
+	/**
+	 * Environment for a runner child. A provider-proxy run gets a per-run token and the proxy port and NO provider
+	 * credential: every variable models.yml references is removed, so the real key lives only in this process.
+	 */
+	#runnerEnv(record: Omit<LaunchRecord, "pid">): Record<string, string | undefined> {
+		const env: Record<string, string | undefined> = { ...process.env };
+		const modelsYaml = record.config?.modelsYaml;
+		if (record.config?.providerProxy !== true || typeof modelsYaml !== "string") return env;
+		for (const name of readModelsEnvNamesSync(modelsYaml)) delete env[name];
+		let text: string;
+		try {
+			text = fs.readFileSync(modelsYaml, "utf8");
+		} catch {
+			throw new Error(`models file not readable: ${modelsYaml}`);
+		}
+		env[PROXY_TOKEN_ENV] = this.#proxy.register(record.jobName, proxyRoutesFromModels(text, process.env));
+		env.OMP_EVO_PROXY_PORT = String(this.#proxy.port);
+		return env;
 	}
 
 	/** Liveness check that survives manager restarts: managed child, or a running row with a live pid. */
@@ -582,12 +789,13 @@ export class ManagerServer {
 		assertSafeJobName(jobName);
 		this.#store.deleteRun(jobName);
 		fs.rmSync(path.join(this.jobsDir, jobName), { recursive: true, force: true });
+		removeRunData(this.jobsDir, jobName);
 		fs.rmSync(path.join(this.jobsDir, "_manager", "logs", `${jobName}.log`), { force: true });
 	}
 
 	/** Add a comparable arm to an existing experiment, inheriting its sample + config. */
 	addArm(experimentId: string, req: AddArmRequest): { jobName: string; pid: number } {
-		return this.launch(resolveArmLaunch(this.#store, experimentId, req));
+		return this.launch(resolveArmLaunch(this.#store, experimentId, req, this.#sourceRoot));
 	}
 
 	/** Cancel a managed run. SIGTERM first so the runner forwards the signal to
@@ -667,37 +875,7 @@ export class ManagerServer {
 				headers: { "content-type": "application/x-ndjson" },
 			});
 		}
-		const entries: Array<Record<string, unknown>> = [];
-		for (const line of lines) {
-			let event: Record<string, unknown>;
-			try {
-				event = JSON.parse(line) as Record<string, unknown>;
-			} catch {
-				continue;
-			}
-			if (event.type === "message_end") {
-				const message = event.message as Record<string, unknown> | undefined;
-				if (!message) continue;
-				const content = Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [];
-				const body = content
-					.filter(block => block.type === "text")
-					.map(block => String(block.text ?? ""))
-					.join("\n");
-				if (message.role === "assistant") {
-					const tools = content.filter(block => block.type === "toolCall").map(block => String(block.name ?? "?"));
-					entries.push({ kind: "assistant", model: message.model ?? "", text: body, tools });
-				} else if (message.role === "toolResult") {
-					entries.push({
-						kind: "toolResult",
-						tool: message.toolName ?? "?",
-						isError: message.isError === true,
-						text: body.length > 1600 ? `${body.slice(0, 1600)}…` : body,
-					});
-				}
-			} else if (event.type === "notice") {
-				entries.push({ kind: "notice", text: event.message ?? "" });
-			}
-		}
+		const entries = normalizeOmpTranscript(lines);
 		return Response.json({ jobName, trace: traceName, entries: entries.slice(-n), totalEvents: lines.length });
 	}
 }
@@ -758,11 +936,13 @@ if (import.meta.main) {
 		__metaharnessHooks?: boolean;
 	};
 	await host.__metaharnessServer?.stop();
-	const { port, jobsDir } = parseServerArgs(process.argv.slice(2));
-	const manager = new ManagerServer(jobsDir);
+	const { port, jobsDir, host: bindHost } = parseServerArgs(process.argv.slice(2));
+	const manager = new ManagerServer(jobsDir, undefined, {}, bindHost);
 	host.__metaharnessServer = manager;
 	const server = manager.start(port);
-	process.stdout.write(`metaharness listening on http://localhost:${server.port} (jobs: ${jobsDir})\n`);
+	process.stdout.write(
+		`metaharness listening on http://${bindHost ?? "127.0.0.1"}:${server.port} (jobs: ${jobsDir})\n`,
+	);
 	// Process-wide hooks register once; `--hot` re-evals reuse them via `host`.
 	if (!host.__metaharnessHooks) {
 		host.__metaharnessHooks = true;

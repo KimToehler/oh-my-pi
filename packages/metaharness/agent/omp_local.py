@@ -224,6 +224,9 @@ class OmpLocal(BaseInstalledAgent):
         self._tarball = _env("OMP_BENCH_TARBALL")
         self._pkg_version = _env("OMP_BENCH_VERSION", "latest")
         self._models_yaml_path = _env("OMP_BENCH_MODELS_YAML")
+        # Read-only mount of a complete staged agent dir (evo variants). When set, it IS
+        # ~/.omp/agent: config.yml/models.yml are never regenerated.
+        self._agent_overlay = _env("OMP_BENCH_AGENT_OVERLAY")
         self._gateway_url = _env(
             "OMP_BENCH_GATEWAY_URL", "http://host.docker.internal:4000"
         )
@@ -243,6 +246,9 @@ class OmpLocal(BaseInstalledAgent):
         self._agent_args = self._parse_agent_args()
         self._bun_version = _env("OMP_BENCH_BUN_VERSION", "1.4.0")
         self._gateway_on = _env("OMP_BENCH_GATEWAY", "1") != "0"
+        # Host provider proxy: the models file already points at it with a per-run token, so no
+        # provider credential may be read from this process environment into the agent environment.
+        self._provider_proxy = _truthy(_env("OMP_BENCH_PROVIDER_PROXY", "0"))
 
         # web_search auth can't route through the gateway (dedicated provider creds);
         # off by default so search-using tasks don't false-negative on 401s.
@@ -350,10 +356,14 @@ class OmpLocal(BaseInstalledAgent):
                 self._cli = await self._install_local(environment)
 
         # 3) Auth + model config under $HOME/.omp/agent.
-        if self._gateway_on:
-            # Gateway routing — no provider keys ever enter the container.
-            await self._write_models_yaml(environment)
-        await self._write_config(environment)
+        if self._agent_overlay:
+            await self._install_agent_overlay(environment)
+        else:
+            if self._gateway_on or self._models_yaml_path:
+                # Gateway routing keeps provider keys out of the container; an explicit
+                # --models-yaml (direct mode) is uploaded verbatim, never regenerated.
+                await self._write_models_yaml(environment)
+            await self._write_config(environment)
 
     async def _install_source(self, environment: BaseEnvironment) -> str:
         """Verify the read-only repo + linux deps mounts and run omp from TS source.
@@ -465,6 +475,18 @@ class OmpLocal(BaseInstalledAgent):
             timeout_sec=900,
         )
         return f"{app}/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js"
+
+    async def _install_agent_overlay(self, environment: BaseEnvironment) -> None:
+        """Copy the mounted overlay to $HOME/.omp/agent (the mount itself stays read-only)."""
+        overlay = shlex.quote(self._agent_overlay)
+        await self.exec_as_agent(
+            environment,
+            command=(
+                f"set -e; test -d {overlay}; "
+                'rm -rf "$HOME/.omp/agent"; mkdir -p "$HOME/.omp/agent"; '
+                f'cp -R {overlay}/. "$HOME/.omp/agent/"'
+            ),
+        )
 
     async def _write_models_yaml(self, environment: BaseEnvironment) -> None:
         if self._models_yaml_path and os.path.isfile(self._models_yaml_path):
@@ -615,7 +637,7 @@ class OmpLocal(BaseInstalledAgent):
         # argv); forwarded PI_* / --env knobs apply last so an explicit --env
         # always wins.
         run_env: dict[str, str] = dict(_SERVICE_GRACE_ENV)
-        if not self._gateway_on:
+        if not self._gateway_on and not self._provider_proxy:
             run_env.update(self._collect_provider_keys(provider))
         run_env.update(self._forward_env)
         await self.exec_as_agent(

@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { formatSourceIdentity, sourceIdentity } from "../src/evo/source-identity";
 import { experimentDetail } from "../src/experiments";
+import { parseArgs } from "../src/runner";
 import { ManagerServer, resolveArmLaunch } from "../src/server";
 import { RunStore } from "../src/store";
+import "./registry-stub";
 
 /**
  * Contracts under test:
@@ -18,9 +22,21 @@ afterEach(() => {
 	while (cleanups.length) cleanups.pop()?.();
 });
 
+/** Published variant snapshots are read-only directories; restore owner write so cleanup can delete them. */
+function rmTree(dir: string): void {
+	const unlock = (d: string): void => {
+		try {
+			fs.chmodSync(d, 0o755);
+			for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) unlock(path.join(d, e.name));
+		} catch {}
+	};
+	unlock(dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 function makeJobsDir(): string {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metaharness-test-"));
-	cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+	cleanups.push(() => rmTree(dir));
 	return dir;
 }
 
@@ -136,6 +152,21 @@ describe("RunStore", () => {
 		expect(store.getRun("job-done")?.finishedAt).not.toBeNull();
 	});
 
+	it("purges a legacy claimed row on open", () => {
+		const jobsDir = makeJobsDir();
+		const dbPath = path.join(jobsDir, "_manager", "metaharness.sqlite");
+		const first = new RunStore(jobsDir);
+		first.close();
+		const raw = new Database(dbPath);
+		raw.run("INSERT INTO runs (job_name, status, pid, created_at) VALUES ('legacy-claim', 'claimed', NULL, 1)");
+		raw.close();
+
+		const store = new RunStore(jobsDir);
+		cleanups.push(() => store.close());
+		expect(store.listRuns().some(r => r.jobName === "legacy-claim")).toBe(false);
+		expect(store.getRun("legacy-claim")).toBeNull();
+	});
+
 	it("stores experiment goals and run roles/labels, and orders baselines first", () => {
 		const jobsDir = makeJobsDir();
 		writeFixtureJob(jobsDir, "exp-treat");
@@ -199,6 +230,44 @@ describe("RunStore", () => {
 		const finished = store.getRun("job-b");
 		expect(finished?.status).toBe("complete");
 		expect(finished?.finishedAt).toBe(Date.parse("2026-07-12T11:00:00"));
+	});
+
+	it("orders same-millisecond runs newest-insertion-first, and keeps an upserted run's slot", () => {
+		const store = new RunStore(makeJobsDir());
+		cleanups.push(() => store.close());
+		const realNow = Date.now;
+		Date.now = () => 1_800_000_000_000; // every row ties on created_at
+		try {
+			const names = ["m-q", "m-c", "m-x", "m-a", "m-k", "m-z", "m-b"];
+			for (const jobName of names) {
+				store.registerLaunch({
+					benchmark: "harbor",
+					jobName,
+					dataset: "d",
+					agent: "omp",
+					models: ["m"],
+					pid: 1,
+					variantId: "v1",
+				});
+			}
+			const expected = [...names].reverse();
+			for (let i = 0; i < 5; i++) {
+				expect(store.listRuns().map(r => r.jobName)).toEqual(expected);
+				expect(store.listRunsForVariant("v1").map(r => r.jobName)).toEqual(expected);
+			}
+			// Re-registering an existing job upserts in place: it keeps its insertion slot.
+			store.registerLaunch({
+				benchmark: "harbor",
+				jobName: "m-c",
+				dataset: "d",
+				agent: "omp",
+				models: ["m"],
+				pid: 2,
+			});
+			expect(store.listRuns().map(r => r.jobName)).toEqual(expected);
+		} finally {
+			Date.now = realNow;
+		}
 	});
 });
 
@@ -338,7 +407,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "job-live",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -347,7 +416,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "job-bare",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -378,7 +447,7 @@ describe("ManagerServer API", () => {
 			manager.store.registerLaunch({
 				benchmark: "harbor",
 				jobName,
-				dataset: "terminal-bench@2.0",
+				dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 				agent: "omp",
 				models: ["m/x"],
 				pid: process.pid,
@@ -388,7 +457,7 @@ describe("ManagerServer API", () => {
 		manager.store.registerLaunch({
 			benchmark: "harbor",
 			jobName: "live-run",
-			dataset: "terminal-bench@2.0",
+			dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
 			agent: "omp",
 			models: ["m/x"],
 			pid: process.pid,
@@ -485,13 +554,18 @@ describe("resolveArmLaunch", () => {
 			},
 		});
 
-		const launch = resolveArmLaunch(store, "exp", {
-			arm: "n8",
-			model: "google/gemini-3.5-flash",
-			role: "variant",
-			note: "prewalk@flash",
-			prewalk: { into: "google/gemini-3.5-flash" },
-		});
+		const launch = resolveArmLaunch(
+			store,
+			"exp",
+			{
+				arm: "n8",
+				model: "google/gemini-3.5-flash",
+				role: "variant",
+				note: "prewalk@flash",
+				prewalk: { into: "google/gemini-3.5-flash" },
+			},
+			"/src",
+		);
 
 		expect(launch.jobName).toBe("exp-n8");
 		expect(launch.dataset).toBe("swe-bench/swe-bench-verified");
@@ -528,7 +602,7 @@ describe("resolveArmLaunch", () => {
 			config: {},
 		});
 
-		const launch = resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" });
+		const launch = resolveArmLaunch(store, "exp", { arm: "next", model: "anthropic/claude-opus-4-8" }, "/src");
 		expect(launch.include).toEqual(["swe-bench/astropy__astropy-1", "swe-bench/django__django-2"]);
 		expect(launch.tasks).toBe(2);
 	});
@@ -545,7 +619,291 @@ describe("resolveArmLaunch", () => {
 			pid: 1,
 			config: { include: ["t1"] },
 		});
-		expect(() => resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" })).toThrow(/already exists/);
-		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" })).toThrow(/no runs to inherit/);
+		expect(() => resolveArmLaunch(store, "exp", { arm: "base", model: "m/y" }, "/src")).toThrow(/already exists/);
+		expect(() => resolveArmLaunch(store, "ghost", { arm: "x", model: "m/y" }, "/src")).toThrow(/no runs to inherit/);
+	});
+});
+
+describe("EvoService evaluate job-name uniqueness", () => {
+	const SUITE = {
+		id: "race-1",
+		split: "search",
+		benchmark: "harbor",
+		dataset: `terminal-bench@sha256:${"a".repeat(64)}`,
+		include: ["t1"],
+		attempts: 1,
+		timeoutMultiplier: 1,
+		model: "onara/cc/claude-sonnet-5-5",
+		thinking: "medium",
+		environment: "docker",
+		platform: "linux/arm64",
+		minPairedTasks: 1,
+		minAttemptsPerTask: 1,
+		concurrency: 1,
+	};
+
+	function git(cwd: string, ...args: string[]): void {
+		const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd });
+		if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+	}
+
+	async function setup() {
+		const jobsDir = makeJobsDir();
+		const source = makeJobsDir();
+		git(source, "init", "-q", "-b", "main");
+		fs.writeFileSync(path.join(source, "a.txt"), "1");
+		git(source, "add", "-A");
+		git(source, "commit", "-q", "-m", "init");
+		const configDir = makeJobsDir();
+		fs.writeFileSync(path.join(configDir, "AGENTS.md"), "root");
+		fs.writeFileSync(path.join(jobsDir, "models.yml"), "providers:\n  onara:\n    baseUrl: http://x\n");
+		const defaults = { modelsYaml: path.join(jobsDir, "models.yml"), forwardEnv: [] };
+		const manager = new ManagerServer(jobsDir, undefined, { sourceRoot: source, defaults });
+		const server = manager.start(0);
+		cleanups.push(() => void manager.stop());
+		const base = `http://localhost:${server.port}`;
+		const post = (url: string, body: unknown) =>
+			fetch(`${base}${url}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			});
+		expect((await post("/api/evo/suites", SUITE)).status).toBe(201);
+		const root = (await (await post("/api/evo/variants", { mutation: "root", configDir })).json()) as {
+			variant: { id: string };
+		};
+		return { jobsDir, source, defaults, manager, base, store: manager.store, variantId: root.variant.id };
+	}
+
+	it("lets exactly one of two concurrent same-name evaluations launch, and keeps its trial rows", async () => {
+		const { jobsDir, source, defaults, store, variantId } = await setup();
+		const launches: string[] = [];
+		// Stub at the process boundary: register the run like ManagerServer.launch does, with one synced trial.
+		const launch = (request: { jobName?: string }) => {
+			const jobName = request.jobName!;
+			launches.push(jobName);
+			store.registerLaunch({
+				benchmark: "harbor",
+				jobName,
+				dataset: SUITE.dataset,
+				agent: "omp",
+				models: [SUITE.model],
+				pid: 999999999,
+				variantId,
+				suiteId: SUITE.id,
+			});
+			const trial = path.join(jobsDir, jobName, "t1__abc");
+			fs.mkdirSync(path.join(trial, "agent"), { recursive: true });
+			fs.writeFileSync(
+				path.join(trial, "result.json"),
+				JSON.stringify({
+					started_at: "2026-07-12T10:00:00",
+					finished_at: "2026-07-12T10:01:00",
+					verifier_result: { rewards: { reward: 1 } },
+					agent_result: { cost_usd: 0.1 },
+				}),
+			);
+			store.syncRun(jobName);
+			return { jobName, pid: 999999999 };
+		};
+		const { EvoService } = await import("../src/evo/service");
+		const service = new EvoService({ store, jobsDir, sourceRoot: source, defaults, launch });
+		const url = new URL(`http://x/api/evo/variants/${variantId}/evaluate`);
+		const req = () =>
+			new Request(url, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-race" }),
+			});
+		const results = await Promise.allSettled([service.handle(req(), url), service.handle(req(), url)]);
+		const statuses = results.map(r => (r.status === "fulfilled" ? r.value?.status : "rejected")).sort();
+		expect(statuses).toEqual([201, 409]);
+		expect(launches).toEqual(["evo-race"]);
+		expect(store.listTraces("evo-race").map(t => t.name)).toEqual(["t1__abc"]);
+	});
+
+	/** Stub Bun.spawn only: ManagerServer.launch, #spawnRunner and registerLaunch stay production code. */
+	function stubSpawn(): { argvs: string[][] } {
+		const argvs: string[][] = [];
+		const bun: { spawn: unknown } = Bun; // widened view of the same object, to swap one member
+		const original = bun.spawn;
+		bun.spawn = (argv: string[]) => {
+			argvs.push(argv);
+			return { pid: process.pid, exited: new Promise<number>(() => {}) };
+		};
+		cleanups.push(() => {
+			bun.spawn = original;
+		});
+		return { argvs };
+	}
+
+	it("evaluates through the real ManagerServer.launch and rejects the loser of a concurrent pair", async () => {
+		const { jobsDir, variantId, store, base } = await setup();
+		const { argvs } = stubSpawn();
+		const evaluate = (jobName: string) =>
+			fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName }),
+			});
+		const single = await evaluate("evo-single");
+		expect(single.status).toBe(201);
+		expect(await single.json()).toMatchObject({ jobName: "evo-single", pid: process.pid });
+		expect(store.getRun("evo-single")).toMatchObject({ status: "running", pid: process.pid, variantId });
+		expect(fs.existsSync(path.join(jobsDir, "evo-single", "manager.json"))).toBe(true);
+
+		const pair = await Promise.all([evaluate("evo-pair"), evaluate("evo-pair")]);
+		expect(pair.map(r => r.status).sort()).toEqual([201, 409]);
+		expect(argvs.filter(a => a.includes("evo-pair")).length).toBe(1);
+		// Negative control: a genuinely running name is still rejected by launch itself (generic launch route).
+		const dup = await fetch(`${base}/api/runs`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ model: "m/x", jobName: "evo-single" }),
+		});
+		expect(dup.status).toBe(400);
+		expect(await dup.json()).toMatchObject({ error: "run evo-single is already running" });
+	});
+
+	it("launches a config-first variant with the service's custom source root and passes the runner preflight", async () => {
+		const { source, variantId, store, base, manager } = await setup();
+		const { argvs } = stubSpawn();
+		const defaultRoot = path.resolve(import.meta.dir, "..", "..", "..");
+		expect(fs.realpathSync(source)).not.toBe(fs.realpathSync(defaultRoot));
+		const evaluate = (jobName: string) =>
+			fetch(`${base}/api/evo/variants/${variantId}/evaluate`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName }),
+			});
+		expect((await evaluate("rootexp-base")).status).toBe(201);
+		const argv = argvs.find(a => a.includes("rootexp-base"))!;
+		const at = argv.indexOf("--source-root");
+		expect(at).toBeGreaterThan(-1);
+		expect(argv[at + 1]).toBe(source);
+		// The runner parses its own argv and runs this exact check before spawning harbor.
+		const cfg = parseArgs(argv.slice(argv.indexOf("src/runner.ts") + 1));
+		expect(cfg.sourceRoot).toBe(source);
+		expect(cfg.sourceIdentity).toBe(formatSourceIdentity(await sourceIdentity(cfg.sourceRoot)));
+		// Negative control: the default checkout is a different identity, so omitting the root would be rejected.
+		expect(cfg.sourceIdentity).not.toBe(formatSourceIdentity(await sourceIdentity(defaultRoot)));
+		// Arm variant swap repeats the same launch fields.
+		store.syncAll();
+		const arm = manager.addArm("rootexp", { arm: "swap", model: SUITE.model, variantId });
+		const armArgv = argvs.find(a => a.includes(arm.jobName))!;
+		expect(armArgv[armArgv.indexOf("--source-root") + 1]).toBe(source);
+	});
+
+	it("leaves no run after a failed launch and lets the same name be retried", async () => {
+		const { jobsDir, source, defaults, store, variantId } = await setup();
+		const { EvoService } = await import("../src/evo/service");
+		let fail = true;
+		const service = new EvoService({
+			store,
+			jobsDir,
+			sourceRoot: source,
+			defaults,
+			launch: request => {
+				if (fail) throw new Error("spawn failed");
+				return { jobName: request.jobName!, pid: 1 };
+			},
+		});
+		const url = new URL(`http://x/api/evo/variants/${variantId}/evaluate`);
+		const req = () =>
+			new Request(url, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ suiteId: SUITE.id, jobName: "evo-retry" }),
+			});
+		await expect(service.handle(req(), url)).rejects.toThrow("spawn failed");
+		expect(store.getRun("evo-retry")).toBeNull();
+		fail = false;
+		expect((await service.handle(req(), url))?.status).toBe(201);
+	});
+});
+
+describe("fresh launch never reuses an existing job name", () => {
+	/** Stub Bun.spawn only: launch, #spawnRunner and registerLaunch stay production code. */
+	function stubSpawn(): { argvs: string[][] } {
+		const argvs: string[][] = [];
+		const bun: { spawn: unknown } = Bun;
+		const original = bun.spawn;
+		bun.spawn = (argv: string[]) => {
+			argvs.push(argv);
+			return { pid: process.pid, exited: new Promise<number>(() => {}) };
+		};
+		cleanups.push(() => {
+			bun.spawn = original;
+		});
+		return { argvs };
+	}
+
+	function terminalJob(jobsDir: string, jobName: string): ManagerServer {
+		writeFixtureJob(jobsDir, jobName);
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		manager.store.registerLaunch({
+			benchmark: "harbor",
+			jobName,
+			dataset: "test-dataset@1.0",
+			agent: "omp",
+			models: ["m/x"],
+			pid: 999999999,
+		});
+		manager.store.syncRun(jobName);
+		manager.store.markExit(jobName, 1, false);
+		return manager;
+	}
+
+	it("refuses a terminal job name with persisted trials and leaves its trials untouched", () => {
+		const jobsDir = makeJobsDir();
+		const manager = terminalJob(jobsDir, "old-run");
+		const { argvs } = stubSpawn();
+		const before = manager.store.listTraces("old-run");
+		expect(before.length).toBe(3);
+		expect(manager.store.getRun("old-run")?.status).toBe("failed");
+		expect(() => manager.launch({ model: "m/x", jobName: "old-run" })).toThrow(
+			"run old-run already exists; choose a new job name or resume it",
+		);
+		expect(argvs).toEqual([]);
+		expect(manager.store.listTraces("old-run")).toEqual(before);
+		expect(manager.store.getRun("old-run")?.status).toBe("failed");
+	});
+
+	it("refuses a name whose job dir exists without a row, creating nothing", () => {
+		const jobsDir = makeJobsDir();
+		writeFixtureJob(jobsDir, "orphan-dir");
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		const { argvs } = stubSpawn();
+		expect(manager.store.getRun("orphan-dir")).toBeNull();
+		const before = fs.readdirSync(path.join(jobsDir, "orphan-dir")).sort();
+		expect(() => manager.launch({ model: "m/x", jobName: "orphan-dir" })).toThrow(
+			"run orphan-dir already exists; choose a new job name or resume it",
+		);
+		expect(argvs).toEqual([]);
+		expect(manager.store.getRun("orphan-dir")).toBeNull();
+		expect(fs.readdirSync(path.join(jobsDir, "orphan-dir")).sort()).toEqual(before);
+	});
+
+	it("still launches a brand-new name (negative control)", () => {
+		const jobsDir = makeJobsDir();
+		const manager = new ManagerServer(jobsDir);
+		cleanups.push(() => void manager.stop());
+		stubSpawn();
+		expect(manager.launch({ model: "m/x", jobName: "brand-new" })).toMatchObject({ jobName: "brand-new" });
+		expect(manager.store.getRun("brand-new")?.status).toBe("running");
+	});
+
+	it("resume of a terminal job still works and keeps its trials", () => {
+		const jobsDir = makeJobsDir();
+		const manager = terminalJob(jobsDir, "old-run");
+		const { argvs } = stubSpawn();
+		const before = manager.store.listTraces("old-run");
+		expect(before.length).toBe(3);
+		expect(manager.resume("old-run")).toMatchObject({ jobName: "old-run" });
+		expect(argvs[0]).toContain("--resume");
+		expect(manager.store.getRun("old-run")?.status).toBe("running");
+		expect(manager.store.listTraces("old-run")).toEqual(before);
 	});
 });

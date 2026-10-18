@@ -57,5 +57,13 @@
 		"**/*.mjs",
 		"**/*.cjs",
 		"**/*.d.ts"
+	],
+	"overrides": [
+		{
+			"files": ["packages/metaharness/src/evo/*.ts", "packages/metaharness/src/evo/**/*.ts"],
+			"rules": {
+				"eslint/max-lines": ["error", { "max": 250, "skipBlankLines": true, "skipComments": true }]
+			}
+		}
 	]
 }
