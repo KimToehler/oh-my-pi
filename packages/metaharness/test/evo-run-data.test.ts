@@ -143,7 +143,7 @@ describe("registry task credential scan (R63)", () => {
 	});
 });
 
-function harness() {
+function harness(forwardEnv: string[] | null = []) {
 	const jobsDir = tmp("evo-rd-run-");
 	const source = tmp("evo-rd-src-");
 	const git = (...args: string[]) => {
@@ -157,7 +157,7 @@ function harness() {
 	write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n");
 	const manager = new ManagerServer(jobsDir, undefined, {
 		sourceRoot: source,
-		defaults: { modelsYaml: path.join(jobsDir, "models.yml"), forwardEnv: [] },
+		defaults: { modelsYaml: path.join(jobsDir, "models.yml"), forwardEnv },
 	});
 	const server = manager.start(0);
 	cleanups.push(() => void manager.stop());
@@ -227,5 +227,64 @@ describe("run-owned suite bytes (D1)", () => {
 		await Bun.sleep(20);
 		tamper(armCfg.dataset);
 		expect(() => h.manager.resume("exp-b")).toThrow(/no longer matches its registered task hash/);
+	});
+});
+
+describe("run-data scan for credentials set after registration (R86)", () => {
+	const ROTATED = "sk-evo-rotated-key-0123456789abcdef";
+	const KEY = "EVO_R86_ROTATED_KEY";
+
+	interface LateKeyHarness {
+		h: ReturnType<typeof harness>;
+		variantId: string;
+	}
+
+	/** Harness whose models file references KEY, registered while KEY is unset; the task body holds the later value. */
+	async function registeredWithLateKey(): Promise<LateKeyHarness> {
+		delete process.env[KEY];
+		cleanups.push(() => void delete process.env[KEY]);
+		// forwardEnv null: forwarded names derive from models.yml, as on a default manager.
+		const h = harness(null);
+		write(h.jobsDir, "models.yml", `providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ${KEY}\n`);
+		const cfgDir = tmp("evo-rd-cfg-");
+		write(cfgDir, "AGENTS.md", "root");
+		const v = await h.post("/api/evo/variants", { mutation: "root", configDir: cfgDir });
+		const registered = await v.json();
+		if (!(registered && typeof registered === "object" && "variant" in registered)) throw new Error("no variant");
+		const variant = registered.variant;
+		if (!(variant && typeof variant === "object" && "id" in variant && typeof variant.id === "string")) {
+			throw new Error("variant has no id");
+		}
+		const dataset = makeDataset({ "t1/tests/data.txt": `token=${ROTATED}\n` });
+		expect((await h.post("/api/evo/suites", manifestFor(dataset))).status).toBe(201);
+		return { h, variantId: variant.id };
+	}
+
+	it("refuses evaluate when a task carries a credential value set after registration, persisting no copy", async () => {
+		const { h, variantId } = await registeredWithLateKey();
+		stubSpawn();
+		process.env[KEY] = ROTATED;
+		const res = await h.post(`/api/evo/variants/${variantId}/evaluate`, { suiteId: "rd-1", jobName: "r86-run" });
+		const body = await res.json();
+		const error = body && typeof body === "object" && "error" in body ? String(body.error) : "";
+		expect(res.status).toBe(422);
+		expect(error).toMatch(/task file tests\/data\.txt embeds a host credential/);
+		expect(error).not.toContain(ROTATED);
+		const runData = path.join(h.jobsDir, "_evo", "run-data");
+		const left = fs.existsSync(runData) ? fs.readdirSync(runData).filter(name => name.startsWith("r86-run")) : [];
+		expect(left).toEqual([]);
+	});
+
+	it("refuses an experiment arm after the key rotates to a value the task carries", async () => {
+		const { h, variantId } = await registeredWithLateKey();
+		stubSpawn();
+		process.env[KEY] = "sk-evo-previous-key-value-9876543210";
+		const res = await h.post(`/api/evo/variants/${variantId}/evaluate`, { suiteId: "rd-1", jobName: "exp-base" });
+		expect(res.status).toBe(201);
+		process.env[KEY] = ROTATED;
+		expect(() => h.manager.addArm("exp", { arm: "b", model: "onara/cc/claude-sonnet-5-5" })).toThrow(
+			/embeds a host credential/,
+		);
+		expect(fs.existsSync(path.join(h.jobsDir, "_evo", "run-data", "exp-b"))).toBe(false);
 	});
 });

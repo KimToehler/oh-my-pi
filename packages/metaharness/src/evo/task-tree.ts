@@ -58,8 +58,16 @@ export function hashTaskTree(taskRoot: string, secrets: readonly string[] = []):
 	return hasher.digest("hex");
 }
 
-/** Verify a snapshot directory holds exactly the recorded tasks with the recorded bytes; 422 otherwise. */
-export function assertTaskSnapshotIntact(dir: string, label: string, hashes: Record<string, string>): void {
+/**
+ * Verify a snapshot directory holds exactly the recorded tasks with the recorded bytes; 422 otherwise. `secrets` are
+ * the CURRENT forwarded credential values: a value set or rotated after registration was not scanned for then.
+ */
+export function assertTaskSnapshotIntact(
+	dir: string,
+	label: string,
+	hashes: Record<string, string>,
+	secrets: readonly string[] = [],
+): void {
 	const expected = Object.keys(hashes).sort();
 	let present: string[];
 	try {
@@ -73,7 +81,7 @@ export function assertTaskSnapshotIntact(dir: string, label: string, hashes: Rec
 	for (const task of expected) {
 		let actual: string;
 		try {
-			actual = hashTaskTree(path.join(dir, task));
+			actual = hashTaskTree(path.join(dir, task), secrets);
 		} catch (err) {
 			if (err instanceof EvoHttpError) throw err;
 			throw new EvoHttpError(422, `${label} task '${task}' snapshot is unreadable; cannot verify its hash`);

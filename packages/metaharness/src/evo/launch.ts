@@ -101,9 +101,6 @@ export interface EvalLaunchInput {
 export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchRequest> {
 	const { variant, suite, defaults } = input;
 	const manifest = suite.manifest;
-	// Launch-time integrity: stage a RUN-OWNED copy and verify the copy's bytes, so the path Harbor opens is
-	// private to this run and no later replacement of the shared snapshot can change what it evaluates.
-	const dataset = stageRunData(input.jobsDir, suite, input.jobName);
 	// Validate even with an explicit forward list: the file is what the container receives.
 	let modelsText: string;
 	try {
@@ -129,6 +126,10 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 	// No copy of the text may be written while an unvalidated scalar still carries a host credential.
 	const hostValues = credentialValuesFromEnv(names, process.env);
 	assertNoHostCredentialValues(modelsText, hostValues);
+	// Launch-time integrity: stage a RUN-OWNED copy and verify the copy's bytes, so the path Harbor opens is
+	// private to this run and no later replacement of the shared snapshot can change what it evaluates. The verify
+	// walk also scans for the CURRENT credential values; a key set or rotated after registration was never scanned for.
+	const dataset = stageRunData(input.jobsDir, suite, input.jobName, hostValues);
 	// The runner never sees these values (the manager strips them from its environment), so the staged source
 	// tree must be scanned here, over the root this launch will stage, before anything is spawned.
 	const fields = variantLaunchFields(input.jobsDir, variant, manifest, input.sourceRoot);

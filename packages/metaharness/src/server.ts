@@ -159,8 +159,13 @@ function resolveEvoInheritance(
 ): Partial<LaunchRequest> {
 	const inherited: Partial<LaunchRequest> = {};
 	// An arm never opens the template run's directory: the suite snapshot is re-copied and verified into the new
-	// arm's own run-owned data, so bytes replaced after the template launched cannot reach it.
-	if (cfg.suiteId) inherited.dataset = stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName);
+	// arm's own run-owned data, so bytes replaced after the template launched cannot reach it. The verify walk scans
+	// for the CURRENT values of the credentials the recorded models file references (set or rotated since registration).
+	if (cfg.suiteId) {
+		const names = typeof cfg.modelsYaml === "string" ? readModelsEnvNamesSync(cfg.modelsYaml) : [];
+		const secrets = credentialValuesFromEnv([...new Set([...names, ...(cfg.envNames ?? [])])], process.env);
+		inherited.dataset = stageRecordedRunData(store.jobsDir, cfg.suiteId, jobName, secrets);
+	}
 	for (const key of [
 		"suiteId",
 		"suiteHash",

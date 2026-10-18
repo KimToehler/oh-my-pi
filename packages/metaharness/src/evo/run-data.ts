@@ -24,20 +24,22 @@ export function runDataDir(jobsDir: string, jobName: string): string {
 /**
  * Dataset a run launches from. Registry suites keep their pinned reference. Local suites are copied into
  * `_evo/run-data/<job>` and verified AFTER the copy; an existing copy is reused only when it still verifies.
+ * `secrets` are the current forwarded credential values: the verify walk over the copy also scans for them, because
+ * a value set or rotated after registration was never scanned for. A hit removes the copy (422, value redacted).
  */
-export function stageRunData(jobsDir: string, suite: RunSuite, jobName: string): string {
+export function stageRunData(jobsDir: string, suite: RunSuite, jobName: string, secrets: readonly string[]): string {
 	if (suite.taskHashes === null) return suite.manifest.dataset;
 	const label = `suite '${suite.manifest.id}'`;
 	const final = runDataDir(jobsDir, jobName);
 	if (fs.existsSync(final)) {
-		assertTaskSnapshotIntact(final, `${label} run data`, suite.taskHashes);
+		assertTaskSnapshotIntact(final, `${label} run data`, suite.taskHashes, secrets);
 		return final;
 	}
 	const stage = `${final}.tmp-${crypto.randomUUID()}`;
 	try {
 		fs.mkdirSync(path.dirname(stage), { recursive: true });
 		fs.cpSync(suiteDataDir(jobsDir, suite.hash), stage, { recursive: true, verbatimSymlinks: true });
-		assertTaskSnapshotIntact(stage, `${label} task`, suite.taskHashes);
+		assertTaskSnapshotIntact(stage, `${label} task`, suite.taskHashes, secrets);
 		lockTree(stage);
 		fs.renameSync(stage, final);
 	} catch (err) {
@@ -64,8 +66,13 @@ function readRecordedSuite(jobsDir: string, suiteId: string): RunSuite {
 }
 
 /** Experiment arms: stage (and verify) a fresh run-owned copy of the registered suite for the new job. */
-export function stageRecordedRunData(jobsDir: string, suiteId: string, jobName: string): string {
-	return stageRunData(jobsDir, readRecordedSuite(jobsDir, suiteId), jobName);
+export function stageRecordedRunData(
+	jobsDir: string,
+	suiteId: string,
+	jobName: string,
+	secrets: readonly string[],
+): string {
+	return stageRunData(jobsDir, readRecordedSuite(jobsDir, suiteId), jobName, secrets);
 }
 
 /**
