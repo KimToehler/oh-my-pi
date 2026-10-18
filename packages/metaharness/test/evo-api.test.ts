@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { EvoHttpError } from "../src/evo/boundary";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "../src/evo/launch";
+import { canonicalStagedModelsHash } from "../src/evo/proxy-models";
 import { SuiteRegistry } from "../src/evo/suites";
 import { harborRunnerArgs } from "../src/launch-args";
 import { ManagerServer, resolveArmLaunch } from "../src/server";
@@ -104,6 +105,8 @@ interface JobOptions {
 	executor?: string;
 	model?: string;
 	modelsYamlHash?: string;
+	/** Default records the canonical hash; null omits it (a run from before the field). */
+	stagedModelsHash?: string | null;
 	infra?: string;
 	/** Launch `sourceIdentity` recorded in the run config, as the evo launch path records it. */
 	sourceIdentity?: string;
@@ -185,6 +188,7 @@ function writeJob(
 			taskHash: opts.taskHash ?? "t".repeat(64),
 			executorConfigHash: opts.executor ?? "exec-1",
 			modelsYamlHash: opts.modelsYamlHash ?? "c".repeat(64),
+			stagedModelsHash: opts.stagedModelsHash === null ? undefined : (opts.stagedModelsHash ?? "d".repeat(64)),
 			concurrency: opts.concurrency ?? 1,
 			sourceIdentity: opts.sourceIdentity ?? LAUNCHED,
 		},
@@ -561,6 +565,30 @@ describe("evo REST", () => {
 		expect(body.mismatches.map(m => m.field)).toEqual(["modelsYamlHash"]);
 	});
 
+	it("refuses a comparison whose runs staged different proxy-rewritten models", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 1, t2: 1 }, { suiteHash, stagedModelsHash: "a".repeat(64) });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, stagedModelsHash: "b".repeat(64) });
+		const res = await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: string; mismatches: Array<{ field: string }> };
+		expect(body.error).toContain("conditions differ: stagedModelsHash");
+		expect(body.mismatches.map(m => m.field)).toEqual(["stagedModelsHash"]);
+	});
+
+	it("refuses a run that did not record stagedModelsHash", async () => {
+		const h = harness();
+		const { suiteHash, rootId, childId } = await seed(h);
+		writeJob(h, "evo-root", rootId, { t1: 1, t2: 1 }, { suiteHash });
+		writeJob(h, "evo-child", childId, { t1: 1, t2: 1 }, { suiteHash, stagedModelsHash: null });
+		await expectError(
+			await fetch(`${h.base}/api/evo/variants/${childId}/compare?suite=search-1`),
+			409,
+			"run 'evo-child' did not record its evaluation conditions",
+		);
+	});
+
 	it("refuses a comparison whose runs evaluated different task bytes, never returning a delta", async () => {
 		const h = harness();
 		const { suiteHash, rootId, childId } = await seed(h);
@@ -664,6 +692,7 @@ describe("generic launch route", () => {
 			"stagedConfigHash",
 			"executorConfigHash",
 			"modelsYamlHash",
+			"stagedModelsHash",
 		]) {
 			const res = await h.post("/api/runs", { model: "m/x", jobName: `spoof-${field}`, [field]: "forged" });
 			await expectError(
@@ -716,7 +745,7 @@ describe("generic launch route", () => {
 		const kv = `EVO_SENTINEL_KEY=${SENTINEL}`;
 		const h = harness();
 		const modelsYaml = path.join(h.jobsDir, "models.yml");
-		write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+		write(h.jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_SENTINEL_KEY\n");
 		const cases = [
 			["--", `-e=${kv}`],
 			["--", `-e${kv}`],
@@ -748,7 +777,7 @@ describe("generic launch route", () => {
 		try {
 			const h = harness();
 			const modelsYaml = path.join(h.jobsDir, "models.yml");
-			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_SENTINEL_KEY\n");
 			const escaped = `--setting=x="EVO_SENTINEL_KEY\\u003d${SENTINEL}"`;
 			expect(escaped.includes("EVO_SENTINEL_KEY=")).toBe(false);
 			expect(escaped.includes("\\u003d")).toBe(true);
@@ -784,7 +813,7 @@ describe("generic launch route", () => {
 		try {
 			const h = harness();
 			const modelsYaml = path.join(h.jobsDir, "models.yml");
-			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: EVO_SENTINEL_KEY\n");
+			write(h.jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: EVO_SENTINEL_KEY\n");
 			let nest: unknown = `EVO_SENTINEL_KEY=${SENTINEL}`;
 			for (let depth = 0; depth < 12; depth++) nest = { a: nest };
 			const cases: Record<string, unknown>[] = [
@@ -895,6 +924,7 @@ describe("evo launch", () => {
 			new Bun.CryptoHasher("sha256").update(fs.readFileSync(modelsYaml, "utf8")).digest("hex"),
 		);
 		expect(fs.readFileSync(launch.modelsYaml!, "utf8")).toBe(fs.readFileSync(modelsYaml, "utf8"));
+		expect(launch.stagedModelsHash).toBe(canonicalStagedModelsHash(fs.readFileSync(modelsYaml, "utf8")));
 		expect(launch.sourceRoot).toBe(h.source);
 		expect(launch.agentDir).toBe(path.join(h.jobsDir, "_evo", "variants", rootId, "config"));
 		expect(JSON.stringify(launch)).not.toContain(sentinel);
@@ -955,7 +985,7 @@ describe("evo launch", () => {
 		const suite = (await new SuiteRegistry(h.jobsDir).get("search-1"))!;
 		const variant = h.manager.store.evo.getVariant(rootId)!;
 		const input = { jobsDir: h.jobsDir, variant, suite, jobName: "j", sourceRoot: h.source };
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n");
 		process.env.ONARA_ROUTER_KEY = "router-value-123";
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
@@ -963,7 +993,7 @@ describe("evo launch", () => {
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
 		expect(ok.envNames).toEqual([]);
 		for (const value of [sentinel, "'!cat /etc/passwd'", "https://x.example/t", "42", "''"]) {
-			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ${value}\n`);
+			write(jobsDir, "models.yml", `providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ${value}\n`);
 			for (const forwardEnv of [null, []]) {
 				const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv } }).catch(
 					(e: unknown) => e as Error,
@@ -990,7 +1020,11 @@ describe("evo launch", () => {
 		});
 		for (const secret of ["router-secret-value-0123456789", "rk-77"]) {
 			process.env.ONARA_ROUTER_KEY = secret;
-			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: ${secret}\n`);
+			write(
+				jobsDir,
+				"models.yml",
+				`providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n    metadata: ${secret}\n`,
+			);
 			const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
 				() => undefined,
 				(e: unknown) => e,
@@ -1004,7 +1038,11 @@ describe("evo launch", () => {
 		}
 		// Positive control: public metadata is accepted.
 		process.env.ONARA_ROUTER_KEY = "router-secret-value-0123456789";
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    metadata: public\n");
+		write(
+			jobsDir,
+			"models.yml",
+			"providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n    metadata: public\n",
+		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
 		expect(ok.envNames).toEqual([]);
 	});
@@ -1023,7 +1061,11 @@ describe("evo launch", () => {
 		for (const secret of ["router-secret-value-0123456789", "rk-77"]) {
 			process.env.ONARA_ROUTER_KEY = secret;
 			for (const comment of [`# ${secret}`, `# note: ${secret}`]) {
-				write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n${comment}\n`);
+				write(
+					jobsDir,
+					"models.yml",
+					`providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n${comment}\n`,
+				);
 				const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
 					() => undefined,
 					(e: unknown) => e,
@@ -1041,7 +1083,7 @@ describe("evo launch", () => {
 		write(
 			jobsDir,
 			"models.yml",
-			"# router config\nproviders:\n  onara:\n    apiKey: ONARA_ROUTER_KEY # env name only\n# end\n",
+			"# router config\nproviders:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY # env name only\n# end\n",
 		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
 		expect(ok.envNames).toEqual([]);
@@ -1067,7 +1109,11 @@ describe("evo launch", () => {
 			'# token: "rk-77";',
 			"# key=[rk-77]",
 		]) {
-			write(jobsDir, "models.yml", `providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n${comment}\n`);
+			write(
+				jobsDir,
+				"models.yml",
+				`providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n${comment}\n`,
+			);
 			const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
 				() => undefined,
 				(e: unknown) => e,
@@ -1077,7 +1123,11 @@ describe("evo launch", () => {
 			expect((err as Error).message).not.toContain("rk-77");
 		}
 		// Negative control: a longer token merely containing the short value as a substring is not a leak.
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n# rk-770 and brk-77x\n");
+		write(
+			jobsDir,
+			"models.yml",
+			"providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n# rk-770 and brk-77x\n",
+		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
 		expect(ok.envNames).toEqual([]);
 	});
@@ -1100,7 +1150,7 @@ describe("evo launch", () => {
 			write(
 				jobsDir,
 				"models.yml",
-				`providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    headers:\n      "${secret}": PUBLIC_HEADER_ENV\n`,
+				`providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n    headers:\n      "${secret}": PUBLIC_HEADER_ENV\n`,
 			);
 			const err = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } }).then(
 				() => undefined,
@@ -1118,7 +1168,7 @@ describe("evo launch", () => {
 		write(
 			jobsDir,
 			"models.yml",
-			"providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n    headers:\n      X-Public: PUBLIC_HEADER_ENV\n",
+			"providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n    headers:\n      X-Public: PUBLIC_HEADER_ENV\n",
 		);
 		const ok = await buildEvalLaunch({ ...input, defaults: { modelsYaml, forwardEnv: null } });
 		expect(ok.envNames).toEqual([]);
@@ -1127,7 +1177,7 @@ describe("evo launch", () => {
 	it("rejects a models snapshot whose bytes no longer match its recorded hash", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: ONARA_ROUTER_KEY\n");
+		write(jobsDir, "models.yml", "providers:\n  onara:\n    baseUrl: http://x\n    apiKey: ONARA_ROUTER_KEY\n");
 		process.env.ONARA_ROUTER_KEY = "router-value-123";
 		cleanups.push(() => {
 			delete process.env.ONARA_ROUTER_KEY;
@@ -1160,7 +1210,7 @@ describe("evo launch", () => {
 		write(
 			jobsDir,
 			"models.yml",
-			"providers:\n  a:\n    apiKey: B_KEY\n  b:\n    apiKey: A_KEY\n  c:\n    apiKey: A_KEY\n",
+			"providers:\n  a:\n    baseUrl: http://x\n    apiKey: B_KEY\n  b:\n    baseUrl: http://x\n    apiKey: A_KEY\n  c:\n    baseUrl: http://x\n    apiKey: A_KEY\n",
 		);
 		const h = harness({ modelsYaml, forwardEnv: null });
 		const { rootId } = await seed(h);
@@ -1210,7 +1260,11 @@ describe("evo launch", () => {
 	it("evaluate answers 422 over REST for a literal apiKey and launches nothing", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: sk-literal-secret-value-99\n");
+		write(
+			jobsDir,
+			"models.yml",
+			"providers:\n  onara:\n    baseUrl: http://x\n    apiKey: sk-literal-secret-value-99\n",
+		);
 		const h = harness({ modelsYaml, forwardEnv: [] });
 		const { rootId } = await seed(h);
 		const res = await h.post(`/api/evo/variants/${rootId}/evaluate`, { suiteId: "search-1" });
@@ -1225,7 +1279,11 @@ describe("evo launch", () => {
 	it("refuses to reuse an existing evaluation job name", async () => {
 		const jobsDir = tmp("evo-launch-");
 		const modelsYaml = path.join(jobsDir, "models.yml");
-		write(jobsDir, "models.yml", "providers:\n  onara:\n    apiKey: sk-literal-secret-value-99\n");
+		write(
+			jobsDir,
+			"models.yml",
+			"providers:\n  onara:\n    baseUrl: http://x\n    apiKey: sk-literal-secret-value-99\n",
+		);
 		const h = harness({ modelsYaml, forwardEnv: [] });
 		const { suiteHash, rootId } = await seed(h);
 		writeJob(h, "evo-used", rootId, { t1: 0, t2: 1 }, { suiteHash });

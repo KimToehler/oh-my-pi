@@ -9,7 +9,7 @@ import { isRecord } from "@oh-my-pi/pi-utils/type-guards";
 import { type ConfigFile, collectConfigSync, hashConfig, materializeConfig, unlockTree } from "./config-snapshot";
 import { assertGenomeClean } from "./credential-scan";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
-import { rewriteModelsForProxy } from "./proxy-models";
+import { canonicalStagedModelsHash, rewriteModelsForProxy } from "./proxy-models";
 
 /**
  * Built-in omp model roles, frozen locally: importing the coding-agent role registry drags its whole
@@ -143,6 +143,8 @@ export interface StageOptions {
 	secretValues?: readonly string[];
 	/** Host proxy URL containers reach; credentialed providers are rewritten to it and lose their key/headers. */
 	providerProxyUrl?: string;
+	/** Recorded `stagedModelsHash`; with `providerProxyUrl`, the canonical rewrite of the verified raw bytes must match it. */
+	expectedStagedModelsHash?: string;
 }
 
 /**
@@ -179,6 +181,14 @@ export async function stageAgentOverlay(opts: StageOptions): Promise<StagedOverl
 	const modelsText = new TextDecoder().decode(modelsBytes);
 	referencedEnvNamesFromText(modelsText);
 	assertNoHostCredentialValues(modelsText, opts.secretValues ?? []);
+	if (opts.providerProxyUrl) {
+		const canonical = canonicalStagedModelsHash(modelsText);
+		if (canonical !== opts.expectedStagedModelsHash) {
+			throw new Error(
+				`staged models.yml identity mismatch: expected ${opts.expectedStagedModelsHash ?? "(none recorded)"}, actual ${canonical}`,
+			);
+		}
+	}
 	const stagedModels = opts.providerProxyUrl
 		? new TextEncoder().encode(rewriteModelsForProxy(modelsText, opts.providerProxyUrl))
 		: modelsBytes;

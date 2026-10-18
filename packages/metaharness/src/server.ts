@@ -76,6 +76,7 @@ const EVO_IDENTITY_FIELDS = [
 	"stagedConfigHash",
 	"executorConfigHash",
 	"modelsYamlHash",
+	"stagedModelsHash",
 ] as const;
 
 /** POST /api/experiments/:id/arms body — a new comparable arm; sample+config inherited. */
@@ -171,6 +172,7 @@ function resolveEvoInheritance(
 		"envNames",
 		"executorConfigHash",
 		"modelsYamlHash",
+		"stagedModelsHash",
 	] as const) {
 		if (cfg[key] !== undefined) Object.assign(inherited, { [key]: cfg[key] });
 	}

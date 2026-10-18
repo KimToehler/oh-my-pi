@@ -8,6 +8,7 @@ import { credentialValuesFromEnv, type LaunchRequest } from "../launch-args";
 import { EvoHttpError } from "./boundary";
 import { assertNoHostCredentialValues, referencedEnvNamesFromText } from "./models-yaml";
 import { assertJobsDirOutsideSource } from "./jobs-dir-guard";
+import { canonicalStagedModelsHash } from "./proxy-models";
 import { executorConfigHash, mergeOverlayConfig } from "./overlay";
 import { formatSourceIdentity } from "./source-identity";
 import { assertSourceClean } from "./source-stage";
@@ -193,6 +194,8 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		...fields,
 		modelsYaml: snapshot,
 		modelsYamlHash,
+		// Staged (proxy-rewritten) bytes modulo the runtime endpoint; see PROXY_ENDPOINT_PLACEHOLDER.
+		stagedModelsHash: canonicalStagedModelsHash(modelsText),
 		noGateway: true,
 		providerProxy: true,
 		envNames: [],

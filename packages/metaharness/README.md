@@ -211,6 +211,12 @@ known-correct fix for a failed task), `--concurrency` (default 8).
   remove such a file or move it outside the source root. Runs carry
   `sourceIdentityScheme: 2`; runs and variants registered before this scheme
   are refused (re-evaluate, re-register).
+- **Models identity covers the staged bytes, minus the proxy endpoint.** Evo
+  conditions record `modelsYamlHash` (raw file) and `stagedModelsHash` (the
+  provider-proxy rewrite with a fixed placeholder endpoint); the runtime proxy
+  host and port are transport, not executor semantics, and are excluded on
+  purpose. The runner re-derives `stagedModelsHash` before staging and refuses
+  a mismatch.
 - **Apple Container specifics.** `--environment apple-container` needs
   `brew install container && container system start` (macOS 26+, Apple
   silicon). `--host-network` and `--cleanup*` are docker-only, and bind

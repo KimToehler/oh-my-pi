@@ -91,6 +91,20 @@ export function proxyRoutesFromModels(text: string, env: Record<string, string |
 	return routes;
 }
 
+/**
+ * Fixed stand-in for the runtime proxy endpoint when computing the staged-models identity. The real endpoint (host
+ * and random port) is transport, not executor semantics, so it is excluded from the condition on purpose; every other
+ * byte the agent sees is `rewriteModelsForProxy(raw, endpoint)`, hence raw hash + this canonical hash cover them.
+ */
+export const PROXY_ENDPOINT_PLACEHOLDER = "http://omp-evo-proxy.invalid";
+
+/** sha256 of the staged models.yml with the endpoint canonicalized to `PROXY_ENDPOINT_PLACEHOLDER`. */
+export function canonicalStagedModelsHash(rawText: string): string {
+	return new Bun.CryptoHasher("sha256")
+		.update(rewriteModelsForProxy(rawText, PROXY_ENDPOINT_PLACEHOLDER))
+		.digest("hex");
+}
+
 /** Agent-side models.yml: credentialed providers point at `proxyUrl/<provider>` and authenticate with the token env. */
 export function rewriteModelsForProxy(text: string, proxyUrl: string): string {
 	const tree = parse(text);

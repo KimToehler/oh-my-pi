@@ -14,6 +14,8 @@ export interface ConditionIdentity {
 	model: string;
 	executorConfigHash: string;
 	modelsYamlHash: string;
+	/** sha256 of the proxy-rewritten models.yml with the runtime endpoint canonicalized (endpoint is transport, excluded). */
+	stagedModelsHash: string;
 	sourceRef: string;
 	sourceDirtyHash: string | null;
 	/** Evaluation concurrency; provider throttling and timeouts differ with load, so it is part of the condition. */

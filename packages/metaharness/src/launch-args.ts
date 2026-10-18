@@ -68,6 +68,8 @@ export interface LaunchRequest {
 	executorConfigHash?: string;
 	/** Evo-only: content hash of the staged models.yml the run used. */
 	modelsYamlHash?: string;
+	/** Evo-only: sha256 of the proxy-rewritten models.yml with the endpoint canonicalized; the runner re-derives and checks it. */
+	stagedModelsHash?: string;
 	/** Evo-only: content hash of the suite manifest. */
 	suiteHash?: string;
 	/** Evo-only: identity of the task bytes evaluated (per-task hash digest, or pinned registry reference). */
@@ -304,6 +306,7 @@ export function harborRunnerArgs(
 	if (request.sourceIdentity) argv.push("--source-identity", request.sourceIdentity);
 	if (request.modelsYaml) argv.push("--models-yaml", request.modelsYaml);
 	if (request.modelsYamlHash) argv.push("--models-yaml-hash", request.modelsYamlHash);
+	if (request.stagedModelsHash) argv.push("--staged-models-hash", request.stagedModelsHash);
 	if (request.noGateway) argv.push("--no-gateway");
 	if (request.providerProxy) argv.push("--provider-proxy");
 	for (const name of request.envNames ?? []) argv.push("--env", name);

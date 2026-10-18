@@ -149,6 +149,8 @@ export interface Config {
 	modelsYaml: string | null;
 	/** Expected sha256 of the `modelsYaml` bytes; verified before the file is staged (`--models-yaml-hash`). */
 	modelsYamlHash: string | null;
+	/** Expected sha256 of the proxy-rewritten models.yml, endpoint canonicalized (`--staged-models-hash`). */
+	stagedModelsHash: string | null;
 	/** Provider traffic goes through the manager's host proxy; the agent gets a per-run token, never a provider key. */
 	providerProxy: boolean;
 }
@@ -211,6 +213,7 @@ function defaultConfig(): Config {
 		sourceIdentity: null,
 		modelsYaml: null,
 		modelsYamlHash: null,
+		stagedModelsHash: null,
 		providerProxy: false,
 	};
 }
@@ -246,6 +249,7 @@ Model / agent:
       --source-identity <id>     Expected <HEAD>[+<dirty hash>] of --source-root; mismatch aborts the launch
       --models-yaml <path>       Fixed models.yml for the container (works with --no-gateway)
       --models-yaml-hash <hex>   Expected sha256 of --models-yaml; mismatch aborts the launch
+      --staged-models-hash <hex> Expected sha256 of the proxy-rewritten models.yml (endpoint canonicalized)
 
 Dataset / scale:
   -l, --tasks <N>                Max tasks (default 20)
@@ -438,6 +442,13 @@ export function parseArgs(argv: string[]): Config {
 				if (!/^[0-9a-f]{64}$/.test(value))
 					throw new Error("--models-yaml-hash must be 64 lowercase hex characters");
 				cfg.modelsYamlHash = value;
+				break;
+			}
+			case "--staged-models-hash": {
+				const value = take(arg);
+				if (!/^[0-9a-f]{64}$/.test(value))
+					throw new Error("--staged-models-hash must be 64 lowercase hex characters");
+				cfg.stagedModelsHash = value;
 				break;
 			}
 			case "--no-gateway":
@@ -1992,6 +2003,7 @@ async function runBenchmarkWith(cfg: Config, transient: { stagedDir: string | nu
 				expectedModelsYamlHash: cfg.modelsYamlHash,
 				secretValues: Object.values(cfg.env),
 				providerProxyUrl: proxyUrl ?? undefined,
+				expectedStagedModelsHash: cfg.stagedModelsHash ?? undefined,
 			})
 		).dir;
 	}

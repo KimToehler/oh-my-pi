@@ -4,8 +4,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { buildEvalLaunch, type EvoLaunchDefaults } from "../src/evo/launch";
 import { LIVENESS_PATH, ProviderProxy, probeProxyLiveness } from "../src/evo/provider-proxy";
+import { stageAgentOverlay } from "../src/evo/overlay";
 import {
 	assertProxyForwardsNoCredentials,
+	canonicalStagedModelsHash,
+	PROXY_ENDPOINT_PLACEHOLDER,
 	PROXY_TOKEN_ENV,
 	proxyRoutesFromModels,
 	rewriteModelsForProxy,
@@ -45,6 +48,69 @@ function setEnv(name: string, value: string): void {
 }
 
 const MODELS = "providers:\n  onara:\n    baseUrl: http://upstream.invalid/v1\n    apiKey: R64_PROVIDER_KEY\n";
+
+describe("staged models identity", () => {
+	const hash = (text: string) => new Bun.CryptoHasher("sha256").update(text).digest("hex");
+	const SPEC = { model: "m/x", thinking: "medium", webSearch: false, findTool: false, settings: {} };
+
+	function stageInputs() {
+		const root = tmp("r84-");
+		const variant = path.join(root, "variant");
+		fs.mkdirSync(variant);
+		fs.writeFileSync(path.join(variant, "AGENTS.md"), "x");
+		const modelsYaml = path.join(root, "models.yml");
+		fs.writeFileSync(modelsYaml, MODELS);
+		return { root, variant, modelsYaml };
+	}
+
+	it("canonical hash equals sha256 of the staged bytes for any endpoint once the endpoint is canonicalized", () => {
+		const a = rewriteModelsForProxy(MODELS, "http://host.docker.internal:1111");
+		const b = rewriteModelsForProxy(MODELS, "http://host.docker.internal:2222");
+		expect(a).not.toBe(b);
+		expect(canonicalStagedModelsHash(MODELS)).toBe(hash(rewriteModelsForProxy(MODELS, PROXY_ENDPOINT_PLACEHOLDER)));
+		expect(a.replace("host.docker.internal:1111", "X")).toBe(b.replace("host.docker.internal:2222", "X"));
+	});
+
+	it("changes whenever the rewrite semantics change", () => {
+		const base = canonicalStagedModelsHash(MODELS);
+		const variants = [
+			MODELS.replace("onara:", "renamed:"),
+			`${MODELS}    note: n\n`,
+			`${MODELS}  plain:\n    baseUrl: http://p.invalid\n`,
+		];
+		const hashes = variants.map(canonicalStagedModelsHash);
+		for (const h of hashes) expect(h).not.toBe(base);
+		expect(new Set(hashes).size).toBe(hashes.length);
+		// Upstream URL and headers are host-side routing the rewrite erases; the raw `modelsYamlHash` covers them.
+		const erased = MODELS.replace("upstream.invalid/v1", "other.invalid/v1");
+		expect(canonicalStagedModelsHash(erased)).toBe(base);
+		expect(hash(erased)).not.toBe(hash(MODELS));
+	});
+
+	it("overlay staging refuses before writing when the recorded staged hash does not match", async () => {
+		const { root, variant, modelsYaml } = stageInputs();
+		const dest = path.join(root, "o");
+		const common = {
+			variantConfigDir: variant,
+			dest,
+			spec: SPEC,
+			modelsYaml,
+			expectedModelsYamlHash: hash(MODELS),
+			providerProxyUrl: "http://host.docker.internal:4444",
+		};
+		await expect(stageAgentOverlay({ ...common, expectedStagedModelsHash: "0".repeat(64) })).rejects.toThrow(
+			"staged models.yml identity mismatch",
+		);
+		await expect(stageAgentOverlay(common)).rejects.toThrow("staged models.yml identity mismatch");
+		expect(fs.existsSync(dest)).toBe(false);
+		const ok = { ...common, expectedStagedModelsHash: canonicalStagedModelsHash(MODELS) };
+		await stageAgentOverlay(ok);
+		const first = fs.readFileSync(path.join(dest, "models.yml"), "utf8");
+		// A different runtime endpoint stages under the same recorded identity.
+		await stageAgentOverlay({ ...ok, providerProxyUrl: "http://host.docker.internal:5555" });
+		expect(fs.readFileSync(path.join(dest, "models.yml"), "utf8")).not.toBe(first);
+	});
+});
 
 describe("proxy models", () => {
 	it("rewrites every credentialed provider to the proxy and strips key/headers", () => {
@@ -186,6 +252,14 @@ describe("evo launch through the provider proxy", () => {
 		const variant = manager.store.evo.getVariant(root.variant.id)!;
 		return { jobsDir, manager, suite, variant, defaults, source };
 	}
+
+	it("launch records stagedModelsHash and threads it to the runner argv", async () => {
+		const { jobsDir, suite, variant, defaults, source } = await setup();
+		const launch = await buildEvalLaunch({ jobsDir, variant, suite, jobName: "j", defaults, sourceRoot: source });
+		expect(launch.stagedModelsHash).toBe(canonicalStagedModelsHash(MODELS));
+		const argv = harborRunnerArgs(launch, { jobsDir, jobName: "j", dataset: SUITE.dataset });
+		expect(argv[argv.indexOf("--staged-models-hash") + 1]).toBe(launch.stagedModelsHash);
+	});
 
 	it("buildEvalLaunch forwards no credential name and requests the proxy", async () => {
 		const { jobsDir, suite, variant, defaults, source } = await setup();

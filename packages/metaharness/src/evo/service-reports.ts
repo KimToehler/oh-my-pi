@@ -46,12 +46,21 @@ export class EvoReports {
 		const taskHash = str(cfg.taskHash);
 		const executorConfigHash = str(cfg.executorConfigHash);
 		const modelsYamlHash = str(cfg.modelsYamlHash);
+		const stagedModelsHash = str(cfg.stagedModelsHash);
 		const model = str(cfg.model);
 		const concurrency = cfg.concurrency;
 		if (typeof concurrency !== "number" || !Number.isSafeInteger(concurrency) || concurrency < 1) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
-		if (!run.suiteId || !suiteHash || !taskHash || !executorConfigHash || !modelsYamlHash || !model) {
+		if (
+			!run.suiteId ||
+			!suiteHash ||
+			!taskHash ||
+			!executorConfigHash ||
+			!modelsYamlHash ||
+			!stagedModelsHash ||
+			!model
+		) {
 			throw new EvoHttpError(409, `run '${run.jobName}' did not record its evaluation conditions`);
 		}
 		const saved = this.#savedRunnerConfig(run.jobName);
@@ -80,6 +89,7 @@ export class EvoReports {
 			model,
 			executorConfigHash,
 			modelsYamlHash,
+			stagedModelsHash,
 			sourceRef: variant.sourceRef,
 			sourceDirtyHash: variant.sourceDirtyHash,
 			concurrency,
