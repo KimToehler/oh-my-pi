@@ -165,7 +165,16 @@ class FakeAgentSession {
 	planModeState: PlanModeState | undefined;
 	waitForIdleCalls = 0;
 	waitForIdleBlocker: (() => Promise<void>) | undefined;
-	asyncJobDrain: ((options?: { timeoutMs?: number }) => Promise<boolean>) | undefined;
+	hasAdmittedSubmission = false;
+	hasPostPromptWork = false;
+	/** Owner-scoped background work that can still wake the session; see `settleAsyncWork`. */
+	pendingAsyncWork = false;
+	/** Settles one generation of background work; tests override it to gate or emit a wake turn. */
+	settleAsyncWork: () => Promise<void> = async () => {
+		this.pendingAsyncWork = false;
+	};
+	abortCalls = 0;
+	acpPromptOpen: boolean[] = [];
 	usageFallbackConfirmer: ((confirmation: UsageFallbackConfirmation) => Promise<boolean>) | undefined;
 	retryResult = false;
 	retryCalls = 0;
@@ -299,11 +308,16 @@ class FakeAgentSession {
 		await this.waitForIdleBlocker?.();
 	}
 
-	async drainAsyncJobDeliveriesForAcp(options?: { timeoutMs?: number }): Promise<boolean> {
-		return (await this.asyncJobDrain?.(options)) ?? false;
+	hasPendingAsyncWork(): boolean {
+		return this.pendingAsyncWork;
+	}
+
+	setAcpPromptOpen(open: boolean): void {
+		this.acpPromptOpen.push(open);
 	}
 
 	async abort(): Promise<void> {
+		this.abortCalls++;
 		this.isStreaming = false;
 	}
 
@@ -533,6 +547,15 @@ interface AgentHarness {
 function getChunkMessageId(notification: SessionNotification): string | undefined {
 	const update = notification.update as { messageId?: string | null };
 	return typeof update.messageId === "string" ? update.messageId : undefined;
+}
+
+/** Yield `count` macrotasks so already-scheduled work runs; no wall-clock delay. */
+async function eventLoopTurns(count: number): Promise<void> {
+	for (let turn = 0; turn < count; turn++) {
+		const { promise, resolve } = Promise.withResolvers<void>();
+		setImmediate(resolve);
+		await promise;
+	}
 }
 
 function expectAcpNotifications(updates: SessionNotification[]): void {
@@ -2865,80 +2888,219 @@ describe("ACP agent", () => {
 		}
 	});
 
-	it("drains async job deliveries before completing the ACP prompt", async () => {
+	it("keeps the ACP prompt open while an owned background job runs and streams its wake turn inside it", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
 		const session = harness.findSession(created.sessionId)!;
-		let releaseDelivery!: () => void;
-		let drainCalls = 0;
-		const deliveryBlocked = Promise.withResolvers<void>();
-		const deliveryRelease = new Promise<void>(resolve => {
-			releaseDelivery = resolve;
+		const emit = (event: AgentSessionEvent) => {
+			for (const listener of session.listeners()) listener(event);
+		};
+		const settleEntered = Promise.withResolvers<void>();
+		const jobDone = Promise.withResolvers<void>();
+		session.pendingAsyncWork = true;
+		session.settleAsyncWork = async () => {
+			settleEntered.resolve();
+			await jobDone.promise;
+			const wake = makeAssistantMessage("job wake");
+			emit({
+				type: "message_update",
+				message: wake,
+				assistantMessageEvent: { type: "text_delta", delta: "job wake" },
+			} as AgentSessionEvent);
+			emit({ type: "agent_end", messages: [wake] } as AgentSessionEvent);
+			session.pendingAsyncWork = false;
+		};
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "start a background job" }] })
+			.finally(() => {
+				settled = true;
+			});
+		// Without the quiescence wait the prompt resolves before background work is ever settled.
+		const first = await Promise.race([
+			settleEntered.promise.then(() => "settling" as const),
+			prompt.then(() => "resolved" as const),
+		]);
+		expect(first).toBe("settling");
+		await eventLoopTurns(5);
+		expect(settled).toBe(false);
+
+		jobDone.resolve();
+		const response = await prompt;
+		expect(response.stopReason).toBe("end_turn");
+		const wakeChunks = harness.updates.filter(
+			update =>
+				update.update.sessionUpdate === "agent_message_chunk" &&
+				update.update.content.type === "text" &&
+				update.update.content.text === "job wake",
+		);
+		expect(wakeChunks).toHaveLength(1);
+		expect(session.acpPromptOpen).toEqual([true, false]);
+		harness.abortController.abort();
+	});
+
+	it("waits for a wake turn's agent_end delivery before resolving the ACP prompt", async () => {
+		const deliveryGate = Promise.withResolvers<void>();
+		const fallbackReached = Promise.withResolvers<void>();
+		const harness = await createHarness({
+			sessionUpdateHook: async notification => {
+				const update = notification.update;
+				if (
+					update.sessionUpdate === "agent_message_chunk" &&
+					update.content.type === "text" &&
+					update.content.text === "wake fallback"
+				) {
+					fallbackReached.resolve();
+					await deliveryGate.promise;
+				}
+			},
 		});
-		session.asyncJobDrain = async () => {
-			drainCalls++;
-			if (drainCalls > 1) return false;
-			deliveryBlocked.resolve();
-			await deliveryRelease;
-			return true;
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const emit = (event: AgentSessionEvent) => {
+			for (const listener of session.listeners()) listener(event);
+		};
+		// The wake reply streams only thinking and never delivers message_end (#4902 shape),
+		// so its visible answer reaches the client only through the agent_end fallback.
+		session.pendingAsyncWork = true;
+		session.settleAsyncWork = async () => {
+			const wake = makeAssistantMessage("wake fallback", "Thinking about the job.");
+			emit({
+				type: "message_update",
+				message: wake,
+				assistantMessageEvent: { type: "thinking_delta", delta: "Thinking about the job." },
+			} as AgentSessionEvent);
+			emit({ type: "agent_end", messages: [wake] } as AgentSessionEvent);
+			session.pendingAsyncWork = false;
+		};
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "start a background job" }] })
+			.finally(() => {
+				settled = true;
+			});
+		const first = await Promise.race([
+			fallbackReached.promise.then(() => "fallback" as const),
+			prompt.then(() => "resolved" as const),
+		]);
+		expect(first).toBe("fallback");
+		// The wake's fallback delivery is parked; the prompt must not finish around it.
+		await eventLoopTurns(5);
+		expect(settled).toBe(false);
+
+		deliveryGate.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
+		const chunks = harness.updates.filter(update => update.sessionId === created.sessionId);
+		const fallbackChunks = chunks.filter(
+			update =>
+				update.update.sessionUpdate === "agent_message_chunk" &&
+				update.update.content.type === "text" &&
+				update.update.content.text === "wake fallback",
+		);
+		const wakeThought = chunks.find(update => update.update.sessionUpdate === "agent_thought_chunk");
+		expect(fallbackChunks).toHaveLength(1);
+		expect(getChunkMessageId(fallbackChunks[0]!)).toBe(getChunkMessageId(wakeThought!)!);
+		harness.abortController.abort();
+	});
+
+	it("completes an ordinary prompt without background work", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+
+		const response = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "ping" }],
+		});
+		expect(response.stopReason).toBe("end_turn");
+		expect(harness.updates.some(notification => JSON.stringify(notification).includes("pong"))).toBe(true);
+		harness.abortController.abort();
+	});
+
+	it("cancel during the quiescence wait resolves cancelled and leaves background work running", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const settleEntered = Promise.withResolvers<void>();
+		const jobNeverFinishes = Promise.withResolvers<void>();
+		session.pendingAsyncWork = true;
+		session.settleAsyncWork = async () => {
+			settleEntered.resolve();
+			await jobNeverFinishes.promise;
 		};
 
 		const prompt = harness.agent.prompt({
 			sessionId: created.sessionId,
-			prompt: [{ type: "text", text: "wait for async delivery" }],
+			prompt: [{ type: "text", text: "start a background job" }],
 		});
-		await deliveryBlocked.promise;
+		const first = await Promise.race([
+			settleEntered.promise.then(() => "settling" as const),
+			prompt.then(() => "resolved" as const),
+		]);
+		expect(first).toBe("settling");
+		await harness.agent.cancel({ sessionId: created.sessionId });
 
-		try {
-			const returnedBeforeDelivery = await Promise.race([prompt.then(() => true), Bun.sleep(0).then(() => false)]);
-			expect(returnedBeforeDelivery).toBe(false);
-			expect(session.waitForIdleCalls).toBe(1);
-
-			releaseDelivery();
-			await prompt;
-			expect(session.waitForIdleCalls).toBe(2);
-			expect(drainCalls).toBe(2);
-		} finally {
-			releaseDelivery();
-			harness.abortController.abort();
-			await Bun.sleep(0);
-		}
+		expect((await prompt).stopReason).toBe("cancelled");
+		expect(session.abortCalls).toBe(1);
+		// The job is still owed: cancel stops the turn, not the background work.
+		expect(session.pendingAsyncWork).toBe(true);
+		expect(session.acpPromptOpen.at(-1)).toBe(false);
+		harness.abortController.abort();
 	});
 
-	it("keeps async delivery follow-up updates inside the owning ACP prompt", async () => {
+	it("injects _session/steering while the open prompt waits on background work", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
 		const session = harness.findSession(created.sessionId)!;
-		let delivered = false;
-		let drainCalls = 0;
-		session.asyncJobDrain = async () => {
-			drainCalls++;
-			if (delivered) return false;
-			delivered = true;
-			const assistantMessage = makeAssistantMessage("async continuation");
-			for (const listener of session.listeners()) {
-				listener({
-					type: "message_update",
-					message: assistantMessage,
-					assistantMessageEvent: { type: "text_delta", delta: "async continuation" },
-				} as AgentSessionEvent);
-			}
-			return true;
+		const settleEntered = Promise.withResolvers<void>();
+		const jobDone = Promise.withResolvers<void>();
+		session.pendingAsyncWork = true;
+		session.settleAsyncWork = async () => {
+			settleEntered.resolve();
+			await jobDone.promise;
+			session.pendingAsyncWork = false;
 		};
 
-		await harness.agent.prompt({
+		const prompt = harness.agent.prompt({
 			sessionId: created.sessionId,
-			messageId: "00000000-0000-4000-8000-000000000048",
-			prompt: [{ type: "text", text: "deliver async follow-up" }],
-		} as PromptRequest);
+			prompt: [{ type: "text", text: "start a background job" }],
+		});
+		const first = await Promise.race([
+			settleEntered.promise.then(() => "settling" as const),
+			prompt.then(() => "resolved" as const),
+		]);
+		expect(first).toBe("settling");
+		expect(session.isStreaming).toBe(false);
 
-		expect(harness.updates.some(notification => JSON.stringify(notification).includes("async continuation"))).toBe(
-			true,
-		);
-		expect(session.waitForIdleCalls).toBe(2);
-		expect(drainCalls).toBe(2);
+		const outcome = await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "mid" }],
+		});
+		expect(outcome).toEqual({ outcome: "injected" });
+		expect(session.steerCalls.map(call => call.text)).toEqual(["mid"]);
+		expect(session.promptCalls).toEqual(["start a background job"]);
+
+		jobDone.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
 		harness.abortController.abort();
-		await Bun.sleep(0);
+	});
+
+	it("does not wait on deferred next-turn context or interrupt-held follow-ups", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		// A hidden next-turn breadcrumb plus an interrupt-held follow-up: queued, but
+		// nothing is scheduled to run them before the user's next prompt. A wait that
+		// counted them would never resolve and trip the test timeout.
+		session.queuedMessageCount = 2;
+
+		const response = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "ping" }],
+		});
+		expect(response.stopReason).toBe("end_turn");
+		harness.abortController.abort();
 	});
 
 	it("serializes multiple prompts queued during idle cleanup", async () => {
@@ -3000,6 +3162,16 @@ describe("ACP agent", () => {
 			await releaseAbortPromise;
 		};
 		const finishPrompt = holdPromptStreaming(session);
+		// Each held turn ends only when released; capture when the successor enters
+		// so its own turn is released too (the cancelled turn's late agent_end must
+		// not be what settles the successor prompt).
+		const heldPrompt = session.prompt;
+		const successorEntered = Promise.withResolvers<void>();
+		session.prompt = async (text: string): Promise<boolean> => {
+			const running = heldPrompt(text);
+			if (session.promptCalls.length === 2) successorEntered.resolve();
+			return running;
+		};
 
 		const firstPrompt = harness.agent.prompt({
 			sessionId: created.sessionId,
@@ -3035,6 +3207,8 @@ describe("ACP agent", () => {
 
 		releaseAbort();
 		await cancelPrompt;
+		finishPrompt();
+		await successorEntered.promise;
 		finishPrompt();
 		await secondPrompt;
 		expect(session.promptCalls).toEqual(["cancel me", "after cancel"]);

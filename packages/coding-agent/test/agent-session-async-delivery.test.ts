@@ -1005,4 +1005,54 @@ describe("AgentSession owner-routed async delivery", () => {
 		expect(flushed).toBe(true);
 		expect(vi.getTimerCount()).toBe(baselineTimers + 1);
 	});
+
+	it("parks an idle async-result wake while no ACP prompt is open and runs it while one is", async () => {
+		const model = getBundledModel("anthropic", "claude-sonnet-4-5")!;
+		const mock = createMockModel({ handler: () => ({ content: ["Done"] }) });
+		const agent = new Agent({
+			getApiKey: () => "test-key",
+			initialState: { model, systemPrompt: ["Test"], tools: [] },
+			convertToLlm,
+			streamFn: mock.stream,
+		});
+		const authStorage = await AuthStorage.create(":memory:");
+		authStorages.push(authStorage);
+		authStorage.keys.setRuntime("anthropic", "test-key");
+		const manager = new AsyncJobManager({});
+		AsyncJobManager.setInstance(manager);
+		session = new AgentSession({
+			agent,
+			sessionManager: SessionManager.inMemory(),
+			settings: Settings.isolated(),
+			modelRegistry: new ModelRegistry(authStorage),
+			agentId: "AcpOwner",
+			asyncJobManager: manager,
+		});
+		session.setClientBridge({ capabilities: {}, deferAgentInitiatedTurns: true });
+		const callsMentioning = (text: string) =>
+			mock.calls.filter(call => JSON.stringify(call.context.messages).includes(text)).length;
+
+		await session.prompt("First");
+		const callsAfterFirst = mock.calls.length;
+
+		// No ACP prompt open: the result parks for the next user prompt instead of
+		// starting a turn the client cannot see.
+		manager.register("bash", "parked job", async () => "PARKED RESULT", { id: "parked-job", ownerId: "AcpOwner" });
+		await session.settleAsyncWork();
+		expect(mock.calls.length).toBe(callsAfterFirst);
+		expect(session.hasPendingAsyncWork()).toBe(false);
+
+		await session.prompt("Next");
+		expect(mock.calls.length).toBe(callsAfterFirst + 1);
+		expect(callsMentioning("PARKED RESULT")).toBe(1);
+
+		// ACP prompt open: the same wake runs as a turn that streams into that prompt.
+		session.setAcpPromptOpen(true);
+		const callsBeforeWake = mock.calls.length;
+		manager.register("bash", "owned job", async () => "WAKE RESULT", { id: "wake-job", ownerId: "AcpOwner" });
+		await session.settleAsyncWork();
+		expect(mock.calls.length).toBe(callsBeforeWake + 1);
+		expect(callsMentioning("WAKE RESULT")).toBe(1);
+		session.setAcpPromptOpen(false);
+	});
 });

@@ -11,6 +11,8 @@
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
 ### Fixed
 
+- Fixed ACP clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message
+- Fixed ACP steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply
 - Fixed ACP clients such as JetBrains IDEs not labelling the recommended option of an `ask` question; it now shows "(Recommended)" like the TUI, including in multi-select questions
 - Fixed JetBrains IDEs over ACP switching plan mode and the pre-approval model back on with your next message after you approved a plan, because the mode dropdown stays on "Plan"; omp now ignores the IDE's re-sent choice until you pick a different mode or model
 - Fixed `read` middle-eliding large file pages into an artifact; a page past the output spill threshold now stops at a line boundary with an exact `:N` continuation ([#16277](https://github.com/can1357/oh-my-pi/issues/16277))
