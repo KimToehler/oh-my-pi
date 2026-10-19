@@ -71,7 +71,7 @@ const verdictSchema = type({
 });
 
 /** The JTD output schema the reviewer must yield: the bundled `plan-reviewer`'s own,
- *  passed as caller schema so a user-chosen agent (e.g. momus) returns the same shape. */
+ *  passed as caller schema so a user-chosen agent (`plan.review.agent`) returns the same shape. */
 export function planReviewSchema(): unknown {
 	return getBundledAgent("plan-reviewer")?.output;
 }
