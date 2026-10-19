@@ -2282,6 +2282,16 @@ export class AgentSession implements SettingsScope {
 			injectIdle: async messages => {
 				const first = messages[0];
 				if (!first) return;
+				// An ACP client with no prompt open cannot show this wake turn: park the
+				// results for the user's next prompt, as #sendCustomMessage does for
+				// other agent-initiated turns. An open prompt streams the wake instead.
+				if (this.#clientBridge?.deferAgentInitiatedTurns && !this.#allowAcpAgentInitiatedTurns) {
+					for (const message of messages) {
+						if (message.role === "custom") this.#queueHiddenNextTurnMessage(message, false);
+						else this.agent.appendMessage(message);
+					}
+					return;
+				}
 				const inFlightEpoch = this.#beginInFlight();
 				try {
 					await this.agent.prompt(messages.length === 1 ? first : messages);
@@ -6684,21 +6694,13 @@ export class AgentSession implements SettingsScope {
 		return this.#advisors.waitForAdvisorCatchup(timeoutMs, options);
 	}
 
-	async drainAsyncJobDeliveriesForAcp(options?: { timeoutMs?: number }): Promise<boolean> {
-		const manager = this.#asyncJobManager;
-		if (!manager) return false;
-		const ownerFilter = this.#agentId ? { ownerId: this.#agentId } : undefined;
-		const before = manager.getDeliveryState(ownerFilter);
-		if (before.queued === 0 && !before.delivering) return false;
-		const previousAllowAcpAgentInitiatedTurns = this.#allowAcpAgentInitiatedTurns;
-		this.#allowAcpAgentInitiatedTurns = true;
-		try {
-			const drained = await manager.drainDeliveries({ timeoutMs: options?.timeoutMs, filter: ownerFilter });
-			const after = manager.getDeliveryState(ownerFilter);
-			return drained && (before.queued !== after.queued || before.delivering !== after.delivering);
-		} finally {
-			this.#allowAcpAgentInitiatedTurns = previousAllowAcpAgentInitiatedTurns;
-		}
+	/**
+	 * ACP owner hook: while a client prompt is open, agent-initiated turns
+	 * (background-job wakes) run and stream into it; otherwise they defer to the
+	 * user's next prompt.
+	 */
+	setAcpPromptOpen(open: boolean): void {
+		this.#allowAcpAgentInitiatedTurns = open;
 	}
 
 	/**

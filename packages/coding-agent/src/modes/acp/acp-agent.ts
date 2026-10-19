@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, isRecord, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, isRecord, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -145,8 +145,6 @@ const SPEECH_MODELS_LIST_METHOD = "speech.models.list";
  */
 export const ACP_BOOTSTRAP_RACE_GUARD_MS = 50;
 const ACP_CANCEL_CLEANUP_TIMEOUT_MS = 5_000;
-const ACP_ASYNC_DELIVERY_DRAIN_TIMEOUT_MS = 250;
-const ACP_ASYNC_DELIVERY_DRAIN_MAX_PASSES = 3;
 
 type AgentImageContent = {
 	type: "image";
@@ -185,6 +183,14 @@ type PromptTurnState = {
 	resolve: (value: PromptResponse) => void;
 	reject: (reason?: unknown) => void;
 	promise: Promise<PromptResponse>;
+	/** Latest `agent_end` of this prompt; a wake turn's end supersedes the first one for the stop reason. */
+	lastAgentEnd: Extract<AgentSessionEvent, { type: "agent_end" }> | undefined;
+	/**
+	 * The single wait for session quiescence, owned by the first `agent_end`
+	 * handler. Later `agent_end`s (background-job wake turns) see it set and
+	 * leave finishing the prompt to that handler.
+	 */
+	quiescenceWait: Promise<void> | undefined;
 };
 
 /**
@@ -215,11 +221,47 @@ type ManagedSessionRecord = {
 	// in `#disposeSessionRecord`. Lives independent of any prompt turn.
 	lifetimeUnsubscribe: (() => void) | undefined;
 	closedError: PromptLifecycleError | undefined;
-	promptEventHandlers: Set<Promise<void>>;
+	/**
+	 * In-flight prompt-event handlers and lifetime deliveries, keyed by a token
+	 * per handler so the finishing `agent_end` handler can wait on every other
+	 * handler without waiting on itself.
+	 */
+	promptEventHandlers: Map<symbol, Promise<void>>;
 	extensionUserMessageTasks: Set<Promise<void>>;
 	/** Lazily loaded from {@link ACP_STALE_CLIENT_CONFIG_ENTRY}; see there. */
 	staleClientConfig: Map<string, string> | undefined;
+	/** `_session/steering` calls still being admitted into the open prompt (image prep can await). */
+	pendingSteers: number;
 };
+
+/**
+ * True when nothing can still produce output for the open ACP prompt: no run is
+ * live or admitted, no tracked post-prompt work (queued-message drain, idle
+ * yield flush, retry, compaction continuation) is scheduled, no owner-scoped
+ * background work can wake the session, and no steer is being admitted.
+ *
+ * `queuedMessageCount` is deliberately not consulted: it also counts hidden
+ * next-turn context (e.g. `/tan`'s dispatch breadcrumb) and interrupt-held
+ * follow-ups, which only the user's next prompt consumes. Waiting on them
+ * would never resolve; a queued message that will drain is already visible as
+ * scheduled post-prompt work.
+ */
+function isAcpSessionQuiescent(record: ManagedSessionRecord): boolean {
+	const session = record.session;
+	return (
+		record.pendingSteers === 0 &&
+		!session.isStreaming &&
+		!session.hasAdmittedSubmission &&
+		!session.hasPostPromptWork &&
+		!session.hasPendingAsyncWork()
+	);
+}
+
+async function nextMacrotask(): Promise<void> {
+	const { promise, resolve } = Promise.withResolvers<void>();
+	setImmediate(resolve);
+	await promise;
+}
 
 type ReplayableMessage = {
 	role: string;
@@ -910,7 +952,12 @@ export class AcpAgent implements Agent {
 				resolve: pendingPrompt.resolve,
 				reject: pendingPrompt.reject,
 				promise: pendingPrompt.promise,
+				lastAgentEnd: undefined,
+				quiescenceWait: undefined,
 			};
+			// While this prompt is open, background-job wakes may start turns: they
+			// stream into this prompt instead of running unseen by the client.
+			record.session.setAcpPromptOpen(true);
 
 			record.promptTurn.unsubscribe = record.session.subscribe(event => {
 				this.#trackPromptEvent(record, event);
@@ -967,18 +1014,31 @@ export class AcpAgent implements Agent {
 	}
 
 	#trackPromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent): void {
-		const handling = this.#handlePromptEvent(record, event).catch((error: unknown) => {
+		const token = Symbol("acp-prompt-event");
+		const handling = this.#handlePromptEvent(record, event, token).catch((error: unknown) => {
 			logger.warn("ACP prompt event handler failed", { error });
 		});
-		record.promptEventHandlers.add(handling);
+		record.promptEventHandlers.set(token, handling);
 		void handling.finally(() => {
-			record.promptEventHandlers.delete(handling);
+			record.promptEventHandlers.delete(token);
 		});
 	}
 
 	async #waitForPromptEventHandlers(record: ManagedSessionRecord): Promise<void> {
 		while (record.promptEventHandlers.size > 0) {
-			await Promise.allSettled(Array.from(record.promptEventHandlers));
+			await Promise.allSettled(Array.from(record.promptEventHandlers.values()));
+		}
+	}
+
+	/** {@link #waitForPromptEventHandlers} minus the caller's own handler, so the finishing handler never waits on itself. */
+	async #waitForOtherPromptEventHandlers(record: ManagedSessionRecord, token: symbol): Promise<void> {
+		for (;;) {
+			const others: Promise<void>[] = [];
+			for (const [key, handler] of record.promptEventHandlers) {
+				if (key !== token) others.push(handler);
+			}
+			if (others.length === 0) return;
+			await Promise.allSettled(others);
 		}
 	}
 
@@ -1283,10 +1343,18 @@ export class AcpAgent implements Agent {
 		const blocks = prompt as PromptRequest["prompt"];
 		const record = this.#getSessionRecord(sessionId);
 		const turn = record.promptTurn;
-		const running = turn !== undefined && !turn.settled && !turn.cancelRequested && record.session.isStreaming;
-		if (running) {
+		// An open prompt owns every turn until it resolves, including the idle gaps
+		// while it waits on background work: inject so the client keeps its turn.
+		// Answering startedNewTurn there would race the open prompt (IntelliJ drops
+		// the adoption while its task is still active).
+		if (turn !== undefined && !turn.settled && !turn.cancelRequested) {
 			const { text, images } = this.#convertPromptBlocks(blocks);
-			await record.session.steer(text, images);
+			record.pendingSteers++;
+			try {
+				await record.session.steer(text, images);
+			} finally {
+				record.pendingSteers--;
+			}
 			return { outcome: "injected" };
 		}
 		void this.prompt({ sessionId, prompt: blocks }).catch((error: unknown) => {
@@ -1446,10 +1514,11 @@ export class AcpAgent implements Agent {
 			toolArgsById: new Map(),
 			extensionsConfigured: false,
 			closedError: undefined,
-			promptEventHandlers: new Set(),
+			promptEventHandlers: new Map(),
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
 			staleClientConfig: undefined,
+			pendingSteers: 0,
 		};
 	}
 
@@ -1485,7 +1554,8 @@ export class AcpAgent implements Agent {
 		deliver: () => Promise<void>,
 	): Promise<void> {
 		const delivery = deliver();
-		record.promptEventHandlers.add(delivery);
+		const token = Symbol("acp-lifetime-delivery");
+		record.promptEventHandlers.set(token, delivery);
 		try {
 			await delivery;
 		} catch (error) {
@@ -1495,7 +1565,7 @@ export class AcpAgent implements Agent {
 				error,
 			});
 		} finally {
-			record.promptEventHandlers.delete(delivery);
+			record.promptEventHandlers.delete(token);
 		}
 	}
 
@@ -1536,7 +1606,7 @@ export class AcpAgent implements Agent {
 		return storedSession.path;
 	}
 
-	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent): Promise<void> {
+	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
 		const promptTurn = record.promptTurn;
 		if (!promptTurn || promptTurn.settled || promptTurn.cancelRequested) {
 			return;
@@ -1590,14 +1660,22 @@ export class AcpAgent implements Agent {
 		this.#clearLiveAssistantMessageAfterEvent(record, event);
 
 		if (event.type === "agent_end") {
+			promptTurn.lastAgentEnd = event;
 			await this.#flushMissedFinalAssistantText(record, event);
 			await this.#flushUnreportedTurnError(record, event);
 			await this.#emitEndOfTurnUpdates(record);
-			await this.#waitForAcpPromptIdle(record);
+			// Live-message tracking is per assistant reply: reset after this reply's
+			// own fallback so a background-job wake reply gets a fresh message id.
 			record.liveMessageId = undefined;
 			record.liveMessageProgress = undefined;
+			// A wake turn's agent_end: the first handler is already waiting and will
+			// finish the prompt once the session is quiet.
+			if (promptTurn.quiescenceWait) return;
+			promptTurn.quiescenceWait = this.#waitForAcpPromptIdle(record, promptTurn, token);
+			await promptTurn.quiescenceWait;
+			if (record.promptTurn !== promptTurn || promptTurn.settled) return;
 			this.#finishPrompt(record, {
-				stopReason: this.#resolveStopReason(event, promptTurn.cancelRequested),
+				stopReason: this.#resolveStopReason(promptTurn.lastAgentEnd ?? event, promptTurn.cancelRequested),
 				usage: this.#buildTurnUsage(promptTurn.usageBaseline, record.session.sessionManager.getUsageStatistics()),
 			});
 		}
@@ -1686,18 +1764,44 @@ export class AcpAgent implements Agent {
 		});
 	}
 
-	async #waitForAcpPromptIdle(record: ManagedSessionRecord): Promise<void> {
-		for (let pass = 0; pass < ACP_ASYNC_DELIVERY_DRAIN_MAX_PASSES; pass++) {
-			await record.session.waitForIdle();
-			const delivered = await record.session.drainAsyncJobDeliveriesForAcp({
-				timeoutMs: ACP_ASYNC_DELIVERY_DRAIN_TIMEOUT_MS,
-			});
-			if (!delivered) {
-				return;
+	/**
+	 * Hold the open prompt until no runnable wake is left (see
+	 * {@link isAcpSessionQuiescent}): owner-scoped background jobs are settled —
+	 * their result turns stream into this prompt — without a time limit, since a
+	 * client Stop aborts the signal. Before declaring quiet, every other
+	 * prompt-event handler must finish delivering, or a wake turn's `agent_end`
+	 * fallback could land after the caller unsubscribes.
+	 */
+	async #waitForAcpPromptIdle(
+		record: ManagedSessionRecord,
+		promptTurn: PromptTurnState,
+		token: symbol,
+	): Promise<void> {
+		const session = record.session;
+		const signal = promptTurn.abortController.signal;
+		while (!signal.aborted) {
+			await session.waitForIdle();
+			if (signal.aborted) return;
+			if (!session.isStreaming && !session.hasAdmittedSubmission && session.hasPendingAsyncWork()) {
+				try {
+					await untilAborted(signal, () => session.settleAsyncWork());
+				} catch (error) {
+					if (signal.aborted) return;
+					throw error;
+				}
+				continue;
 			}
+			if (!isAcpSessionQuiescent(record)) {
+				await nextMacrotask();
+				continue;
+			}
+			// Let a wake scheduled by the idle transition register, then drain the
+			// other handlers' deliveries before re-checking.
+			await nextMacrotask();
+			await this.#waitForOtherPromptEventHandlers(record, token);
+			if (signal.aborted) return;
+			if (isAcpSessionQuiescent(record)) return;
 		}
-
-		await record.session.waitForIdle();
 	}
 
 	#prepareLiveAssistantMessage(record: ManagedSessionRecord, event: AgentSessionEvent): void {
@@ -1751,6 +1855,7 @@ export class AcpAgent implements Agent {
 			return;
 		}
 		promptTurn.settled = true;
+		record.session.setAcpPromptOpen(false);
 		promptTurn.unsubscribe?.();
 		// Keep the slot occupied until cancel cleanup finishes — `#runCancelCleanup`
 		// evicts the slot in its finally block once both flags say it's safe.
