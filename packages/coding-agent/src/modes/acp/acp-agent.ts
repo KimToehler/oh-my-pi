@@ -1460,8 +1460,20 @@ export class AcpAgent implements Agent {
 			}
 			try {
 				const result = await runAcpBuiltinSlashCommand(builtin, this.#buildSlashCommandRuntime(record, turn));
-				// Residual text (e.g. `/force <tool> <prompt>`) is ordinary steer input.
-				if ("prompt" in result) await record.session.steer(result.prompt, images);
+				// Residual text (e.g. `/force <tool> <prompt>`) is ordinary steer input,
+				// but only for the prompt that admitted the command: one that finished
+				// after its prompt was cancelled or ended must not feed its text and
+				// attachments into a later prompt.
+				if ("prompt" in result) {
+					if (record.promptTurn === turn && !turn.settled && !turn.cancelRequested) {
+						await record.session.steer(result.prompt, images);
+					} else {
+						logger.debug("ACP steered command residual dropped: its prompt ended", {
+							sessionId,
+							command: builtin.parsed.name,
+						});
+					}
+				}
 				await this.#emitUsageUpdate(record);
 			} catch (error) {
 				logger.warn("ACP steered command failed", { sessionId, command: builtin.parsed.name, error });
