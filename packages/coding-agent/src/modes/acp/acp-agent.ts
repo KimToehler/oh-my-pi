@@ -77,7 +77,7 @@ import { buildAvailableSlashCommands, toAcpAvailableCommands } from "../../slash
 import { DEFAULT_STT_MODEL_KEY, STT_MODELS } from "../../stt/models";
 import { refreshAgentDiscovery } from "../../task";
 import { AUTO_THINKING, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
-import { OTHER_OPTION } from "../../tools/ask";
+import { OTHER_OPTION, recommendedOptionLabel } from "../../tools/ask";
 import { resolvePlanFilePath } from "../../plan-mode/plan-files";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import {
@@ -522,9 +522,11 @@ export function createAcpExtensionUiContext(
 			const properties: Record<string, ElicitationPropertySchema> = {};
 			for (const [index, question] of questions.entries()) {
 				const key = `q${index}`;
-				const entries = question.options.map(option => ({
+				// `const` stays the raw label (answers and `default` match on it); only
+				// `title` carries the "(Recommended)" badge so every client shows it.
+				const entries = question.options.map((option, optionIndex) => ({
 					const: option.label,
-					title: option.label,
+					title: recommendedOptionLabel(option.label, optionIndex === question.recommended),
 					...(option.description?.trim() ? { description: option.description.trim() } : {}),
 				}));
 				const description = question.header?.trim();

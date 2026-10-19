@@ -131,6 +131,12 @@ function toSelectOption(option: AskOption, label = option.label): ExtensionUISel
 // =============================================================================
 
 const RECOMMENDED_SUFFIX = " (Recommended)";
+
+/** Display label for an ask option: the recommended one gets the "(Recommended)" suffix unless it already has it. */
+export function recommendedOptionLabel(label: string, recommended: boolean): string {
+	return recommended && !label.endsWith(RECOMMENDED_SUFFIX) ? label + RECOMMENDED_SUFFIX : label;
+}
+
 // Window after the timeout deadline within which an `undefined` selection is
 // attributed to a UI-enforced timeout (for surfaces that close the dialog at
 // the deadline but never invoke `onTimeout`). Cancels beyond it are user Esc.
@@ -145,13 +151,9 @@ function addRecommendedSuffix(options: AskOption[], recommendedIndex?: number): 
 	if (recommendedIndex === undefined || recommendedIndex < 0 || recommendedIndex >= options.length) {
 		return options.map(option => toSelectOption(option));
 	}
-	return options.map((option, i) => {
-		const label =
-			i === recommendedIndex && !option.label.endsWith(RECOMMENDED_SUFFIX)
-				? option.label + RECOMMENDED_SUFFIX
-				: option.label;
-		return toSelectOption(option, label);
-	});
+	return options.map((option, i) =>
+		toSelectOption(option, recommendedOptionLabel(option.label, i === recommendedIndex)),
+	);
 }
 
 function getAutoSelectionOnTimeout(options: AskOption[], recommended?: number): string[] {
