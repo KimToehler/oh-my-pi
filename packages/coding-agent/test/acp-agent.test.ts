@@ -2053,6 +2053,41 @@ describe("ACP agent", () => {
 		await eventLoopTurns(1);
 	});
 
+	it("runs a steered builtin against session state its prompt's earlier command left behind", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		// The prompt's own command relocates the session (as `/move` does) while
+		// a steered `/session info` waits behind it.
+		session.compactImpl = async () => {
+			await releaseOwn.promise;
+			spyOn(session.sessionManager, "getCwd").mockReturnValue(harness.cwdB);
+		};
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact own" }],
+		});
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/session info" }],
+		});
+
+		releaseOwn.resolve();
+		expect((await promptA).stopReason).toBe("end_turn");
+		const info = harness.updates.find(
+			n =>
+				n.update.sessionUpdate === "agent_message_chunk" &&
+				n.update.content.type === "text" &&
+				n.update.content.text.startsWith("Session: "),
+		);
+		expect(info?.update).toMatchObject({ content: { text: expect.stringContaining(`CWD: ${harness.cwdB}`) } });
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
 	it("rejects with the prompt command's error only after a steered command's resumed run ended", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });

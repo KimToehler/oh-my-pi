@@ -1527,7 +1527,6 @@ export class AcpAgent implements Agent {
 		builtin: ResolvedAcpBuiltinSlashCommand,
 		steered: boolean,
 	): Promise<Exclude<AcpBuiltinSlashCommandResult, false> | undefined> {
-		const runtime = this.#buildSlashCommandRuntime(record, turn);
 		// Same-prompt handlers finish first (the prompt's steered lane already
 		// orders its own commands).
 		for (const running of record.runningBuiltins) {
@@ -1536,6 +1535,9 @@ export class AcpAgent implements Agent {
 		// The wait can outlast the prompt (cancelled, or otherwise ended): its
 		// command must not start then. `undefined` means it never ran.
 		if (!turn || turn.cancelRequested || turn.settled || record.promptTurn !== turn) return undefined;
+		// Built only now: the command waited out may have changed what the runtime
+		// snapshots (e.g. `/move` changes the session's cwd).
+		const runtime = this.#buildSlashCommandRuntime(record, turn);
 		for (const running of record.runningBuiltins) {
 			if (running.turn !== turn && (steered || running.steered)) {
 				await runtime.output(
