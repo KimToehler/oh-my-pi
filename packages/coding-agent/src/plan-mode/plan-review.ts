@@ -16,6 +16,7 @@ import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
 import planReviewAssignmentPrompt from "../prompts/system/plan-review-assignment.md" with { type: "text" };
+import { escapeHarnessTags } from "../session/harness-tags";
 import { getBundledAgent } from "../task/agents";
 import { runStructuredSubagent, type StructuredSubagentResult } from "../task/structured-subagent";
 import type { ToolSession } from "../tools";
@@ -86,9 +87,10 @@ export function modelClass(provider: string, id: string): string | undefined {
 	}
 }
 
-/** Reviewer-derived text for the planner's tool result: one line without tabs or control characters, never cut. */
+/** Reviewer-derived text for the planner's tool result: one line without tabs, control characters or
+ *  harness tags (model output must not open or close a harness-authored block), never cut. */
 function sanitizeReviewField(text: string): string {
-	return sanitizeText(replaceTabs(text))
+	return escapeHarnessTags(sanitizeText(replaceTabs(text)))
 		.replace(/\s*\n\s*/g, " ")
 		.trim();
 }
