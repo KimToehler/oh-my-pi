@@ -25,6 +25,7 @@
 ### Changed
 
 - The default `judge` role now uses TypeSafe Jev 1.14 (`typesafe/jev-1.14.0`, then `openrouter/typesafe/jev-1.14`): `jev-latest` is TypeSafe's stable alias and answered as `jev-1.13.0`
+- The plan reviewer now checks eight plan patterns (who holds and where leaks a secret, complete cache/identity keys, allow-lists, fail states of decisions, checked bytes being the used bytes, parity across entry paths, one derivation per concept, safe defaults), reports every blocker it finds instead of at most three with all sites of each, and can be run on a fix delta through `task` with a structured verdict
 
 ### Fixed
 
