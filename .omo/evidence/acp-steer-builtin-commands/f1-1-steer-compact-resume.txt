@@ -1,26 +1,26 @@
-head=377a26a7c55548755b05124d96e6a46bc270aa3d
-0.9s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
-0.9s initialize steering={"supported":true}
-1.0s session 01a155bd-5013-700e-b2f9-d9a28d7b16af
+head=6cd5877b7964944c583bfb047a9785b94749924a
+0.8s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
+0.8s initialize steering={"supported":true}
+1.0s session 01a155c7-019e-7627-aac5-0a8fb6b6b2d6
 1.1s usage_update used=18030
-4.8s tool_call #1: $ sleep 2 && echo step-1
-6.9s usage_update used=20038
-8.8s tool_call #2: $ sleep 2 && echo step-2
-8.8s STEER /compact
-8.8s steer response (/compact): {"outcome":"injected"}
-17.8s CHUNK Compaction complete. Tokens: 20126 -> 18317 (saved 1809).
-17.8s usage_update used=18317
-19.4s tool_call #3: $ sleep 2 && echo step-2
-21.4s usage_update used=20442
-23.1s tool_call #4: $ sleep 2 && echo step-3
-25.1s usage_update used=20547
-26.6s tool_call #5: $ sleep 2 && echo step-4
-28.6s usage_update used=20652
-30.4s tool_call #6: $ sleep 2 && echo step-5
-32.4s usage_update used=20757
-33.7s usage_update used=20845
-33.7s usage_update used=20845
-33.7s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":506,"totalTokens":143828,"cachedReadTokens":141971,"cachedWriteTokens":1333}}
-33.7s tool calls total=6 afterCompact=4
-33.7s literal "/compact" echoed as user text? false
-33.7s final text tail: "Compaction complete. Tokens: 20126 -> 18317 (saved 1809).ALL DONE"
+6.2s tool_call #1: $ sleep 2 && echo step-1
+8.3s usage_update used=20038
+10.4s tool_call #2: $ sleep 2 && echo step-2
+10.4s STEER /compact
+10.4s steer response (/compact): {"outcome":"injected"}
+16.2s CHUNK Compaction complete. Tokens: 20126 -> 18309 (saved 1817).
+16.2s usage_update used=18309
+18.3s tool_call #3: $ sleep 2 && echo step-2
+20.3s usage_update used=20434
+22.3s tool_call #4: $ sleep 2 && echo step-3
+24.3s usage_update used=20539
+26.5s tool_call #5: $ sleep 2 && echo step-4
+28.5s usage_update used=20644
+30.5s tool_call #6: $ sleep 2 && echo step-5
+32.5s usage_update used=20749
+33.8s usage_update used=20837
+33.8s usage_update used=20837
+33.8s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":506,"totalTokens":143788,"cachedReadTokens":141939,"cachedWriteTokens":1325}}
+33.8s tool calls total=6 afterCompact=4
+33.8s literal "/compact" echoed as user text? false
+33.8s final text tail: "Compaction complete. Tokens: 20126 -> 18309 (saved 1817).ALL DONE"

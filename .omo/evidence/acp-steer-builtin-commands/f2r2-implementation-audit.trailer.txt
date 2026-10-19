@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: Residual text and attachments produced by a steered builtin are delivered only while its originating prompt remains current and live.
+  positive_witness: A delayed `/force read inspect` command completes before its prompt settles and injects only `inspect` with its original image into that prompt.
+  negative_control: Delay `/force` output, cancel prompt A, start prompt B, then release output; any `session.steer("inspect", oldImages)` during B must fail.
+  observable: FakeAgentSession.steerCalls and prompt-B transcript contain no residual text, image, or forced request from prompt A after cancellation.
+  boundary: AcpAgent.#runSteeredBuiltin post-handler delivery into AgentSession.steer.
+END-REVIEW-TRAILER
