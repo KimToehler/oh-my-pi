@@ -73,7 +73,7 @@ import type { UsageStatistics } from "../../session/session-entries";
 import type { SessionInfo as StoredSessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
 import {
-	executeAcpBuiltinSlashCommand,
+	type AcpBuiltinSlashCommandResult,
 	type ResolvedAcpBuiltinSlashCommand,
 	resolveAcpBuiltinSlashCommand,
 	runAcpBuiltinSlashCommand,
@@ -247,6 +247,13 @@ type ManagedSessionRecord = {
 	staleClientConfig: Map<string, string> | undefined;
 	/** `_session/steering` calls still being admitted into the open prompt (image prep can await). */
 	pendingSteers: number;
+	/**
+	 * Builtin slash-command handlers running in this session right now, with
+	 * the prompt each runs for and whether it was steered in. Handlers mutate
+	 * shared session state (compaction, model, settings) and may ignore their
+	 * prompt's abort; see #runBuiltin for who may start beside whom.
+	 */
+	runningBuiltins: Set<{ name: string; turn: PromptTurnState | undefined; steered: boolean; done: Promise<void> }>;
 };
 
 /**
@@ -1144,10 +1151,8 @@ export class AcpAgent implements Agent {
 			return;
 		}
 
-		const builtinResult = await executeAcpBuiltinSlashCommand(
-			text,
-			this.#buildSlashCommandRuntime(record, promptTurn),
-		);
+		const builtin = resolveAcpBuiltinSlashCommand(text);
+		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
 		if (promptTurn?.cancelRequested) return;
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
@@ -1459,7 +1464,7 @@ export class AcpAgent implements Agent {
 				return;
 			}
 			try {
-				const result = await runAcpBuiltinSlashCommand(builtin, this.#buildSlashCommandRuntime(record, turn));
+				const result = await this.#runBuiltin(record, turn, builtin, true);
 				// Residual text (e.g. `/force <tool> <prompt>`) is ordinary steer input,
 				// but only for the prompt that admitted the command: one that finished
 				// after its prompt was cancelled or ended must not feed its text and
@@ -1492,6 +1497,48 @@ export class AcpAgent implements Agent {
 					},
 				);
 			}
+		}
+	}
+
+	/**
+	 * Run a builtin handler for `turn`, registered in `record.runningBuiltins`
+	 * while it runs. A handler still running for another prompt may never finish
+	 * (a cancelled prompt's handler can ignore its abort), so it is never waited
+	 * on: a steered command never starts beside any other prompt's handler, and a
+	 * command sent as a prompt never starts beside another prompt's steered
+	 * handler. Such a command is reported as not run and treated as consumed, so
+	 * its prompt settles normally and stays usable. Two commands sent as prompts
+	 * keep their existing behaviour (a cancelled `/rename` must not block the
+	 * next one).
+	 */
+	async #runBuiltin(
+		record: ManagedSessionRecord,
+		turn: PromptTurnState | undefined,
+		builtin: ResolvedAcpBuiltinSlashCommand,
+		steered: boolean,
+	): Promise<Exclude<AcpBuiltinSlashCommandResult, false>> {
+		const runtime = this.#buildSlashCommandRuntime(record, turn);
+		// Same-prompt handlers finish first (the prompt's steered lane already
+		// orders its own commands).
+		for (const running of record.runningBuiltins) {
+			if (running.turn === turn) await running.done;
+		}
+		for (const running of record.runningBuiltins) {
+			if (running.turn !== turn && (steered || running.steered)) {
+				await runtime.output(
+					`Command /${builtin.parsed.name} not run: /${running.name} from an earlier reply is still running.`,
+				);
+				return { consumed: true };
+			}
+		}
+		const done = Promise.withResolvers<void>();
+		const lease = { name: builtin.parsed.name, turn, steered, done: done.promise };
+		record.runningBuiltins.add(lease);
+		try {
+			return await runAcpBuiltinSlashCommand(builtin, runtime);
+		} finally {
+			record.runningBuiltins.delete(lease);
+			done.resolve();
 		}
 	}
 
@@ -1651,6 +1698,7 @@ export class AcpAgent implements Agent {
 			lifetimeUnsubscribe: undefined,
 			staleClientConfig: undefined,
 			pendingSteers: 0,
+			runningBuiltins: new Set(),
 		};
 	}
 

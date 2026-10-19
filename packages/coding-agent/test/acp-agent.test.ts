@@ -2014,13 +2014,21 @@ describe("ACP agent", () => {
 		await eventLoopTurns(1);
 	});
 
-	it("does not let a command stuck in a cancelled prompt block builtins steered into the next prompt", async () => {
+	it("never overlaps a builtin still running for a cancelled prompt, and keeps later prompts usable", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
 		const session = harness.findSession(created.sessionId)!;
 		session.promptGate = Promise.withResolvers<void>().promise;
-		const neverSettles = Promise.withResolvers<void>().promise;
-		session.compactImpl = () => (session.compactCalls.length === 1 ? neverSettles : Promise.resolve());
+		// A's handler ignores the cancel and never returns.
+		session.compactImpl = () => Promise.withResolvers<void>().promise;
+		const notRun = "Command /compact not run: /compact from an earlier reply is still running.";
+		const notRunCount = () =>
+			harness.updates.filter(
+				n =>
+					n.update.sessionUpdate === "agent_message_chunk" &&
+					n.update.content.type === "text" &&
+					n.update.content.text === notRun,
+			).length;
 
 		const promptA = harness.agent.prompt({
 			sessionId: created.sessionId,
@@ -2035,6 +2043,7 @@ describe("ACP agent", () => {
 		await harness.agent.cancel({ sessionId: created.sessionId });
 		await promptA;
 
+		// Steered into prompt B: refused, B stays usable and ends normally.
 		const gateB = Promise.withResolvers<void>();
 		session.promptGate = gateB.promise;
 		const promptB = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] });
@@ -2043,10 +2052,18 @@ describe("ACP agent", () => {
 			sessionId: created.sessionId,
 			prompt: [{ type: "text", text: "/compact" }],
 		});
-
-		await waitUntil(() => session.compactCalls.length === 2);
+		await waitUntil(() => notRunCount() === 1);
 		gateB.resolve();
 		expect((await promptB).stopReason).toBe("end_turn");
+
+		// Sent as its own prompt C: refused the same way, C settles.
+		const promptC = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+		expect(promptC.stopReason).toBe("end_turn");
+		expect(notRunCount()).toBe(2);
+		expect(session.compactCalls).toEqual(["stuck"]);
 		harness.abortController.abort();
 		await eventLoopTurns(1);
 	});
