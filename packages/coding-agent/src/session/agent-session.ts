@@ -190,7 +190,12 @@ import {
 	type ResolvedApprovedPlan,
 	resolveApprovedPlan,
 } from "../plan-mode/approved-plan";
-import { PLAN_REVIEW_MAX_ROUNDS, type PlanReviewOutcome, reviewProposedPlan } from "../plan-mode/plan-review";
+import {
+	PLAN_REVIEW_MAX_ROUNDS,
+	type PlanReviewOutcome,
+	reviewProposedPlan,
+	sanitizeReviewText,
+} from "../plan-mode/plan-review";
 import { cfgPlanReviewEnabled } from "../plan-mode/settings";
 import planReviewRejectPrompt from "../prompts/system/plan-review-reject.md" with { type: "text" };
 import planReviewStatusPrompt from "../prompts/system/plan-review-status.md" with { type: "text" };
@@ -1818,7 +1823,9 @@ export class AgentSession implements SettingsScope {
 					bindsBytes: true,
 				};
 			case "reject": {
-				const blockers = outcome.blockers.map(blocker => `- [${blocker.area}] ${blocker.defect}`).join("\n");
+				const blockers = outcome.blockers
+					.map(blocker => sanitizeReviewText(`- [${blocker.area}] ${blocker.defect}`))
+					.join("\n");
 				this.emitNotice(
 					"warning",
 					`Plan reached approval with open review blockers (${max} rounds used):\n${blockers}`,

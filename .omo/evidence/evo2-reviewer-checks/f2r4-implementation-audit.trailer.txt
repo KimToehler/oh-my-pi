@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: plan-review audit entries retain review disposition and model trace but never persist reviewer-controlled body text
+  positive_witness: a REJECT records outcome, round, model trace, duration, and usage while blocker text is absent
+  negative_control: a reviewer returns a distinctive blocker string or forged tag and that string appears in a plan-review custom entry
+  observable: serialized session `plan-review` custom-entry data contains trace fields but no injected blocker marker
+  boundary: `AgentSession.#appendPlanReviewAudit` persistence boundary
+END-REVIEW-TRAILER

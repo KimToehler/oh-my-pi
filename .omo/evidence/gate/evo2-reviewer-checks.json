@@ -1,0 +1,116 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/evo2-reviewer-checks.md",
+  "plan_sha256": "aa0c854b65320ea6bede54a8b17f61a0bf747dea76eb86f0fda64d8dee81d5ef",
+  "reviewed_sha": "74513097e6cd3930dad71ad6cb8bea5ba30d47ed",
+  "diff_base": "2f0c3aa64e27073d4a014714e8394bc70505b061",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class none, but both reviewers run: the change alters what every plan review checks across the bundled prompt, user rules and user agents, and F2 round 2 found a trust-boundary defect (raw harness tags in planner-facing reviewer text, security_delta yes) that 74513097e6 fixed. Rounds 1-3 each FAIL with one blocker; R1 resolved by user-corrected criterion, R3 (pre-existing cap-path delivery) moved to Plan C Step 2a under the plan's abort rule; round 4 audit and strategic review PASS.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "RED/GREEN: plan-reviewer declares structured: true",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/green-structured.txt"
+    },
+    {
+      "name": "RED/GREEN: in-cap REJECT hands the planner all 12 evidence sites (T5-m)",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/green-evidence-sites.txt"
+    },
+    {
+      "name": "RED/GREEN: harness tags escaped in all four blocker fields (T5-n, head 74513097e6)",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/t5n-red-green.txt"
+    },
+    {
+      "name": "Five plan-review suites 139 pass and check:ts exit 0 on head 74513097e6",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/suites-74513097e6.txt"
+    },
+    {
+      "name": "Positive fixtures CHECK 1-8 and DOMAIN 1-6 REJECTed with their label, 2 of 3",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/score-v2.txt"
+    },
+    {
+      "name": "Negative fixtures DOMAIN 2-5 carry no blocker with their label, 2 of 3",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/score-v2.txt"
+    },
+    {
+      "name": "CHECK 5: F-A1 REJECT CHECK 5, F-A1-fixed without CHECK 5",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/score-a2.txt"
+    },
+    {
+      "name": "No-trigger plan F-A3 OKAY",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/score-a1.txt"
+    },
+    {
+      "name": "F-D1 R81 replay: DOMAIN 6 blocker 6 of 6 with the rule (corrected criterion)",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/f-d1-analysis.md"
+    },
+    {
+      "name": "Domain rule v1 and v2 reach the reviewer child only (main 0, child 1)",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/rule-scope.txt"
+    },
+    {
+      "name": "Native --plan-yolo propose path okay round 1, file written (head 74513097e6)",
+      "passed": true,
+      "artifact": ".omo/evidence/evo2-reviewer-checks/native-plan-yolo-74513097e6.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": "F3 integration-review 4 rounds, R4 PASS on 3a04d82b09; the 74513097e6 delta was reviewed inside the F2 round 4 whole-diff audit"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/evo2-reviewer-checks/f2r4-implementation-audit.trailer.txt",
+      "trailer_sha256": "34b5ca81491d5186da811d4d0230b2e5a78976541c0472efa1bf66c3a33d3536",
+      "note": "Round 4, fresh auditor; cap-path delivery noted as PRE-EXISTING / OUT-OF-SCOPE, follow-up Plan C Step 2a. Rounds 1-3 trailers and briefs kept in .omo/evidence/evo2-reviewer-checks/f2-rounds/."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/evo2-reviewer-checks/f2r4-strategic-risk-review.trailer.txt",
+      "trailer_sha256": "72e7e6c6a2c2488c6fae0fa85b86d228f0addaaf44d1346f0dd937fcbfa2ba80",
+      "note": "No blocker; watch items: repo/local deployment skew, very large rejections near transport limits."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "R2-B1",
+      "severity": "high",
+      "location": "packages/coding-agent/src/plan-mode/plan-review.ts:92",
+      "coverage": "packages/coding-agent/test/plan-review.test.ts::T5-n a REJECT escapes harness tags in every blocker field",
+      "fix_sha": "74513097e6cd3930dad71ad6cb8bea5ba30d47ed"
+    }
+  ]
+}

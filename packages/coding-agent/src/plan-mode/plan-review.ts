@@ -16,6 +16,7 @@ import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
 import planReviewAssignmentPrompt from "../prompts/system/plan-review-assignment.md" with { type: "text" };
+import { escapeHarnessTags } from "../session/harness-tags";
 import { getBundledAgent } from "../task/agents";
 import { runStructuredSubagent, type StructuredSubagentResult } from "../task/structured-subagent";
 import type { ToolSession } from "../tools";
@@ -71,7 +72,7 @@ const verdictSchema = type({
 });
 
 /** The JTD output schema the reviewer must yield: the bundled `plan-reviewer`'s own,
- *  passed as caller schema so a user-chosen agent (e.g. momus) returns the same shape. */
+ *  passed as caller schema so a user-chosen agent (`plan.review.agent`) returns the same shape. */
 export function planReviewSchema(): unknown {
 	return getBundledAgent("plan-reviewer")?.output;
 }
@@ -86,12 +87,17 @@ export function modelClass(provider: string, id: string): string | undefined {
 	}
 }
 
-/** One display-safe line of reviewer-derived text. */
-export function sanitizeReviewText(text: string): string {
-	const oneLine = sanitizeText(replaceTabs(text))
+/** Reviewer-derived text for the planner's tool result: one line without tabs, control characters or
+ *  harness tags (model output must not open or close a harness-authored block), never cut. */
+function sanitizeReviewField(text: string): string {
+	return escapeHarnessTags(sanitizeText(replaceTabs(text)))
 		.replace(/\s*\n\s*/g, " ")
 		.trim();
-	return truncateToWidth(oneLine, TRUNCATE_LENGTHS.CONTENT);
+}
+
+/** One display-safe line of reviewer-derived text. */
+export function sanitizeReviewText(text: string): string {
+	return truncateToWidth(sanitizeReviewField(text), TRUNCATE_LENGTHS.CONTENT);
 }
 
 function answeringClass(model: AnsweringModel): string | undefined {
@@ -159,11 +165,13 @@ function interpretResult({ result, plannerClass, trace }: Interpretation): PlanR
 	if (verdict.verdict === "OKAY") {
 		return { kind: "okay", reviewer, notes: (verdict.notes ?? []).map(sanitizeReviewText), trace };
 	}
+	// Blockers reach the planner whole: a cut evidence list hides sites the plan must fix. The reject text is an
+	// ordinary tool result, so renderers bound it like any other output; only the cap notice truncates here.
 	const blockers = (verdict.blockers ?? []).map(blocker => ({
-		area: sanitizeReviewText(blocker.area),
-		defect: sanitizeReviewText(blocker.defect),
-		evidence: sanitizeReviewText(blocker.evidence),
-		change: sanitizeReviewText(blocker.change),
+		area: sanitizeReviewField(blocker.area),
+		defect: sanitizeReviewField(blocker.defect),
+		evidence: sanitizeReviewField(blocker.evidence),
+		change: sanitizeReviewField(blocker.change),
 	}));
 	if (blockers.length === 0) {
 		return { kind: "unreviewed", reason: "no-verdict", detail: "the reviewer rejected without a blocker", trace };

@@ -50,6 +50,8 @@ describe("bundled agent parsing", () => {
 	it("parses plan-reviewer as a read-only agent whose output schema only accepts OKAY or REJECT", () => {
 		const planReviewer = getBundledAgent("plan-reviewer");
 		expect(planReviewer?.tools).toEqual(["read", "grep", "glob"]);
+		// review-work's fix-delta dispatch runs plan-reviewer through task, where task.structured defaults off; without the flag the verdict arrives as prose the gate cannot read.
+		expect(planReviewer?.structured).toBe(true);
 
 		const built = buildOutputValidator(planReviewer?.output);
 		expect(built.error).toBeUndefined();

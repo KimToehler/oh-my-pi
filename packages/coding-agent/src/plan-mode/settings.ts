@@ -84,7 +84,7 @@ export const cfgPlanReviewAgent = register({
 		group: "Modes",
 		label: "Plan Review Agent",
 		description:
-			"Agent that reviews proposed plans. Any discovered agent works, e.g. a user ~/.omp/agent/agents/momus.md; the default is the bundled plan-reviewer.",
+			"Agent that reviews proposed plans. Any discovered agent works, e.g. a user ~/.omp/agent/agents/<name>.md; the default is the bundled plan-reviewer.",
 		condition: "planReviewEnabled",
 	},
 });

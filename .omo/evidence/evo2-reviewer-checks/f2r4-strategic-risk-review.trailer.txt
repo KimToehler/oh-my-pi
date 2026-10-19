@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: a large valid rejection must remain structurally complete through reviewer output transport and must leave enough planner context for a remediation turn
+  positive_witness: a near-budget rejection reaches the planner with both first and last blocker-site sentinels intact, then the planner starts the next proposal round
+  negative_control: increasing blocker evidence causes an invalid structured verdict, an unreviewed outcome, loss of the final sentinel, or failure to start the remediation turn
+  observable: plan-review audit outcome, first/last sentinel presence in the planner's actual tool result, token usage, and the next proposal event
+  boundary: `runStructuredSubagent` result through `interpretResult` and `AgentSession` rejection-result assembly
+END-REVIEW-TRAILER
