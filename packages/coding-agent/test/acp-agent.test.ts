@@ -2053,6 +2053,72 @@ describe("ACP agent", () => {
 		await eventLoopTurns(1);
 	});
 
+	it("rejects with the prompt command's error only after a steered command's resumed run ended", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		const resumeGate = Promise.withResolvers<void>();
+		const failure = new Error("own command blew up");
+		let failNextUsageRead = false;
+		// The prompt's own `/compact` rejects when it reads usage after compacting.
+		spyOn(session, "getContextUsage").mockImplementation(() => {
+			if (!failNextUsageRead) return undefined;
+			failNextUsageRead = false;
+			throw failure;
+		});
+		session.compactImpl = async () => {
+			if (session.compactCalls.length === 1) {
+				await releaseOwn.promise;
+				failNextUsageRead = true;
+				return;
+			}
+			// The steered `/compact` resumes a run that streams into the same reply.
+			session.isStreaming = true;
+			void resumeGate.promise.then(() => {
+				const resumed = makeAssistantMessage("resumed");
+				for (const listener of session.listeners()) {
+					listener({
+						type: "message_update",
+						message: resumed,
+						assistantMessageEvent: { type: "text_delta", delta: "resumed" },
+					} as AgentSessionEvent);
+				}
+				for (const listener of session.listeners()) {
+					listener({ type: "agent_end", messages: [resumed] } as AgentSessionEvent);
+				}
+				session.isStreaming = false;
+			});
+		};
+
+		let settled = false;
+		const promptA = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "/compact own" }] })
+			.finally(() => {
+				settled = true;
+			});
+		const outcome = promptA.then(
+			() => "resolved" as const,
+			(error: unknown) => error,
+		);
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact steered" }],
+		});
+
+		releaseOwn.resolve();
+		await waitUntil(() => session.compactCalls.length === 2);
+		await eventLoopTurns(10);
+		expect(settled).toBe(false);
+
+		resumeGate.resolve();
+		expect(await outcome).toBe(failure);
+		expect(hasChunk(harness, created.sessionId, "resumed")).toBe(true);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
 	it("keeps a locally handled prompt open until the builtins steered into it ran", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });

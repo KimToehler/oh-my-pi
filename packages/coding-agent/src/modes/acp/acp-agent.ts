@@ -206,6 +206,12 @@ type PromptTurnState = {
 	builtinSteerLane: Promise<void>;
 	/** Steered builtins admitted into this prompt that have not finished yet; holds the prompt open. */
 	pendingBuiltinSteers: number;
+	/**
+	 * Failure of the prompt's own command, kept when a steered builtin already
+	 * armed the quiescence waiter: that waiter rejects the prompt with it once
+	 * the work the steered command started has finished.
+	 */
+	deferredError: unknown;
 };
 
 /**
@@ -980,6 +986,7 @@ export class AcpAgent implements Agent {
 				quiescenceWait: undefined,
 				builtinSteerLane: Promise.resolve(),
 				pendingBuiltinSteers: 0,
+				deferredError: undefined,
 			};
 			// While this prompt is open, background-job wakes may start turns: they
 			// stream into this prompt instead of running unseen by the client.
@@ -994,17 +1001,18 @@ export class AcpAgent implements Agent {
 			// transport.ts wrap it as a generic -32603 internal error.
 			const promptTurn = record.promptTurn;
 			this.#runPromptOrCommand(record, converted.text, converted.images).catch(async (error: unknown) => {
-				if (!(await this.#awaitSteeredBuiltins(record, promptTurn, false))) return;
-				this.#finishPrompt(
-					record,
-					undefined,
+				const failure =
 					error instanceof AgentBusyError
 						? RequestError.sessionBusy(error.message, {
 								reason: "session_busy",
 								hint: "steer|followUp|wait",
 							})
-						: error,
-				);
+						: error;
+				// Recorded first: a steered command may already have armed the
+				// quiescence waiter, which then finishes the prompt with this failure.
+				promptTurn.deferredError ??= failure;
+				if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+				this.#finishPrompt(record, undefined, failure);
 			});
 
 			return await pendingPrompt.promise;
@@ -1873,6 +1881,10 @@ export class AcpAgent implements Agent {
 		promptTurn.quiescenceWait = this.#waitForAcpPromptIdle(record, promptTurn, token);
 		await promptTurn.quiescenceWait;
 		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
+		if (promptTurn.deferredError !== undefined) {
+			this.#finishPrompt(record, undefined, promptTurn.deferredError);
+			return;
+		}
 		const lastAgentEnd = promptTurn.lastAgentEnd;
 		this.#finishPrompt(record, {
 			stopReason: lastAgentEnd
