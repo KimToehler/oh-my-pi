@@ -10,6 +10,28 @@ their live progress, scores, token usage, costs, and traces.
 bun run serve --port 4700
 ```
 
+## Goal and references
+
+metaharness is the evaluation substrate for evolving omp's harness (config
+layer first: `AGENTS.md`, rules, skills, agents, extensions; source changes
+under the same identity model). Model weights stay fixed. Two papers define
+the target:
+
+- **Evo²: Evolving the Evolver through Weight-Harness Co-Evolution** —
+  [arXiv:2610.13025](https://arxiv.org/abs/2610.13025)
+  ([HTML](https://arxiv.org/html/2610.13025v1)). Source of the variant
+  lineage (root, revision, crossover), the Proposer that writes harness edits,
+  and the Reflector that diagnoses their effect. `src/evo/` supplies the
+  matched fitness, paired comparison, and reflection bundle those roles consume.
+  Its weight-training half (EvoTIDE) does not apply to fixed proprietary models.
+- **Harness²: Recursive Agent Harnessing for an Open World** —
+  [arXiv:2610.14224](https://arxiv.org/abs/2610.14224)
+  ([HTML](https://arxiv.org/html/2610.14224v1)), code at
+  [google-research/harness2](https://github.com/google-research/harness2).
+  Source of task-level Propose–Probe–Compose refinement without ground-truth
+  verifiers, and of a persistent improvement harness that carries lessons to
+  later tasks.
+
 ## How Harbor runs execute
 
 1. **Local omp, not npm.** By default the runner bind-mounts the repo
