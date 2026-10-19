@@ -1,0 +1,25 @@
+head=main e0420f1b7b0f96180009dd9688123539a1a2c5de (unfixed negative control)
+1.0s cli=/Users/tim/git/oh-my-pi/packages/coding-agent/src/cli.ts
+1.0s initialize steering={"supported":true}
+1.2s session 01a1559a-49cc-772d-a9f6-b5f3f68fb980
+1.2s usage_update used=18030
+6.3s tool_call #1: $ sleep 2 && echo step-1
+8.4s usage_update used=20038
+10.7s tool_call #2: $ sleep 2 && echo step-2
+10.7s STEER /compact
+10.7s steer response (/compact): {"outcome":"injected"}
+10.7s usage_update used=20289
+15.6s tool_call #3: Waiting for step 2
+15.6s usage_update used=20506
+17.9s tool_call #4: $ sleep 2 && echo step-3
+19.9s usage_update used=20684
+22.0s tool_call #5: $ sleep 2 && echo step-4
+24.0s usage_update used=20789
+26.2s tool_call #6: $ sleep 2 && echo step-5
+28.2s usage_update used=20894
+29.5s usage_update used=20982
+29.5s usage_update used=20982
+29.5s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":20,"outputTokens":678,"totalTokens":144563,"cachedReadTokens":142702,"cachedWriteTokens":1163}}
+29.5s tool calls total=6 afterCompact=0
+29.5s literal "/compact" echoed as user text? false
+29.5s final text tail: "`/compact` is a harness command, so I can't run it. Continuing the steps. Step 2 is running in the background.ALL DONE"

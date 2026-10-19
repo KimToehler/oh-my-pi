@@ -1,0 +1,16 @@
+head=1665179a643b4f9b5c2406662a7d90c21d15f617
+1.0s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
+1.0s initialize steering={"supported":true}
+1.2s session 01a1559a-49b3-738b-ae56-24069a1c5d78
+1.3s usage_update used=18030
+4.6s tool_call #1: $ sleep 2 && echo step-1
+6.7s usage_update used=20038
+8.7s tool_call #2: $ sleep 2 && echo step-2
+8.7s STEER /compact
+8.8s steer response (/compact): {"outcome":"injected"}
+16.3s CHUNK Compaction complete. Tokens: 20125 -> 18359 (saved 1766).
+16.3s usage_update used=18359
+16.3s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":6,"outputTokens":164,"totalTokens":40310,"cachedReadTokens":39834,"cachedWriteTokens":306}}
+16.3s tool calls total=2 afterCompact=0
+16.3s literal "/compact" echoed as user text? false
+16.3s final text tail: "Compaction complete. Tokens: 20125 -> 18359 (saved 1766)."
