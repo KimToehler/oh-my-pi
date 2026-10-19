@@ -187,6 +187,7 @@ export async function buildEvalLaunch(input: EvalLaunchInput): Promise<LaunchReq
 		timeoutMultiplier: manifest.timeoutMultiplier,
 		thinking: manifest.thinking,
 		environment: manifest.environment,
+		platform: manifest.platform,
 		concurrency: manifest.concurrency,
 		jobName: input.jobName,
 		suiteId: manifest.id,

@@ -50,6 +50,7 @@ import {
 	findCredentialLeaks,
 	harborRunnerArgs,
 	type LaunchRequest,
+	type TaskPlatform,
 } from "./launch-args";
 
 // ────────────────────────────────────────────────────────────────────── config
@@ -128,6 +129,8 @@ export interface Config {
 	filterErrorTypes: string[];
 	/** Harbor environment backend running the task containers. */
 	envType: "docker" | "apple-container";
+	/** Task container platform (`--platform`); null runs the daemon's native arch. Decides the source deps/addon arch. */
+	platform: TaskPlatform | null;
 	passthrough: string[];
 	env: Record<string, string>;
 	/** `--env KEY` names whose values come from the host; values are never snapshotted. */
@@ -205,6 +208,7 @@ function defaultConfig(): Config {
 		resume: null,
 		filterErrorTypes: [],
 		envType: "docker",
+		platform: null,
 		passthrough: [],
 		env: {},
 		hostEnvKeys: [],
@@ -273,6 +277,8 @@ Gateway (auth, no keys in container):
 Environment:
       --environment <type>       docker (default) | apple-container (Apple 'container' CLI;
                                  no Docker needed, gateway auto-forwarded via 192.168.64.1)
+      --platform <os/arch>       linux/amd64 | linux/arm64 task containers (default: daemon native).
+                                 linux/amd64 on an arm64 Docker Desktop runs under emulation
 
 Output / control:
   -o, --jobs-dir <path>          Default <repo>/runs/harbor
@@ -525,6 +531,13 @@ export function parseArgs(argv: string[]): Config {
 				cfg.envType = v;
 				break;
 			}
+			case "--platform": {
+				const v = take(arg);
+				if (v !== "linux/amd64" && v !== "linux/arm64")
+					throw new Error("--platform must be linux/amd64|linux/arm64");
+				cfg.platform = v;
+				break;
+			}
 			default:
 				throw new Error(`unknown flag: ${arg} (see --help)`);
 		}
@@ -534,6 +547,7 @@ export function parseArgs(argv: string[]): Config {
 		if (cfg.hostNetwork) throw new Error("--host-network is docker-only (compose overlay)");
 		// host.docker.internal doesn't exist on vmnet; containers reach the host at the bridge address.
 		if (cfg.gatewayUrl === DOCKER_GATEWAY_URL) cfg.gatewayUrl = VMNET_GATEWAY_URL;
+		if (cfg.platform === "linux/amd64") throw new Error("--platform: apple-container runs linux/arm64 only");
 	}
 	return cfg;
 }
@@ -1264,6 +1278,12 @@ function dockerServerArch(): "arm64" | "x64" {
 	throw new Error(`cannot detect docker server arch (got ${a || "nothing"}); is docker running?`);
 }
 
+/** Arch the task containers run as: an explicit `--platform` wins over the daemon's native arch. */
+function taskContainerArch(cfg: Config): "arm64" | "x64" {
+	if (cfg.platform) return cfg.platform === "linux/amd64" ? "x64" : "arm64";
+	return cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
+}
+
 /** Workspace member dirs (repo-relative), expanded from root package.json `workspaces.packages`. */
 function workspacePackageDirs(sourceRoot: string): string[] {
 	const raw = readJson(path.join(sourceRoot, "package.json")) as {
@@ -1316,7 +1336,7 @@ const SOURCE_DEPS_LOCK_POLL_MS = 250;
  * runner's finished stamp instead of deleting the tree mid-install.
  */
 export async function prepareSourceDeps(cfg: Config): Promise<SourcePlan> {
-	const arch = cfg.envType === "apple-container" ? "arm64" : dockerServerArch();
+	const arch = taskContainerArch(cfg);
 	const sourceRoot = cfg.sourceRoot;
 	const bunVersion = repoBunVersion(sourceRoot);
 	const depsDir = path.join(cfg.jobsDir, "_bench", "_deps", `linux-${arch}`);
@@ -1679,6 +1699,8 @@ export function buildHarborEnv(
 	// Drop any stale OMP_BENCH_FORWARD_ENV inherited from the caller's shell before
 	// the agent-type early return, so it never leaks (incl. into the dry-run dump).
 	delete env.OMP_BENCH_FORWARD_ENV;
+	// Compose pulls and task builds honor this, so a multi-arch task image resolves to the arch the deps tree targets.
+	if (cfg.platform) env.DOCKER_DEFAULT_PLATFORM = cfg.platform;
 	if (!MANAGED_AGENTS[cfg.agent]) return env;
 	const prepend = (k: string, v: string): void => {
 		env[k] = env[k] ? `${v}:${env[k]}` : v;
