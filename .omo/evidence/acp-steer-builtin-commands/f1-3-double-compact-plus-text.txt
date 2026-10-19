@@ -1,32 +1,32 @@
-head=1665179a643b4f9b5c2406662a7d90c21d15f617
-1.1s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
-1.1s initialize steering={"supported":true}
-1.2s session 01a1559a-49b3-7105-b358-f96015c6a43b
-1.3s usage_update used=18030
-5.5s tool_call #1: $ sleep 2 && echo step-1
-7.5s usage_update used=20037
-9.9s tool_call #2: $ sleep 2 && echo step-2
-9.9s STEER /compact
-9.9s STEER /compact
-9.9s STEER also mention STEERED-TEXT in your final reply
-9.9s steer response (/compact): {"outcome":"injected"}
-9.9s steer response (/compact): {"outcome":"injected"}
-9.9s steer response (also mention STEERED-TEXT in your final reply): {"outcome":"injected"}
-19.5s CHUNK Compaction complete. Tokens: 20125 -> 18359 (saved 1766).
-19.5s usage_update used=18359
-19.5s CHUNK Compaction failed: Already compacted
-19.5s usage_update used=18376
-25.2s tool_call #3: $ sleep 2 && echo step-2
-27.3s usage_update used=20557
-30.1s tool_call #4: $ sleep 2 && echo step-3
-32.1s usage_update used=20662
-36.7s tool_call #5: $ sleep 2 && echo step-4
-38.7s usage_update used=20767
-41.1s tool_call #6: $ sleep 2 && echo step-5
-43.1s usage_update used=20872
-44.5s usage_update used=20960
-44.5s usage_update used=20960
-44.5s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":558,"totalTokens":144453,"cachedReadTokens":142430,"cachedWriteTokens":1447}}
-44.5s tool calls total=6 afterCompact=4
-44.5s literal "/compact" echoed as user text? false
-44.5s final text tail: "Compaction complete. Tokens: 20125 -> 18359 (saved 1766).Compaction failed: Already compactedALL DONE STEERED-TEXT"
+head=377a26a7c55548755b05124d96e6a46bc270aa3d
+0.9s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
+0.9s initialize steering={"supported":true}
+1.1s session 01a155bd-5013-716d-b416-f5f08a82ae18
+1.1s usage_update used=18030
+4.7s tool_call #1: $ sleep 2 && echo step-1
+6.8s usage_update used=20038
+8.8s tool_call #2: $ sleep 2 && echo step-2
+8.8s STEER /compact
+8.8s STEER /compact
+8.8s STEER also mention STEERED-TEXT in your final reply
+8.8s steer response (/compact): {"outcome":"injected"}
+8.8s steer response (/compact): {"outcome":"injected"}
+8.8s steer response (also mention STEERED-TEXT in your final reply): {"outcome":"injected"}
+18.5s CHUNK Compaction complete. Tokens: 20126 -> 18304 (saved 1822).
+18.5s usage_update used=18304
+18.5s CHUNK Compaction failed: Already compacted
+18.5s usage_update used=18321
+23.8s tool_call #3: $ sleep 2 && echo step-2
+25.9s usage_update used=20503
+28.0s tool_call #4: $ sleep 2 && echo step-3
+30.1s usage_update used=20608
+32.2s tool_call #5: $ sleep 2 && echo step-4
+34.2s usage_update used=20713
+36.3s tool_call #6: $ sleep 2 && echo step-5
+38.3s usage_update used=20818
+39.6s usage_update used=20906
+39.6s usage_update used=20906
+39.6s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":625,"totalTokens":144252,"cachedReadTokens":142215,"cachedWriteTokens":1394}}
+39.6s tool calls total=6 afterCompact=4
+39.6s literal "/compact" echoed as user text? false
+39.6s final text tail: "Compaction complete. Tokens: 20126 -> 18304 (saved 1822).Compaction failed: Already compactedALL DONE STEERED-TEXT"

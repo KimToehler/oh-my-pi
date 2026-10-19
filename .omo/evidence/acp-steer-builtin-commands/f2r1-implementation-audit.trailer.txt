@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: A steered builtin returning residual user input preserves original image attachments and injects that residual into current turn, rather than starting a separate ACP prompt.
+  positive_witness: Mid-stream `/force read inspect this image` with one image records one `AgentSession.steer("inspect this image", [image])`, sets forced tool choice, and creates no additional ACP prompt.
+  negative_control: Dropping `images` or calling `this.prompt` instead yields an image-free model request or a second prompt turn; test must fail.
+  observable: Recorded steer text/images, forced-tool state, ACP prompt-call count, and downstream agent request content.
+  boundary: `AcpAgent.#runSteeredBuiltin` residual-result branch to `AgentSession.steer`.
+END-REVIEW-TRAILER
