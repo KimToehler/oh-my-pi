@@ -44,6 +44,7 @@ import type {
 	CreateElicitationRequest,
 	CreateElicitationResponse,
 	ElicitationPropertySchema,
+	InitializeRequest,
 	PromptRequest,
 	SessionNotification,
 	Validator,
@@ -570,6 +571,8 @@ async function createHarness(
 		sessionUpdateHook?: (notification: SessionNotification) => Promise<void> | void;
 		/** Gives each session the factory creates a real extension runner with no extensions. */
 		extensionRunners?: boolean;
+		/** Sent with `initialize`; `{ _meta: { platform: "intellij" } }` identifies a JetBrains client. */
+		clientInfo?: InitializeRequest["clientInfo"];
 	} = {},
 ): Promise<AgentHarness> {
 	const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-acp-test-"));
@@ -625,10 +628,11 @@ async function createHarness(
 	const agent = new AcpAgent(connection, factory, initialSession as unknown as AgentSession);
 	const clientCapabilities =
 		options.clientCapabilities ?? (options.elicitationHandler ? { elicitation: { form: {} } } : undefined);
-	if (clientCapabilities) {
+	if (clientCapabilities || options.clientInfo) {
 		await agent.initialize({
 			protocolVersion: 1,
-			clientCapabilities,
+			clientCapabilities: clientCapabilities ?? {},
+			clientInfo: options.clientInfo,
 		} as Parameters<typeof agent.initialize>[0]);
 	}
 
@@ -1149,6 +1153,80 @@ describe("ACP agent", () => {
 			expect(session.planModeState?.enabled).toBe(true);
 		}
 		expect(session.appliedRoleModels).toEqual([]);
+		expect(session.model).toBe(TEST_MODELS[0]);
+
+		harness.abortController.abort();
+	});
+
+	const INTELLIJ_CLIENT_INFO = { name: "JetBrains.IntelliJ IDEA", version: "262", _meta: { platform: "intellij" } };
+
+	async function approvePlanOnTaskTier(
+		clientInfo?: InitializeRequest["clientInfo"],
+	): Promise<{ harness: AgentHarness; session: FakeAgentSession }> {
+		const harness = await createHarness({
+			elicitationHandler: async () => ({ action: "accept", content: { value: "approve:task" } }),
+			clientInfo,
+		});
+		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue("task");
+		const { session } = await enterPlanWithPlanFile(harness);
+		session.roleModelCycle = TWO_TIERS;
+		await proposePlan(session, "words-counter");
+		expect(session.planModeState).toBeUndefined();
+		expect(session.model).toBe(TEST_MODELS[1]);
+		return { harness, session };
+	}
+
+	/** The model value the IDE stored before approval switched to the `task` tier. */
+	const PRE_APPROVAL_MODEL_VALUE = `${TEST_MODELS[0]!.provider}/${TEST_MODELS[0]!.id}`;
+
+	/** What a JetBrains IDE sends before every prompt: its stored dropdown choices. */
+	async function reassertStoredChoices(harness: AgentHarness, sessionId: string): Promise<void> {
+		await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "plan" });
+		await harness.agent.setSessionConfigOption({ sessionId, configId: "model", value: PRE_APPROVAL_MODEL_VALUE });
+	}
+
+	it("ignores a JetBrains client re-sending the pre-approval mode and model, across a resume", async () => {
+		const { harness, session } = await approvePlanOnTaskTier(INTELLIJ_CLIENT_INFO);
+		const sessionId = session.sessionId;
+
+		await reassertStoredChoices(harness, sessionId);
+		expect(session.planModeState).toBeUndefined();
+		expect(session.model).toBe(TEST_MODELS[1]);
+
+		// Agent restart: the guard must come back from the session file, not memory.
+		await session.sessionManager.flush();
+		await harness.agent.closeSession({ sessionId });
+		const resumed = await harness.agent.resumeSession({ sessionId, cwd: harness.cwdA, mcpServers: [] });
+		const modeOption = resumed.configOptions?.find(option => option.id === "mode");
+		expect(modeOption?.currentValue).toBe("default");
+		const resumedSession = harness.sessions.at(-1)!;
+		await resumedSession.setModel(TEST_MODELS[1]!);
+		await reassertStoredChoices(harness, sessionId);
+		expect(resumedSession.planModeState).toBeUndefined();
+		expect(resumedSession.model).toBe(TEST_MODELS[1]);
+
+		harness.abortController.abort();
+	});
+
+	it("applies plan mode again once the JetBrains user picks another mode first", async () => {
+		const { harness, session } = await approvePlanOnTaskTier(INTELLIJ_CLIENT_INFO);
+		const sessionId = session.sessionId;
+
+		await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "default" });
+		await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "plan" });
+		expect(session.planModeState?.enabled).toBe(true);
+		// The model guard is independent: re-sending the old model is still ignored.
+		await harness.agent.setSessionConfigOption({ sessionId, configId: "model", value: PRE_APPROVAL_MODEL_VALUE });
+		expect(session.model).toBe(TEST_MODELS[1]);
+
+		harness.abortController.abort();
+	});
+
+	it("applies the same mode and model requests from clients that do not re-send stored choices", async () => {
+		const { harness, session } = await approvePlanOnTaskTier();
+
+		await reassertStoredChoices(harness, session.sessionId);
+		expect(session.planModeState?.enabled).toBe(true);
 		expect(session.model).toBe(TEST_MODELS[0]);
 
 		harness.abortController.abort();
