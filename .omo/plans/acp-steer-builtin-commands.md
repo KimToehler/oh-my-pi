@@ -197,6 +197,12 @@ F2 round 3 (strategic-risk-review FAIL, `onara/cx/gpt-5.6-sol`) fix, applied on 
    - Registration ends in `finally`.
    Test: the "stuck command" scenario now expects the opposite of the overlap. Neither a builtin steered into prompt B nor a builtin sent as prompt C calls `compact()` a second time while A's steered handler is pending. Both get the not-run chunk, and both settle `end_turn`.
    F1 adds a real-surface cancel scenario: steer `/compact`, cancel, then send a new prompt. The new prompt answers, and no "already in progress" appears.
+F2 round 4 (implementation-audit FAIL, `onara/cx/gpt-5.6-terra`) fixes, applied on top of `f623d43475`:
+6. A steered builtin belongs to the prompt it was steered into:
+   - After waiting out its own prompt's earlier handler, `#runBuiltin` re-checks that the prompt is still current, live, and not cancelled. If not, it returns `undefined` (the handler never ran), and the command is dropped. The same check covers a prompt-sent builtin.
+   - `#runSteeredBuiltin` no longer re-admits a command whose prompt ended. It drops it, so old blocks or images can never move to another prompt. The `#admitSteer` indirection is removed.
+   - Every direct finish path of a locally handled prompt now waits for that prompt's steered builtins before calling `#finishPrompt` (`#awaitSteeredBuiltins`): the residual-prompt path, the consumed-builtin path, the local-command path, and the error path. If a steered command already armed the quiescence waiter, the local path leaves finishing to that waiter.
+   Tests: (a) prompt A is a slow `/compact` that ignores cancel, a `/compact` is steered behind it, A is cancelled and B starts, then A's handler is released. Only A's own compact ran, and no steer happened. (b) Prompt A is a slow `/compact` with `/force read secret-from-a` plus an image steered in. A stays open until the `/force` ran inside A, and the next prompt B receives nothing from A.
 
 ## Final verification wave
 - [x] F3. Whole-diff review: not needed. The change spans 2 modules (`modes/acp`, `slash-commands`) plus their tests; tick with that reason.
