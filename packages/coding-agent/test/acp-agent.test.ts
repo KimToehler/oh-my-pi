@@ -2014,6 +2014,88 @@ describe("ACP agent", () => {
 		await eventLoopTurns(1);
 	});
 
+	it("never starts a steered builtin queued behind its prompt's own command once that prompt is cancelled", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		// Prompt A is itself a slow builtin that ignores the cancel.
+		const releaseA = Promise.withResolvers<void>();
+		session.compactImpl = () => (session.compactCalls.length === 1 ? releaseA.promise : Promise.resolve());
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact own" }],
+		});
+		await waitUntil(() => session.compactCalls.length === 1);
+		expect(
+			await harness.agent.extMethod("_session/steering", {
+				sessionId: created.sessionId,
+				prompt: [{ type: "text", text: "/compact steered" }],
+			}),
+		).toEqual({ outcome: "injected" });
+		await harness.agent.cancel({ sessionId: created.sessionId });
+		expect((await promptA).stopReason).toBe("cancelled");
+
+		const gateB = Promise.withResolvers<void>();
+		session.promptGate = gateB.promise;
+		const promptB = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] });
+		await waitUntil(() => session.promptCalls.length === 1);
+
+		releaseA.resolve();
+		await eventLoopTurns(10);
+		expect(session.compactCalls).toEqual(["own"]);
+
+		gateB.resolve();
+		expect((await promptB).stopReason).toBe("end_turn");
+		expect(session.compactCalls).toEqual(["own"]);
+		expect(session.steerCalls).toEqual([]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("keeps a locally handled prompt open until the builtins steered into it ran", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		session.compactImpl = () => (session.compactCalls.length === 1 ? releaseOwn.promise : Promise.resolve());
+
+		let settled = false;
+		const promptA = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "/compact own" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [
+				{ type: "text", text: "/force read secret-from-a" },
+				{ type: "image", data: "aGk=", mimeType: "image/png" },
+			],
+		});
+
+		releaseOwn.resolve();
+		// The steered `/force` runs inside A (its residual goes to A's session
+		// steer) before A finishes; nothing is left for a later prompt.
+		expect((await promptA).stopReason).toBe("end_turn");
+		expect(settled).toBe(true);
+		expect(session.forcedToolChoice).toBe("read");
+		expect(session.steerCalls).toEqual([
+			{ text: "secret-from-a", images: [{ type: "image", data: "aGk=", mimeType: "image/png" }] },
+		]);
+
+		const promptB = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "b" }],
+		});
+		expect(promptB.stopReason).toBe("end_turn");
+		expect(session.steerCalls).toHaveLength(1);
+		expect(session.promptCalls).toEqual(["b"]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
 	it("never overlaps a builtin still running for a cancelled prompt, and keeps later prompts usable", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });

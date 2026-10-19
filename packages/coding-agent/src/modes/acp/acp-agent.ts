@@ -992,7 +992,9 @@ export class AcpAgent implements Agent {
 			// A prompt landing on a busy session is queued as steer below; AgentBusyError
 			// can still escape builtin commands. Type it for the wire instead of letting
 			// transport.ts wrap it as a generic -32603 internal error.
-			this.#runPromptOrCommand(record, converted.text, converted.images).catch((error: unknown) => {
+			const promptTurn = record.promptTurn;
+			this.#runPromptOrCommand(record, converted.text, converted.images).catch(async (error: unknown) => {
+				if (!(await this.#awaitSteeredBuiltins(record, promptTurn, false))) return;
 				this.#finishPrompt(
 					record,
 					undefined,
@@ -1153,7 +1155,7 @@ export class AcpAgent implements Agent {
 
 		const builtin = resolveAcpBuiltinSlashCommand(text);
 		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
-		if (promptTurn?.cancelRequested) return;
+		if (builtinResult === undefined || promptTurn?.cancelRequested) return;
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
@@ -1169,6 +1171,7 @@ export class AcpAgent implements Agent {
 				if (!residualAgentInvoked) {
 					await this.#waitForExtensionUserMessages(record, residualBaseline);
 					await this.#waitForPromptEventHandlers(record);
+					if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
 					this.#finishPrompt(record, { stopReason: "end_turn" });
 				}
 				return;
@@ -1176,6 +1179,7 @@ export class AcpAgent implements Agent {
 			// Built-in commands (`/compact`, `/model`, …) never emit `agent_end`,
 			// so report the context they changed here.
 			await this.#emitUsageUpdate(record);
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
 			this.#finishPrompt(record, {
 				stopReason: "end_turn",
 				usage: this.#buildTurnUsage(
@@ -1200,8 +1204,28 @@ export class AcpAgent implements Agent {
 		if (!agentInvoked) {
 			await this.#waitForExtensionUserMessages(record, extensionPromptBaseline);
 			await this.#waitForPromptEventHandlers(record);
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
 			this.#finishPrompt(record, { stopReason: "end_turn" });
 		}
+	}
+
+	/**
+	 * Wait until every builtin steered into `promptTurn` ran: the prompt owns
+	 * those commands and their output, so a locally handled prompt must not
+	 * finish under them. Returns whether the caller still finishes the prompt:
+	 * false once it settled or another prompt replaced it, and, with
+	 * `deferToWaiter`, when a steered command already armed the quiescence
+	 * waiter, which then finishes it after any run the command started.
+	 */
+	async #awaitSteeredBuiltins(
+		record: ManagedSessionRecord,
+		promptTurn: PromptTurnState | undefined,
+		deferToWaiter: boolean,
+	): Promise<boolean> {
+		if (!promptTurn) return false;
+		while (promptTurn.pendingBuiltinSteers > 0) await promptTurn.builtinSteerLane;
+		if (record.promptTurn !== promptTurn || promptTurn.settled) return false;
+		return !(deferToWaiter && promptTurn.quiescenceWait);
 	}
 
 	async #tryRunSkillCommand(record: ManagedSessionRecord, text: string): Promise<boolean> {
@@ -1379,18 +1403,8 @@ export class AcpAgent implements Agent {
 			throw RequestError.invalidParams(undefined, "expected { sessionId: string, prompt: ContentBlock[] }");
 		}
 		// Same unvalidated block shape `session/prompt` hands to #convertPromptBlocks.
-		return await this.#admitSteer(this.#getSessionRecord(sessionId), prompt as PromptRequest["prompt"]);
-	}
-
-	/**
-	 * Admit steering input into the prompt open right now, or start a new prompt
-	 * when none is open. Never cancels an open prompt.
-	 */
-	async #admitSteer(
-		record: ManagedSessionRecord,
-		blocks: PromptRequest["prompt"],
-	): Promise<{ outcome: "injected" | "startedNewTurn" }> {
-		const sessionId = record.session.sessionId;
+		const blocks = prompt as PromptRequest["prompt"];
+		const record = this.#getSessionRecord(sessionId);
 		const turn = record.promptTurn;
 		// An open prompt owns every turn until it resolves, including the idle gaps
 		// while it waits on background work: inject so the client keeps its turn.
@@ -1401,15 +1415,13 @@ export class AcpAgent implements Agent {
 			const builtin = resolveAcpBuiltinSlashCommand(text);
 			if (builtin) {
 				// A builtin (`/compact`, `/model`, …) runs as a command, not as model
-				// text. Reserve now: pendingBuiltinSteers keeps isAcpSessionQuiescent
-				// false, so the open prompt cannot finish between this request and the
-				// lane running the command. The prompt's lane keeps commands in arrival
-				// order and non-overlapping (a second `/compact` would fail "already in
-				// progress").
+				// text. Reserve now: pendingBuiltinSteers keeps the prompt from
+				// finishing (quiescence and locally handled prompts both wait on it)
+				// between this request and the lane running the command. The prompt's
+				// lane keeps commands in arrival order and non-overlapping (a second
+				// `/compact` would fail "already in progress").
 				turn.pendingBuiltinSteers++;
-				const run = turn.builtinSteerLane.then(() =>
-					this.#runSteeredBuiltin(record, turn, builtin, images, blocks),
-				);
+				const run = turn.builtinSteerLane.then(() => this.#runSteeredBuiltin(record, turn, builtin, images));
 				turn.builtinSteerLane = run.catch(() => undefined);
 				void run.catch((error: unknown) => {
 					logger.warn("ACP steered command failed", { sessionId, error });
@@ -1431,60 +1443,50 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
-	 * Run a steered builtin inside the prompt it was admitted to. Releases the
-	 * reservation taken by #admitSteer however the command ends, then finishes
-	 * the prompt once the session is quiescent: `/compact` aborts the live run
-	 * with the agent disconnected, so that run's `agent_end` never reaches this
-	 * prompt, and without a resume nothing else would finish it. A resumed run's
-	 * `agent_end` finds the same waiter and leaves it in charge.
+	 * Run a steered builtin inside the prompt it was admitted to; a command
+	 * whose prompt ended before it could start is dropped, never moved to
+	 * another prompt. Releases the reservation taken by #steer however the
+	 * command ends, then finishes the prompt once the session is quiescent:
+	 * `/compact` aborts the live run with the agent disconnected, so that run's
+	 * `agent_end` never reaches this prompt, and without a resume nothing else
+	 * would finish it. A resumed run's `agent_end` finds the same waiter and
+	 * leaves it in charge.
 	 */
 	async #runSteeredBuiltin(
 		record: ManagedSessionRecord,
 		turn: PromptTurnState,
 		builtin: ResolvedAcpBuiltinSlashCommand,
 		images: AgentImageContent[],
-		blocks: PromptRequest["prompt"],
 	): Promise<void> {
 		const sessionId = record.session.sessionId;
 		try {
-			if (turn.cancelRequested) {
-				// Stop withdrew everything queued in this prompt.
-				logger.debug("ACP steered command dropped: its prompt was cancelled", {
-					sessionId,
-					command: builtin.parsed.name,
-				});
+			const result = await this.#runBuiltin(record, turn, builtin, true);
+			if (!result) {
+				logger.debug("ACP steered command dropped: its prompt ended", { sessionId, command: builtin.parsed.name });
 				return;
 			}
-			if (turn.settled) {
-				// The prompt finished on its own while this command waited: admit it
-				// into whatever is open now instead of cancelling a later prompt.
-				void this.#admitSteer(record, blocks).catch((error: unknown) => {
-					logger.warn("ACP steering turn failed", { sessionId, error });
-				});
-				return;
+			// Residual text (e.g. `/force <tool> <prompt>`) is ordinary steer input,
+			// but only for the prompt that admitted the command: one that finished
+			// after its prompt was cancelled or ended must not feed its text and
+			// attachments into a later prompt.
+			if ("prompt" in result) {
+				if (record.promptTurn === turn && !turn.settled && !turn.cancelRequested) {
+					await record.session.steer(result.prompt, images);
+				} else {
+					logger.debug("ACP steered command residual dropped: its prompt ended", {
+						sessionId,
+						command: builtin.parsed.name,
+					});
+				}
 			}
-			try {
-				const result = await this.#runBuiltin(record, turn, builtin, true);
-				// Residual text (e.g. `/force <tool> <prompt>`) is ordinary steer input,
-				// but only for the prompt that admitted the command: one that finished
-				// after its prompt was cancelled or ended must not feed its text and
-				// attachments into a later prompt.
-				if ("prompt" in result) {
-					if (record.promptTurn === turn && !turn.settled && !turn.cancelRequested) {
-						await record.session.steer(result.prompt, images);
-					} else {
-						logger.debug("ACP steered command residual dropped: its prompt ended", {
-							sessionId,
-							command: builtin.parsed.name,
-						});
-					}
-				}
-				await this.#emitUsageUpdate(record);
-			} catch (error) {
-				logger.warn("ACP steered command failed", { sessionId, command: builtin.parsed.name, error });
-				if (!turn.settled && !turn.cancelRequested) {
-					await this.#emitCommandOutput(record, `Command /${builtin.parsed.name} failed: ${errorMessage(error)}`);
-				}
+			await this.#emitUsageUpdate(record);
+		} catch (error) {
+			logger.warn("ACP steered command failed", { sessionId, command: builtin.parsed.name, error });
+			if (!turn.settled && !turn.cancelRequested) {
+				await this.#emitCommandOutput(
+					record,
+					`Command /${builtin.parsed.name} failed: ${errorMessage(error)}`,
+				).catch(() => undefined);
 			}
 		} finally {
 			turn.pendingBuiltinSteers--;
@@ -1516,13 +1518,16 @@ export class AcpAgent implements Agent {
 		turn: PromptTurnState | undefined,
 		builtin: ResolvedAcpBuiltinSlashCommand,
 		steered: boolean,
-	): Promise<Exclude<AcpBuiltinSlashCommandResult, false>> {
+	): Promise<Exclude<AcpBuiltinSlashCommandResult, false> | undefined> {
 		const runtime = this.#buildSlashCommandRuntime(record, turn);
 		// Same-prompt handlers finish first (the prompt's steered lane already
 		// orders its own commands).
 		for (const running of record.runningBuiltins) {
 			if (running.turn === turn) await running.done;
 		}
+		// The wait can outlast the prompt (cancelled, or otherwise ended): its
+		// command must not start then. `undefined` means it never ran.
+		if (!turn || turn.cancelRequested || turn.settled || record.promptTurn !== turn) return undefined;
 		for (const running of record.runningBuiltins) {
 			if (running.turn !== turn && (steered || running.steered)) {
 				await runtime.output(
