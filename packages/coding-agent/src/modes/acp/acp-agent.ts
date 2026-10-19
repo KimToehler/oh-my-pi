@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, isRecord, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -114,6 +114,16 @@ const ACP_STEERING_METHOD = "_session/steering";
  * has no replay, so loadSession is not advertised to them.
  */
 const INTELLIJ_CLIENT_PLATFORM = "intellij";
+/**
+ * Session entry holding config values (`configId` → value) that omp replaced on
+ * its own, e.g. plan approval exiting plan mode or switching the execution
+ * model. JetBrains IDEs ignore `current_mode_update`, rank their stored
+ * dropdown choice above the agent's `currentValue`, and re-send that stored
+ * choice via `session/set_config_option` before every prompt. Re-sends of a
+ * recorded value are dropped until the client picks a different value.
+ * Persisted so the guard survives an agent restart followed by `session/resume`.
+ */
+const ACP_STALE_CLIENT_CONFIG_ENTRY = "acp-stale-client-config";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
 const PLAN_APPROVE_VALUE = "approve";
@@ -207,6 +217,8 @@ type ManagedSessionRecord = {
 	closedError: PromptLifecycleError | undefined;
 	promptEventHandlers: Set<Promise<void>>;
 	extensionUserMessageTasks: Set<Promise<void>>;
+	/** Lazily loaded from {@link ACP_STALE_CLIENT_CONFIG_ENTRY}; see there. */
+	staleClientConfig: Map<string, string> | undefined;
 };
 
 type ReplayableMessage = {
@@ -635,6 +647,8 @@ export class AcpAgent implements Agent {
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
+	/** Client re-asserts its stored config choices on every prompt (JetBrains); see {@link ACP_STALE_CLIENT_CONFIG_ENTRY}. */
+	#clientPinsConfigOptions = false;
 	#cancelCleanupTimeoutMs = ACP_CANCEL_CLEANUP_TIMEOUT_MS;
 	#blobs = new BlobStore(getBlobsDir());
 
@@ -668,6 +682,7 @@ export class AcpAgent implements Agent {
 			});
 		}
 		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
+		this.#clientPinsConfigOptions = isIntelliJClient;
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentInfo: {
@@ -786,7 +801,9 @@ export class AcpAgent implements Agent {
 
 	async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
 		const record = this.#getSessionRecord(params.sessionId);
-		this.#applyModeChange(record.session, params.modeId);
+		if (!this.#isStaleClientReassert(record, MODE_CONFIG_ID, params.modeId)) {
+			this.#applyModeChange(record.session, params.modeId);
+		}
 		await this.#connection.sessionUpdate({
 			sessionId: record.session.sessionId,
 			update: this.#buildCurrentModeUpdate(record.session),
@@ -801,18 +818,20 @@ export class AcpAgent implements Agent {
 			throw new Error(`Unsupported boolean ACP config option: ${params.configId}`);
 		}
 
-		switch (params.configId) {
-			case MODE_CONFIG_ID:
-				this.#applyModeChange(record.session, params.value);
-				break;
-			case MODEL_CONFIG_ID:
-				await this.#setModelById(record.session, params.value);
-				break;
-			case THINKING_CONFIG_ID:
-				this.#setThinkingLevelById(record.session, params.value);
-				break;
-			default:
-				throw new Error(`Unknown ACP config option: ${params.configId}`);
+		if (!this.#isStaleClientReassert(record, params.configId, params.value)) {
+			switch (params.configId) {
+				case MODE_CONFIG_ID:
+					this.#applyModeChange(record.session, params.value);
+					break;
+				case MODEL_CONFIG_ID:
+					await this.#setModelById(record.session, params.value);
+					break;
+				case THINKING_CONFIG_ID:
+					this.#setThinkingLevelById(record.session, params.value);
+					break;
+				default:
+					throw new Error(`Unknown ACP config option: ${params.configId}`);
+			}
 		}
 
 		// When mode is changed via the generic config-option API, mirror the
@@ -1428,6 +1447,7 @@ export class AcpAgent implements Agent {
 			promptEventHandlers: new Set(),
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
+			staleClientConfig: undefined,
 		};
 	}
 
@@ -1890,6 +1910,78 @@ export class AcpAgent implements Agent {
 		return configOptions;
 	}
 
+	/** Current value of every select config option, keyed by config id. */
+	#selectConfigValues(session: AgentSession): Map<string, string> {
+		const values = new Map<string, string>();
+		for (const option of this.#buildConfigOptions(session)) {
+			if (option.type === "select") values.set(option.id, option.currentValue);
+		}
+		return values;
+	}
+
+	#staleClientConfig(record: ManagedSessionRecord): Map<string, string> {
+		if (record.staleClientConfig) return record.staleClientConfig;
+		const values = new Map<string, string>();
+		const branch = record.session.sessionManager.getBranchView();
+		for (let index = branch.length - 1; index >= 0; index--) {
+			const entry = branch[index];
+			if (entry.type !== "custom" || entry.customType !== ACP_STALE_CLIENT_CONFIG_ENTRY) continue;
+			if (isRecord(entry.data) && isRecord(entry.data.values)) {
+				for (const [configId, value] of Object.entries(entry.data.values)) {
+					if (typeof value === "string") values.set(configId, value);
+				}
+			}
+			break;
+		}
+		record.staleClientConfig = values;
+		return values;
+	}
+
+	#persistStaleClientConfig(record: ManagedSessionRecord, values: Map<string, string>): void {
+		record.session.sessionManager.appendCustomEntry(ACP_STALE_CLIENT_CONFIG_ENTRY, {
+			values: Object.fromEntries(values),
+		});
+	}
+
+	/**
+	 * Whether a client config request only re-sends a value omp has since
+	 * replaced. A different value is a real user choice: it clears the entry
+	 * and applies normally.
+	 */
+	#isStaleClientReassert(record: ManagedSessionRecord, configId: string, value: string): boolean {
+		if (!this.#clientPinsConfigOptions) return false;
+		const stale = this.#staleClientConfig(record);
+		const staleValue = stale.get(configId);
+		if (staleValue === undefined) return false;
+		if (staleValue === value) {
+			logger.debug("Ignoring stale ACP client config re-assert", {
+				sessionId: record.session.sessionId,
+				configId,
+				value,
+			});
+			return true;
+		}
+		stale.delete(configId);
+		this.#persistStaleClientConfig(record, stale);
+		return false;
+	}
+
+	/** Record every select value omp changed since `before` so the client's re-send of it is ignored. */
+	#recordAgentConfigOverrides(session: AgentSession, before: Map<string, string>): void {
+		if (!this.#clientPinsConfigOptions) return;
+		const record = this.#sessions.get(session.sessionId);
+		if (!record) return;
+		const after = this.#selectConfigValues(session);
+		const stale = this.#staleClientConfig(record);
+		let changed = false;
+		for (const [configId, value] of before) {
+			if (after.get(configId) === value || stale.get(configId) === value) continue;
+			stale.set(configId, value);
+			changed = true;
+		}
+		if (changed) this.#persistStaleClientConfig(record, stale);
+	}
+
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
 		return [
 			{ value: THINKING_OFF, name: "Off" },
@@ -2023,6 +2115,7 @@ export class AcpAgent implements Agent {
 		// Approved. The next turn injects the plan as context from the plan reference.
 		// A plan whose bytes a review bound executes from an immutable snapshot of those
 		// bytes, so later edits to the agent-chosen file cannot change what gets executed.
+		const configBeforeApproval = this.#selectConfigValues(session);
 		let executionPlanPath = planFilePath;
 		if (plan.reviewedSha256) executionPlanPath = await session.adoptApprovedPlan(plan);
 		else session.setPlanReferencePath(planFilePath);
@@ -2059,6 +2152,7 @@ export class AcpAgent implements Agent {
 				modelNote = ` (Could not switch to the ${executionModel.role} model; continuing with the current model.)`;
 			}
 		}
+		this.#recordAgentConfigOverrides(session, configBeforeApproval);
 		try {
 			await this.#connection.sessionUpdate({
 				sessionId: session.sessionId,
