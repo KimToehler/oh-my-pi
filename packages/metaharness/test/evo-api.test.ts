@@ -948,6 +948,8 @@ describe("evo launch", () => {
 		for (const flag of ["--agent-dir", "--models-yaml", "--source-identity", "--thinking"])
 			expect(argv).toContain(flag);
 		expect(argv).toContain("--source-root");
+		// The suite's declared platform decides the container arch, not the daemon's native one.
+		expect(argv[argv.indexOf("--platform") + 1]).toBe(SUITE.platform);
 		delete process.env.EVO_TEST_ROUTER_KEY;
 		await expect(buildEvalLaunch(input)).rejects.toThrow(
 			"host env not set for forwarded variables: EVO_TEST_ROUTER_KEY",

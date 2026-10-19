@@ -10,6 +10,9 @@ import type { BenchmarkKind, RunRole } from "./store";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..");
 
+/** Task container platforms the runner can execute (`--platform`). */
+export type TaskPlatform = "linux/amd64" | "linux/arm64";
+
 /** POST /api/runs body. Mirrors the runner CLI surface we actually use. */
 export interface LaunchRequest {
 	/** Benchmark adapter to execute. */
@@ -30,6 +33,8 @@ export interface LaunchRequest {
 	webSearch?: boolean;
 	/** Harbor container backend. Defaults to apple-container whenever the Apple `container` CLI is installed; docker is an explicit opt-in. */
 	environment?: "docker" | "apple-container";
+	/** Task container platform (`--platform`, validated by the runner); omitted runs the daemon's native arch. */
+	platform?: string;
 	/** Prewalk to a fast/cheap model at the first edit/write once the todo list exists; `into` overrides the default "smol" target. */
 	prewalk?: { into?: string };
 	/** Role of this run inside its experiment (baseline vs treatment). */
@@ -290,6 +295,7 @@ export function harborRunnerArgs(
 	// docker, so the preference must be stated here.
 	const environment = request.environment ?? (Bun.which("container") ? "apple-container" : "docker");
 	argv.push("--environment", environment);
+	if (request.platform) argv.push("--platform", request.platform);
 	if (request.agent) argv.push("--agent", request.agent);
 	// An explicit include list IS the sample — never let the runner's
 	// default task cap truncate it.

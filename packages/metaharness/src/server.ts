@@ -304,6 +304,7 @@ export async function resolveArmLaunch(
 		role: req.role,
 		note: req.note,
 		environment: cfg.environment === "docker" || cfg.environment === "apple-container" ? cfg.environment : undefined,
+		platform: str(cfg.platform),
 		extraArgs: req.extraArgs,
 	};
 }

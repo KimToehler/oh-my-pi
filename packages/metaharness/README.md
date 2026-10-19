@@ -174,6 +174,7 @@ omitted from the benchmark prompt. Override infrastructure with
 | `--binary <path>` | — | Prebuilt omp binary (repeat for arm64+x64) |
 | `--install <source\|local\|published>` | `source` | `source` = repo bind-mount, `local` = tarball pack, `published` = npm `@oh-my-pi/pi-coding-agent` |
 | `--environment <docker\|apple-container>` | `docker` | `apple-container` runs trials via Apple's `container` CLI (no Docker); source/deps mounts go through `harbor --mounts` and the gateway is auto-forwarded from `192.168.64.1:4000` to the loopback-bound gateway |
+| `--platform <linux/amd64\|linux/arm64>` | daemon native | Task container arch; source mode builds `_deps/linux-<arch>` and needs the matching addon. Terminal-Bench images are amd64-only: on an arm64 Docker Desktop use `linux/amd64` (Rosetta emulation). Evo runs take it from the suite's `platform` |
 | `--gateway-url <url>` | `http://host.docker.internal:4000` | `http://192.168.64.1:4000` under `--environment apple-container` |
 | `--no-gateway` | off | Pass host provider keys into containers instead |
 | `-o, --jobs-dir <path>` | `<repo>/runs/harbor` | Shared with the server |

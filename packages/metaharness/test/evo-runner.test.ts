@@ -1014,6 +1014,41 @@ describe("runner-config credential persistence", () => {
 		expect(cfg.sourceIdentityScheme).toBe(2);
 	}, 60_000);
 
+	it("--platform linux/amd64 builds x64 deps, stages the x64 addon and pins harbor's docker platform", async () => {
+		const jobsDir = tmp();
+		const source = makeSourceRepo();
+		write(source, "packages/natives/native/pi_natives.linux-x64.node", "addon");
+		const launch = formatSourceIdentity(await sourceIdentity(source));
+		const depsDir = path.join(jobsDir, "_bench", "_deps", "linux-x64");
+		const dockerRuns = path.join(jobsDir, "docker-runs");
+		const harborEnv = path.join(jobsDir, "harbor-env");
+		const { code, out } = await runRunner(
+			jobsDir,
+			"job-amd64",
+			["--environment", "docker", "--platform", "linux/amd64", "--source-root", source, "--source-identity", launch],
+			{ STUB_DEPS_DIR: depsDir, STUB_RUNS: dockerRuns, STUB_ENV: harborEnv },
+			undefined,
+			{
+				// The daemon is arm64; only the requested platform may decide the container arch.
+				docker:
+					'case "$1" in\n  version) echo arm64;;\n' +
+					'  run) echo "$*" >> "$STUB_RUNS"; mkdir -p "$STUB_DEPS_DIR/node_modules";;\nesac',
+				harbor: 'echo "$DOCKER_DEFAULT_PLATFORM $OMP_BENCH_SOURCE_ARCH" >> "$STUB_ENV"',
+			},
+			"source",
+		);
+		expect({ code, out }).toMatchObject({ code: 0 });
+		expect(fs.readFileSync(dockerRuns, "utf8")).toContain("--platform linux/amd64");
+		expect(fs.readFileSync(harborEnv, "utf8")).toContain("linux/amd64 x64");
+	}, 60_000);
+
+	it("rejects a non-linux/arm64 --platform on apple-container and an unknown platform", () => {
+		expect(() => parseArgs(["--environment", "apple-container", "--platform", "linux/amd64"])).toThrow(
+			"apple-container runs linux/arm64 only",
+		);
+		expect(() => parseArgs(["--platform", "linux/riscv64"])).toThrow("--platform must be linux/amd64|linux/arm64");
+	});
+
 	it("two concurrent source runs build the shared linux deps tree exactly once", async () => {
 		const jobsDir = tmp();
 		const source = makeSourceRepo();
