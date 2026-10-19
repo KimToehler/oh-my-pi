@@ -189,6 +189,14 @@ F2 round 1 (strategic-risk-review FAIL, `onara/cx/gpt-5.6-sol`) fixes, applied o
 3. Coverage, auditor adversarial criterion: a steered `/force read <text>` with an image attachment steers `<text>` with the image into the open turn and starts no extra prompt.
 F2 round 2 (implementation-audit FAIL, `onara/cx/gpt-5.6-terra`) fix, applied on top of `377a26a7c5`:
 4. Residual input stays in its prompt: after a steered builtin returns `{ prompt }`, `#runSteeredBuiltin` steers the residual text and the original images only if the originating prompt is still current and live; otherwise it drops them, logging the drop. A command that already started is not re-admitted. The runtime's state callbacks (`refreshCommands`, `reloadPlugins`, `notifyTitleChanged`, `notifyConfigChanged`) stay unguarded. They publish session-scoped state (command list, title, model/mode config), which is correct whichever prompt is open, and they carry no turn content. Test: hold `/force read secret-from-a` with an image on its status output, cancel prompt A, start prompt B, then release the output. No `session.steer` happens, and B ends `end_turn`.
+F2 round 3 (strategic-risk-review FAIL, `onara/cx/gpt-5.6-sol`) fix, applied on top of `6cd5877b79`:
+5. No builtin handler overlaps a steered one across prompts. Every builtin handler, whether sent as a prompt (`#runPromptOrCommand`) or steered in (`#runSteeredBuiltin`), runs through `#runBuiltin`. While it runs, `#runBuiltin` registers the handler in `ManagedSessionRecord.runningBuiltins` with its prompt and a `steered` flag. Handlers mutate shared session state, and a cancelled prompt's handler can ignore its advisory abort signal, so these rules apply:
+   - A handler of the same prompt is waited out.
+   - A handler of another prompt is never waited on. When either the new command or that running handler is steered, the new command is not run. Its prompt gets `Command /<name> not run: /<holder> from an earlier reply is still running.` and settles normally, so later prompts stay usable and no second handler runs beside a steered one.
+   - Two commands that were both sent as prompts keep their previous behaviour. The existing test "keeps a cancelled bare rename from updating or settling its successor" requires that a cancelled `/rename` not block the next one.
+   - Registration ends in `finally`.
+   Test: the "stuck command" scenario now expects the opposite of the overlap. Neither a builtin steered into prompt B nor a builtin sent as prompt C calls `compact()` a second time while A's steered handler is pending. Both get the not-run chunk, and both settle `end_turn`.
+   F1 adds a real-surface cancel scenario: steer `/compact`, cancel, then send a new prompt. The new prompt answers, and no "already in progress" appears.
 
 ## Final verification wave
 - [x] F3. Whole-diff review: not needed. The change spans 2 modules (`modes/acp`, `slash-commands`) plus their tests; tick with that reason.
