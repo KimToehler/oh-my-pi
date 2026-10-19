@@ -1,21 +1,21 @@
-head=72b99ad13c77de0707b7306427aefd7875a6f934
-0.9s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
-0.9s initialize steering={"supported":true}
-1.1s session 01a155ed-b267-7701-8823-7100f44a0faa
-1.1s usage_update used=18030
-5.0s tool_call #1: $ sleep 2 && echo step-1
-7.0s usage_update used=20039
-9.0s tool_call #2: $ sleep 2 && echo step-2
-9.0s STEER /compact
-9.0s CANCEL (session/cancel notification)
-9.0s steer response (/compact): {"outcome":"injected"}
-9.0s prompt response: {"stopReason":"cancelled","usage":{"inputTokens":6,"outputTokens":166,"totalTokens":40315,"cachedReadTokens":39835,"cachedWriteTokens":308}}
-9.0s tool calls total=2 afterCompact=0
-9.0s literal "/compact" echoed as user text? false
-9.0s final text tail: ""
-9.1s usage_update used=20132
-12.1s usage_update used=20244
-12.1s usage_update used=20244
-12.1s second prompt response: {"stopReason":"end_turn","usage":{"inputTokens":4,"outputTokens":44,"totalTokens":20288,"cachedReadTokens":20125,"cachedWriteTokens":115}}
-12.1s second prompt text: "SECOND OK"
-12.1s "already in progress" seen? false
+head=ca6858b0319e539f7c7a103752e9109bf41bba23
+1.1s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
+1.1s initialize steering={"supported":true}
+1.3s session 01a155f9-ac1c-704d-ab40-5132aa52a9cd
+1.4s usage_update used=18030
+5.4s tool_call #1: $ sleep 2 && echo step-1
+7.5s usage_update used=20038
+9.6s tool_call #2: $ sleep 2 && echo step-2
+9.6s STEER /compact
+9.6s CANCEL (session/cancel notification)
+9.6s steer response (/compact): {"outcome":"injected"}
+9.6s prompt response: {"stopReason":"cancelled","usage":{"inputTokens":6,"outputTokens":166,"totalTokens":40313,"cachedReadTokens":39834,"cachedWriteTokens":307}}
+9.6s tool calls total=2 afterCompact=0
+9.6s literal "/compact" echoed as user text? false
+9.6s final text tail: ""
+9.6s usage_update used=20131
+12.3s usage_update used=20243
+12.4s usage_update used=20243
+12.4s second prompt response: {"stopReason":"end_turn","usage":{"inputTokens":4,"outputTokens":34,"totalTokens":20277,"cachedReadTokens":20124,"cachedWriteTokens":115}}
+12.4s second prompt text: "SECOND OK"
+12.4s "already in progress" seen? false
