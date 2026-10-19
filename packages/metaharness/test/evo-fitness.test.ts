@@ -301,7 +301,7 @@ function pair(childRewards: Record<string, number>, childSignals: string[] = [])
 }
 
 describe("comparison", () => {
-	it("computes paired delta, SE/CI, wins/ties/losses, cost deltas", () => {
+	it("computes paired delta, SE/CI and wins/ties/losses", () => {
 		const { child, baseline } = pair({ t1: 1, t2: 0, t3: 1, t4: 0 });
 		const c = compareFitness(child, baseline, variant([]));
 		expect(c.deltas.map(d => [d.task, d.delta])).toEqual([
@@ -316,9 +316,6 @@ describe("comparison", () => {
 		expect(c.se).toBeCloseTo(Math.sqrt(0.9166666667 / 4), 9);
 		expect(c.creditedDelta).toBeCloseTo(0.25, 12);
 		expect(c.dataComplete).toBe(true);
-		expect(typeof c.costUsdDelta).toBe("number");
-		expect(typeof c.callsDelta).toBe("number");
-		expect(typeof c.outputTokensDelta).toBe("number");
 	});
 
 	it("clamps positive credited delta to 0 unless every expected signal appears; raw stays visible", () => {
@@ -359,7 +356,7 @@ describe("comparison", () => {
 		expect(c.creditedDelta).toBeNull();
 		expect([c.sd, c.se, c.ci95]).toEqual([null, null, null]);
 		expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
-		expect([c.callsDelta, c.outputTokensDelta, c.costUsdDelta]).toEqual([null, null, null]);
+		expect(c.efficiency.costUsd.ineligibility).toMatchObject({ reason: "incomplete" });
 	});
 
 	it("reports tasks missing on either side instead of a comparable delta", () => {
@@ -471,16 +468,21 @@ describe("cost scope (R73)", () => {
 		expect(r.costMissingTrials).toBe(0);
 	});
 
-	it("excludes null-cost trials from the mean instead of counting 0, and nulls costUsdDelta", () => {
+	it("excludes null-cost trials from the mean instead of counting 0, and refuses the cost ratio", () => {
 		const child = sideOf("c", [0.2, null]);
 		const baseline = sideOf("p", [0.2, 0.2], [0, 0]);
 		expect(child.meanCostUsd).toBeCloseTo(0.2, 12);
 		expect(child.costMissingTrials).toBe(1);
 		const c = compareFitness(child, baseline, variant([]));
 		expect(c.decisionEligible).toBe(true);
-		expect(c.costUsdDelta).toBeNull();
+		expect(c.efficiency.costUsd).toEqual({
+			ratio: null,
+			ci95: null,
+			ineligibility: { reason: "cost_missing", trials: 1 },
+		});
 		const whole = compareFitness(sideOf("c2", [0.2, 0.4]), baseline, variant([]));
-		expect(whole.costUsdDelta).toBeCloseTo(0.1, 12);
+		// Per-task ratios 1 and 2: geometric mean sqrt(2).
+		expect(whole.efficiency.costUsd.ratio).toBeCloseTo(Math.SQRT2, 12);
 	});
 
 	it("a partially costed transcript marks the trial cost-missing and nulls costUsdDelta", () => {
@@ -502,7 +504,7 @@ describe("cost scope (R73)", () => {
 			const child = sideOf("c", [0.2, partial]);
 			expect(child.costMissingTrials).toBe(1);
 			const c = compareFitness(child, sideOf("p", [0.2, 0.2], [0, 0]), variant([]));
-			expect(c.costUsdDelta).toBeNull();
+			expect(c.efficiency.costUsd.ineligibility).toEqual({ reason: "cost_missing", trials: 1 });
 		} finally {
 			fs.rmSync(dir, { recursive: true, force: true });
 		}

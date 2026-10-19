@@ -105,6 +105,17 @@ addon, taken at the **base** commit's version, into `environment/repo` before th
 records `nativeAddons` (target, package, version, integrity, files) in `evo-task.json` (`[]` when none).
 Keep `--setup-command` for real build-time setup such as `bun install --frozen-lockfile`, not binary download.
 
+## Efficiency comparison
+
+`GET /api/evo/variants/:id/compare` returns `efficiency.{costUsd,outputTokens,llmCalls}`: the geometric mean over
+tasks of child/baseline mean spend (`ratio` < 1 means the child spent less) with a 95% Student-t interval on the
+log scale. Per-task ratios keep a $4 task from outweighing $0.10 tasks. It shares the data, provenance, transcript
+and power gates with the reward comparison but not reward variance, so a suite both variants pass on every task
+still answers "same quality, how much cheaper". Each metric refuses separately: `cost_missing` (an uncosted trial),
+`no_ratio` (a task mean of zero on either side, listed), `no_variance` (every task has the same ratio). Within-task
+cost spread decides how many tasks you need: on the `ab1` suite it was about 0.44 (log scale) for Sonnet and 0.21
+for Opus, so the same seven tasks resolve roughly ±50% vs ±11%.
+
 ## Native Terminal-Bench 2.1 runner
 
 `bench:tb` bypasses Harbor and Docker. It boots each task's published OCI

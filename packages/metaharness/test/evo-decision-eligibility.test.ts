@@ -211,7 +211,6 @@ describe("decision eligibility", () => {
 			);
 			expect(c.decisionEligible).toBe(true);
 			expect(c.ineligibility).toBeNull();
-			expect(c.callsDelta).not.toBeNull();
 		});
 
 		for (const which of ["child", "baseline"] as const) {
@@ -226,7 +225,7 @@ describe("decision eligibility", () => {
 				expect(c.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
 				expect(c.creditedDelta).toBeNull();
 				expect([c.wins, c.ties, c.losses]).toEqual([null, null, null]);
-				expect([c.callsDelta, c.outputTokensDelta, c.costUsdDelta]).toEqual([null, null, null]);
+				expect(c.efficiency.llmCalls.ineligibility).toEqual({ reason: "lossy_transcript", trials: 1 });
 				expect(c.ci95).toBeNull();
 				// Raw diagnostics stay visible.
 				expect(c.rawDelta).toBeCloseTo(0.5, 12);
