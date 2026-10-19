@@ -1,0 +1,117 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/acp-steer-builtin-commands.md",
+  "plan_sha256": "6ba00a7cb94d95fb4b35f68cd080b4cf459c509ade30d6d37554e7a75b08c717",
+  "reviewed_sha": "a8bb36c239124b8857e325463fe657cac9e29394",
+  "diff_base": "e0420f1b7b0f96180009dd9688123539a1a2c5de",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Mandatory class concurrency-state (per-prompt steered-builtin lane, session-wide runningBuiltins, shared quiescence waiter): both reviewers run. Rounds 1-6 each returned one FAIL lane with blockers (r1 strategic: settle skipped on rejection, session-scoped lane crossed prompts; r2 audit: late residual text/images into next prompt; r3 strategic: cross-prompt handler overlap; r4 audit: queued steer after cancel, local finish under steered work; r5 audit: error path cut off resumed run; r6 strategic: stale cwd snapshot before ordering wait), each fixed with a RED-proven regression test; round 7 audit and strategic review PASS on code identical to 5fc2e80167.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": ["onara/cc/claude-opus-5-5"],
+  "qa": [
+    {
+      "name": "F1 negative control: steered /compact on unfixed main reaches the model as text",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-steer-builtin-commands/f1-0-negative-control-main.txt"
+    },
+    {
+      "name": "F1: steered /compact compacts mid-turn, resumes in same ACP prompt, end_turn (head 5fc2e80167)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-steer-builtin-commands/f1-1-steer-compact-resume.txt"
+    },
+    {
+      "name": "F1: compaction.autoContinue false, steered /compact settles the prompt (head 5fc2e80167)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-steer-builtin-commands/f1-2-steer-compact-no-autocontinue.txt"
+    },
+    {
+      "name": "F1: two steered /compact plus text steer run in order, no overlap, text reaches model (head 5fc2e80167)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-steer-builtin-commands/f1-3-double-compact-plus-text.txt"
+    },
+    {
+      "name": "F1: steered /compact then cancel, next prompt answers, no 'already in progress' (head 5fc2e80167)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-steer-builtin-commands/f1-4-steer-compact-then-cancel.txt"
+    }
+  ],
+  "whole_diff": { "run": false, "reason": "not needed: 2 modules (modes/acp, slash-commands) and their tests" },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" },
+    { "invocation": "strategic-risk-review", "agent": "oracle", "model": "onara/cx/gpt-5.6-sol", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/acp-steer-builtin-commands/f2-implementation-audit.trailer.txt",
+      "trailer_sha256": "717e2d3b48b3821499188edb3dd843787084c3e982f5b89c435b8f0152ac0496",
+      "note": "Round 7 audit PASS, security_delta no; earlier rounds archived as f2r1..f2r6 trailers"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/acp-steer-builtin-commands/f2-strategic-risk-review.trailer.txt",
+      "trailer_sha256": "e3107898ede441f5a953aa132301e35f7950fd45fc2a9583a242c1e9c03982ed",
+      "note": "Round 7 strategic review PASS, security_delta no; watch-outs: future handle additions are steerable, immediate ACK has no backpressure, stuck handlers refuse later steered builtins"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1-r1",
+      "severity": "medium",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1500",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > settles the prompt when a steered command fails after the run went idle",
+      "fix_sha": "377a26a7c55548755b05124d96e6a46bc270aa3d"
+    },
+    {
+      "id": "B2-r1",
+      "severity": "medium",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1463",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > drops builtins queued in a cancelled prompt without cancelling the next prompt",
+      "fix_sha": "377a26a7c55548755b05124d96e6a46bc270aa3d"
+    },
+    {
+      "id": "B1-r2",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1481",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > drops a builtin's residual text when its prompt was cancelled while the command ran",
+      "fix_sha": "6cd5877b7964944c583bfb047a9785b94749924a"
+    },
+    {
+      "id": "B1-r3",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1542",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > never overlaps a builtin still running for a cancelled prompt, and keeps later prompts usable",
+      "fix_sha": "f623d43475878a674b849ebc3aae37cf05475a28"
+    },
+    {
+      "id": "B1-r4",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1524",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > never starts a steered builtin queued behind its prompt's own command once that prompt is cancelled",
+      "fix_sha": "72b99ad13c77de0707b7306427aefd7875a6f934"
+    },
+    {
+      "id": "B2-r4",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1228",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > keeps a locally handled prompt open until the builtins steered into it ran",
+      "fix_sha": "72b99ad13c77de0707b7306427aefd7875a6f934"
+    },
+    {
+      "id": "B1-r5",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1013",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > rejects with the prompt command's error only after a steered command's resumed run ended",
+      "fix_sha": "ca6858b0319e539f7c7a103752e9109bf41bba23"
+    },
+    {
+      "id": "B1-r6",
+      "severity": "high",
+      "location": "packages/coding-agent/src/modes/acp/acp-agent.ts:1540",
+      "coverage": "packages/coding-agent/test/acp-agent.test.ts::ACP agent > runs a steered builtin against session state its prompt's earlier command left behind",
+      "fix_sha": "5fc2e801673e06cb6e644e2d1bd0c1dca4282f32"
+    }
+  ]
+}
