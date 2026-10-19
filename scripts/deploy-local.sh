@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build omp from a git ref (default: main) into a standalone binary and install
 # it as $OMP_BIN_DIR/omp. Only this script changes what `omp` runs; edits in any
 # checkout have no effect until the next deploy.
 #
-# Usage: scripts/deploy-local.sh [ref]
+# Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
 #   OMP_BIN_DIR       install dir (default ~/.local/bin)
 #   CARGO_TARGET_DIR  defaults to the main checkout's target/ so Rust deps are reused
 #
@@ -14,6 +14,12 @@ set -euo pipefail
 
 REF="${1:-main}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# Without bun on PATH (e.g. NixOS), re-run inside the flake dev shell. --profile
+# pins its closure as a GC root: the built binary and addon link against its
+# /nix/store glibc/libgcc, so a garbage collection would otherwise break omp.
+if ! command -v bun >/dev/null && command -v nix >/dev/null && [ -z "${IN_NIX_SHELL:-}" ]; then
+	exec nix develop "$REPO" --profile "$REPO/.worktrees/omp-dev-profile" -c "$0" "$@"
+fi
 BIN_DIR="${OMP_BIN_DIR:-$HOME/.local/bin}"
 WT="$REPO/.worktrees/omp-deploy"
 TARGET="$BIN_DIR/omp"
@@ -31,6 +37,9 @@ log "Deploying $REF ($COMMIT)"
 if [ ! -d "$WT" ]; then
 	git -C "$REPO" worktree add --detach "$WT" "$COMMIT"
 else
+	# The native build regenerates these bindings, and on Linux they differ from
+	# the committed (macOS-generated) copy; that is build output, not local work.
+	git -C "$WT" checkout --quiet -- packages/natives/native/index.d.ts
 	DIRTY="$(git -C "$WT" status --porcelain --untracked-files=no)"
 	if [ -n "$DIRTY" ]; then
 		printf 'Build worktree %s has tracked changes; refusing to overwrite:\n%s\n' "$WT" "$DIRTY" >&2
