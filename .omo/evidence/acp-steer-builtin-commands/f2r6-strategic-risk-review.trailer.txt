@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: A queued same-prompt builtin must observe session scope committed by every earlier builtin before it begins.
+  positive_witness: Prompt `/move <project-B>`, steer `/session info` while move is gated, release move; reported CWD is project B.
+  negative_control: Construct runtime before waiting for `/move`; reported CWD remains project A and the test MUST fail.
+  observable: Command output CWD or resolved project-scoped target path.
+  boundary: `AcpAgent.#runBuiltin` ordering wait to `SlashCommandRuntime.cwd` construction.
+END-REVIEW-TRAILER

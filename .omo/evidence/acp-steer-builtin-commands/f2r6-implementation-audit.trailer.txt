@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: Cancellation must prevent an already-started steered handler from sending its late residual user content or attachments into successor reply.
+  positive_witness: Slow `/force read secret-from-a` is cancelled during handler execution; successor prompt runs with no `session.steer` containing source text or image.
+  negative_control: Remove current-live-turn check before residual `session.steer`; late handler sends `secret-from-a` and image after successor prompt begins.
+  observable: ACP `agent_message_chunk` stream, fake `session.steerCalls`, and successor prompt result distinguish isolated cancellation from cross-reply delivery.
+  boundary: `#runSteeredBuiltin` residual dispatch and `#buildSlashCommandRuntime` output guard.
+END-REVIEW-TRAILER

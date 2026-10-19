@@ -1,16 +1,16 @@
-head=ca6858b0319e539f7c7a103752e9109bf41bba23
+head=5fc2e801673e06cb6e644e2d1bd0c1dca4282f32
 1.0s cli=/Users/tim/git/oh-my-pi/.worktrees/acp-steer-builtin-commands/packages/coding-agent/src/cli.ts
 1.0s initialize steering={"supported":true}
-1.3s session 01a155f9-ac1d-7647-bf3a-018021a3181a
+1.2s session 01a15602-3f1b-756a-adc8-4b408c1e8fc2
 1.3s usage_update used=18030
-5.9s tool_call #1: $ sleep 2 && echo step-1
-7.9s usage_update used=20038
-10.2s tool_call #2: $ sleep 2 && echo step-2
-10.2s STEER /compact
-10.2s steer response (/compact): {"outcome":"injected"}
-22.7s CHUNK Compaction complete. Tokens: 20126 -> 18347 (saved 1779).
-22.7s usage_update used=18347
-22.7s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":6,"outputTokens":166,"totalTokens":40313,"cachedReadTokens":39834,"cachedWriteTokens":307}}
-22.7s tool calls total=2 afterCompact=0
-22.7s literal "/compact" echoed as user text? false
-22.7s final text tail: "Compaction complete. Tokens: 20126 -> 18347 (saved 1779)."
+6.0s tool_call #1: $ sleep 2 && echo step-1
+8.1s usage_update used=20038
+10.4s tool_call #2: $ sleep 2 && echo step-2
+10.4s STEER /compact
+10.4s steer response (/compact): {"outcome":"injected"}
+18.6s CHUNK Compaction complete. Tokens: 20126 -> 18384 (saved 1742).
+18.6s usage_update used=18384
+18.6s prompt response: {"stopReason":"end_turn","usage":{"inputTokens":6,"outputTokens":166,"totalTokens":40313,"cachedReadTokens":39834,"cachedWriteTokens":307}}
+18.6s tool calls total=2 afterCompact=0
+18.6s literal "/compact" echoed as user text? false
+18.6s final text tail: "Compaction complete. Tokens: 20126 -> 18384 (saved 1742)."
