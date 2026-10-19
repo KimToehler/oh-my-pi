@@ -3577,7 +3577,7 @@ describe("ACP agent", () => {
 				title: "Which approach?",
 				description: "Choose one",
 				oneOf: [
-					{ const: "Approach A", title: "Approach A", description: "Faster" },
+					{ const: "Approach A", title: "Approach A (Recommended)", description: "Faster" },
 					{ const: "Approach B", title: "Approach B", description: "Safer" },
 				],
 				default: "Approach A",
@@ -3614,6 +3614,7 @@ describe("ACP agent", () => {
 					question: "Which features?",
 					options: [{ label: "A" }, { label: "B" }, { label: "C" }],
 					multi: true,
+					recommended: 1,
 				},
 			]);
 
@@ -3626,7 +3627,7 @@ describe("ACP agent", () => {
 				items: {
 					anyOf: [
 						{ const: "A", title: "A" },
-						{ const: "B", title: "B" },
+						{ const: "B", title: "B (Recommended)" },
 						{ const: "C", title: "C" },
 					],
 				},

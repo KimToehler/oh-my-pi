@@ -11,6 +11,7 @@
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
 ### Fixed
 
+- Fixed ACP clients such as JetBrains IDEs not labelling the recommended option of an `ask` question; it now shows "(Recommended)" like the TUI, including in multi-select questions
 - Fixed JetBrains IDEs over ACP switching plan mode and the pre-approval model back on with your next message after you approved a plan, because the mode dropdown stays on "Plan"; omp now ignores the IDE's re-sent choice until you pick a different mode or model
 - Fixed `read` middle-eliding large file pages into an artifact; a page past the output spill threshold now stops at a line boundary with an exact `:N` continuation ([#16277](https://github.com/can1357/oh-my-pi/issues/16277))
 - Fixed an edit after a restart replacing a line that `read` or `grep` had shown cut at the column cap and silently dropping the rest of that line; such edits now ask for a full `:raw` read of the line first, while edits to lines within the cap still apply ([#16171](https://github.com/can1357/oh-my-pi/issues/16171))
