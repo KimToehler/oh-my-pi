@@ -5359,6 +5359,98 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		/** After an extension `newSession()` raced a goal entry holding its tool swap, the new transcript owns nothing of the old one. */
+		async function expectNoGoalInNewTranscript(
+			harness: AgentHarness,
+			sessionId: string,
+			session: FakeAgentSession,
+			prompt: Promise<{ stopReason: string }>,
+			change: Promise<unknown>,
+			transcriptBefore: string,
+			text: string,
+		): Promise<void> {
+			const [response] = await Promise.all([prompt, change]);
+			await eventLoopTurns(10);
+			// A prompt refused because its transcript changed finishes as a Stop's cancelled prompt does.
+			expect(response.stopReason).toBe("cancelled");
+			expect(session.sessionManager.getSessionId()).not.toBe(transcriptBefore);
+			expect(session.goalModeState).toBeUndefined();
+			expect(session.enabledTools).not.toContain("goal");
+			expect(session.promptCalls).not.toContain(text);
+			const submitted = session.sessionManager.getEntries().some(entry => {
+				if (entry.type !== "message") return false;
+				const message = entry.message;
+				return "content" in message && message.content === text;
+			});
+			expect(submitted).toBe(false);
+			expect(lastModeNotification(harness, session.sessionId)).toBe("default");
+			const config = await harness.agent.setSessionConfigOption({ sessionId, configId: "thinking", value: "off" });
+			expect(configModeValue(config.configOptions)).toBe("default");
+		}
+
+		it("a goal creation overlapping an extension transcript change leaves no goal and no submitted prompt in the new transcript", async () => {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			const ctx = session.extensionRunner!.createCommandContext();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const transcriptBefore = session.sessionManager.getSessionId();
+			const hold = holdNextToolSwap(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await hold.entered;
+			const change = ctx.newSession();
+			await eventLoopTurns(10);
+			hold.release();
+			await expectNoGoalInNewTranscript(
+				harness,
+				sessionId,
+				session,
+				prompt,
+				change,
+				transcriptBefore,
+				"Ship feature X",
+			);
+			harness.abortController.abort();
+		});
+
+		it("a goal resume overlapping an extension transcript change leaves no goal and no submitted prompt in the new transcript", async () => {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			const ctx = session.extensionRunner!.createCommandContext();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const first = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await continuationStarted.promise;
+			await harness.agent.cancel({ sessionId });
+			expect((await first).stopReason).toBe("cancelled");
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.status).toBe("paused");
+
+			const transcriptBefore = session.sessionManager.getSessionId();
+			const hold = holdNextToolSwap(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "go on" }] });
+			await hold.entered;
+			const change = ctx.newSession();
+			await eventLoopTurns(10);
+			hold.release();
+			await expectNoGoalInNewTranscript(harness, sessionId, session, prompt, change, transcriptBefore, "go on");
+			harness.abortController.abort();
+		});
+
 		/** Stop during preparation, then a next prompt sent while the cancelled one still prepares. */
 		async function expectNextPromptWaitsForCancelledPreparation(
 			harness: AgentHarness,

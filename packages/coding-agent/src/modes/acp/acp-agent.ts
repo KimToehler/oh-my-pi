@@ -1261,8 +1261,17 @@ export class AcpAgent implements Agent {
 		promptTurn: PromptTurnState | undefined,
 	): Promise<boolean> {
 		const isCancelled = () => promptTurn?.cancelRequested === true;
+		const transcriptBefore = record.session.sessionManager.getSessionId();
 		const transition = await record.goal.prepareHostPrompt(text, isCancelled);
 		await this.#syncAgentModeChange(record);
+		// An extension changed the transcript meanwhile, or has begun to (it waits for this
+		// operation, then replaces the transcript). The prompt was meant for the old
+		// transcript: never submit it into the new one. The reconcile owns the goal state,
+		// so no compensation; finish as a Stop's cancelled prompt does.
+		if (record.goal.sessionChangeInFlight || record.session.sessionManager.getSessionId() !== transcriptBefore) {
+			this.#finishPrompt(record, { stopReason: "cancelled" });
+			return false;
+		}
 		// Stop landed while the goal was being created/resumed: cancel already
 		// answered the client, so never submit this prompt. The in-operation check
 		// normally compensated already; this one covers a Stop during the mode sync

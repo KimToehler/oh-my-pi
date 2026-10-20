@@ -16,6 +16,11 @@ export class AcpGoalController {
 	#objectivePending = false;
 	#sessionChanges = 0;
 	#transcriptBeforeChange: string | undefined;
+	/** Resolves once the outermost session change owns the operation chain. */
+	#changeHeld: Promise<void> = Promise.resolve();
+	#releaseChange: (() => void) | undefined;
+	/** Changes begun and not yet fully ended: unlike `#sessionChanges`, an ending change counts until the host's end returns. */
+	#heldChanges = 0;
 
 	/**
 	 * @param canAutoContinue whether a goal continuation may start now. ACP passes
@@ -182,19 +187,58 @@ export class AcpGoalController {
 		await this.#host.settled();
 	}
 
+	/** An extension session change has begun and not ended: its target transcript is not known yet. */
+	get sessionChangeInFlight(): boolean {
+		return this.#sessionChanges > 0;
+	}
+
+	/**
+	 * The outermost change holds the operation chain from here to its matching
+	 * {@link endSessionChange}, so a goal entry (create/resume, which awaits a tool swap and
+	 * then writes its state back) can never straddle a transcript change: a change arriving
+	 * mid-operation waits for it, an operation arriving mid-change waits for the end.
+	 * A nested or overlapping change (also one beginning while the previous one's host end
+	 * is still running) only counts; re-acquiring the chain would deadlock.
+	 *
+	 * No deadlock: a held change waits only on the previous chain tail (operations, which
+	 * wait on host exits, tool swaps and reconciles, never on a change) and, afterwards,
+	 * on the extension's own `change()` and the host's `endSessionChange`. Neither waits
+	 * on this chain: the host's reconcile, `onReconciled` and the mode re-sync never run an
+	 * operation, and `#goalSessionChange` runs its mode re-sync after the release. An
+	 * operation waits for the change only through the chain, and the change never waits
+	 * on an operation that arrived after it.
+	 */
 	async beginSessionChange(): Promise<void> {
 		if (this.#sessionChanges++ === 0) this.#transcriptBeforeChange = this.#session.sessionManager.getSessionId();
+		if (this.#heldChanges++ === 0) {
+			const release = Promise.withResolvers<void>();
+			this.#releaseChange = release.resolve;
+			const acquired = Promise.withResolvers<void>();
+			this.#changeHeld = acquired.promise;
+			void this.#run(async () => {
+				acquired.resolve();
+				await release.promise;
+			});
+		}
+		await this.#changeHeld;
 		await this.#host.beginSessionChange();
 	}
 
 	async endSessionChange(options: { detachedRun: boolean }): Promise<void> {
-		if (--this.#sessionChanges === 0) {
-			if (this.#session.sessionManager.getSessionId() !== this.#transcriptBeforeChange) {
-				this.#selected = false;
-				this.#objectivePending = false;
+		try {
+			if (--this.#sessionChanges === 0) {
+				if (this.#session.sessionManager.getSessionId() !== this.#transcriptBeforeChange) {
+					this.#selected = false;
+					this.#objectivePending = false;
+				}
+				this.#transcriptBeforeChange = undefined;
 			}
-			this.#transcriptBeforeChange = undefined;
+			await this.#host.endSessionChange(options);
+		} finally {
+			if (--this.#heldChanges === 0) {
+				this.#releaseChange?.();
+				this.#releaseChange = undefined;
+			}
 		}
-		await this.#host.endSessionChange(options);
 	}
 }
