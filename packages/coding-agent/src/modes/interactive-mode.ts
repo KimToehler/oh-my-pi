@@ -406,7 +406,7 @@ import { cfgWorktreeOnExit, cfgWorktreeOnStart } from "../task/settings";
 import { cfgExpandThinkingBlocks, cfgProseOnlyThinking } from "../session/settings";
 import { cfgHideThinkingBlock } from "../session/settings";
 import { cfgCycleOrder, cfgModelRoles } from "../config/model-settings";
-import { cfgGoalContinuationModes, cfgGoalEnabled } from "../goals/settings";
+import { cfgGoalContinuationModes, cfgGoalEnabled, type GoalContinuationMode } from "../goals/settings";
 import { goalContinuationActivity, goalFromModeData } from "../goals/state";
 import { cfgPlanDefaultOnStartup, cfgPlanEnabled } from "../plan-mode/settings";
 import { cfgStreamRedactPatterns } from "../stream/settings";
@@ -2934,7 +2934,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#cancelGoalContinuation();
 		if (this.loopModeEnabled) return;
 		if (!this.onInputCallback) return;
-		if (!cfgGoalContinuationModes.get(this.session.settings).includes("interactive")) return;
+		if (!cfgGoalContinuationModes.get(this.session.settings).includes("interactive" satisfies GoalContinuationMode)) {
+			return;
+		}
 		if (this.planModeEnabled || this.planModePaused) return;
 		if (!this.goalModeEnabled || this.goalModePaused) return;
 		if (this.#goalSuppressNextContinuation) return;

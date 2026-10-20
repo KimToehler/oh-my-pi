@@ -71,9 +71,10 @@ import { isRpcHostToolResult, isRpcHostToolUpdate, RpcHostToolBridge } from "./h
 import { isRpcHostUriResult, RpcHostUriBridge } from "./host-uris";
 import { MAX_RPC_FRAME_BYTES, MAX_RPC_REASSEMBLED_BYTES, RpcFrameEncoder } from "./rpc-frame";
 import { claimRpcInput, readRpcInputFrames } from "./rpc-input";
+import { GoalHostController } from "../../goals/host-controller";
+import { toGoalHostCommand } from "./rpc-goal";
 import { pageRpcMessages, RPC_MESSAGES_PAGE_BUSY_ERROR, RpcMessagesPageError } from "./rpc-messages";
 import { RpcBtwController } from "./rpc-btw";
-import { RpcGoalController } from "./rpc-goal";
 import { RpcLiveBridge, type RpcLiveSessionFactory } from "./rpc-live";
 import { RpcOutputWriter } from "./rpc-output";
 import {
@@ -1393,7 +1394,10 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 	const wordPredictor = new RpcWordPredictor();
 	const btw = new RpcBtwController(session, output);
 	// A continuation abandoned while waiting leaves nothing to end the activity stretch: re-check settlement.
-	const goalController = new RpcGoalController(session, () => void settleWatcher.check());
+	const goalController = new GoalHostController(session, {
+		continuationMode: "rpc",
+		onContinuationDropped: () => void settleWatcher.check(),
+	});
 	// A scheduled or held goal turn will start a turn: every settle report treats it as busy,
 	// and any report of "not settled" for that reason is later closed by `session_settled`.
 	const goalTurnScheduled = watchedScheduledTurnProbe(
@@ -2094,7 +2098,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 
 			case "goal": {
 				try {
-					return success(id, "goal", await goalController.handle(command));
+					return success(id, "goal", await goalController.handle(toGoalHostCommand(command)));
 				} catch (goalError) {
 					return error(id, "goal", goalError instanceof Error ? goalError.message : String(goalError));
 				}

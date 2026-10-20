@@ -24,7 +24,12 @@ export const cfgGoalStatusInFooter = register({
 	},
 });
 
-const GOAL_CONTINUATION_MODES_DEFAULT: string[] = ["interactive"];
+/** `goal.continuationModes` values: the hosts whose active goals may auto-continue between turns. */
+export const GOAL_CONTINUATION_MODES = ["interactive", "rpc", "acp"] as const;
+export type GoalContinuationMode = (typeof GOAL_CONTINUATION_MODES)[number];
+
+/** RPC stays opt-in; selecting ACP goal mode is itself the request for autonomous work. */
+const GOAL_CONTINUATION_MODES_DEFAULT: string[] = ["interactive", "acp"];
 
 export const cfgGoalContinuationModes = register({
 	id: "goal.continuationModes",
@@ -34,6 +39,6 @@ export const cfgGoalContinuationModes = register({
 		tab: "tasks",
 		group: "Modes",
 		label: "Goal Continuation Modes",
-		description: 'Run modes where active goals may auto-continue between turns ("interactive", "rpc")',
+		description: 'Run modes where active goals may auto-continue between turns ("interactive", "rpc", "acp")',
 	},
 });
