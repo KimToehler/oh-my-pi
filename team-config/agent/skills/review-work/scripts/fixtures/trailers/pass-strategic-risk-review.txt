@@ -1,0 +1,15 @@
+No structural risk beyond the auditor's line-level view.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cc/claude-opus-5
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: a stale record cannot substantiate a merge that moved past it
+  positive_witness: reviewed_sha differing from HEAD blocks the gate
+  negative_control: reviewed_sha equal to HEAD passes
+  observable: process exit code and the field name on stderr
+  boundary: validator invoked as a process from repository root
+END-REVIEW-TRAILER

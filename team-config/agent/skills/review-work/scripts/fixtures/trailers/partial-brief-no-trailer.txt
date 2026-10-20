@@ -1,0 +1,8 @@
+I reviewed the diff against the plan's stated failure modes.
+
+The load-bound parsing change is correct: the new threshold comparison matches the
+documented semantics, the helper is pure, and the existing tests cover the three
+bands the plan names. Architecture fits the surrounding module. No wire contract
+changed shape.
+
+APPROVE

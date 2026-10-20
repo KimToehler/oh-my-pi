@@ -1,0 +1,15 @@
+Blocker B1: the deleted predicate leaves one severity band with no enforcement layer.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: every severity band retains at least one enforcement layer
+  positive_witness: each band rejects its own out-of-range input
+  negative_control: deleting one band's guard must fail the criterion
+  observable: rejection observed at the catalog boundary
+  boundary: the data catalog rows, re-derived independently of the diff
+END-REVIEW-TRAILER
