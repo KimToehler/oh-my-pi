@@ -1780,10 +1780,18 @@ export class AcpAgent implements Agent {
 			pendingSteers: 0,
 			explicitModeChanges: 0,
 			modeSyncDeferred: false,
-			goal: new AcpGoalController(session, () => {
-				const turn = record.promptTurn;
-				return turn !== undefined && !turn.settled && !turn.cancelRequested;
-			}),
+			goal: new AcpGoalController(
+				session,
+				() => {
+					const turn = record.promptTurn;
+					return turn !== undefined && !turn.settled && !turn.cancelRequested;
+				},
+				// A reattach deferred behind a running one lands after `#goalSessionChange` synced.
+				() =>
+					this.#trackLifetimeDelivery(record, "goal_updated", "mode_update", () =>
+						this.#syncAgentModeChange(record),
+					),
+			),
 			goalUnsubscribe: undefined,
 			goalPreparation: undefined,
 			reportedModeId: ACP_DEFAULT_MODE_ID,

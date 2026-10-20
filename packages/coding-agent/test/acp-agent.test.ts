@@ -5592,6 +5592,79 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		it("a deferred reattach that clears an intermediate goal re-syncs the mode and records the stale goal for IntelliJ", async () => {
+			const defaultReported = Promise.withResolvers<void>();
+			const harness = await createHarness({
+				extensionRunners: true,
+				clientInfo: INTELLIJ_CLIENT_INFO,
+				sessionUpdateHook: notification => {
+					if (notification.update.sessionUpdate === "current_mode_update") {
+						if (notification.update.currentModeId === "default") defaultReported.resolve();
+					}
+				},
+			});
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			const runner = session.extensionRunner!;
+			// Hold the first reattach inside onThreadResumed.
+			const gate = Promise.withResolvers<void>();
+			const entered = Promise.withResolvers<void>();
+			const resumed = session.goalRuntime.onThreadResumed.bind(session.goalRuntime);
+			let resumes = 0;
+			session.goalRuntime.onThreadResumed = async options => {
+				if (resumes++ === 0) {
+					entered.resolve();
+					await gate.promise;
+				}
+				return resumed(options);
+			};
+			const ctx = runner.createCommandContext();
+			// Change A lands on a transcript with an active goal; its reattach stalls.
+			const changeA = ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", {
+						goal: {
+							id: "g-mid",
+							objective: "intermediate",
+							status: "active",
+							tokensUsed: 0,
+							timeUsedSeconds: 0,
+							createdAt: 0,
+							updatedAt: 0,
+						},
+					});
+				},
+			});
+			await entered.promise;
+			expect(resumes).toBe(1);
+			// Change B lands on a transcript with no goal while A's reattach runs: its reattach is deferred.
+			await ctx.newSession();
+			expect(resumes).toBe(1);
+			expect(session.goalModeState?.goal.objective).toBe("intermediate");
+			// The fake's session id follows the transcript; notifications carry the current one.
+			expect(lastModeNotification(harness, session.sessionId)).toBe("goal");
+
+			gate.resolve();
+			await changeA;
+			await defaultReported.promise;
+			// The hook runs before the notification is recorded; let that microtask land.
+			await eventLoopTurns(1);
+			expect(session.goalModeState).toBeUndefined();
+			expect(lastModeNotification(harness, session.sessionId)).toBe("default");
+			expect(modeConfigValue(harness.updates.findLast(u => u.update.sessionUpdate === "config_option_update"))).toBe(
+				"default",
+			);
+
+			// IntelliJ replays its stored `goal`: ignored, so no objective is armed.
+			const resent = await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+			expect(selectedMode(resent.configOptions)).toBe("default");
+			harness.abortController.abort();
+		});
+
 		function selectedMode(options: SessionConfigOption[]): unknown {
 			const option = options.find(candidate => candidate.id === "mode");
 			return option?.type === "select" ? option.currentValue : undefined;

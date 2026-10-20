@@ -21,10 +21,21 @@ export class AcpGoalController {
 	 * @param canAutoContinue whether a goal continuation may start now. ACP passes
 	 *   "a client prompt is open", so continuations stream into a prompt the client
 	 *   can see and never run after it closed.
+	 * @param onReconciled runs after every reattach, including one deferred behind a
+	 *   running reconcile, once the final goal state is in place.
 	 */
-	constructor(session: GoalHostSession, canAutoContinue: () => boolean) {
+	constructor(session: GoalHostSession, canAutoContinue: () => boolean, onReconciled: () => Promise<void>) {
 		this.#session = session;
-		this.#host = new GoalHostController(session, { continuationMode: "acp", canAutoContinue });
+		this.#host = new GoalHostController(session, {
+			continuationMode: "acp",
+			canAutoContinue,
+			onReconciled: async () => {
+				// A reattach never carries the client's selection across transcripts.
+				this.#selected = false;
+				this.#objectivePending = false;
+				await onReconciled();
+			},
+		});
 	}
 
 	/** Whether ACP reports mode `goal`: an enabled or completing goal, or the client's selection. */

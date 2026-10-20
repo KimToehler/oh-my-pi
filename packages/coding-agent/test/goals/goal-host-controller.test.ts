@@ -22,7 +22,7 @@ describe("GoalHostController continuation gate", () => {
 
 	function fakeSession(
 		admit: (customType: string) => Promise<boolean>,
-		options: { canAutoContinue?: () => boolean } = {},
+		options: { canAutoContinue?: () => boolean; onReconciled?: () => void | Promise<void> } = {},
 	) {
 		let goalState: GoalModeState | undefined = {
 			enabled: true,
@@ -130,6 +130,7 @@ describe("GoalHostController continuation gate", () => {
 			continuationMode: "rpc",
 			canAutoContinue: options.canAutoContinue,
 			onContinuationDropped: () => dropped++,
+			onReconciled: options.onReconciled,
 		});
 		return {
 			session,
@@ -442,6 +443,43 @@ describe("GoalHostController continuation gate", () => {
 		f.controller.observe(agentEnd);
 		await f.controller.settled();
 		expect(f.tools()).toEqual(["read"]);
+	});
+
+	test("onReconciled fires after a reconcile queued behind a running one, with the final state in place", async () => {
+		const observed: Array<{ transcript: string; goal: string | undefined; resumes: number }> = [];
+		const holder: { f?: ReturnType<typeof fakeSession> } = {};
+		const f = fakeSession(async () => true, {
+			onReconciled: () => {
+				observed.push({
+					transcript: holder.f!.transcript.id,
+					goal: holder.f!.goalState()?.goal.objective,
+					resumes: holder.f!.threadResumes(),
+				});
+			},
+		});
+		holder.f = f;
+		f.session.setGoalModeState(undefined);
+		f.journalGoal();
+		f.holdResume();
+		await f.controller.beginSessionChange();
+		f.transcript.id = "t2";
+		const endA = f.controller.endSessionChange();
+		await nextMacrotask();
+		expect(f.threadResumes()).toBe(1);
+		// Change B moves to a transcript with no goal while A's reconcile is still running.
+		await f.controller.beginSessionChange();
+		f.transcript.id = "t3";
+		await f.controller.endSessionChange();
+		await nextMacrotask();
+		expect(observed).toEqual([]);
+		f.releaseResume();
+		await endA;
+		await f.controller.settled();
+		for (let i = 0; i < 5; i++) await nextMacrotask();
+		// One call per reconcile; the last one ran after the queued reconcile.
+		expect(observed.length).toBe(2);
+		expect(observed.at(-1)?.transcript).toBe("t3");
+		expect(observed.at(-1)?.resumes).toBe(2);
 	});
 
 	test("settled() waits for a reattach queued behind a running one", async () => {

@@ -62,6 +62,13 @@ export interface GoalHostControllerOptions {
 	 * so settle reporting can re-check.
 	 */
 	onContinuationDropped?: () => void;
+	/**
+	 * Called after each reconcile has run, including reconciles queued behind a running
+	 * one, so the host can re-read the final goal state. Never awaited inside
+	 * {@link GoalHostController.endSessionChange}'s overlap branch; errors are reported,
+	 * not thrown.
+	 */
+	onReconciled?: () => void | Promise<void>;
 }
 
 export class GoalHostController {
@@ -104,12 +111,14 @@ export class GoalHostController {
 	 */
 	#changeOverlappedReconcile = false;
 	readonly #onContinuationDropped: (() => void) | undefined;
+	readonly #onReconciled: (() => void | Promise<void>) | undefined;
 
 	constructor(session: GoalHostSession, options: GoalHostControllerOptions) {
 		this.#session = session;
 		this.#continuationMode = options.continuationMode;
 		this.#canAutoContinue = options.canAutoContinue;
 		this.#onContinuationDropped = options.onContinuationDropped;
+		this.#onReconciled = options.onReconciled;
 	}
 
 	/**
@@ -369,7 +378,15 @@ export class GoalHostController {
 	 */
 	async reconcile(options?: { preserveActiveGoal?: boolean }): Promise<void> {
 		this.#reconcilesPending++;
-		const run = this.#reconcileTask.then(() => this.#reconcileOnce(options));
+		const run = this.#reconcileTask.then(async () => {
+			await this.#reconcileOnce(options);
+			// A deferred reconcile lands after its change returned; tell the host the final state is in.
+			try {
+				await this.#onReconciled?.();
+			} catch (error) {
+				reportControllerError(error);
+			}
+		});
 		this.#reconcileTask = run.catch(reportControllerError).finally(() => {
 			this.#reconcilesPending--;
 		});
