@@ -118,17 +118,28 @@ export async function loadSlashCommands(options: LoadSlashCommandsOptions = {}):
 }
 
 /**
+ * Split a `/name args` invocation the way extension, custom, and file slash
+ * commands are dispatched: the name runs to the first literal space, so names
+ * such as `plugin:command` stay intact. Null when `text` is not slash-prefixed.
+ */
+export function parsePromptSlashCommand(text: string): { name: string; args: string } | null {
+	if (!text.startsWith("/")) return null;
+	const spaceIndex = text.indexOf(" ");
+	return spaceIndex === -1
+		? { name: text.slice(1), args: "" }
+		: { name: text.slice(1, spaceIndex), args: text.slice(spaceIndex + 1) };
+}
+
+/**
  * Expand a slash command if it matches a file-based command.
  * Returns the expanded content or the original text if not a slash command.
  */
 export function expandSlashCommand(text: string, fileCommands: FileSlashCommand[]): string {
-	if (!text.startsWith("/")) return text;
+	const parsed = parsePromptSlashCommand(text);
+	if (!parsed) return text;
+	const argsString = parsed.args;
 
-	const spaceIndex = text.indexOf(" ");
-	const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-	const argsString = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
-
-	const fileCommand = fileCommands.find(cmd => cmd.name === commandName);
+	const fileCommand = fileCommands.find(cmd => cmd.name === parsed.name);
 	if (fileCommand) {
 		const args = parseCommandArgs(argsString);
 		const argsText = args.join(" ");

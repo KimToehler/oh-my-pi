@@ -307,4 +307,37 @@ describe("AgentSession concurrent prompt dispatch", () => {
 		expect(await session.prompt("/deploy staging")).toBe(false);
 		expect(commandRuns).toBe(1);
 	});
+
+	it("recognizes exactly the slash commands prompt() would route, with the same name grammar", async () => {
+		const manager = SessionManager.inMemory();
+		const runtime = new ExtensionRuntime();
+		const extension = await loadExtensionFromFactory(
+			api => api.registerCommand("deploy", { handler: async () => {} }),
+			manager.getCwd(),
+			new EventBus(),
+			runtime,
+			"deploy-command",
+		);
+		createSession(manager, new ExtensionRunner([extension], runtime, manager.getCwd(), manager, modelRegistry));
+		session.setSlashCommands([{ name: "review", description: "Review", content: "Review $1", source: "(test)" }]);
+		session.setMCPPromptCommands([
+			{
+				path: "mcp:docs",
+				resolvedPath: "mcp:docs",
+				source: "bundled",
+				command: { name: "mcp-cmd", description: "MCP prompt", execute: async () => undefined },
+			},
+		]);
+
+		expect(session.isRegisteredPromptCommand("/deploy staging")).toBe(true);
+		expect(session.isRegisteredPromptCommand("/review task")).toBe(true);
+		expect(session.isRegisteredPromptCommand("/review")).toBe(true);
+		expect(session.isRegisteredPromptCommand("/mcp-cmd arg")).toBe(true);
+		expect(session.isRegisteredPromptCommand("/mcp-cmd\targ")).toBe(false);
+		// Only a literal space ends the name, as in extension/custom/file dispatch.
+		expect(session.isRegisteredPromptCommand("/review\ttask")).toBe(false);
+		expect(session.isRegisteredPromptCommand("/review\ntask")).toBe(false);
+		expect(session.isRegisteredPromptCommand("/unknown review")).toBe(false);
+		expect(session.isRegisteredPromptCommand("review task")).toBe(false);
+	});
 });

@@ -167,7 +167,12 @@ import type { CompactOptions, ContextUsage } from "../extensibility/extensions/t
 import type { CustomCommandContext } from "../extensibility/custom-commands/types";
 import { SkillDescriptionCatalog } from "../extensibility/skill-descriptions";
 import type { Skill, SkillWarning } from "../extensibility/skills";
-import { expandSlashCommand, type FileSlashCommand, loadSlashCommands } from "../extensibility/slash-commands";
+import {
+	expandSlashCommand,
+	type FileSlashCommand,
+	loadSlashCommands,
+	parsePromptSlashCommand,
+} from "../extensibility/slash-commands";
 import { normalizeToolEventInput, resolveToolEventInput } from "../extensibility/tool-event-input";
 import { GoalRuntime } from "../goals/runtime";
 import type { GoalModeState, GoalTokenUsage } from "../goals/state";
@@ -7504,6 +7509,20 @@ export class AgentSession implements SettingsScope {
 		return this.#slashCommands;
 	}
 
+	/**
+	 * Whether `text` invokes a registered extension, custom/MCP-prompt, or file
+	 * slash command, using the same name grammar `prompt()` dispatches with.
+	 * Executes and expands nothing; unknown slash text is an ordinary prompt.
+	 */
+	isRegisteredPromptCommand(text: string): boolean {
+		const parsed = parsePromptSlashCommand(text);
+		if (!parsed) return false;
+		const { name } = parsed;
+		if (this.#extensionRunner?.getCommand(name)) return true;
+		if (this.customCommands.some(command => command.command.name === name)) return true;
+		return this.#slashCommands.some(command => command.name === name);
+	}
+
 	/** Custom commands (TypeScript slash commands and MCP prompts) */
 	get customCommands(): ReadonlyArray<LoadedCustomCommand> {
 		if (this.#mcpPromptCommands.length === 0) return this.#customCommands;
@@ -8655,10 +8674,9 @@ export class AgentSession implements SettingsScope {
 	async #tryExecuteExtensionCommand(text: string, onRouted?: () => void): Promise<boolean> {
 		if (!this.#extensionRunner) return false;
 
-		// Parse command name and args
-		const spaceIndex = text.indexOf(" ");
-		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-		const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
+		const parsed = parsePromptSlashCommand(text);
+		if (!parsed) return false;
+		const { name: commandName, args } = parsed;
 
 		const command = this.#extensionRunner.getCommand(commandName);
 		if (!command) return false;
@@ -8775,10 +8793,9 @@ export class AgentSession implements SettingsScope {
 	async #tryExecuteCustomCommand(text: string): Promise<string | null> {
 		if (this.#customCommands.length === 0 && this.#mcpPromptCommands.length === 0) return null;
 
-		// Parse command name and args
-		const spaceIndex = text.indexOf(" ");
-		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-		const argsString = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
+		const parsed = parsePromptSlashCommand(text);
+		if (!parsed) return null;
+		const { name: commandName, args: argsString } = parsed;
 
 		// Find matching command
 		const loaded =
@@ -9185,8 +9202,8 @@ export class AgentSession implements SettingsScope {
 	#throwIfExtensionCommand(text: string): void {
 		if (!this.#extensionRunner) return;
 
-		const spaceIndex = text.indexOf(" ");
-		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
+		const commandName = parsePromptSlashCommand(text)?.name;
+		if (commandName === undefined) return;
 		const command = this.#extensionRunner.getCommand(commandName);
 
 		if (command) {
