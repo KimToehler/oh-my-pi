@@ -4647,6 +4647,104 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		interface HeldToolSwap {
+			entered: Promise<void>;
+			release: () => void;
+		}
+
+		/** Hold the next `setActiveToolsByName` (the await inside goal create/resume) until released. */
+		function holdNextToolSwap(session: FakeAgentSession): HeldToolSwap {
+			const entered = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const swap = session.setActiveToolsByName.bind(session);
+			session.setActiveToolsByName = async names => {
+				session.setActiveToolsByName = swap;
+				entered.resolve();
+				await release.promise;
+				await swap(names);
+			};
+			return { entered: entered.promise, release: release.resolve };
+		}
+
+		function configModeValue(options: SessionConfigOption[]): unknown {
+			const option = options.find(candidate => candidate.id === "mode");
+			return option && "currentValue" in option ? option.currentValue : undefined;
+		}
+
+		async function expectCancelledDuringPreparation(
+			harness: AgentHarness,
+			sessionId: string,
+			session: FakeAgentSession,
+			prepared: Promise<{ stopReason: string }>,
+			hold: HeldToolSwap,
+			text: string,
+			priorPromptCalls: string[],
+		): Promise<void> {
+			const continuations: string[] = [];
+			session.promptCustomMessage = async message => {
+				continuations.push(message.customType);
+				return true;
+			};
+			await hold.entered;
+			await harness.agent.cancel({ sessionId });
+			expect((await prepared).stopReason).toBe("cancelled");
+			hold.release();
+			await eventLoopTurns(10);
+			expect(session.promptCalls).toEqual(priorPromptCalls);
+			expect(session.promptCalls).not.toContain(text);
+			expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+			expect(session.goalModeState?.goal.status).toBe("paused");
+			expect(session.goalModeState?.enabled).toBe(false);
+			expect(session.enabledTools).toEqual(["read"]);
+			expect(continuations).toEqual([]);
+			const config = await harness.agent.setSessionConfigOption({ sessionId, configId: "thinking", value: "off" });
+			expect(configModeValue(config.configOptions)).toBe("goal");
+
+			// The next ordinary prompt resumes the same goal inside its own prompt.
+			session.promptCustomMessage = async message => {
+				continuations.push(message.customType);
+				emitTurn(session, "no progress");
+				return true;
+			};
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "go on" }] });
+			expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.promptCalls).toEqual([...priorPromptCalls, "go on"]);
+		}
+
+		it("Stop during goal creation never submits the cancelled prompt and leaves the goal paused", async () => {
+			const { harness, sessionId, session } = await goalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const hold = holdNextToolSwap(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await expectCancelledDuringPreparation(harness, sessionId, session, prompt, hold, "Ship feature X", []);
+			harness.abortController.abort();
+		});
+
+		it("Stop during goal resume never submits the cancelled prompt and leaves the goal paused", async () => {
+			const { harness, sessionId, session } = await goalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const first = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await continuationStarted.promise;
+			await harness.agent.cancel({ sessionId });
+			expect((await first).stopReason).toBe("cancelled");
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.status).toBe("paused");
+
+			const hold = holdNextToolSwap(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "later guidance" }] });
+			await expectCancelledDuringPreparation(harness, sessionId, session, prompt, hold, "later guidance", [
+				"Ship feature X",
+			]);
+			harness.abortController.abort();
+		});
+
 		it("leaving goal mode pauses the goal and restores the pre-goal tools", async () => {
 			const { harness, sessionId, session } = await goalHarness();
 			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });

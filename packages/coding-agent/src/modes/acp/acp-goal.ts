@@ -60,15 +60,30 @@ export class AcpGoalController {
 	 * Prepare the goal for an ordinary (non-command) host prompt about to run:
 	 * an armed objective is created from its text (an empty text throws and stays
 	 * armed); a paused goal still selected resumes, the prompt being guidance.
+	 * Returns the transition this prompt caused, if any.
 	 */
-	async prepareHostPrompt(text: string): Promise<void> {
+	async prepareHostPrompt(text: string): Promise<"created" | "resumed" | undefined> {
 		if (this.#objectivePending) {
 			await this.#host.createForHostPrompt({ objective: text });
 			this.#objectivePending = false;
-			return;
+			return "created";
 		}
 		const state = this.#session.getGoalModeState();
-		if (this.#selected && state?.goal.status === "paused") await this.#host.resumeForHostPrompt();
+		if (this.#selected && state?.goal.status === "paused") {
+			await this.#host.resumeForHostPrompt();
+			return "resumed";
+		}
+		return undefined;
+	}
+
+	/**
+	 * Stop landed while {@link prepareHostPrompt} was awaiting: bring the goal it
+	 * just created or resumed to the state a Stop leaves (paused, tools restored,
+	 * selection kept, continuation held until the next host prompt).
+	 */
+	async pauseAfterCancelledPrompt(): Promise<void> {
+		await this.#host.pause();
+		this.#host.stopForHostAbort();
 	}
 
 	/** Feed session events; must run before the ACP prompt handlers see the same event. */

@@ -1166,8 +1166,15 @@ export class AcpAgent implements Agent {
 		// selected resumes with this prompt as guidance. Registered commands run as
 		// commands and leave goal mode armed.
 		if (!record.session.isRegisteredPromptCommand(text)) {
-			await record.goal.prepareHostPrompt(text);
+			const transition = await record.goal.prepareHostPrompt(text);
 			await this.#syncAgentModeChange(record);
+			// Stop landed while the goal was being created/resumed: cancel already
+			// answered the client, so never submit this prompt; leave the goal as a
+			// Stop does (paused, still selected).
+			if (promptTurn?.cancelRequested) {
+				if (transition) await record.goal.pauseAfterCancelledPrompt();
+				return;
+			}
 		}
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
 		// An autonomous turn (todo reminder, async-job wake) streams without an
