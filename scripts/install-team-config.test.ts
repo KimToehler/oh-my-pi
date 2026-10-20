@@ -14,6 +14,7 @@ async function setup(files: Record<string, string>) {
 	dirs.push(tmp);
 	const repoDir = path.join(tmp.path(), "repo");
 	const agentDir = path.join(tmp.path(), "agent");
+	await fs.mkdir(path.join(repoDir, "team-config", "agent"), { recursive: true });
 	for (const [rel, content] of Object.entries(files)) await Bun.write(path.join(repoDir, "team-config", rel), content);
 	let run = 0;
 	const install = () => installTeamConfig({ repoDir, agentDir, timestamp: `t${++run}` });
@@ -81,5 +82,71 @@ describe("installTeamConfig", () => {
 		await fs.chmod(t.repo("agent/skills/s/run.sh"), 0o755);
 		await t.install();
 		expect((await fs.stat(t.agent("skills/s/run.sh"))).mode & 0o111).not.toBe(0);
+	});
+
+	test("never touches pre-existing files that look like temp files", async () => {
+		const t = await setup({ "agent/rules/a.md": "v1\n" });
+		await Bun.write(t.agent("rules/a.md.team-config-tmp"), "sentinel-1");
+		await Bun.write(t.agent(".team-config-manifest.json.tmp"), "sentinel-2");
+		await t.install();
+		expect(await t.read(t.agent("rules/a.md"))).toBe("v1\n");
+		expect(await t.read(t.agent("rules/a.md.team-config-tmp"))).toBe("sentinel-1");
+		expect(await t.read(t.agent(".team-config-manifest.json.tmp"))).toBe("sentinel-2");
+	});
+
+	test("rejects a symlinked parent directory without changing anything", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n", "agent/AGENTS.md": "team\n" });
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await Bun.write(path.join(outside, "a.md"), "outside\n");
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await fs.symlink(outside, t.agent("rules"));
+		await expect(t.install()).rejects.toThrow(t.agent("rules"));
+		expect(await fs.readdir(outside)).toEqual(["a.md"]);
+		expect(await t.read(path.join(outside, "a.md"))).toBe("outside\n");
+		expect((await fs.readdir(t.agentDir)).sort()).toEqual(["rules"]);
+	});
+
+	test("replaces a symlinked target with a regular file and moves the link into the backup", async () => {
+		const t = await setup({ "agent/AGENTS.md": "team\n" });
+		const outsideFile = path.join(path.dirname(t.agentDir), "outside.md");
+		await Bun.write(outsideFile, "outside\n");
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await fs.symlink(outsideFile, t.agent("AGENTS.md"));
+		const report = await t.install();
+		expect((await fs.lstat(t.agent("AGENTS.md"))).isFile()).toBe(true);
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("team\n");
+		expect(await t.read(outsideFile)).toBe("outside\n");
+		expect((await fs.lstat(path.join(report.backupDir!, "AGENTS.md"))).isSymbolicLink()).toBe(true);
+	});
+
+	test("installs through a symlinked agent dir", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n" });
+		const real = path.join(path.dirname(t.agentDir), "real-agent");
+		await fs.mkdir(real, { recursive: true });
+		await fs.symlink(real, t.agentDir);
+		await t.install();
+		expect(await t.read(path.join(real, "rules/a.md"))).toBe("team\n");
+	});
+
+	test("rejects when the managed source root disappears and keeps installed files", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n" });
+		await t.install();
+		await fs.rm(t.repo("agent"), { recursive: true });
+		await expect(t.install()).rejects.toThrow("ENOENT");
+		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+	});
+
+	test("rejects on an unreadable nested source dir without removing anything", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n", "agent/old.md": "old\n" });
+		await t.install();
+		await fs.rm(t.repo("agent/old.md"));
+		await fs.chmod(t.repo("agent/rules"), 0o000);
+		try {
+			await expect(t.install()).rejects.toThrow();
+		} finally {
+			await fs.chmod(t.repo("agent/rules"), 0o755);
+		}
+		expect(await t.read(t.agent("old.md"))).toBe("old\n");
+		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
 	});
 });

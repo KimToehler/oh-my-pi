@@ -11,6 +11,7 @@
  *
  * Usage: bun scripts/install-team-config.ts   (scripts/deploy-local.sh runs it after installing omp)
  */
+import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
@@ -42,7 +43,8 @@ export interface InstallReport {
 	backupDir?: string;
 }
 
-async function listFiles(root: string): Promise<string[]> {
+/** Sorted relative file paths under `root`. Any readdir failure throws; a missing root only passes when `optional`. */
+async function listFiles(root: string, optional = false): Promise<string[]> {
 	const out: string[] = [];
 	async function walk(dir: string, rel: string): Promise<void> {
 		const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -53,12 +55,45 @@ async function listFiles(root: string): Promise<string[]> {
 			else if (entry.isFile()) out.push(childRel);
 		}
 	}
-	try {
-		await walk(root, "");
-	} catch (err) {
-		if (!isEnoent(err)) throw err;
-	}
+	if (optional && (await fs.lstat(root).then(() => false, isEnoent))) return [];
+	await walk(root, "");
 	return out.sort();
+}
+
+/** Stands in for the content hash of a symlink: never equals a sha256, never read through. */
+const LINK = "symlink";
+
+/** State of `file` in the agent dir: undefined (absent), LINK (symlink, not followed) or its sha256. */
+async function inspect(file: string): Promise<string | undefined> {
+	try {
+		if ((await fs.lstat(file)).isSymbolicLink()) return LINK;
+	} catch (err) {
+		if (isEnoent(err)) return undefined;
+		throw err;
+	}
+	return hashFile(file);
+}
+
+/** Throw if any directory component strictly between `root` and `target` is a symlink (or not a directory). */
+async function assertContained(root: string, target: string): Promise<void> {
+	const rel = path.relative(root, target);
+	if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+		throw new Error(`Refusing path outside the agent dir: ${target}`);
+	}
+	const parts = rel.split(path.sep).slice(0, -1);
+	let current = root;
+	for (const part of parts) {
+		current = path.join(current, part);
+		let stat: Stats;
+		try {
+			stat = await fs.lstat(current);
+		} catch (err) {
+			if (isEnoent(err)) return;
+			throw err;
+		}
+		if (stat.isSymbolicLink()) throw new Error(`Refusing to install through symlink: ${current}`);
+		if (!stat.isDirectory()) throw new Error(`Expected a directory but found a file: ${current}`);
+	}
 }
 
 async function hashFile(file: string): Promise<string | undefined> {
@@ -83,13 +118,23 @@ async function readManifest(file: string): Promise<Manifest> {
 	}
 }
 
-/** Copy `src` over `dst` atomically, keeping the source's permission bits (skill scripts are executable). */
-async function replaceFile(src: string, dst: string): Promise<void> {
+/** Copy `src` over `dst` atomically via an exclusively created, run-unique temp; keeps the source's permission bits. */
+async function replaceFile(src: string, dst: string, mode: number): Promise<void> {
 	await fs.mkdir(path.dirname(dst), { recursive: true });
-	const tmp = `${dst}.team-config-tmp`;
-	await fs.copyFile(src, tmp);
-	await fs.chmod(tmp, (await fs.stat(src)).mode & 0o777);
-	await fs.rename(tmp, dst);
+	const tmp = `${dst}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.team-config-tmp`;
+	try {
+		await fs.copyFile(src, tmp, fs.constants.COPYFILE_EXCL);
+	} catch (err) {
+		if (!isEexist(err)) await fs.rm(tmp, { force: true });
+		throw err;
+	}
+	try {
+		await fs.chmod(tmp, mode);
+		await fs.rename(tmp, dst);
+	} catch (err) {
+		await fs.rm(tmp, { force: true });
+		throw err;
+	}
 }
 
 /** Remove now-empty directories from `dir` up to, not including, `stopAt`. */
@@ -105,16 +150,84 @@ async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
 	}
 }
 
+interface WriteStep {
+	kind: "write";
+	rel: string;
+	src: string;
+	mode: number;
+	/** How the existing target is preserved first; absent when nothing needs preserving. */
+	backup?: "copy" | "move";
+	existed: boolean;
+}
+
+interface RemoveStep {
+	kind: "remove";
+	rel: string;
+	backup?: "move";
+}
+
 export async function installTeamConfig(options: InstallOptions): Promise<InstallReport> {
-	const { agentDir } = options;
 	const managedRoot = path.join(options.repoDir, "team-config", "agent");
 	const seedRoot = path.join(options.repoDir, "team-config", "seed");
+
+	// Phase 1: enumerate and hash every source, then plan every mutation. Nothing is written here.
+	const managedFiles = await listFiles(managedRoot);
+	const seedFiles = await listFiles(seedRoot, true);
+	const sources = new Map<string, { hash: string; mode: number }>();
+	for (const rel of managedFiles) {
+		const src = path.join(managedRoot, rel);
+		sources.set(rel, { hash: (await hashFile(src))!, mode: (await fs.stat(src)).mode & 0o777 });
+	}
+
+	await fs.mkdir(options.agentDir, { recursive: true });
+	const agentDir = await fs.realpath(options.agentDir);
 	const manifestPath = path.join(agentDir, MANIFEST_NAME);
 	const backupDir = path.join(agentDir, "backups", `team-config-${options.timestamp}`);
 	const previous = await readManifest(manifestPath);
 	const next: Manifest = { version: 1, files: {} };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
+	const steps: Array<WriteStep | RemoveStep> = [];
+	const seeds: string[] = [];
 
+	for (const rel of managedFiles) {
+		const { hash: wanted, mode } = sources.get(rel)!;
+		const dst = path.join(agentDir, rel);
+		await assertContained(agentDir, dst);
+		const current = await inspect(dst);
+		next.files[rel] = wanted;
+		if (current === wanted) continue;
+		let backup: WriteStep["backup"];
+		if (current === LINK) backup = "move";
+		else if (current !== undefined && current !== previous.files[rel]) backup = "copy";
+		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
+		steps.push({
+			kind: "write",
+			rel,
+			src: path.join(managedRoot, rel),
+			mode,
+			backup,
+			existed: current !== undefined,
+		});
+	}
+
+	for (const rel of Object.keys(previous.files).sort()) {
+		if (rel in next.files) continue;
+		const dst = path.join(agentDir, rel);
+		await assertContained(agentDir, dst);
+		const current = await inspect(dst);
+		if (current === undefined) continue;
+		const backup = current === previous.files[rel] ? undefined : "move";
+		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
+		steps.push({ kind: "remove", rel, backup });
+	}
+
+	for (const rel of seedFiles) {
+		const dst = path.join(agentDir, rel);
+		await assertContained(agentDir, dst);
+		seeds.push(rel);
+	}
+
+	// Phase 2: apply.
 	const backup = async (rel: string, mode: "copy" | "move"): Promise<void> => {
 		const dst = path.join(backupDir, rel);
 		await fs.mkdir(path.dirname(dst), { recursive: true });
@@ -125,30 +238,20 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		report.backupDir = backupDir;
 	};
 
-	for (const rel of await listFiles(managedRoot)) {
-		const src = path.join(managedRoot, rel);
-		const dst = path.join(agentDir, rel);
-		const wanted = (await hashFile(src))!;
-		const current = await hashFile(dst);
-		next.files[rel] = wanted;
-		if (current === wanted) continue;
-		if (current !== undefined && current !== previous.files[rel]) await backup(rel, "copy");
-		await replaceFile(src, dst);
-		(current === undefined ? report.added : report.updated).push(rel);
+	for (const step of steps) {
+		const dst = path.join(agentDir, step.rel);
+		if (step.backup) await backup(step.rel, step.backup);
+		if (step.kind === "write") {
+			await replaceFile(step.src, dst, step.mode);
+			(step.existed ? report.updated : report.added).push(step.rel);
+		} else {
+			if (!step.backup) await fs.rm(dst);
+			report.removed.push(step.rel);
+			await pruneEmptyDirs(path.dirname(dst), agentDir);
+		}
 	}
 
-	for (const rel of Object.keys(previous.files).sort()) {
-		if (rel in next.files) continue;
-		const dst = path.join(agentDir, rel);
-		const current = await hashFile(dst);
-		if (current === undefined) continue;
-		if (current === previous.files[rel]) await fs.rm(dst);
-		else await backup(rel, "move");
-		report.removed.push(rel);
-		await pruneEmptyDirs(path.dirname(dst), agentDir);
-	}
-
-	for (const rel of await listFiles(seedRoot)) {
+	for (const rel of seeds) {
 		const dst = path.join(agentDir, rel);
 		await fs.mkdir(path.dirname(dst), { recursive: true });
 		try {
@@ -159,9 +262,14 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		}
 	}
 
-	const tmpManifest = `${manifestPath}.tmp`;
-	await Bun.write(tmpManifest, `${JSON.stringify(next, null, "\t")}\n`);
-	await fs.rename(tmpManifest, manifestPath);
+	const tmpManifest = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
+	try {
+		await fs.writeFile(tmpManifest, `${JSON.stringify(next, null, "\t")}\n`, { flag: "wx" });
+		await fs.rename(tmpManifest, manifestPath);
+	} catch (err) {
+		if (!isEexist(err)) await fs.rm(tmpManifest, { force: true });
+		throw err;
+	}
 	return report;
 }
 

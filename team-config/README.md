@@ -38,8 +38,11 @@ before it is replaced; the deploy output names the directory.
 
 ## Personal settings
 
-- Personal instructions (role, stack, language): `~/.omp/agent/AGENTS.local.md`. The seeded
-  `config.yml` loads it beside the team `AGENTS.md` via `contextFiles.extra`.
+- Personal instructions (role, stack, language): `AGENTS.local.md` in the agent dir (default
+  `~/.omp/agent`). It loads only while `contextFiles.extra` lists it. The seeded `config.yml`
+  does; a pre-existing `config.yml` needs `contextFiles: { extra: [AGENTS.local.md] }` added by
+  hand. A project-level `contextFiles.extra` replaces the user list, so the agent-dir file is
+  then not read.
 - Personal rules or skills: any other file name under `~/.omp/agent/rules/` or `skills/`.
 - Model roles, approval mode, bash patterns: edit `~/.omp/agent/config.yml` directly.
   After a team change to `seed/config.yml`, compare with
