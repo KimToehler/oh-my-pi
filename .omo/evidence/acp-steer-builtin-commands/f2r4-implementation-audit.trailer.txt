@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: Cancelling a prompt while its steered builtin waits behind a same-prompt builtin prevents that steered builtin from acquiring a handler lease or invoking its handler after cancellation.
+  positive_witness: Prompt A runs gated bare `/rename`; `/compact` is steered into A; A is cancelled; rename gate releases after prompt B begins; `compactCalls` remains empty and B completes normally.
+  negative_control: Without post-await owner revalidation, releasing A's rename allows queued `/compact` to call `compact()` after A cancellation and can disturb B.
+  observable: `FakeAgentSession.compactCalls`, successor prompt stop reason, and absence of command chunks from A after B begins.
+  boundary: `AcpAgent.#runBuiltin` same-prompt wait and lease admission.
+END-REVIEW-TRAILER

@@ -459,7 +459,13 @@ class FakeAgentSession {
 
 	async sendUserMessage(_content: string, _options?: unknown): Promise<void> {}
 
-	async compact(_instructions?: string, _options?: unknown): Promise<void> {}
+	compactCalls: Array<string | undefined> = [];
+	/** Runs inside `compact()`; tests override it to gate or model an aborted run. */
+	compactImpl: (() => Promise<void>) | undefined;
+	async compact(instructions?: string, _options?: unknown): Promise<void> {
+		this.compactCalls.push(instructions);
+		await this.compactImpl?.();
+	}
 
 	async fork(): Promise<boolean> {
 		await this.sessionManager.flush();
@@ -1782,6 +1788,551 @@ describe("ACP agent", () => {
 		expect(session.promptCalls).toEqual(["start over"]);
 		harness.abortController.abort();
 		await Bun.sleep(0);
+	});
+
+	/** Yield macrotasks until `predicate` holds; fails instead of hanging. */
+	async function waitUntil(predicate: () => boolean): Promise<void> {
+		for (let attempt = 0; attempt < 200; attempt++) {
+			if (predicate()) return;
+			await eventLoopTurns(1);
+		}
+		throw new Error("condition not reached");
+	}
+
+	function hasChunk(harness: AgentHarness, sessionId: string, text: string): boolean {
+		return harness.updates.some(
+			n =>
+				n.sessionId === sessionId &&
+				n.update.sessionUpdate === "agent_message_chunk" &&
+				n.update.content.type === "text" &&
+				n.update.content.text === text,
+		);
+	}
+
+	it("runs a steered /compact as a command and settles on the resumed run's agent_end", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const gate = Promise.withResolvers<void>();
+		session.promptGate = gate.promise;
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await session.promptEntered.promise;
+		const steered = await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+
+		expect(steered).toEqual({ outcome: "injected" });
+		await waitUntil(() => hasChunk(harness, created.sessionId, "Compaction complete."));
+		expect(session.compactCalls).toEqual([undefined]);
+		expect(session.steerCalls).toEqual([]);
+		// The run is still streaming (models the resumed turn): the prompt stays open.
+		await eventLoopTurns(10);
+		expect(settled).toBe(false);
+
+		gate.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("settles the prompt when a steered /compact ends the run without a resume", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		// Never released: the aborted run's agent_end never reaches ACP.
+		session.promptGate = Promise.withResolvers<void>().promise;
+		session.compactImpl = async () => {
+			session.isStreaming = false;
+		};
+
+		const prompt = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] });
+		await session.promptEntered.promise;
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+
+		expect((await prompt).stopReason).toBe("end_turn");
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("runs steered builtins in arrival order and holds the prompt open across the original agent_end", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const gate = Promise.withResolvers<void>();
+		session.promptGate = gate.promise;
+		const compactGate = Promise.withResolvers<void>();
+		session.compactImpl = () => compactGate.promise;
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await session.promptEntered.promise;
+		const steer = (text: string) =>
+			harness.agent.extMethod("_session/steering", {
+				sessionId: created.sessionId,
+				prompt: [{ type: "text", text }],
+			});
+		expect(await steer("/compact first")).toEqual({ outcome: "injected" });
+		await waitUntil(() => session.compactCalls.length === 1);
+		expect(await steer("/compact second")).toEqual({ outcome: "injected" });
+
+		// The original run ends while `second` still waits behind `first`.
+		gate.resolve();
+		await eventLoopTurns(10);
+		expect(session.compactCalls).toEqual(["first"]);
+		expect(settled).toBe(false);
+
+		compactGate.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
+		expect(session.compactCalls).toEqual(["first", "second"]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("runs an idle steered /compact as its own prompt and releases the session", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+
+		const steered = await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+
+		expect(steered).toEqual({ outcome: "startedNewTurn" });
+		await waitUntil(() => hasChunk(harness, created.sessionId, "Compaction complete."));
+		expect(session.compactCalls).toEqual([undefined]);
+		expect(session.promptCalls).toEqual([]);
+
+		const next = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "next" }],
+		});
+		expect(next.stopReason).toBe("end_turn");
+		expect(session.promptCalls).toEqual(["next"]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("settles the prompt when a steered command fails after the run went idle", async () => {
+		// The client connection drops the command's own output: `/compact` rejects
+		// after the aborted run went idle, with no agent_end and no resume.
+		const harness = await createHarness({
+			sessionUpdateHook: notification => {
+				const update = notification.update;
+				if (
+					update.sessionUpdate === "agent_message_chunk" &&
+					update.content.type === "text" &&
+					update.content.text === "Compaction complete."
+				) {
+					throw new Error("client gone");
+				}
+			},
+		});
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.promptGate = Promise.withResolvers<void>().promise;
+		session.compactImpl = async () => {
+			session.isStreaming = false;
+		};
+
+		let settled = false;
+		const prompt = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await session.promptEntered.promise;
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+
+		await waitUntil(() => settled);
+		expect((await prompt).stopReason).toBe("end_turn");
+		expect(hasChunk(harness, created.sessionId, "Command /compact failed: client gone")).toBe(true);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("drops builtins queued in a cancelled prompt without cancelling the next prompt", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.promptGate = Promise.withResolvers<void>().promise;
+		const compactGate = Promise.withResolvers<void>();
+		session.compactImpl = () => compactGate.promise;
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "a" }],
+		});
+		await session.promptEntered.promise;
+		const steer = (text: string) =>
+			harness.agent.extMethod("_session/steering", {
+				sessionId: created.sessionId,
+				prompt: [{ type: "text", text }],
+			});
+		await steer("/compact first");
+		await waitUntil(() => session.compactCalls.length === 1);
+		await steer("/compact second");
+		await harness.agent.cancel({ sessionId: created.sessionId });
+		expect((await promptA).stopReason).toBe("cancelled");
+
+		const gateB = Promise.withResolvers<void>();
+		session.promptGate = gateB.promise;
+		let settledB = false;
+		const promptB = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] })
+			.finally(() => {
+				settledB = true;
+			});
+		await waitUntil(() => session.promptCalls.length === 2);
+
+		compactGate.resolve();
+		await eventLoopTurns(10);
+		expect(session.compactCalls).toEqual(["first"]);
+		expect(settledB).toBe(false);
+		expect(hasChunk(harness, created.sessionId, "Compaction complete.")).toBe(false);
+
+		gateB.resolve();
+		expect((await promptB).stopReason).toBe("end_turn");
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("never starts a steered builtin queued behind its prompt's own command once that prompt is cancelled", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		// Prompt A is itself a slow builtin that ignores the cancel.
+		const releaseA = Promise.withResolvers<void>();
+		session.compactImpl = () => (session.compactCalls.length === 1 ? releaseA.promise : Promise.resolve());
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact own" }],
+		});
+		await waitUntil(() => session.compactCalls.length === 1);
+		expect(
+			await harness.agent.extMethod("_session/steering", {
+				sessionId: created.sessionId,
+				prompt: [{ type: "text", text: "/compact steered" }],
+			}),
+		).toEqual({ outcome: "injected" });
+		await harness.agent.cancel({ sessionId: created.sessionId });
+		expect((await promptA).stopReason).toBe("cancelled");
+
+		const gateB = Promise.withResolvers<void>();
+		session.promptGate = gateB.promise;
+		const promptB = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] });
+		await waitUntil(() => session.promptCalls.length === 1);
+
+		releaseA.resolve();
+		await eventLoopTurns(10);
+		expect(session.compactCalls).toEqual(["own"]);
+
+		gateB.resolve();
+		expect((await promptB).stopReason).toBe("end_turn");
+		expect(session.compactCalls).toEqual(["own"]);
+		expect(session.steerCalls).toEqual([]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("runs a steered builtin against session state its prompt's earlier command left behind", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		// The prompt's own command relocates the session (as `/move` does) while
+		// a steered `/session info` waits behind it.
+		session.compactImpl = async () => {
+			await releaseOwn.promise;
+			spyOn(session.sessionManager, "getCwd").mockReturnValue(harness.cwdB);
+		};
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact own" }],
+		});
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/session info" }],
+		});
+
+		releaseOwn.resolve();
+		expect((await promptA).stopReason).toBe("end_turn");
+		const info = harness.updates.find(
+			n =>
+				n.update.sessionUpdate === "agent_message_chunk" &&
+				n.update.content.type === "text" &&
+				n.update.content.text.startsWith("Session: "),
+		);
+		expect(info?.update).toMatchObject({ content: { text: expect.stringContaining(`CWD: ${harness.cwdB}`) } });
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("rejects with the prompt command's error only after a steered command's resumed run ended", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		const resumeGate = Promise.withResolvers<void>();
+		const failure = new Error("own command blew up");
+		let failNextUsageRead = false;
+		// The prompt's own `/compact` rejects when it reads usage after compacting.
+		spyOn(session, "getContextUsage").mockImplementation(() => {
+			if (!failNextUsageRead) return undefined;
+			failNextUsageRead = false;
+			throw failure;
+		});
+		session.compactImpl = async () => {
+			if (session.compactCalls.length === 1) {
+				await releaseOwn.promise;
+				failNextUsageRead = true;
+				return;
+			}
+			// The steered `/compact` resumes a run that streams into the same reply.
+			session.isStreaming = true;
+			void resumeGate.promise.then(() => {
+				const resumed = makeAssistantMessage("resumed");
+				for (const listener of session.listeners()) {
+					listener({
+						type: "message_update",
+						message: resumed,
+						assistantMessageEvent: { type: "text_delta", delta: "resumed" },
+					} as AgentSessionEvent);
+				}
+				for (const listener of session.listeners()) {
+					listener({ type: "agent_end", messages: [resumed] } as AgentSessionEvent);
+				}
+				session.isStreaming = false;
+			});
+		};
+
+		let settled = false;
+		const promptA = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "/compact own" }] })
+			.finally(() => {
+				settled = true;
+			});
+		const outcome = promptA.then(
+			() => "resolved" as const,
+			(error: unknown) => error,
+		);
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact steered" }],
+		});
+
+		releaseOwn.resolve();
+		await waitUntil(() => session.compactCalls.length === 2);
+		await eventLoopTurns(10);
+		expect(settled).toBe(false);
+
+		resumeGate.resolve();
+		expect(await outcome).toBe(failure);
+		expect(hasChunk(harness, created.sessionId, "resumed")).toBe(true);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("keeps a locally handled prompt open until the builtins steered into it ran", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const releaseOwn = Promise.withResolvers<void>();
+		session.compactImpl = () => (session.compactCalls.length === 1 ? releaseOwn.promise : Promise.resolve());
+
+		let settled = false;
+		const promptA = harness.agent
+			.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "/compact own" }] })
+			.finally(() => {
+				settled = true;
+			});
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [
+				{ type: "text", text: "/force read secret-from-a" },
+				{ type: "image", data: "aGk=", mimeType: "image/png" },
+			],
+		});
+
+		releaseOwn.resolve();
+		// The steered `/force` runs inside A (its residual goes to A's session
+		// steer) before A finishes; nothing is left for a later prompt.
+		expect((await promptA).stopReason).toBe("end_turn");
+		expect(settled).toBe(true);
+		expect(session.forcedToolChoice).toBe("read");
+		expect(session.steerCalls).toEqual([
+			{ text: "secret-from-a", images: [{ type: "image", data: "aGk=", mimeType: "image/png" }] },
+		]);
+
+		const promptB = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "b" }],
+		});
+		expect(promptB.stopReason).toBe("end_turn");
+		expect(session.steerCalls).toHaveLength(1);
+		expect(session.promptCalls).toEqual(["b"]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("never overlaps a builtin still running for a cancelled prompt, and keeps later prompts usable", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.promptGate = Promise.withResolvers<void>().promise;
+		// A's handler ignores the cancel and never returns.
+		session.compactImpl = () => Promise.withResolvers<void>().promise;
+		const notRun = "Command /compact not run: /compact from an earlier reply is still running.";
+		const notRunCount = () =>
+			harness.updates.filter(
+				n =>
+					n.update.sessionUpdate === "agent_message_chunk" &&
+					n.update.content.type === "text" &&
+					n.update.content.text === notRun,
+			).length;
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "a" }],
+		});
+		await session.promptEntered.promise;
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact stuck" }],
+		});
+		await waitUntil(() => session.compactCalls.length === 1);
+		await harness.agent.cancel({ sessionId: created.sessionId });
+		await promptA;
+
+		// Steered into prompt B: refused, B stays usable and ends normally.
+		const gateB = Promise.withResolvers<void>();
+		session.promptGate = gateB.promise;
+		const promptB = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] });
+		await waitUntil(() => session.promptCalls.length === 2);
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+		await waitUntil(() => notRunCount() === 1);
+		gateB.resolve();
+		expect((await promptB).stopReason).toBe("end_turn");
+
+		// Sent as its own prompt C: refused the same way, C settles.
+		const promptC = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "/compact" }],
+		});
+		expect(promptC.stopReason).toBe("end_turn");
+		expect(notRunCount()).toBe(2);
+		expect(session.compactCalls).toEqual(["stuck"]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("steers a builtin's residual text with the original images into the running turn", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const gate = Promise.withResolvers<void>();
+		session.promptGate = gate.promise;
+
+		const prompt = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "work" }] });
+		await session.promptEntered.promise;
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [
+				{ type: "text", text: "/force read inspect this" },
+				{ type: "image", data: "aGk=", mimeType: "image/png" },
+			],
+		});
+
+		await waitUntil(() => session.steerCalls.length === 1);
+		expect(session.steerCalls).toEqual([
+			{ text: "inspect this", images: [{ type: "image", data: "aGk=", mimeType: "image/png" }] },
+		]);
+		expect(session.forcedToolChoice).toBe("read");
+		expect(session.promptCalls).toEqual(["work"]);
+
+		gate.resolve();
+		expect((await prompt).stopReason).toBe("end_turn");
+		harness.abortController.abort();
+		await eventLoopTurns(1);
+	});
+
+	it("drops a builtin's residual text when its prompt was cancelled while the command ran", async () => {
+		// Hold `/force`'s own status output so the command is still running when
+		// the user stops prompt A and starts prompt B.
+		const outputEntered = Promise.withResolvers<void>();
+		const releaseOutput = Promise.withResolvers<void>();
+		const harness = await createHarness({
+			sessionUpdateHook: async notification => {
+				const update = notification.update;
+				if (
+					update.sessionUpdate === "agent_message_chunk" &&
+					update.content.type === "text" &&
+					update.content.text === "Next turn forced to use read."
+				) {
+					outputEntered.resolve();
+					await releaseOutput.promise;
+				}
+			},
+		});
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		session.promptGate = Promise.withResolvers<void>().promise;
+
+		const promptA = harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "a" }],
+		});
+		await session.promptEntered.promise;
+		await harness.agent.extMethod("_session/steering", {
+			sessionId: created.sessionId,
+			prompt: [
+				{ type: "text", text: "/force read secret-from-a" },
+				{ type: "image", data: "aGk=", mimeType: "image/png" },
+			],
+		});
+		await outputEntered.promise;
+		await harness.agent.cancel({ sessionId: created.sessionId });
+		expect((await promptA).stopReason).toBe("cancelled");
+
+		const gateB = Promise.withResolvers<void>();
+		session.promptGate = gateB.promise;
+		const promptB = harness.agent.prompt({ sessionId: created.sessionId, prompt: [{ type: "text", text: "b" }] });
+		await waitUntil(() => session.promptCalls.length === 2);
+
+		releaseOutput.resolve();
+		await eventLoopTurns(10);
+		expect(session.steerCalls).toEqual([]);
+
+		gateB.resolve();
+		expect((await promptB).stopReason).toBe("end_turn");
+		expect(session.steerCalls).toEqual([]);
+		harness.abortController.abort();
+		await eventLoopTurns(1);
 	});
 
 	it("rejects malformed _session/steering params as invalid params", async () => {

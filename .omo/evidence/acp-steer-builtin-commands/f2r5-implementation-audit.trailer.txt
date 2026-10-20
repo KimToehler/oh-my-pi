@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: A rejection from original locally handled prompt command cannot unsubscribe ACP reply after a queued steered command has armed completion for its own continuation.
+  positive_witness: Prompt command rejects, queued `/compact` resumes agent run, resumed chunk arrives, then same prompt resolves only after resumed `agent_end`.
+  negative_control: Prompt command rejection calls terminal finish while queued `/compact` has armed quiescence wait; resumed chunk is dropped or prompt rejects before resumed `agent_end`.
+  observable: Prompt promise timing/result plus resumed `agent_message_chunk` and final `agent_end` delivery.
+  boundary: `AcpAgent.prompt()` rejection catch and `#awaitSteeredBuiltins`/`#finishPromptWhenQuiescent` coordination.
+END-REVIEW-TRAILER

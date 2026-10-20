@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: A builtin admitted under one ACP prompt cannot cancel, block settlement of, or emit lifecycle effects into a later prompt after the owning prompt is cancelled.
+  positive_witness: Prompt A is cancelled with a gated builtin and another builtin queued; prompt B starts and reaches its natural end after the gate releases, while old commands execute or retire in defined order without cancelling B.
+  negative_control: Releasing the old gate causes the stale queued command to call public prompt while B streams, yielding cancelled for B, or an unresolved old handler leaves B held open by pendingSteers.
+  observable: Prompt B stopReason, builtin execution order, pendingSteers count, and whether B resolves without explicit cancellation.
+  boundary: AcpAgent builtinSteerLane ownership across #runSteeredBuiltin, public prompt implicit cancellation, and #queuePrompt.
+END-REVIEW-TRAILER

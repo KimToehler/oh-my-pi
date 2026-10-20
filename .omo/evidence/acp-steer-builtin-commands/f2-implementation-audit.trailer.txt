@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: A rejected steered handler must not poison its prompt-local lane or prevent an already-admitted later steered command from running.
+  positive_witness: First steered handler rejects; second queued steered handler starts afterward, emits its own observable result, and owning prompt settles.
+  negative_control: Preserve rejected first handler as lane tail; second `.then()` rejects without entering handler, retains its reservation, and prompt never becomes quiescent.
+  observable: Second handler call record, command-output sequence, pending reservation drain, and prompt response distinguish recovery from poisoned-lane hang.
+  boundary: `AcpAgent.#steer` lane-tail recovery and `#runSteeredBuiltin` finally release.
+END-REVIEW-TRAILER
