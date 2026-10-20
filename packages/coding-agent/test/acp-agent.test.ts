@@ -5198,6 +5198,69 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		it("an in-process transcript switch that keeps the active goal keeps goal selected, so Stop pauses it and the next prompt resumes it", async () => {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			session.promptCustomMessage = async () => {
+				emitTurn(session, "no progress");
+				return true;
+			};
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// `newSession` with a setup that journals the same active goal switches the transcript id,
+			// so the host runs reconcile({ preserveActiveGoal: true }) and the goal stays active.
+			const goal = session.goalModeState!.goal;
+			const transcriptBefore = session.sessionManager.getSessionId();
+			await session.extensionRunner!.createCommandContext().newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: { ...goal } });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.sessionManager.getSessionId()).not.toBe(transcriptBefore);
+			expect(session.goalModeState?.enabled).toBe(true);
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const abort = session.abort.bind(session);
+			session.abort = async () => {
+				await abort();
+				emitTurn(session, "partial", { name: "read", args: { path: "b" } });
+			};
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "keep going" }] });
+			await continuationStarted.promise;
+			await harness.agent.cancel({ sessionId });
+			expect((await prompt).stopReason).toBe("cancelled");
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.status).toBe("paused");
+			const config = await harness.agent.setSessionConfigOption({ sessionId, configId: "thinking", value: "off" });
+			expect(selectedMode(config.configOptions)).toBe("goal");
+			expect(lastModeNotification(harness, session.sessionId)).not.toBe("default");
+
+			session.promptCustomMessage = async () => {
+				emitTurn(session, "no progress");
+				return true;
+			};
+			session.promptCalls.length = 0;
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "go on" }] });
+			expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.promptCalls).toEqual(["go on"]);
+			harness.abortController.abort();
+		});
+
 		interface HeldToolSwap {
 			entered: Promise<void>;
 			release: () => void;

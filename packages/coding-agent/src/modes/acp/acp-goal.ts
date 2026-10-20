@@ -30,9 +30,15 @@ export class AcpGoalController {
 			continuationMode: "acp",
 			canAutoContinue,
 			onReconciled: async () => {
-				// A reattach never carries the client's selection across transcripts.
-				this.#selected = false;
+				// The client's selection never crosses transcripts on its own: it follows the
+				// reattached goal. A preserved active goal (or a completing one) stays selected, so
+				// a later Stop keeps Goal and the next prompt resumes it; a paused or absent goal
+				// is unselected until the client picks Goal.
 				this.#objectivePending = false;
+				const state = this.#session.getGoalModeState();
+				this.#selected =
+					state?.mode === "exiting" ||
+					(state?.enabled === true && (state.goal.status === "active" || state.goal.status === "budget-limited"));
 				await onReconciled();
 			},
 		});
