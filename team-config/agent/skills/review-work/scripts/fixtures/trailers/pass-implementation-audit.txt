@@ -1,0 +1,15 @@
+Findings: no blockers. Section 3 found no new data class leaving the process.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: a record whose trailer artifact is unreadable cannot validate
+  positive_witness: validator exits non-zero naming the artifact path
+  negative_control: a readable artifact with a complete trailer exits zero
+  observable: process exit code and the field name on stderr
+  boundary: validator invoked as a process from repository root
+END-REVIEW-TRAILER

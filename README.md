@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **Team fork.** Setup on a new machine: clone, run `scripts/deploy-local.sh`, add your router key.
+> Details and what gets installed: [`team-config/README.md`](team-config/README.md).
+
 <p align="center">
   <img src="https://github.com/can1357/oh-my-pi/blob/main/assets/hero.png?raw=true" alt="omp">
 </p>

@@ -85,6 +85,7 @@
 		"test": "bun scripts/ci-test-ts.ts local",
 		"test:ts": "bun scripts/ci-test-ts.ts local-ts",
 		"test:scripts": "bun test scripts",
+		"test:team-config": "bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs scripts/install-team-config.test.ts",
 		"test:rs": "bun scripts/run-rs-task.ts test:rs",
 		"check": "bun run --parallel check:ts check:rs",
 		"check:ts": "bun run check:tools && bun run --filter './packages/*' --sequential --if-present check:types",

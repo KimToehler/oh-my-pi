@@ -1,0 +1,64 @@
+# Lane A: Direction & Discovery
+
+Lane A feeds omp plan mode. It does not replace the plan, write a parallel plan, or start implementation. Its job is to translate designpowers discovery, research, persona, taste, debate, and state capabilities into planning context that lets plan mode produce a decision-complete work plan with design-specific acceptance criteria.
+
+## Phase Owner
+
+| Capability | Source boundary | owner | Mapping |
+|---|---|---|---|
+| Discover the human problem, constraints, audience, success criteria, and early taste signals | Authored concept preserved from excluded raw `design-discovery` | plan mode | Inject a compact design brief request before the plan drafts tasks. The plan still decides the plan structure and asks only unresolved owner decisions. |
+| Identify research gaps and inclusion-aware research methods | `research-planning` | plan mode | Convert research questions into plan discovery tasks or explicit assumptions with evidence requirements. |
+| Define principles, experience map, positioning, and success metrics | Authored concept preserved from excluded raw `design-strategy` | plan mode | Add strategy constraints and design principles to the plan's acceptance criteria. |
+| Represent the full ability spectrum | `inclusive-personas` | plan mode | Require personas and stress cases in plan inputs, including permanent, temporary, and situational contexts. |
+| Calibrate current-project taste and quality bar | Authored concept preserved from excluded raw `design-taste` | plan mode | Add live taste constraints for this project only; do not import cross-project memory as a design rule. |
+| Surface competing directions and trade-offs | `design-debate` | plan mode | When direction is ambiguous, present 2-3 options with accessibility and usability trade-offs before choosing defaults. |
+| Curate references and inspiration without copying | `inspiration-scouting` | plan mode | Add evidence-backed inspiration notes as optional plan context, with "what to take" and "what to leave." |
+| Maintain shared design state | Authored concept preserved from excluded raw `design-state` | plan mode | Read and update `.omo/frontend-design/state.md` as the omp design state ledger. |
+
+Materialized agent references for this lane: `design-strategist`, `design-scout`, and `inspiration-scout`. They are role-reference material for omp prompts, not separately installed agents.
+
+## Prompt Injection
+
+Apply this lane while in omp plan mode when the work is UI, UX, product surface, visual direction, design-system, accessibility, or user-flow shaped:
+
+```text
+Load Lane A Direction & Discovery. Use designpowers only as design-process context.
+Plan mode remains the planner and must write the final `.omo/plans/<slug>.md`.
+
+Before planning, extract or infer:
+- problem statement, primary users, constraints, out-of-scope
+- inclusive-personas ability spectrum and stress contexts
+- design principles, success metrics, quality bar, and current-project taste signals
+- research gaps that affect design decisions
+- competing directions and trade-offs when direction is not settled
+- existing `.omo/frontend-design/state.md` decisions, debt, and open questions
+
+Add design-specific acceptance criteria to the plan:
+- each UI task names the persona or journey it serves
+- each task has accessibility and cognitive-accessibility checks where relevant
+- each visual decision traces to a design principle, taste signal, or design-system token
+- deferred design questions are explicit owner decisions, not hidden assumptions
+```
+
+## Evidence Requirements
+
+Lane A passes only when the plan has inspectable design context, not vague intent. Required evidence:
+
+- `.omo/plans/<slug>.md` names the design brief, personas, success criteria, constraints, and owner decisions.
+- `.omo/frontend-design/state.md` contains or references the current brief summary, personas, design principles, taste signals, decisions log, open questions, and design debt register.
+- The plan's verification entries include real-surface QA expectations for UI work, plus persona or ability-spectrum checks for affected flows.
+- Any adopted default is named with the reason it was safe to default instead of asking the user.
+
+## Guardrails
+
+- Plan mode owns the final plan (reviewed by `plan-reviewer`). Lane A may enrich prompts, but it must not create a second planning lane or standalone design plan.
+- `writing-design-plans` content is used only as task-quality guidance; the plan remains the source of executable tasks.
+- Cross-project memory is descriptive only and must not steer this project's direction unless the user states the preference now.
+- Direction debates pause for user decision when the trade-off is product-shaping, accessibility-critical, or hard to reverse.
+- No new scheduler, background automation, or project root design-state convention is introduced; state stays at `.omo/frontend-design/state.md`.
+
+## Pass / Fail Behavior
+
+PASS when plan mode receives this lane context and produces a decision-complete plan whose tasks are design-aware, persona-aware, and evidence-bound.
+
+FAIL when the plan skips inclusive-personas, buries accessibility as a final polish item, treats taste as generic style, writes a parallel design plan, or leaves design decisions for `task` workers to invent.

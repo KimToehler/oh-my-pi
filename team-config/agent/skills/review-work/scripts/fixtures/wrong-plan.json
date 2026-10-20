@@ -1,0 +1,41 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/different-plan.md",
+  "reviewed_sha": "<HEAD>",
+  "diff_base": "bb7b6dcd10000000000000000000000000000000",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Implementation audit covers this non-mandatory change.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5"
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cc/claude-opus-5",
+      "independence": "same-model"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": "skills/review-work/scripts/fixtures/trailers/pass-implementation-audit.txt"
+    }
+  ],
+  "blockers": [],
+  "qa": [
+    {
+      "name": "validator tests",
+      "passed": true,
+      "artifact": ".omo/evidence/review-work/validator-tests.txt"
+    }
+  ]
+}

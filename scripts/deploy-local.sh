@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Build omp from a git ref (default: main) into a standalone binary and install
-# it as $OMP_BIN_DIR/omp. Only this script changes what `omp` runs; edits in any
+# Build omp from a git ref (default: main) into a standalone binary, install it
+# as $OMP_BIN_DIR/omp, and sync the team config (team-config/) of the same ref
+# into the omp agent dir. Only this script changes what `omp` runs; edits in any
 # checkout have no effect until the next deploy.
 #
 # Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
 #   OMP_BIN_DIR       install dir (default ~/.local/bin)
+#   OMP_SKIP_TEAM_CONFIG=1  install only the binary, leave ~/.omp/agent untouched
 #   CARGO_TARGET_DIR  defaults to the main checkout's target/ so Rust deps are reused
 #
 # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
 # uncommitted work in the main checkout never leaks into the binary.
-# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp
+# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp (team config: see the
+# backups/team-config-* dirs the installer reports, or redeploy the old ref).
 set -euo pipefail
 
 REF="${1:-main}"
@@ -71,5 +74,14 @@ fi
 mv -f "$TARGET.new" "$TARGET"
 printf '%s %s %s\n' "$COMMIT" "$REF" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$BIN_DIR/omp.deployed"
 
+if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
+	log "Syncing team config"
+	(cd "$WT" && bun scripts/install-team-config.ts)
+fi
+
 log "Deployed $(cat "$BIN_DIR/omp.deployed")"
-echo "Restart running omp sessions (e.g. IntelliJ ACP) to pick up the new binary."
+case ":$PATH:" in
+*":$BIN_DIR:"*) ;;
+*) echo "Add $BIN_DIR to your PATH to run omp." ;;
+esac
+echo "Restart running omp sessions (e.g. IntelliJ ACP) to pick up the new binary and config."
