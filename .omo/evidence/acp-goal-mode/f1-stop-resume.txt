@@ -1,15 +1,15 @@
-[0.9s] session 01a15813-05d7-7264-9280-9b5a954da32c modes=default,plan,goal current=default
-[0.9s] current_mode_update -> goal
-[0.9s] config_option_update mode=goal
-[0.9s] USER PICKS mode=goal -> currentValue=goal
-[0.9s] current_mode_update -> goal
-[0.9s] IDE RE-SENDS mode=goal -> currentValue=goal
-[0.9s] PROMPT "Create files /tmp/acp-goal-f1/stop-resume/f1.txt through f4.txt, each containing its numbe"
-[5.1s] tool_call: Initializing four file tasks
-[5.1s] tool_call: $ sleep 6
-[13.4s] tool_call: Writing f1.txt
-[15.6s] tool_call: Marking f1 done
-[21.1s] text: "Created f1.txt; 3 left, f2.txt is next."
+[1.1s] session 01a15a8c-7908-7169-98fa-a5c970d82e63 modes=default,plan,goal current=default
+[1.1s] current_mode_update -> goal
+[1.1s] config_option_update mode=goal
+[1.1s] USER PICKS mode=goal -> currentValue=goal
+[1.1s] current_mode_update -> goal
+[1.1s] IDE RE-SENDS mode=goal -> currentValue=goal
+[1.1s] PROMPT "Create files /tmp/acp-goal-f1/stop-resume/f1.txt through f4.txt, each containing its numbe"
+[7.0s] tool_call: Initializing four file tasks
+[7.0s] tool_call: $ sleep 6
+[15.1s] tool_call: Writing f1.txt
+[17.2s] tool_call: Marking f1 done
+[21.1s] text: "Wrote `f1.txt` (contains `1`); 1 of 4 files done, `f2.txt` is next."
 [21.1s] tool_call: $ sleep 6
 [22.6s] USER PRESSES STOP (session/cancel) during continuation
 [22.6s] PROMPT RESOLVED stopReason=cancelled
@@ -19,53 +19,53 @@
 [30.6s] IDE RE-SENDS mode=goal -> currentValue=goal
 [30.6s] PROMPT "continue"
 [32.7s] tool_call: $ sleep 6
-[41.1s] tool_call: Writing f2.txt
-[43.2s] tool_call: Marking f2 done
-[47.0s] text: "Created f2.txt; 2 left, f3.txt is next."
-[47.0s] tool_call: $ sleep 6
-[55.1s] tool_call: Writing f3.txt
-[57.3s] tool_call: Marking f3 done
-[61.4s] text: "Created f3.txt; 1 left, f4.txt is next."
-[61.4s] tool_call: $ sleep 6
-[69.6s] tool_call: Writing f4.txt
-[72.5s] tool_call: Marking f4 done
-[72.5s] tool_call: $ for i in 1 2 3 4; do printf 'f%s.txt: ' $i; cat f$i.txt; done
-[74.2s] tool_call: goal
-[76.4s] text: "Created f4.txt; f1.txt through f4.txt hold 1–4, all four todos are done, and the goal is closed after 64s."
-[76.4s] current_mode_update -> default
-[76.4s] config_option_update mode=default
-[76.4s] PROMPT RESOLVED stopReason=end_turn
-[76.4s] files after resume: f1=true f2=true f3=true f4=true
-[76.4s] journal ~/.omp/agent/sessions/--private-tmp-acp-goal-f1-stop-resume--/2026-10-20T06-50-04-119Z_01a15813-05d7-7264-9280-9b5a954da32c.jsonl
-  06:50:04 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:05 custom_message goal-mode-context
-  06:50:05 user "Create files /tmp/acp-goal-f1/stop-resume/f1.txt through f4."
-  06:50:08 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:16 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:19 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:20 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:20 developer "<system-reminder>\nYou stopped with 3 incomplete todo item(s)"
-  06:50:26 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:26 assistant aborted
-  06:50:26 mode_change goal_paused paused "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:34 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:34 custom_message goal-mode-context
-  06:50:34 user "continue"
-  06:50:42 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:44 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:46 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:47 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:47 developer "<system-reminder>\nYou stopped with 2 incomplete todo item(s)"
-  06:50:56 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:50:58 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:00 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:02 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:02 developer "<system-reminder>\nYou stopped with 1 incomplete todo item(s)"
-  06:51:10 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:13 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:16 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:17 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:17 mode_change goal complete "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:19 mode_change none  
-  06:51:19 goal-completed "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
-  06:51:19 acp-stale-client-config {"mode":"goal"}
+[40.8s] tool_call: Writing f2.txt
+[42.8s] tool_call: Marking f2 done
+[47.1s] text: "Wrote `f2.txt` (contains `2`) after the earlier aborted `sleep` was re-run; 2 of 4 done, `f3.txt` is next."
+[47.1s] tool_call: $ sleep 6
+[55.3s] tool_call: Writing f3.txt
+[57.4s] tool_call: Marking f3 done
+[61.1s] text: "Wrote `f3.txt` (contains `3`); 3 of 4 done, `f4.txt` is next."
+[61.1s] tool_call: $ sleep 6
+[69.2s] tool_call: Writing f4.txt
+[72.0s] tool_call: Marking f4 done
+[72.0s] tool_call: $ for i in 1 2 3 4; do printf 'f%s.txt: ' $i; cat f$i.txt; done
+[73.5s] tool_call: goal
+[75.3s] text: "Wrote `f4.txt` (contains `4`); all four files exist with their numbers, all four todos are done, and the goal is marked complete (about 63 s"
+[75.3s] current_mode_update -> default
+[75.3s] config_option_update mode=default
+[75.3s] PROMPT RESOLVED stopReason=end_turn
+[75.3s] files after resume: f1=true f2=true f3=true f4=true
+[75.3s] journal ~/.omp/agent/sessions/--private-tmp-acp-goal-f1-stop-resume--/2026-10-20T18-21-57-896Z_01a15a8c-7908-7169-98fa-a5c970d82e63.jsonl
+  18:21:58 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:21:59 custom_message goal-mode-context
+  18:21:59 user "Create files /tmp/acp-goal-f1/stop-resume/f1.txt through f4."
+  18:22:04 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:12 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:14 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:15 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:15 developer "<system-reminder>\nYou stopped with 3 incomplete todo item(s)"
+  18:22:19 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:19 assistant aborted
+  18:22:19 mode_change goal_paused paused "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:27 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:27 custom_message goal-mode-context
+  18:22:27 user "continue"
+  18:22:35 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:37 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:39 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:41 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:41 developer "<system-reminder>\nYou stopped with 2 incomplete todo item(s)"
+  18:22:50 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:52 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:54 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:55 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:22:55 developer "<system-reminder>\nYou stopped with 1 incomplete todo item(s)"
+  18:23:04 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:06 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:09 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:10 mode_change goal active "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:10 mode_change goal complete "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:12 mode_change none  
+  18:23:12 goal-completed "Create files /tmp/acp-goal-f1/stop-resume/f1.txt t"
+  18:23:12 acp-stale-client-config {"mode":"goal"}
