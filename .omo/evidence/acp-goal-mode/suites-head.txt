@@ -1,9 +1,9 @@
-# HEAD ab134eb465c6bbbe6d126e7c3e66cf8033d6d490
- 470 pass
+# HEAD 74ed09437da983ce3e1b06b6d09f49a0d95565db
+ 471 pass
  0 fail
- 1888 expect() calls
-Ran 470 tests across 18 files. [32.36s]
+ 1899 expect() calls
+Ran 471 tests across 18 files. [23.60s]
 
 All matched files use the correct format.
-Finished in 85ms on 3359 files using 18 threads.
+Finished in 70ms on 3359 files using 18 threads.
 $ tsgo -p tsconfig.json --noEmit
