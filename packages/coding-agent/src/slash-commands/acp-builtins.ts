@@ -1,7 +1,7 @@
 import type { AvailableCommand } from "@oh-my-pi/pi-utils/acp";
 import { BUILTIN_SLASH_COMMANDS_INTERNAL, lookupBuiltinSlashCommand } from "./builtin-registry";
 import { parseSlashCommand } from "./helpers/parse";
-import type { AcpBuiltinSlashCommandResult, SlashCommandRuntime } from "./types";
+import type { AcpBuiltinSlashCommandResult, ParsedSlashCommand, SlashCommandRuntime, SlashCommandSpec } from "./types";
 
 export type { AcpBuiltinSlashCommandResult } from "./types";
 
@@ -48,6 +48,33 @@ export const ACP_BUILTIN_SLASH_COMMANDS: AvailableCommand[] = BUILTIN_SLASH_COMM
 	};
 });
 
+/** A slash invocation that dispatches to an ACP builtin `handle`. */
+export interface ResolvedAcpBuiltinSlashCommand {
+	parsed: ParsedSlashCommand;
+	handle: NonNullable<SlashCommandSpec["handle"]>;
+}
+
+/**
+ * Resolve `text` to an ACP builtin. `undefined` for non-slash text, unknown
+ * names, and TUI-only entries (no text-mode `handle`). The single source of
+ * truth for "does this input dispatch to an ACP builtin".
+ */
+export function resolveAcpBuiltinSlashCommand(text: string): ResolvedAcpBuiltinSlashCommand | undefined {
+	const parsed = parseSlashCommand(text);
+	if (!parsed) return undefined;
+	const handle = lookupBuiltinSlashCommand(parsed.name)?.handle;
+	return handle ? { parsed, handle } : undefined;
+}
+
+/** Run a resolved ACP builtin; a handler returning nothing consumed the input. */
+export async function runAcpBuiltinSlashCommand(
+	resolved: ResolvedAcpBuiltinSlashCommand,
+	runtime: SlashCommandRuntime,
+): Promise<Exclude<AcpBuiltinSlashCommandResult, false>> {
+	const result = await resolved.handle(resolved.parsed, runtime);
+	return result === undefined ? { consumed: true } : result;
+}
+
 /**
  * Dispatch a slash command in ACP/text mode. Returns:
  * - `false` when no builtin matched (or matched a TUI-only entry); the caller
@@ -60,11 +87,6 @@ export async function executeAcpBuiltinSlashCommand(
 	text: string,
 	runtime: SlashCommandRuntime,
 ): Promise<AcpBuiltinSlashCommandResult> {
-	const parsed = parseSlashCommand(text);
-	if (!parsed) return false;
-	const command = lookupBuiltinSlashCommand(parsed.name);
-	if (!command?.handle) return false;
-	const result = await command.handle(parsed, runtime);
-	if (result === undefined) return { consumed: true };
-	return result;
+	const resolved = resolveAcpBuiltinSlashCommand(text);
+	return resolved ? runAcpBuiltinSlashCommand(resolved, runtime) : false;
 }

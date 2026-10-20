@@ -15,7 +15,11 @@ import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plug
 import type { AgentSession, AsyncJobTree } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionDumpArchive } from "@oh-my-pi/pi-coding-agent/session/session-dump-format";
 import type { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { executeAcpBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
+import {
+	executeAcpBuiltinSlashCommand,
+	resolveAcpBuiltinSlashCommand,
+} from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
+import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
 import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
 import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
@@ -512,6 +516,31 @@ describe("ACP builtin slash commands", () => {
 		const result = await executeAcpBuiltinSlashCommand("/not-a-real-command-xyz", runtime);
 
 		expect(result).toBe(false);
+	});
+
+	describe("resolveAcpBuiltinSlashCommand", () => {
+		it("resolves an alias to the primary command's handler", () => {
+			const resolved = resolveAcpBuiltinSlashCommand("/models");
+			expect(resolved?.parsed.name).toBe("models");
+			expect(resolved?.handle).toBe(lookupBuiltinSlashCommand("model")!.handle!);
+		});
+
+		it("splits colon-separated arguments", () => {
+			expect(resolveAcpBuiltinSlashCommand("/compact:soft")?.parsed).toMatchObject({
+				name: "compact",
+				args: "soft",
+			});
+		});
+
+		it("rejects input that is not a slash invocation", () => {
+			expect(resolveAcpBuiltinSlashCommand("/")).toBeUndefined();
+			expect(resolveAcpBuiltinSlashCommand("compact")).toBeUndefined();
+		});
+
+		it("rejects TUI-only and unknown commands", () => {
+			expect(resolveAcpBuiltinSlashCommand("/quit")).toBeUndefined();
+			expect(resolveAcpBuiltinSlashCommand("/not-a-real-command-xyz")).toBeUndefined();
+		});
 	});
 
 	// /jobs

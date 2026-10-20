@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: After prompt ownership changes, completion of the earlier prompt's builtin cannot inject residual text or attachments into the current prompt.
+  positive_witness: Prompt A's steered `/force` stalls during output, A is cancelled, prompt B starts, and releasing A leaves `FakeAgentSession.steerCalls` empty while B completes from its own input.
+  negative_control: Removing the identity and liveness check before `AgentSession.steer` causes A's `secret-from-a` text and image to enter B after A's handler is released, which MUST fail.
+  observable: `FakeAgentSession.steerCalls` remains empty and prompt B receives no payload admitted under prompt A.
+  boundary: `AcpAgent.#runSteeredBuiltin`, where `AcpBuiltinSlashCommandResult.prompt` and original images would cross into `AgentSession.steer`.
+END-REVIEW-TRAILER

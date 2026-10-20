@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: A command-output transport rejection releases its originating prompt's builtin admission and still permits that prompt to settle.
+  positive_witness: A steered `/compact` completion chunk rejects during ACP delivery, fallback error chunk is delivered, and prompt resolves with `stopReason: "end_turn"`.
+  negative_control: A rejected completion delivery leaves `pendingBuiltinSteers` retained or bypasses final settlement, causing prompt to remain unresolved.
+  observable: Prompt promise resolves, emitted fallback `Command /compact failed: client gone` chunk, and absence of timeout in `settles the prompt when a steered command fails after the run went idle`.
+  boundary: `AcpAgent.#runSteeredBuiltin` inner catch/finally and `#finishPromptWhenQuiescent`.
+END-REVIEW-TRAILER
