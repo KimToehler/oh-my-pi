@@ -1,0 +1,9 @@
+# F1 scenario 2 (Stop during a goal continuation) in IntelliJ on adf8c61f81: user attestation
+# 2026-10-20: after the F2 round-3 audit, the user stated it was "already done, just in another session" and asked to assume it worked.
+# Not machine-verified. Searching this machine turned up no matching trace:
+## acp.log 'Turn cancelled' entries since the worktree build launched at line 40977:
+176:2026-10-20 19:52:07,153 [372616161]   INFO - #c.i.m.l.a.a.c.AcpSessionLifecycleManager - Turn cancelled for chat 4e40b4b5-3773-4389-bfab-d12da495ab74
+## omp journals since 2026-10-20 19:49 on adf8c61f81 that contain an aborted assistant turn:
+/Users/tim/.omp/agent/sessions/-git-oh-my-pi/2026-10-20T17-50-35-650Z_01a15a6f-c082-7053-a72f-0d022c66195e.jsonl
+## That abort (19:52:07 local) was in the objective's first turn: no developer/continuation turn precedes it (f1-intellij-rerun.txt).
+# Covered without the IDE by: stdio row 2c on adf8c61f81 (f1-stop-resume.txt) and the gated ACP tests in row 6.

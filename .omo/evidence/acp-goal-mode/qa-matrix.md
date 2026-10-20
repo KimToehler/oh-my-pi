@@ -13,6 +13,6 @@
 
 Notes:
 - The first IDE run (`f1-intellij-session.txt`, code 3d2f945577) predates the F2 fixes 44f1f65029 and adf8c61f81 and the merge of `main` at 4dc65a6a2f. It is kept as history only. Every row above cites runs on adf8c61f81.
-- In the IDE re-run, Stop landed in the objective's first turn. Stop during a goal continuation is covered by stdio (row 2c), not by the IDE.
+- In the recorded IDE re-run, Stop landed in the objective's first turn. For Stop during a goal continuation in the IDE, the user stated on 2026-10-20 that they ran it in another session and that it worked, and asked to proceed on that basis. No machine trace of that run was found (`f1-ide-continuation-stop-attestation.txt`). The plan records this as an accepted residual risk. The behaviour itself is covered over stdio (row 2c) and by gated tests (row 6).
 - The F2 races fixed in 44f1f65029 and adf8c61f81 (Stop or a mode switch during goal create/resume preparation, and a follow-up prompt during that window) last microseconds, so no manual run can hit them reliably. The gated ACP tests in `packages/coding-agent/test/acp-agent.test.ts` cover them and are part of row 6.
 - IntelliJ 2026.2 logs `has no registered modes, ignore the set mode request` on every `current_mode_update`, as it already did on `main`. The IDE drives the dropdown through the `mode` config option, so mode sync rides on `config_option_update`. This is recorded as an accepted residual risk in the plan.
