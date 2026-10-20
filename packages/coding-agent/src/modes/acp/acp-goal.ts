@@ -38,22 +38,43 @@ export class AcpGoalController {
 		return this.#host.continuationPending;
 	}
 
+	/**
+	 * Every operation that changes selection, goal state, or tools runs on one chain in
+	 * arrival order. Goal entry awaits the tool swap inside the host, so an unqueued
+	 * leave/select/pause arriving meanwhile would be overwritten when the entry finishes.
+	 * A failure reaches only its own caller; the chain continues.
+	 */
+	#op: Promise<void> = Promise.resolve();
+
+	#run<T>(fn: () => Promise<T>): Promise<T> {
+		const result = this.#op.then(fn);
+		this.#op = result.then(
+			() => undefined,
+			() => undefined,
+		);
+		return result;
+	}
+
 	/** The client selected goal mode. A stored goal (active or paused) is kept; none arms the next prompt. */
-	select(): void {
-		this.#selected = true;
-		if (!this.#session.getGoalModeState()) this.#objectivePending = true;
+	select(): Promise<void> {
+		return this.#run(async () => {
+			this.#selected = true;
+			if (!this.#session.getGoalModeState()) this.#objectivePending = true;
+		});
 	}
 
 	/** The client selected another mode: pause the goal and restore the pre-goal tools. */
-	async leave(): Promise<void> {
-		this.#selected = false;
-		this.#objectivePending = false;
-		const state = this.#session.getGoalModeState();
-		// Also covers a reattached paused goal the client never selected: Default/Plan must still restore the pre-goal tools.
-		if (!state || state.mode === "exiting") return;
-		const status = state.goal.status;
-		if (status !== "active" && status !== "budget-limited" && status !== "paused") return;
-		await this.#host.pause();
+	leave(): Promise<void> {
+		return this.#run(async () => {
+			this.#selected = false;
+			this.#objectivePending = false;
+			const state = this.#session.getGoalModeState();
+			// Also covers a reattached paused goal the client never selected: Default/Plan must still restore the pre-goal tools.
+			if (!state || state.mode === "exiting") return;
+			const status = state.goal.status;
+			if (status !== "active" && status !== "budget-limited" && status !== "paused") return;
+			await this.#host.pause();
+		});
 	}
 
 	/**
@@ -61,19 +82,28 @@ export class AcpGoalController {
 	 * an armed objective is created from its text (an empty text throws and stays
 	 * armed); a paused goal still selected resumes, the prompt being guidance.
 	 * Returns the transition this prompt caused, if any.
+	 *
+	 * `isCancelled` is re-checked inside the same operation after the entry: a Stop
+	 * that landed during the tool swap is compensated (paused, selection kept)
+	 * before any later operation can run between the entry and its compensation.
 	 */
-	async prepareHostPrompt(text: string): Promise<"created" | "resumed" | undefined> {
-		if (this.#objectivePending) {
-			await this.#host.createForHostPrompt({ objective: text });
-			this.#objectivePending = false;
-			return "created";
-		}
-		const state = this.#session.getGoalModeState();
-		if (this.#selected && state?.goal.status === "paused") {
-			await this.#host.resumeForHostPrompt();
-			return "resumed";
-		}
-		return undefined;
+	prepareHostPrompt(text: string, isCancelled: () => boolean): Promise<"created" | "resumed" | undefined> {
+		return this.#run(async () => {
+			let transition: "created" | "resumed" | undefined;
+			if (this.#objectivePending) {
+				await this.#host.createForHostPrompt({ objective: text });
+				this.#objectivePending = false;
+				transition = "created";
+			} else {
+				const state = this.#session.getGoalModeState();
+				if (this.#selected && state?.goal.status === "paused") {
+					await this.#host.resumeForHostPrompt();
+					transition = "resumed";
+				}
+			}
+			if (transition && isCancelled()) await this.#pauseForCancel();
+			return transition;
+		});
 	}
 
 	/**
@@ -81,7 +111,11 @@ export class AcpGoalController {
 	 * just created or resumed to the state a Stop leaves (paused, tools restored,
 	 * selection kept, continuation held until the next host prompt).
 	 */
-	async pauseAfterCancelledPrompt(): Promise<void> {
+	pauseAfterCancelledPrompt(): Promise<void> {
+		return this.#run(() => this.#pauseForCancel());
+	}
+
+	async #pauseForCancel(): Promise<void> {
 		await this.#host.pause();
 		this.#host.stopForHostAbort();
 	}

@@ -260,6 +260,8 @@ type ManagedSessionRecord = {
 	goal: AcpGoalController;
 	/** Drops the goal observer subscribed before any prompt subscriber. */
 	goalUnsubscribe: (() => void) | undefined;
+	/** Goal block (prepare, mode sync, cancel compensation) of the latest prompt; never rejects. */
+	goalPreparation: Promise<void> | undefined;
 	/** Mode id the client was last told about; agent-side goal changes are reported against it. */
 	reportedModeId: string;
 	/**
@@ -981,6 +983,9 @@ export class AcpAgent implements Agent {
 				await previousTurn.promise.catch(() => undefined);
 				await previousTurn.cleanup;
 			}
+			// A cancelled prompt resolves (and is evicted) before its goal preparation
+			// finishes; starting this prompt's goal handling earlier would see half-applied state.
+			await record.goalPreparation;
 			this.#throwIfRecordClosed(record);
 
 			const converted = this.#convertPromptBlocks(params.prompt);
@@ -1217,15 +1222,16 @@ export class AcpAgent implements Agent {
 		// selected resumes with this prompt as guidance. Registered commands run as
 		// commands and leave goal mode armed.
 		if (!record.session.isRegisteredPromptCommand(text)) {
-			const transition = await record.goal.prepareHostPrompt(text);
-			await this.#syncAgentModeChange(record);
-			// Stop landed while the goal was being created/resumed: cancel already
-			// answered the client, so never submit this prompt; leave the goal as a
-			// Stop does (paused, still selected).
-			if (promptTurn?.cancelRequested) {
-				if (transition) await record.goal.pauseAfterCancelledPrompt();
-				return;
-			}
+			const preparation = this.#prepareGoalForPrompt(record, text, promptTurn);
+			// Published on the record so the next queued prompt waits for this whole
+			// block: Stop answers the client at once and the cancelled turn leaves
+			// `record.promptTurn` after its abort, but the goal entry, mode sync and
+			// compensation are still running.
+			record.goalPreparation = preparation.then(
+				() => undefined,
+				() => undefined,
+			);
+			if (!(await preparation)) return;
 		}
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
 		// An autonomous turn (todo reminder, async-job wake) streams without an
@@ -1243,6 +1249,29 @@ export class AcpAgent implements Agent {
 			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
 			this.#finishPrompt(record, { stopReason: "end_turn" });
 		}
+	}
+
+	/**
+	 * Goal handling for an ordinary prompt: entry, mode sync and Stop compensation.
+	 * Returns false when Stop landed meanwhile and the prompt must not be submitted.
+	 */
+	async #prepareGoalForPrompt(
+		record: ManagedSessionRecord,
+		text: string,
+		promptTurn: PromptTurnState | undefined,
+	): Promise<boolean> {
+		const isCancelled = () => promptTurn?.cancelRequested === true;
+		const transition = await record.goal.prepareHostPrompt(text, isCancelled);
+		await this.#syncAgentModeChange(record);
+		// Stop landed while the goal was being created/resumed: cancel already
+		// answered the client, so never submit this prompt. The in-operation check
+		// normally compensated already; this one covers a Stop during the mode sync
+		// and leaves the goal as a Stop does (paused, still selected).
+		if (isCancelled()) {
+			if (transition) await record.goal.pauseAfterCancelledPrompt();
+			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -1756,6 +1785,7 @@ export class AcpAgent implements Agent {
 				return turn !== undefined && !turn.settled && !turn.cancelRequested;
 			}),
 			goalUnsubscribe: undefined,
+			goalPreparation: undefined,
 			reportedModeId: ACP_DEFAULT_MODE_ID,
 			runningBuiltins: new Set(),
 		};
@@ -2488,7 +2518,7 @@ export class AcpAgent implements Agent {
 		}
 		session.setPlanProposalHandler?.(null);
 		session.setPlanModeState(undefined);
-		if (modeId === ACP_GOAL_MODE_ID) record.goal.select();
+		if (modeId === ACP_GOAL_MODE_ID) await record.goal.select();
 	}
 
 	/**
