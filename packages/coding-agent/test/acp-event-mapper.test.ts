@@ -98,6 +98,13 @@ class ReplayTestSession {
 		return undefined;
 	}
 
+	/** No journaled goal: `AgentSession`'s goal surface as ACP registration reads it. */
+	goalRuntime = { clearAccounting(): void {} };
+	getGoalModeState(): undefined {
+		return undefined;
+	}
+	setGoalModeState(): void {}
+
 	setClientBridge(_bridge: unknown): void {}
 
 	subscribe(_listener: (event: AgentSessionEvent) => void): () => void {

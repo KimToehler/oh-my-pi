@@ -152,6 +152,12 @@ class LazyFakeSession {
 		return undefined;
 	}
 	setPlanModeState(): void {}
+	/** No journaled goal: `AgentSession`'s goal surface as ACP registration reads it. */
+	goalRuntime = { clearAccounting(): void {} };
+	getGoalModeState(): undefined {
+		return undefined;
+	}
+	setGoalModeState(): void {}
 	async sendCustomMessage(): Promise<void> {}
 	async sendUserMessage(): Promise<void> {}
 	async compact(): Promise<void> {}
