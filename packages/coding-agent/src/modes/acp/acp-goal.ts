@@ -54,6 +54,14 @@ export class AcpGoalController {
 	 * arrival order. Goal entry awaits the tool swap inside the host, so an unqueued
 	 * leave/select/pause arriving meanwhile would be overwritten when the entry finishes.
 	 * A failure reaches only its own caller; the chain continues.
+	 *
+	 * Each operation first awaits {@link GoalHostController.settled}: a session change
+	 * returns while its reconcile is still queued, and that reconcile clears the selection
+	 * and may replace the goal. An operation accepted after the change therefore applies
+	 * after the reconcile, against the final transcript's goal state; a reconcile started
+	 * by a LATER change still clears it through `onReconciled`. No deadlock: `settled()`
+	 * waits only on host exits and reconciles, never on this chain, and no reconcile path
+	 * (extension `onThreadResumed`, `onReconciled`, the mode re-sync) awaits an operation here.
 	 */
 	#op: Promise<void> = Promise.resolve();
 
@@ -69,6 +77,7 @@ export class AcpGoalController {
 	/** The client selected goal mode. A stored goal (active or paused) is kept; none arms the next prompt. */
 	select(): Promise<void> {
 		return this.#run(async () => {
+			await this.#host.settled();
 			this.#selected = true;
 			if (!this.#session.getGoalModeState()) this.#objectivePending = true;
 		});
@@ -77,6 +86,7 @@ export class AcpGoalController {
 	/** The client selected another mode: pause the goal and restore the pre-goal tools. */
 	leave(): Promise<void> {
 		return this.#run(async () => {
+			await this.#host.settled();
 			this.#selected = false;
 			this.#objectivePending = false;
 			const state = this.#session.getGoalModeState();
@@ -100,6 +110,7 @@ export class AcpGoalController {
 	 */
 	prepareHostPrompt(text: string, isCancelled: () => boolean): Promise<"created" | "resumed" | undefined> {
 		return this.#run(async () => {
+			await this.#host.settled();
 			let transition: "created" | "resumed" | undefined;
 			if (this.#objectivePending) {
 				await this.#host.createForHostPrompt({ objective: text });
@@ -123,7 +134,10 @@ export class AcpGoalController {
 	 * selection kept, continuation held until the next host prompt).
 	 */
 	pauseAfterCancelledPrompt(): Promise<void> {
-		return this.#run(() => this.#pauseForCancel());
+		return this.#run(async () => {
+			await this.#host.settled();
+			await this.#pauseForCancel();
+		});
 	}
 
 	async #pauseForCancel(): Promise<void> {

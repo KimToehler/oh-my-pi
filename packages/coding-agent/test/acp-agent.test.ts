@@ -5665,6 +5665,73 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		it("a goal selection accepted while a deferred reattach is pending survives it and arms the next prompt", async () => {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			const runner = session.extensionRunner!;
+			// Hold the first reattach inside onThreadResumed; the second change's reconcile queues behind it.
+			const gate = Promise.withResolvers<void>();
+			const entered = Promise.withResolvers<void>();
+			const resumed = session.goalRuntime.onThreadResumed.bind(session.goalRuntime);
+			let resumes = 0;
+			session.goalRuntime.onThreadResumed = async options => {
+				if (resumes++ === 0) {
+					entered.resolve();
+					await gate.promise;
+				}
+				return resumed(options);
+			};
+			const ctx = runner.createCommandContext();
+			const changeA = ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", {
+						goal: {
+							id: "g-mid",
+							objective: "intermediate",
+							status: "active",
+							tokensUsed: 0,
+							timeUsedSeconds: 0,
+							createdAt: 0,
+							updatedAt: 0,
+						},
+					});
+				},
+			});
+			await entered.promise;
+			// Change B returns with its reconcile still queued behind A's held one.
+			await ctx.newSession();
+			expect(resumes).toBe(1);
+			expect(session.goalModeState?.goal.objective).toBe("intermediate");
+
+			// The client selects goal after both session changes returned. Not awaited: the
+			// selection waits for the pending reconcile, which is held until released below.
+			const selection = harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+			gate.resolve();
+			await changeA;
+			const selected = await selection;
+			await eventLoopTurns(3);
+			expect(session.goalModeState).toBeUndefined();
+			expect(selectedMode(selected.configOptions)).toBe("goal");
+			expect(lastModeNotification(harness, session.sessionId)).toBe("goal");
+			expect(modeConfigValue(harness.updates.findLast(u => u.update.sessionUpdate === "config_option_update"))).toBe(
+				"goal",
+			);
+
+			session.promptCustomMessage = async () => {
+				emitTurn(session, "no progress");
+				return true;
+			};
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+			expect(session.promptCalls).toEqual(["Ship feature X"]);
+			harness.abortController.abort();
+		});
+
 		function selectedMode(options: SessionConfigOption[]): unknown {
 			const option = options.find(candidate => candidate.id === "mode");
 			return option?.type === "select" ? option.currentValue : undefined;
