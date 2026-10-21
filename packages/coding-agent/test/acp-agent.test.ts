@@ -17,6 +17,7 @@ import {
 	createAcpExtensionUiContext,
 } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import {
+	isPlanApprovalDetails,
 	planContentSha256,
 	type ResolvedApprovedPlan,
 	resolveApprovedPlan,
@@ -607,6 +608,13 @@ async function proposePlan(
 		listPlanFiles: () => listPlanFiles(planPathOptions),
 	});
 	return handler(options.reviewed ? { ...plan, reviewedSha256: planContentSha256(plan.planContent) } : plan, owns);
+}
+
+/** A superseded proposal's result carries a structured outcome that is never an approval payload. */
+function expectSupersededProposal(result: unknown): void {
+	const details = (result as { details?: unknown }).details;
+	expect(details).toEqual({ superseded: true, title: expect.any(String) });
+	expect(isPlanApprovalDetails(details)).toBe(false);
 }
 
 function holdPromptStreaming(session: FakeAgentSession): () => void {
@@ -1312,7 +1320,7 @@ describe("ACP agent", () => {
 
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		answer();
-		await pending;
+		expectSupersededProposal(await pending);
 
 		expect(session.planModeState).toBeUndefined();
 		await harness.agent.prompt({ sessionId: session.sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
@@ -1332,7 +1340,7 @@ describe("ACP agent", () => {
 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 			answer();
-			await pending;
+			expectSupersededProposal(await pending);
 
 			expect(session.planModeState?.enabled).toBe(true);
 			expect(session.planReferencePath).toBeUndefined();
@@ -1360,7 +1368,7 @@ describe("ACP agent", () => {
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 		adoptRelease.resolve();
-		await pending;
+		expectSupersededProposal(await pending);
 
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(session.planReferencePath).toBeUndefined();
@@ -1387,7 +1395,7 @@ describe("ACP agent", () => {
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 		resolving.resolve();
-		await pending;
+		expectSupersededProposal(await pending);
 
 		expect(asked).not.toHaveBeenCalled();
 		expect(session.planModeState?.enabled).toBe(true);
@@ -1414,7 +1422,7 @@ describe("ACP agent", () => {
 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId });
 			expect(session.planModeState).toBeUndefined();
 			resolving.resolve();
-			await expect(pending).resolves.toBeDefined();
+			expectSupersededProposal(await pending);
 
 			expect(asked).not.toHaveBeenCalled();
 			expect(session.planModeState).toBeUndefined();
@@ -1435,7 +1443,7 @@ describe("ACP agent", () => {
 
 			await session.newSession();
 			answer();
-			await pending;
+			expectSupersededProposal(await pending);
 
 			expect(session.planModeState).toEqual(planBefore);
 			expect(session.planReferencePath).toBeUndefined();
@@ -1467,7 +1475,7 @@ describe("ACP agent", () => {
 		await proposePlan(session, "words-counter");
 		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
 		snapshotRelease.resolve();
-		await older;
+		expectSupersededProposal(await older);
 
 		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
 		expect(session.planModeState).toBeUndefined();

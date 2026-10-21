@@ -16,6 +16,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { bindCursorExecSignal, CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
 import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import {
+	isPlanApprovalDetails,
 	type PlanApprovalDetails,
 	planContentSha256,
 	type ResolvedApprovedPlan,
@@ -23,6 +24,8 @@ import {
 import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import * as planFilesModule from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
+import * as planReviewModule from "@oh-my-pi/pi-coding-agent/plan-mode/plan-review";
 import { reviewProposedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-review";
 import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
@@ -854,11 +857,117 @@ describe("plan review runtime", () => {
 		await reviewing.promise;
 		owned.current = false;
 		released.resolve(reject());
-		await pending;
+		const result = await pending;
 
+		expect(result.details).toEqual({ superseded: true, title: "demo" });
+		expect(isPlanApprovalDetails(result.details)).toBe(false);
 		expect(harness.session.getPlanModeState()?.planFilePath).toBe("local://PLAN.md");
 		expect(auditEntries(harness)).toEqual([]);
 		expect(harness.handled).toEqual([]);
+	});
+
+	/** Installs a handler with a host-reserved ownership flag; the handler records every call it receives. */
+	function reserveOwnership(harness: Harness): { current: boolean } {
+		const owned = { current: true };
+		harness.session.setPlanProposalHandler(
+			async plan => {
+				harness.handled.push(plan);
+				return { content: [{ type: "text", text: HANDLER_TEXT }] };
+			},
+			() => () => owned.current,
+		);
+		return owned;
+	}
+
+	describe("an asynchronous stage that rejects", () => {
+		const stageFailure = new Error("stage failed");
+
+		it("resolution rejecting after ownership was lost returns the superseded outcome", async () => {
+			const harness = createHarness();
+			const owned = reserveOwnership(harness);
+			const resolving = Promise.withResolvers<void>();
+			const released = Promise.withResolvers<void>();
+			vi.spyOn(planFilesModule, "listPlanFiles").mockImplementation(async () => {
+				resolving.resolve();
+				await released.promise;
+				throw stageFailure;
+			});
+
+			const pending = propose(harness);
+			await resolving.promise;
+			owned.current = false;
+			released.resolve();
+			const result = await pending;
+
+			expect(result.details).toEqual({ superseded: true, title: "demo" });
+			expect(isPlanApprovalDetails(result.details)).toBe(false);
+			expect(harness.handled).toEqual([]);
+			expect(auditEntries(harness)).toEqual([]);
+		});
+
+		it("resolution rejecting while ownership still holds surfaces the original error", async () => {
+			const harness = createHarness();
+			reserveOwnership(harness);
+			const resolving = Promise.withResolvers<void>();
+			const released = Promise.withResolvers<void>();
+			vi.spyOn(planFilesModule, "listPlanFiles").mockImplementation(async () => {
+				resolving.resolve();
+				await released.promise;
+				throw stageFailure;
+			});
+
+			const pending = propose(harness);
+			await resolving.promise;
+			released.resolve();
+			await expect(pending).rejects.toBe(stageFailure);
+
+			expect(harness.handled).toEqual([]);
+		});
+
+		it("review rejecting after ownership was lost returns the superseded outcome", async () => {
+			const harness = createHarness();
+			await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+			const owned = reserveOwnership(harness);
+			const reviewing = Promise.withResolvers<void>();
+			const released = Promise.withResolvers<void>();
+			vi.spyOn(planReviewModule, "reviewProposedPlan").mockImplementation(async () => {
+				reviewing.resolve();
+				await released.promise;
+				throw stageFailure;
+			});
+
+			const pending = propose(harness);
+			await reviewing.promise;
+			owned.current = false;
+			released.resolve();
+			const result = await pending;
+
+			expect(result.details).toEqual({ superseded: true, title: "demo" });
+			expect(isPlanApprovalDetails(result.details)).toBe(false);
+			expect(harness.handled).toEqual([]);
+			expect(auditEntries(harness)).toEqual([]);
+		});
+
+		it("review rejecting while ownership still holds surfaces the original error", async () => {
+			const harness = createHarness();
+			await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+			reserveOwnership(harness);
+			const reviewing = Promise.withResolvers<void>();
+			const released = Promise.withResolvers<void>();
+			vi.spyOn(planReviewModule, "reviewProposedPlan").mockImplementation(async () => {
+				reviewing.resolve();
+				await released.promise;
+				throw stageFailure;
+			});
+
+			const pending = propose(harness);
+			await reviewing.promise;
+			released.resolve();
+			await expect(pending).rejects.toBe(stageFailure);
+
+			expect(harness.handled).toEqual([]);
+			expect(auditEntries(harness)).toEqual([]);
+		});
 	});
 
 	it("a host-reserved proposal ownership still held reaches the handler as the same check", async () => {
