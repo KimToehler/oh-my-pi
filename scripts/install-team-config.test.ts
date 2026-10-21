@@ -156,7 +156,9 @@ describe("installTeamConfig", () => {
 		await t.install();
 		await fs.rm(t.repo("agent/rules/a.md"));
 		await fs.symlink(t.repo("agent/other.md"), t.repo("agent/rules/a.md"));
-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules/a.md")}`);
+		await expect(t.install()).rejects.toThrow(
+			`Unsupported entry in team config source (symlink): ${t.repo("agent/rules/a.md")}`,
+		);
 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
 		expect(await t.read(t.agent("b.md"))).toBe("b\n");
 		expect(await t.read(t.agent("other.md"))).toBe("other\n");
@@ -167,15 +169,28 @@ describe("installTeamConfig", () => {
 		await t.install();
 		await fs.rm(t.repo("agent/rules"), { recursive: true });
 		await fs.symlink(t.repo("agent/real"), t.repo("agent/rules"));
-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules")}`);
+		await expect(t.install()).rejects.toThrow(
+			`Unsupported entry in team config source (symlink): ${t.repo("agent/rules")}`,
+		);
 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
 		expect(await t.read(t.agent("real/x.md"))).toBe("x\n");
+	});
+
+	test("rejects a symlink named like an Object.prototype member (only exact listed names are skipped)", async () => {
+		const t = await setup({ "agent/a.md": "a\n" });
+		await fs.symlink(t.repo("agent/a.md"), t.repo("agent/constructor"));
+		await expect(t.install()).rejects.toThrow(
+			`Unsupported entry in team config source (symlink): ${t.repo("agent/constructor")}`,
+		);
+		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
 	});
 
 	test("rejects a symlink under seed/", async () => {
 		const t = await setup({ "seed/config.yml": "team: 1\n", "agent/a.md": "a\n" });
 		await fs.symlink(t.repo("seed/config.yml"), t.repo("seed/link.yml"));
-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("seed/link.yml")}`);
+		await expect(t.install()).rejects.toThrow(
+			`Unsupported entry in team config source (symlink): ${t.repo("seed/link.yml")}`,
+		);
 		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
 	});
 
@@ -402,7 +417,10 @@ describe("installTeamConfig", () => {
 		await fs.mkdir(t.agentDir, { recursive: true });
 		await Bun.write(t.agent("AGENTS.md"), "v1\n");
 		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
-		await Bun.write(t.agent(".team-config-manifest.json"), JSON.stringify({ version: 1, files: { "AGENTS.md": sha } }));
+		await Bun.write(
+			t.agent(".team-config-manifest.json"),
+			JSON.stringify({ version: 1, files: { "AGENTS.md": sha } }),
+		);
 		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
 		const report = await t.install();
 		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v1\n");
@@ -467,9 +485,10 @@ describe("installTeamConfig", () => {
 				}),
 			).rejects.toThrow(/symlink/);
 			const leaked =
-				target === "run dir" ? await fs.readdir(outside) : await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
+				target === "run dir"
+					? await fs.readdir(outside)
+					: await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
 			expect(leaked).toEqual([]);
 		});
 	}
-
 });

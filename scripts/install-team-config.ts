@@ -17,7 +17,7 @@ import * as path from "node:path";
 import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
 
 const MANIFEST_NAME = ".team-config-manifest.json";
-const SKIPPED_NAMES: Record<string, true> = { ".DS_Store": true, __pycache__: true, ".pytest_cache": true };
+const SKIPPED_NAMES = new Set([".DS_Store", "__pycache__", ".pytest_cache"]);
 
 interface ManifestEntry {
 	/** sha256 of the content the installer last knew this file to hold. */
@@ -60,7 +60,7 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
 	async function walk(dir: string, rel: string): Promise<void> {
 		const entries = await fs.readdir(dir, { withFileTypes: true });
 		for (const entry of entries) {
-			if (SKIPPED_NAMES[entry.name]) continue;
+			if (SKIPPED_NAMES.has(entry.name)) continue;
 			const childRel = rel ? `${rel}/${entry.name}` : entry.name;
 			const full = path.join(dir, entry.name);
 			if (entry.isDirectory()) await walk(full, childRel);
@@ -172,7 +172,8 @@ function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
 	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
 		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
 		const files: Record<string, ManifestEntry> = {};
-		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>)) files[rel] = { hash, adopted: true };
+		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
+			files[rel] = { hash, adopted: true };
 		return { version: 2, files };
 	}
 	throw new Error(`Unsupported team config manifest ${file}`);
@@ -198,7 +199,11 @@ async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promis
 }
 
 /** Replace the manifest, but only while it is still exactly what phase 1 read (`expected`; undefined = absent). */
-async function writeManifest(manifestPath: string, manifest: Manifest, expected: Uint8Array | undefined): Promise<void> {
+async function writeManifest(
+	manifestPath: string,
+	manifest: Manifest,
+	expected: Uint8Array | undefined,
+): Promise<void> {
 	const now = await readManifestBytes(manifestPath);
 	if (now === undefined ? expected !== undefined : expected === undefined || !Buffer.from(now).equals(expected)) {
 		throw new Error(`Refusing to replace manifest ${manifestPath}: it changed after planning`);
@@ -355,7 +360,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const verify = async (rel: string, planned: DestState): Promise<void> => {
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
-		if (stateKey(await inspect(dst)) !== stateKey(planned)) throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+		if (stateKey(await inspect(dst)) !== stateKey(planned))
+			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
 	};
 
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
