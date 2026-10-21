@@ -16,6 +16,8 @@
 - Fixed slash commands such as `/compact` sent as an ACP steering message mid-turn (JetBrains IDEs) reaching the model as plain text; they now run immediately, `/compact` resumes the interrupted work in the same reply, and several steered commands run in order
 - Fixed ACP clients such as JetBrains IDEs not labelling the recommended option of an `ask` question; it now shows "(Recommended)" like the TUI, including in multi-select questions
 - Fixed JetBrains IDEs over ACP switching plan mode and the pre-approval model back on with your next message after you approved a plan, because the mode dropdown stays on "Plan"; omp now ignores the IDE's re-sent choice until you pick a different mode or model
+- Fixed a `task` call that mixes blocking and background agents listing the finished background agents among the call's inline results; they now arrive in `details.asyncResults`, and `details.usage` still totals both
+
 ## [18.12.5] - 2026-10-21
 
 ### Added

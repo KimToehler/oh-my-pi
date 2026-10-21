@@ -5,6 +5,7 @@
 ### Added
 
 - Task results can list the models that answered (`answeringModels`)
+- `TaskToolDetails.asyncResults` carries the results of background agents that finished after the `task` call returned; `results` keeps only the agents that ran inline
 
 ## [18.12.4] - 2026-10-20
 

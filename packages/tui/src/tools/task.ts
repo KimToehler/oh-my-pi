@@ -2544,9 +2544,12 @@ export interface SingleResult {
 /** Tool details for TUI rendering */
 export interface TaskToolDetails {
 	projectAgentsDir: string | null;
+	/** Results of spawns that ran inline (blocking); the call returns only after they settle. */
 	results: SingleResult[];
+	/** Results of background spawns that settled after the call returned, in spawn order. */
+	asyncResults?: SingleResult[];
 	totalDurationMs: number;
-	/** Aggregated usage across all subagents. */
+	/** Aggregated usage across all subagents, inline and settled background ones. */
 	usage?: Usage;
 	outputPaths?: string[];
 	progress?: AgentProgress[];

@@ -232,6 +232,7 @@ describe("SDK async task child metrics", () => {
 		expect(ends.map(event => event.details?.async?.state)).toEqual(["running", "running"]);
 		for (const event of ends) {
 			expect(event.details?.results).toEqual([]);
+			expect(event.details?.asyncResults).toBeUndefined();
 			expect(event.details?.usage).toBeUndefined();
 		}
 
@@ -244,8 +245,15 @@ describe("SDK async task child metrics", () => {
 			);
 			expect(terminal.length).toBeGreaterThan(0);
 			const details = terminal[terminal.length - 1].details;
-			expect(details?.results.map(r => r.requests)).toEqual([4]);
-			expect(details?.results[0]?.usage).toMatchObject({ input: 120, output: 30, cacheRead: 40, cacheWrite: 7 });
+			// Background children never appear in the inline `results`.
+			expect(details?.results).toEqual([]);
+			expect(details?.asyncResults?.map(r => r.requests)).toEqual([4]);
+			expect(details?.asyncResults?.[0]?.usage).toMatchObject({
+				input: 120,
+				output: 30,
+				cacheRead: 40,
+				cacheWrite: 7,
+			});
 			expect(details?.usage).toMatchObject({ input: 120, output: 30, cacheRead: 40, cacheWrite: 7 });
 		}
 	});

@@ -58,7 +58,10 @@ export function finalCost(acc: Pick<TaskTotals, "costUsd" | "costUnknown">): num
 }
 
 function snapshotOf(details: Record<string, unknown>): TaskSnapshot {
-	const results = Array.isArray(details.results) ? details.results.filter(isRecord) : [];
+	// Inline children sit in `results`, settled background children in `asyncResults`.
+	const results = [details.results, details.asyncResults].flatMap(list =>
+		Array.isArray(list) ? list.filter(isRecord) : [],
+	);
 	const snap: TaskSnapshot = {
 		results: results.length,
 		requests: 0,

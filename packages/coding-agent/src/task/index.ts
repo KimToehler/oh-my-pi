@@ -1174,28 +1174,28 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		const asyncResults = new Map<number, SingleResult>();
 		let syncProjectAgentsDir: string | null = null;
 		const buildAsyncDetails = (): TaskToolDetails => {
-			let results = syncResults.slice();
 			let usage = syncUsage;
 			let outputPaths = syncOutputPaths;
-			if (asyncResults.size > 0) {
-				results = [...syncResults, ...asyncResults.values()].sort((a, b) => a.index - b.index);
+			const settled = [...asyncResults.values()].sort((a, b) => a.index - b.index);
+			if (settled.length > 0) {
+				// Recompute over inline and settled background results together so each child counts once.
 				const totals = createUsageTotals();
 				let hasUsage = false;
 				const paths: string[] = [];
-				for (const result of results) {
+				for (const result of [...syncResults, ...settled]) {
 					if (result.usage) {
 						addUsageTotals(totals, result.usage);
 						hasUsage = true;
 					}
+					if (result.outputPath) paths.push(result.outputPath);
 				}
-				// Sync usage/paths are already merged from syncResults; recompute from the full set so each counts once.
-				for (const result of results) if (result.outputPath) paths.push(result.outputPath);
 				usage = hasUsage ? totals : undefined;
-				outputPaths = paths.length > 0 ? paths : syncOutputPaths;
+				outputPaths = paths.length > 0 ? paths : undefined;
 			}
 			return {
 				projectAgentsDir: syncProjectAgentsDir,
-				results,
+				results: syncResults.slice(),
+				...(settled.length > 0 ? { asyncResults: settled } : {}),
 				totalDurationMs: Date.now() - callStartedAt,
 				usage,
 				outputPaths,
