@@ -600,6 +600,16 @@ describe("installTeamConfig", () => {
 	describe("strict manifest schema", () => {
 		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
 		const cases: Array<[string, unknown]> = [
+			["a duplicated top-level files member", `{"version":2,"files":{"AGENTS.md":{"hash":"${sha}"}},"files":{}}`],
+			[
+				"a duplicated file entry key",
+				`{"version":2,"files":{"AGENTS.md":{"hash":"${sha}"},"AGENTS.md":{"hash":"${sha}"}}}`,
+			],
+			[
+				"an escaped-equivalent duplicate member",
+				`{"version":2,"files":{"AGENTS.md":{"hash":"${sha}"}},"\\u0066iles":{}}`,
+			],
+			["a duplicated entry hash member", `{"version":2,"files":{"AGENTS.md":{"hash":"${sha}","hash":"${sha}"}}}`],
 			["an extra top-level key", { version: 2, files: {}, extra: 1 }],
 			["an extra top-level key in a version 1 manifest", { version: 1, files: {}, extra: 1 }],
 			["an extra entry key", { version: 2, files: { "AGENTS.md": { hash: sha, note: "x" } } }],
@@ -613,7 +623,10 @@ describe("installTeamConfig", () => {
 				await fs.mkdir(t.agentDir, { recursive: true });
 				await Bun.write(t.agent("AGENTS.md"), "v1\n");
 				const manifestFile = t.agent(".team-config-manifest.json");
-				await Bun.write(manifestFile, JSON.stringify(manifest, null, "\t"));
+				await Bun.write(
+					manifestFile,
+					typeof manifest === "string" ? manifest : JSON.stringify(manifest, null, "\t"),
+				);
 				const snapshot = async () =>
 					Promise.all(
 						(await fs.readdir(t.agentDir, { recursive: true })).sort().map(async rel => {

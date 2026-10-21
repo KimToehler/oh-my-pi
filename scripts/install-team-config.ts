@@ -189,13 +189,70 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Path of the first duplicated object member in syntactically valid JSON `text`, or undefined.
+ * `JSON.parse` silently keeps the last duplicate, so this walks the text itself. Keys are decoded
+ * before comparison, so `"a"` and `"\u0061"` collide.
+ */
+function findDuplicateMember(text: string): string | undefined {
+	let i = 0;
+	const skipWs = (): void => {
+		while (text[i] === " " || text[i] === "\t" || text[i] === "\n" || text[i] === "\r") i++;
+	};
+	const readString = (): string => {
+		const start = i++;
+		while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+		i++;
+		return JSON.parse(text.slice(start, i)) as string;
+	};
+	const walk = (at: string): string | undefined => {
+		skipWs();
+		const ch = text[i];
+		if (ch === "{") {
+			i++;
+			const seen = new Set<string>();
+			for (skipWs(); text[i] !== "}"; skipWs()) {
+				const key = readString();
+				const here = at === "" ? key : `${at}.${key}`;
+				if (seen.has(key)) return here;
+				seen.add(key);
+				skipWs();
+				i++; // ':'
+				const dup = walk(here);
+				if (dup !== undefined) return dup;
+				skipWs();
+				if (text[i] === ",") i++;
+			}
+			i++;
+		} else if (ch === "[") {
+			i++;
+			for (let n = 0; skipWs(), text[i] !== "]"; n++) {
+				const dup = walk(`${at}[${n}]`);
+				if (dup !== undefined) return dup;
+				skipWs();
+				if (text[i] === ",") i++;
+			}
+			i++;
+		} else if (ch === '"') {
+			readString();
+		} else {
+			while (i < text.length && !",]} \t\n\r".includes(text[i]!)) i++;
+		}
+		return undefined;
+	};
+	return walk("");
+}
+
 /** Parse the manifest strictly: exactly the v1 or v2 shape, nothing else. Throws naming `file`; never rewrites it. */
 function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
 	if (bytes === undefined) return { version: 2, files: newFiles() };
 	const invalid = (why: string): Error => new Error(`Invalid team config manifest ${file}: ${why}`);
 	let manifest: unknown;
 	try {
-		manifest = JSON.parse(new TextDecoder().decode(bytes));
+		const text = new TextDecoder().decode(bytes);
+		manifest = JSON.parse(text);
+		const dup = findDuplicateMember(text);
+		if (dup !== undefined) throw new Error(`duplicate member "${dup}"`);
 	} catch (err) {
 		throw invalid(err instanceof Error ? err.message : String(err));
 	}
