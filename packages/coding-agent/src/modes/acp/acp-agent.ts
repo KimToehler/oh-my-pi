@@ -105,6 +105,7 @@ import {
 	ACP_PLAN_MODE_ID,
 	AcpGoalActor,
 	type AcpModeTransition,
+	type AcpGoalStop,
 	type AcpPromptAdmission,
 } from "./acp-goal";
 import {
@@ -1309,7 +1310,7 @@ export class AcpAgent implements Agent {
 		const goalStop = record.goal.stop();
 		promptTurn.abortController.abort();
 		promptTurn.unsubscribe?.();
-		const cleanup = this.#runCancelCleanup(record, promptTurn, goalStop.abortSettled);
+		const cleanup = this.#runCancelCleanup(record, promptTurn, goalStop);
 		promptTurn.cleanup = cleanup;
 		this.#finishPrompt(record, {
 			stopReason: "cancelled",
@@ -1321,16 +1322,16 @@ export class AcpAgent implements Agent {
 	async #runCancelCleanup(
 		record: ManagedSessionRecord,
 		promptTurn: PromptTurnState,
-		abortSettled: () => void,
+		goalStop: AcpGoalStop,
 	): Promise<void> {
 		let timer: NodeJS.Timeout | undefined;
 		// The interrupted pause stays bound to this abort until the abort itself settles, even when the
 		// cleanup timeout wins the race below and the session is being closed.
 		const abort = (async () => {
 			try {
-				await record.session.abort({ reason: USER_INTERRUPT_LABEL });
+				await record.session.abort({ reason: USER_INTERRUPT_LABEL, goalStamp: goalStop.stamp });
 			} finally {
-				abortSettled();
+				goalStop.abortSettled();
 			}
 		})();
 		const timeout = new Promise<never>((_, reject) => {

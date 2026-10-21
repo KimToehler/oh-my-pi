@@ -23,8 +23,9 @@
  *   before each write to goal state, the journal or accounting; a stale stamp writes nothing. The stamp's
  *   scope says what must still hold: a goal entry and the agent's `goal` tool need the transcript with no
  *   session change begun, ended or running since (the tool also no reconcile); pauses, usage accounting and
- *   budget changes need only the transcript; an interrupted abort needs the transcript its own Stop
- *   interrupted. A lost entry is discarded and the host re-applies the tool set the new owner wants.
+ *   budget changes need only the transcript; an interrupted abort carries the stamp its own Stop reserved at
+ *   arrival, so its pause reaches only the transcript that Stop interrupted. A lost entry is discarded and the
+ *   host re-applies the tool set the new owner wants.
  * - Mode effects and Stop compensation carry the stamp reserved at arrival, so their pause is refused after a
  *   transcript switch and a Plan install from a stale mode effect is skipped.
  * - A mode change bumps `#modes` at arrival. A prompt admitted before it is not submitted
@@ -85,8 +86,10 @@ export interface AcpPromptAdmission {
 	release(): void;
 }
 
-/** A Stop in flight: the release of its interrupted-pause binding. */
+/** A Stop in flight: the stamp its own abort carries and the release of that abort's hold on the gate. */
 export interface AcpGoalStop {
+	/** Pass to `session.abort({ goalStamp })`: the interrupted pause is checked against this Stop's own transcript. */
+	stamp: GoalOwnerStamp;
 	/** Call when the underlying `session.abort()` has settled, never on a cleanup timeout alone. */
 	abortSettled(): void;
 }
@@ -162,10 +165,10 @@ export class AcpGoalActor {
 	#sessionChanges = 0;
 	#transcriptBeforeChange: string | undefined;
 	/**
-	 * Transcript generation of each Stop's abort that has not settled yet. Each abort owns its
-	 * entry until the underlying `session.abort()` itself settles (not when a cleanup timeout wins).
+	 * Stamps of the Stops whose `session.abort()` has not settled. Each is released when its own abort
+	 * settles (not when a cleanup timeout wins); the gate outlives disposal until the last is.
 	 */
-	readonly #aborts = new Set<{ transcript: number }>();
+	readonly #aborts = new Set<Stamp>();
 	#disposed = false;
 
 	/** Explicit mode transitions in flight; lifecycle sync is held back while above zero. */
@@ -274,12 +277,6 @@ export class AcpGoalActor {
 			case "transcript":
 				this.#syncTranscript();
 				return stamp.transcript === this.#transcriptGeneration;
-			case "abort":
-				// An interrupted pause belongs to the transcript each unsettled Stop interrupted.
-				this.#syncTranscript();
-				if (stamp.transcript !== this.#transcriptGeneration) return false;
-				for (const abort of this.#aborts) if (abort.transcript !== this.#transcriptGeneration) return false;
-				return true;
 		}
 	}
 
@@ -358,15 +355,15 @@ export class AcpGoalActor {
 
 	/**
 	 * The client pressed Stop. Synchronous part, before the abort starts: the aborted run's own
-	 * `agent_end` must not schedule a goal turn, and its late interrupted pause is bound to the
-	 * transcript running now, individually, until its own abort settles. A lane effect compensates admissions Stop overtook (their
-	 * entry paused, tools restored, selection kept, continuation held until the next host prompt).
-	 * Never rejects; Stop answers the client without waiting for it.
+	 * `agent_end` must not schedule a goal turn, and the Stop reserves its stamp for the transcript running
+	 * now. That stamp rides this Stop's own `session.abort()` to its interrupted pause, so the pause reaches only
+	 * the transcript this Stop interrupted, whatever other aborts are unwinding. A lane effect compensates
+	 * admissions Stop overtook (their entry paused, tools restored, selection kept, continuation held until the
+	 * next host prompt). Never rejects; Stop answers the client without waiting for it.
 	 */
 	stop(): AcpGoalStop {
 		const stamp = this.#stamp("transcript");
-		const abort = { transcript: stamp.transcript };
-		this.#aborts.add(abort);
+		this.#aborts.add(stamp);
 		this.#host.stopForHostAbort();
 		const overtaken = [...this.#admissions];
 		for (const admission of overtaken) admission.stopped = true;
@@ -381,9 +378,10 @@ export class AcpGoalActor {
 			});
 		});
 		return {
-			// The aborted run has unwound (the abort itself settled): its interrupted pause no longer applies.
+			stamp,
+			// The aborted run has unwound (the abort itself settled): the gate may go once the last one has.
 			abortSettled: () => {
-				this.#aborts.delete(abort);
+				this.#aborts.delete(stamp);
 				if (this.#disposed && this.#aborts.size === 0) this.#session.goalRuntime.setMutationGate(undefined);
 			},
 		};

@@ -33,11 +33,11 @@ export type GoalOwnerStamp = object;
  * - `entry`: the transcript, with no session change running, begun or ended since. A host's goal entry.
  * - `tool`: as `entry`, and no reconcile running. The agent's `goal` tool.
  * - `transcript`: only the transcript. Usage accounting, host pauses, budget changes: a session change that
- *   has begun but not switched the transcript leaves the old transcript's goal to its own accounting.
- * - `abort`: the transcript, and the transcript each unsettled host abort was bound to when it started, so a
- *   late interrupted abort reaches only the transcript it interrupted.
+ *   has begun but not switched the transcript leaves the old transcript's goal to its own accounting. A host
+ *   abort passes the stamp reserved when its Stop arrived, so a late abort reaches only the transcript it
+ *   interrupted, whatever other aborts are still unwinding.
  */
-export type GoalOwnerScope = "entry" | "tool" | "transcript" | "abort";
+export type GoalOwnerScope = "entry" | "tool" | "transcript";
 
 /**
  * Thrown when a stamp no longer owns the transcript, either by a mutator that wrote nothing or by a host entry
@@ -367,10 +367,10 @@ export class GoalRuntime {
 		);
 	}
 
-	async onTaskAborted(options?: { reason?: "interrupted" | "internal" }): Promise<void> {
+	/** `options.stamp` is the one the host reserved when the abort was requested, not when it reaches the runtime. */
+	async onTaskAborted(options?: { reason?: "interrupted" | "internal"; stamp?: GoalOwnerStamp }): Promise<void> {
 		const interrupted = options?.reason === "interrupted";
-		// An interrupted abort is bound to the transcript each Stop interrupted; an internal one only to the current.
-		const op = this.#reserve(interrupted ? "abort" : "transcript");
+		const op = this.#reserve("transcript", options?.stamp);
 		const state = this.#host.getState();
 		const needsAccounting = state?.enabled && isAccountingStatus(state.goal);
 		const needsPause = interrupted && state?.enabled && state.goal.status === "active";

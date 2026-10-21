@@ -356,7 +356,7 @@ export class GoalHostController {
 		this.#assertOwned(options?.stamp);
 		const state = this.#session.getGoalModeState();
 		if (state?.goal.status === "paused" && !state.enabled) {
-			await this.#exit();
+			await this.#restoreTools(options?.stamp);
 			return this.#state;
 		}
 		return await this.#pause(options?.stamp);
@@ -364,9 +364,9 @@ export class GoalHostController {
 
 	async #pause(stamp?: GoalOwnerStamp): Promise<GoalHostResult> {
 		await this.#session.goalRuntime.pauseGoal({ stamp });
-		// The pause's event delivery awaited; the pre-goal tools to restore are the old owner's.
-		this.#assertOwned(stamp);
-		await this.#exit();
+		// The pause's event delivery awaited; the pre-goal tools to restore are the old owner's, so the restore
+		// re-checks the stamp itself, at the moment it runs.
+		await this.#restoreTools(stamp);
 		return this.#state;
 	}
 
@@ -427,6 +427,23 @@ export class GoalHostController {
 		// and its terminal agent_end schedules the first continuation.
 		if (options?.forHostPrompt) return;
 		this.#scheduleContinuation();
+	}
+
+	/**
+	 * {@link #exit} as part of {@link #exitTask}: {@link beginSessionChange} and every reconcile wait for it, so a
+	 * pause's tool restore lands before the next transcript's tools are chosen and never after. The stamp is
+	 * re-checked when the restore reaches the front of the chain, synchronously before it starts: a restore
+	 * queued behind another exit while ownership moved on is discarded with {@link GoalOwnerStale}. It only
+	 * awaits the tool mutation (no extension callback, no host transport), so a session change waiting on it
+	 * cannot wait on anything that waits on that change. The chain itself survives a failure.
+	 */
+	async #restoreTools(stamp: GoalOwnerStamp | undefined): Promise<void> {
+		const restore = this.#exitTask.then(() => {
+			this.#assertOwned(stamp);
+			return this.#exit();
+		});
+		this.#exitTask = restore.catch(reportControllerError);
+		await restore;
 	}
 
 	/** Restore the pre-goal tool set. Idempotent. */

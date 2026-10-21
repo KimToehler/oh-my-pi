@@ -174,7 +174,7 @@ import {
 	parsePromptSlashCommand,
 } from "../extensibility/slash-commands";
 import { normalizeToolEventInput, resolveToolEventInput } from "../extensibility/tool-event-input";
-import { GoalRuntime } from "../goals/runtime";
+import { type GoalOwnerStamp, GoalRuntime } from "../goals/runtime";
 import type { GoalModeState, GoalTokenUsage } from "../goals/state";
 import type { HindsightSessionState } from "../hindsight/state";
 import { InternalUrlRouter, type LocalProtocolOptions } from "../internal-urls";
@@ -10294,6 +10294,8 @@ export class AgentSession implements SettingsScope {
 	 */
 	async abort(options?: {
 		goalReason?: "interrupted" | "internal";
+		/** Ownership stamp the host reserved when it requested this abort; the goal runtime checks it, not one taken at unwind. */
+		goalStamp?: GoalOwnerStamp;
 		reason?: string;
 		/** Internal `/compact` startup keeps the manual-compaction marker alive while aborting the active turn. */
 		preserveCompaction?: boolean;
@@ -10356,7 +10358,10 @@ export class AgentSession implements SettingsScope {
 			// finishes, or the replacement turn's events are neither forwarded nor persisted.
 			await manualCompactionCleanup;
 			await this.#drainAutolearnCapture();
-			await this.#goalRuntime.onTaskAborted({ reason: options?.goalReason ?? "interrupted" });
+			await this.#goalRuntime.onTaskAborted({
+				reason: options?.goalReason ?? "interrupted",
+				stamp: options?.goalStamp,
+			});
 			// Clear prompt-in-flight state: waitForIdle resolves when the agent loop's finally
 			// block runs, but nested prompt setup/finalizers may still be unwinding. Without this,
 			// a subsequent prompt() can incorrectly observe the session as busy after an abort.
