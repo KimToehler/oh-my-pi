@@ -597,6 +597,63 @@ describe("installTeamConfig", () => {
 		expect((await Bun.file(t.agent(".team-config-manifest.json")).json()).version).toBe(2);
 	});
 
+	describe("manifest backup", () => {
+		const manifestName = ".team-config-manifest.json";
+		const sidecarName = ".team-config-manifest.sha256";
+
+		test("backs up a hand-written v2 manifest byte-for-byte, then replaces it", async () => {
+			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+			await fs.mkdir(t.agentDir, { recursive: true });
+			await Bun.write(t.agent("AGENTS.md"), "v1\n");
+			const original = '{"files":{},"version":2}';
+			await Bun.write(t.agent(manifestName), original);
+			const report = await t.install();
+			expect(report.backedUp).toContain(manifestName);
+			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(original);
+			expect(await t.read(t.agent(manifestName))).not.toBe(original);
+			expect((await Bun.file(t.agent(manifestName)).json()).files["AGENTS.md"]).toBeDefined();
+		});
+
+		test("does not back up a manifest the installer wrote", async () => {
+			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+			await t.install();
+			expect(await Bun.file(t.agent(sidecarName)).exists()).toBe(true);
+			const second = await t.install();
+			expect(second.backupDir).toBeUndefined();
+			expect(second.backedUp).toEqual([]);
+			expect(await fs.readdir(t.agentDir)).not.toContain("backups");
+		});
+
+		test("backs up a v1 manifest without a sidecar once, then not again", async () => {
+			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+			await fs.mkdir(t.agentDir, { recursive: true });
+			await Bun.write(t.agent("AGENTS.md"), "v1\n");
+			const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+			const original = `{\n\t"version": 1,\n\t"files": {\n\t\t"AGENTS.md": "${sha}"\n\t}\n}\n`;
+			await Bun.write(t.agent(manifestName), original);
+			const first = await t.install();
+			expect(await t.read(path.join(first.backupDir!, manifestName))).toBe(original);
+			const second = await t.install();
+			expect(second.backupDir).toBeUndefined();
+		});
+
+		test("rejects a symlinked sidecar before any mutation", async () => {
+			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+			await t.install();
+			await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+			const outside = path.join(path.dirname(t.agentDir), "outside.sha256");
+			await Bun.write(outside, "x\n");
+			await fs.rm(t.agent(sidecarName));
+			await fs.symlink(outside, t.agent(sidecarName));
+			const manifestBefore = await t.read(t.agent(manifestName));
+			await expect(t.install()).rejects.toThrow(t.agent(sidecarName));
+			expect(await fs.readlink(t.agent(sidecarName))).toBe(outside);
+			expect(await t.read(outside)).toBe("x\n");
+			expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+			expect(await t.read(t.agent(manifestName))).toBe(manifestBefore);
+		});
+	});
+
 	describe("strict manifest schema", () => {
 		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
 		const cases: Array<[string, unknown]> = [
