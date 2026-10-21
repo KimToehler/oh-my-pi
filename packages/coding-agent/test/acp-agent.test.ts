@@ -190,6 +190,8 @@ class FakeAgentSession {
 	goalContextSends: string[] = [];
 	/** Awaited by the fake runtime's `goal_updated` emit after listeners ran, as an awaited extension handler is. */
 	goalEmitBlocker: ((event: GoalRuntimeEvent) => Promise<void>) | undefined;
+	/** Added to the fake runtime's clock, so a test can make a usage flush find wall-clock time to account. */
+	goalClockSkewMs = 0;
 	isSessionTransitioning = false;
 	readonly goalRuntime: GoalRuntime;
 	usageFallbackConfirmer: ((confirmation: UsageFallbackConfirmation) => Promise<boolean>) | undefined;
@@ -216,6 +218,7 @@ class FakeAgentSession {
 				this.goalModeState = state;
 			},
 			getCurrentUsage: () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }),
+			now: () => Date.now() + this.goalClockSkewMs,
 			emit: event => {
 				if (event.type !== "goal_updated") return;
 				for (const listener of this.#listeners) {
@@ -6079,6 +6082,53 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		it("(S×X/R) a Stop whose cleanup timed out keeps its interrupted pause bound to its own transcript until the late abort settles", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			harness.agent.setCancelCleanupTimeoutForTesting(10);
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const abortGate = Promise.withResolvers<void>();
+			const lateAbort = Promise.withResolvers<void>();
+			session.abort = async () => {
+				session.abortCalls++;
+				session.isStreaming = false;
+				await abortGate.promise;
+				// As `AgentSession.abort`: the interrupted pause lands once the run has unwound.
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+				lateAbort.resolve();
+			};
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await continuationStarted.promise;
+			// The cleanup timeout wins the race while the abort is still pending.
+			await harness.agent.cancel({ sessionId });
+			expect((await prompt).stopReason).toBe("cancelled");
+			expect(session.abortCalls).toBe(1);
+
+			// B is adopted after the timeout, before A's abort unwinds.
+			const goal = session.goalModeState!.goal;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: { ...goal, id: "g-adopted", objective: "adopted" } });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			abortGate.resolve();
+			await lateAbort.promise;
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
 		it("(M×M) concurrent Plan to Goal and Goal to Plan never end with Plan enabled while Goal is selected", async () => {
 			const { harness, sessionId, session } = await goalHarness();
 			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
@@ -6234,6 +6284,68 @@ describe("ACP agent", () => {
 			await pausing;
 			const error = await staleDrop;
 			await eventLoopTurns(10);
+
+			expect(error).toBeInstanceOf(Error);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
+		/** A goal active in transcript A, whose tool call is admitted and then held by `hold` before it commits. */
+		async function staleToolMutation(
+			op: "drop" | "complete",
+			holdAt: "usage flush" | "drop event",
+		): Promise<{ error: unknown; session: FakeAgentSession; harness: AgentHarness }> {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			const hold = holdGoalEmit(session);
+			// A flush only emits when it has time to account for; the clock skew provides it.
+			if (holdAt === "usage flush") session.goalClockSkewMs = 5_000;
+			const call =
+				op === "drop"
+					? session.goalRuntime.dropGoal({ origin: "tool" })
+					: session.goalRuntime.completeGoalFromTool();
+			const outcome = call.then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+			await hold.entered;
+			session.goalClockSkewMs = 0;
+			// Transcript B is adopted, and its reconcile begins, while the call is suspended past its first check.
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			hold.release();
+			const error = await outcome;
+			await eventLoopTurns(10);
+			return { error, session, harness };
+		}
+
+		for (const op of ["drop", "complete"] as const) {
+			it(`(stamp) a goal tool ${op} suspended in its usage flush while transcript B is adopted never ${op === "drop" ? "drops" : "completes"} B's goal`, async () => {
+				const { error, session, harness } = await staleToolMutation(op, "usage flush");
+
+				expect(error).toBeInstanceOf(Error);
+				expect(session.goalModeState?.goal.id).toBe("g-adopted");
+				expect(session.goalModeState?.goal.status).toBe("active");
+				expect(session.goalModeState?.enabled).toBe(true);
+				harness.abortController.abort();
+			});
+		}
+
+		it("(stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal", async () => {
+			const { error, session, harness } = await staleToolMutation("drop", "drop event");
 
 			expect(error).toBeInstanceOf(Error);
 			expect(session.goalModeState?.goal.id).toBe("g-adopted");

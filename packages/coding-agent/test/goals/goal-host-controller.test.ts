@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { GoalHostController, type GoalHostSession } from "@oh-my-pi/pi-coding-agent/goals/host-controller";
+import {
+	GoalEntryAbandoned,
+	GoalHostController,
+	type GoalHostSession,
+} from "@oh-my-pi/pi-coding-agent/goals/host-controller";
 import type { GoalModeState } from "@oh-my-pi/pi-coding-agent/goals/state";
 import {
 	isRpcSessionSettled,
@@ -586,6 +590,62 @@ describe("GoalHostController continuation gate", () => {
 		controller.observe(agentEnd);
 		await nextMacrotask();
 		expect(admitted).toEqual(["goal-continuation"]);
+	});
+
+	describe("an entry abandoned by its fence", () => {
+		/** Transcript A's fenced entry is held in its tool swap while the host switches to transcript B and reconciles. */
+		async function abandonedEntry(options: { goalInB: boolean }) {
+			const f = fakeSession(async () => true);
+			f.session.setGoalModeState(undefined);
+			const swap = f.session.setActiveToolsByName;
+			const entered = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			f.session.setActiveToolsByName = async names => {
+				f.session.setActiveToolsByName = swap;
+				entered.resolve();
+				await release.promise;
+				await swap(names);
+			};
+			let owner = true;
+			const entry = f.controller.createForHostPrompt({ objective: "A" }, { fence: () => owner }).then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+			await entered.promise;
+
+			// Transcript B has a different tool selection and, optionally, a goal.
+			owner = false;
+			await f.controller.beginSessionChange();
+			f.transcript.id = "t2";
+			await swap(["read", "write"]);
+			if (options.goalInB) f.journalGoal();
+			await f.controller.endSessionChange({ detachedRun: true });
+			release.resolve();
+			const error = await entry;
+			await f.controller.settled();
+			return { f, error };
+		}
+
+		test("with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit", async () => {
+			const { f, error } = await abandonedEntry({ goalInB: true });
+			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+			expect(f.session.getGoalModeState()?.goal.id).toBe("j1");
+			expect(f.tools()).toEqual(["read", "write", "goal"]);
+
+			// B's goal completes: exactly B's pre-goal tools come back, not A's.
+			const current = f.session.getGoalModeState();
+			f.session.setGoalModeState(current && { ...current, enabled: false, mode: "exiting", reason: "completed" });
+			f.controller.observe(agentEnd);
+			await f.controller.settled();
+			expect(f.tools()).toEqual(["read", "write"]);
+		});
+
+		test("without a goal in B, B's own tools are restored and A's are not installed", async () => {
+			const { f, error } = await abandonedEntry({ goalInB: false });
+			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+			expect(f.session.getGoalModeState()).toBeUndefined();
+			expect(f.tools()).toEqual(["read", "write"]);
+		});
 	});
 
 	test("an ACP continuation gate that is closed admits no continuation turn", async () => {
