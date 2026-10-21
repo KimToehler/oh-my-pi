@@ -25,5 +25,5 @@ It needs to work and deliver real value."
   eligibility. Hardening beyond that is a follow-up, driven by real use.
 - Before the gate, write the **value proof**: the one real end-to-end run whose result the user would act on.
   Run it before any review wave.
-- If the same invariant class yields new findings in two consecutive review waves, stop and ask
-  the user whether the scope still fits, before fixing round three.
+- Gate waves: follow the review-work skill's "Fix waves" section; it stops when fix-induced blockers
+  rise or the blocker count does not fall over three waves.
