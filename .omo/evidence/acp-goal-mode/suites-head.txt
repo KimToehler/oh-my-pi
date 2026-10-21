@@ -1,4 +1,4 @@
-# code HEAD ab4589b78a75291d82748400882866f95cbb5000 (fix rows 10-28; no code change after it)
+# code HEAD c629ae794ddfb03358e57dfad3add38d899cf94c (fix rows 10-28, row 28 tests amended; no product code after 0615969897)
 $ bun test --reporter=junit --reporter-outfile=/tmp/suite-junit.xml <the files listed below>
 ## per-file results (from the JUnit report)
 packages/coding-agent/test/plan-autosave.test.ts: tests=10 failures=0 skipped=0
@@ -13,7 +13,7 @@ packages/coding-agent/test/cli-goal-flag.test.ts: tests=9 failures=0 skipped=0
 packages/coding-agent/test/acp-lazy-startup.test.ts: tests=4 failures=0 skipped=0
 packages/coding-agent/test/agent-session-prompt-abort-race.test.ts: tests=6 failures=0 skipped=0
 packages/coding-agent/test/interactive-mode-default-plan-mode.test.ts: tests=16 failures=0 skipped=0
-packages/coding-agent/test/acp-agent.test.ts: tests=183 failures=0 skipped=0
+packages/coding-agent/test/acp-agent.test.ts: tests=187 failures=0 skipped=0
 packages/coding-agent/test/acp-builtins.test.ts: tests=93 failures=0 skipped=0
 packages/coding-agent/test/rpc-session-settle.test.ts: tests=2 failures=0 skipped=0
 packages/coding-agent/test/acp-initialize-conformance.test.ts: tests=5 failures=0 skipped=0
@@ -30,14 +30,14 @@ packages/coding-agent/test/goals/guided-goal.test.ts: tests=10 failures=0 skippe
 packages/coding-agent/test/goals/goal-mode-integration.test.ts: tests=30 failures=0 skipped=0
 packages/coding-agent/test/goals/goal-runtime.test.ts: tests=16 failures=0 skipped=0
 packages/coding-agent/test/session/yield-queue.test.ts: tests=12 failures=0 skipped=0
-TOTAL tests=726 failures=0 files=29
+TOTAL tests=730 failures=0 files=29
 ## console summary
- 726 pass
+ 730 pass
  0 fail
- 3051 expect() calls
-Ran 726 tests across 29 files. [26.82s]
+ 3079 expect() calls
+Ran 730 tests across 29 files. [26.97s]
 
 $ bun run check:ts
 exit 0
-@oh-my-pi/snapcompact:check:types               | Done in 1.06s
-@oh-my-pi/typescript-edit-benchmark:check:types | Done in 2.83s
+@oh-my-pi/snapcompact:check:types               | Done in 1.10s
+@oh-my-pi/typescript-edit-benchmark:check:types | Done in 2.94s
