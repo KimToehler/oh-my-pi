@@ -2432,16 +2432,17 @@ export class AcpAgent implements Agent {
 		owns: PlanProposalOwnership,
 	): Promise<AgentToolResult<unknown>> {
 		const session = record.session;
+		// `owns` was reserved when the proposal was dispatched. Resolution and review awaited since, and the
+		// client may answer after a later mode selection or a transcript switch. It is checked first, before
+		// the current Plan state is read, so a superseded proposal never fails on state that moved on; it is
+		// checked again before asking and before every write below, synchronously.
+		if (!owns()) return planProposalSupersededResult(plan);
 		const state = session.getPlanModeState();
 		if (!state?.enabled) {
 			throw new ToolError("Plan mode is not active.");
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		// `owns` was reserved when the proposal was dispatched. Resolution and review awaited since, and the
-		// client may answer after a later mode selection or a transcript switch; it is checked before asking
-		// and again before every write below, synchronously.
-		if (!owns()) return planProposalSupersededResult(plan);
 		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
 		const details: PlanApprovalDetails = {
 			planFilePath,
