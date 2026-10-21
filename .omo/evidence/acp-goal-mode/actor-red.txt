@@ -575,3 +575,13 @@ Ran 2 tests across 1 file. [2.53s]
  13 fail
 Ran 223 tests across 2 files. [4.12s]
 (the two 'ownership still holds' tests pass pre-fix by design: they pin unchanged error behaviour)
+
+=== Row 28 RED: pre-fix 539254c958 + new test hunks only (natives, generated tool-views, node_modules linked) ===
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.68ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.87ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [8.95ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [6.50ms]
+ 1 pass
+ 4 fail
+Ran 5 tests across 1 file. [644.00ms]
+(the pre-existing row-10 M×T test passes pre-fix by design: it runs after the selection finished)

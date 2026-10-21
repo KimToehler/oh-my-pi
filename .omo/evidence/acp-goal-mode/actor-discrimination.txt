@@ -288,3 +288,28 @@ Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode ex
 (fail) ACP agent > a newer approval's plan reference survives an older reviewed approval still creating its snapshot [3.27ms]
  210 pass
  13 fail
+
+=== Row 28 discrimination: new head, guard reverted (test hunks unchanged; backup /tmp/acp-goal.bak, restored and cmp-verified) ===
+--- (a) both guards reverted
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.30ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.03ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [7.78ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.67ms]
+ 1 pass
+ 4 fail
+Ran 5 tests across 1 file. [615.00ms]
+--- (b) only admitEntry #modeEffects check reverted
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.62ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.55ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [5.23ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [3.65ms]
+ 1 pass
+ 4 fail
+Ran 5 tests across 1 file. [603.00ms]
+--- (c) only tool-scope mode-generation check reverted
+ 1 file changed, 2 insertions(+)
+ 5 pass
+ 0 fail
+Ran 5 tests across 1 file. [603.00ms]
+restored: cmp identical
