@@ -89,28 +89,12 @@ export interface GoalHostPauseOptions {
 	stamp?: GoalOwnerStamp;
 }
 
-/** A tool swap a fenced entry has started and not finished: what it replaced and what it installs. */
-interface ToolSwap {
-	before: readonly string[];
-	target: readonly string[];
-}
-
-function sameToolSet(a: readonly string[], b: readonly string[]): boolean {
-	return a.length === b.length && a.every(name => b.includes(name));
-}
-
 export class GoalHostController {
 	readonly #session: GoalHostSession;
 	readonly #continuationMode: GoalContinuationMode;
 	readonly #canAutoContinue: (() => boolean) | undefined;
 	/** Active tool set before goal mode added `goal`; restored when the goal ends. */
 	#previousTools: string[] | undefined;
-	/** Bumped by every reconcile; an entry compares it to detect that a new owner took over. */
-	#reconcileEpoch = 0;
-	/** Tool swaps of fenced entries that have started and not finished; their targets are not the owner's own choice. */
-	readonly #toolSwaps = new Set<ToolSwap>();
-	/** Tool set the latest reconcile found for its owner while a fenced entry's swap was still running. */
-	#ownerTools: string[] | undefined;
 	/** Continuation turns submitted whose terminal `agent_end` has not arrived. */
 	#pendingContinuationTurns = 0;
 	#previousContinuationActivity: string | undefined;
@@ -379,50 +363,36 @@ export class GoalHostController {
 		// (a reattached paused goal already holds it). A `goal` tool the host enabled
 		// before the goal stays enabled afterwards.
 		const previousTools = this.#previousTools ?? this.#session.getEnabledToolNames();
-		const epoch = this.#reconcileEpoch;
 		const state = await start();
 		const stamp = options?.stamp;
-		if (stamp !== undefined && !this.#session.goalRuntime.owns(stamp)) {
-			// Owner already moved on before any tool swap: nothing of this entry touched the tools.
-			await this.settled();
-			throw new GoalOwnerStale();
-		}
-		const swap: ToolSwap | undefined =
-			stamp === undefined
-				? undefined
-				: { before: this.#session.getEnabledToolNames(), target: [...new Set([...previousTools, "goal"])] };
-		if (swap) this.#toolSwaps.add(swap);
-		try {
-			await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
-		} finally {
-			if (swap) this.#toolSwaps.delete(swap);
-		}
-		if (stamp !== undefined && !this.#session.goalRuntime.owns(stamp)) {
-			// The host's owner of this entry moved on (an ACP session change) while the tool swap
-			// was running. The new owner's reconcile already replaced goal state and tools, so this
-			// entry's late swap is undone, deterministically, and its state is never installed.
-			// `#previousTools` is committed only by an entry whose stamp still owns, so after a reconcile
-			// it is the snapshot taken for the new owner; the tools restored are the new owner's,
-			// never this entry's (the old transcript's) `previousTools`.
-			await this.settled();
-			// The recovery is ordered with session changes like every other restore: a change to another
-			// transcript waits for it, so it cannot land after that transcript's tools were chosen.
+		const entryTools = [...new Set([...previousTools, "goal"])];
+		if (stamp === undefined) {
+			await this.#session.setActiveToolsByName(entryTools);
+			this.#commitEntry(previousTools, state);
+		} else {
+			// A fenced entry's whole tool phase is one task of the exit chain: ownership check, swap, re-check,
+			// then commit or undo. A session change or reconcile waits for it, or runs wholly before it, in which
+			// case the first check fails and no tool is touched. Nothing is awaited here but the tool mutation.
+			let committed = false;
 			await this.#ordered(async () => {
-				let restore: string[];
-				if (this.#reconcileEpoch === epoch) {
-					restore = this.#session.getGoalModeState() ? [...new Set([...previousTools, "goal"])] : previousTools;
-				} else if (this.#previousTools) {
-					restore = [...new Set([...this.#previousTools, "goal"])];
-				} else {
-					restore = this.#ownerTools ?? previousTools;
+				if (!this.#session.goalRuntime.owns(stamp)) return;
+				const before = this.#session.getEnabledToolNames();
+				await this.#session.setActiveToolsByName(entryTools);
+				if (!this.#session.goalRuntime.owns(stamp)) {
+					// The owner moved on during the swap (a session change has begun; its reconcile has not run):
+					// undo exactly this swap. The entry's state is never installed.
+					await this.#session.setActiveToolsByName(before);
+					return;
 				}
-				await this.#session.setActiveToolsByName(restore);
+				// `#previousTools` is committed only by an entry whose stamp still owns.
+				this.#commitEntry(previousTools, state);
+				committed = true;
 			});
-			throw new GoalOwnerStale();
+			if (!committed) {
+				await this.settled();
+				throw new GoalOwnerStale();
+			}
 		}
-		this.#previousTools = previousTools;
-		this.#session.setGoalModeState(state);
-		this.#resetContinuation();
 		if (this.#session.isStreaming) {
 			await this.#session.sendGoalModeContext({ deliverAs: "steer" });
 			return;
@@ -431,6 +401,12 @@ export class GoalHostController {
 		// and its terminal agent_end schedules the first continuation.
 		if (options?.forHostPrompt) return;
 		this.#scheduleContinuation();
+	}
+
+	#commitEntry(previousTools: string[], state: GoalModeState): void {
+		this.#previousTools = previousTools;
+		this.#session.setGoalModeState(state);
+		this.#resetContinuation();
 	}
 
 	/**
@@ -518,9 +494,6 @@ export class GoalHostController {
 		this.#continuationGeneration++;
 		await this.#exitTask;
 		await this.#exit();
-		this.#reconcileEpoch++;
-		// Only a fenced entry whose swap is still running can later overwrite this owner's tools.
-		this.#ownerTools = this.#toolSwaps.size > 0 ? this.#ownerToolNames() : undefined;
 		this.#session.setGoalModeState(undefined);
 		const context = this.#session.sessionManager.buildSessionContext();
 		const runtime = this.#session.goalRuntime;
@@ -537,23 +510,9 @@ export class GoalHostController {
 		this.#session.setGoalModeState({ enabled: context.mode === "goal", mode: "active", goal });
 		const restored = await runtime.onThreadResumed({ preserveActiveGoal: options?.preserveActiveGoal });
 		if (!restored?.goal) return;
-		const previousTools = this.#ownerToolNames();
+		const previousTools = this.#session.getEnabledToolNames();
 		this.#previousTools = previousTools;
 		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
-	}
-
-	/**
-	 * The tool set the current owner selected. Tool selection is session-wide, so while a fenced entry's
-	 * swap runs the enabled names may be that swap's own target. A set that equals a running swap's target
-	 * (and not what the swap replaced) was installed by that swap: the owner's set is what it replaced.
-	 * Anything else, a `goal` the owner enabled itself included, is the owner's own selection.
-	 */
-	#ownerToolNames(): string[] {
-		const names = this.#session.getEnabledToolNames();
-		for (const swap of this.#toolSwaps) {
-			if (sameToolSet(names, swap.target) && !sameToolSet(names, swap.before)) return [...swap.before];
-		}
-		return names;
 	}
 
 	/**
