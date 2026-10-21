@@ -379,3 +379,25 @@ Received: true
  5 fail
  888 expect() calls
 Ran 194 tests across 2 files. [1.83s]
+## Round 5 rows 20-21 RED on be81d6c9c0 (test hunks only; acp-agent fake abort without request-time reservation, as pre-fix AgentSession)
+error: expect(received).toHaveLength(expected)
+Expected length: 1
+Received length: 0
+(fail) AgentSession prompt admission racing abort > reserves the goal owner stamp when abort() is requested and hands that stamp to the runtime [2.63ms]
+error: expect(received).toBe(expected)
+Expected: false
+Received: true
+(fail) GoalHostController continuation gate > an abandoned entry's recovery restore > is finished by the session change before transcript C with a goal chooses its tools [0.31ms]
+error: expect(received).toBe(expected)
+Expected: false
+Received: true
+(fail) GoalHostController continuation gate > an abandoned entry's recovery restore > is finished by the session change before transcript C without a goal chooses its tools [0.14ms]
+ 31 pass
+ 3 fail
+error: expect(received).toEqual(expected)
+- Expected  - 4
++ Received  + 4
+(fail) ACP agent > ACP Goal mode > (abort at request) an extension abort in transcript A, released after B adopted an active goal, changes none of B's usage, status, journal or turn snapshot [15.19ms]
+ 0 pass
+ 1 fail
+

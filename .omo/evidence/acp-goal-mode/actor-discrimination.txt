@@ -166,3 +166,15 @@ guard reverted:
 (fail) ACP agent > ACP Goal mode > (per-abort stamp) a Stop in transcript B pauses B's goal while transcript A's abort is still pending, and A's late abort then changes nothing [2.80ms]
  167 pass
  1 fail
+## Round 5 discrimination (guard reverted on new head)
+### row 20: recovery restore bypasses #ordered
+(fail) GoalHostController continuation gate > an abandoned entry's recovery restore > is finished by the session change before transcript C with a goal chooses its tools [0.28ms]
+(fail) GoalHostController continuation gate > an abandoned entry's recovery restore > is finished by the session change before transcript C without a goal chooses its tools [0.10ms]
+ 26 pass
+ 2 fail
+restored-h
+### row 21: abort passes options?.goalStamp only (no request-time reservation)
+(fail) AgentSession prompt admission racing abort > reserves the goal owner stamp when abort() is requested and hands that stamp to the runtime [2.00ms]
+ 5 pass
+ 1 fail
+restored-s
