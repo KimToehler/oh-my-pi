@@ -6391,6 +6391,46 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		for (const modeId of ["plan", "default"] as const) {
+			for (const op of ["resume", "create"] as const) {
+				it(`(M×T) a goal tool ${op} while a ${modeId} selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools`, async () => {
+					const { harness, sessionId, session } = await goalHarness();
+					await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+					endTurnsWithoutProgress(session);
+					await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+					expect(session.goalModeState?.goal.status).toBe("active");
+
+					const hold = holdNextToolSwap(session);
+					const selecting = harness.agent.setSessionMode({ sessionId, modeId });
+					await hold.entered;
+					expect(session.goalModeState?.goal.status).toBe("paused");
+					// A create needs no conflicting goal: the paused one is dropped inside the window.
+					if (op === "create") await session.goalRuntime.dropGoal();
+
+					const entry =
+						op === "resume"
+							? session.goalRuntime.resumeGoal()
+							: session.goalRuntime.createGoal({ objective: "Another goal" });
+					const error = await entry.then(
+						() => undefined,
+						(failure: unknown) => failure,
+					);
+					expect(error).toBeInstanceOf(Error);
+					hold.release();
+					await selecting;
+					await eventLoopTurns(10);
+
+					expect(session.planModeState?.enabled === true).toBe(modeId === "plan");
+					expect(session.goalModeState?.enabled).not.toBe(true);
+					expect(session.goalModeState?.goal.status).not.toBe("active");
+					expect(session.goalModeState?.goal.objective).not.toBe("Another goal");
+					expect(session.enabledTools).not.toContain("goal");
+					expect(lastModeNotification(harness, sessionId)).toBe(modeId);
+					harness.abortController.abort();
+				});
+			}
+		}
+
 		it("(X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript", async () => {
 			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
 			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
