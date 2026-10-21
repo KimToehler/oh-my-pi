@@ -23,27 +23,66 @@ export interface GoalRuntimeHost {
 export type GoalEntryOrigin = "host" | "tool";
 
 /**
- * Optional ownership gate a host installs on the runtime (ACP). Without one every
- * mutator behaves as before, so RPC and the TUI are unaffected. Both checks run
- * inside the accounting chain, immediately before the commit they guard.
+ * Opaque ownership stamp issued by a host's {@link GoalMutationGate}. It names the transcript (and,
+ * by scope, the session-change state) in which an operation was requested.
+ */
+export type GoalOwnerStamp = object;
+
+/**
+ * What a stamp must still match when its operation writes.
+ * - `entry`: the transcript, with no session change running, begun or ended since. A host's goal entry.
+ * - `tool`: as `entry`, and no reconcile running. The agent's `goal` tool.
+ * - `transcript`: only the transcript. Usage accounting, host pauses, budget changes: a session change that
+ *   has begun but not switched the transcript leaves the old transcript's goal to its own accounting.
+ * - `abort`: the transcript, and the transcript each unsettled host abort was bound to when it started, so a
+ *   late interrupted abort reaches only the transcript it interrupted.
+ */
+export type GoalOwnerScope = "entry" | "tool" | "transcript" | "abort";
+
+/**
+ * Thrown when a stamp no longer owns the transcript, either by a mutator that wrote nothing or by a host entry
+ * abandoned after its late effects were undone. A tool call surfaces it as a tool error; host callers discard
+ * the operation; event-driven accounting (usage flush, agent end, task abort) drops it.
+ */
+export class GoalOwnerStale extends Error {
+	constructor() {
+		super("The session changed since this goal operation was requested; retry it afterwards.");
+		this.name = "GoalOwnerStale";
+	}
+}
+
+/**
+ * Optional ownership gate a host installs on the runtime (ACP). Without one every mutator behaves as
+ * before, so RPC and the TUI are unaffected. Each mutator reserves a stamp when it is called; every write
+ * re-checks it synchronously, immediately before writing (see `GoalRuntime.#commit`).
  */
 export interface GoalMutationGate {
-	/**
-	 * Reserve ownership for an agent-tool mutation when it is admitted (synchronously, before it queues
-	 * on the accounting chain). The returned stamp is handed back to {@link admitEntry} or
-	 * {@link admitToolMutation} at the commit boundary.
-	 */
-	reserve(): object;
-	/**
-	 * Throws to refuse a goal entry (create/resume) whose owner moved on: Plan, a session change, a reconcile.
-	 * `reservation` is the stamp {@link reserve} returned for a tool-origin entry.
-	 */
-	admitEntry(origin: GoalEntryOrigin, reservation?: object): void;
-	/** Throws to refuse a tool drop or complete whose reservation went stale or whose transcript is changing. */
-	admitToolMutation(reservation: object): void;
-	/** Whether the pause of an interrupted task still applies to the goal now in the session. */
-	admitInterruptPause(): boolean;
+	/** Reserve ownership now. A mutator calls it synchronously, before it queues on the accounting chain. */
+	reserve(scope: GoalOwnerScope): GoalOwnerStamp;
+	/** Whether `stamp` still owns the transcript. Synchronous: no await may separate it from the write it guards. */
+	owns(stamp: GoalOwnerStamp): boolean;
+	/** Throws to refuse an agent-tool goal entry the host's mode forbids (ACP: Plan). */
+	admitEntry(): void;
 }
+
+/** Options of a mutator that is not an entry. */
+export interface GoalOpOptions {
+	/** A stamp the caller reserved when the operation was requested; absent: reserved when the mutator is called. */
+	stamp?: GoalOwnerStamp;
+}
+
+/** Options of a mutator the agent's tool or the host can call. */
+export interface GoalEntryOptions extends GoalOpOptions {
+	origin?: GoalEntryOrigin;
+}
+
+/** The ownership of one mutator call: its stamp, or none when no gate is installed or the owner itself writes. */
+interface GoalOp {
+	readonly stamp?: GoalOwnerStamp;
+}
+
+/** The owning host's own reconcile (`onThreadResumed`): it is what replaces the previous owner, so nothing to re-check. */
+const OWNER_SIDE: GoalOp = {};
 
 export interface GoalTurnSnapshot {
 	turnId: string;
@@ -159,6 +198,11 @@ export class GoalRuntime {
 		this.#gate = gate;
 	}
 
+	/** Whether `stamp` still owns the transcript; always true without a gate. For hosts that fence work around a mutator. */
+	owns(stamp: GoalOwnerStamp): boolean {
+		return this.#gate?.owns(stamp) ?? true;
+	}
+
 	get snapshot(): GoalRuntimeSnapshot {
 		return {
 			turnSnapshot: this.#turnSnapshot
@@ -193,22 +237,64 @@ export class GoalRuntime {
 		}
 	}
 
-	#getStateClone(): GoalModeState | undefined {
-		const state = this.#host.getState();
-		return state ? cloneState(state) : undefined;
+	// ---- ownership fence -------------------------------------------------------------------
+	//
+	// Every mutator reserves its owner stamp synchronously when it is called (`#reserve`), before it
+	// queues on the accounting chain. Every write to goal state, the journal or accounting then goes
+	// through `#commit` / `#commitState`, which re-check the stamp synchronously, immediately before the
+	// write. An await between the reservation and a write can therefore never land the write in a
+	// transcript the session has moved to: a stale stamp writes nothing and throws `GoalOwnerStale`.
+
+	/** Reserve the owner stamp of one mutator call; `stamp` is one the caller reserved earlier, when it was requested. */
+	#reserve(scope: GoalOwnerScope, stamp?: GoalOwnerStamp): GoalOp {
+		const gate = this.#gate;
+		return gate ? { stamp: stamp ?? gate.reserve(scope) } : OWNER_SIDE;
 	}
 
+	/** Throws `GoalOwnerStale` unless the op's stamp still owns the transcript. */
+	#assertOwned(op: GoalOp): void {
+		if (op.stamp !== undefined && this.#gate !== undefined && !this.#gate.owns(op.stamp)) throw new GoalOwnerStale();
+	}
+
+	/** The one write path: re-check the stamp, then apply `write` synchronously. */
+	#commit(op: GoalOp, write: () => void): void {
+		this.#assertOwned(op);
+		write();
+	}
+
+	/**
+	 * Write goal state, its journal entry and the accounting that belongs with it as one synchronous step
+	 * behind the stamp check, then deliver the update event (delivery is not a write).
+	 */
 	async #commitState(
+		op: GoalOp,
 		state: GoalModeState | undefined,
-		options?: { persist?: "goal" | "goal_paused" | "none"; emit?: boolean },
+		options?: { persist?: "goal" | "goal_paused" | "none"; emit?: boolean; accounting?: () => void },
 	): Promise<void> {
-		this.#host.setState(state ? cloneState(state) : undefined);
-		if (options?.persist) {
-			this.#host.persist(options.persist, state);
-		}
+		this.#commit(op, () => {
+			options?.accounting?.();
+			this.#host.setState(state ? cloneState(state) : undefined);
+			if (options?.persist) {
+				this.#host.persist(options.persist, state);
+			}
+		});
 		if (options?.emit !== false) {
 			await this.#host.emit({ type: "goal_updated", goal: state ? cloneGoal(state.goal) : null, state });
 		}
+	}
+
+	/** Event-driven accounting (usage flush, agent end, task abort) has no caller to tell: a stale one is dropped. */
+	async #absorbStale(run: () => Promise<void>): Promise<void> {
+		try {
+			await run();
+		} catch (error) {
+			if (!(error instanceof GoalOwnerStale)) throw error;
+		}
+	}
+
+	#getStateClone(): GoalModeState | undefined {
+		const state = this.#host.getState();
+		return state ? cloneState(state) : undefined;
 	}
 
 	#markActiveAccounting(goal: Goal, resetWallClock = false): void {
@@ -228,12 +314,14 @@ export class GoalRuntime {
 		}
 	}
 
+	/** Owner-side and synchronous (a reconcile or session change drops the previous owner's accounting): nothing to fence. */
 	clearAccounting(): void {
 		this.#turnSnapshot = undefined;
 		this.#clearActiveAccounting();
 		this.#budgetReportedFor = undefined;
 	}
 
+	/** Owner-side and synchronous, in event order with the turn it starts: nothing to fence. */
 	onTurnStart(turnId: string, baselineUsage: GoalTokenUsage): void {
 		this.#turnSnapshot = { turnId, baselineUsage: { ...baselineUsage } };
 		const state = this.#host.getState();
@@ -264,36 +352,50 @@ export class GoalRuntime {
 		turnCompleted?: boolean;
 		currentUsage?: GoalTokenUsage | (() => GoalTokenUsage);
 	}): Promise<void> {
+		const op = this.#reserve("transcript");
 		if (!this.#hasAccountingState()) {
-			this.#turnSnapshot = undefined;
+			await this.#absorbStale(async () => this.#commit(op, () => void (this.#turnSnapshot = undefined)));
 			return;
 		}
 		const currentUsage = options?.currentUsage;
-		await this.flushUsage("suppressed", typeof currentUsage === "function" ? currentUsage() : currentUsage);
-		this.#turnSnapshot = undefined;
+		const usage = typeof currentUsage === "function" ? currentUsage() : currentUsage;
+		await this.#absorbStale(() =>
+			this.#withAccounting(async () => {
+				await this.#flushUsageLocked(op, "suppressed", usage);
+				this.#commit(op, () => void (this.#turnSnapshot = undefined));
+			}),
+		);
 	}
 
 	async onTaskAborted(options?: { reason?: "interrupted" | "internal" }): Promise<void> {
+		const interrupted = options?.reason === "interrupted";
+		// An interrupted abort is bound to the transcript each Stop interrupted; an internal one only to the current.
+		const op = this.#reserve(interrupted ? "abort" : "transcript");
 		const state = this.#host.getState();
 		const needsAccounting = state?.enabled && isAccountingStatus(state.goal);
-		const needsPause = options?.reason === "interrupted" && state?.enabled && state.goal.status === "active";
-		if (!needsAccounting && !needsPause) {
-			this.#turnSnapshot = undefined;
-			return;
-		}
-		await this.#withAccounting(async () => {
-			await this.#flushUsageLocked("suppressed", undefined, options?.reason === "internal");
-			this.#turnSnapshot = undefined;
-			if (options?.reason !== "interrupted") return;
-			if (this.#gate && !this.#gate.admitInterruptPause()) return;
-			const cloned = this.#getStateClone();
-			if (!cloned?.enabled || cloned.goal.status !== "active") return;
-			cloned.enabled = false;
-			cloned.goal.status = "paused";
-			cloned.goal.updatedAt = this.#now();
-			this.#clearActiveAccounting();
-			this.#budgetReportedFor = undefined;
-			await this.#commitState(cloned, { persist: "goal_paused" });
+		const needsPause = interrupted && state?.enabled && state.goal.status === "active";
+		await this.#absorbStale(async () => {
+			if (!needsAccounting && !needsPause) {
+				this.#commit(op, () => void (this.#turnSnapshot = undefined));
+				return;
+			}
+			await this.#withAccounting(async () => {
+				await this.#flushUsageLocked(op, "suppressed", undefined, options?.reason === "internal");
+				this.#commit(op, () => void (this.#turnSnapshot = undefined));
+				if (!interrupted) return;
+				const cloned = this.#getStateClone();
+				if (!cloned?.enabled || cloned.goal.status !== "active") return;
+				cloned.enabled = false;
+				cloned.goal.status = "paused";
+				cloned.goal.updatedAt = this.#now();
+				await this.#commitState(op, cloned, {
+					persist: "goal_paused",
+					accounting: () => {
+						this.#clearActiveAccounting();
+						this.#budgetReportedFor = undefined;
+					},
+				});
+			});
 		});
 	}
 
@@ -301,38 +403,50 @@ export class GoalRuntime {
 		const state = this.#getStateClone();
 		if (!state) return undefined;
 		if (options?.preserveActiveGoal && state.enabled && state.goal.status === "active") {
-			this.#markActiveAccounting(state.goal, true);
-			await this.#commitState(state, { emit: true });
+			await this.#commitState(OWNER_SIDE, state, {
+				emit: true,
+				accounting: () => this.#markActiveAccounting(state.goal, true),
+			});
 			return state;
 		}
 		if (state.goal.status === "active") {
 			state.enabled = false;
 			state.goal.status = "paused";
 			state.goal.updatedAt = this.#now();
-			this.#clearActiveAccounting();
-			this.#budgetReportedFor = undefined;
-			await this.#commitState(state, { persist: "goal_paused" });
+			await this.#commitState(OWNER_SIDE, state, {
+				persist: "goal_paused",
+				accounting: () => {
+					this.#clearActiveAccounting();
+					this.#budgetReportedFor = undefined;
+				},
+			});
 			return state;
 		}
-		if (state.enabled && isAccountingStatus(state.goal)) {
-			this.#markActiveAccounting(state.goal);
-		} else {
-			this.#clearActiveAccounting();
-		}
-		await this.#commitState(state, { emit: true });
+		await this.#commitState(OWNER_SIDE, state, {
+			emit: true,
+			accounting: () => {
+				if (state.enabled && isAccountingStatus(state.goal)) {
+					this.#markActiveAccounting(state.goal);
+				} else {
+					this.#clearActiveAccounting();
+				}
+			},
+		});
 		return state;
 	}
 
 	async onBudgetMutated(newBudget: number | undefined): Promise<GoalModeState | undefined> {
 		validateTokenBudget(newBudget);
+		const op = this.#reserve("transcript");
 		return await this.#withAccounting(async () => {
-			this.#budgetReportedFor = undefined;
-			await this.#flushUsageLocked("suppressed");
+			this.#commit(op, () => void (this.#budgetReportedFor = undefined));
+			await this.#flushUsageLocked(op, "suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) return undefined;
 			state.goal.tokenBudget = newBudget;
 			state.goal.updatedAt = this.#now();
 			let shouldSteer = false;
+			let reactivated = false;
 			if (newBudget !== undefined && state.goal.tokensUsed >= newBudget) {
 				if (state.goal.status === "active") {
 					state.goal.status = "budget-limited";
@@ -341,11 +455,16 @@ export class GoalRuntime {
 			} else if (state.goal.status === "budget-limited") {
 				state.goal.status = "active";
 				state.enabled = true;
-				this.#markActiveAccounting(state.goal);
+				reactivated = true;
 			}
-			await this.#commitState(state, { persist: state.enabled ? "goal" : "goal_paused" });
+			await this.#commitState(op, state, {
+				persist: state.enabled ? "goal" : "goal_paused",
+				accounting: () => {
+					if (reactivated) this.#markActiveAccounting(state.goal);
+				},
+			});
 			if (shouldSteer) {
-				await this.#sendBudgetLimitSteer(state.goal);
+				await this.#sendBudgetLimitSteer(op, state.goal);
 			}
 			return state;
 		});
@@ -353,6 +472,7 @@ export class GoalRuntime {
 
 	/** `currentUsage` defaults to the host's live totals, read only once a token delta is needed. */
 	async #flushUsageLocked(
+		op: GoalOp,
 		steering: GoalBudgetSteering,
 		currentUsage?: GoalTokenUsage,
 		persistWallClock = false,
@@ -384,28 +504,34 @@ export class GoalRuntime {
 			state.goal.status = "budget-limited";
 		}
 
-		if (usage && this.#turnSnapshot?.activeGoalId === state.goal.id) {
-			this.#turnSnapshot.baselineUsage = { ...usage };
-		}
-		if (this.#wallClock.activeGoalId === state.goal.id && wallSeconds > 0) {
-			this.#wallClock.lastAccountedAt += wallSeconds * 1000;
-		}
 		// Persisting wall-clock-only accounting on every tool event bloats /goal sessions with full
 		// objective snapshots. Keep normal tool flushes in memory/UI only, but make wall-clock
 		// usage durable before internal session switches because the active runtime is leaving.
 		const shouldPersistUsage = tokenDelta > 0 || flippedToBudgetLimited || (persistWallClock && wallSeconds > 0);
-		await this.#commitState(state, { persist: shouldPersistUsage ? "goal" : undefined });
+		const goalId = state.goal.id;
+		await this.#commitState(op, state, {
+			persist: shouldPersistUsage ? "goal" : undefined,
+			accounting: () => {
+				if (usage && this.#turnSnapshot?.activeGoalId === goalId) {
+					this.#turnSnapshot.baselineUsage = { ...usage };
+				}
+				if (this.#wallClock.activeGoalId === goalId && wallSeconds > 0) {
+					this.#wallClock.lastAccountedAt += wallSeconds * 1000;
+				}
+				if (state.goal.status !== "budget-limited") {
+					this.#budgetReportedFor = undefined;
+				}
+			},
+		});
 
-		if (state.goal.status !== "budget-limited") {
-			this.#budgetReportedFor = undefined;
-		}
 		if (steering === "allowed" && flippedToBudgetLimited && this.#budgetReportedFor !== state.goal.id) {
-			await this.#sendBudgetLimitSteer(state.goal);
+			await this.#sendBudgetLimitSteer(op, state.goal);
 		}
 	}
 
 	async flushUsage(steering: GoalBudgetSteering, currentUsage?: GoalTokenUsage): Promise<void> {
-		await this.#withAccounting(() => this.#flushUsageLocked(steering, currentUsage));
+		const op = this.#reserve("transcript");
+		await this.#absorbStale(() => this.#withAccounting(() => this.#flushUsageLocked(op, steering, currentUsage)));
 	}
 
 	#createGoalState(objective: string, tokenBudget: number | undefined): GoalModeState {
@@ -425,23 +551,27 @@ export class GoalRuntime {
 
 	async createGoal(
 		input: { objective: string; tokenBudget?: number },
-		options?: { origin?: GoalEntryOrigin },
+		options?: GoalEntryOptions,
 	): Promise<GoalModeState> {
 		const objective = input.objective.trim();
 		if (!objective) throw new Error("objective is required when op=create");
 		validateTokenBudget(input.tokenBudget);
 		const origin = options?.origin ?? "tool";
-		const reservation = origin === "tool" ? this.#gate?.reserve() : undefined;
+		const op = this.#reserve(origin === "tool" ? "tool" : "entry", options?.stamp);
 		return await this.#withAccounting(async () => {
 			const existing = this.#host.getState();
 			if (existing?.goal && existing.goal.status !== "dropped" && existing.goal.status !== "complete") {
 				throw new Error("cannot create a new goal because this session already has a goal");
 			}
-			this.#gate?.admitEntry(origin, reservation);
+			if (origin === "tool") this.#gate?.admitEntry();
 			const state = this.#createGoalState(objective, input.tokenBudget);
-			this.#budgetReportedFor = undefined;
-			this.#markActiveAccounting(state.goal);
-			await this.#commitState(state, { persist: "goal" });
+			await this.#commitState(op, state, {
+				persist: "goal",
+				accounting: () => {
+					this.#budgetReportedFor = undefined;
+					this.#markActiveAccounting(state.goal);
+				},
+			});
 			return state;
 		});
 	}
@@ -450,43 +580,54 @@ export class GoalRuntime {
 		const objective = input.objective.trim();
 		if (!objective) throw new Error("objective is required when op=replace");
 		validateTokenBudget(input.tokenBudget);
+		const op = this.#reserve("transcript");
 		return await this.#withAccounting(async () => {
 			const existing = this.#host.getState();
 			if (!existing?.enabled || !isAccountingStatus(existing.goal)) {
 				throw new Error("cannot replace goal because no goal is active");
 			}
-			await this.#flushUsageLocked("suppressed");
+			await this.#flushUsageLocked(op, "suppressed");
 			const state = this.#createGoalState(objective, input.tokenBudget);
-			this.#budgetReportedFor = undefined;
-			this.#markActiveAccounting(state.goal);
-			await this.#commitState(state, { persist: "goal" });
+			await this.#commitState(op, state, {
+				persist: "goal",
+				accounting: () => {
+					this.#budgetReportedFor = undefined;
+					this.#markActiveAccounting(state.goal);
+				},
+			});
 			return state;
 		});
 	}
 
-	async resumeGoal(options?: { origin?: GoalEntryOrigin }): Promise<GoalModeState> {
+	async resumeGoal(options?: GoalEntryOptions): Promise<GoalModeState> {
 		const origin = options?.origin ?? "tool";
-		const reservation = origin === "tool" ? this.#gate?.reserve() : undefined;
+		const op = this.#reserve(origin === "tool" ? "tool" : "entry", options?.stamp);
 		return await this.#withAccounting(async () => {
 			const state = this.#getStateClone();
 			if (!state?.goal) throw new Error("No paused goal.");
 			if (state.goal.status === "complete") throw new Error("Goal is already complete.");
-			this.#gate?.admitEntry(origin, reservation);
+			if (origin === "tool") this.#gate?.admitEntry();
 			state.enabled = true;
 			state.mode = "active";
 			state.reason = undefined;
 			state.goal.status = "active";
 			state.goal.updatedAt = this.#now();
-			this.#budgetReportedFor = undefined;
-			this.#markActiveAccounting(state.goal);
-			await this.#commitState(state, { persist: "goal" });
+			await this.#commitState(op, state, {
+				persist: "goal",
+				accounting: () => {
+					this.#budgetReportedFor = undefined;
+					this.#markActiveAccounting(state.goal);
+				},
+			});
 			return state;
 		});
 	}
 
-	async pauseGoal(): Promise<GoalModeState | undefined> {
+	/** `options.stamp` is the one the caller reserved when the pause was requested, not when it reaches the runtime. */
+	async pauseGoal(options?: GoalOpOptions): Promise<GoalModeState | undefined> {
+		const op = this.#reserve("transcript", options?.stamp);
 		return await this.#withAccounting(async () => {
-			await this.#flushUsageLocked("suppressed");
+			await this.#flushUsageLocked(op, "suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) return undefined;
 			state.enabled = false;
@@ -496,45 +637,43 @@ export class GoalRuntime {
 				state.goal.status = "paused";
 			}
 			state.goal.updatedAt = this.#now();
-			this.#clearActiveAccounting();
-			this.#budgetReportedFor = undefined;
-			await this.#commitState(state, { persist: "goal_paused" });
+			await this.#commitState(op, state, {
+				persist: "goal_paused",
+				accounting: () => {
+					this.#clearActiveAccounting();
+					this.#budgetReportedFor = undefined;
+				},
+			});
 			return state;
 		});
 	}
 
-	/** `origin: "tool"` (the agent's `goal` tool) reserves ownership now and is refused at commit if it went stale. */
-	async dropGoal(options?: { origin?: GoalEntryOrigin }): Promise<Goal | undefined> {
-		const reservation = options?.origin === "tool" ? this.#gate?.reserve() : undefined;
+	/** `origin: "tool"` (the agent's `goal` tool) is refused wherever its stamp went stale; nothing is written. */
+	async dropGoal(options?: GoalEntryOptions): Promise<Goal | undefined> {
+		const op = this.#reserve(options?.origin === "tool" ? "tool" : "transcript", options?.stamp);
 		return await this.#withAccounting(async () => {
-			if (reservation) this.#gate?.admitToolMutation(reservation);
-			await this.#flushUsageLocked("suppressed");
-			// The flush awaits event delivery; the owner may have changed meanwhile.
-			if (reservation) this.#gate?.admitToolMutation(reservation);
+			await this.#flushUsageLocked(op, "suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) return undefined;
 			const dropped = { ...state.goal, status: "dropped" as const, updatedAt: this.#now() };
-			this.#clearActiveAccounting();
-			this.#budgetReportedFor = undefined;
+			this.#commit(op, () => {
+				this.#clearActiveAccounting();
+				this.#budgetReportedFor = undefined;
+			});
 			await this.#host.emit({
 				type: "goal_updated",
 				goal: dropped,
 				state: { ...state, enabled: false, goal: dropped },
 			});
-			// The dropped event awaited delivery; refuse the clear if the owner moved on meanwhile.
-			if (reservation) this.#gate?.admitToolMutation(reservation);
-			await this.#commitState(undefined, { persist: "none", emit: false });
+			await this.#commitState(op, undefined, { persist: "none", emit: false });
 			return dropped;
 		});
 	}
 
 	async completeGoalFromTool(): Promise<Goal> {
-		const reservation = this.#gate?.reserve();
+		const op = this.#reserve("tool");
 		return await this.#withAccounting(async () => {
-			if (reservation) this.#gate?.admitToolMutation(reservation);
-			await this.#flushUsageLocked("suppressed");
-			// The flush awaits event delivery; the owner may have changed meanwhile.
-			if (reservation) this.#gate?.admitToolMutation(reservation);
+			await this.#flushUsageLocked(op, "suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) {
 				throw new Error("cannot complete goal because no goal is active");
@@ -550,9 +689,13 @@ export class GoalRuntime {
 			state.goal.updatedAt = this.#now();
 			state.mode = "exiting";
 			state.reason = "completed";
-			this.#clearActiveAccounting();
-			this.#budgetReportedFor = undefined;
-			await this.#commitState(state, { persist: "goal" });
+			await this.#commitState(op, state, {
+				persist: "goal",
+				accounting: () => {
+					this.#clearActiveAccounting();
+					this.#budgetReportedFor = undefined;
+				},
+			});
 			return state.goal;
 		});
 	}
@@ -571,9 +714,9 @@ export class GoalRuntime {
 			: undefined;
 	}
 
-	async #sendBudgetLimitSteer(goal: Goal): Promise<void> {
+	async #sendBudgetLimitSteer(op: GoalOp, goal: Goal): Promise<void> {
 		if (this.#budgetReportedFor === goal.id) return;
-		this.#budgetReportedFor = goal.id;
+		this.#commit(op, () => void (this.#budgetReportedFor = goal.id));
 		await this.#host.sendHiddenMessage({
 			customType: "goal-budget-limit",
 			content: renderGoalPrompt("budget-limit", goal),

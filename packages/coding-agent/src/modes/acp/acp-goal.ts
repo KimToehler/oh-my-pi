@@ -18,17 +18,22 @@
  *   in reserve order. It is held across tool swaps and runtime persistence but never across an
  *   ACP transport notification, and a session change never queues on it, so an extension
  *   handler running inside a goal effect can start and end a session change without waiting.
- * - A goal entry commits only while no session change began, ended or is running since it was
- *   admitted ({@link GoalMutationGate.admitEntry}, and the host's `fence` after each await).
- *   A lost entry is discarded, and the host re-applies the tool set the new owner wants.
+ * - Ownership is enforced centrally, in `GoalRuntime`. Every runtime mutator reserves a stamp from this
+ *   actor's {@link GoalMutationGate} when it is called, and the runtime re-checks it synchronously right
+ *   before each write to goal state, the journal or accounting; a stale stamp writes nothing. The stamp's
+ *   scope says what must still hold: a goal entry and the agent's `goal` tool need the transcript with no
+ *   session change begun, ended or running since (the tool also no reconcile); pauses, usage accounting and
+ *   budget changes need only the transcript; an interrupted abort needs the transcript its own Stop
+ *   interrupted. A lost entry is discarded and the host re-applies the tool set the new owner wants.
+ * - Mode effects and Stop compensation carry the stamp reserved at arrival, so their pause is refused after a
+ *   transcript switch and a Plan install from a stale mode effect is skipped.
  * - A mode change bumps `#modes` at arrival. A prompt admitted before it is not submitted
  *   (`confirm()` is the last synchronous step before `session.prompt`); the mode change's own
  *   effect, queued behind the entry on the lane, pauses whatever the entry created.
- * - A Stop's late interrupted pause reaches the goal only while the transcript that was
- *   running at Stop is still current ({@link GoalMutationGate.admitInterruptPause}).
  */
 import { isRecord, logger } from "@oh-my-pi/pi-utils";
-import { GoalEntryAbandoned, GoalHostController, type GoalHostSession } from "../../goals/host-controller";
+import { GoalHostController, type GoalHostSession } from "../../goals/host-controller";
+import { type GoalOwnerScope, type GoalOwnerStamp, GoalOwnerStale } from "../../goals/runtime";
 import type { AgentSessionEvent } from "../../session/agent-session";
 
 export const ACP_DEFAULT_MODE_ID = "default";
@@ -90,6 +95,7 @@ interface Stamp {
 	transcript: number;
 	changes: number;
 	modes: number;
+	scope: GoalOwnerScope;
 }
 
 class PromptAdmission implements AcpPromptAdmission {
@@ -170,8 +176,6 @@ export class AcpGoalActor {
 
 	#laneTail: Promise<void> = Promise.resolve();
 	readonly #admissions = new Set<PromptAdmission>();
-	/** The admission whose goal entry is running on the lane right now. */
-	#entering: PromptAdmission | undefined;
 	readonly #stale = new Map<string, Map<string, string>>();
 
 	constructor(session: GoalHostSession, options: AcpGoalActorOptions) {
@@ -195,24 +199,11 @@ export class AcpGoalActor {
 			},
 		});
 		session.goalRuntime.setMutationGate({
-			reserve: () => this.#stamp(),
-			admitEntry: (origin, reservation) => {
-				if (origin === "host") {
-					// Committed in the same tick as this check: an entry that lost its session to a
-					// change is discarded here, before it can write into the new transcript.
-					if (this.#entering && !this.#entering.entryOwned()) throw new GoalEntryAbandoned();
-					return;
-				}
-				// The agent's own `goal` tool. Plan and goal are exclusive.
+			reserve: scope => this.#stamp(scope),
+			owns: stamp => this.#gateOwns(stamp as Stamp),
+			// The agent's own `goal` tool enters a goal. Plan and goal are exclusive.
+			admitEntry: () => {
 				if (this.#session.getPlanModeState()?.enabled) throw new Error("Exit plan mode before starting a goal.");
-				this.#admitToolMutation(reservation);
-			},
-			admitToolMutation: reservation => this.#admitToolMutation(reservation),
-			admitInterruptPause: () => {
-				// The pause belongs to the transcript the Stop interrupted; a new transcript's goal is not its.
-				this.#syncTranscript();
-				for (const abort of this.#aborts) if (abort.transcript !== this.#transcriptGeneration) return false;
-				return true;
 			},
 		});
 	}
@@ -224,21 +215,6 @@ export class AcpGoalActor {
 	dispose(): void {
 		this.#disposed = true;
 		if (this.#aborts.size === 0) this.#session.goalRuntime.setMutationGate(undefined);
-	}
-
-	/**
-	 * A tool mutation commits only into the transcript that admitted it: no session change or
-	 * reconcile running now, and none begun or ended since the stamp was reserved. A stale call
-	 * would otherwise write into (or drop) the goal the reconcile adopted for the new transcript.
-	 */
-	#admitToolMutation(reservation: object | undefined): void {
-		if (
-			this.#sessionChanges > 0 ||
-			this.#host.reconciling ||
-			(reservation !== undefined && !this.#owns(reservation as Stamp, false))
-		) {
-			throw new Error("A session change is in progress; retry the goal operation afterwards.");
-		}
 	}
 
 	// ---- reads -----------------------------------------------------------------------------
@@ -283,9 +259,28 @@ export class AcpGoalActor {
 		this.#transcriptGeneration++;
 	}
 
-	#stamp(): Stamp {
+	#stamp(scope: GoalOwnerScope): Stamp {
 		this.#syncTranscript();
-		return { transcript: this.#transcriptGeneration, changes: this.#changes, modes: this.#modes };
+		return { transcript: this.#transcriptGeneration, changes: this.#changes, modes: this.#modes, scope };
+	}
+
+	/** The runtime's commit-time check: whether `stamp` still owns what its scope names. Synchronous. */
+	#gateOwns(stamp: Stamp): boolean {
+		switch (stamp.scope) {
+			case "entry":
+				return this.#owns(stamp, false);
+			case "tool":
+				return this.#owns(stamp, false) && !this.#host.reconciling;
+			case "transcript":
+				this.#syncTranscript();
+				return stamp.transcript === this.#transcriptGeneration;
+			case "abort":
+				// An interrupted pause belongs to the transcript each unsettled Stop interrupted.
+				this.#syncTranscript();
+				if (stamp.transcript !== this.#transcriptGeneration) return false;
+				for (const abort of this.#aborts) if (abort.transcript !== this.#transcriptGeneration) return false;
+				return true;
+		}
 	}
 
 	#owns(stamp: Stamp, withModes: boolean): boolean {
@@ -313,7 +308,7 @@ export class AcpGoalActor {
 	 */
 	async admitPrompt(text: string): Promise<AcpPromptAdmission> {
 		const admission = new PromptAdmission(
-			this.#stamp(),
+			this.#stamp("entry"),
 			done => void this.#admissions.delete(done),
 			(stamp, withModes) => this.#owns(stamp, withModes),
 		);
@@ -326,18 +321,15 @@ export class AcpGoalActor {
 					admission.refused = true;
 					return;
 				}
-				this.#entering = admission;
 				try {
 					await this.#enter(admission, text);
 				} catch (error) {
-					if (!(error instanceof GoalEntryAbandoned)) throw error;
+					if (!(error instanceof GoalOwnerStale)) throw error;
 					admission.refused = true;
-				} finally {
-					this.#entering = undefined;
 				}
 				if (admission.transition && admission.stopped && admission.entryOwned() && !admission.refused) {
 					admission.compensated = true;
-					await this.#pauseForCancel();
+					await this.#pauseForCancel({ ...admission.stamp, scope: "transcript" });
 				}
 			});
 		} catch (error) {
@@ -348,16 +340,16 @@ export class AcpGoalActor {
 	}
 
 	async #enter(admission: PromptAdmission, text: string): Promise<void> {
-		const fence = () => admission.entryOwned();
+		const stamp = admission.stamp;
 		if (this.#objectivePending) {
-			await this.#host.createForHostPrompt({ objective: text }, { fence });
+			await this.#host.createForHostPrompt({ objective: text }, { stamp });
 			this.#objectivePending = false;
 			admission.transition = "created";
 			return;
 		}
 		const state = this.#session.getGoalModeState();
 		if (this.#selected && state?.goal.status === "paused") {
-			await this.#host.resumeForHostPrompt({ fence });
+			await this.#host.resumeForHostPrompt({ stamp });
 			admission.transition = "resumed";
 		}
 	}
@@ -372,22 +364,17 @@ export class AcpGoalActor {
 	 * Never rejects; Stop answers the client without waiting for it.
 	 */
 	stop(): AcpGoalStop {
-		this.#syncTranscript();
-		const abort = { transcript: this.#transcriptGeneration };
+		const stamp = this.#stamp("transcript");
+		const abort = { transcript: stamp.transcript };
 		this.#aborts.add(abort);
 		this.#host.stopForHostAbort();
 		const overtaken = [...this.#admissions];
 		for (const admission of overtaken) admission.stopped = true;
 		void this.#lane(async () => {
 			await this.#host.settled();
-			this.#syncTranscript();
-			const needsPause = overtaken.some(
-				admission =>
-					admission.transition &&
-					!admission.compensated &&
-					admission.stamp.transcript === this.#transcriptGeneration,
-			);
-			if (needsPause) await this.#pauseForCancel();
+			// A pause for a transcript the session left is refused by its stamp, in the runtime.
+			const needsPause = overtaken.some(admission => admission.transition && !admission.compensated);
+			if (needsPause) await this.#pauseForCancel(stamp);
 		}).catch(error => {
 			logger.warn("ACP goal Stop compensation failed", {
 				error: error instanceof Error ? error.message : String(error),
@@ -402,8 +389,14 @@ export class AcpGoalActor {
 		};
 	}
 
-	async #pauseForCancel(): Promise<void> {
-		await this.#host.pause();
+	/** Pause for a Stop. A stale `stamp` means the session moved to another transcript: the pause is not ours. */
+	async #pauseForCancel(stamp: GoalOwnerStamp): Promise<void> {
+		try {
+			await this.#host.pause({ stamp });
+		} catch (error) {
+			if (!(error instanceof GoalOwnerStale)) throw error;
+			return;
+		}
 		this.#host.stopForHostAbort();
 	}
 
@@ -422,8 +415,9 @@ export class AcpGoalActor {
 				transition.assertAvailable();
 				this.#modes++;
 				this.#modeEffects++;
+				const stamp = this.#stamp("transcript");
 				try {
-					await this.#lane(() => this.#applyMode(transition));
+					await this.#lane(() => this.#applyMode(transition, stamp));
 				} finally {
 					this.#modeEffects--;
 				}
@@ -434,10 +428,21 @@ export class AcpGoalActor {
 		}
 	}
 
-	async #applyMode(transition: AcpModeTransition): Promise<void> {
+	async #applyMode(transition: AcpModeTransition, stamp: Stamp): Promise<void> {
 		await this.#host.settled();
+		// The selection was made in the transcript it arrived in; once the session moved on, none of its effects apply.
+		if (!this.#gateOwns(stamp)) return;
 		// Goal and plan are exclusive: leave goal mode before planning, clear plan before a goal.
-		if (transition.modeId !== ACP_GOAL_MODE_ID) await this.#leave();
+		if (transition.modeId !== ACP_GOAL_MODE_ID) {
+			try {
+				await this.#leave(stamp);
+			} catch (error) {
+				if (!(error instanceof GoalOwnerStale)) throw error;
+				return;
+			}
+			// The leave awaited a tool restore; its Plan install must not land in a transcript adopted meanwhile.
+			if (!this.#gateOwns(stamp)) return;
+		}
 		if (transition.modeId === ACP_PLAN_MODE_ID) {
 			transition.installPlan();
 			return;
@@ -453,7 +458,7 @@ export class AcpGoalActor {
 	}
 
 	/** The client selected another mode: pause the goal and restore the pre-goal tools. */
-	async #leave(): Promise<void> {
+	async #leave(stamp: Stamp): Promise<void> {
 		this.#selected = false;
 		this.#objectivePending = false;
 		const state = this.#session.getGoalModeState();
@@ -461,7 +466,7 @@ export class AcpGoalActor {
 		if (!state || state.mode === "exiting") return;
 		const status = state.goal.status;
 		if (status !== "active" && status !== "budget-limited" && status !== "paused") return;
-		await this.#host.pause();
+		await this.#host.pause({ stamp });
 	}
 
 	/** The approved plan exits plan mode. A mode change that already cleared it wins; the goal is not touched. */

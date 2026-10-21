@@ -12,6 +12,7 @@ import type { Goal } from "@oh-my-pi/pi-tui/tools/goal";
 import { logger } from "@oh-my-pi/pi-utils";
 import type { AgentSession, AgentSessionEvent } from "../session/agent-session";
 import { nextActionableTask } from "../tools/todo";
+import { type GoalOwnerStamp, GoalOwnerStale } from "./runtime";
 import { cfgGoalContinuationModes, cfgGoalEnabled, type GoalContinuationMode } from "./settings";
 import { type GoalModeState, goalContinuationActivity, goalFromModeData } from "./state";
 
@@ -71,18 +72,31 @@ export interface GoalHostControllerOptions {
 	onReconciled?: () => void | Promise<void>;
 }
 
-/** A goal entry whose host owner moved on mid-entry; discarded after its late effects were undone. */
-export class GoalEntryAbandoned extends Error {
-	constructor() {
-		super("Goal entry abandoned: its session changed.");
-		this.name = "GoalEntryAbandoned";
-	}
-}
-
+/** Options of a host entry (create/resume for a host prompt). */
 interface EnterOptions {
 	forHostPrompt?: boolean;
-	/** Optional host-owned ownership check run after the tool swap; false abandons the entry. */
-	fence?: () => boolean;
+	/**
+	 * Ownership stamp the host reserved when the entry was requested (see `GoalMutationGate`). The runtime
+	 * checks it at every write; the entry also checks it after its tool swap. A stale stamp discards the
+	 * entry with {@link GoalOwnerStale} after its late effects were undone.
+	 */
+	stamp?: GoalOwnerStamp;
+}
+
+/** Options of {@link GoalHostController.pause}. */
+export interface GoalHostPauseOptions {
+	/** Stamp reserved when the pause was requested; a pause whose stamp went stale writes and restores nothing. */
+	stamp?: GoalOwnerStamp;
+}
+
+/** A tool swap a fenced entry has started and not finished: what it replaced and what it installs. */
+interface ToolSwap {
+	before: readonly string[];
+	target: readonly string[];
+}
+
+function sameToolSet(a: readonly string[], b: readonly string[]): boolean {
+	return a.length === b.length && a.every(name => b.includes(name));
 }
 
 export class GoalHostController {
@@ -93,11 +107,9 @@ export class GoalHostController {
 	#previousTools: string[] | undefined;
 	/** Bumped by every reconcile; an entry compares it to detect that a new owner took over. */
 	#reconcileEpoch = 0;
-	/** Fenced entries between their start and their commit or abandonment. */
-	#fencedEntries = 0;
-	/** `goal` an in-flight fenced entry adds to the tool set; a reconcile must not read it as the owner's own choice. */
-	#entryAddedGoalTool = 0;
-	/** Tool set the latest reconcile found for its owner once the previous owner's goal tools were restored. */
+	/** Tool swaps of fenced entries that have started and not finished; their targets are not the owner's own choice. */
+	readonly #toolSwaps = new Set<ToolSwap>();
+	/** Tool set the latest reconcile found for its owner while a fenced entry's swap was still running. */
 	#ownerTools: string[] | undefined;
 	/** Continuation turns submitted whose terminal `agent_end` has not arrived. */
 	#pendingContinuationTurns = 0;
@@ -298,7 +310,8 @@ export class GoalHostController {
 			throw new Error("Resume or drop the paused goal before creating another.");
 		}
 		await this.#enter(
-			() => this.#session.goalRuntime.createGoal({ objective, tokenBudget }, { origin: "host" }),
+			() =>
+				this.#session.goalRuntime.createGoal({ objective, tokenBudget }, { origin: "host", stamp: options?.stamp }),
 			options,
 		);
 		return this.#state;
@@ -309,7 +322,7 @@ export class GoalHostController {
 		const current = this.#session.getGoalModeState();
 		if (current?.enabled) return this.#state;
 		if (current?.goal.status !== "paused") throw new Error("No paused goal to resume.");
-		await this.#enter(() => this.#session.goalRuntime.resumeGoal({ origin: "host" }), options);
+		await this.#enter(() => this.#session.goalRuntime.resumeGoal({ origin: "host", stamp: options?.stamp }), options);
 		return this.#state;
 	}
 
@@ -320,72 +333,75 @@ export class GoalHostController {
 	 */
 	async createForHostPrompt(
 		input: { objective: string; tokenBudget?: number },
-		options?: { fence?: () => boolean },
+		options?: { stamp?: GoalOwnerStamp },
 	): Promise<GoalHostResult> {
 		await this.settled();
-		return await this.#create({ op: "create", ...input }, { forHostPrompt: true, fence: options?.fence });
+		return await this.#create({ op: "create", ...input }, { forHostPrompt: true, stamp: options?.stamp });
 	}
 
 	/** Resume a paused goal for the host prompt about to run; see {@link createForHostPrompt}. */
-	async resumeForHostPrompt(options?: { fence?: () => boolean }): Promise<GoalHostResult> {
+	async resumeForHostPrompt(options?: { stamp?: GoalOwnerStamp }): Promise<GoalHostResult> {
 		await this.settled();
-		return await this.#resume({ forHostPrompt: true, fence: options?.fence });
+		return await this.#resume({ forHostPrompt: true, stamp: options?.stamp });
 	}
 
 	/**
 	 * Pause the goal and restore the pre-goal tool set (ACP leaving goal mode).
 	 * An already-paused, disabled goal is not re-journaled; only the idempotent tool restore runs.
+	 * With a stale `options.stamp` nothing is paused or restored and {@link GoalOwnerStale} is thrown:
+	 * the goal and tools now belong to the transcript the session moved to.
 	 */
-	async pause(): Promise<GoalHostResult> {
+	async pause(options?: GoalHostPauseOptions): Promise<GoalHostResult> {
 		await this.settled();
+		this.#assertOwned(options?.stamp);
 		const state = this.#session.getGoalModeState();
 		if (state?.goal.status === "paused" && !state.enabled) {
 			await this.#exit();
 			return this.#state;
 		}
-		return await this.#pause();
+		return await this.#pause(options?.stamp);
 	}
 
-	async #pause(): Promise<GoalHostResult> {
-		await this.#session.goalRuntime.pauseGoal();
+	async #pause(stamp?: GoalOwnerStamp): Promise<GoalHostResult> {
+		await this.#session.goalRuntime.pauseGoal({ stamp });
+		// The pause's event delivery awaited; the pre-goal tools to restore are the old owner's.
+		this.#assertOwned(stamp);
 		await this.#exit();
 		return this.#state;
 	}
 
-	async #enter(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
-		if (!options?.fence) return await this.#enterOwned(start, options);
-		this.#fencedEntries++;
-		try {
-			await this.#enterOwned(start, options);
-		} finally {
-			this.#fencedEntries--;
-		}
+	#assertOwned(stamp: GoalOwnerStamp | undefined): void {
+		if (stamp !== undefined && !this.#session.goalRuntime.owns(stamp)) throw new GoalOwnerStale();
 	}
 
-	async #enterOwned(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
+	async #enter(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
 		// The pre-goal tool set is captured once, when this controller first adds `goal`
 		// (a reattached paused goal already holds it). A `goal` tool the host enabled
 		// before the goal stays enabled afterwards.
 		const previousTools = this.#previousTools ?? this.#session.getEnabledToolNames();
 		const epoch = this.#reconcileEpoch;
 		const state = await start();
-		if (options?.fence && !options.fence()) {
+		const stamp = options?.stamp;
+		if (stamp !== undefined && !this.#session.goalRuntime.owns(stamp)) {
 			// Owner already moved on before any tool swap: nothing of this entry touched the tools.
 			await this.settled();
-			throw new GoalEntryAbandoned();
+			throw new GoalOwnerStale();
 		}
-		const addsGoalTool = options?.fence !== undefined && !previousTools.includes("goal");
-		if (addsGoalTool) this.#entryAddedGoalTool++;
+		const swap: ToolSwap | undefined =
+			stamp === undefined
+				? undefined
+				: { before: this.#session.getEnabledToolNames(), target: [...new Set([...previousTools, "goal"])] };
+		if (swap) this.#toolSwaps.add(swap);
 		try {
 			await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
 		} finally {
-			if (addsGoalTool) this.#entryAddedGoalTool--;
+			if (swap) this.#toolSwaps.delete(swap);
 		}
-		if (options?.fence && !options.fence()) {
+		if (stamp !== undefined && !this.#session.goalRuntime.owns(stamp)) {
 			// The host's owner of this entry moved on (an ACP session change) while the tool swap
 			// was running. The new owner's reconcile already replaced goal state and tools, so this
 			// entry's late swap is undone, deterministically, and its state is never installed.
-			// `#previousTools` is committed only by an entry that wins its fence, so after a reconcile
+			// `#previousTools` is committed only by an entry whose stamp still owns, so after a reconcile
 			// it is the snapshot taken for the new owner; the tools restored are the new owner's,
 			// never this entry's (the old transcript's) `previousTools`.
 			await this.settled();
@@ -398,7 +414,7 @@ export class GoalHostController {
 				restore = this.#ownerTools ?? previousTools;
 			}
 			await this.#session.setActiveToolsByName(restore);
-			throw new GoalEntryAbandoned();
+			throw new GoalOwnerStale();
 		}
 		this.#previousTools = previousTools;
 		this.#session.setGoalModeState(state);
@@ -475,8 +491,8 @@ export class GoalHostController {
 		await this.#exitTask;
 		await this.#exit();
 		this.#reconcileEpoch++;
-		// Only a fenced entry still in flight can later overwrite this owner's tools.
-		this.#ownerTools = this.#fencedEntries > 0 ? this.#ownerToolNames() : undefined;
+		// Only a fenced entry whose swap is still running can later overwrite this owner's tools.
+		this.#ownerTools = this.#toolSwaps.size > 0 ? this.#ownerToolNames() : undefined;
 		this.#session.setGoalModeState(undefined);
 		const context = this.#session.sessionManager.buildSessionContext();
 		const runtime = this.#session.goalRuntime;
@@ -498,10 +514,18 @@ export class GoalHostController {
 		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
 	}
 
-	/** The enabled tools minus the `goal` a fenced entry's still-running swap added for itself. */
+	/**
+	 * The tool set the current owner selected. Tool selection is session-wide, so while a fenced entry's
+	 * swap runs the enabled names may be that swap's own target. A set that equals a running swap's target
+	 * (and not what the swap replaced) was installed by that swap: the owner's set is what it replaced.
+	 * Anything else, a `goal` the owner enabled itself included, is the owner's own selection.
+	 */
 	#ownerToolNames(): string[] {
 		const names = this.#session.getEnabledToolNames();
-		return this.#entryAddedGoalTool > 0 ? names.filter(name => name !== "goal") : names;
+		for (const swap of this.#toolSwaps) {
+			if (sameToolSet(names, swap.target) && !sameToolSet(names, swap.before)) return [...swap.before];
+		}
+		return names;
 	}
 
 	/**
