@@ -596,8 +596,11 @@ describe("GoalHostController continuation gate", () => {
 	});
 
 	describe("an entry abandoned by its stamp", () => {
-		/** Transcript A's stamped entry is held in its tool swap while the host switches to transcript B and reconciles. */
-		async function abandonedEntry(options: { goalInB: boolean; bTools?: string[]; swapApplied?: boolean }) {
+		/**
+		 * Transcript A's stamped entry is held in its tool swap while the host switches to transcript B.
+		 * The switch starts at once and is given a macrotask to run, then the swap is released.
+		 */
+		async function abandonedEntry(options: { goalInB: boolean; bTools?: string[] }) {
 			const f = fakeSession(async () => true);
 			f.session.setGoalModeState(undefined);
 			const swap = f.session.setActiveToolsByName;
@@ -605,8 +608,6 @@ describe("GoalHostController continuation gate", () => {
 			const release = Promise.withResolvers<void>();
 			f.session.setActiveToolsByName = async names => {
 				f.session.setActiveToolsByName = swap;
-				// The swap may already have installed its target when the owner's reconcile reads the tools.
-				if (options.swapApplied) await swap(names);
 				entered.resolve();
 				await release.promise;
 				await swap(names);
@@ -619,14 +620,17 @@ describe("GoalHostController continuation gate", () => {
 
 			// Transcript B has a different tool selection and, optionally, a goal.
 			f.setOwner(false);
-			await f.controller.beginSessionChange();
-			f.transcript.id = "t2";
-			if (options.bTools) await swap(options.bTools);
-			else if (!options.swapApplied) await swap(["read", "write"]);
-			if (options.goalInB) f.journalGoal();
-			await f.controller.endSessionChange({ detachedRun: true });
+			const switching = (async () => {
+				await f.controller.beginSessionChange();
+				f.transcript.id = "t2";
+				await swap(options.bTools ?? ["read", "write"]);
+				if (options.goalInB) f.journalGoal();
+				await f.controller.endSessionChange({ detachedRun: true });
+			})();
+			await nextMacrotask();
 			release.resolve();
 			const error = await entry;
+			await switching;
 			await f.controller.settled();
 			return { f, error };
 		}
@@ -652,20 +656,7 @@ describe("GoalHostController continuation gate", () => {
 			expect(f.tools()).toEqual(["read", "write"]);
 		});
 
-		test("an entry's own goal tool, already installed when B's reconcile reads the tools, is not taken for B's selection", async () => {
-			const { f, error } = await abandonedEntry({ goalInB: true, swapApplied: true });
-			expect(error).toBeInstanceOf(GoalOwnerStale);
-			expect(f.session.getGoalModeState()?.goal.id).toBe("j1");
-
-			// B's goal completes: B's pre-goal tools are what the entry replaced, without `goal`.
-			const current = f.session.getGoalModeState();
-			f.session.setGoalModeState(current && { ...current, enabled: false, mode: "exiting", reason: "completed" });
-			f.controller.observe(agentEnd);
-			await f.controller.settled();
-			expect(f.tools()).toEqual(["read"]);
-		});
-
-		test("a goal tool B selected itself survives recovery and the later goal exit", async () => {
+		test("a goal tool B selected itself survives the abandoned entry and the later goal exit", async () => {
 			const { f, error } = await abandonedEntry({ goalInB: true, bTools: ["read", "write", "goal"] });
 			expect(error).toBeInstanceOf(GoalOwnerStale);
 			expect(f.tools().toSorted()).toEqual(["goal", "read", "write"]);
@@ -678,7 +669,7 @@ describe("GoalHostController continuation gate", () => {
 			expect(f.tools().toSorted()).toEqual(["goal", "read", "write"]);
 		});
 
-		test("a goal tool B selected itself survives recovery when B has no goal", async () => {
+		test("a goal tool B selected itself survives the abandoned entry when B has no goal", async () => {
 			const { f, error } = await abandonedEntry({ goalInB: false, bTools: ["read", "write", "goal"] });
 			expect(error).toBeInstanceOf(GoalOwnerStale);
 			expect(f.session.getGoalModeState()).toBeUndefined();
@@ -686,61 +677,49 @@ describe("GoalHostController continuation gate", () => {
 		});
 	});
 
-	describe("an abandoned entry's recovery restore", () => {
+	describe("an abandoned entry's tool phase", () => {
 		for (const goalInC of [true, false]) {
-			test(`is finished by the session change before transcript C ${goalInC ? "with" : "without"} a goal chooses its tools`, async () => {
+			test(`never writes tools after the changes to B and then C ${goalInC ? "with" : "without"} a goal have begun`, async () => {
 				const f = fakeSession(async () => true);
 				f.session.setGoalModeState(undefined);
 				const swap = f.session.setActiveToolsByName;
-				const entryEntered = Promise.withResolvers<void>();
-				const entryRelease = Promise.withResolvers<void>();
-				const recoveryEntered = Promise.withResolvers<void>();
-				const recoveryRelease = Promise.withResolvers<void>();
-				// A's entry swap is held first; the recovery restore it later starts is held second.
+				const entered = Promise.withResolvers<void>();
+				const release = Promise.withResolvers<void>();
 				f.session.setActiveToolsByName = async names => {
-					f.session.setActiveToolsByName = async recoveryNames => {
-						f.session.setActiveToolsByName = swap;
-						recoveryEntered.resolve();
-						await recoveryRelease.promise;
-						await swap(recoveryNames);
-					};
-					entryEntered.resolve();
-					await entryRelease.promise;
+					f.session.setActiveToolsByName = swap;
+					entered.resolve();
+					await release.promise;
 					await swap(names);
 				};
 				const entry = f.controller.createForHostPrompt({ objective: "A" }, { stamp: {} }).then(
 					() => undefined,
 					(error: unknown) => error,
 				);
-				await entryEntered.promise;
+				await entered.promise;
 
-				// Transcript B (no goal) is adopted while A's entry is still swapping.
+				// The host moves A -> B -> C while A's entry is still in its swap. C begins and chooses its
+				// tools as soon as the controller lets it; its reconcile is held until A's entry has finished.
+				const cMayEnd = Promise.withResolvers<void>();
 				f.setOwner(false);
-				await f.controller.beginSessionChange();
-				f.transcript.id = "t2";
-				await swap(["read", "write"]);
-				await f.controller.endSessionChange({ detachedRun: true });
-				await f.controller.settled();
-
-				// A's entry is abandoned: its recovery restore starts and is held.
-				entryRelease.resolve();
-				await recoveryEntered.promise;
-
-				let changeBegun = false;
-				const begin = f.controller.beginSessionChange().then(() => {
-					changeBegun = true;
-				});
+				const switching = (async () => {
+					await f.controller.beginSessionChange();
+					f.transcript.id = "t2";
+					await swap(["read", "write"]);
+					await f.controller.endSessionChange({ detachedRun: true });
+					await f.controller.settled();
+					await f.controller.beginSessionChange();
+					f.transcript.id = "t3";
+					await swap(["read", "exec"]);
+					if (goalInC) f.journalGoal();
+					await cMayEnd.promise;
+					await f.controller.endSessionChange({ detachedRun: true });
+				})();
 				await nextMacrotask();
-				// The change to C waits for the recovery: C cannot choose tools before it has landed.
-				expect(changeBegun).toBe(false);
 
-				recoveryRelease.resolve();
+				release.resolve();
 				expect(await entry).toBeInstanceOf(GoalOwnerStale);
-				await begin;
-				f.transcript.id = "t3";
-				await swap(["read", "exec"]);
-				if (goalInC) f.journalGoal();
-				await f.controller.endSessionChange({ detachedRun: true });
+				cMayEnd.resolve();
+				await switching;
 				await f.controller.settled();
 
 				expect(f.tools()).toEqual(goalInC ? ["read", "exec", "goal"] : ["read", "exec"]);
