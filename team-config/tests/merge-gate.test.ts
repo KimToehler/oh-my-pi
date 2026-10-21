@@ -486,18 +486,64 @@ describe("merge-gate-proof rule contract", () => {
 		"Work is done.",
 	].join("\n");
 
-	it("treats a filled Gate proof block without a merge phrase as a claim", async () => {
-		await stop(FILLED);
-		expect(h.execCalls[0]).toEqual({ command: "git", args: ["rev-parse", "--show-toplevel"] });
+	/** Exec stub: git answers like a repo at h.dir whose default branch does not contain the record's reviewed_sha. */
+	beforeEach(async () => {
+		const recordDir = path.join(h.dir, ".omo", "evidence", "gate");
+		await fs.mkdir(recordDir, { recursive: true });
+		await Bun.write(
+			path.join(recordDir, "r.json"),
+			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omo/plans/x.md", reviewed_sha: SHA }),
+		);
+		const ok = (stdout: string): ExecResult => ({ stdout, stderr: "", code: 0, killed: false });
+		(h.pi as unknown as { exec: unknown }).exec = async (command: string, args: string[]): Promise<ExecResult> => {
+			h.execCalls.push({ command, args });
+			if (command === "node") return h.validator;
+			if (args[0] === "rev-parse") return ok(`${h.dir}\n`);
+			if (args[0] === "symbolic-ref") return ok("origin/main\n");
+			if (args[0] === "merge-base") return { stdout: "", stderr: "", code: 1, killed: false };
+			return { stdout: "", stderr: "unexpected", code: 128, killed: false };
+		};
+	});
+
+	const recordRuns = () => h.execCalls.filter(call => call.command === "node" && call.args.includes("--record"));
+
+	it("sends a filled Gate proof block without a merge phrase to the record validator", async () => {
+		expect(await stop(FILLED)).toBeUndefined();
+		expect(recordRuns()).toEqual([
+			{
+				command: "node",
+				args: [
+					expect.any(String),
+					"--repo",
+					h.dir,
+					"--record",
+					".omo/evidence/gate/r.json",
+					"--plan",
+					".omo/plans/x.md",
+				],
+			},
+		]);
+	});
+
+	it("blocks a filled Gate proof block when the record validator fails", async () => {
+		h.validator = INVALID;
+		const result = await stop(FILLED);
+		expect(recordRuns()).toHaveLength(1);
+		expect(result).toMatchObject({ decision: "block" });
+		const reason = JSON.stringify(result);
+		expect(reason).toContain("rejected .omo/evidence/gate/r.json");
+		expect(reason).toContain("plan has no ## Merge gate section");
 	});
 
 	it("does not treat a Gate proof block with a NOT RUN line as a claim", async () => {
-		const text = FILLED.replace("- review-work: RAN", "- review-work: NOT RUN (gate not finished)");
+		h.validator = INVALID;
+		const text = FILLED.replace("- integration-review: RAN", "- integration-review: NOT RUN (small diff)");
 		expect(await stop(text)).toBeUndefined();
 		expect(h.execCalls).toHaveLength(0);
 	});
 
 	it("leaves a plain completion report ungated; the rule makes the agent emit the block", async () => {
+		h.validator = INVALID;
 		expect(await stop("The requested work is complete.")).toBeUndefined();
 		expect(h.execCalls).toHaveLength(0);
 	});
