@@ -225,7 +225,9 @@ describe("installTeamConfig", () => {
 		await t.install({ beforeApply: () => Bun.write(t.repo("agent/AGENTS.md"), "v2\n").then(() => {}) });
 		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
 		const manifest = await Bun.file(t.agent(".team-config-manifest.json")).json();
-		expect(manifest.files["AGENTS.md"]).toBe(new Bun.CryptoHasher("sha256").update("v1\n").digest("hex"));
+		expect(manifest.files["AGENTS.md"]).toEqual({
+			hash: new Bun.CryptoHasher("sha256").update("v1\n").digest("hex"),
+		});
 	});
 
 	test("aborts instead of overwriting a managed file edited after planning", async () => {
@@ -313,15 +315,16 @@ describe("installTeamConfig", () => {
 	});
 
 	test("surfaces a failed partial manifest write together with the apply error", async () => {
-		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/b.md": "v1\n" });
 		await t.install();
 		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		await Bun.write(t.repo("agent/b.md"), "v2\n");
 		const changed = '{"version":1,"files":{}}\n';
-		// The edit aborts the apply; the manifest change makes the partial write's recheck fail too.
+		// AGENTS.md is applied first (so the partial manifest is due); the b.md edit then aborts the apply; the manifest change makes the partial write's recheck fail too.
 		const failure = await t
 			.install({
 				beforeApply: async () => {
-					await Bun.write(t.agent("AGENTS.md"), "edited\n");
+					await Bun.write(t.agent("b.md"), "edited\n");
 					await Bun.write(t.agent(".team-config-manifest.json"), changed);
 				},
 			})
@@ -331,10 +334,69 @@ describe("installTeamConfig", () => {
 			);
 		expect(failure).toBeInstanceOf(AggregateError);
 		const [original, writeErr] = (failure as AggregateError).errors as Error[];
-		expect(original.message).toContain(t.agent("AGENTS.md"));
+		expect(original.message).toContain(t.agent("b.md"));
 		expect(writeErr.message).toContain(t.agent(".team-config-manifest.json"));
 		expect((failure as Error).message.startsWith(original.message)).toBe(true);
 		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+	});
+
+	test("backs up an adopted file once, then treats it as owned", async () => {
+		const t = await setup({ "agent/AGENTS.md": "orig\n" });
+		await Bun.write(t.agent("AGENTS.md"), "orig\n");
+		const adopt = await t.install();
+		expect(adopt.backupDir).toBeUndefined();
+		expect((await Bun.file(t.agent(".team-config-manifest.json")).json()).files["AGENTS.md"].adopted).toBe(true);
+
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		const second = await t.install();
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
+		expect(await t.read(path.join(second.backupDir!, "AGENTS.md"))).toBe("orig\n");
+
+		await Bun.write(t.repo("agent/AGENTS.md"), "v3\n");
+		const third = await t.install();
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v3\n");
+		expect(third.backupDir).toBeUndefined();
+	});
+
+	test("moves an adopted file into the backup when it leaves the repo", async () => {
+		const t = await setup({ "agent/AGENTS.md": "orig\n", "agent/b.md": "b\n" });
+		await Bun.write(t.agent("b.md"), "b\n");
+		await t.install();
+		await fs.rm(t.repo("agent/b.md"));
+		const report = await t.install();
+		expect(report.removed).toEqual(["b.md"]);
+		expect(await t.read(path.join(report.backupDir!, "b.md"))).toBe("b\n");
+		expect(await Bun.file(t.agent("b.md")).exists()).toBe(false);
+	});
+
+	test("reads a version 1 manifest as adopted and rewrites it as version 2", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await Bun.write(t.agent("AGENTS.md"), "v1\n");
+		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+		await Bun.write(t.agent(".team-config-manifest.json"), JSON.stringify({ version: 1, files: { "AGENTS.md": sha } }));
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		const report = await t.install();
+		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v1\n");
+		const manifest = await Bun.file(t.agent(".team-config-manifest.json")).json();
+		expect(manifest.version).toBe(2);
+		expect(manifest.files["AGENTS.md"].adopted).toBeUndefined();
+	});
+
+	test("leaves no manifest or managed file when a fresh install aborts before its first step", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n" });
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await Bun.write(path.join(outside, "keep.md"), "outside\n");
+		await expect(
+			t.install({
+				beforeApply: async () => {
+					await fs.symlink(outside, t.agent("rules"));
+				},
+			}),
+		).rejects.toThrow(t.agent("rules"));
+		expect(await Bun.file(t.agent(".team-config-manifest.json")).exists()).toBe(false);
+		expect(await fs.readdir(outside)).toEqual(["keep.md"]);
+		expect(await t.read(path.join(outside, "keep.md"))).toBe("outside\n");
 	});
 
 });

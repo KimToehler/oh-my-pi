@@ -19,10 +19,17 @@ import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
 const MANIFEST_NAME = ".team-config-manifest.json";
 const SKIPPED_NAMES: Record<string, true> = { ".DS_Store": true, __pycache__: true, ".pytest_cache": true };
 
+interface ManifestEntry {
+	/** sha256 of the content the installer last knew this file to hold. */
+	hash: string;
+	/** The file was already byte-identical when first seen, so the installer never wrote it. Backed up on first replace/remove. */
+	adopted?: true;
+}
+
 interface Manifest {
-	version: 1;
-	/** Agent-dir-relative path (always `/`-separated) → sha256 of the content this installer wrote. */
-	files: Record<string, string>;
+	version: 2;
+	/** Agent-dir-relative path (always `/`-separated) → entry. */
+	files: Record<string, ManifestEntry>;
 }
 
 export interface InstallOptions {
@@ -140,9 +147,17 @@ async function readManifestBytes(file: string): Promise<Uint8Array | undefined> 
 }
 
 function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
-	if (bytes === undefined) return { version: 1, files: {} };
-	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as Manifest;
-	if (manifest?.version === 1 && typeof manifest.files === "object") return manifest;
+	if (bytes === undefined) return { version: 2, files: {} };
+	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { version?: unknown; files?: unknown };
+	if (manifest?.version === 2 && typeof manifest.files === "object" && manifest.files !== null) {
+		return { version: 2, files: manifest.files as Record<string, ManifestEntry> };
+	}
+	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
+		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
+		const files: Record<string, ManifestEntry> = {};
+		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>)) files[rel] = { hash, adopted: true };
+		return { version: 2, files };
+	}
 	throw new Error(`Unsupported team config manifest ${file}`);
 }
 
@@ -258,7 +273,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	await assertBackupsRoot(backupsRoot);
 	const manifestBytes = await readManifestBytes(manifestPath);
 	const previous = parseManifest(manifestPath, manifestBytes);
-	const next: Manifest = { version: 1, files: {} };
+	const next: Manifest = { version: 2, files: {} };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
 	const seeds: Array<{ rel: string; planned: DestState }> = [];
@@ -266,22 +281,26 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
 	// file by what is really on disk instead of trusting a plan that never completed.
-	const applied: Record<string, string> = { ...previous.files };
+	const applied: Record<string, ManifestEntry> = { ...previous.files };
 
 	for (const rel of managedFiles) {
 		const { bytes, hash: wanted, mode } = sources.get(rel)!;
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
-		next.files[rel] = wanted;
+		const prior = previous.files[rel];
 		if (current?.kind === "file" && current.hash === wanted) {
-			applied[rel] = wanted;
+			// Already identical: the installer did not write it. Without a previous entry, or if it was adopted, it stays adopted.
+			const entry: ManifestEntry = !prior || prior.adopted ? { hash: wanted, adopted: true } : { hash: wanted };
+			next.files[rel] = entry;
+			applied[rel] = entry;
 			if (current.mode !== mode) steps.push({ kind: "chmod", rel, mode, planned: current });
 			continue;
 		}
 		let backup: WriteStep["backup"];
 		if (current?.kind === "link") backup = "move";
-		else if (current && current.hash !== previous.files[rel]) backup = "copy";
+		else if (current && (current.hash !== prior?.hash || prior.adopted)) backup = "copy";
+		next.files[rel] = { hash: wanted };
 		steps.push({
 			kind: "write",
 			rel,
@@ -300,8 +319,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
 		if (current === undefined) continue;
-		const backup = current.kind === "file" && current.hash === previous.files[rel] ? undefined : "move";
-
+		const prior = previous.files[rel];
+		const backup = current.kind === "file" && current.hash === prior?.hash && !prior.adopted ? undefined : "move";
 		steps.push({ kind: "remove", rel, backup, planned: current });
 	}
 
@@ -322,6 +341,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
 	let backupDir: string | undefined;
+	// True once any step changed the agent dir; gates the partial manifest.
+	let changed = false;
 	const backup = async (rel: string, mode: "copy" | "move"): Promise<void> => {
 		if (!backupDir) {
 			await assertContained(agentDir, path.join(backupsRoot, "x"));
@@ -332,8 +353,10 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		const dst = path.join(backupDir, rel);
 		await fs.mkdir(path.dirname(dst), { recursive: true });
 		const src = path.join(agentDir, rel);
-		if (mode === "move") await fs.rename(src, dst);
-		else await fs.copyFile(src, dst, fs.constants.COPYFILE_EXCL);
+		if (mode === "move") {
+			await fs.rename(src, dst);
+			changed = true;
+		} else await fs.copyFile(src, dst, fs.constants.COPYFILE_EXCL);
 		report.backedUp.push(rel);
 		report.backupDir = backupDir;
 	};
@@ -344,16 +367,19 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			await verify(step.rel, step.planned);
 			if (step.kind === "chmod") {
 				await fs.chmod(dst, step.mode);
+				changed = true;
 				report.updated.push(step.rel);
 				continue;
 			}
 			if (step.backup) await backup(step.rel, step.backup);
 			if (step.kind === "write") {
 				await replaceFile(step.bytes, dst, step.mode);
-				applied[step.rel] = step.hash;
+				changed = true;
+				applied[step.rel] = { hash: step.hash };
 				(step.existed ? report.updated : report.added).push(step.rel);
 			} else {
 				if (!step.backup) await fs.rm(dst);
+				changed = true;
 				delete applied[step.rel];
 				report.removed.push(step.rel);
 				await pruneEmptyDirs(path.dirname(dst), agentDir);
@@ -366,15 +392,18 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			await fs.mkdir(path.dirname(dst), { recursive: true });
 			try {
 				await fs.copyFile(path.join(seedRoot, rel), dst, fs.constants.COPYFILE_EXCL);
+				changed = true;
 				report.seeded.push(rel);
 			} catch (err) {
 				if (!isEexist(err)) throw err;
 			}
 		}
 	} catch (err) {
+		// Nothing changed the agent dir: leave the manifest path exactly as it was.
+		if (!changed) throw err;
 		// Persist what was actually applied; if that fails too, the original error stays first and the write error rides along.
 		try {
-			await writeManifest(manifestPath, { version: 1, files: applied }, manifestBytes);
+			await writeManifest(manifestPath, { version: 2, files: applied }, manifestBytes);
 		} catch (writeErr) {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new AggregateError([err, writeErr], `${message} (and the partial manifest could not be written)`);

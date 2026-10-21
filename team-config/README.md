@@ -31,7 +31,7 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 
 The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
 not ship are never touched. If a shipped file was edited locally, or a same-named file existed
-before the first deploy, its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
+before the first deploy (even an identical one: the installer only owns files it wrote itself), its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
 before it is replaced; the deploy output names the directory.
 
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
