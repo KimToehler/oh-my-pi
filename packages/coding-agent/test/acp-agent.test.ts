@@ -509,6 +509,10 @@ class FakeAgentSession {
 		this.planReferencePath = path;
 	}
 
+	getPlanReferencePath(): string {
+		return this.planReferencePath ?? "";
+	}
+
 	adoptedPlans: ResolvedApprovedPlan[] = [];
 
 	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
@@ -1271,6 +1275,88 @@ describe("ACP agent", () => {
 		}
 		expect(session.appliedRoleModels).toEqual([]);
 		expect(session.model).toBe(TEST_MODELS[0]);
+
+		harness.abortController.abort();
+	});
+
+	/** A harness whose approval dialog stays open until `answer` is called; `opened` resolves once the client was asked. */
+	async function pendingApprovalHarness(value: string) {
+		const opened = Promise.withResolvers<void>();
+		const answered = Promise.withResolvers<void>();
+		const harness = await createHarness({
+			elicitationHandler: async () => {
+				opened.resolve();
+				await answered.promise;
+				return { action: "accept", content: { value } };
+			},
+		});
+		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
+		const { session } = await enterPlanWithPlanFile(harness);
+		return { harness, session, opened: opened.promise, answer: () => answered.resolve() };
+	}
+
+	it("a rejection answered after the client selected Goal leaves Plan disabled and Goal armed", async () => {
+		const { harness, session, opened, answer } = await pendingApprovalHarness("refine");
+		const pending = proposePlan(session, "words-counter") as Promise<{ content: Array<{ text: string }> }>;
+		await opened;
+
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
+		answer();
+		const result = await pending;
+
+		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+		expect(session.planModeState).toBeUndefined();
+		await harness.agent.prompt({ sessionId: session.sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+		expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+
+		harness.abortController.abort();
+	});
+
+	for (const reviewed of [false, true]) {
+		it(`an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: ${reviewed})`, async () => {
+			const { harness, session, opened, answer } = await pendingApprovalHarness("approve");
+			const pending = proposePlan(session, "words-counter", { reviewed }) as Promise<{
+				content: Array<{ text: string }>;
+			}>;
+			await opened;
+
+			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
+			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
+			answer();
+			const result = await pending;
+
+			expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+			expect(session.planModeState?.enabled).toBe(true);
+			expect(session.planReferencePath).toBeUndefined();
+
+			harness.abortController.abort();
+		});
+	}
+
+	it("a reviewed approval whose snapshot adoption straddles a mode selection restores the plan reference and exits nothing", async () => {
+		const { harness, session, answer } = await pendingApprovalHarness("approve");
+		const adoptStarted = Promise.withResolvers<void>();
+		const adoptRelease = Promise.withResolvers<void>();
+		const adopt = session.adoptApprovedPlan.bind(session);
+		session.adoptApprovedPlan = async plan => {
+			adoptStarted.resolve();
+			await adoptRelease.promise;
+			return adopt(plan);
+		};
+		const pending = proposePlan(session, "words-counter", { reviewed: true }) as Promise<{
+			content: Array<{ text: string }>;
+		}>;
+		answer();
+		await adoptStarted.promise;
+
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
+		adoptRelease.resolve();
+		const result = await pending;
+
+		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+		expect(session.planModeState?.enabled).toBe(true);
+		expect(session.planReferencePath).toBe("");
 
 		harness.abortController.abort();
 	});
