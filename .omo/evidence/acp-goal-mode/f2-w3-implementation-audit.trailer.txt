@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: A superseded plan proposal must not be represented to downstream consumers as an actionable approval request.
+  positive_witness: A proposal superseded while its resolution is pending returns structured superseded details that the approval-details predicate rejects.
+  negative_control: The discarded proposal returns approval-shaped details that cause a consumer to open an approval UI.
+  observable: The returned details and the approval-details predicate result, together with the absence of an approval-handler action.
+  boundary: Plan-proposal result consumed by the ACP and interactive approval surfaces.
+END-REVIEW-TRAILER

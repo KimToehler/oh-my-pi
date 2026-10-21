@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: A terminal agent_end suppressed only by an in-flight explicit mode effect must remain pending and be reconsidered when the outermost effect settles while the same prompt, transcript and active Goal still own it.
+  positive_witness: An active Goal turn ends while a Goal re-selection is held in host settlement; after release, exactly one continuation is admitted before the ACP prompt resolves.
+  negative_control: The mode effect ends with the Goal active and selected, but the prompt resolves with no continuation admitted.
+  observable: The ordering of terminal agent_end, mode-effect release, continuation admission and session/prompt settlement.
+  boundary: AcpGoalActor mode-effect ownership, GoalHostController continuation scheduling and ACP prompt quiescence.
+END-REVIEW-TRAILER

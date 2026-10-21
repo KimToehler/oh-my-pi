@@ -1,0 +1,100 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/ACP_GOAL_MODE_PLAN.md",
+  "plan_sha256": "4b50cca61056635842e5818646dd73c7caefd8e573ef5422871ae351c3c638eb",
+  "reviewed_sha": "49cb41e567ca4641560869759193e461d53d9c32",
+  "diff_base": "90e3e77e68da7b16ac9ffa244444374281972ee0",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class wire-contract-api (RPC goal controller moved to the shared host) plus concurrency-state (ACP goal/mode actor); both invocations run on the final head after three F2 waves; reviewed_sha is the evidence-archive commit on top of e901e40473 (no file outside .omo/ changed: `git diff e901e40473..HEAD -- . ':!.omo'` is empty)",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Stop in the objective's first turn, then resume (stdio, IntelliJ identity, product head 0615969897)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/wave-actor/f1-stop-first-turn.txt"
+    },
+    {
+      "name": "Stop during a goal continuation, then resume (stdio, IntelliJ identity)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/wave-actor/f1-stop-resume.txt"
+    },
+    {
+      "name": "/usage keeps the arm, /unknown text becomes the objective, pinned goal replay after completion ignored",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/wave-actor/f1-unknown-replay.txt"
+    },
+    {
+      "name": "Regression suites per file (730 tests, 29 files) and check:ts on the final head",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/suites-head.txt"
+    },
+    {
+      "name": "Race guards RED on pre-fix heads and discriminated by single-guard reverts (rows 10-28)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/actor-discrimination.txt"
+    },
+    {
+      "name": "Outbound ACP notification settles while the peer handler is blocked (adjudicates F2 wave 1 audit finding)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/wave-actor/f2-notify-probe.txt"
+    },
+    {
+      "name": "QA matrix",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-goal-mode/wave-actor/qa-matrix.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omo/evidence/gate/acp-goal-mode/f3-actor-round10-report.md"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/acp-goal-mode/f2-w3-implementation-audit.trailer.txt",
+      "trailer_sha256": "bff7f0ac9b62b6da1301add1cfca9377abb30733d9740b35300cedf270da82da",
+      "note": "F2 wave 3 audit PASS; waves 1-2 trailers archived as f2-w1-/f2-w2-*.trailer.txt (wave 1 finding refuted by QA row 6, wave 2 finding fixed as plan row 28)"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omo/evidence/acp-goal-mode/f2-w3-strategic-risk-review.trailer.txt",
+      "trailer_sha256": "c3b8a3f4edbc4a8a5b1f877b575fb9f706fe00a4616cf4a8fcd7b8b3642a13d9",
+      "note": "blocker lost-acp-goal-continuation-after-mode-effect-gate, frozen by the user (see override)"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "medium",
+      "location": "packages/coding-agent/src/modes/acp/acp-goal.ts:190",
+      "coverage": "not-testable:frozen by user decision; no regression test written for the accepted liveness gap"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "F2 convergence STOP after three waves (2026-10-21). Implementation-audit PASS and QA PASS on e901e40473. The strategic-review blocker lost-acp-goal-continuation-after-mode-effect-gate is liveness-only: a goal turn whose terminal agent_end lands while an explicit mode effect is in flight is not continued until the next host prompt; no goal, tool or mode state is written incorrectly. Frozen by the user as an accepted residual risk and follow-up."
+  }
+}
