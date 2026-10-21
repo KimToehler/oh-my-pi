@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, isRecord, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -98,7 +98,15 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { createAcpClientBridge } from "./acp-client-bridge";
-import { AcpGoalController } from "./acp-goal";
+import {
+	ACP_DEFAULT_MODE_ID,
+	ACP_GOAL_MODE_ID,
+	ACP_MODE_CONFIG_ID,
+	ACP_PLAN_MODE_ID,
+	AcpGoalActor,
+	type AcpModeTransition,
+	type AcpPromptAdmission,
+} from "./acp-goal";
 import {
 	buildToolCallStartUpdate,
 	extractAssistantMessageText,
@@ -111,9 +119,6 @@ import { cfgDisabledExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
 
-const ACP_DEFAULT_MODE_ID = "default";
-const ACP_PLAN_MODE_ID = "plan";
-const ACP_GOAL_MODE_ID = "goal";
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
 /**
@@ -124,22 +129,12 @@ const ACP_STEERING_METHOD = "_session/steering";
  * has no replay, so loadSession is not advertised to them.
  */
 const INTELLIJ_CLIENT_PLATFORM = "intellij";
-/**
- * Session entry holding config values (`configId` → value) that omp replaced on
- * its own, e.g. plan approval exiting plan mode or switching the execution
- * model. JetBrains IDEs ignore `current_mode_update`, rank their stored
- * dropdown choice above the agent's `currentValue`, and re-send that stored
- * choice via `session/set_config_option` before every prompt. Re-sends of a
- * recorded value are dropped until the client picks a different value.
- * Persisted so the guard survives an agent restart followed by `session/resume`.
- */
-const ACP_STALE_CLIENT_CONFIG_ENTRY = "acp-stale-client-config";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
 const PLAN_APPROVE_VALUE = "approve";
 const PLAN_APPROVE_VALUE_PREFIX = "approve:";
 const PLAN_REFINE_VALUE = "refine";
-const MODE_CONFIG_ID = "mode";
+const MODE_CONFIG_ID = ACP_MODE_CONFIG_ID;
 const MODEL_CONFIG_ID = "model";
 const THINKING_CONFIG_ID = "thinking";
 const THINKING_OFF = "off";
@@ -252,26 +247,12 @@ type ManagedSessionRecord = {
 	 */
 	promptEventHandlers: Map<symbol, Promise<void>>;
 	extensionUserMessageTasks: Set<Promise<void>>;
-	/** Lazily loaded from {@link ACP_STALE_CLIENT_CONFIG_ENTRY}; see there. */
-	staleClientConfig: Map<string, string> | undefined;
 	/** `_session/steering` calls still being admitted into the open prompt (image prep can await). */
 	pendingSteers: number;
-	/** Goal mode: armed objective, client selection, and the continuation driver. */
-	goal: AcpGoalController;
+	/** Sole owner of goal and mode ownership state: generations, selection, reported mode, stale config. */
+	goal: AcpGoalActor;
 	/** Drops the goal observer subscribed before any prompt subscriber. */
 	goalUnsubscribe: (() => void) | undefined;
-	/** Goal block (prepare, mode sync, cancel compensation) of the latest prompt; never rejects. */
-	goalPreparation: Promise<void> | undefined;
-	/** Mode id the client was last told about; agent-side goal changes are reported against it. */
-	reportedModeId: string;
-	/**
-	 * Client-initiated mode transitions in flight. Lifecycle-driven mode sync is
-	 * suppressed while above zero so an explicit transition is never mistaken for
-	 * an agent-side change.
-	 */
-	explicitModeChanges: number;
-	/** A lifecycle mode sync was suppressed by an in-flight explicit transition; flushed when the last one ends. */
-	modeSyncDeferred: boolean;
 	/**
 	 * Builtin slash-command handlers running in this session right now, with
 	 * the prompt each runs for and whether it was steered in. Handlers mutate
@@ -741,7 +722,7 @@ export class AcpAgent implements Agent {
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
-	/** Client re-asserts its stored config choices on every prompt (JetBrains); see {@link ACP_STALE_CLIENT_CONFIG_ENTRY}. */
+	/** Client re-asserts its stored config choices on every prompt (JetBrains); see `AcpGoalActor.isStaleClientReassert`. */
 	#clientPinsConfigOptions = false;
 	#cancelCleanupTimeoutMs = ACP_CANCEL_CLEANUP_TIMEOUT_MS;
 	#blobs = new BlobStore(getBlobsDir());
@@ -895,15 +876,7 @@ export class AcpAgent implements Agent {
 
 	async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
 		const record = this.#getSessionRecord(params.sessionId);
-		record.explicitModeChanges++;
-		try {
-			if (!this.#isStaleClientReassert(record, MODE_CONFIG_ID, params.modeId)) {
-				await this.#applyModeChange(record, params.modeId);
-			}
-			await this.#emitModeUpdates(record);
-		} finally {
-			await this.#endExplicitModeChange(record);
-		}
+		await record.goal.explicitModeChange(this.#modeTransition(record, params.modeId));
 		return {};
 	}
 
@@ -913,39 +886,29 @@ export class AcpAgent implements Agent {
 			throw new Error(`Unsupported boolean ACP config option: ${params.configId}`);
 		}
 
-		const isModeChange = params.configId === MODE_CONFIG_ID;
-		if (isModeChange) record.explicitModeChanges++;
-		try {
-			if (!this.#isStaleClientReassert(record, params.configId, params.value)) {
-				switch (params.configId) {
-					case MODE_CONFIG_ID:
-						await this.#applyModeChange(record, params.value);
-						break;
-					case MODEL_CONFIG_ID:
-						await this.#setModelById(record.session, params.value);
-						break;
-					case THINKING_CONFIG_ID:
-						this.#setThinkingLevelById(record.session, params.value);
-						break;
-					default:
-						throw new Error(`Unknown ACP config option: ${params.configId}`);
-				}
+		if (params.configId === MODE_CONFIG_ID) {
+			await record.goal.explicitModeChange(this.#modeTransition(record, params.value));
+			return { configOptions: this.#buildConfigOptions(record) };
+		}
+		if (!record.goal.isStaleClientReassert(params.configId, params.value)) {
+			switch (params.configId) {
+				case MODEL_CONFIG_ID:
+					await this.#setModelById(record.session, params.value);
+					break;
+				case THINKING_CONFIG_ID:
+					this.#setThinkingLevelById(record.session, params.value);
+					break;
+				default:
+					throw new Error(`Unknown ACP config option: ${params.configId}`);
 			}
-
-			if (isModeChange) {
-				// Mirror `setSessionMode`: clients tracking session-mode state see the
-				// same `current_mode_update` + `config_option_update` transition.
-				await this.#emitModeUpdates(record);
-			} else if (record.lifetimeUnsubscribe === undefined) {
-				// `#setModelById`/`#setThinkingLevelById` change the session through
-				// AgentSession, which emits `model_changed`/`thinking_level_changed`;
-				// `#handleLifetimeEvent` pushes the update once that subscription is
-				// installed. Push here only before it is, so pre-bootstrap callers still
-				// see the change without a post-bootstrap duplicate.
-				await this.#pushConfigOptionUpdate(record);
-			}
-		} finally {
-			if (isModeChange) await this.#endExplicitModeChange(record);
+		}
+		if (record.lifetimeUnsubscribe === undefined) {
+			// `#setModelById`/`#setThinkingLevelById` change the session through
+			// AgentSession, which emits `model_changed`/`thinking_level_changed`;
+			// `#handleLifetimeEvent` pushes the update once that subscription is
+			// installed. Push here only before it is, so pre-bootstrap callers still
+			// see the change without a post-bootstrap duplicate.
+			await this.#pushConfigOptionUpdate(record);
 		}
 		return { configOptions: this.#buildConfigOptions(record) };
 	}
@@ -983,9 +946,8 @@ export class AcpAgent implements Agent {
 				await previousTurn.promise.catch(() => undefined);
 				await previousTurn.cleanup;
 			}
-			// A cancelled prompt resolves (and is evicted) before its goal preparation
-			// finishes; starting this prompt's goal handling earlier would see half-applied state.
-			await record.goalPreparation;
+			// A cancelled prompt resolves (and is evicted) before its goal admission finishes; this
+			// prompt's own admission queues behind it on the actor's lane, so nothing waits here.
 			this.#throwIfRecordClosed(record);
 
 			const converted = this.#convertPromptBlocks(params.prompt);
@@ -1221,17 +1183,20 @@ export class AcpAgent implements Agent {
 		// Goal mode: the first ordinary prompt is the objective; a paused goal still
 		// selected resumes with this prompt as guidance. Registered commands run as
 		// commands and leave goal mode armed.
+		let admission: AcpPromptAdmission | undefined;
 		if (!record.session.isRegisteredPromptCommand(text)) {
-			const preparation = this.#prepareGoalForPrompt(record, text, promptTurn);
-			// Published on the record so the next queued prompt waits for this whole
-			// block: Stop answers the client at once and the cancelled turn leaves
-			// `record.promptTurn` after its abort, but the goal entry, mode sync and
-			// compensation are still running.
-			record.goalPreparation = preparation.then(
-				() => undefined,
-				() => undefined,
-			);
-			if (!(await preparation)) return;
+			admission = await this.#admitGoalPrompt(record, text);
+		}
+		// Last synchronous gate: no Stop, mode change, session change or transcript switch since
+		// admission. Nothing may be awaited between this check and `session.prompt`. A refused
+		// prompt finishes as a Stop's cancelled prompt does (a Stop already answered the client),
+		// and only while this turn still owns the slot: the next queued prompt may hold it.
+		const confirmed = admission ? admission.confirm() : true;
+		if (!confirmed || promptTurn?.cancelRequested) {
+			if (promptTurn && record.promptTurn === promptTurn && !promptTurn.settled) {
+				this.#finishPrompt(record, { stopReason: "cancelled" });
+			}
+			return;
 		}
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
 		// An autonomous turn (todo reminder, async-job wake) streams without an
@@ -1252,35 +1217,18 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
-	 * Goal handling for an ordinary prompt: entry, mode sync and Stop compensation.
-	 * Returns false when Stop landed meanwhile and the prompt must not be submitted.
+	 * Wait for the actor's goal admission of an ordinary prompt, then report the mode it changed.
+	 * The admission is confirmed right before `session.prompt`; see {@link AcpPromptAdmission.confirm}.
 	 */
-	async #prepareGoalForPrompt(
-		record: ManagedSessionRecord,
-		text: string,
-		promptTurn: PromptTurnState | undefined,
-	): Promise<boolean> {
-		const isCancelled = () => promptTurn?.cancelRequested === true;
-		const transcriptBefore = record.session.sessionManager.getSessionId();
-		const transition = await record.goal.prepareHostPrompt(text, isCancelled);
-		await this.#syncAgentModeChange(record);
-		// An extension changed the transcript meanwhile, or has begun to (it waits for this
-		// operation, then replaces the transcript). The prompt was meant for the old
-		// transcript: never submit it into the new one. The reconcile owns the goal state,
-		// so no compensation; finish as a Stop's cancelled prompt does.
-		if (record.goal.sessionChangeInFlight || record.session.sessionManager.getSessionId() !== transcriptBefore) {
-			this.#finishPrompt(record, { stopReason: "cancelled" });
-			return false;
+	async #admitGoalPrompt(record: ManagedSessionRecord, text: string): Promise<AcpPromptAdmission> {
+		const admission = await record.goal.admitPrompt(text);
+		try {
+			await record.goal.syncAgentModeChange();
+		} catch (error) {
+			admission.release();
+			throw error;
 		}
-		// Stop landed while the goal was being created/resumed: cancel already
-		// answered the client, so never submit this prompt. The in-operation check
-		// normally compensated already; this one covers a Stop during the mode sync
-		// and leaves the goal as a Stop does (paused, still selected).
-		if (isCancelled()) {
-			if (transition) await record.goal.pauseAfterCancelledPrompt();
-			return false;
-		}
-		return true;
+		return admission;
 	}
 
 	/**
@@ -1355,8 +1303,10 @@ export class AcpAgent implements Agent {
 			return promptTurn.cleanup;
 		}
 		promptTurn.cancelRequested = true;
-		// Before the abort: the aborted run's own agent_end must not schedule a goal turn.
-		record.goal.stopForHostAbort();
+		// Before the abort: the aborted run's own agent_end must not schedule a goal turn, and its
+		// late interrupted pause is bound to the transcript running now. The actor compensates any
+		// goal entry Stop overtook on its own lane; Stop answers the client without waiting for it.
+		void record.goal.stop();
 		promptTurn.abortController.abort();
 		promptTurn.unsubscribe?.();
 		const cleanup = this.#runCancelCleanup(record, promptTurn);
@@ -1377,6 +1327,8 @@ export class AcpAgent implements Agent {
 			await Promise.race([record.session.abort({ reason: USER_INTERRUPT_LABEL }), timeout]);
 		} finally {
 			if (timer) clearTimeout(timer);
+			// The interrupted run has unwound: its pause no longer applies to a later transcript's goal.
+			record.goal.abortSettled();
 			// Order matters: clear `cleanup` before evicting the slot so the slot-eviction
 			// branch matches what `#finishPrompt` saw if it ran first.
 			promptTurn.cleanup = undefined;
@@ -1755,7 +1707,7 @@ export class AcpAgent implements Agent {
 		try {
 			// Adopt a goal journaled in this transcript; an active one reopens paused, as in RPC.
 			await record.goal.reconcile();
-			record.reportedModeId = this.#getCurrentModeId(record);
+			record.goal.adoptReportedMode();
 			await this.#configureExtensions(record);
 			await this.#configureMcpServers(record, mcpServers);
 			this.#sessions.set(session.sessionId, record);
@@ -1785,25 +1737,28 @@ export class AcpAgent implements Agent {
 			promptEventHandlers: new Map(),
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
-			staleClientConfig: undefined,
 			pendingSteers: 0,
-			explicitModeChanges: 0,
-			modeSyncDeferred: false,
-			goal: new AcpGoalController(
-				session,
-				() => {
+			goal: new AcpGoalActor(session, {
+				promptOpen: () => {
 					const turn = record.promptTurn;
 					return turn !== undefined && !turn.settled && !turn.cancelRequested;
 				},
+				clientPinsConfig: () => this.#clientPinsConfigOptions,
+				selectValues: () => this.#selectConfigValues(record),
+				announce: async () => {
+					await this.#connection.sessionUpdate({
+						sessionId: record.session.sessionId,
+						update: this.#buildCurrentModeUpdate(record),
+					});
+					await this.#pushConfigOptionUpdate(record);
+				},
 				// A reattach deferred behind a running one lands after `#goalSessionChange` synced.
-				() =>
+				onReconciled: () =>
 					this.#trackLifetimeDelivery(record, "goal_updated", "mode_update", () =>
-						this.#syncAgentModeChange(record),
+						record.goal.syncAgentModeChange(),
 					),
-			),
+			}),
 			goalUnsubscribe: undefined,
-			goalPreparation: undefined,
-			reportedModeId: ACP_DEFAULT_MODE_ID,
 			runningBuiltins: new Set(),
 		};
 		return record;
@@ -1831,7 +1786,7 @@ export class AcpAgent implements Agent {
 			case "agent_end":
 				// Goal created by the agent's tool, completed, or dropped: tell the client its mode moved.
 				await this.#trackLifetimeDelivery(record, event.type, "mode_update", () =>
-					this.#syncAgentModeChange(record),
+					record.goal.syncAgentModeChange(),
 				);
 				return;
 		}
@@ -1983,7 +1938,7 @@ export class AcpAgent implements Agent {
 		await promptTurn.quiescenceWait;
 		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
 		// A goal completed or dropped during this prompt: report default mode inside the turn.
-		await this.#syncAgentModeChange(record);
+		await record.goal.syncAgentModeChange();
 		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
 		if (promptTurn.deferredError !== undefined) {
 			this.#finishPrompt(record, undefined, promptTurn.deferredError);
@@ -2284,50 +2239,9 @@ export class AcpAgent implements Agent {
 		});
 	}
 
-	/** Tell the client the current mode: `current_mode_update`, then the full config options. */
-	async #emitModeUpdates(record: ManagedSessionRecord): Promise<void> {
-		// Recorded before sending, so a concurrent agent-side sync sees it reported.
-		record.reportedModeId = this.#getCurrentModeId(record);
-		await this.#connection.sessionUpdate({
-			sessionId: record.session.sessionId,
-			update: this.#buildCurrentModeUpdate(record),
-		});
-		await this.#pushConfigOptionUpdate(record);
-	}
-
-	/** Leave an explicit mode transition; replay any lifecycle sync it suppressed once none remain. */
-	async #endExplicitModeChange(record: ManagedSessionRecord): Promise<void> {
-		record.explicitModeChanges--;
-		if (record.explicitModeChanges > 0 || !record.modeSyncDeferred) return;
-		record.modeSyncDeferred = false;
-		await this.#syncAgentModeChange(record);
-	}
-
-	/**
-	 * Report a mode the agent changed on its own (goal created by the `goal` tool,
-	 * completed, or dropped). The old mode is recorded as stale so a JetBrains
-	 * client re-sending its stored dropdown choice does not re-arm goal mode.
-	 */
-	async #syncAgentModeChange(record: ManagedSessionRecord): Promise<void> {
-		// `#applyModeChange` awaits `goal.leave()`, whose pause emits `goal_updated`
-		// before the transition's own `#emitModeUpdates` runs. Syncing then would
-		// report an intermediate mode and record the mode being left as an agent-side
-		// stale value, making IntelliJ ignore a later deliberate re-selection.
-		if (record.explicitModeChanges > 0) {
-			record.modeSyncDeferred = true;
-			return;
-		}
-		const reported = record.reportedModeId;
-		if (this.#getCurrentModeId(record) === reported) return;
-		const before = this.#selectConfigValues(record);
-		before.set(MODE_CONFIG_ID, reported);
-		this.#recordAgentConfigOverrides(record, before);
-		await this.#emitModeUpdates(record);
-	}
-
 	#buildConfigOptions(record: ManagedSessionRecord): SessionConfigOption[] {
 		const session = record.session;
-		const currentModeId = this.#getCurrentModeId(record);
+		const currentModeId = record.goal.modeId;
 		const modeOptions = this.#getAvailableModes(session).map(mode => ({
 			value: mode.id,
 			name: mode.name,
@@ -2381,67 +2295,6 @@ export class AcpAgent implements Agent {
 			if (option.type === "select") values.set(option.id, option.currentValue);
 		}
 		return values;
-	}
-
-	#staleClientConfig(record: ManagedSessionRecord): Map<string, string> {
-		if (record.staleClientConfig) return record.staleClientConfig;
-		const values = new Map<string, string>();
-		const branch = record.session.sessionManager.getBranchView();
-		for (let index = branch.length - 1; index >= 0; index--) {
-			const entry = branch[index];
-			if (entry.type !== "custom" || entry.customType !== ACP_STALE_CLIENT_CONFIG_ENTRY) continue;
-			if (isRecord(entry.data) && isRecord(entry.data.values)) {
-				for (const [configId, value] of Object.entries(entry.data.values)) {
-					if (typeof value === "string") values.set(configId, value);
-				}
-			}
-			break;
-		}
-		record.staleClientConfig = values;
-		return values;
-	}
-
-	#persistStaleClientConfig(record: ManagedSessionRecord, values: Map<string, string>): void {
-		record.session.sessionManager.appendCustomEntry(ACP_STALE_CLIENT_CONFIG_ENTRY, {
-			values: Object.fromEntries(values),
-		});
-	}
-
-	/**
-	 * Whether a client config request only re-sends a value omp has since
-	 * replaced. A different value is a real user choice: it clears the entry
-	 * and applies normally.
-	 */
-	#isStaleClientReassert(record: ManagedSessionRecord, configId: string, value: string): boolean {
-		if (!this.#clientPinsConfigOptions) return false;
-		const stale = this.#staleClientConfig(record);
-		const staleValue = stale.get(configId);
-		if (staleValue === undefined) return false;
-		if (staleValue === value) {
-			logger.debug("Ignoring stale ACP client config re-assert", {
-				sessionId: record.session.sessionId,
-				configId,
-				value,
-			});
-			return true;
-		}
-		stale.delete(configId);
-		this.#persistStaleClientConfig(record, stale);
-		return false;
-	}
-
-	/** Record every select value omp changed since `before` so the client's re-send of it is ignored. */
-	#recordAgentConfigOverrides(record: ManagedSessionRecord, before: Map<string, string>): void {
-		if (!this.#clientPinsConfigOptions) return;
-		const after = this.#selectConfigValues(record);
-		const stale = this.#staleClientConfig(record);
-		let changed = false;
-		for (const [configId, value] of before) {
-			if (after.get(configId) === value || stale.get(configId) === value) continue;
-			stale.set(configId, value);
-			changed = true;
-		}
-		if (changed) this.#persistStaleClientConfig(record, stale);
 	}
 
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
@@ -2505,37 +2358,35 @@ export class AcpAgent implements Agent {
 		return modes;
 	}
 
-	#getCurrentModeId(record: ManagedSessionRecord): string {
-		if (record.session.getPlanModeState()?.enabled) return ACP_PLAN_MODE_ID;
-		return record.goal.modeSelected ? ACP_GOAL_MODE_ID : ACP_DEFAULT_MODE_ID;
-	}
-
-	async #applyModeChange(record: ManagedSessionRecord, modeId: string): Promise<void> {
+	/** The plan-state effects of a client mode request; the actor orders them against goal effects. */
+	#modeTransition(record: ManagedSessionRecord, modeId: string): AcpModeTransition {
 		const session = record.session;
-		const availableModes = this.#getAvailableModes(session);
-		if (!availableModes.some(mode => mode.id === modeId)) {
-			throw new Error(`Unsupported ACP mode: ${modeId}`);
-		}
-		// Goal and plan are exclusive: leave goal mode before planning, clear plan before a goal.
-		if (modeId !== ACP_GOAL_MODE_ID) await record.goal.leave();
-		if (modeId === ACP_PLAN_MODE_ID) {
-			const previous = session.getPlanModeState();
-			session.setPlanModeState({
-				enabled: true,
-				planFilePath: previous?.planFilePath ?? DEFAULT_PLAN_FILE_URL,
-				workflow: previous?.workflow ?? "parallel",
-				reentry: previous !== undefined,
-			});
-			// Mirror `InteractiveMode.#enterPlanMode`: register the plan-proposal
-			// handler that consumes `xd://propose` writes from plan mode. Without
-			// this, proposal dispatch falls through and plan mode has no approval
-			// path (issue #1869).
-			session.setPlanProposalHandler?.(plan => this.#handleAcpPlanProposal(record, plan));
-			return;
-		}
-		session.setPlanProposalHandler?.(null);
-		session.setPlanModeState(undefined);
-		if (modeId === ACP_GOAL_MODE_ID) await record.goal.select();
+		return {
+			modeId,
+			assertAvailable: () => {
+				if (!this.#getAvailableModes(session).some(mode => mode.id === modeId)) {
+					throw new Error(`Unsupported ACP mode: ${modeId}`);
+				}
+			},
+			installPlan: () => {
+				const previous = session.getPlanModeState();
+				session.setPlanModeState({
+					enabled: true,
+					planFilePath: previous?.planFilePath ?? DEFAULT_PLAN_FILE_URL,
+					workflow: previous?.workflow ?? "parallel",
+					reentry: previous !== undefined,
+				});
+				// Mirror `InteractiveMode.#enterPlanMode`: register the plan-proposal
+				// handler that consumes `xd://propose` writes from plan mode. Without
+				// this, proposal dispatch falls through and plan mode has no approval
+				// path (issue #1869).
+				session.setPlanProposalHandler?.(plan => this.#handleAcpPlanProposal(record, plan));
+			},
+			clearPlan: () => {
+				session.setPlanProposalHandler?.(null);
+				session.setPlanModeState(undefined);
+			},
+		};
 	}
 
 	/**
@@ -2596,8 +2447,10 @@ export class AcpAgent implements Agent {
 		let executionPlanPath = planFilePath;
 		if (plan.reviewedSha256) executionPlanPath = await session.adoptApprovedPlan(plan);
 		else session.setPlanReferencePath(planFilePath);
-		session.setPlanProposalHandler?.(null);
-		session.setPlanModeState(undefined);
+		record.goal.exitPlan(() => {
+			session.setPlanProposalHandler?.(null);
+			session.setPlanModeState(undefined);
+		});
 		let autosaveFailed = false;
 		try {
 			await autosaveApprovedPlan({
@@ -2629,9 +2482,9 @@ export class AcpAgent implements Agent {
 				modelNote = ` (Could not switch to the ${executionModel.role} model; continuing with the current model.)`;
 			}
 		}
-		this.#recordAgentConfigOverrides(record, configBeforeApproval);
+		record.goal.recordAgentConfigOverrides(configBeforeApproval);
 		try {
-			await this.#emitModeUpdates(record);
+			await record.goal.announceMode();
 		} catch (error) {
 			logger.warn("Failed to emit mode updates after plan approval", {
 				sessionId: session.sessionId,
@@ -2762,14 +2615,14 @@ export class AcpAgent implements Agent {
 	#buildModeState(record: ManagedSessionRecord): SessionModeState {
 		return {
 			availableModes: this.#getAvailableModes(record.session),
-			currentModeId: this.#getCurrentModeId(record),
+			currentModeId: record.goal.modeId,
 		};
 	}
 
 	#buildCurrentModeUpdate(record: ManagedSessionRecord): SessionUpdate {
 		return {
 			sessionUpdate: "current_mode_update",
-			currentModeId: this.#getCurrentModeId(record),
+			currentModeId: record.goal.modeId,
 		};
 	}
 
@@ -3417,7 +3270,7 @@ export class AcpAgent implements Agent {
 			return result;
 		} finally {
 			await record.goal.endSessionChange({ detachedRun: detachesRun && result?.cancelled !== true });
-			await this.#syncAgentModeChange(record);
+			await record.goal.syncAgentModeChange();
 		}
 	}
 
@@ -3545,6 +3398,7 @@ export class AcpAgent implements Agent {
 	async #disposeSessionRecord(record: ManagedSessionRecord, reason?: postmortem.Reason): Promise<void> {
 		record.lifetimeUnsubscribe?.();
 		record.goalUnsubscribe?.();
+		record.goal.dispose();
 		if (record.mcpManager) {
 			try {
 				await record.mcpManager.disconnectAll();

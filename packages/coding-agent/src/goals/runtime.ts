@@ -19,6 +19,21 @@ export interface GoalRuntimeHost {
 	now?(): number;
 }
 
+/** Who asks for a goal entry: the host's own prompt handling (`host`) or the agent's `goal` tool (`tool`, the default). */
+export type GoalEntryOrigin = "host" | "tool";
+
+/**
+ * Optional ownership gate a host installs on the runtime (ACP). Without one every
+ * mutator behaves as before, so RPC and the TUI are unaffected. Both checks run
+ * inside the accounting chain, immediately before the commit they guard.
+ */
+export interface GoalMutationGate {
+	/** Throws to refuse a goal entry (create/resume) whose owner moved on: Plan, a session change, a reconcile. */
+	admitEntry(origin: GoalEntryOrigin): void;
+	/** Whether the pause of an interrupted task still applies to the goal now in the session. */
+	admitInterruptPause(): boolean;
+}
+
 export interface GoalTurnSnapshot {
 	turnId: string;
 	baselineUsage: GoalTokenUsage;
@@ -121,10 +136,16 @@ export class GoalRuntime {
 	#wallClock: GoalWallClockSnapshot;
 	#budgetReportedFor: string | undefined;
 	#accountingTail: Promise<void> = Promise.resolve();
+	#gate: GoalMutationGate | undefined;
 
 	constructor(host: GoalRuntimeHost) {
 		this.#host = host;
 		this.#wallClock = { lastAccountedAt: this.#now() };
+	}
+
+	/** Install (or remove) the host's ownership gate. Absent by default: RPC and the TUI never set one. */
+	setMutationGate(gate: GoalMutationGate | undefined): void {
+		this.#gate = gate;
 	}
 
 	get snapshot(): GoalRuntimeSnapshot {
@@ -253,6 +274,7 @@ export class GoalRuntime {
 			await this.#flushUsageLocked("suppressed", undefined, options?.reason === "internal");
 			this.#turnSnapshot = undefined;
 			if (options?.reason !== "interrupted") return;
+			if (this.#gate && !this.#gate.admitInterruptPause()) return;
 			const cloned = this.#getStateClone();
 			if (!cloned?.enabled || cloned.goal.status !== "active") return;
 			cloned.enabled = false;
@@ -390,7 +412,10 @@ export class GoalRuntime {
 		return { enabled: true, mode: "active", goal };
 	}
 
-	async createGoal(input: { objective: string; tokenBudget?: number }): Promise<GoalModeState> {
+	async createGoal(
+		input: { objective: string; tokenBudget?: number },
+		options?: { origin?: GoalEntryOrigin },
+	): Promise<GoalModeState> {
 		const objective = input.objective.trim();
 		if (!objective) throw new Error("objective is required when op=create");
 		validateTokenBudget(input.tokenBudget);
@@ -399,6 +424,7 @@ export class GoalRuntime {
 			if (existing?.goal && existing.goal.status !== "dropped" && existing.goal.status !== "complete") {
 				throw new Error("cannot create a new goal because this session already has a goal");
 			}
+			this.#gate?.admitEntry(options?.origin ?? "tool");
 			const state = this.#createGoalState(objective, input.tokenBudget);
 			this.#budgetReportedFor = undefined;
 			this.#markActiveAccounting(state.goal);
@@ -425,11 +451,12 @@ export class GoalRuntime {
 		});
 	}
 
-	async resumeGoal(): Promise<GoalModeState> {
+	async resumeGoal(options?: { origin?: GoalEntryOrigin }): Promise<GoalModeState> {
 		return await this.#withAccounting(async () => {
 			const state = this.#getStateClone();
 			if (!state?.goal) throw new Error("No paused goal.");
 			if (state.goal.status === "complete") throw new Error("Goal is already complete.");
+			this.#gate?.admitEntry(options?.origin ?? "tool");
 			state.enabled = true;
 			state.mode = "active";
 			state.reason = undefined;

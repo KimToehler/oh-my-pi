@@ -71,6 +71,20 @@ export interface GoalHostControllerOptions {
 	onReconciled?: () => void | Promise<void>;
 }
 
+/** A goal entry whose host owner moved on mid-entry; discarded after its late effects were undone. */
+export class GoalEntryAbandoned extends Error {
+	constructor() {
+		super("Goal entry abandoned: its session changed.");
+		this.name = "GoalEntryAbandoned";
+	}
+}
+
+interface EnterOptions {
+	forHostPrompt?: boolean;
+	/** Optional host-owned ownership check run after the tool swap; false abandons the entry. */
+	fence?: () => boolean;
+}
+
 export class GoalHostController {
 	readonly #session: GoalHostSession;
 	readonly #continuationMode: GoalContinuationMode;
@@ -141,6 +155,11 @@ export class GoalHostController {
 		this.#suppressContinuation = true;
 		this.#continuationScheduled = false;
 		this.#continuationGeneration++;
+	}
+
+	/** A reconcile is queued or running: goal state and tools are being replaced. */
+	get reconciling(): boolean {
+		return this.#reconcilesPending > 0;
 	}
 
 	get #state(): GoalHostResult {
@@ -257,7 +276,7 @@ export class GoalHostController {
 		}
 	}
 
-	async #create(command: GoalHostCommand, options?: { forHostPrompt?: boolean }): Promise<GoalHostResult> {
+	async #create(command: GoalHostCommand, options?: EnterOptions): Promise<GoalHostResult> {
 		this.#assertCanEnter();
 		const objective = command.objective?.trim();
 		if (!objective) throw new Error("objective is required when op=create");
@@ -270,16 +289,19 @@ export class GoalHostController {
 		if (current?.goal.status === "paused") {
 			throw new Error("Resume or drop the paused goal before creating another.");
 		}
-		await this.#enter(() => this.#session.goalRuntime.createGoal({ objective, tokenBudget }), options);
+		await this.#enter(
+			() => this.#session.goalRuntime.createGoal({ objective, tokenBudget }, { origin: "host" }),
+			options,
+		);
 		return this.#state;
 	}
 
-	async #resume(options?: { forHostPrompt?: boolean }): Promise<GoalHostResult> {
+	async #resume(options?: EnterOptions): Promise<GoalHostResult> {
 		this.#assertCanEnter();
 		const current = this.#session.getGoalModeState();
 		if (current?.enabled) return this.#state;
 		if (current?.goal.status !== "paused") throw new Error("No paused goal to resume.");
-		await this.#enter(() => this.#session.goalRuntime.resumeGoal(), options);
+		await this.#enter(() => this.#session.goalRuntime.resumeGoal({ origin: "host" }), options);
 		return this.#state;
 	}
 
@@ -288,15 +310,18 @@ export class GoalHostController {
 	 * No continuation is scheduled here: that prompt's terminal `agent_end` decides
 	 * the first one, so a continuation can never race ahead of the objective turn.
 	 */
-	async createForHostPrompt(input: { objective: string; tokenBudget?: number }): Promise<GoalHostResult> {
+	async createForHostPrompt(
+		input: { objective: string; tokenBudget?: number },
+		options?: { fence?: () => boolean },
+	): Promise<GoalHostResult> {
 		await this.settled();
-		return await this.#create({ op: "create", ...input }, { forHostPrompt: true });
+		return await this.#create({ op: "create", ...input }, { forHostPrompt: true, fence: options?.fence });
 	}
 
 	/** Resume a paused goal for the host prompt about to run; see {@link createForHostPrompt}. */
-	async resumeForHostPrompt(): Promise<GoalHostResult> {
+	async resumeForHostPrompt(options?: { fence?: () => boolean }): Promise<GoalHostResult> {
 		await this.settled();
-		return await this.#resume({ forHostPrompt: true });
+		return await this.#resume({ forHostPrompt: true, fence: options?.fence });
 	}
 
 	/**
@@ -319,7 +344,7 @@ export class GoalHostController {
 		return this.#state;
 	}
 
-	async #enter(start: () => Promise<GoalModeState>, options?: { forHostPrompt?: boolean }): Promise<void> {
+	async #enter(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
 		// The pre-goal tool set is captured once, when this controller first adds `goal`
 		// (a reattached paused goal already holds it). A `goal` tool the host enabled
 		// before the goal stays enabled afterwards.
@@ -327,6 +352,15 @@ export class GoalHostController {
 		const state = await start();
 		this.#previousTools = previousTools;
 		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
+		if (options?.fence && !options.fence()) {
+			// The host's owner of this entry moved on (an ACP session change) while the tool swap
+			// was running. The new owner's reconcile already replaced goal state and tools, so this
+			// entry's late swap is undone, deterministically, and its state is never installed.
+			await this.settled();
+			const current = this.#session.getGoalModeState();
+			await this.#session.setActiveToolsByName(current ? [...new Set([...previousTools, "goal"])] : previousTools);
+			throw new GoalEntryAbandoned();
+		}
 		this.#session.setGoalModeState(state);
 		this.#resetContinuation();
 		if (this.#session.isStreaming) {

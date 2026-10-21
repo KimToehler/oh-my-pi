@@ -99,7 +99,7 @@ class ReplayTestSession {
 	}
 
 	/** No journaled goal: `AgentSession`'s goal surface as ACP registration reads it. */
-	goalRuntime = { clearAccounting(): void {} };
+	goalRuntime = { clearAccounting(): void {}, setMutationGate(): void {} };
 	getGoalModeState(): undefined {
 		return undefined;
 	}
