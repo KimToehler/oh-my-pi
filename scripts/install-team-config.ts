@@ -183,23 +183,48 @@ function newFiles(): Record<string, ManifestEntry> {
 	return Object.create(null) as Record<string, ManifestEntry>;
 }
 
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Parse the manifest strictly: exactly the v1 or v2 shape, nothing else. Throws naming `file`; never rewrites it. */
 function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
 	if (bytes === undefined) return { version: 2, files: newFiles() };
-	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { version?: unknown; files?: unknown };
-	if (manifest?.version === 2 && typeof manifest.files === "object" && manifest.files !== null) {
-		// Copy into a null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
-		const files = newFiles();
-		for (const [rel, entry] of Object.entries(manifest.files as Record<string, ManifestEntry>)) files[rel] = entry;
-		return { version: 2, files };
+	const invalid = (why: string): Error => new Error(`Invalid team config manifest ${file}: ${why}`);
+	let manifest: unknown;
+	try {
+		manifest = JSON.parse(new TextDecoder().decode(bytes));
+	} catch (err) {
+		throw invalid(err instanceof Error ? err.message : String(err));
 	}
-	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
-		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
-		const files = newFiles();
-		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
-			files[rel] = { hash, adopted: true };
-		return { version: 2, files };
+	if (!isPlainObject(manifest)) throw invalid("not a JSON object");
+	const version = manifest.version;
+	if (version !== 1 && version !== 2) throw invalid("unsupported version");
+	for (const key of Object.keys(manifest)) {
+		if (key !== "version" && key !== "files") throw invalid(`unexpected top-level key "${key}"`);
 	}
-	throw new Error(`Unsupported team config manifest ${file}`);
+	if (!isPlainObject(manifest.files)) throw invalid('"files" is not an object');
+	// Null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
+	const files = newFiles();
+	for (const [rel, entry] of Object.entries(manifest.files)) {
+		if (version === 1) {
+			if (typeof entry !== "string" || !SHA256_HEX.test(entry)) throw invalid(`"${rel}" has a non-sha256 hash`);
+			// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
+			files[rel] = { hash: entry, adopted: true };
+			continue;
+		}
+		if (!isPlainObject(entry)) throw invalid(`"${rel}" is not an object`);
+		for (const key of Object.keys(entry)) {
+			if (key !== "hash" && key !== "adopted") throw invalid(`"${rel}" has unexpected key "${key}"`);
+		}
+		if (typeof entry.hash !== "string" || !SHA256_HEX.test(entry.hash))
+			throw invalid(`"${rel}" has a non-sha256 hash`);
+		if ("adopted" in entry && entry.adopted !== true) throw invalid(`"${rel}" has a non-true "adopted"`);
+		files[rel] = entry.adopted === true ? { hash: entry.hash, adopted: true } : { hash: entry.hash };
+	}
+	return { version: 2, files };
 }
 
 /** Write `bytes` to `dst` atomically via an exclusively created, run-unique temp; sets `mode`. */

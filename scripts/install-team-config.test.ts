@@ -583,6 +583,51 @@ describe("installTeamConfig", () => {
 		expect(manifest.files["AGENTS.md"].adopted).toBeUndefined();
 	});
 
+	test("loads a version 1 manifest shaped like a real one (tabs, trailing newline)", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await Bun.write(t.agent("AGENTS.md"), "v1\n");
+		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+		await Bun.write(
+			t.agent(".team-config-manifest.json"),
+			`{\n\t"version": 1,\n\t"files": {\n\t\t"AGENTS.md": "${sha}"\n\t}\n}\n`,
+		);
+		const report = await t.install();
+		expect(report.updated).toEqual([]);
+		expect((await Bun.file(t.agent(".team-config-manifest.json")).json()).version).toBe(2);
+	});
+
+	describe("strict manifest schema", () => {
+		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+		const cases: Array<[string, unknown]> = [
+			["an extra top-level key", { version: 2, files: {}, extra: 1 }],
+			["an extra top-level key in a version 1 manifest", { version: 1, files: {}, extra: 1 }],
+			["an extra entry key", { version: 2, files: { "AGENTS.md": { hash: sha, note: "x" } } }],
+			["a non-hex hash", { version: 2, files: { "AGENTS.md": { hash: "not-a-hash" } } }],
+			["a non-hex version 1 hash", { version: 1, files: { "AGENTS.md": "zz" } }],
+			["a non-true adopted flag", { version: 2, files: { "AGENTS.md": { hash: sha, adopted: false } } }],
+		];
+		for (const [name, manifest] of cases) {
+			test(`rejects ${name} naming the manifest and leaves the agent dir unchanged`, async () => {
+				const t = await setup({ "agent/AGENTS.md": "v2\n", "agent/b.md": "b\n" });
+				await fs.mkdir(t.agentDir, { recursive: true });
+				await Bun.write(t.agent("AGENTS.md"), "v1\n");
+				const manifestFile = t.agent(".team-config-manifest.json");
+				await Bun.write(manifestFile, JSON.stringify(manifest, null, "\t"));
+				const snapshot = async () =>
+					Promise.all(
+						(await fs.readdir(t.agentDir, { recursive: true })).sort().map(async rel => {
+							const stat = await fs.stat(t.agent(rel));
+							return [rel, stat.isFile() ? await t.read(t.agent(rel)) : "<dir>"];
+						}),
+					);
+				const before = await snapshot();
+				await expect(t.install()).rejects.toThrow(manifestFile);
+				expect(await snapshot()).toEqual(before);
+			});
+		}
+	});
+
 	test("leaves no manifest or managed file when a fresh install aborts before its first step", async () => {
 		const t = await setup({ "agent/rules/a.md": "team\n" });
 		const outside = path.join(path.dirname(t.agentDir), "outside");

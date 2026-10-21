@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Build omp from a git ref (default: main) into a standalone binary, install it
-# as $OMP_BIN_DIR/omp, and sync the team config (team-config/) of the same ref
-# into the omp agent dir. Only this script changes what `omp` runs; edits in any
-# checkout have no effect until the next deploy.
+# Build omp from a git ref (default: main) into a standalone binary, sync the
+# team config (team-config/) of the same ref into the omp agent dir, and only
+# then install the binary as $OMP_BIN_DIR/omp (and write omp.deployed). A failed
+# config sync exits non-zero and leaves the live binary untouched. Only this
+# script changes what `omp` runs; edits in any checkout have no effect until the
+# next deploy.
 #
 # Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
 #   OMP_BIN_DIR       install dir (default ~/.local/bin)
@@ -68,6 +70,16 @@ BUILT="$WT/packages/coding-agent/dist/omp"
 log "Smoke testing $BUILT"
 (cd /tmp && "$BUILT" --version && "$BUILT" --smoke-test)
 
+# Team config first: an installer failure must leave the live binary and
+# omp.deployed untouched. It may have applied part of the config by then.
+if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
+	log "Syncing team config"
+	if ! (cd "$WT" && bun scripts/install-team-config.ts); then
+		echo "Team config sync failed: the binary was NOT replaced, and the team config may be partially applied. Fix the cause and rerun the deploy." >&2
+		exit 1
+	fi
+fi
+
 log "Installing to $TARGET"
 mkdir -p "$BIN_DIR"
 cp "$BUILT" "$TARGET.new"
@@ -76,11 +88,6 @@ if [ -f "$TARGET" ]; then
 fi
 mv -f "$TARGET.new" "$TARGET"
 printf '%s %s %s\n' "$COMMIT" "$REF" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$BIN_DIR/omp.deployed"
-
-if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
-	log "Syncing team config"
-	(cd "$WT" && bun scripts/install-team-config.ts)
-fi
 
 log "Deployed $(cat "$BIN_DIR/omp.deployed")"
 case ":$PATH:" in
