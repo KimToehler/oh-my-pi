@@ -285,3 +285,97 @@ Received: "paused"
 (fail) ACP agent > ACP Goal mode > (commit fence) an interrupted abort bound to no Stop, suspended in its usage flush while transcript B is adopted, never pauses B's goal [8.61ms]
  0 pass
  2 fail
+
+# RED round 4 (rows 18-19) against 4272a90ed7; only test hunks applied
+4272a90ed7
+bun test v1.4.3 (26aa4e1a9)
+
+packages/coding-agent/test/acp-agent.test.ts:
+6411 | 						// B's own selection, made as soon as it exists.
+6412 | 						await session.setActiveToolsByName(["read", "write"]);
+6413 | 					},
+6414 | 				});
+6415 | 				await eventLoopTurns(10);
+6416 | 				expect(session.enabledTools).toEqual(["read", "goal"]);
+                                        ^
+error: expect(received).toEqual(expected)
+
+@@ -2,2 +2,3 @@
+    "read",
++   "write",
+    "goal",
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/private/tmp/acp-red4/packages/coding-agent/test/acp-agent.test.ts:6416:34)
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore finishes it before transcript B is adopted, so B with a goal keeps its own tools [7.62ms]
+6411 | 						// B's own selection, made as soon as it exists.
+6412 | 						await session.setActiveToolsByName(["read", "write"]);
+6413 | 					},
+6414 | 				});
+6415 | 				await eventLoopTurns(10);
+6416 | 				expect(session.enabledTools).toEqual(["read", "goal"]);
+                                        ^
+error: expect(received).toEqual(expected)
+
+@@ -2,3 +2,3 @@
+    "read",
+-   "goal",
++   "write",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/private/tmp/acp-red4/packages/coding-agent/test/acp-agent.test.ts:6416:34)
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore finishes it before transcript B is adopted, so B without a goal keeps its own tools [5.19ms]
+6555 | 			// Stop in B settles while A's abort is still pending: B's goal is paused.
+6556 | 			const stopB = actor.stop();
+6557 | 			await session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: stopB.stamp });
+6558 | 			stopB.abortSettled();
+6559 | 			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+6560 | 			expect(session.goalModeState?.goal.status).toBe("paused");
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "paused"
+Received: "active"
+
+      at <anonymous> (/private/tmp/acp-red4/packages/coding-agent/test/acp-agent.test.ts:6560:47)
+(fail) ACP agent > ACP Goal mode > (per-abort stamp) a Stop in transcript B pauses B's goal while transcript A's abort is still pending, and A's late abort then changes nothing [3.42ms]
+
+packages/coding-agent/test/goals/goal-host-controller.test.ts:
+715 | 				const begin = f.controller.beginSessionChange().then(() => {
+716 | 					changeBegun = true;
+717 | 				});
+718 | 				await nextMacrotask();
+719 | 				// The change waits for A's restore: B cannot choose tools before it has landed.
+720 | 				expect(changeBegun).toBe(false);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/private/tmp/acp-red4/packages/coding-agent/test/goals/goal-host-controller.test.ts:720:25)
+(fail) GoalHostController continuation gate > a stamped pause's tool restore > is finished by the session change before transcript B with a goal chooses its tools [0.52ms]
+715 | 				const begin = f.controller.beginSessionChange().then(() => {
+716 | 					changeBegun = true;
+717 | 				});
+718 | 				await nextMacrotask();
+719 | 				// The change waits for A's restore: B cannot choose tools before it has landed.
+720 | 				expect(changeBegun).toBe(false);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/private/tmp/acp-red4/packages/coding-agent/test/goals/goal-host-controller.test.ts:720:25)
+(fail) GoalHostController continuation gate > a stamped pause's tool restore > is finished by the session change before transcript B without a goal chooses its tools [0.19ms]
+
+ 189 pass
+ 5 fail
+ 888 expect() calls
+Ran 194 tests across 2 files. [1.83s]

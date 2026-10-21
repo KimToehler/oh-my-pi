@@ -140,3 +140,29 @@ restore cmp: identical
 
 restore cmp: identical
 Note: mutation 0 (the central stamp check alone) fails the row 11 (resume/drop admitted in A), row 14 (drop/complete in usage flush, drop event delivery) and row 17 tests, and the S×X/R and X/R×T tests.
+
+## row 19 - guard: #restoreTools chained in #exitTask with stamp re-check (guard reverted: restore runs directly)
+with guard:     195 pass | 0 fail (acp-agent + goal-host-controller)
+guard reverted:
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore finishes it before transcript B is adopted, so B with a goal keeps its own tools [5.08ms]
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore finishes it before transcript B is adopted, so B without a goal keeps its own tools [3.98ms]
+(fail) GoalHostController continuation gate > a stamped pause's tool restore > is finished by the session change before transcript B with a goal chooses its tools [0.28ms]
+(fail) GoalHostController continuation gate > a stamped pause's tool restore > is finished by the session change before transcript B without a goal chooses its tools [0.10ms]
+ 190 pass
+ 4 fail
+
+## row 18 - guard: AcpGoalStop.stamp passed as goalStamp to session.abort (guard reverted: abort reserves its stamp at unwind)
+with guard:     168 pass | 0 fail (acp-agent)
+guard reverted:
+(fail) ACP agent > ACP Goal mode > (S×X/R) Stop's late interrupted abort never pauses the goal a new transcript adopted [8.25ms]
+(fail) ACP agent > ACP Goal mode > (S×X/R) a Stop whose cleanup timed out keeps its interrupted pause bound to its own transcript until the late abort settles [15.94ms]
+(fail) ACP agent > ACP Goal mode > (commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn snapshot [4.34ms]
+ 165 pass
+ 3 fail
+
+## row 18 - guard: gate checks only the abort's own stamp (guard reverted: any unsettled Stop of another transcript refuses, as the old 'abort' scope did)
+with guard:     168 pass | 0 fail (acp-agent)
+guard reverted:
+(fail) ACP agent > ACP Goal mode > (per-abort stamp) a Stop in transcript B pauses B's goal while transcript A's abort is still pending, and A's late abort then changes nothing [2.80ms]
+ 167 pass
+ 1 fail
