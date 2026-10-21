@@ -64,6 +64,7 @@ import { cfgPlanAutosave, cfgPlanAutosaveDir, cfgPlanEnabled } from "@oh-my-pi/p
 import { cfgGoalEnabled } from "@oh-my-pi/pi-coding-agent/goals/settings";
 import { GoalRuntime } from "@oh-my-pi/pi-coding-agent/goals/runtime";
 import type { GoalModeState, GoalRuntimeEvent } from "@oh-my-pi/pi-coding-agent/goals/state";
+import type { Goal } from "@oh-my-pi/pi-tui/tools/goal";
 
 /** Validates an ACP wire payload against the in-house protocol schemas. */
 function expectAcpStructure(schema: Validator<unknown>, value: unknown): void {
@@ -5999,30 +6000,33 @@ describe("ACP agent", () => {
 			};
 		}
 
-		it("(P×M) a Plan selection landing after a prompt's goal entry never leaves Plan beside a submitted objective turn or an active goal", async () => {
+		it("(P×M) a Plan selection landing after a prompt's goal entry never submits the objective turn or leaves an active goal", async () => {
 			const { harness, sessionId, session } = await goalHarness();
 			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
-			const turnGate = Promise.withResolvers<void>();
-			session.promptGate = turnGate.promise;
+			// Goal selection is already reported, so the entry sends no mode notification to hold. The
+			// entry's own `goal_updated` delivery is the last await before the prompt is confirmed.
+			const hold = holdGoalEmit(session);
+			const submitted: string[] = [];
 			const planAtSubmit: boolean[] = [];
 			const submit = session.prompt.bind(session);
 			session.prompt = async (text, options) => {
+				submitted.push(text);
 				planAtSubmit.push(session.planModeState?.enabled === true);
 				return await submit(text, options);
 			};
-			const hold = holdNextToolSwap(session);
 			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
 			await hold.entered;
+			// The entry committed; the prompt is not submitted yet. Plan lands now.
 			const plan = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
 			await eventLoopTurns(5);
 			hold.release();
 			await plan;
-			turnGate.resolve();
-			await prompt.catch(() => undefined);
+			const response = await prompt;
 			await eventLoopTurns(10);
 
-			// Either the prompt ran under Goal before Plan applied, or it never ran: never under Plan.
-			expect(planAtSubmit.every(planEnabled => !planEnabled)).toBe(true);
+			expect(response.stopReason).toBe("cancelled");
+			expect(submitted).toEqual([]);
+			expect(planAtSubmit).toEqual([]);
 			expect(session.planModeState?.enabled).toBe(true);
 			expect(session.goalModeState?.enabled).not.toBe(true);
 			expect(session.enabledTools).not.toContain("goal");
@@ -6140,6 +6144,101 @@ describe("ACP agent", () => {
 			expect(session.sessionManager.buildSessionContext().mode).not.toBe("goal");
 			expect(session.enabledTools).not.toContain("goal");
 			expect(lastModeNotification(harness, session.sessionId)).toBe("default");
+			harness.abortController.abort();
+		});
+
+		/** Hold the next goal event delivery: the runtime's accounting chain stays busy until released. */
+		function holdGoalEmit(session: FakeAgentSession): { entered: Promise<void>; release: () => void } {
+			const entered = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			session.goalEmitBlocker = async () => {
+				session.goalEmitBlocker = undefined;
+				entered.resolve();
+				await release.promise;
+			};
+			return { entered: entered.promise, release: release.resolve };
+		}
+
+		function adoptedGoal(status: "active" | "paused"): Goal {
+			return {
+				id: "g-adopted",
+				objective: "adopted",
+				status,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 0,
+				updatedAt: 0,
+			};
+		}
+
+		it("(stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			const hold = holdGoalEmit(session);
+			const pausing = session.goalRuntime.pauseGoal();
+			await hold.entered;
+			// The tool call is admitted in A and queues behind the held chain.
+			const staleResume = session.goalRuntime.resumeGoal().then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal_paused", { goal: adoptedGoal("paused") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("paused");
+
+			hold.release();
+			await pausing;
+			const error = await staleResume;
+			await eventLoopTurns(10);
+
+			expect(error).toBeInstanceOf(Error);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("paused");
+			expect(session.goalModeState?.enabled).not.toBe(true);
+			harness.abortController.abort();
+		});
+
+		it("(stamp) a goal tool drop admitted in transcript A, released after the switch to B and its reconcile, never drops B's adopted goal", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			const hold = holdGoalEmit(session);
+			const pausing = session.goalRuntime.pauseGoal();
+			await hold.entered;
+			const staleDrop = session.goalRuntime.dropGoal({ origin: "tool" }).then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			hold.release();
+			await pausing;
+			const error = await staleDrop;
+			await eventLoopTurns(10);
+
+			expect(error).toBeInstanceOf(Error);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
 			harness.abortController.abort();
 		});
 
