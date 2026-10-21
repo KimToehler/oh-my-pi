@@ -192,6 +192,7 @@ import { computeNonMessageTokens } from "@oh-my-pi/pi-tui/status-line/context-us
 import {
 	isPlanApprovalDetails,
 	planContentSha256,
+	planProposalSupersededResult,
 	type ResolvedApprovedPlan,
 	resolveApprovedPlan,
 } from "../plan-mode/approved-plan";
@@ -265,12 +266,15 @@ import {
 } from "../tools/computer/supervisor";
 import { isAutoQaEnabled } from "../tools/report-tool-issue";
 import {
+	ALWAYS_OWNS_PLAN_PROPOSAL,
 	buildResolveReminderMessage,
 	isPreviewResolutionToolCall,
 	isProposeToolCall,
 	NO_PLAN_AWAITING_APPROVAL,
 	type PlanProposalCall,
 	type PlanProposalHandler,
+	type PlanProposalOwnership,
+	type PlanProposalOwnershipReserver,
 	writeDeviceDispatch,
 } from "../tools/resolve";
 import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
@@ -1743,6 +1747,11 @@ export class AgentSession implements SettingsScope {
 	 * Single convergence point of every `xd://propose` dispatch: resolve the
 	 * proposed plan exactly once, then hand the resolved plan to the handler
 	 * installed by the active plan-mode host (interactive, ACP, plan-yolo).
+	 *
+	 * A host that installed an ownership reserver has the proposal's ownership
+	 * reserved here, at dispatch, before resolution or review awaits. Every write
+	 * the proposal derives (path promotion here, the handler's own writes) checks
+	 * it synchronously first; a superseded proposal writes nothing.
 	 */
 	async submitPlanProposal(title: string, call: PlanProposalCall = {}): Promise<AgentToolResult<unknown>> {
 		throwIfAborted(call.signal);
@@ -1750,6 +1759,7 @@ export class AgentSession implements SettingsScope {
 		if (!handler) throw new ToolError(NO_PLAN_AWAITING_APPROVAL);
 		const state = this.getPlanModeState();
 		if (!state?.enabled) throw new ToolError("Plan mode is not active.");
+		const owns = this.#reservePlanProposalOwnership?.() ?? ALWAYS_OWNS_PLAN_PROPOSAL;
 		const reviewEnabled = cfgPlanReviewEnabled.get(this.settings);
 		const planner = reviewEnabled ? this.#takeReviewablePlanner(call.toolCallId) : undefined;
 		const plan = await resolveApprovedPlan({
@@ -1758,7 +1768,7 @@ export class AgentSession implements SettingsScope {
 			readPlan: url => this.#readPlanFile(url),
 			listPlanFiles: () => this.#listPlanFiles(),
 		});
-		if (!planner) return handler(plan);
+		if (!planner) return handler(plan, owns);
 		const outcome = await reviewProposedPlan({
 			toolSession: call.toolSession,
 			plannerMessage: planner,
@@ -1767,7 +1777,7 @@ export class AgentSession implements SettingsScope {
 			modelRegistry: this.#modelRegistry,
 			signal: call.signal,
 		});
-		return this.#applyPlanReview({ plan, planner, outcome, handler });
+		return this.#applyPlanReview({ plan, planner, outcome, handler, owns });
 	}
 
 	/** Structural refusals of an enabled review: the proposal must come from a recorded
@@ -1788,11 +1798,15 @@ export class AgentSession implements SettingsScope {
 		planner: AssistantMessage;
 		outcome: PlanReviewOutcome;
 		handler: PlanProposalHandler;
+		owns: PlanProposalOwnership;
 	}): Promise<AgentToolResult<unknown>> {
-		const { plan, outcome, handler } = review;
+		const { plan, outcome, handler, owns } = review;
 		const round = this.#planReviewRounds + 1;
 		const planSha256 = planContentSha256(plan.planContent);
 		const blocking = outcome.kind === "reject" && round <= PLAN_REVIEW_MAX_ROUNDS;
+		// The review awaited; a mode or transcript change since dispatch superseded this proposal,
+		// so neither its audit entry nor its path promotion may land in the state that replaced it.
+		if (!owns()) return planProposalSupersededResult(plan);
 		this.#appendPlanReviewAudit({ ...review, round, planSha256 });
 		if (blocking) {
 			this.#planReviewRounds = round;
@@ -1808,7 +1822,7 @@ export class AgentSession implements SettingsScope {
 		}
 		this.#planReviewRounds = 0;
 		const pass = this.#announcePlanReviewPass(outcome);
-		const result = await handler(pass.bindsBytes ? { ...plan, reviewedSha256: planSha256 } : plan);
+		const result = await handler(pass.bindsBytes ? { ...plan, reviewedSha256: planSha256 } : plan, owns);
 		const details =
 			pass.bindsBytes && isPlanApprovalDetails(result.details) ? { ...result.details, planSha256 } : result.details;
 		return { ...result, content: [{ type: "text", text: pass.status }, ...result.content], details };
@@ -1897,6 +1911,18 @@ export class AgentSession implements SettingsScope {
 	 * plan file changes afterwards. Returns the snapshot's `local://` URL.
 	 */
 	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		const url = await this.createApprovedPlanSnapshot(plan);
+		this.setPlanReferencePath(url);
+		return url;
+	}
+
+	/**
+	 * The asynchronous half of {@link adoptApprovedPlan}: write (or verify) the
+	 * content-addressed snapshot and return its `local://` URL without touching the
+	 * plan reference. A host whose ownership can change while the file write awaits
+	 * installs the reference itself, synchronously, once it still owns the proposal.
+	 */
+	async createApprovedPlanSnapshot(plan: ResolvedApprovedPlan): Promise<string> {
 		const sha256 = planContentSha256(plan.planContent);
 		const name = path.posix.basename(plan.planFilePath.replace(/^local:\/+/, "")) || "PLAN.md";
 		const url = `local://approved/${sha256}-${name}`;
@@ -1913,7 +1939,6 @@ export class AgentSession implements SettingsScope {
 				throw new ToolError(`Approved plan snapshot ${url} does not hold the approved bytes.`);
 			}
 		}
-		this.setPlanReferencePath(url);
 		return url;
 	}
 
@@ -3103,14 +3128,17 @@ export class AgentSession implements SettingsScope {
 
 	/** Plan-proposal handler consulted by `xd://propose` while plan mode is active. */
 	#planProposalHandler: PlanProposalHandler | undefined;
+	/** Installed with the handler by a host whose ownership can change mid-proposal (ACP); absent otherwise. */
+	#reservePlanProposalOwnership: PlanProposalOwnershipReserver | undefined;
 
 	peekPlanProposalHandler(): PlanProposalHandler | undefined {
 		return this.#planProposalHandler;
 	}
 
 	/** The handler can ask the user to approve the plan mid-turn (ACP), so it runs as a {@link waitForUser}. */
-	setPlanProposalHandler(handler: PlanProposalHandler | null): void {
-		this.#planProposalHandler = handler ? title => this.waitForUser(() => handler(title)) : undefined;
+	setPlanProposalHandler(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void {
+		this.#planProposalHandler = handler ? (plan, owns) => this.waitForUser(() => handler(plan, owns)) : undefined;
+		this.#reservePlanProposalOwnership = handler ? reserveOwnership : undefined;
 	}
 
 	#sessionBeforeSwitchReconciler: (() => Promise<void>) | undefined;

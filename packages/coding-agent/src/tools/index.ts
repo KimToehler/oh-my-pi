@@ -74,7 +74,7 @@ import { MemoryReflectTool } from "./memory-reflect";
 import { MemoryRetainTool } from "./memory-retain";
 import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
-import type { PlanProposalCall, PlanProposalHandler } from "./resolve";
+import type { PlanProposalCall, PlanProposalHandler, PlanProposalOwnershipReserver } from "./resolve";
 import { SecurityScanTool } from "./security-scan";
 import { supportsExternalThinking, ThinkTool } from "./think";
 import { type TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
@@ -510,7 +510,7 @@ export interface ToolSession {
 	 *  the installed plan-proposal handler. */
 	submitPlanProposal?(title: string, call: PlanProposalCall): Promise<AgentToolResult<unknown>>;
 	/** Register or clear the plan-proposal handler. Passing `null` clears it. */
-	setPlanProposalHandler?(handler: PlanProposalHandler | null): void;
+	setPlanProposalHandler?(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void;
 	/** Get active checkpoint state if any. */
 	getCheckpointState?: () => CheckpointState | undefined;
 	/** Set or clear active checkpoint state. */

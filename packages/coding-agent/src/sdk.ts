@@ -2439,7 +2439,8 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			peekPendingInvoker: () => session.peekPendingInvoker(),
 			clearPendingInvokers: () => session.clearPendingInvokers(),
 			peekPlanProposalHandler: () => session.peekPlanProposalHandler(),
-			setPlanProposalHandler: handler => session.setPlanProposalHandler(handler),
+			setPlanProposalHandler: (handler, reserveOwnership) =>
+				session.setPlanProposalHandler(handler, reserveOwnership),
 			submitPlanProposal: (title, call) => session.submitPlanProposal(title, call),
 			allocateOutputArtifact: async toolType => {
 				try {

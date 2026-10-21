@@ -820,6 +820,69 @@ describe("plan review runtime", () => {
 		expect(auditEntries(harness)).toEqual([]);
 	});
 
+	it("creating the approved snapshot leaves the plan reference alone; adopting it installs the reference", async () => {
+		const harness = createHarness();
+		const referenceBefore = harness.session.getPlanReferencePath();
+
+		const url = await harness.session.createApprovedPlanSnapshot(BOUND_PLAN);
+
+		expect(await Bun.file(harness.planPath(url)).text()).toBe(PLAN_TEXT);
+		expect(harness.session.getPlanReferencePath()).toBe(referenceBefore);
+		expect(await harness.session.adoptApprovedPlan(BOUND_PLAN)).toBe(url);
+		expect(harness.session.getPlanReferencePath()).toBe(url);
+	});
+
+	it("a host-reserved proposal ownership lost during the review writes no promotion, audit or handler call", async () => {
+		const harness = createHarness();
+		await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+		const owned = { current: true };
+		harness.session.setPlanProposalHandler(
+			async plan => {
+				harness.handled.push(plan);
+				return { content: [{ type: "text", text: HANDLER_TEXT }] };
+			},
+			() => () => owned.current,
+		);
+		const reviewing = Promise.withResolvers<void>();
+		const released = Promise.withResolvers<StructuredSubagentResult>();
+		vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockImplementation(async () => {
+			reviewing.resolve();
+			return released.promise;
+		});
+
+		const pending = propose(harness);
+		await reviewing.promise;
+		owned.current = false;
+		released.resolve(reject());
+		const result = await pending;
+
+		expect(resultText(result)).toMatch(/session mode changed while the approval was pending/);
+		expect(harness.session.getPlanModeState()?.planFilePath).toBe("local://PLAN.md");
+		expect(auditEntries(harness)).toEqual([]);
+		expect(harness.handled).toEqual([]);
+	});
+
+	it("a host-reserved proposal ownership still held reaches the handler as the same check", async () => {
+		const harness = createHarness();
+		await Bun.write(harness.planPath(PLAN_URL), PLAN_TEXT);
+		const owned = { current: true };
+		const seen: boolean[] = [];
+		harness.session.setPlanProposalHandler(
+			async (_plan, owns) => {
+				seen.push(owns());
+				owned.current = false;
+				seen.push(owns());
+				return { content: [{ type: "text", text: HANDLER_TEXT }] };
+			},
+			() => () => owned.current,
+		);
+		vi.spyOn(structuredSubagentModule, "runStructuredSubagent").mockResolvedValue(okay());
+
+		await propose(harness);
+
+		expect(seen).toEqual([true, false]);
+	});
+
 	it("refuses to adopt a snapshot path that already holds other bytes and keeps the plan reference", async () => {
 		const harness = createHarness();
 		const snapshotUrl = `local://approved/${planContentSha256(PLAN_TEXT)}-demo-plan.md`;

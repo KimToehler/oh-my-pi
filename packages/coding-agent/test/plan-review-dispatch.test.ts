@@ -219,9 +219,9 @@ describe("plan review through the real agent loop, per approval installer", () =
 		const installed = harness.session.peekPlanProposalHandler();
 		if (!installed) throw new Error("installer did not register a plan proposal handler");
 		const handled: ResolvedApprovedPlan[] = [];
-		harness.session.setPlanProposalHandler(plan => {
+		harness.session.setPlanProposalHandler((plan, owns) => {
 			handled.push(plan);
-			return installed(plan);
+			return installed(plan, owns);
 		});
 		return handled;
 	}

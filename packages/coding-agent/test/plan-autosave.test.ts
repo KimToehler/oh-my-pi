@@ -211,7 +211,7 @@ describe("plan-yolo approval autosave", () => {
 		await Bun.write(planPath, "# Plan\n\nYolo.\n");
 		const handler = t.getHandler();
 		if (!handler) throw new Error("expected a plan proposal handler");
-		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd))) as {
+		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd), () => true)) as {
 			content: Array<{ type: string; text: string }>;
 			details: { planFilePath: string; title: string; planExists: boolean };
 		};
@@ -240,7 +240,7 @@ describe("plan-yolo approval autosave", () => {
 		await Bun.write(planPath, "# Plan\n\nYolo.\n");
 		const handler = t.getHandler();
 		if (!handler) throw new Error("expected a plan proposal handler");
-		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd))) as {
+		const result = (await handler(await resolveAuthPlan(t.localOptions, cwd), () => true)) as {
 			content: Array<{ type: string; text: string }>;
 		};
 		expect(result.content[0]?.text).toBe(`Plan approved. Implementing now with ${target.id}.`);

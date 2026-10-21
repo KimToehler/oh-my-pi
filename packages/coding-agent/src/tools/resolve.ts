@@ -107,9 +107,23 @@ export function writeDeviceDispatch(toolName: string, result: unknown): XdevDisp
 	return xdev as XdevDispatch;
 }
 
+/** Whether a plan proposal still owns what its completion would write. Evaluated synchronously right
+ *  before each write; false once a host mode or transcript change superseded the proposal. */
+export type PlanProposalOwnership = () => boolean;
+
+/** Reserves ownership for one proposal at dispatch, before anything about it awaits. */
+export type PlanProposalOwnershipReserver = () => PlanProposalOwnership;
+
+/** Ownership of every proposal when the host installed no reserver (TUI, RPC, plan-yolo). */
+export const ALWAYS_OWNS_PLAN_PROPOSAL: PlanProposalOwnership = () => true;
+
 /** Handler installed by plan mode. The session resolves the proposed plan once
- *  (`AgentSession.submitPlanProposal`) and hands the handler the resolved plan. */
-export type PlanProposalHandler = (plan: ResolvedApprovedPlan) => Promise<AgentToolResult<unknown>>;
+ *  (`AgentSession.submitPlanProposal`) and hands the handler the resolved plan
+ *  together with the ownership it reserved when the proposal was dispatched. */
+export type PlanProposalHandler = (
+	plan: ResolvedApprovedPlan,
+	owns: PlanProposalOwnership,
+) => Promise<AgentToolResult<unknown>>;
 
 /** Identity of one `xd://propose` dispatch, forwarded to `ToolSession.submitPlanProposal`. */
 export interface PlanProposalCall {

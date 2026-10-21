@@ -23,7 +23,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
 import { listPlanFiles, readPlanFile } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
 import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
-import type { PlanProposalHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
+import type { PlanProposalHandler, PlanProposalOwnershipReserver } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import type {
 	AgentSession,
 	AgentSessionEvent,
@@ -495,8 +495,11 @@ class FakeAgentSession {
 
 	planProposalHandler: PlanProposalHandler | undefined;
 
-	setPlanProposalHandler(handler: PlanProposalHandler | null): void {
+	reservePlanProposalOwnership: PlanProposalOwnershipReserver | undefined;
+
+	setPlanProposalHandler(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void {
 		this.planProposalHandler = handler ?? undefined;
+		this.reservePlanProposalOwnership = handler ? reserveOwnership : undefined;
 	}
 
 	peekPlanProposalHandler(): PlanProposalHandler | undefined {
@@ -515,9 +518,13 @@ class FakeAgentSession {
 
 	adoptedPlans: ResolvedApprovedPlan[] = [];
 
-	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+	async createApprovedPlanSnapshot(plan: ResolvedApprovedPlan): Promise<string> {
 		this.adoptedPlans.push(plan);
-		this.planReferencePath = `local://approved/${plan.planFilePath.replace("local://", "")}`;
+		return `local://approved/${plan.planFilePath.replace("local://", "")}`;
+	}
+
+	async adoptApprovedPlan(plan: ResolvedApprovedPlan): Promise<string> {
+		this.planReferencePath = await this.createApprovedPlanSnapshot(plan);
 		return this.planReferencePath;
 	}
 
@@ -573,16 +580,19 @@ class FakeAgentSession {
 
 /**
  * Resolve the plan the way `AgentSession.submitPlanProposal` does, then call the installed ACP handler.
- * `reviewed` stands in for a completed cross-family review, which binds the resolved bytes.
+ * Ownership is reserved at dispatch, before resolution; `resolving` holds the dispatch where the real one
+ * awaits plan resolution and review. `reviewed` stands in for a completed review, which binds the resolved bytes.
  */
 async function proposePlan(
 	session: FakeAgentSession,
 	title: string,
-	options: { reviewed?: boolean } = {},
+	options: { reviewed?: boolean; resolving?: Promise<void> } = {},
 ): Promise<unknown> {
 	const handler = session.planProposalHandler;
 	const state = session.planModeState;
 	if (!handler || !state?.enabled) throw new Error("expected ACP plan mode with a proposal handler");
+	const owns = session.reservePlanProposalOwnership?.() ?? (() => true);
+	await options.resolving;
 	const planPathOptions = {
 		localProtocolOptions: {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
@@ -596,7 +606,7 @@ async function proposePlan(
 		readPlan: url => readPlanFile(url, planPathOptions),
 		listPlanFiles: () => listPlanFiles(planPathOptions),
 	});
-	return handler(options.reviewed ? { ...plan, reviewedSha256: planContentSha256(plan.planContent) } : plan);
+	return handler(options.reviewed ? { ...plan, reviewedSha256: planContentSha256(plan.planContent) } : plan, owns);
 }
 
 function holdPromptStreaming(session: FakeAgentSession): () => void {
@@ -1333,15 +1343,15 @@ describe("ACP agent", () => {
 		});
 	}
 
-	it("a reviewed approval whose snapshot adoption straddles a mode selection restores the plan reference and exits nothing", async () => {
+	it("a reviewed approval whose snapshot creation straddles a mode selection writes no plan reference and exits nothing", async () => {
 		const { harness, session, answer } = await pendingApprovalHarness("approve");
 		const adoptStarted = Promise.withResolvers<void>();
 		const adoptRelease = Promise.withResolvers<void>();
-		const adopt = session.adoptApprovedPlan.bind(session);
-		session.adoptApprovedPlan = async plan => {
+		const createSnapshot = session.createApprovedPlanSnapshot.bind(session);
+		session.createApprovedPlanSnapshot = async plan => {
 			adoptStarted.resolve();
 			await adoptRelease.promise;
-			return adopt(plan);
+			return createSnapshot(plan);
 		};
 		const pending = proposePlan(session, "words-counter", { reviewed: true }) as Promise<{
 			content: Array<{ text: string }>;
@@ -1356,7 +1366,90 @@ describe("ACP agent", () => {
 
 		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 		expect(session.planModeState?.enabled).toBe(true);
-		expect(session.planReferencePath).toBe("");
+		expect(session.planReferencePath).toBeUndefined();
+
+		harness.abortController.abort();
+	});
+
+	it("a proposal still resolving when Goal and then a new Plan were selected writes nothing into the new Plan", async () => {
+		const asked = vi.fn();
+		const harness = await createHarness({
+			elicitationHandler: async () => {
+				asked();
+				return { action: "accept", content: { value: "refine" } };
+			},
+		});
+		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
+		const { session } = await enterPlanWithPlanFile(harness);
+		const newPlanPath = session.planModeState?.planFilePath;
+		const resolving = Promise.withResolvers<void>();
+		const pending = proposePlan(session, "words-counter", { resolving: resolving.promise }) as Promise<{
+			content: Array<{ text: string }>;
+		}>;
+
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
+		resolving.resolve();
+		const result = await pending;
+
+		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+		expect(asked).not.toHaveBeenCalled();
+		expect(session.planModeState?.enabled).toBe(true);
+		expect(session.planModeState?.planFilePath).toBe(newPlanPath);
+		expect(session.planReferencePath).toBeUndefined();
+
+		harness.abortController.abort();
+	});
+
+	for (const value of ["refine", "approve"]) {
+		it(`a ${value} answered after the transcript switched while the dialog was open writes nothing into the new transcript`, async () => {
+			const { harness, session, opened, answer } = await pendingApprovalHarness(value);
+			const planBefore = session.planModeState;
+			const pending = proposePlan(session, "words-counter", { reviewed: true }) as Promise<{
+				content: Array<{ text: string }>;
+			}>;
+			await opened;
+
+			await session.newSession();
+			answer();
+			const result = await pending;
+
+			expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+			expect(session.planModeState).toEqual(planBefore);
+			expect(session.planReferencePath).toBeUndefined();
+			expect(session.adoptedPlans).toEqual([]);
+
+			harness.abortController.abort();
+		});
+	}
+
+	it("a newer approval's plan reference survives an older reviewed approval still creating its snapshot", async () => {
+		const { harness, session, answer } = await pendingApprovalHarness("approve");
+		const snapshotStarted = Promise.withResolvers<void>();
+		const snapshotRelease = Promise.withResolvers<void>();
+		const createSnapshot = session.createApprovedPlanSnapshot.bind(session);
+		session.createApprovedPlanSnapshot = async plan => {
+			snapshotStarted.resolve();
+			await snapshotRelease.promise;
+			return createSnapshot(plan);
+		};
+		const older = proposePlan(session, "words-counter", { reviewed: true }) as Promise<{
+			content: Array<{ text: string }>;
+		}>;
+		answer();
+		await snapshotStarted.promise;
+
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
+		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
+		session.createApprovedPlanSnapshot = createSnapshot;
+		await proposePlan(session, "words-counter");
+		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		snapshotRelease.resolve();
+		const result = await older;
+
+		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
+		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
+		expect(session.planModeState).toBeUndefined();
 
 		harness.abortController.abort();
 	});

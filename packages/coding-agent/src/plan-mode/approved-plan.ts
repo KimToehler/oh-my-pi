@@ -1,6 +1,8 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { InternalUrlRouter } from "../internal-urls/router";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { prompt } from "@oh-my-pi/pi-utils";
+import planProposalSupersededPrompt from "../prompts/system/plan-proposal-superseded.md" with { type: "text" };
 
 /** Shape forwarded from the plan-proposal handler to InteractiveMode's
  *  approval popup. Populated by the `xd://propose` dispatch when the agent
@@ -220,6 +222,14 @@ export async function resolveApprovedPlan(input: ResolveApprovedPlanInput): Prom
 export function planReviewResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
 	return {
 		content: [{ type: "text", text: "Plan ready for review." }],
+		details: { planFilePath: plan.planFilePath, title: plan.title, planExists: true },
+	};
+}
+
+/** The `xd://propose` result when a mode or transcript change superseded the proposal; nothing was applied. */
+export function planProposalSupersededResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
+	return {
+		content: [{ type: "text", text: prompt.render(planProposalSupersededPrompt) }],
 		details: { planFilePath: plan.planFilePath, title: plan.title, planExists: true },
 	};
 }

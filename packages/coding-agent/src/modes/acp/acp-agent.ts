@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, logger, type postmortem, prompt, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -59,7 +59,12 @@ import { MCPManager } from "../../mcp/manager";
 import type { MCPServerConfig } from "../../mcp/types";
 import { loadAllExtensions } from "../../modes/components/extensions/state-manager";
 import { theme } from "@oh-my-pi/pi-tui/theme";
-import { normalizePlanTitle, type PlanApprovalDetails, type ResolvedApprovedPlan } from "../../plan-mode/approved-plan";
+import {
+	normalizePlanTitle,
+	type PlanApprovalDetails,
+	planProposalSupersededResult,
+	type ResolvedApprovedPlan,
+} from "../../plan-mode/approved-plan";
 import { recommendPlanExecutionRole } from "../../plan-mode/execution-model";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
 import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
@@ -85,6 +90,7 @@ import { DEFAULT_STT_MODEL_KEY, STT_MODELS } from "../../stt/models";
 import { refreshAgentDiscovery } from "../../task";
 import { AUTO_THINKING, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import { OTHER_OPTION, recommendedOptionLabel } from "../../tools/ask";
+import type { PlanProposalOwnership } from "../../tools/resolve";
 import { resolvePlanFilePath } from "../../plan-mode/plan-files";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import {
@@ -119,7 +125,6 @@ import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
 import { cfgDisabledExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
-import planProposalSupersededPrompt from "../../prompts/system/plan-proposal-superseded.md" with { type: "text" };
 
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
@@ -2393,7 +2398,10 @@ export class AcpAgent implements Agent {
 				// handler that consumes `xd://propose` writes from plan mode. Without
 				// this, proposal dispatch falls through and plan mode has no approval
 				// path (issue #1869).
-				session.setPlanProposalHandler?.(plan => this.#handleAcpPlanProposal(record, plan));
+				session.setPlanProposalHandler?.(
+					(plan, owns) => this.#handleAcpPlanProposal(record, plan, owns),
+					() => record.goal.reservePlanProposal(),
+				);
 			},
 			clearPlan: () => {
 				session.setPlanProposalHandler?.(null);
@@ -2421,6 +2429,7 @@ export class AcpAgent implements Agent {
 	async #handleAcpPlanProposal(
 		record: ManagedSessionRecord,
 		plan: ResolvedApprovedPlan,
+		owns: PlanProposalOwnership,
 	): Promise<AgentToolResult<unknown>> {
 		const session = record.session;
 		const state = session.getPlanModeState();
@@ -2429,19 +2438,17 @@ export class AcpAgent implements Agent {
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		// The client may answer after a later mode selection; only a response whose mode generation is still current applies.
-		const proposalCurrent = record.goal.reservePlanProposal();
+		// `owns` was reserved when the proposal was dispatched. Resolution and review awaited since, and the
+		// client may answer after a later mode selection or a transcript switch; it is checked before asking
+		// and again before every write below, synchronously.
+		if (!owns()) return planProposalSupersededResult(plan);
 		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
 			planExists: true,
 		};
-		const superseded = (): AgentToolResult<unknown> => ({
-			content: [{ type: "text" as const, text: prompt.render(planProposalSupersededPrompt) }],
-			details,
-		});
-		if (!proposalCurrent()) return superseded();
+		if (!owns()) return planProposalSupersededResult(plan);
 		if (!choice.approved) {
 			// Rejection keeps plan mode active for another planning turn. Promote the
 			// reviewed path into plan-mode state so the next `#buildPlanModeMessage()`
@@ -2464,15 +2471,10 @@ export class AcpAgent implements Agent {
 		// A plan whose bytes a review bound executes from an immutable snapshot of those
 		// bytes, so later edits to the agent-chosen file cannot change what gets executed.
 		const configBeforeApproval = this.#selectConfigValues(record);
-		let executionPlanPath = planFilePath;
-		if (plan.reviewedSha256) {
-			const referenceBefore = session.getPlanReferencePath();
-			executionPlanPath = await session.adoptApprovedPlan(plan);
-			if (!proposalCurrent()) {
-				session.setPlanReferencePath(referenceBefore);
-				return superseded();
-			}
-		} else session.setPlanReferencePath(planFilePath);
+		// Snapshot creation awaits a file write; the reference is installed only once the proposal still owns the session.
+		const executionPlanPath = plan.reviewedSha256 ? await session.createApprovedPlanSnapshot(plan) : planFilePath;
+		if (!owns()) return planProposalSupersededResult(plan);
+		session.setPlanReferencePath(executionPlanPath);
 		record.goal.exitPlan(() => {
 			session.setPlanProposalHandler?.(null);
 			session.setPlanModeState(undefined);

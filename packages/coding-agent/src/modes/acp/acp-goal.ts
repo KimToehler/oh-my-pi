@@ -467,10 +467,14 @@ export class AcpGoalActor {
 		await this.#host.pause({ stamp });
 	}
 
-	/** Reserve the current mode generation for a plan proposal; the returned check is false once a later mode change arrived. */
+	/**
+	 * Reserve ownership for a plan proposal when it is dispatched. The returned check is false once a later
+	 * mode change arrived, an extension session change began or ended, or the transcript is no longer the
+	 * one the proposal was made in; it reads the same stamp every other actor commit does.
+	 */
 	reservePlanProposal(): () => boolean {
-		const reserved = this.#modes;
-		return () => reserved === this.#modes;
+		const stamp = this.#stamp("entry");
+		return () => this.#owns(stamp, true);
 	}
 
 	/** The approved plan exits plan mode. A mode change that already cleared it wins; the goal is not touched. */
