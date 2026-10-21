@@ -255,4 +255,86 @@ describe("installTeamConfig", () => {
 		expect(await fs.readdir(outside)).toEqual(["a.md"]);
 		expect(await t.read(path.join(outside, "a.md"))).toBe("outside\n");
 	});
+
+	test("aborts when a managed file's mode changes after planning", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		await expect(t.install({ beforeApply: () => fs.chmod(t.agent("AGENTS.md"), 0o600) })).rejects.toThrow(
+			t.agent("AGENTS.md"),
+		);
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+		expect((await fs.stat(t.agent("AGENTS.md"))).mode & 0o777).toBe(0o600);
+	});
+
+	test("aborts when a symlink is retargeted after planning", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await Bun.write(path.join(outside, "one.md"), "one\n");
+		await Bun.write(path.join(outside, "two.md"), "two\n");
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await fs.symlink(path.join(outside, "one.md"), t.agent("AGENTS.md"));
+		await expect(
+			t.install({
+				beforeApply: async () => {
+					await fs.rm(t.agent("AGENTS.md"));
+					await fs.symlink(path.join(outside, "two.md"), t.agent("AGENTS.md"));
+				},
+			}),
+		).rejects.toThrow(t.agent("AGENTS.md"));
+		expect(await fs.readlink(t.agent("AGENTS.md"))).toBe(path.join(outside, "two.md"));
+		expect(await t.read(path.join(outside, "one.md"))).toBe("one\n");
+		expect(await t.read(path.join(outside, "two.md"))).toBe("two\n");
+	});
+
+	test("rejects a symlinked manifest before writing anything", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		const outside = path.join(path.dirname(t.agentDir), "outside.json");
+		const linked = '{"version":1,"files":{}}\n';
+		await Bun.write(outside, linked);
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await fs.symlink(outside, t.agent(".team-config-manifest.json"));
+		await expect(t.install()).rejects.toThrow(t.agent(".team-config-manifest.json"));
+		expect(await fs.readlink(t.agent(".team-config-manifest.json"))).toBe(outside);
+		expect(await t.read(outside)).toBe(linked);
+		expect(await Bun.file(t.agent("AGENTS.md")).exists()).toBe(false);
+	});
+
+	test("final manifest write refuses a manifest changed after planning and keeps its bytes", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		const changed = '{"version":1,"files":{}}\n';
+		await expect(
+			t.install({ beforeApply: () => Bun.write(t.agent(".team-config-manifest.json"), changed).then(() => {}) }),
+		).rejects.toThrow("manifest was not updated");
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
+		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+	});
+
+	test("surfaces a failed partial manifest write together with the apply error", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		const changed = '{"version":1,"files":{}}\n';
+		// The edit aborts the apply; the manifest change makes the partial write's recheck fail too.
+		const failure = await t
+			.install({
+				beforeApply: async () => {
+					await Bun.write(t.agent("AGENTS.md"), "edited\n");
+					await Bun.write(t.agent(".team-config-manifest.json"), changed);
+				},
+			})
+			.then(
+				() => undefined,
+				err => err as unknown,
+			);
+		expect(failure).toBeInstanceOf(AggregateError);
+		const [original, writeErr] = (failure as AggregateError).errors as Error[];
+		expect(original.message).toContain(t.agent("AGENTS.md"));
+		expect(writeErr.message).toContain(t.agent(".team-config-manifest.json"));
+		expect((failure as Error).message.startsWith(original.message)).toBe(true);
+		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+	});
+
 });

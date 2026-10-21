@@ -62,18 +62,26 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
 	return out.sort();
 }
 
-/** Stands in for the content hash of a symlink: never equals a sha256, never read through. */
-const LINK = "symlink";
+/** What a destination path holds: a regular file (content hash + permission bits), a symlink (never followed; its target) or nothing. */
+type DestState = { kind: "file"; hash: string; mode: number } | { kind: "link"; target: string } | undefined;
 
-/** State of `file` in the agent dir: undefined (absent), LINK (symlink, not followed) or its sha256. */
-async function inspect(file: string): Promise<string | undefined> {
+/** Comparable form of a state. A link never equals a file: its key carries no sha256. */
+function stateKey(state: DestState): string | undefined {
+	if (!state) return undefined;
+	return state.kind === "link" ? `link:${state.target}` : `file:${state.hash}:${state.mode.toString(8)}`;
+}
+
+async function inspect(file: string): Promise<DestState> {
+	let stat: Stats;
 	try {
-		if ((await fs.lstat(file)).isSymbolicLink()) return LINK;
+		stat = await fs.lstat(file);
+		if (stat.isSymbolicLink()) return { kind: "link", target: await fs.readlink(file) };
 	} catch (err) {
 		if (isEnoent(err)) return undefined;
 		throw err;
 	}
-	return hashFile(file);
+	const hash = await hashFile(file);
+	return hash === undefined ? undefined : { kind: "file", hash, mode: stat.mode & 0o777 };
 }
 
 /** Throw if any directory component strictly between `root` and `target` is a symlink (or not a directory). */
@@ -113,15 +121,29 @@ async function hashFile(file: string): Promise<string | undefined> {
 	}
 }
 
-async function readManifest(file: string): Promise<Manifest> {
+/** Bytes of the manifest file; undefined when absent. Throws, naming the path, unless it is a regular file. */
+async function readManifestBytes(file: string): Promise<Uint8Array | undefined> {
+	let stat: Stats;
 	try {
-		const manifest = (await Bun.file(file).json()) as Manifest;
-		if (manifest.version === 1 && typeof manifest.files === "object") return manifest;
-		throw new Error(`Unsupported team config manifest ${file}`);
+		stat = await fs.lstat(file);
 	} catch (err) {
-		if (isEnoent(err)) return { version: 1, files: {} };
+		if (isEnoent(err)) return undefined;
 		throw err;
 	}
+	if (!stat.isFile()) throw new Error(`Refusing to use manifest that is not a regular file: ${file}`);
+	try {
+		return await Bun.file(file).bytes();
+	} catch (err) {
+		if (isEnoent(err)) return undefined;
+		throw err;
+	}
+}
+
+function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
+	if (bytes === undefined) return { version: 1, files: {} };
+	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as Manifest;
+	if (manifest?.version === 1 && typeof manifest.files === "object") return manifest;
+	throw new Error(`Unsupported team config manifest ${file}`);
 }
 
 /** Write `bytes` to `dst` atomically via an exclusively created, run-unique temp; sets `mode`. */
@@ -143,7 +165,12 @@ async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promis
 	}
 }
 
-async function writeManifest(manifestPath: string, manifest: Manifest): Promise<void> {
+/** Replace the manifest, but only while it is still exactly what phase 1 read (`expected`; undefined = absent). */
+async function writeManifest(manifestPath: string, manifest: Manifest, expected: Uint8Array | undefined): Promise<void> {
+	const now = await readManifestBytes(manifestPath);
+	if (now === undefined ? expected !== undefined : expected === undefined || !Buffer.from(now).equals(expected)) {
+		throw new Error(`Refusing to replace manifest ${manifestPath}: it changed after planning`);
+	}
 	const tmp = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
 	try {
 		await fs.writeFile(tmp, `${JSON.stringify(manifest, null, "\t")}\n`, { flag: "wx" });
@@ -178,7 +205,7 @@ interface WriteStep {
 	backup?: "copy" | "move";
 	existed: boolean;
 	/** State of the destination phase 1 planned on; phase 2 aborts if it differs. */
-	planned: string | undefined;
+	planned: DestState;
 }
 
 /** Bytes already match; only the permission bits differ. */
@@ -186,14 +213,14 @@ interface ChmodStep {
 	kind: "chmod";
 	rel: string;
 	mode: number;
-	planned: string | undefined;
+	planned: DestState;
 }
 
 interface RemoveStep {
 	kind: "remove";
 	rel: string;
 	backup?: "move";
-	planned: string | undefined;
+	planned: DestState;
 }
 
 /** Throw if `<agentDir>/backups` exists as anything but a real directory. */
@@ -229,11 +256,12 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const manifestPath = path.join(agentDir, MANIFEST_NAME);
 	const backupsRoot = path.join(agentDir, "backups");
 	await assertBackupsRoot(backupsRoot);
-	const previous = await readManifest(manifestPath);
+	const manifestBytes = await readManifestBytes(manifestPath);
+	const previous = parseManifest(manifestPath, manifestBytes);
 	const next: Manifest = { version: 1, files: {} };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
-	const seeds: Array<{ rel: string; planned: string | undefined }> = [];
+	const seeds: Array<{ rel: string; planned: DestState }> = [];
 	// Manifest to persist if phase 2 aborts midway. Rule: the previous manifest, plus the new hash for every file whose
 	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
@@ -246,14 +274,14 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
 		next.files[rel] = wanted;
-		if (current === wanted) {
+		if (current?.kind === "file" && current.hash === wanted) {
 			applied[rel] = wanted;
-			if (((await fs.stat(dst)).mode & 0o777) !== mode) steps.push({ kind: "chmod", rel, mode, planned: current });
+			if (current.mode !== mode) steps.push({ kind: "chmod", rel, mode, planned: current });
 			continue;
 		}
 		let backup: WriteStep["backup"];
-		if (current === LINK) backup = "move";
-		else if (current !== undefined && current !== previous.files[rel]) backup = "copy";
+		if (current?.kind === "link") backup = "move";
+		else if (current && current.hash !== previous.files[rel]) backup = "copy";
 		steps.push({
 			kind: "write",
 			rel,
@@ -272,7 +300,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
 		if (current === undefined) continue;
-		const backup = current === previous.files[rel] ? undefined : "move";
+		const backup = current.kind === "file" && current.hash === previous.files[rel] ? undefined : "move";
 
 		steps.push({ kind: "remove", rel, backup, planned: current });
 	}
@@ -286,10 +314,10 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	await options.beforeApply?.();
 
 	/** Abort unless `rel` is still contained and in exactly the state phase 1 planned on. */
-	const verify = async (rel: string, planned: string | undefined): Promise<void> => {
+	const verify = async (rel: string, planned: DestState): Promise<void> => {
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
-		if ((await inspect(dst)) !== planned) throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+		if (stateKey(await inspect(dst)) !== stateKey(planned)) throw new Error(`Refusing to touch ${dst}: it changed after planning`);
 	};
 
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
@@ -344,12 +372,22 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			}
 		}
 	} catch (err) {
-		// Persist what was actually applied; a failure here must not mask the original error.
-		await writeManifest(manifestPath, { version: 1, files: applied }).catch(() => {});
+		// Persist what was actually applied; if that fails too, the original error stays first and the write error rides along.
+		try {
+			await writeManifest(manifestPath, { version: 1, files: applied }, manifestBytes);
+		} catch (writeErr) {
+			const message = err instanceof Error ? err.message : String(err);
+			throw new AggregateError([err, writeErr], `${message} (and the partial manifest could not be written)`);
+		}
 		throw err;
 	}
 
-	await writeManifest(manifestPath, next);
+	try {
+		await writeManifest(manifestPath, next, manifestBytes);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		throw new Error(`Team config files were applied but the manifest was not updated: ${message}`, { cause: err });
+	}
 	return report;
 }
 
