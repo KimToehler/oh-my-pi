@@ -1,9 +1,12 @@
-# HEAD 74ed09437da983ce3e1b06b6d09f49a0d95565db
- 471 pass
- 0 fail
- 1899 expect() calls
-Ran 471 tests across 18 files. [23.60s]
+# HEAD 539254c95894f99a50836ba3429124d0ab816dde
 
-All matched files use the correct format.
-Finished in 70ms on 3359 files using 18 threads.
-$ tsgo -p tsconfig.json --noEmit
+ 694 pass
+ 0 fail
+ 2889 expect() calls
+Ran 694 tests across 26 files. [24.75s]
+
+$ bun run check:ts
+exit 0
+@oh-my-pi/pi-wire:check:types                   | Done in 37ms
+@oh-my-pi/snapcompact:check:types               | Done in 961ms
+@oh-my-pi/typescript-edit-benchmark:check:types | Done in 2.60s
