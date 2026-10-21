@@ -1762,21 +1762,35 @@ export class AgentSession implements SettingsScope {
 		const owns = this.#reservePlanProposalOwnership?.() ?? ALWAYS_OWNS_PLAN_PROPOSAL;
 		const reviewEnabled = cfgPlanReviewEnabled.get(this.settings);
 		const planner = reviewEnabled ? this.#takeReviewablePlanner(call.toolCallId) : undefined;
-		const plan = await resolveApprovedPlan({
-			suppliedTitle: title,
-			statePlanFilePath: state.planFilePath,
-			readPlan: url => this.#readPlanFile(url),
-			listPlanFiles: () => this.#listPlanFiles(),
-		});
+		// A stage that rejects after a mode or transcript change supersedes the proposal rather than
+		// failing it; while ownership still holds the original error surfaces unchanged.
+		let plan: ResolvedApprovedPlan;
+		try {
+			plan = await resolveApprovedPlan({
+				suppliedTitle: title,
+				statePlanFilePath: state.planFilePath,
+				readPlan: url => this.#readPlanFile(url),
+				listPlanFiles: () => this.#listPlanFiles(),
+			});
+		} catch (error) {
+			if (!owns()) return planProposalSupersededResult(title);
+			throw error;
+		}
 		if (!planner) return handler(plan, owns);
-		const outcome = await reviewProposedPlan({
-			toolSession: call.toolSession,
-			plannerMessage: planner,
-			plan,
-			settings: this.settings,
-			modelRegistry: this.#modelRegistry,
-			signal: call.signal,
-		});
+		let outcome: PlanReviewOutcome;
+		try {
+			outcome = await reviewProposedPlan({
+				toolSession: call.toolSession,
+				plannerMessage: planner,
+				plan,
+				settings: this.settings,
+				modelRegistry: this.#modelRegistry,
+				signal: call.signal,
+			});
+		} catch (error) {
+			if (!owns()) return planProposalSupersededResult(plan.title);
+			throw error;
+		}
 		return this.#applyPlanReview({ plan, planner, outcome, handler, owns });
 	}
 
@@ -1806,7 +1820,7 @@ export class AgentSession implements SettingsScope {
 		const blocking = outcome.kind === "reject" && round <= PLAN_REVIEW_MAX_ROUNDS;
 		// The review awaited; a mode or transcript change since dispatch superseded this proposal,
 		// so neither its audit entry nor its path promotion may land in the state that replaced it.
-		if (!owns()) return planProposalSupersededResult(plan);
+		if (!owns()) return planProposalSupersededResult(plan.title);
 		this.#appendPlanReviewAudit({ ...review, round, planSha256 });
 		if (blocking) {
 			this.#planReviewRounds = round;

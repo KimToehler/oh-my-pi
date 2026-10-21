@@ -2436,7 +2436,7 @@ export class AcpAgent implements Agent {
 		// client may answer after a later mode selection or a transcript switch. It is checked first, before
 		// the current Plan state is read, so a superseded proposal never fails on state that moved on; it is
 		// checked again before asking and before every write below, synchronously.
-		if (!owns()) return planProposalSupersededResult(plan);
+		if (!owns()) return planProposalSupersededResult(plan.title);
 		const state = session.getPlanModeState();
 		if (!state?.enabled) {
 			throw new ToolError("Plan mode is not active.");
@@ -2449,7 +2449,7 @@ export class AcpAgent implements Agent {
 			title: resolvedTitle,
 			planExists: true,
 		};
-		if (!owns()) return planProposalSupersededResult(plan);
+		if (!owns()) return planProposalSupersededResult(plan.title);
 		if (!choice.approved) {
 			// Rejection keeps plan mode active for another planning turn. Promote the
 			// reviewed path into plan-mode state so the next `#buildPlanModeMessage()`
@@ -2474,7 +2474,7 @@ export class AcpAgent implements Agent {
 		const configBeforeApproval = this.#selectConfigValues(record);
 		// Snapshot creation awaits a file write; the reference is installed only once the proposal still owns the session.
 		const executionPlanPath = plan.reviewedSha256 ? await session.createApprovedPlanSnapshot(plan) : planFilePath;
-		if (!owns()) return planProposalSupersededResult(plan);
+		if (!owns()) return planProposalSupersededResult(plan.title);
 		session.setPlanReferencePath(executionPlanPath);
 		record.goal.exitPlan(() => {
 			session.setPlanProposalHandler?.(null);

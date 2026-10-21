@@ -226,11 +226,18 @@ export function planReviewResult(plan: ResolvedApprovedPlan): AgentToolResult<Pl
 	};
 }
 
+/** `details` of a proposal a mode or transcript change superseded. Deliberately not a
+ *  `PlanApprovalDetails`: no consumer may open an approval UI for a discarded proposal. */
+export interface PlanProposalSupersededDetails {
+	superseded: true;
+	title: string;
+}
+
 /** The `xd://propose` result when a mode or transcript change superseded the proposal; nothing was applied. */
-export function planProposalSupersededResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
+export function planProposalSupersededResult(title: string): AgentToolResult<PlanProposalSupersededDetails> {
 	return {
 		content: [{ type: "text", text: prompt.render(planProposalSupersededPrompt) }],
-		details: { planFilePath: plan.planFilePath, title: plan.title, planExists: true },
+		details: { superseded: true, title },
 	};
 }
 
