@@ -556,3 +556,22 @@ Received promise that rejected: Promise { <rejected> }
  2 fail
  2 expect() calls
 Ran 2 tests across 1 file. [2.53s]
+
+=== Row 26 RED: pre-fix a1ce21e305 + new test files only (natives, generated tool-views, node_modules copied) ===
+(fail) plan review runtime > a host-reserved proposal ownership lost during the review writes no promotion, audit or handler call [18.58ms]
+(fail) plan review runtime > an asynchronous stage that rejects > resolution rejecting after ownership was lost returns the superseded outcome [10.79ms]
+(fail) plan review runtime > an asynchronous stage that rejects > review rejecting after ownership was lost returns the superseded outcome [10.28ms]
+(fail) ACP agent > a rejection answered after the client selected Goal leaves Plan disabled and Goal armed [3.54ms]
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: false) [2.80ms]
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: true) [2.42ms]
+(fail) ACP agent > a reviewed approval whose snapshot creation straddles a mode selection writes no plan reference and exits nothing [3.04ms]
+(fail) ACP agent > a proposal still resolving when Goal and then a new Plan were selected writes nothing into the new Plan [2.42ms]
+(fail) ACP agent > a proposal still resolving when goal was selected directly from Plan resolves without asking or writing [2.41ms]
+(fail) ACP agent > a proposal still resolving when default was selected directly from Plan resolves without asking or writing [2.27ms]
+(fail) ACP agent > a refine answered after the transcript switched while the dialog was open writes nothing into the new transcript [3.19ms]
+(fail) ACP agent > a approve answered after the transcript switched while the dialog was open writes nothing into the new transcript [2.96ms]
+(fail) ACP agent > a newer approval's plan reference survives an older reviewed approval still creating its snapshot [2.53ms]
+ 210 pass
+ 13 fail
+Ran 223 tests across 2 files. [4.12s]
+(the two 'ownership still holds' tests pass pre-fix by design: they pin unchanged error behaviour)

@@ -256,3 +256,35 @@ Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode ex
 (fail) ACP agent > a proposal still resolving when default was selected directly from Plan resolves without asking or writing [4.61ms]
  0 pass
  2 fail
+
+=== Row 26 discrimination: new head, one guard reverted at a time (backup /tmp/as.bak,/tmp/ap.bak; cmp verified restore) ===
+### F resolution catch -> always rethrow
+(fail) plan review runtime > an asynchronous stage that rejects > resolution rejecting after ownership was lost returns the superseded outcome [8.96ms]
+ 222 pass
+ 1 fail
+### G review catch -> always rethrow
+(fail) plan review runtime > an asynchronous stage that rejects > review rejecting after ownership was lost returns the superseded outcome [11.68ms]
+ 222 pass
+ 1 fail
+### H catch rethrows even when ownership still... (swap: swallow error into superseded regardless of ownership), resolution+review
+(fail) plan review runtime > T5-e caller abort throws ToolAbortError and counts no round [13.32ms]
+(fail) plan review runtime > an asynchronous stage that rejects > resolution rejecting while ownership still holds surfaces the original error [8.73ms]
+(fail) plan review runtime > an asynchronous stage that rejects > review rejecting while ownership still holds surfaces the original error [10.15ms]
+ 220 pass
+ 3 fail
+### I superseded details back to approval shape
+(fail) plan review runtime > a host-reserved proposal ownership lost during the review writes no promotion, audit or handler call [13.20ms]
+(fail) plan review runtime > an asynchronous stage that rejects > resolution rejecting after ownership was lost returns the superseded outcome [9.19ms]
+(fail) plan review runtime > an asynchronous stage that rejects > review rejecting after ownership was lost returns the superseded outcome [9.04ms]
+(fail) ACP agent > a rejection answered after the client selected Goal leaves Plan disabled and Goal armed [2.67ms]
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: false) [2.82ms]
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: true) [2.41ms]
+(fail) ACP agent > a reviewed approval whose snapshot creation straddles a mode selection writes no plan reference and exits nothing [3.01ms]
+(fail) ACP agent > a proposal still resolving when Goal and then a new Plan were selected writes nothing into the new Plan [3.01ms]
+(fail) ACP agent > a proposal still resolving when goal was selected directly from Plan resolves without asking or writing [3.54ms]
+(fail) ACP agent > a proposal still resolving when default was selected directly from Plan resolves without asking or writing [3.22ms]
+(fail) ACP agent > a refine answered after the transcript switched while the dialog was open writes nothing into the new transcript [4.16ms]
+(fail) ACP agent > a approve answered after the transcript switched while the dialog was open writes nothing into the new transcript [3.29ms]
+(fail) ACP agent > a newer approval's plan reference survives an older reviewed approval still creating its snapshot [3.27ms]
+ 210 pass
+ 13 fail
