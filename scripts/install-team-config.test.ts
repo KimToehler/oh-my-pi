@@ -58,6 +58,28 @@ describe("installTeamConfig", () => {
 		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("personal\n");
 	});
 
+	test("manifest handles files named like Object.prototype members", async () => {
+		const t = await setup({ "agent/constructor": "c\n", "agent/__proto__": "p\n", "agent/keep.md": "k\n" });
+		await t.install();
+		expect(await t.read(t.agent("constructor"))).toBe("c\n");
+		expect(await t.read(t.agent("__proto__"))).toBe("p\n");
+		const manifestFile = t.agent(".team-config-manifest.json");
+		const parsed = JSON.parse(await t.read(manifestFile)) as { files: Record<string, unknown> };
+		expect(Object.hasOwn(parsed.files, "constructor")).toBe(true);
+		expect(Object.hasOwn(parsed.files, "__proto__")).toBe(true);
+
+		await fs.rm(t.repo("agent/constructor"));
+		await fs.rm(t.repo("agent/__proto__"));
+		const report = await t.install();
+		expect(report.removed.sort()).toEqual(["__proto__", "constructor"]);
+		expect(await Bun.file(t.agent("constructor")).exists()).toBe(false);
+		expect(await Bun.file(t.agent("__proto__")).exists()).toBe(false);
+		const after = JSON.parse(await t.read(manifestFile)) as { files: Record<string, unknown> };
+		expect(Object.hasOwn(after.files, "constructor")).toBe(false);
+		expect(Object.hasOwn(after.files, "__proto__")).toBe(false);
+		expect(Object.hasOwn(after.files, "keep.md")).toBe(true);
+	});
+
 	test("removes files that left the repo, keeps local edits in backup, and leaves unmanaged files alone", async () => {
 		const t = await setup({
 			"agent/skills/old/SKILL.md": "old\n",

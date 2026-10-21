@@ -163,15 +163,23 @@ async function readManifestBytes(file: string): Promise<Uint8Array | undefined> 
 	}
 }
 
+/** Manifest `files` dictionary without a prototype, so every relative path is a plain own key. */
+function newFiles(): Record<string, ManifestEntry> {
+	return Object.create(null) as Record<string, ManifestEntry>;
+}
+
 function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
-	if (bytes === undefined) return { version: 2, files: {} };
+	if (bytes === undefined) return { version: 2, files: newFiles() };
 	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { version?: unknown; files?: unknown };
 	if (manifest?.version === 2 && typeof manifest.files === "object" && manifest.files !== null) {
-		return { version: 2, files: manifest.files as Record<string, ManifestEntry> };
+		// Copy into a null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
+		const files = newFiles();
+		for (const [rel, entry] of Object.entries(manifest.files as Record<string, ManifestEntry>)) files[rel] = entry;
+		return { version: 2, files };
 	}
 	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
 		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
-		const files: Record<string, ManifestEntry> = {};
+		const files = newFiles();
 		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
 			files[rel] = { hash, adopted: true };
 		return { version: 2, files };
@@ -295,7 +303,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	await assertBackupsRoot(backupsRoot);
 	const manifestBytes = await readManifestBytes(manifestPath);
 	const previous = parseManifest(manifestPath, manifestBytes);
-	const next: Manifest = { version: 2, files: {} };
+	const next: Manifest = { version: 2, files: newFiles() };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
 	const seeds: Array<{ rel: string; planned: DestState }> = [];
@@ -303,14 +311,15 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
 	// file by what is really on disk instead of trusting a plan that never completed.
-	const applied: Record<string, ManifestEntry> = { ...previous.files };
+	const applied = newFiles();
+	for (const [rel, entry] of Object.entries(previous.files)) applied[rel] = entry;
 
 	for (const rel of managedFiles) {
 		const { bytes, hash: wanted, mode } = sources.get(rel)!;
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
-		const prior = previous.files[rel];
+		const prior = Object.hasOwn(previous.files, rel) ? previous.files[rel] : undefined;
 		if (current?.kind === "file" && current.hash === wanted) {
 			// Already identical: the installer did not write it. Only a previously owned entry whose hash still equals the
 			// current bytes stays owned; anything else (adopted, unknown, or edited to match the source) is adopted.
@@ -338,7 +347,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	}
 
 	for (const rel of Object.keys(previous.files).sort()) {
-		if (rel in next.files) continue;
+		if (Object.hasOwn(next.files, rel)) continue;
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
