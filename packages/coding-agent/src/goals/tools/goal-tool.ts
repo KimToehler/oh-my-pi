@@ -98,7 +98,7 @@ export class GoalTool implements AgentTool<typeof goalSchema, GoalToolDetails> {
 			const resumed = await runtime.resumeGoal();
 			response = buildGoalToolResponse(resumed.goal);
 		} else if (params.op === "drop") {
-			const dropped = await runtime.dropGoal();
+			const dropped = await runtime.dropGoal({ origin: "tool" });
 			response = buildGoalToolResponse(dropped ?? null);
 		} else {
 			const completed = await runtime.completeGoalFromTool();

@@ -96,17 +96,14 @@ class PromptAdmission implements AcpPromptAdmission {
 	/** The prompt must not be submitted: the entry saw its ownership lost. */
 	refused = false;
 	#released = false;
-	readonly #actor: AcpGoalActor;
 	readonly #release: (admission: PromptAdmission) => void;
 	readonly #owns: (stamp: Stamp, withModes: boolean) => boolean;
 
 	constructor(
-		actor: AcpGoalActor,
 		stamp: Stamp,
 		release: (admission: PromptAdmission) => void,
 		owns: (stamp: Stamp, withModes: boolean) => boolean,
 	) {
-		this.#actor = actor;
 		this.stamp = stamp;
 		this.#release = release;
 		this.#owns = owns;
@@ -127,10 +124,6 @@ class PromptAdmission implements AcpPromptAdmission {
 		if (this.#released) return;
 		this.#released = true;
 		this.#release(this);
-	}
-
-	get actor(): AcpGoalActor {
-		return this.#actor;
 	}
 }
 
@@ -192,20 +185,19 @@ export class AcpGoalActor {
 			},
 		});
 		session.goalRuntime.setMutationGate({
-			admitEntry: origin => {
+			reserve: () => this.#stamp(),
+			admitEntry: (origin, reservation) => {
 				if (origin === "host") {
 					// Committed in the same tick as this check: an entry that lost its session to a
 					// change is discarded here, before it can write into the new transcript.
 					if (this.#entering && !this.#entering.entryOwned()) throw new GoalEntryAbandoned();
 					return;
 				}
-				// The agent's own `goal` tool. Plan and goal are exclusive, and a tool commit racing a
-				// session change or its reconcile would resurrect the old transcript's goal.
+				// The agent's own `goal` tool. Plan and goal are exclusive.
 				if (this.#session.getPlanModeState()?.enabled) throw new Error("Exit plan mode before starting a goal.");
-				if (this.#sessionChanges > 0 || this.#host.reconciling) {
-					throw new Error("A session change is in progress; retry the goal operation afterwards.");
-				}
+				this.#admitToolMutation(reservation);
 			},
+			admitToolMutation: reservation => this.#admitToolMutation(reservation),
 			admitInterruptPause: () => {
 				// The pause belongs to the transcript the Stop interrupted; a new transcript's goal is not its.
 				this.#syncTranscript();
@@ -216,6 +208,21 @@ export class AcpGoalActor {
 
 	dispose(): void {
 		this.#session.goalRuntime.setMutationGate(undefined);
+	}
+
+	/**
+	 * A tool mutation commits only into the transcript that admitted it: no session change or
+	 * reconcile running now, and none begun or ended since the stamp was reserved. A stale call
+	 * would otherwise write into (or drop) the goal the reconcile adopted for the new transcript.
+	 */
+	#admitToolMutation(reservation: object | undefined): void {
+		if (
+			this.#sessionChanges > 0 ||
+			this.#host.reconciling ||
+			(reservation !== undefined && !this.#owns(reservation as Stamp, false))
+		) {
+			throw new Error("A session change is in progress; retry the goal operation afterwards.");
+		}
 	}
 
 	// ---- reads -----------------------------------------------------------------------------
@@ -290,7 +297,6 @@ export class AcpGoalActor {
 	 */
 	async admitPrompt(text: string): Promise<AcpPromptAdmission> {
 		const admission = new PromptAdmission(
-			this,
 			this.#stamp(),
 			done => void this.#admissions.delete(done),
 			(stamp, withModes) => this.#owns(stamp, withModes),

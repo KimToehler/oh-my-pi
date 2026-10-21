@@ -28,8 +28,19 @@ export type GoalEntryOrigin = "host" | "tool";
  * inside the accounting chain, immediately before the commit they guard.
  */
 export interface GoalMutationGate {
-	/** Throws to refuse a goal entry (create/resume) whose owner moved on: Plan, a session change, a reconcile. */
-	admitEntry(origin: GoalEntryOrigin): void;
+	/**
+	 * Reserve ownership for an agent-tool mutation when it is admitted (synchronously, before it queues
+	 * on the accounting chain). The returned stamp is handed back to {@link admitEntry} or
+	 * {@link admitToolMutation} at the commit boundary.
+	 */
+	reserve(): object;
+	/**
+	 * Throws to refuse a goal entry (create/resume) whose owner moved on: Plan, a session change, a reconcile.
+	 * `reservation` is the stamp {@link reserve} returned for a tool-origin entry.
+	 */
+	admitEntry(origin: GoalEntryOrigin, reservation?: object): void;
+	/** Throws to refuse a tool drop or complete whose reservation went stale or whose transcript is changing. */
+	admitToolMutation(reservation: object): void;
 	/** Whether the pause of an interrupted task still applies to the goal now in the session. */
 	admitInterruptPause(): boolean;
 }
@@ -419,12 +430,14 @@ export class GoalRuntime {
 		const objective = input.objective.trim();
 		if (!objective) throw new Error("objective is required when op=create");
 		validateTokenBudget(input.tokenBudget);
+		const origin = options?.origin ?? "tool";
+		const reservation = origin === "tool" ? this.#gate?.reserve() : undefined;
 		return await this.#withAccounting(async () => {
 			const existing = this.#host.getState();
 			if (existing?.goal && existing.goal.status !== "dropped" && existing.goal.status !== "complete") {
 				throw new Error("cannot create a new goal because this session already has a goal");
 			}
-			this.#gate?.admitEntry(options?.origin ?? "tool");
+			this.#gate?.admitEntry(origin, reservation);
 			const state = this.#createGoalState(objective, input.tokenBudget);
 			this.#budgetReportedFor = undefined;
 			this.#markActiveAccounting(state.goal);
@@ -452,11 +465,13 @@ export class GoalRuntime {
 	}
 
 	async resumeGoal(options?: { origin?: GoalEntryOrigin }): Promise<GoalModeState> {
+		const origin = options?.origin ?? "tool";
+		const reservation = origin === "tool" ? this.#gate?.reserve() : undefined;
 		return await this.#withAccounting(async () => {
 			const state = this.#getStateClone();
 			if (!state?.goal) throw new Error("No paused goal.");
 			if (state.goal.status === "complete") throw new Error("Goal is already complete.");
-			this.#gate?.admitEntry(options?.origin ?? "tool");
+			this.#gate?.admitEntry(origin, reservation);
 			state.enabled = true;
 			state.mode = "active";
 			state.reason = undefined;
@@ -488,8 +503,11 @@ export class GoalRuntime {
 		});
 	}
 
-	async dropGoal(): Promise<Goal | undefined> {
+	/** `origin: "tool"` (the agent's `goal` tool) reserves ownership now and is refused at commit if it went stale. */
+	async dropGoal(options?: { origin?: GoalEntryOrigin }): Promise<Goal | undefined> {
+		const reservation = options?.origin === "tool" ? this.#gate?.reserve() : undefined;
 		return await this.#withAccounting(async () => {
+			if (reservation) this.#gate?.admitToolMutation(reservation);
 			await this.#flushUsageLocked("suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) return undefined;
@@ -507,7 +525,9 @@ export class GoalRuntime {
 	}
 
 	async completeGoalFromTool(): Promise<Goal> {
+		const reservation = this.#gate?.reserve();
 		return await this.#withAccounting(async () => {
+			if (reservation) this.#gate?.admitToolMutation(reservation);
 			await this.#flushUsageLocked("suppressed");
 			const state = this.#getStateClone();
 			if (!state?.goal) {
