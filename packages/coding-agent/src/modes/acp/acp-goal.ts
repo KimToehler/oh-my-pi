@@ -207,6 +207,8 @@ export class AcpGoalActor {
 			// The agent's own `goal` tool enters a goal. Plan and goal are exclusive.
 			admitEntry: () => {
 				if (this.#session.getPlanModeState()?.enabled) throw new Error("Exit plan mode before starting a goal.");
+				if (this.#modeEffects > 0)
+					throw new Error("A mode change is in progress; start the goal after it finishes.");
 			},
 		});
 	}
@@ -273,7 +275,7 @@ export class AcpGoalActor {
 			case "entry":
 				return this.#owns(stamp, false);
 			case "tool":
-				return this.#owns(stamp, false) && !this.#host.reconciling;
+				return this.#owns(stamp, true) && !this.#host.reconciling;
 			case "transcript":
 				this.#syncTranscript();
 				return stamp.transcript === this.#transcriptGeneration;
