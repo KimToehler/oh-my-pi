@@ -1,0 +1,28 @@
+# F1-1 fresh install into empty agent dir
+# head: 322542da6777e8d25afe38d598bf1b4f7a6755ec
+# binary: /Users/tim/.bun/bin/omp (90e3e77e68da7b16ac9ffa244444374281972ee0)
+# date: 2026-10-21T09:29:47Z
+
+$ PI_CODING_AGENT_DIR=<tmp>/agent bun scripts/install-team-config.ts
+Team config → <tmp>/agent
+  added (417): …
+  seeded (2): config.yml, models.yml
+  next: put ONARA_ROUTER_KEY=<your key> into <tmp>/agent/.env
+
+$ ls -A <tmp>/agent
+.team-config-manifest.json
+AGENTS.md
+agents
+config.yml
+extensions
+models.yml
+rules
+skills
+
+files: 420  manifest entries: 417
+
+$ grep -n apiKey <tmp>/agent/models.yml
+5:# onara-bifrost/* -> Anthropic Messages on the same router with plain API-key shaping (auth: apiKey):
+13:    apiKey: ONARA_ROUTER_KEY
+97:    apiKey: ONARA_ROUTER_KEY
+98:    auth: apiKey

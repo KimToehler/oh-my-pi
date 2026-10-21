@@ -1,0 +1,30 @@
+{
+  "base_sha": "244b2e64b5a1e721f11b11ecb29ef9c4611e1702",
+  "head_sha": "1b44c1d23aed4dc809e2180d427ea6b3c51a523a",
+  "commits": [
+    {
+      "sha": "fae944241c32b8beeca2542312c685a3af4436f7",
+      "subject": "fix(team-config): intent manifest before apply; safer key setup docs",
+      "patch": "001.patch",
+      "sha256": "e8b767a6260f655200f9f920d7bb91fd619bbc319ef38b2d082a3e7ddf28a031"
+    },
+    {
+      "sha": "e753b38faf69e71a382c5aa11f377d8861f800a0",
+      "subject": "fix(team-config): partial manifests keep touched paths adopted; fail-closed key setup",
+      "patch": "002.patch",
+      "sha256": "d4eaca101c1a1b7770db0e6585e0afde4622b657d82eaac231ae0df548fea57e"
+    },
+    {
+      "sha": "5e336ea41fd1449311fa80d06953aef82fd81051",
+      "subject": "docs(team-config): key setup stops before reading the key on a non-file .env",
+      "patch": "003.patch",
+      "sha256": "b11b9958f21beb2f8b0257fb593d5e5de3ba4976c3916edc5403707987e0f9d2"
+    },
+    {
+      "sha": "1b44c1d23aed4dc809e2180d427ea6b3c51a523a",
+      "subject": "fix(team-config): partial manifests keep removed paths; key setup checks .env before touching it",
+      "patch": "004.patch",
+      "sha256": "6052b87032f57304a6a0c7ecc45f32895cdcc70a4bf395c877934f09bc79b7bc"
+    }
+  ]
+}

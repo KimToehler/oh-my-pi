@@ -1,0 +1,12 @@
+{
+  "base_sha": "490fb9fe3db2cb4de4fe140e36eaa92791bcd229",
+  "head_sha": "037928b9e9f10895d3eec9a185639022a9923d59",
+  "commits": [
+    {
+      "sha": "037928b9e9f10895d3eec9a185639022a9923d59",
+      "subject": "fix(team-config): back up a manifest the installer did not write",
+      "patch": "001.patch",
+      "sha256": "93d0d15b631141cb74ebff6f00c1136c6e2d960724f85495dab83ce21f0a7ffa"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# F1-4 re-install: local edit, seed edit, unmanaged file
+# head: 490fb9fe3db2cb4de4fe140e36eaa92791bcd229
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T10:04:12Z
+
+$ (edited rules/worktrees.md, replaced config.yml, added rules/my-own-rule.md) bun scripts/install-team-config.ts
+Team config → <tmp>/agent
+  updated (1): rules/worktrees.md
+  previous content of 1 file(s) saved in /private<tmp>/agent/backups/team-config-2026-10-21T10-04-12-652Z-M9eDyu
+
+rules/worktrees.md restored to repo bytes: yes
+backup holds local edit: local edit
+config.yml kept: mine: 1
+unmanaged rule kept: mine
+
+$ second run (idempotent)
+Team config → <tmp>/agent

@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The documentation delta removes the shell-block comments and preserves the existing command guards; no blocking defects found.",
+  "blockers": [],
+  "notes": [
+    "The prescribed interactive zsh and bash paste checks were not exercised in this review."
+  ]
+}

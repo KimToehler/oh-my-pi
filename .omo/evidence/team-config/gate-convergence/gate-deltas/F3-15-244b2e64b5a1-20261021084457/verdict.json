@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The delta implements the source-root checks before installer mutations, and the added tests cover both requested symlink cases.",
+  "blockers": [],
+  "notes": [
+    "The check-to-use path substitution risk remains accepted in the supplied merge-gate context."
+  ]
+}

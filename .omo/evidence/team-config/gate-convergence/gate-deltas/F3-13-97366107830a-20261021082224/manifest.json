@@ -1,0 +1,12 @@
+{
+  "base_sha": "f7c70baf67ccbf0ac79e72b98358744844262e68",
+  "head_sha": "97366107830aeec54222a8819934fad3a8759961",
+  "commits": [
+    {
+      "sha": "97366107830aeec54222a8819934fad3a8759961",
+      "subject": "fix(team-config): reject unsupported source entries instead of skipping them",
+      "patch": "001.patch",
+      "sha256": "66f463235276f20943289c8fdd38994a47b3d3c077bf1d70a88cdbfde4d65849"
+    }
+  ]
+}

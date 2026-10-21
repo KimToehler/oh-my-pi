@@ -1,0 +1,36 @@
+{
+  "base_sha": "490fb9fe3db2cb4de4fe140e36eaa92791bcd229",
+  "head_sha": "d46acf3cf206b2076d55987999885c2fd7a693f1",
+  "commits": [
+    {
+      "sha": "037928b9e9f10895d3eec9a185639022a9923d59",
+      "subject": "fix(team-config): back up a manifest the installer did not write",
+      "patch": "001.patch",
+      "sha256": "93d0d15b631141cb74ebff6f00c1136c6e2d960724f85495dab83ce21f0a7ffa"
+    },
+    {
+      "sha": "e161dc90747c08337c00a862592d2455785e2b6f",
+      "subject": "fix(team-config): back up a sidecar the installer did not write",
+      "patch": "002.patch",
+      "sha256": "7024be64e14d93328af45b3100d0a11122154ad49d22c4426b7e9054f0ce0b59"
+    },
+    {
+      "sha": "221591fbfa35b174d6314a141505543677dc7507",
+      "subject": "Revert \"fix(team-config): back up a sidecar the installer did not write\"",
+      "patch": "003.patch",
+      "sha256": "283e2384ab15d5a4062225bbf09f1e606c8f7c0426bd1300d2b0ced66c466887"
+    },
+    {
+      "sha": "b7321647dc93bf4eab6da04c2440e5824580d35a",
+      "subject": "Revert \"fix(team-config): back up a manifest the installer did not write\"",
+      "patch": "004.patch",
+      "sha256": "edf284967ceb91ce4870219cb3abb35717dd1e4d9e658b764bea76082032d072"
+    },
+    {
+      "sha": "d46acf3cf206b2076d55987999885c2fd7a693f1",
+      "subject": "docs(team-config): the manifest is installer control state",
+      "patch": "005.patch",
+      "sha256": "1cff4c830ce21d2738fce1f1745e29021a1e904f7ca64ed997cc112923b2bda7"
+    }
+  ]
+}

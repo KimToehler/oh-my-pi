@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "The new exact-name enumeration exposes prototype-named files that the manifest handling cannot track correctly.",
+  "blockers": [
+    {
+      "area": "Correctness: prototype-named managed files",
+      "defect": "Valid managed names newly admitted by the Set are still interpreted as JavaScript object prototype properties in the manifest, causing incomplete tracking or missed removals.",
+      "evidence": "scripts/install-team-config.ts:302-339 creates ordinary objects for manifest entries, assigns next.files[rel], and checks removed entries with `rel in next.files`. A regular top-level `__proto__` source changes the object's prototype instead of creating a serializable manifest entry, so removing that source on a later run leaves the installed file unmanaged. A regular top-level `constructor` is recorded, but after its source is removed, `constructor in next.files` is true through Object.prototype and the installed file is not removed. The delta explicitly makes these names eligible for enumeration.",
+      "change": "Use prototype-safe manifest dictionaries and own-property checks throughout creation, parsing, migration, updates and removal; add install-then-remove regression tests for regular `constructor` and `__proto__` files."
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "Strict parsing still silently discards manifest content, and the specified post-failure deploy witness is absent.",
+  "blockers": [
+    {
+      "area": "Correctness — strict manifest",
+      "defect": "Duplicate JSON object members are collapsed before validation and lost on rewrite.",
+      "evidence": "scripts/install-team-config.ts:198 uses JSON.parse before checking keys. A manifest with two files members, the first containing entries and the second an empty object, passes validation with an empty files map; persistence then discards the first member. This contradicts fix 19's promise not to silently drop content from a manifest the installer did not write.",
+      "change": "Reject duplicate member names at every manifest object level before mutation, using a duplicate-aware JSON parser, and add a real-filesystem regression."
+    },
+    {
+      "area": "Verification — deploy recovery",
+      "defect": "The required successful deploy after the rejected-manifest deployment is not evidenced.",
+      "evidence": "Fix 20 explicitly requires a successful deploy afterwards. .omo/evidence/team-config/wave-2/f1-8-deploy-failure-keeps-binary.txt records a successful deploy before the invalid-manifest failure, but no subsequent successful deploy.",
+      "change": "Repair the manifest, rerun a real deploy to the same isolated directories, and record its successful exit, publication marker and binary."
+    }
+  ],
+  "notes": []
+}

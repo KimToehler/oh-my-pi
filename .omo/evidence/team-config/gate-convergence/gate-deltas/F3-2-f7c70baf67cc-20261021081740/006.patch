@@ -1,0 +1,128 @@
+commit f7c70baf67ccbf0ac79e72b98358744844262e68
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:17:24 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:17:24 2026 +0200
+
+    fix(team-config): treat matching local edits as adopted and recheck every backup
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index b76c7b7142..6662c48ea4 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -399,4 +399,49 @@ describe("installTeamConfig", () => {
+ 		expect(await t.read(path.join(outside, "keep.md"))).toBe("outside\n");
+ 	});
+ 
++	test("treats a local edit that later matches the source as adopted, so the next update backs it up", async () => {
++		const t = await setup({ "agent/AGENTS.md": "v1\n" });
++		await t.install();
++		await Bun.write(t.agent("AGENTS.md"), "v2\n");
++		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
++		expect((await t.install()).backupDir).toBeUndefined();
++		await Bun.write(t.repo("agent/AGENTS.md"), "v3\n");
++		const report = await t.install();
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("v3\n");
++		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v2\n");
++	});
++
++	for (const target of ["run dir", "backups root"] as const) {
++		test(`rechecks the backup location before every backup: ${target} swapped for a symlink between two backups`, async () => {
++			const t = await setup({ "agent/a.md": "a1\n", "agent/b.md": "b1\n" });
++			await t.install();
++			await Bun.write(t.agent("a.md"), "a local\n");
++			await Bun.write(t.agent("b.md"), "b local\n");
++			await Bun.write(t.repo("agent/a.md"), "a2\n");
++			await Bun.write(t.repo("agent/b.md"), "b2\n");
++			const outside = path.join(path.dirname(t.agentDir), "outside");
++			await fs.mkdir(outside, { recursive: true });
++			await expect(
++				t.install({
++					afterStep: async rel => {
++						if (rel !== "a.md") return;
++						const root = t.agent("backups");
++						const [run] = await fs.readdir(root);
++						if (target === "run dir") {
++							await fs.rename(path.join(root, run), path.join(root, "moved"));
++							await fs.symlink(outside, path.join(root, run));
++						} else {
++							await fs.rename(root, t.agent("backups-moved"));
++							await fs.symlink(outside, root);
++							await fs.mkdir(path.join(outside, run));
++						}
++					},
++				}),
++			).rejects.toThrow(/symlink/);
++			const leaked =
++				target === "run dir" ? await fs.readdir(outside) : await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
++			expect(leaked).toEqual([]);
++		});
++	}
++
+ });
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 4187a4ea00..3d58801005 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -40,6 +40,8 @@ export interface InstallOptions {
+ 	timestamp: string;
+ 	/** Test hook: awaited once after planning and before the first mutation. Lets tests change the filesystem in that window. */
+ 	beforeApply?: () => Promise<void>;
++	/** Test hook: awaited after each planned step completes, with that step's relative path. Lets tests change the filesystem between steps. */
++	afterStep?: (rel: string) => Promise<void>;
+ }
+ 
+ export interface InstallReport {
+@@ -290,8 +292,10 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 		const current = await inspect(dst);
+ 		const prior = previous.files[rel];
+ 		if (current?.kind === "file" && current.hash === wanted) {
+-			// Already identical: the installer did not write it. Without a previous entry, or if it was adopted, it stays adopted.
+-			const entry: ManifestEntry = !prior || prior.adopted ? { hash: wanted, adopted: true } : { hash: wanted };
++			// Already identical: the installer did not write it. Only a previously owned entry whose hash still equals the
++			// current bytes stays owned; anything else (adopted, unknown, or edited to match the source) is adopted.
++			const owned = prior !== undefined && !prior.adopted && prior.hash === current.hash;
++			const entry: ManifestEntry = owned ? { hash: wanted } : { hash: wanted, adopted: true };
+ 			next.files[rel] = entry;
+ 			applied[rel] = entry;
+ 			if (current.mode !== mode) steps.push({ kind: "chmod", rel, mode, planned: current });
+@@ -344,14 +348,22 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	// True once any step changed the agent dir; gates the partial manifest.
+ 	let changed = false;
+ 	const backup = async (rel: string, mode: "copy" | "move"): Promise<void> => {
++		// Every backup re-validates its whole destination chain right before touching it: the run dir may have been
++		// swapped for a symlink since the previous backup.
++		await assertContained(agentDir, path.join(backupsRoot, "x"));
+ 		if (!backupDir) {
+-			await assertContained(agentDir, path.join(backupsRoot, "x"));
+ 			await fs.mkdir(backupsRoot, { recursive: true });
+ 			await assertBackupsRoot(backupsRoot);
+ 			backupDir = await fs.mkdtemp(path.join(backupsRoot, `team-config-${options.timestamp}-`));
+ 		}
++		await assertBackupsRoot(backupsRoot);
++		const runStat = await fs.lstat(backupDir);
++		if (runStat.isSymbolicLink()) throw new Error(`Refusing to back up through symlink: ${backupDir}`);
++		if (!runStat.isDirectory()) throw new Error(`Expected a directory but found a file: ${backupDir}`);
+ 		const dst = path.join(backupDir, rel);
++		await assertContained(agentDir, dst);
+ 		await fs.mkdir(path.dirname(dst), { recursive: true });
++		await assertContained(agentDir, dst);
+ 		const src = path.join(agentDir, rel);
+ 		if (mode === "move") {
+ 			await fs.rename(src, dst);
+@@ -369,6 +381,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 				await fs.chmod(dst, step.mode);
+ 				changed = true;
+ 				report.updated.push(step.rel);
++				await options.afterStep?.(step.rel);
+ 				continue;
+ 			}
+ 			if (step.backup) await backup(step.rel, step.backup);
+@@ -384,6 +397,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 				report.removed.push(step.rel);
+ 				await pruneEmptyDirs(path.dirname(dst), agentDir);
+ 			}
++			await options.afterStep?.(step.rel);
+ 		}
+ 
+ 		for (const { rel, planned } of seeds) {

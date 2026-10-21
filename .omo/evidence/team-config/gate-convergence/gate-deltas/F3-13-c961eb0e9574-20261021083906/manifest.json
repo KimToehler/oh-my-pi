@@ -1,0 +1,18 @@
+{
+  "base_sha": "f7c70baf67ccbf0ac79e72b98358744844262e68",
+  "head_sha": "c961eb0e9574434947fa8617086fb599c68c2ce2",
+  "commits": [
+    {
+      "sha": "97366107830aeec54222a8819934fad3a8759961",
+      "subject": "fix(team-config): reject unsupported source entries instead of skipping them",
+      "patch": "001.patch",
+      "sha256": "66f463235276f20943289c8fdd38994a47b3d3c077bf1d70a88cdbfde4d65849"
+    },
+    {
+      "sha": "c961eb0e9574434947fa8617086fb599c68c2ce2",
+      "subject": "fix(team-config): skip only the exact listed source names",
+      "patch": "002.patch",
+      "sha256": "cc369e35186e5576c40b11dff0cc6267aae20bcda1968057b7e2f18ea6fd7ae3"
+    }
+  ]
+}

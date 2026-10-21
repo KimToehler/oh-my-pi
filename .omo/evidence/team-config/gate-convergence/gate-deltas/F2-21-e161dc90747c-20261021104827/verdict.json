@@ -1,0 +1,27 @@
+{
+  "verdict": "REJECT",
+  "summary": "The sidecar does not reliably establish manifest ownership, and the delta adds a persistent provenance store.",
+  "blockers": [
+    {
+      "area": "CHECK 2 — manifest provenance",
+      "defect": "A matching checksum does not establish that the installer wrote the manifest, so user-authored manifest bytes can be overwritten without backup.",
+      "evidence": "scripts/install-team-config.ts:439-444 treats a matching sidecar as ownership. A user can create or edit a valid manifest and write its SHA-256 into the sidecar; the next install treats both as installer-written, replaces them, and backs up neither. This violates the content-preservation invariant.",
+      "change": "Use provenance that distinguishes an installer-written manifest from a user-created matching pair, or obtain an explicit decision narrowing the invariant; add a matching user-created pair as a negative control."
+    },
+    {
+      "area": "CHECK 7 — checksum comparison",
+      "defect": "Manifest and sidecar ownership are decided using inconsistent comparisons, so an invalid sidecar can suppress the manifest backup.",
+      "evidence": "scripts/install-team-config.ts:442-444 trims sidecar text before comparing it with the hash, while lines 551-554 require exactly the hash and a newline. For a valid user-written manifest accompanied by its hash plus extra whitespace, only the sidecar is backed up, contrary to entry 21's requirement to back up a manifest whose bytes do not hash to the sidecar value.",
+      "change": "Use one exact byte comparison for both decisions and test a matching hash with extra whitespace."
+    },
+    {
+      "area": "PROCESS 4 — added subsystem",
+      "defect": "The fix delta adds a persistent provenance store, which the fix-delta rule requires to have its own plan.",
+      "evidence": "Entry 21 introduces `.team-config-manifest.sha256` to retain the digest across runs; 001.patch adds `readSidecarBytes` and `writeSidecar` and persists the file after each manifest write. This is a new independently testable persistent store, not merely a replacement for a removed guard.",
+      "change": "Design and gate the provenance store in its own plan before implementing it as a fix delta."
+    }
+  ],
+  "notes": [
+    "The v1 test constructs historical-format bytes rather than using bytes produced by an actual old installer; the supplied risk assessment explicitly accepts real-v1 coverage in QA scenario 5."
+  ]
+}

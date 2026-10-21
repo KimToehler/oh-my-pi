@@ -1,0 +1,82 @@
+commit 221591fbfa35b174d6314a141505543677dc7507
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 12:58:07 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 12:58:07 2026 +0200
+
+    Revert "fix(team-config): back up a sidecar the installer did not write"
+    
+    This reverts commit e161dc90747c08337c00a862592d2455785e2b6f.
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 3502d1ff77..0fcd2269bc 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -637,40 +637,6 @@ describe("installTeamConfig", () => {
+ 			expect(second.backupDir).toBeUndefined();
+ 		});
+ 
+-		test("backs up an edited manifest whose sidecar still holds the old hash, together with that sidecar", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await t.install();
+-			const oldSidecar = await t.read(t.agent(sidecarName));
+-			const edited = `${JSON.stringify(await Bun.file(t.agent(manifestName)).json())}\n\n`;
+-			await Bun.write(t.agent(manifestName), edited);
+-			const report = await t.install();
+-			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(edited);
+-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe(oldSidecar);
+-			expect(report.backedUp).toContain(sidecarName);
+-			const next = await t.install();
+-			expect(next.backupDir).toBeUndefined();
+-		});
+-
+-		test("backs up a user-created sidecar the installer did not write", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await fs.mkdir(t.agentDir, { recursive: true });
+-			await Bun.write(t.agent(sidecarName), "notes\n");
+-			const report = await t.install();
+-			expect(report.backedUp).toContain(sidecarName);
+-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe("notes\n");
+-			expect(await t.read(t.agent(sidecarName))).not.toBe("notes\n");
+-		});
+-
+-		test("backs up an edited sidecar and the manifest it no longer matches", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await t.install();
+-			const manifest = await t.read(t.agent(manifestName));
+-			await Bun.write(t.agent(sidecarName), "other\n");
+-			const report = await t.install();
+-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe("other\n");
+-			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(manifest);
+-		});
+-
+ 		test("rejects a symlinked sidecar before any mutation", async () => {
+ 			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+ 			await t.install();
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index fa0eac61f5..dc511b7a02 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -546,11 +546,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	// A manifest the installer did not write (no matching sidecar) is copied into the run's backup dir before the first
+ 	// manifest write of the run, so a hand-written file is never silently replaced.
+ 	let manifestBackupPending = needsManifestBackup;
+-	// A sidecar that is not exactly `<sha256 of the current manifest>\n` (or that exists with no manifest) was not written
+-	// by this installer for this manifest; it is copied into the backup dir before the first sidecar replacement.
+-	let sidecarBackupPending =
+-		sidecarBytes !== undefined &&
+-		(manifestBytes === undefined || !Buffer.from(sidecarBytes).equals(Buffer.from(`${hashBytes(manifestBytes)}\n`)));
+ 	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
+ 		await options.writeManifestHook?.(kind);
+ 		if (manifestBackupPending) {
+@@ -561,10 +556,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 			await backup(MANIFEST_NAME, "copy");
+ 			manifestBackupPending = false;
+ 		}
+-		if (sidecarBackupPending) {
+-			await backup(SIDECAR_NAME, "copy");
+-			sidecarBackupPending = false;
+-		}
+ 		await writeManifest(manifestPath, manifest, expectedManifest);
+ 		expectedManifest = manifestBytesOf(manifest);
+ 		await writeSidecar(sidecarPath, expectedManifest);

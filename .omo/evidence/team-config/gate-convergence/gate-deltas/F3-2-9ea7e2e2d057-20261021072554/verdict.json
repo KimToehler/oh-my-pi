@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta leaves data-preservation and containment dependent on mutable filesystem state between preflight and application.",
+  "blockers": [
+    {
+      "area": "CHECK 5 — preflight and application",
+      "defect": "The installer decides whether to back up or remove a destination from bytes and path components checked earlier, but applies those decisions without pinning or revalidating them.",
+      "evidence": "scripts/install-team-config.ts plans from inspect(dst) and assertContained() before applying steps. If a user edits a previously unmodified managed file after inspection but before its write or removal, the planned step has no backup and destroys that edit. If a checked parent directory is replaced by a symlink before application, mkdir, chmod, copy, rename, or removal can traverse it, contrary to M2.",
+      "change": "Bind the checked destination and parent directories to the operations that use them, or detect changes and abort safely; add controls that mutate the destination and replace a parent with a symlink between preflight and application."
+    },
+    {
+      "area": "CHECK 5 — source and manifest provenance",
+      "defect": "The hash recorded as the installed content can describe different bytes from those actually copied.",
+      "evidence": "scripts/install-team-config.ts hashes managed sources into sources during phase 1, but replaceFile later copies step.src by pathname. A source edit between those operations installs the new bytes while recording the old hash; a subsequent removal or replacement then treats installer-written bytes as a local edit, and an intervening user edit matching the old hash can be deleted without backup.",
+      "change": "Read or stage each source once and derive both the manifest hash and installed bytes from that same immutable copy; test a source mutation between hashing and copying."
+    }
+  ],
+  "notes": []
+}

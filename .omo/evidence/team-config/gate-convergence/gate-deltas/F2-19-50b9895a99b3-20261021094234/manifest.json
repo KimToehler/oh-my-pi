@@ -1,0 +1,12 @@
+{
+  "base_sha": "322542da6777e8d25afe38d598bf1b4f7a6755ec",
+  "head_sha": "50b9895a99b3373ba5d22b249e45b8bf15543aa0",
+  "commits": [
+    {
+      "sha": "50b9895a99b3373ba5d22b249e45b8bf15543aa0",
+      "subject": "fix(team-config): strict manifest schema; deploy publishes the binary only after config sync",
+      "patch": "001.patch",
+      "sha256": "9fd3c0342c9d41b7d5402419e4de5349f4de10c25f6af08e9f5b1f5a219faaaf"
+    }
+  ]
+}

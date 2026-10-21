@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta can lose unowned content and fails to recheck containment for subsequent backups.",
+  "blockers": [
+    {
+      "area": "Correctness: ownership",
+      "defect": "An externally edited file is classified as installer-owned when its bytes match the updated source.",
+      "evidence": "scripts/install-team-config.ts:291-296 retains ownership without comparing prior.hash with current.hash. Install v1, edit the destination to v2, and update the source to v2: the installer adopts those bytes as owned. On the next source update or removal, lines 302 and 323 discard v2 without backup, violating the content-preservation invariant.",
+      "change": "Treat matching bytes as adopted whenever they differ from the last installer-owned hash; test subsequent replacement and removal."
+    },
+    {
+      "area": "Correctness: backup containment",
+      "defect": "Only the first backup checks the backups root; later backups can follow a replaced symlink.",
+      "evidence": "scripts/install-team-config.ts:345-359 runs assertContained and assertBackupsRoot only inside the !backupDir branch. If the backups root or run directory becomes a symlink between two backup steps, the second backup writes or moves through it without a fresh containment check. This is a change between steps, not the accepted residual race between a check and its following operation.",
+      "change": "Recheck every backup destination and its parent components immediately before each backup operation, and test replacement of a backup parent between two steps."
+    }
+  ],
+  "notes": []
+}

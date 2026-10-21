@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "Source enumeration can still silently omit unsupported entries whose names collide with inherited object properties.",
+  "blockers": [
+    {
+      "area": "Correctness — source enumeration",
+      "defect": "The skip check accepts inherited properties as skipped names, so it bypasses the new unsupported-entry rejection for names not actually listed in SKIPPED_NAMES.",
+      "evidence": "scripts/install-team-config.ts:21 defines SKIPPED_NAMES as an ordinary object; line 63 tests `SKIPPED_NAMES[entry.name]`. An entry named `constructor`, `toString`, or `__proto__` therefore evaluates truthy through Object.prototype. For example, a symlink at `team-config/agent/constructor` is silently skipped instead of throwing, contrary to TODO 13's requirement that any unsupported entry be rejected except the named skips.",
+      "change": "Use a Set or an own-property check for the three explicitly skipped names, and add a regression covering an unsupported entry with an inherited-property name."
+    }
+  ],
+  "notes": []
+}

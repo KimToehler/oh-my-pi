@@ -1,0 +1,245 @@
+commit b7321647dc93bf4eab6da04c2440e5824580d35a
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 12:58:07 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 12:58:07 2026 +0200
+
+    Revert "fix(team-config): back up a manifest the installer did not write"
+    
+    This reverts commit 037928b9e9f10895d3eec9a185639022a9923d59.
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 0fcd2269bc..7214516d53 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -597,63 +597,6 @@ describe("installTeamConfig", () => {
+ 		expect((await Bun.file(t.agent(".team-config-manifest.json")).json()).version).toBe(2);
+ 	});
+ 
+-	describe("manifest backup", () => {
+-		const manifestName = ".team-config-manifest.json";
+-		const sidecarName = ".team-config-manifest.sha256";
+-
+-		test("backs up a hand-written v2 manifest byte-for-byte, then replaces it", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await fs.mkdir(t.agentDir, { recursive: true });
+-			await Bun.write(t.agent("AGENTS.md"), "v1\n");
+-			const original = '{"files":{},"version":2}';
+-			await Bun.write(t.agent(manifestName), original);
+-			const report = await t.install();
+-			expect(report.backedUp).toContain(manifestName);
+-			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(original);
+-			expect(await t.read(t.agent(manifestName))).not.toBe(original);
+-			expect((await Bun.file(t.agent(manifestName)).json()).files["AGENTS.md"]).toBeDefined();
+-		});
+-
+-		test("does not back up a manifest the installer wrote", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await t.install();
+-			expect(await Bun.file(t.agent(sidecarName)).exists()).toBe(true);
+-			const second = await t.install();
+-			expect(second.backupDir).toBeUndefined();
+-			expect(second.backedUp).toEqual([]);
+-			expect(await fs.readdir(t.agentDir)).not.toContain("backups");
+-		});
+-
+-		test("backs up a v1 manifest without a sidecar once, then not again", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await fs.mkdir(t.agentDir, { recursive: true });
+-			await Bun.write(t.agent("AGENTS.md"), "v1\n");
+-			const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+-			const original = `{\n\t"version": 1,\n\t"files": {\n\t\t"AGENTS.md": "${sha}"\n\t}\n}\n`;
+-			await Bun.write(t.agent(manifestName), original);
+-			const first = await t.install();
+-			expect(await t.read(path.join(first.backupDir!, manifestName))).toBe(original);
+-			const second = await t.install();
+-			expect(second.backupDir).toBeUndefined();
+-		});
+-
+-		test("rejects a symlinked sidecar before any mutation", async () => {
+-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
+-			await t.install();
+-			await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+-			const outside = path.join(path.dirname(t.agentDir), "outside.sha256");
+-			await Bun.write(outside, "x\n");
+-			await fs.rm(t.agent(sidecarName));
+-			await fs.symlink(outside, t.agent(sidecarName));
+-			const manifestBefore = await t.read(t.agent(manifestName));
+-			await expect(t.install()).rejects.toThrow(t.agent(sidecarName));
+-			expect(await fs.readlink(t.agent(sidecarName))).toBe(outside);
+-			expect(await t.read(outside)).toBe("x\n");
+-			expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+-			expect(await t.read(t.agent(manifestName))).toBe(manifestBefore);
+-		});
+-	});
+-
+ 	describe("strict manifest schema", () => {
+ 		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+ 		const cases: Array<[string, unknown]> = [
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index dc511b7a02..1639de9a73 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -17,7 +17,6 @@ import * as path from "node:path";
+ import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
+ 
+ const MANIFEST_NAME = ".team-config-manifest.json";
+-const SIDECAR_NAME = ".team-config-manifest.sha256";
+ const SKIPPED_NAMES = new Set([".DS_Store", "__pycache__", ".pytest_cache"]);
+ 
+ interface ManifestEntry {
+@@ -329,36 +328,6 @@ async function writeManifest(
+ 	}
+ }
+ 
+-/** Bytes of the sidecar file; undefined when absent. Throws, naming the path, unless it is a regular file. */
+-async function readSidecarBytes(file: string): Promise<Uint8Array | undefined> {
+-	let stat: Stats;
+-	try {
+-		stat = await fs.lstat(file);
+-	} catch (err) {
+-		if (isEnoent(err)) return undefined;
+-		throw err;
+-	}
+-	if (!stat.isFile()) throw new Error(`Refusing to use manifest checksum that is not a regular file: ${file}`);
+-	try {
+-		return await Bun.file(file).bytes();
+-	} catch (err) {
+-		if (isEnoent(err)) return undefined;
+-		throw err;
+-	}
+-}
+-
+-/** Record the sha256 of the manifest bytes just written, exclusively via temp + rename. */
+-async function writeSidecar(sidecarPath: string, manifestBytes: Uint8Array): Promise<void> {
+-	const tmp = `${sidecarPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
+-	try {
+-		await fs.writeFile(tmp, `${hashBytes(manifestBytes)}\n`, { flag: "wx" });
+-		await fs.rename(tmp, sidecarPath);
+-	} catch (err) {
+-		if (!isEexist(err)) await fs.rm(tmp, { force: true });
+-		throw err;
+-	}
+-}
+-
+ /** Remove now-empty directories from `dir` up to, not including, `stopAt`. */
+ async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
+ 	let current = dir;
+@@ -435,11 +404,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	const backupsRoot = path.join(agentDir, "backups");
+ 	await assertBackupsRoot(backupsRoot);
+ 	const manifestBytes = await readManifestBytes(manifestPath);
+-	const sidecarPath = path.join(agentDir, SIDECAR_NAME);
+-	const sidecarBytes = await readSidecarBytes(sidecarPath);
+-	const needsManifestBackup =
+-		manifestBytes !== undefined &&
+-		(sidecarBytes === undefined || Buffer.from(sidecarBytes).toString("utf8").trim() !== hashBytes(manifestBytes));
+ 	const previous = parseManifest(manifestPath, manifestBytes);
+ 	const next: Manifest = { version: 2, files: newFiles() };
+ 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
+@@ -511,6 +475,34 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+ 	};
+ 
++	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
++	let expectedManifest = manifestBytes;
++	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
++		await options.writeManifestHook?.(kind);
++		await writeManifest(manifestPath, manifest, expectedManifest);
++		expectedManifest = manifestBytesOf(manifest);
++	};
++
++	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
++	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
++	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
++	// have matched again. Seed-only paths are never in the manifest and need no intent.
++	if (steps.length > 0) {
++		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
++		for (const step of steps) await verify(step.rel, step.planned);
++		for (const { rel, planned } of seeds) await verify(rel, planned);
++		const intent: Manifest = { version: 2, files: newFiles() };
++		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
++		for (const step of steps) {
++			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
++			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
++			intent.files[step.rel] = { hash, adopted: true };
++		}
++		await persist("intent", intent);
++		// Until a step completes, a partial manifest keeps its path adopted too.
++		for (const step of steps) applied[step.rel] = intent.files[step.rel];
++	}
++
+ 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
+ 	let backupDir: string | undefined;
+ 	// True once any step changed the agent dir; gates the partial manifest.
+@@ -541,46 +533,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 		report.backupDir = backupDir;
+ 	};
+ 
+-	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
+-	let expectedManifest = manifestBytes;
+-	// A manifest the installer did not write (no matching sidecar) is copied into the run's backup dir before the first
+-	// manifest write of the run, so a hand-written file is never silently replaced.
+-	let manifestBackupPending = needsManifestBackup;
+-	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
+-		await options.writeManifestHook?.(kind);
+-		if (manifestBackupPending) {
+-			const now = await readManifestBytes(manifestPath);
+-			if (now === undefined || expectedManifest === undefined || !Buffer.from(now).equals(expectedManifest)) {
+-				throw new Error(`Refusing to replace manifest ${manifestPath}: it changed after planning`);
+-			}
+-			await backup(MANIFEST_NAME, "copy");
+-			manifestBackupPending = false;
+-		}
+-		await writeManifest(manifestPath, manifest, expectedManifest);
+-		expectedManifest = manifestBytesOf(manifest);
+-		await writeSidecar(sidecarPath, expectedManifest);
+-	};
+-
+-	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
+-	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
+-	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
+-	// have matched again. Seed-only paths are never in the manifest and need no intent.
+-	if (steps.length > 0) {
+-		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
+-		for (const step of steps) await verify(step.rel, step.planned);
+-		for (const { rel, planned } of seeds) await verify(rel, planned);
+-		const intent: Manifest = { version: 2, files: newFiles() };
+-		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
+-		for (const step of steps) {
+-			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
+-			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
+-			intent.files[step.rel] = { hash, adopted: true };
+-		}
+-		await persist("intent", intent);
+-		// Until a step completes, a partial manifest keeps its path adopted too.
+-		for (const step of steps) applied[step.rel] = intent.files[step.rel];
+-	}
+-
+ 	try {
+ 		for (const step of steps) {
+ 			const dst = path.join(agentDir, step.rel);
+diff --git a/team-config/README.md b/team-config/README.md
+index d1c3598a92..92614bbefe 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -40,16 +40,15 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
+ 
+ ## What lands where
+ 
+-| Repo path                                                               | Target            | On every deploy                                   |
+-| ----------------------------------------------------------------------- | ----------------- | ------------------------------------------------- |
++| Repo path | Target | On every deploy |
++|---|---|---|
+ | `agent/**` (`AGENTS.md`, `agents/`, `rules/`, `skills/`, `extensions/`) | `~/.omp/agent/**` | Overwritten; files removed here are removed there |
+-| `seed/config.yml`, `seed/models.yml`                                    | `~/.omp/agent/`   | Copied only if missing; your edits are kept       |
++| `seed/config.yml`, `seed/models.yml` | `~/.omp/agent/` | Copied only if missing; your edits are kept |
+ 
+ The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
+ not ship are never touched. If a shipped file was edited locally, or a same-named file existed
+ before the first deploy (even an identical one: the installer only owns files it wrote itself), its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
+ before it is replaced; the deploy output names the directory.
+-The sidecar `.team-config-manifest.sha256` holds the hash of the manifest the installer last wrote; if the manifest on disk does not match it (hand-written, edited, or from an older installer), a copy of it is saved in the same backup directory before it is replaced.
+ 
+ `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
+ 

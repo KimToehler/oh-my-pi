@@ -1,0 +1,21 @@
+# F1-9 binary-only deploy (OMP_SKIP_TEAM_CONFIG=1) with a malformed manifest in the agent dir
+# head: d46acf3cf206b2076d55987999885c2fd7a693f1
+# date: 2026-10-21T11:04:09Z
+
+$ OMP_SKIP_TEAM_CONFIG=1 OMP_BIN_DIR=<tmp>/bin PI_CODING_AGENT_DIR=<tmp>/agent scripts/deploy-local.sh review/team-config
+exit=0
+==> Deploying review/team-config (d46acf3cf206b2076d55987999885c2fd7a693f1)
+==> Staging <tmp>/bin/omp.new
+==> Smoke testing <tmp>/bin/omp.new
+==> Installing to <tmp>/bin/omp
+==> Deployed d46acf3cf206b2076d55987999885c2fd7a693f1 review/team-config 2026-10-21T13:04:08+0200
+installer ran (Syncing team config / Team config line): 0
+published binary --version: omp/18.12.2
+published sha256 == build output dist/omp: yes (221abb7e038bb72afd81cd48ae71d13a4108bce81fa5f5e1aaf6a7b0e86ce951)
+omp.prev holds the old binary: yes
+omp.deployed: d46acf3cf206b2076d55987999885c2fd7a693f1 review/team-config 2026-10-21T13:04:08+0200
+agent dir file hashes unchanged: yes
+
+agent dir after:
+19c9339b2b7b…  ./.team-config-manifest.json
+fcbc800db3f1…  ./rules/mine.md

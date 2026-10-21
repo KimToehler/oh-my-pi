@@ -1,0 +1,224 @@
+commit fae944241c32b8beeca2542312c685a3af4436f7
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:53:14 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:53:14 2026 +0200
+
+    fix(team-config): intent manifest before apply; safer key setup docs
+
+diff --git a/scripts/deploy-local.sh b/scripts/deploy-local.sh
+index 31779210f1..7a0f91bdc3 100755
+--- a/scripts/deploy-local.sh
++++ b/scripts/deploy-local.sh
+@@ -11,8 +11,9 @@
+ #
+ # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
+ # uncommitted work in the main checkout never leaks into the binary.
+-# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp (team config: see the
+-# backups/team-config-* dirs the installer reports, or redeploy the old ref).
++# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp. Team config: restore from the
++# backups/team-config-* dirs the installer reports. A ref that predates team-config/
++# has no installer, so roll back to it with OMP_SKIP_TEAM_CONFIG=1.
+ set -euo pipefail
+ 
+ REF="${1:-main}"
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index e98e43077d..f6fc27f942 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -394,8 +394,14 @@ describe("installTeamConfig", () => {
+ 		await t.install();
+ 		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+ 		const changed = '{"version":1,"files":{}}\n';
++		// A change before apply is caught by the intent write, before any mutation; one during apply, by the final write.
+ 		await expect(
+ 			t.install({ beforeApply: () => Bun.write(t.agent(".team-config-manifest.json"), changed).then(() => {}) }),
++		).rejects.toThrow("changed after planning");
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
++		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
++		await expect(
++			t.install({ afterStep: () => Bun.write(t.agent(".team-config-manifest.json"), changed).then(() => {}) }),
+ 		).rejects.toThrow("manifest was not updated");
+ 		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
+ 		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+@@ -410,7 +416,8 @@ describe("installTeamConfig", () => {
+ 		// AGENTS.md is applied first (so the partial manifest is due); the b.md edit then aborts the apply; the manifest change makes the partial write's recheck fail too.
+ 		const failure = await t
+ 			.install({
+-				beforeApply: async () => {
++				afterStep: async rel => {
++					if (rel !== "AGENTS.md") return;
+ 					await Bun.write(t.agent("b.md"), "edited\n");
+ 					await Bun.write(t.agent(".team-config-manifest.json"), changed);
+ 				},
+@@ -427,6 +434,65 @@ describe("installTeamConfig", () => {
+ 		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+ 	});
+ 
++	const manifestPath = ".team-config-manifest.json";
++	const failOn = (kind: "intent" | "partial" | "final") => async (got: string) => {
++		if (got === kind) throw new Error(`injected ${kind} manifest write failure`);
++	};
++
++	test("a failed final manifest write leaves the touched path adopted, so a later edit back to the old bytes is backed up", async () => {
++		const t = await setup({ "agent/AGENTS.md": "v1\n" });
++		await t.install();
++		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
++		await expect(t.install({ writeManifestHook: failOn("final") })).rejects.toThrow("injected final");
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
++
++		await Bun.write(t.agent("AGENTS.md"), "v1\n");
++		await Bun.write(t.repo("agent/AGENTS.md"), "v3\n");
++		const report = await t.install();
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("v3\n");
++		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v1\n");
++	});
++
++	test("a failed partial manifest write leaves the touched path adopted, so a later edit back to the old bytes is backed up", async () => {
++		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
++		await t.install();
++		await Bun.write(t.repo("agent/a.md"), "v2\n");
++		await Bun.write(t.repo("agent/b.md"), "v2\n");
++		const failure = await t
++			.install({
++				writeManifestHook: failOn("partial"),
++				afterStep: async rel => {
++					if (rel === "a.md") throw new Error("abort mid-apply");
++				},
++			})
++			.then(
++				() => undefined,
++				err => err as unknown,
++			);
++		expect(failure).toBeInstanceOf(AggregateError);
++		expect(await t.read(t.agent("a.md"))).toBe("v2\n");
++		expect(await t.read(t.agent("b.md"))).toBe("v1\n");
++
++		await Bun.write(t.agent("a.md"), "v1\n");
++		await Bun.write(t.repo("agent/a.md"), "v3\n");
++		const report = await t.install();
++		expect(await t.read(t.agent("a.md"))).toBe("v3\n");
++		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("v1\n");
++	});
++
++	test("a failed intent manifest write aborts before any mutation", async () => {
++		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
++		await t.install();
++		const before = await t.read(t.agent(manifestPath));
++		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
++		await fs.rm(t.repo("agent/old.md"));
++		await expect(t.install({ writeManifestHook: failOn("intent") })).rejects.toThrow("injected intent");
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
++		expect(await t.read(t.agent("old.md"))).toBe("old\n");
++		expect(await t.read(t.agent(manifestPath))).toBe(before);
++		expect(await fs.readdir(t.agentDir)).not.toContain("backups");
++	});
++
+ 	test("backs up an adopted file once, then treats it as owned", async () => {
+ 		const t = await setup({ "agent/AGENTS.md": "orig\n" });
+ 		await Bun.write(t.agent("AGENTS.md"), "orig\n");
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 6ad45a05d8..8d94c2cb82 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -42,6 +42,8 @@ export interface InstallOptions {
+ 	beforeApply?: () => Promise<void>;
+ 	/** Test hook: awaited after each planned step completes, with that step's relative path. Lets tests change the filesystem between steps. */
+ 	afterStep?: (rel: string) => Promise<void>;
++	/** Test hook: awaited right before each manifest write (`intent`, `partial`, `final`); throw to simulate that write failing. */
++	writeManifestHook?: (kind: "intent" | "partial" | "final") => Promise<void>;
+ }
+ 
+ export interface InstallReport {
+@@ -219,7 +221,12 @@ async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promis
+ 	}
+ }
+ 
+-/** Replace the manifest, but only while it is still exactly what phase 1 read (`expected`; undefined = absent). */
++/** Serialized manifest, exactly as written to disk. */
++function manifestBytesOf(manifest: Manifest): Uint8Array {
++	return Buffer.from(`${JSON.stringify(manifest, null, "\t")}\n`);
++}
++
++/** Replace the manifest, but only while it is still exactly what the caller last knew (`expected`; undefined = absent). */
+ async function writeManifest(
+ 	manifestPath: string,
+ 	manifest: Manifest,
+@@ -231,7 +238,7 @@ async function writeManifest(
+ 	}
+ 	const tmp = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
+ 	try {
+-		await fs.writeFile(tmp, `${JSON.stringify(manifest, null, "\t")}\n`, { flag: "wx" });
++		await fs.writeFile(tmp, manifestBytesOf(manifest), { flag: "wx" });
+ 		await fs.rename(tmp, manifestPath);
+ 	} catch (err) {
+ 		if (!isEexist(err)) await fs.rm(tmp, { force: true });
+@@ -386,6 +393,34 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+ 	};
+ 
++	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
++	let expectedManifest = manifestBytes;
++	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
++		await options.writeManifestHook?.(kind);
++		await writeManifest(manifestPath, manifest, expectedManifest);
++		expectedManifest = manifestBytesOf(manifest);
++	};
++
++	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
++	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
++	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
++	// have matched again. Seed-only paths are never in the manifest and need no intent.
++	if (steps.length > 0) {
++		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
++		for (const step of steps) await verify(step.rel, step.planned);
++		for (const { rel, planned } of seeds) await verify(rel, planned);
++		const intent: Manifest = { version: 2, files: newFiles() };
++		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
++		for (const step of steps) {
++			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
++			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
++			intent.files[step.rel] = { hash, adopted: true };
++		}
++		await persist("intent", intent);
++		// Until a step completes, a partial manifest keeps its path adopted too.
++		for (const step of steps) applied[step.rel] = intent.files[step.rel];
++	}
++
+ 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
+ 	let backupDir: string | undefined;
+ 	// True once any step changed the agent dir; gates the partial manifest.
+@@ -460,7 +495,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 		if (!changed) throw err;
+ 		// Persist what was actually applied; if that fails too, the original error stays first and the write error rides along.
+ 		try {
+-			await writeManifest(manifestPath, { version: 2, files: applied }, manifestBytes);
++			await persist("partial", { version: 2, files: applied });
+ 		} catch (writeErr) {
+ 			const message = err instanceof Error ? err.message : String(err);
+ 			throw new AggregateError([err, writeErr], `${message} (and the partial manifest could not be written)`);
+@@ -469,7 +504,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	}
+ 
+ 	try {
+-		await writeManifest(manifestPath, next, manifestBytes);
++		await persist("final", next);
+ 	} catch (err) {
+ 		const message = err instanceof Error ? err.message : String(err);
+ 		throw new Error(`Team config files were applied but the manifest was not updated: ${message}`, { cause: err });
+diff --git a/team-config/README.md b/team-config/README.md
+index 52815876a1..d9509a62f0 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -14,8 +14,9 @@ the deploy script re-enters the flake dev shell.
+ git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
+ cd ~/git/oh-my-pi
+ scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
+-echo 'ONARA_ROUTER_KEY=<your key>' >> ~/.omp/agent/.env
+-chmod 600 ~/.omp/agent/.env
++( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env   # mode 600 before any key is written
++printf 'Router key: '; read -rs ONARA_ROUTER_KEY; echo                   # no echo, not in shell history (zsh and bash)
++printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
+ omp                                           # ~/.local/bin must be on PATH
+ ```
+ 

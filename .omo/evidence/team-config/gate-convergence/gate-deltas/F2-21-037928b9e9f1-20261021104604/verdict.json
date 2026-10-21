@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The new checksum sidecar can overwrite user content, and the tests do not exercise the checksum-mismatch decision.",
+  "blockers": [
+    {
+      "area": "Correctness — sidecar preservation",
+      "defect": "The installer silently replaces pre-existing or locally edited sidecar bytes that it did not write.",
+      "evidence": "scripts/install-team-config.ts:438-441 reads any regular sidecar without establishing ownership; scripts/install-team-config.ts:350-356 then renames a newly generated checksum over it on every manifest write. For example, a fresh agent directory containing a user-created .team-config-manifest.sha256 loses that file on first install without a backup. The same happens to a locally edited sidecar on a later install.",
+      "change": "Preserve an unowned or modified sidecar before replacing it, or refuse the replacement without losing its bytes; add real-filesystem tests for both a pre-existing sidecar and an edited installer-written sidecar."
+    },
+    {
+      "area": "CHECK 2 — checksum identity control",
+      "defect": "The tests do not establish that changing manifest bytes while retaining the existing checksum causes a backup.",
+      "evidence": "scripts/install-team-config.test.ts:604-637 covers an absent sidecar and an unchanged installer-written manifest, but not an edited manifest with its old sidecar still present. An implementation that trusts any existing sidecar without comparing its value would pass those cases while replacing an edited manifest without backup.",
+      "change": "Add a control that installs once, edits only the valid manifest bytes while retaining the sidecar, and verifies that the exact edited bytes are backed up and reported; contrast it with the unchanged next-run case."
+    }
+  ],
+  "notes": []
+}

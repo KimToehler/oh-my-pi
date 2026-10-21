@@ -1,0 +1,36 @@
+{
+  "base_sha": "90e3e77e68da7b16ac9ffa244444374281972ee0",
+  "head_sha": "363476997156765ff0844621ceafa4056524feca",
+  "commits": [
+    {
+      "sha": "d4b1be13544791cecc41ebbd85ab7fcfca84781b",
+      "subject": "refactor(team-config): integration cleanup",
+      "patch": "001.patch",
+      "sha256": "cd9533f56f9ce2db463f775df8725d2ce89d3582ffd0c8b8491eb70bd2cb4c39"
+    },
+    {
+      "sha": "9ea7e2e2d057668b536964e3ad029f73a649f55e",
+      "subject": "fix(team-config): exclusive per-run backup dir and mode-only sync",
+      "patch": "002.patch",
+      "sha256": "41470437adfb7cd9a06c1522ca3b825c99b47076c8ed388833ed7d0aef239398"
+    },
+    {
+      "sha": "abe2a25ba377fe04d31cae7fbfffb4c17c80297d",
+      "subject": "fix(team-config): installer applies exactly what it planned",
+      "patch": "003.patch",
+      "sha256": "b8cb65120c57fa504f3dec4ceeabfe2e679db492e70bf3baa5bc0d6faa468289"
+    },
+    {
+      "sha": "946f0418187bb4c33a5db383f2f3c9cfe624f804",
+      "subject": "fix(team-config): installer checks mode, link targets and its manifest",
+      "patch": "004.patch",
+      "sha256": "d26cac745d9a4b6b025a0295051bdec5598ec291ebeca4f8f2a278b5f13da826"
+    },
+    {
+      "sha": "363476997156765ff0844621ceafa4056524feca",
+      "subject": "fix(team-config): installer backs up adopted files and skips no-op manifests",
+      "patch": "005.patch",
+      "sha256": "97b860de8cf0ac3ea9993beb8b0aa5ad9c0dae6ebbf21fd6354a343402631d58"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "The intent-manifest changes address the specified interruption scenarios, but the credential-setup delta lacks the required holders-and-sinks analysis and negative control.",
+  "blockers": [
+    {
+      "area": "CHECK 1 — README key setup",
+      "defect": "The delta introduces a secret-handling workflow without an inventory of credential holders and sinks, a named protection chokepoint or justified sink exclusions, and a sentinel-based negative control.",
+      "evidence": "Fix 16(b) requires reading the router key without shell-history exposure and writing it only after `.env` is mode 600. `team-config/README.md:17-22` introduces a shell variable and a persistent `.env` sink, but the supplied fix entry and patches contain no holder/sink inventory or artifact scan. The intended `.env` sink must be explicitly excluded from any zero-hit scan rather than treated as an accidental leak.",
+      "change": "Inventory the key’s holders and outputs for this setup path, identify the intended `.env` sink and protection boundary, and add a sentinel control that exercises the documented commands and checks all unintended artifacts, including shell history and output."
+    }
+  ],
+  "notes": []
+}

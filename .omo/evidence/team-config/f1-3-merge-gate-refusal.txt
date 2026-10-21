@@ -1,0 +1,12 @@
+# F1-3 merge-gate refusal with HOME pointed away from ~/.omp
+# head: 322542da6777e8d25afe38d598bf1b4f7a6755ec
+# binary: /Users/tim/.bun/bin/omp (90e3e77e68da7b16ac9ffa244444374281972ee0)
+# date: 2026-10-21T09:29:54Z
+
+$ HOME=<tmp>/home PI_CODING_AGENT_DIR=<tmp>/agent omp -p --mode json --no-session ... "Done, ready to merge."  | grep "Merge gate:"
+Merge gate: not applicable (<reason>)` opt-out). Then I'll run manual QA on the real surface, dispatch the reviewers with verbatim briefs, store trailers, write and stage `omo.merge-gate/v2`, and run `validate-gate-record.mjs`.
+Merge gate: not applicable (<reason>)` outside code fences counts) and the abort-rule fields `Accepted residual risks` and `Out of scope for blocking`, each with concrete text or `none (<reason>)`. A plan that fails it would fail the gate only after ev
+Merge gate: your reply claims completion or asks for a merge, but this repository has no omo.merge-gate/v2 record for unshipped work (searched .omo/evidence/gate, docs/evidence; records already on the default branch are skipped). Run the review-work sk
+
+validator not found mentioned: 0
+0

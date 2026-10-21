@@ -1,0 +1,134 @@
+commit c961eb0e9574434947fa8617086fb599c68c2ce2
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:23:56 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:24:37 2026 +0200
+
+    fix(team-config): skip only the exact listed source names
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 49e7ede18b..e99cc95742 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -156,7 +156,9 @@ describe("installTeamConfig", () => {
+ 		await t.install();
+ 		await fs.rm(t.repo("agent/rules/a.md"));
+ 		await fs.symlink(t.repo("agent/other.md"), t.repo("agent/rules/a.md"));
+-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules/a.md")}`);
++		await expect(t.install()).rejects.toThrow(
++			`Unsupported entry in team config source (symlink): ${t.repo("agent/rules/a.md")}`,
++		);
+ 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+ 		expect(await t.read(t.agent("b.md"))).toBe("b\n");
+ 		expect(await t.read(t.agent("other.md"))).toBe("other\n");
+@@ -167,15 +169,28 @@ describe("installTeamConfig", () => {
+ 		await t.install();
+ 		await fs.rm(t.repo("agent/rules"), { recursive: true });
+ 		await fs.symlink(t.repo("agent/real"), t.repo("agent/rules"));
+-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules")}`);
++		await expect(t.install()).rejects.toThrow(
++			`Unsupported entry in team config source (symlink): ${t.repo("agent/rules")}`,
++		);
+ 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+ 		expect(await t.read(t.agent("real/x.md"))).toBe("x\n");
+ 	});
+ 
++	test("rejects a symlink named like an Object.prototype member (only exact listed names are skipped)", async () => {
++		const t = await setup({ "agent/a.md": "a\n" });
++		await fs.symlink(t.repo("agent/a.md"), t.repo("agent/constructor"));
++		await expect(t.install()).rejects.toThrow(
++			`Unsupported entry in team config source (symlink): ${t.repo("agent/constructor")}`,
++		);
++		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
++	});
++
+ 	test("rejects a symlink under seed/", async () => {
+ 		const t = await setup({ "seed/config.yml": "team: 1\n", "agent/a.md": "a\n" });
+ 		await fs.symlink(t.repo("seed/config.yml"), t.repo("seed/link.yml"));
+-		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("seed/link.yml")}`);
++		await expect(t.install()).rejects.toThrow(
++			`Unsupported entry in team config source (symlink): ${t.repo("seed/link.yml")}`,
++		);
+ 		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
+ 	});
+ 
+@@ -402,7 +417,10 @@ describe("installTeamConfig", () => {
+ 		await fs.mkdir(t.agentDir, { recursive: true });
+ 		await Bun.write(t.agent("AGENTS.md"), "v1\n");
+ 		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
+-		await Bun.write(t.agent(".team-config-manifest.json"), JSON.stringify({ version: 1, files: { "AGENTS.md": sha } }));
++		await Bun.write(
++			t.agent(".team-config-manifest.json"),
++			JSON.stringify({ version: 1, files: { "AGENTS.md": sha } }),
++		);
+ 		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+ 		const report = await t.install();
+ 		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v1\n");
+@@ -467,9 +485,10 @@ describe("installTeamConfig", () => {
+ 				}),
+ 			).rejects.toThrow(/symlink/);
+ 			const leaked =
+-				target === "run dir" ? await fs.readdir(outside) : await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
++				target === "run dir"
++					? await fs.readdir(outside)
++					: await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
+ 			expect(leaked).toEqual([]);
+ 		});
+ 	}
+-
+ });
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 51ece57600..f85de69858 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -17,7 +17,7 @@ import * as path from "node:path";
+ import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
+ 
+ const MANIFEST_NAME = ".team-config-manifest.json";
+-const SKIPPED_NAMES: Record<string, true> = { ".DS_Store": true, __pycache__: true, ".pytest_cache": true };
++const SKIPPED_NAMES = new Set([".DS_Store", "__pycache__", ".pytest_cache"]);
+ 
+ interface ManifestEntry {
+ 	/** sha256 of the content the installer last knew this file to hold. */
+@@ -60,7 +60,7 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
+ 	async function walk(dir: string, rel: string): Promise<void> {
+ 		const entries = await fs.readdir(dir, { withFileTypes: true });
+ 		for (const entry of entries) {
+-			if (SKIPPED_NAMES[entry.name]) continue;
++			if (SKIPPED_NAMES.has(entry.name)) continue;
+ 			const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+ 			const full = path.join(dir, entry.name);
+ 			if (entry.isDirectory()) await walk(full, childRel);
+@@ -172,7 +172,8 @@ function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
+ 	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
+ 		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
+ 		const files: Record<string, ManifestEntry> = {};
+-		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>)) files[rel] = { hash, adopted: true };
++		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
++			files[rel] = { hash, adopted: true };
+ 		return { version: 2, files };
+ 	}
+ 	throw new Error(`Unsupported team config manifest ${file}`);
+@@ -198,7 +199,11 @@ async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promis
+ }
+ 
+ /** Replace the manifest, but only while it is still exactly what phase 1 read (`expected`; undefined = absent). */
+-async function writeManifest(manifestPath: string, manifest: Manifest, expected: Uint8Array | undefined): Promise<void> {
++async function writeManifest(
++	manifestPath: string,
++	manifest: Manifest,
++	expected: Uint8Array | undefined,
++): Promise<void> {
+ 	const now = await readManifestBytes(manifestPath);
+ 	if (now === undefined ? expected !== undefined : expected === undefined || !Buffer.from(now).equals(expected)) {
+ 		throw new Error(`Refusing to replace manifest ${manifestPath}: it changed after planning`);
+@@ -355,7 +360,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	const verify = async (rel: string, planned: DestState): Promise<void> => {
+ 		const dst = path.join(agentDir, rel);
+ 		await assertContained(agentDir, dst);
+-		if (stateKey(await inspect(dst)) !== stateKey(planned)) throw new Error(`Refusing to touch ${dst}: it changed after planning`);
++		if (stateKey(await inspect(dst)) !== stateKey(planned))
++			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+ 	};
+ 
+ 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.

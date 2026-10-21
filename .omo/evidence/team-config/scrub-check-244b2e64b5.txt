@@ -1,0 +1,27 @@
+# Mechanical scrub check on 244b2e64b5a1e721f11b11ecb29ef9c4611e1702 (plan criterion: shipped tree has no private references)
+$ git grep -nE "/Users/[A-Za-z]" -- team-config/ | grep -v third-party-example-filter
+team-config/agent/skills/coding-agent-sessions/scripts/tests/test_extended_scanners.py:213:    assert _file_uri_path("file:///C:/Users/yeongyu/project") == "C:/
+count: 1
+$ git grep -nE '~/git/9router' -- team-config/ | wc -l
+0
+$ git grep -nE 'nutritrain' -- team-config/ | wc -l
+0
+$ git grep -nE '^Learned in:' -- team-config/ | wc -l
+0
+$ git ls-tree -r HEAD team-config/ | grep -c "^120000"
+0
+
+# skills changed since 90e3e77e68 (shipped skill content touched by the fix commits)
+(empty line above = none)
+
+# shipped skill files
+388
+     37 angular-developer
+     31 coding-agent-sessions
+     25 debugging
+    173 frontend
+      2 git-master
+      1 integration-review
+     75 programming
+     25 review-work
+     19 visual-qa

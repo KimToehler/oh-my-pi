@@ -1,0 +1,302 @@
+commit 5fa0e6af9994d39f12aaf52a2b8e578283f4a472
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 13:15:56 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 13:15:56 2026 +0200
+
+    feat(team-config): ship the merge-gate-proof rule
+
+diff --git a/team-config/agent/extensions/merge-gate.ts b/team-config/agent/extensions/merge-gate.ts
+index c0b24c50eb..1ae9f01f1c 100644
+--- a/team-config/agent/extensions/merge-gate.ts
++++ b/team-config/agent/extensions/merge-gate.ts
+@@ -60,7 +60,7 @@ const CLAIM_PATTERNS: RegExp[] = [
+ 	/\bF2\b[^\n]{0,40}\[x\]/i,
+ ];
+ 
+-// The merge-gate-proof rule makes the agent print a `Gate proof` block with NOT RUN lines when the
++// The shipped merge-gate-proof rule (rules/merge-gate-proof.md) makes the agent print a `Gate proof` block with NOT RUN lines when the
+ // gate has not passed. Such an honest report is not a claim; treating it as one looped the stop
+ // check on every retraction.
+ const GATE_NOT_PASSED: RegExp[] = [
+@@ -80,7 +80,9 @@ function lastAssistantText(message: unknown): string {
+ 	if (typeof content === "string") return content;
+ 	if (!Array.isArray(content)) return "";
+ 	return content
+-		.filter((block): block is { type: "text"; text: string } => block?.type === "text" && typeof block.text === "string")
++		.filter(
++			(block): block is { type: "text"; text: string } => block?.type === "text" && typeof block.text === "string",
++		)
+ 		.map(block => block.text)
+ 		.join("\n");
+ }
+@@ -131,7 +133,8 @@ const PROPOSE_ALONE: ToolCallEventResult = {
+ };
+ const AFTER_PROPOSE: ToolCallEventResult = {
+ 	block: true,
+-	reason: "The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
++	reason:
++		"The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
+ };
+ 
+ // The host approves the propose text's slug file when it exists, and otherwise falls back to its plan-mode state
+@@ -142,7 +145,8 @@ const NO_SLUG_PLAN: ToolCallEventResult = {
+ };
+ const UNCLEAR_SLUG: ToolCallEventResult = {
+ 	block: true,
+-	reason: "Write only the plan slug to xd://propose, without line-number or [path#tag] prefixes copied from read output.",
++	reason:
++		"Write only the plan slug to xd://propose, without line-number or [path#tag] prefixes copied from read output.",
+ };
+ 
+ /** One assistant message's file-changing calls, whether it proposed already, and the proposal this hook allowed in it. */
+@@ -172,7 +176,10 @@ export default function mergeGate(pi: ExtensionAPI) {
+ 		calls.mutations.delete(event.toolCallId);
+ 		if (calls.allowedPropose === event.toolCallId) calls.allowedPropose = undefined;
+ 	});
+-	pi.on("turn_end", (_event: TurnEndEvent, ctx: ExtensionContext) => void messages.delete(ctx.sessionManager.getSessionId()));
++	pi.on(
++		"turn_end",
++		(_event: TurnEndEvent, ctx: ExtensionContext) => void messages.delete(ctx.sessionManager.getSessionId()),
++	);
+ 
+ 	async function checkPlan(body: string, ctx: ExtensionContext): Promise<ToolCallEventResult | undefined> {
+ 		const local = ctx.localProtocolOptions;
+@@ -180,13 +187,22 @@ export default function mergeGate(pi: ExtensionAPI) {
+ 		const plan = await proposedPlan(body, { local, cwd: ctx.cwd });
+ 		if (!plan) return NO_SLUG_PLAN;
+ 		if (!existsSync(VALIDATOR)) {
+-			return { block: true, reason: `Merge gate: validator not found at ${VALIDATOR}; cannot check the plan's ## Merge gate section.` };
++			return {
++				block: true,
++				reason: `Merge gate: validator not found at ${VALIDATOR}; cannot check the plan's ## Merge gate section.`,
++			};
+ 		}
+ 		let result: ExecResult;
+ 		try {
+-			result = await pi.exec("node", [VALIDATOR, "--plan-only", "--plan", plan.path], { cwd: ctx.cwd, timeout: 30_000 });
++			result = await pi.exec("node", [VALIDATOR, "--plan-only", "--plan", plan.path], {
++				cwd: ctx.cwd,
++				timeout: 30_000,
++			});
+ 		} catch (error) {
+-			return { block: true, reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${String(error)}).` };
++			return {
++				block: true,
++				reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${String(error)}).`,
++			};
+ 		}
+ 		if (result.code !== 0) {
+ 			const slug = path.basename(plan.path).replace(/-plan\.md$/i, "");
+@@ -238,12 +254,18 @@ export default function mergeGate(pi: ExtensionAPI) {
+ 
+ 		// Records whose reviewed_sha is already on the pushed default branch gate shipped work; their
+ 		// plans get archived, so validating them again can only fail. Pick the newest open record.
+-		const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, timeout: 10_000 });
++		const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], {
++			cwd: repo,
++			timeout: 10_000,
++		});
+ 		const shipped = remoteHead.code === 0 ? remoteHead.stdout.trim() : undefined;
+ 		let found: GateRecord | undefined;
+ 		for (const candidate of recordsNewestFirst(repo)) {
+ 			if (shipped && candidate.reviewedSha) {
+-				const merged = await pi.exec("git", ["merge-base", "--is-ancestor", candidate.reviewedSha, shipped], { cwd: repo, timeout: 10_000 });
++				const merged = await pi.exec("git", ["merge-base", "--is-ancestor", candidate.reviewedSha, shipped], {
++					cwd: repo,
++					timeout: 10_000,
++				});
+ 				if (merged.code === 0) continue;
+ 			}
+ 			found = candidate;
+diff --git a/team-config/agent/rules/merge-gate-proof.md b/team-config/agent/rules/merge-gate-proof.md
+new file mode 100644
+index 0000000000..600c92b079
+--- /dev/null
++++ b/team-config/agent/rules/merge-gate-proof.md
+@@ -0,0 +1,37 @@
++---
++description: Before asking to merge or reporting gated work as done, show a Gate proof block proving integration-review and review-work actually ran in full
++alwaysApply: true
++---
++
++# Merge gate proof: show it, never make the user ask
++
++Applies when a reply asks to merge, merges, asks for merge approval, or reports work as done that a plan with a `## Merge gate` section governs. Work without such a plan (questions, investigations, plans carrying `- Merge gate: not applicable (<reason>)`) gets no block.
++
++When it applies, put this block in the reply, filled from tool output of this session, never from memory:
++
++```
++Gate proof
++- integration-review: RAN | NOT RUN (<reason>) | not needed (<plan's Whole-diff review reason>)
++  range <base>...<head> (literal SHAs) · report <tracked path> · Must-fix: <n> open / <n> fixed in <sha>
++- review-work: RAN | NOT RUN (<reason>)
++  reviewed_sha <40-hex> · plan_sha256 <hex>
++  implementation-audit: <PASS|FAIL> · <agent> · <model> · trailer <path>
++  strategic-risk-review: <PASS|FAIL|not run (reason)> · trailer <path>
++  record <path> · validate-gate-record.mjs exit 0 at <HEAD sha>
++- code committed after reviewed_sha: none | <shas> → gate void, re-run
++```
++
++Any line that is not RAN/PASS: say so at the top of the reply and do not ask for merge approval. Write it as `NOT RUN (<reason>)`; the merge-gate extension then reads the reply as a status report, not a claim. A reviewer that review-work's depth rule chose not to run is a valid `not run (<reason>)`, except for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers.
++
++## What "ran in full" means
++
++- integration-review: whole diff read, every failure mode named with an instance or "no instance found", simplification pass, plan scope walk, the reviewer dispatched with the skill's verbatim brief, a stored report, one cleanup commit for applied fixes, and a delta round after fixes. A reviewer asked "is this good?" is not the skill.
++- review-work: plan frozen first (F2 `[x]`, then `plan_sha256`), each reviewer dispatched with the skill's verbatim brief, its `REVIEW-TRAILER-v1` stored unedited at a tracked path, the `omo.merge-gate/v2` record written and staged, the validator exiting 0, re-run after the record commit.
++
++Order: integration-review, fixes, review-work. Code committed after review-work's `reviewed_sha` voids it; code committed after integration-review's last reviewed SHA needs a delta round over `<last reviewed>...<head>`.
++
++## Failures this prevents
++
++- Review rounds dispatched with custom checklists instead of the verbatim briefs both said PASS without trailers, so no valid gate record could exist; the verbatim round then found a real defect.
++- Merge approval was requested with integration-review never run; the user had to ask whether both skills had run.
++- A trailer was reformatted to make the validator pass. Never trim or edit a trailer; re-run the invocation.
+diff --git a/team-config/tests/merge-gate.test.ts b/team-config/tests/merge-gate.test.ts
+index 71607f4270..31190b974f 100644
+--- a/team-config/tests/merge-gate.test.ts
++++ b/team-config/tests/merge-gate.test.ts
+@@ -44,7 +44,8 @@ const PROPOSE_ALONE = {
+ };
+ const AFTER_PROPOSE = {
+ 	block: true,
+-	reason: "The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
++	reason:
++		"The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
+ };
+ const NO_SLUG_PLAN = {
+ 	block: true,
+@@ -72,23 +73,39 @@ async function emit(name: string, event: unknown, sessionId = "sess-A"): Promise
+ }
+ 
+ const tool = (toolName: string, toolCallId: string, input: Record<string, unknown>, sessionId = "sess-A") =>
+-	emit("tool_call", { type: "tool_call", toolName, toolCallId, input }, sessionId) as Promise<ToolCallEventResult | undefined>;
++	emit("tool_call", { type: "tool_call", toolName, toolCallId, input }, sessionId) as Promise<
++		ToolCallEventResult | undefined
++	>;
+ 
+ const write = (target: string, content: string, sessionId = "sess-A", toolCallId = "t") =>
+ 	tool("write", toolCallId, { path: target, content }, sessionId);
+ 
+ /** A hashline plan edit as the host delivers it to `tool_call` (path/paths from the `[PATH#TAG]` header). */
+ const editPlan = (toolCallId: string, target = "local://x-plan.md", sessionId = "sess-A") =>
+-	tool("edit", toolCallId, { input: `[${target}#AB12]\nPUT 2.=2:\n+## Merge gate`, path: target, paths: [target] }, sessionId);
++	tool(
++		"edit",
++		toolCallId,
++		{ input: `[${target}#AB12]\nPUT 2.=2:\n+## Merge gate`, path: target, paths: [target] },
++		sessionId,
++	);
+ 
+ const toolResult = (toolName: string, toolCallId: string, sessionId = "sess-A") =>
+-	emit("tool_result", { type: "tool_result", toolName, toolCallId, input: {}, content: [], isError: false }, sessionId);
++	emit(
++		"tool_result",
++		{ type: "tool_result", toolName, toolCallId, input: {}, content: [], isError: false },
++		sessionId,
++	);
+ 
+ const turnEnd = (sessionId = "sess-A") =>
+-	emit("turn_end", { type: "turn_end", turnIndex: 0, message: { role: "assistant", content: [] }, toolResults: [] }, sessionId);
++	emit(
++		"turn_end",
++		{ type: "turn_end", turnIndex: 0, message: { role: "assistant", content: [] }, toolResults: [] },
++		sessionId,
++	);
+ 
+ /** A `write xd://propose` prepared inside the current message (no turn end). */
+-const proposeCall = (toolCallId: string, slug = "x", sessionId = "sess-A") => write("xd://propose", slug, sessionId, toolCallId);
++const proposeCall = (toolCallId: string, slug = "x", sessionId = "sess-A") =>
++	write("xd://propose", slug, sessionId, toolCallId);
+ 
+ /** One whole message that only proposes: the propose's `tool_call`, then the turn ends. */
+ async function propose(sessionId = "sess-A", slug = "x"): Promise<ToolCallEventResult | undefined> {
+@@ -107,7 +124,9 @@ const validatorRuns = (): number => h.execCalls.filter(call => call.args.include
+ 
+ /** The plan files the validator was asked to check, in order. */
+ const checkedPlans = (): (string | undefined)[] =>
+-	h.execCalls.filter(call => call.args.includes("--plan-only")).map(call => call.args[call.args.indexOf("--plan") + 1]);
++	h.execCalls
++		.filter(call => call.args.includes("--plan-only"))
++		.map(call => call.args[call.args.indexOf("--plan") + 1]);
+ 
+ beforeEach(async () => {
+ 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mg-test-"));
+@@ -195,7 +214,9 @@ describe("propose-alone rule", () => {
+ 		await planOnDisk(GOOD_PLAN);
+ 		await proposeCall("p1");
+ 		expect(await editPlan("e1")).toMatchObject({ block: true });
+-		expect(await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] })).toMatchObject({ block: true });
++		expect(
++			await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] }),
++		).toMatchObject({ block: true });
+ 		expect(await tool("write", "d1", { path: "xd://resolve", content: "apply" })).toMatchObject({ block: true });
+ 		expect(await tool("read", "r1", { path: "local://x-plan.md" })).toBeUndefined();
+ 	});
+@@ -277,7 +298,9 @@ describe("propose-alone rule", () => {
+ 	it("refuses a propose nested in xd://write when the host dispatches it", async () => {
+ 		// Given: the loop prepares the outer device write; executing it emits the inner write under the same id
+ 		await planOnDisk(GOOD_PLAN);
+-		expect(await write("xd://write", JSON.stringify({ path: "xd://propose", content: "x" }), "sess-A", "d1")).toBeUndefined();
++		expect(
++			await write("xd://write", JSON.stringify({ path: "xd://propose", content: "x" }), "sess-A", "d1"),
++		).toBeUndefined();
+ 		// When
+ 		const inner = await write("xd://propose", "x", "sess-A", "d1");
+ 		// Then
+@@ -295,7 +318,13 @@ describe("propose-alone rule", () => {
+ 
+ 	it("allows a propose sent with read-only calls and checks the plan on disk", async () => {
+ 		const file = await planOnDisk(GOOD_PLAN);
+-		for (const [name, id] of [["read", "r1"], ["grep", "g1"], ["glob", "g2"], ["lsp", "l1"], ["web_search", "s1"]] as const) {
++		for (const [name, id] of [
++			["read", "r1"],
++			["grep", "g1"],
++			["glob", "g2"],
++			["lsp", "l1"],
++			["web_search", "s1"],
++		] as const) {
+ 			expect(await tool(name, id, { path: "local://x-plan.md", pattern: "x", query: "x" })).toBeUndefined();
+ 		}
+ 		expect(await proposeCall("p1")).toBeUndefined();
+@@ -436,3 +465,40 @@ describe("session_stop", () => {
+ 		expect(result).toBeUndefined();
+ 	});
+ });
++
++describe("merge-gate-proof rule contract", () => {
++	const stop = (text: string) =>
++		emit("session_stop", {
++			type: "session_stop",
++			messages: [],
++			turn_id: 1,
++			last_assistant_message: { role: "assistant", content: [{ type: "text", text }] },
++		});
++	const SHA = "a".repeat(40);
++	const FILLED = [
++		"Gate proof",
++		"- integration-review: RAN",
++		`  range ${SHA}...${SHA} · report docs/r.md · Must-fix: 0 open / 0 fixed in ${SHA}`,
++		"- review-work: RAN",
++		`  reviewed_sha ${SHA} · plan_sha256 ${"b".repeat(64)}`,
++		`- code committed after reviewed_sha: none`,
++		"",
++		"Work is done.",
++	].join("\n");
++
++	it("treats a filled Gate proof block without a merge phrase as a claim", async () => {
++		await stop(FILLED);
++		expect(h.execCalls[0]).toEqual({ command: "git", args: ["rev-parse", "--show-toplevel"] });
++	});
++
++	it("does not treat a Gate proof block with a NOT RUN line as a claim", async () => {
++		const text = FILLED.replace("- review-work: RAN", "- review-work: NOT RUN (gate not finished)");
++		expect(await stop(text)).toBeUndefined();
++		expect(h.execCalls).toHaveLength(0);
++	});
++
++	it("leaves a plain completion report ungated; the rule makes the agent emit the block", async () => {
++		expect(await stop("The requested work is complete.")).toBeUndefined();
++		expect(h.execCalls).toHaveLength(0);
++	});
++});

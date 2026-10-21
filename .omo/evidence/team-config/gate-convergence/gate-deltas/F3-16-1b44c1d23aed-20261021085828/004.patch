@@ -1,0 +1,76 @@
+commit 1b44c1d23aed4dc809e2180d427ea6b3c51a523a
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:58:18 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:58:18 2026 +0200
+
+    fix(team-config): partial manifests keep removed paths; key setup checks .env before touching it
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 32e4946954..9c448ec1f9 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -503,6 +503,27 @@ describe("installTeamConfig", () => {
+ 		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("user edit\n");
+ 	});
+ 
++	test("a partial manifest keeps a removed path adopted; only the final manifest drops it", async () => {
++		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
++		await t.install();
++		await fs.rm(t.repo("agent/a.md"));
++		await Bun.write(t.repo("agent/b.md"), "v2\n");
++		await expect(
++			t.install({
++				afterStep: async rel => {
++					if (rel === "a.md") throw new Error("abort mid-apply");
++				},
++			}),
++		).rejects.toThrow("abort mid-apply");
++		expect(await Bun.file(t.agent("a.md")).exists()).toBe(false);
++		const partial = (await Bun.file(t.agent(manifestPath)).json()).files["a.md"];
++		expect(partial.adopted).toBe(true);
++
++		await t.install();
++		expect((await Bun.file(t.agent(manifestPath)).json()).files["a.md"]).toBeUndefined();
++		expect(await t.read(t.agent("b.md"))).toBe("v2\n");
++	});
++
+ 	test("a failed intent manifest write aborts before any mutation", async () => {
+ 		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
+ 		await t.install();
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index c875ed48b4..595ac4b1b4 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -328,7 +328,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
+ 	const seeds: Array<{ rel: string; planned: DestState }> = [];
+ 	// Manifest to persist if phase 2 aborts midway. Rule: the previous manifest, plus the new hash for every file whose
+-	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
++	// bytes now equal the source (written this run, or already identical); removed files keep their adopted intent entry. Planned-but-
+ 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
+ 	// file by what is really on disk instead of trusting a plan that never completed.
+ 	const applied = newFiles();
+@@ -472,7 +472,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 			} else {
+ 				if (!step.backup) await fs.rm(dst);
+ 				changed = true;
+-				delete applied[step.rel];
++				// The intent entry (adopted) stays in a partial manifest; only the final manifest drops removed paths.
+ 				report.removed.push(step.rel);
+ 				await pruneEmptyDirs(path.dirname(dst), agentDir);
+ 			}
+diff --git a/team-config/README.md b/team-config/README.md
+index 245dbfa5d4..337284991c 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -14,7 +14,8 @@ the deploy script re-enters the flake dev shell.
+ git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
+ cd ~/git/oh-my-pi
+ scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
+-( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
++{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&  # absent, or a regular non-symlink file: else stop before touch/chmod
++  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
+   [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&                # a directory or symlink stops here, before read
+   printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&            # no echo, not in shell history (zsh and bash)
+   printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY

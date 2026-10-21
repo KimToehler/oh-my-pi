@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "The backup destination can be replaced between steps by a different real directory, allowing a subsequent backup to overwrite unrelated content.",
+  "blockers": [
+    {
+      "area": "Correctness — backup destination ownership",
+      "defect": "The installer checks that the run backup directory is a directory, but does not establish that it is still the directory created by this run or that a move-backup destination is absent. A move uses replacing rename semantics.",
+      "evidence": "At scripts/install-team-config.ts:362-373, lstat accepts any real directory at backupDir and fs.rename(src, dst) can replace an existing destination. After the first backup, move the run directory aside and put a different real directory at the same path containing b.md; a second move-backup of b.md passes the checks and overwrites that existing file. This swap occurs between backup steps, before the re-check, rather than in the explicitly accepted check-to-mutation race. Fix entries 7 and 12 require that no backup replace an existing entry and that every backup revalidate its destination.",
+      "change": "Ensure each move-backup cannot replace an existing leaf and detect replacement of the run directory before each backup. Add a between-steps control that substitutes a real directory containing a sentinel backup leaf and asserts the sentinel survives and the install aborts."
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: A binary-only deploy must leave the existing agent directory unchanged even when its installer manifest would reject a normal synchronization.
+  positive_witness: With OMP_SKIP_TEAM_CONFIG=1 and a malformed agent manifest, deployment publishes the selected binary while every pre-existing agent-directory file retains its bytes.
+  negative_control: A binary-only deploy invokes the installer, rejects the malformed manifest, or changes any agent-directory file; this outcome MUST fail.
+  observable: Deploy exit status, published binary identity, and before-and-after agent-directory inventory and file hashes.
+  boundary: scripts/deploy-local.sh invoked with isolated binary and agent directories.
+END-REVIEW-TRAILER

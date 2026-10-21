@@ -1,0 +1,12 @@
+{
+  "base_sha": "244b2e64b5a1e721f11b11ecb29ef9c4611e1702",
+  "head_sha": "fae944241c32b8beeca2542312c685a3af4436f7",
+  "commits": [
+    {
+      "sha": "fae944241c32b8beeca2542312c685a3af4436f7",
+      "subject": "fix(team-config): intent manifest before apply; safer key setup docs",
+      "patch": "001.patch",
+      "sha256": "e8b767a6260f655200f9f920d7bb91fd619bbc319ef38b2d082a3e7ddf28a031"
+    }
+  ]
+}

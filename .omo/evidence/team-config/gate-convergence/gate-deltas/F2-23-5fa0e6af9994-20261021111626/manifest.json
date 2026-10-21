@@ -1,0 +1,12 @@
+{
+  "base_sha": "d46acf3cf206b2076d55987999885c2fd7a693f1",
+  "head_sha": "5fa0e6af9994d39f12aaf52a2b8e578283f4a472",
+  "commits": [
+    {
+      "sha": "5fa0e6af9994d39f12aaf52a2b8e578283f4a472",
+      "subject": "feat(team-config): ship the merge-gate-proof rule",
+      "patch": "001.patch",
+      "sha256": "388b1030e814f80af4af4ce1c304cc6631411e20ba6a9081c161c43d595e8749"
+    }
+  ]
+}

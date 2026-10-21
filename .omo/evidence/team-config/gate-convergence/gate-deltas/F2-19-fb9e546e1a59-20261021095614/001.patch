@@ -1,0 +1,178 @@
+commit 50b9895a99b3373ba5d22b249e45b8bf15543aa0
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 11:40:08 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 11:40:08 2026 +0200
+
+    fix(team-config): strict manifest schema; deploy publishes the binary only after config sync
+
+diff --git a/scripts/deploy-local.sh b/scripts/deploy-local.sh
+index 57c37aee61..68aff37583 100755
+--- a/scripts/deploy-local.sh
++++ b/scripts/deploy-local.sh
+@@ -1,8 +1,10 @@
+ #!/usr/bin/env bash
+-# Build omp from a git ref (default: main) into a standalone binary, install it
+-# as $OMP_BIN_DIR/omp, and sync the team config (team-config/) of the same ref
+-# into the omp agent dir. Only this script changes what `omp` runs; edits in any
+-# checkout have no effect until the next deploy.
++# Build omp from a git ref (default: main) into a standalone binary, sync the
++# team config (team-config/) of the same ref into the omp agent dir, and only
++# then install the binary as $OMP_BIN_DIR/omp (and write omp.deployed). A failed
++# config sync exits non-zero and leaves the live binary untouched. Only this
++# script changes what `omp` runs; edits in any checkout have no effect until the
++# next deploy.
+ #
+ # Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
+ #   OMP_BIN_DIR       install dir (default ~/.local/bin)
+@@ -68,6 +70,16 @@ BUILT="$WT/packages/coding-agent/dist/omp"
+ log "Smoke testing $BUILT"
+ (cd /tmp && "$BUILT" --version && "$BUILT" --smoke-test)
+ 
++# Team config first: an installer failure must leave the live binary and
++# omp.deployed untouched. It may have applied part of the config by then.
++if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
++	log "Syncing team config"
++	if ! (cd "$WT" && bun scripts/install-team-config.ts); then
++		echo "Team config sync failed: the binary was NOT replaced, and the team config may be partially applied. Fix the cause and rerun the deploy." >&2
++		exit 1
++	fi
++fi
++
+ log "Installing to $TARGET"
+ mkdir -p "$BIN_DIR"
+ cp "$BUILT" "$TARGET.new"
+@@ -77,11 +89,6 @@ fi
+ mv -f "$TARGET.new" "$TARGET"
+ printf '%s %s %s\n' "$COMMIT" "$REF" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$BIN_DIR/omp.deployed"
+ 
+-if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
+-	log "Syncing team config"
+-	(cd "$WT" && bun scripts/install-team-config.ts)
+-fi
+-
+ log "Deployed $(cat "$BIN_DIR/omp.deployed")"
+ case ":$PATH:" in
+ *":$BIN_DIR:"*) ;;
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 9c448ec1f9..e1f5e9e853 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -583,6 +583,51 @@ describe("installTeamConfig", () => {
+ 		expect(manifest.files["AGENTS.md"].adopted).toBeUndefined();
+ 	});
+ 
++	test("loads a version 1 manifest shaped like a real one (tabs, trailing newline)", async () => {
++		const t = await setup({ "agent/AGENTS.md": "v1\n" });
++		await fs.mkdir(t.agentDir, { recursive: true });
++		await Bun.write(t.agent("AGENTS.md"), "v1\n");
++		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
++		await Bun.write(
++			t.agent(".team-config-manifest.json"),
++			`{\n\t"version": 1,\n\t"files": {\n\t\t"AGENTS.md": "${sha}"\n\t}\n}\n`,
++		);
++		const report = await t.install();
++		expect(report.updated).toEqual([]);
++		expect((await Bun.file(t.agent(".team-config-manifest.json")).json()).version).toBe(2);
++	});
++
++	describe("strict manifest schema", () => {
++		const sha = new Bun.CryptoHasher("sha256").update("v1\n").digest("hex");
++		const cases: Array<[string, unknown]> = [
++			["an extra top-level key", { version: 2, files: {}, extra: 1 }],
++			["an extra top-level key in a version 1 manifest", { version: 1, files: {}, extra: 1 }],
++			["an extra entry key", { version: 2, files: { "AGENTS.md": { hash: sha, note: "x" } } }],
++			["a non-hex hash", { version: 2, files: { "AGENTS.md": { hash: "not-a-hash" } } }],
++			["a non-hex version 1 hash", { version: 1, files: { "AGENTS.md": "zz" } }],
++			["a non-true adopted flag", { version: 2, files: { "AGENTS.md": { hash: sha, adopted: false } } }],
++		];
++		for (const [name, manifest] of cases) {
++			test(`rejects ${name} naming the manifest and leaves the agent dir unchanged`, async () => {
++				const t = await setup({ "agent/AGENTS.md": "v2\n", "agent/b.md": "b\n" });
++				await fs.mkdir(t.agentDir, { recursive: true });
++				await Bun.write(t.agent("AGENTS.md"), "v1\n");
++				const manifestFile = t.agent(".team-config-manifest.json");
++				await Bun.write(manifestFile, JSON.stringify(manifest, null, "\t"));
++				const snapshot = async () =>
++					Promise.all(
++						(await fs.readdir(t.agentDir, { recursive: true })).sort().map(async rel => {
++							const stat = await fs.stat(t.agent(rel));
++							return [rel, stat.isFile() ? await t.read(t.agent(rel)) : "<dir>"];
++						}),
++					);
++				const before = await snapshot();
++				await expect(t.install()).rejects.toThrow(manifestFile);
++				expect(await snapshot()).toEqual(before);
++			});
++		}
++	});
++
+ 	test("leaves no manifest or managed file when a fresh install aborts before its first step", async () => {
+ 		const t = await setup({ "agent/rules/a.md": "team\n" });
+ 		const outside = path.join(path.dirname(t.agentDir), "outside");
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 595ac4b1b4..a5df743398 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -183,23 +183,48 @@ function newFiles(): Record<string, ManifestEntry> {
+ 	return Object.create(null) as Record<string, ManifestEntry>;
+ }
+ 
++const SHA256_HEX = /^[0-9a-f]{64}$/;
++
++function isPlainObject(value: unknown): value is Record<string, unknown> {
++	return typeof value === "object" && value !== null && !Array.isArray(value);
++}
++
++/** Parse the manifest strictly: exactly the v1 or v2 shape, nothing else. Throws naming `file`; never rewrites it. */
+ function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
+ 	if (bytes === undefined) return { version: 2, files: newFiles() };
+-	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { version?: unknown; files?: unknown };
+-	if (manifest?.version === 2 && typeof manifest.files === "object" && manifest.files !== null) {
+-		// Copy into a null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
+-		const files = newFiles();
+-		for (const [rel, entry] of Object.entries(manifest.files as Record<string, ManifestEntry>)) files[rel] = entry;
+-		return { version: 2, files };
++	const invalid = (why: string): Error => new Error(`Invalid team config manifest ${file}: ${why}`);
++	let manifest: unknown;
++	try {
++		manifest = JSON.parse(new TextDecoder().decode(bytes));
++	} catch (err) {
++		throw invalid(err instanceof Error ? err.message : String(err));
+ 	}
+-	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
+-		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
+-		const files = newFiles();
+-		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
+-			files[rel] = { hash, adopted: true };
+-		return { version: 2, files };
++	if (!isPlainObject(manifest)) throw invalid("not a JSON object");
++	const version = manifest.version;
++	if (version !== 1 && version !== 2) throw invalid("unsupported version");
++	for (const key of Object.keys(manifest)) {
++		if (key !== "version" && key !== "files") throw invalid(`unexpected top-level key "${key}"`);
++	}
++	if (!isPlainObject(manifest.files)) throw invalid('"files" is not an object');
++	// Null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
++	const files = newFiles();
++	for (const [rel, entry] of Object.entries(manifest.files)) {
++		if (version === 1) {
++			if (typeof entry !== "string" || !SHA256_HEX.test(entry)) throw invalid(`"${rel}" has a non-sha256 hash`);
++			// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
++			files[rel] = { hash: entry, adopted: true };
++			continue;
++		}
++		if (!isPlainObject(entry)) throw invalid(`"${rel}" is not an object`);
++		for (const key of Object.keys(entry)) {
++			if (key !== "hash" && key !== "adopted") throw invalid(`"${rel}" has unexpected key "${key}"`);
++		}
++		if (typeof entry.hash !== "string" || !SHA256_HEX.test(entry.hash))
++			throw invalid(`"${rel}" has a non-sha256 hash`);
++		if ("adopted" in entry && entry.adopted !== true) throw invalid(`"${rel}" has a non-true "adopted"`);
++		files[rel] = entry.adopted === true ? { hash: entry.hash, adopted: true } : { hash: entry.hash };
+ 	}
+-	throw new Error(`Unsupported team config manifest ${file}`);
++	return { version: 2, files };
+ }
+ 
+ /** Write `bytes` to `dst` atomically via an exclusively created, run-unique temp; sets `mode`. */

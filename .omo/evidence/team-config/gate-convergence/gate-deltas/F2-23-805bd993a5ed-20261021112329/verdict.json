@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta leaves a mismatch between the rule’s allowed failure reporting and the extension’s claim detection, and the required completion QA predates the final rule change.",
+  "blockers": [
+    {
+      "area": "Correctness: failed-review status",
+      "defect": "The rule permits a failed line to be reported as `FAIL`, but the extension does not recognize that as a non-claim.",
+      "evidence": "team-config/agent/rules/merge-gate-proof.md:27-29 permits `FAIL` for a not-passed outcome and instructs the agent to report it without asking for merge approval. team-config/agent/extensions/merge-gate.ts:52-77 treats any `Gate proof` block as a claim unless one of its specific non-claim patterns matches; `implementation-audit: FAIL` alone matches none. A status report with a failed review and no `NOT RUN` line therefore invokes the record gate and can be blocked as a completion claim.",
+      "change": "Make every permitted not-passed representation unambiguously suppress claim detection, or require a matching `NOT RUN` marker for failures; add a regression test using a failed-review status without a merge request."
+    },
+    {
+      "area": "Verification: final-head real-binary QA",
+      "defect": "The required real-binary completion scenario was not evidenced on the final delta head.",
+      "evidence": "The brief requires a completion reply without the merge phrase to carry the block and be refused for a missing record. `.omo/evidence/team-config/wave-4/f1-10-gate-proof-rule.txt` identifies head `5fa0e6af...`, before commits `afd9d37...` and `805bd993...`; the latter changes the shipped rule’s applicability and outcome instructions. The final-head `f1-11-rule-always-applied.txt` proves injection only, with reply `ok`, not the completion/refusal scenario.",
+      "change": "Repeat the specified completion and missing-record refusal scenario on the final head with a freshly installed agent directory, and retain the real-binary output."
+    }
+  ],
+  "notes": []
+}

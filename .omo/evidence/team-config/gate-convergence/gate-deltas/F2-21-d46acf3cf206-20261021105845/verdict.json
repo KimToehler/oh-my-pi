@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The cumulative delta reverts the sidecar implementation and documents the owner-approved manifest control-state contract. No blocking defects found.",
+  "blockers": [],
+  "notes": [
+    "The removed manifest-backup protection is explicitly superseded by the owner’s manifest exclusion; the removed sidecar protections are obsolete because the final installer no longer uses the sidecar."
+  ]
+}

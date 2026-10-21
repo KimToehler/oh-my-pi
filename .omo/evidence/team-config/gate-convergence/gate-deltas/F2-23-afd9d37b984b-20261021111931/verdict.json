@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "The proof rule conflicts with valid merge-gate outcomes, and the required real-binary QA does not demonstrate rule loading as always-applied.",
+  "blockers": [
+    {
+      "area": "Correctness — valid skipped reviews",
+      "defect": "The rule treats a permitted review omission as a failed gate and instructs the agent not to request merge approval.",
+      "evidence": "team-config/agent/rules/merge-gate-proof.md:13-24 permits `integration-review: not needed (<plan's Whole-diff review reason>)` and an optional strategic reviewer `not run (reason)`, but also says any line that is not RAN/PASS must be written as `NOT RUN` and prohibits asking for approval. For a plan whose whole-diff review is not needed, this converts a valid gate outcome into a failure; the extension's `GATE_NOT_PASSED` then suppresses validation (team-config/agent/extensions/merge-gate.ts:64-74).",
+      "change": "Distinguish plan-authorized omissions from failed or unrun mandatory reviews, and test that a valid skipped review can reach validation and permit approval."
+    },
+    {
+      "area": "CHECK 4 — applicability and completion predicate",
+      "defect": "The new rule does not define a default or outcomes for missing, unreadable, partial, or lossy plan/proof information, nor provide the required missing and partial negative controls.",
+      "evidence": "team-config/agent/rules/merge-gate-proof.md:8-10 makes applicability depend on whether a governing plan has a `## Merge gate` section, and lines 12-24 make completion depend on review proof. The QA transcript's scenario A explicitly says the plan was not read and its gate status was unknown, but the rule does not specify how to decide applicability in that state. The added tests exercise a filled block, a NOT RUN block, and plain text, not missing or partial governing-plan/proof inputs.",
+      "change": "Define the applicable/complete predicates and fail-closed or explicitly undecidable outcomes for missing, unreadable, partial and lossy inputs; add negative controls for missing and partial information."
+    },
+    {
+      "area": "Executability — required real-binary QA",
+      "defect": "The supplied QA does not show the real binary listing the installed rule as always-applied.",
+      "evidence": "Plan TODO 23 explicitly requires the real binary on a freshly installed agent dir to list the rule as always-applied. `.omo/evidence/team-config/wave-4/f1-10-gate-proof-rule.txt` reports only `rule installed: yes; bytes == repo: yes` and conversation outputs; it contains no binary rule-listing output or always-applied status.",
+      "change": "Capture real-binary output listing the fresh installation's rule and its always-applied status in the QA evidence."
+    }
+  ],
+  "notes": []
+}

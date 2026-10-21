@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta does not fully preserve intent across partial applies, and the documented key setup touches a symlink target before rejecting it.",
+  "blockers": [
+    {
+      "area": "Correctness — partial manifest",
+      "defect": "A completed removal is omitted from a successful partial manifest, rather than remaining adopted as the fix entry requires.",
+      "evidence": "The fix entry says a run interrupted at any point after the intent write leaves every touched path adopted. In scripts/install-team-config.ts:477-484, a removal deletes applied[step.rel]; if a later step fails, lines 499-505 persist that partial manifest without the removed path. The added partial-manifest test covers a write, not a completed removal.",
+      "change": "Retain adopted intent entries for removed paths in partial manifests, and add a regression covering a removal followed by an apply failure and a subsequent run."
+    },
+    {
+      "area": "Correctness — credential setup",
+      "defect": "The non-file and symlink checks occur after operations that follow the path.",
+      "evidence": "team-config/README.md:17-18 runs touch and chmod before checking [ ! -L ~/.omp/agent/.env ]. An existing symlink to a regular file causes that file's timestamps and permissions to be changed before the command refuses to read the key; a dangling symlink can cause touch to create its target.",
+      "change": "Reject an existing symlink or non-regular file before touching or chmodding the path, while retaining restrictive creation and permissions before reading the key."
+    },
+    {
+      "area": "CHECK 1 — credential holders and sinks",
+      "defect": "The credential-handling delta lacks the required holder/sink inventory and sentinel control.",
+      "evidence": "The fix entry introduces a router key read into ONARA_ROUTER_KEY and writes it to .env; team-config/README.md:17-20 also handles shell state and command output. Neither the delta nor the cited plan identifies all credential holders and sinks, a chokepoint or sink exclusions, and a negative control scanning artifacts for a sentinel.",
+      "change": "Inventory credential holders and sinks, identify the protection chokepoint or justify exclusions, and specify a sentinel-based negative control covering the relevant inputs and artifacts."
+    }
+  ],
+  "notes": []
+}

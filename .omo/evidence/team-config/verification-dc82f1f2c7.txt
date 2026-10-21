@@ -1,0 +1,6 @@
+# verification on dc82f1f2c772fd1e8c942bcebe3a4af5fb87a986
+ 259 pass
+ 0 fail
+Ran 259 tests across 3 files. [12.85s]
+oxlint exit: 0
+bash -n deploy-local.sh exit: 0

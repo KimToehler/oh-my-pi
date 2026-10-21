@@ -1,0 +1,369 @@
+commit d4b1be13544791cecc41ebbd85ab7fcfca84781b
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Tue Oct 20 22:32:49 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Tue Oct 20 22:32:49 2026 +0200
+
+    refactor(team-config): integration cleanup
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 35211bd02d..a2874dd906 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -14,6 +14,7 @@ async function setup(files: Record<string, string>) {
+ 	dirs.push(tmp);
+ 	const repoDir = path.join(tmp.path(), "repo");
+ 	const agentDir = path.join(tmp.path(), "agent");
++	await fs.mkdir(path.join(repoDir, "team-config", "agent"), { recursive: true });
+ 	for (const [rel, content] of Object.entries(files)) await Bun.write(path.join(repoDir, "team-config", rel), content);
+ 	let run = 0;
+ 	const install = () => installTeamConfig({ repoDir, agentDir, timestamp: `t${++run}` });
+@@ -82,4 +83,70 @@ describe("installTeamConfig", () => {
+ 		await t.install();
+ 		expect((await fs.stat(t.agent("skills/s/run.sh"))).mode & 0o111).not.toBe(0);
+ 	});
++
++	test("never touches pre-existing files that look like temp files", async () => {
++		const t = await setup({ "agent/rules/a.md": "v1\n" });
++		await Bun.write(t.agent("rules/a.md.team-config-tmp"), "sentinel-1");
++		await Bun.write(t.agent(".team-config-manifest.json.tmp"), "sentinel-2");
++		await t.install();
++		expect(await t.read(t.agent("rules/a.md"))).toBe("v1\n");
++		expect(await t.read(t.agent("rules/a.md.team-config-tmp"))).toBe("sentinel-1");
++		expect(await t.read(t.agent(".team-config-manifest.json.tmp"))).toBe("sentinel-2");
++	});
++
++	test("rejects a symlinked parent directory without changing anything", async () => {
++		const t = await setup({ "agent/rules/a.md": "team\n", "agent/AGENTS.md": "team\n" });
++		const outside = path.join(path.dirname(t.agentDir), "outside");
++		await Bun.write(path.join(outside, "a.md"), "outside\n");
++		await fs.mkdir(t.agentDir, { recursive: true });
++		await fs.symlink(outside, t.agent("rules"));
++		await expect(t.install()).rejects.toThrow(t.agent("rules"));
++		expect(await fs.readdir(outside)).toEqual(["a.md"]);
++		expect(await t.read(path.join(outside, "a.md"))).toBe("outside\n");
++		expect((await fs.readdir(t.agentDir)).sort()).toEqual(["rules"]);
++	});
++
++	test("replaces a symlinked target with a regular file and moves the link into the backup", async () => {
++		const t = await setup({ "agent/AGENTS.md": "team\n" });
++		const outsideFile = path.join(path.dirname(t.agentDir), "outside.md");
++		await Bun.write(outsideFile, "outside\n");
++		await fs.mkdir(t.agentDir, { recursive: true });
++		await fs.symlink(outsideFile, t.agent("AGENTS.md"));
++		const report = await t.install();
++		expect((await fs.lstat(t.agent("AGENTS.md"))).isFile()).toBe(true);
++		expect(await t.read(t.agent("AGENTS.md"))).toBe("team\n");
++		expect(await t.read(outsideFile)).toBe("outside\n");
++		expect((await fs.lstat(path.join(report.backupDir!, "AGENTS.md"))).isSymbolicLink()).toBe(true);
++	});
++
++	test("installs through a symlinked agent dir", async () => {
++		const t = await setup({ "agent/rules/a.md": "team\n" });
++		const real = path.join(path.dirname(t.agentDir), "real-agent");
++		await fs.mkdir(real, { recursive: true });
++		await fs.symlink(real, t.agentDir);
++		await t.install();
++		expect(await t.read(path.join(real, "rules/a.md"))).toBe("team\n");
++	});
++
++	test("rejects when the managed source root disappears and keeps installed files", async () => {
++		const t = await setup({ "agent/rules/a.md": "team\n" });
++		await t.install();
++		await fs.rm(t.repo("agent"), { recursive: true });
++		await expect(t.install()).rejects.toThrow("ENOENT");
++		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
++	});
++
++	test("rejects on an unreadable nested source dir without removing anything", async () => {
++		const t = await setup({ "agent/rules/a.md": "team\n", "agent/old.md": "old\n" });
++		await t.install();
++		await fs.rm(t.repo("agent/old.md"));
++		await fs.chmod(t.repo("agent/rules"), 0o000);
++		try {
++			await expect(t.install()).rejects.toThrow();
++		} finally {
++			await fs.chmod(t.repo("agent/rules"), 0o755);
++		}
++		expect(await t.read(t.agent("old.md"))).toBe("old\n");
++		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
++	});
+ });
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index a9960a322b..fb4c79ba56 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -11,6 +11,7 @@
+  *
+  * Usage: bun scripts/install-team-config.ts   (scripts/deploy-local.sh runs it after installing omp)
+  */
++import type { Stats } from "node:fs";
+ import * as fs from "node:fs/promises";
+ import * as path from "node:path";
+ import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
+@@ -42,7 +43,8 @@ export interface InstallReport {
+ 	backupDir?: string;
+ }
+ 
+-async function listFiles(root: string): Promise<string[]> {
++/** Sorted relative file paths under `root`. Any readdir failure throws; a missing root only passes when `optional`. */
++async function listFiles(root: string, optional = false): Promise<string[]> {
+ 	const out: string[] = [];
+ 	async function walk(dir: string, rel: string): Promise<void> {
+ 		const entries = await fs.readdir(dir, { withFileTypes: true });
+@@ -53,12 +55,45 @@ async function listFiles(root: string): Promise<string[]> {
+ 			else if (entry.isFile()) out.push(childRel);
+ 		}
+ 	}
++	if (optional && (await fs.lstat(root).then(() => false, isEnoent))) return [];
++	await walk(root, "");
++	return out.sort();
++}
++
++/** Stands in for the content hash of a symlink: never equals a sha256, never read through. */
++const LINK = "symlink";
++
++/** State of `file` in the agent dir: undefined (absent), LINK (symlink, not followed) or its sha256. */
++async function inspect(file: string): Promise<string | undefined> {
+ 	try {
+-		await walk(root, "");
++		if ((await fs.lstat(file)).isSymbolicLink()) return LINK;
+ 	} catch (err) {
+-		if (!isEnoent(err)) throw err;
++		if (isEnoent(err)) return undefined;
++		throw err;
++	}
++	return hashFile(file);
++}
++
++/** Throw if any directory component strictly between `root` and `target` is a symlink (or not a directory). */
++async function assertContained(root: string, target: string): Promise<void> {
++	const rel = path.relative(root, target);
++	if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
++		throw new Error(`Refusing path outside the agent dir: ${target}`);
++	}
++	const parts = rel.split(path.sep).slice(0, -1);
++	let current = root;
++	for (const part of parts) {
++		current = path.join(current, part);
++		let stat: Stats;
++		try {
++			stat = await fs.lstat(current);
++		} catch (err) {
++			if (isEnoent(err)) return;
++			throw err;
++		}
++		if (stat.isSymbolicLink()) throw new Error(`Refusing to install through symlink: ${current}`);
++		if (!stat.isDirectory()) throw new Error(`Expected a directory but found a file: ${current}`);
+ 	}
+-	return out.sort();
+ }
+ 
+ async function hashFile(file: string): Promise<string | undefined> {
+@@ -83,13 +118,23 @@ async function readManifest(file: string): Promise<Manifest> {
+ 	}
+ }
+ 
+-/** Copy `src` over `dst` atomically, keeping the source's permission bits (skill scripts are executable). */
+-async function replaceFile(src: string, dst: string): Promise<void> {
++/** Copy `src` over `dst` atomically via an exclusively created, run-unique temp; keeps the source's permission bits. */
++async function replaceFile(src: string, dst: string, mode: number): Promise<void> {
+ 	await fs.mkdir(path.dirname(dst), { recursive: true });
+-	const tmp = `${dst}.team-config-tmp`;
+-	await fs.copyFile(src, tmp);
+-	await fs.chmod(tmp, (await fs.stat(src)).mode & 0o777);
+-	await fs.rename(tmp, dst);
++	const tmp = `${dst}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.team-config-tmp`;
++	try {
++		await fs.copyFile(src, tmp, fs.constants.COPYFILE_EXCL);
++	} catch (err) {
++		if (!isEexist(err)) await fs.rm(tmp, { force: true });
++		throw err;
++	}
++	try {
++		await fs.chmod(tmp, mode);
++		await fs.rename(tmp, dst);
++	} catch (err) {
++		await fs.rm(tmp, { force: true });
++		throw err;
++	}
+ }
+ 
+ /** Remove now-empty directories from `dir` up to, not including, `stopAt`. */
+@@ -105,16 +150,84 @@ async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
+ 	}
+ }
+ 
++interface WriteStep {
++	kind: "write";
++	rel: string;
++	src: string;
++	mode: number;
++	/** How the existing target is preserved first; absent when nothing needs preserving. */
++	backup?: "copy" | "move";
++	existed: boolean;
++}
++
++interface RemoveStep {
++	kind: "remove";
++	rel: string;
++	backup?: "move";
++}
++
+ export async function installTeamConfig(options: InstallOptions): Promise<InstallReport> {
+-	const { agentDir } = options;
+ 	const managedRoot = path.join(options.repoDir, "team-config", "agent");
+ 	const seedRoot = path.join(options.repoDir, "team-config", "seed");
++
++	// Phase 1: enumerate and hash every source, then plan every mutation. Nothing is written here.
++	const managedFiles = await listFiles(managedRoot);
++	const seedFiles = await listFiles(seedRoot, true);
++	const sources = new Map<string, { hash: string; mode: number }>();
++	for (const rel of managedFiles) {
++		const src = path.join(managedRoot, rel);
++		sources.set(rel, { hash: (await hashFile(src))!, mode: (await fs.stat(src)).mode & 0o777 });
++	}
++
++	await fs.mkdir(options.agentDir, { recursive: true });
++	const agentDir = await fs.realpath(options.agentDir);
+ 	const manifestPath = path.join(agentDir, MANIFEST_NAME);
+ 	const backupDir = path.join(agentDir, "backups", `team-config-${options.timestamp}`);
+ 	const previous = await readManifest(manifestPath);
+ 	const next: Manifest = { version: 1, files: {} };
+ 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
++	const steps: Array<WriteStep | RemoveStep> = [];
++	const seeds: string[] = [];
+ 
++	for (const rel of managedFiles) {
++		const { hash: wanted, mode } = sources.get(rel)!;
++		const dst = path.join(agentDir, rel);
++		await assertContained(agentDir, dst);
++		const current = await inspect(dst);
++		next.files[rel] = wanted;
++		if (current === wanted) continue;
++		let backup: WriteStep["backup"];
++		if (current === LINK) backup = "move";
++		else if (current !== undefined && current !== previous.files[rel]) backup = "copy";
++		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
++		steps.push({
++			kind: "write",
++			rel,
++			src: path.join(managedRoot, rel),
++			mode,
++			backup,
++			existed: current !== undefined,
++		});
++	}
++
++	for (const rel of Object.keys(previous.files).sort()) {
++		if (rel in next.files) continue;
++		const dst = path.join(agentDir, rel);
++		await assertContained(agentDir, dst);
++		const current = await inspect(dst);
++		if (current === undefined) continue;
++		const backup = current === previous.files[rel] ? undefined : "move";
++		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
++		steps.push({ kind: "remove", rel, backup });
++	}
++
++	for (const rel of seedFiles) {
++		const dst = path.join(agentDir, rel);
++		await assertContained(agentDir, dst);
++		seeds.push(rel);
++	}
++
++	// Phase 2: apply.
+ 	const backup = async (rel: string, mode: "copy" | "move"): Promise<void> => {
+ 		const dst = path.join(backupDir, rel);
+ 		await fs.mkdir(path.dirname(dst), { recursive: true });
+@@ -125,30 +238,20 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 		report.backupDir = backupDir;
+ 	};
+ 
+-	for (const rel of await listFiles(managedRoot)) {
+-		const src = path.join(managedRoot, rel);
+-		const dst = path.join(agentDir, rel);
+-		const wanted = (await hashFile(src))!;
+-		const current = await hashFile(dst);
+-		next.files[rel] = wanted;
+-		if (current === wanted) continue;
+-		if (current !== undefined && current !== previous.files[rel]) await backup(rel, "copy");
+-		await replaceFile(src, dst);
+-		(current === undefined ? report.added : report.updated).push(rel);
+-	}
+-
+-	for (const rel of Object.keys(previous.files).sort()) {
+-		if (rel in next.files) continue;
+-		const dst = path.join(agentDir, rel);
+-		const current = await hashFile(dst);
+-		if (current === undefined) continue;
+-		if (current === previous.files[rel]) await fs.rm(dst);
+-		else await backup(rel, "move");
+-		report.removed.push(rel);
+-		await pruneEmptyDirs(path.dirname(dst), agentDir);
++	for (const step of steps) {
++		const dst = path.join(agentDir, step.rel);
++		if (step.backup) await backup(step.rel, step.backup);
++		if (step.kind === "write") {
++			await replaceFile(step.src, dst, step.mode);
++			(step.existed ? report.updated : report.added).push(step.rel);
++		} else {
++			if (!step.backup) await fs.rm(dst);
++			report.removed.push(step.rel);
++			await pruneEmptyDirs(path.dirname(dst), agentDir);
++		}
+ 	}
+ 
+-	for (const rel of await listFiles(seedRoot)) {
++	for (const rel of seeds) {
+ 		const dst = path.join(agentDir, rel);
+ 		await fs.mkdir(path.dirname(dst), { recursive: true });
+ 		try {
+@@ -159,9 +262,14 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 		}
+ 	}
+ 
+-	const tmpManifest = `${manifestPath}.tmp`;
+-	await Bun.write(tmpManifest, `${JSON.stringify(next, null, "\t")}\n`);
+-	await fs.rename(tmpManifest, manifestPath);
++	const tmpManifest = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
++	try {
++		await fs.writeFile(tmpManifest, `${JSON.stringify(next, null, "\t")}\n`, { flag: "wx" });
++		await fs.rename(tmpManifest, manifestPath);
++	} catch (err) {
++		if (!isEexist(err)) await fs.rm(tmpManifest, { force: true });
++		throw err;
++	}
+ 	return report;
+ }
+ 
+diff --git a/team-config/README.md b/team-config/README.md
+index 8a6ee50c0b..a54b605c03 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -38,8 +38,11 @@ before it is replaced; the deploy output names the directory.
+ 
+ ## Personal settings
+ 
+-- Personal instructions (role, stack, language): `~/.omp/agent/AGENTS.local.md`. The seeded
+-  `config.yml` loads it beside the team `AGENTS.md` via `contextFiles.extra`.
++- Personal instructions (role, stack, language): `AGENTS.local.md` in the agent dir (default
++  `~/.omp/agent`). It loads only while `contextFiles.extra` lists it. The seeded `config.yml`
++  does; a pre-existing `config.yml` needs `contextFiles: { extra: [AGENTS.local.md] }` added by
++  hand. A project-level `contextFiles.extra` replaces the user list, so the agent-dir file is
++  then not read.
+ - Personal rules or skills: any other file name under `~/.omp/agent/rules/` or `skills/`.
+ - Model roles, approval mode, bash patterns: edit `~/.omp/agent/config.yml` directly.
+   After a team change to `seed/config.yml`, compare with
+diff --git a/team-config/agent/AGENTS.md b/team-config/agent/AGENTS.md
+index 385692d3c4..c7633ce83a 100644
+--- a/team-config/agent/AGENTS.md
++++ b/team-config/agent/AGENTS.md
+@@ -1,6 +1,6 @@
+ # Global Instructions
+ 
+-Personal additions (profile, language, stack) go in `~/.omp/agent/AGENTS.local.md`; it loads beside this file and is never overwritten by `scripts/deploy-local.sh`.
++Personal additions (profile, language, stack) go in `AGENTS.local.md` in the agent dir (default `~/.omp/agent`); it is never overwritten by `scripts/deploy-local.sh` and loads beside this file only while `contextFiles.extra` lists it (the seeded `config.yml` does; a pre-existing one needs it added by hand; a project-level `contextFiles.extra` replaces the user list).
+ 
+ ## Git Commits
+ 

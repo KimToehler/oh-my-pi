@@ -1,0 +1,104 @@
+commit 244b2e64b5a1e721f11b11ecb29ef9c4611e1702
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:44:47 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:44:47 2026 +0200
+
+    fix(team-config): reject symlinked source roots
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index 7d839260ad..e98e43077d 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -216,6 +216,28 @@ describe("installTeamConfig", () => {
+ 		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
+ 	});
+ 
++	test("rejects a managed source root replaced by a symlink and keeps installed files", async () => {
++		const t = await setup({ "agent/rules/a.md": "team\n" });
++		await t.install();
++		const manifestBefore = await t.read(t.agent(".team-config-manifest.json"));
++		const empty = path.join(path.dirname(t.agentDir), "empty-source");
++		await fs.mkdir(empty, { recursive: true });
++		await fs.rm(t.repo("agent"), { recursive: true });
++		await fs.symlink(empty, t.repo("agent"));
++		await expect(t.install()).rejects.toThrow(t.repo("agent"));
++		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
++		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(manifestBefore);
++	});
++
++	test("rejects a symlinked seed root without seeding", async () => {
++		const t = await setup({ "agent/a.md": "a\n" });
++		const real = path.join(path.dirname(t.agentDir), "real-seed");
++		await Bun.write(path.join(real, "config.yml"), "team: 1\n");
++		await fs.symlink(real, t.repo("seed"));
++		await expect(t.install()).rejects.toThrow(t.repo("seed"));
++		await expect(fs.lstat(t.agent("config.yml"))).rejects.toThrow("ENOENT");
++	});
++
+ 	test("never overwrites a pre-existing backup file that shares the run's timestamp", async () => {
+ 		const t = await setup({ "agent/rules/a.md": "v1\n" });
+ 		await t.install();
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 3516427840..6ad45a05d8 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -54,6 +54,25 @@ export interface InstallReport {
+ 	backupDir?: string;
+ }
+ 
++function entryKind(e: {
++	isSymbolicLink(): boolean;
++	isFile(): boolean;
++	isDirectory(): boolean;
++	isFIFO(): boolean;
++	isSocket(): boolean;
++	isCharacterDevice(): boolean;
++	isBlockDevice(): boolean;
++}): string {
++	if (e.isSymbolicLink()) return "symlink";
++	if (e.isFile()) return "file";
++	if (e.isDirectory()) return "directory";
++	if (e.isFIFO()) return "fifo";
++	if (e.isSocket()) return "socket";
++	if (e.isCharacterDevice()) return "character device";
++	if (e.isBlockDevice()) return "block device";
++	return "unknown";
++}
++
+ /** Sorted relative file paths under `root`. Any readdir failure throws; a missing root only passes when `optional`. */
+ async function listFiles(root: string, optional = false): Promise<string[]> {
+ 	const out: string[] = [];
+@@ -65,23 +84,17 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
+ 			const full = path.join(dir, entry.name);
+ 			if (entry.isDirectory()) await walk(full, childRel);
+ 			else if (entry.isFile()) out.push(childRel);
+-			else {
+-				const kind = entry.isSymbolicLink()
+-					? "symlink"
+-					: entry.isFIFO()
+-						? "fifo"
+-						: entry.isSocket()
+-							? "socket"
+-							: entry.isCharacterDevice()
+-								? "character device"
+-								: entry.isBlockDevice()
+-									? "block device"
+-									: "unknown";
+-				throw new Error(`Unsupported entry in team config source (${kind}): ${full}`);
+-			}
++			else throw new Error(`Unsupported entry in team config source (${entryKind(entry)}): ${full}`);
+ 		}
+ 	}
+-	if (optional && (await fs.lstat(root).then(() => false, isEnoent))) return [];
++	const rootStat = await fs.lstat(root).catch(err => {
++		if (optional && isEnoent(err)) return undefined;
++		throw err;
++	});
++	if (!rootStat) return [];
++	if (!rootStat.isDirectory()) {
++		throw new Error(`Unsupported entry in team config source (${entryKind(rootStat)}): ${root}`);
++	}
+ 	await walk(root, "");
+ 	return out.sort();
+ }

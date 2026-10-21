@@ -1,0 +1,7 @@
+# Mechanical scrub check on d46acf3cf206b2076d55987999885c2fd7a693f1
+$ git grep -nE "/Users/[A-Za-z]" -- team-config/
+team-config/agent/skills/coding-agent-sessions/scripts/tests/test_extended_scanners.py:213:    assert _file_uri_path("file:///C:/Users/yeongyu/project") == "C:/
+$ git grep -nE '~/git/9router' -- team-config/ | wc -l: 0
+$ git grep -nE 'nutritrain' -- team-config/ | wc -l: 0
+$ git grep -nE '^Learned in:' -- team-config/ | wc -l: 0
+$ git ls-tree -r HEAD team-config/ | grep -c '^120000': 0

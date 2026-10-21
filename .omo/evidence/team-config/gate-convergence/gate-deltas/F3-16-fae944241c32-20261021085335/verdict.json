@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta does not preserve intent markers after every interrupted apply, and the documented key setup does not fail closed when permissions cannot be secured.",
+  "blockers": [
+    {
+      "area": "Correctness — interrupted apply",
+      "defect": "A successful partial-manifest write clears the adopted marker for completed writes, contrary to the required recovery behavior for any interrupted run.",
+      "evidence": "The fix entry requires that an interrupted run leave every touched path adopted. In scripts/install-team-config.ts:469-470, a completed write replaces its adopted entry with an owned hash; lines 493-498 persist that entry when a later step fails. For example, write a.md, fail on b.md, and successfully persist the partial manifest; a.md is owned, not adopted. A later user edit back to that owned hash followed by a source update is replaced without backup.",
+      "change": "Keep all phase-2 touched paths adopted in any partial manifest; only the successful final manifest may convert them to owned. Add a regression covering successful partial persistence followed by the edit and source update."
+    },
+    {
+      "area": "Security — new-machine key setup",
+      "defect": "The README's permission setup is not a prerequisite for writing the key, so a failure can leave the secret in a file with unsafe permissions.",
+      "evidence": "team-config/README.md's added commands run `( umask 077; touch ... ) && chmod 600 ...` on one line, then independently read and append the key on later lines. If chmod fails on an existing writable, broadly readable .env, an interactive shell proceeds to the append despite the failure, violating the fix entry's requirement to secure the existing file before writing any key.",
+      "change": "Chain permission setup, secret input, and append so failure of creation or chmod prevents reading and writing the key; preserve cleanup of the shell variable on failure."
+    }
+  ],
+  "notes": []
+}

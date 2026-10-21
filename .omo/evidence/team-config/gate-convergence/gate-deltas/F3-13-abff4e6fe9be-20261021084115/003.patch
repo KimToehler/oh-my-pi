@@ -1,0 +1,108 @@
+commit abff4e6fe9be76d05c820a1cd143dabc60332a2b
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:41:03 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:41:03 2026 +0200
+
+    fix(team-config): manifest handles prototype-named files
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index e99cc95742..7d839260ad 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -58,6 +58,28 @@ describe("installTeamConfig", () => {
+ 		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("personal\n");
+ 	});
+ 
++	test("manifest handles files named like Object.prototype members", async () => {
++		const t = await setup({ "agent/constructor": "c\n", "agent/__proto__": "p\n", "agent/keep.md": "k\n" });
++		await t.install();
++		expect(await t.read(t.agent("constructor"))).toBe("c\n");
++		expect(await t.read(t.agent("__proto__"))).toBe("p\n");
++		const manifestFile = t.agent(".team-config-manifest.json");
++		const parsed = JSON.parse(await t.read(manifestFile)) as { files: Record<string, unknown> };
++		expect(Object.hasOwn(parsed.files, "constructor")).toBe(true);
++		expect(Object.hasOwn(parsed.files, "__proto__")).toBe(true);
++
++		await fs.rm(t.repo("agent/constructor"));
++		await fs.rm(t.repo("agent/__proto__"));
++		const report = await t.install();
++		expect(report.removed.sort()).toEqual(["__proto__", "constructor"]);
++		expect(await Bun.file(t.agent("constructor")).exists()).toBe(false);
++		expect(await Bun.file(t.agent("__proto__")).exists()).toBe(false);
++		const after = JSON.parse(await t.read(manifestFile)) as { files: Record<string, unknown> };
++		expect(Object.hasOwn(after.files, "constructor")).toBe(false);
++		expect(Object.hasOwn(after.files, "__proto__")).toBe(false);
++		expect(Object.hasOwn(after.files, "keep.md")).toBe(true);
++	});
++
+ 	test("removes files that left the repo, keeps local edits in backup, and leaves unmanaged files alone", async () => {
+ 		const t = await setup({
+ 			"agent/skills/old/SKILL.md": "old\n",
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index f85de69858..3516427840 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -163,15 +163,23 @@ async function readManifestBytes(file: string): Promise<Uint8Array | undefined>
+ 	}
+ }
+ 
++/** Manifest `files` dictionary without a prototype, so every relative path is a plain own key. */
++function newFiles(): Record<string, ManifestEntry> {
++	return Object.create(null) as Record<string, ManifestEntry>;
++}
++
+ function parseManifest(file: string, bytes: Uint8Array | undefined): Manifest {
+-	if (bytes === undefined) return { version: 2, files: {} };
++	if (bytes === undefined) return { version: 2, files: newFiles() };
+ 	const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { version?: unknown; files?: unknown };
+ 	if (manifest?.version === 2 && typeof manifest.files === "object" && manifest.files !== null) {
+-		return { version: 2, files: manifest.files as Record<string, ManifestEntry> };
++		// Copy into a null-prototype dict: `__proto__`/`constructor` are ordinary file names here.
++		const files = newFiles();
++		for (const [rel, entry] of Object.entries(manifest.files as Record<string, ManifestEntry>)) files[rel] = entry;
++		return { version: 2, files };
+ 	}
+ 	if (manifest?.version === 1 && typeof manifest.files === "object" && manifest.files !== null) {
+ 		// Version 1 cannot tell written from adopted files; treat all as adopted so the first replace backs up.
+-		const files: Record<string, ManifestEntry> = {};
++		const files = newFiles();
+ 		for (const [rel, hash] of Object.entries(manifest.files as Record<string, string>))
+ 			files[rel] = { hash, adopted: true };
+ 		return { version: 2, files };
+@@ -295,7 +303,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	await assertBackupsRoot(backupsRoot);
+ 	const manifestBytes = await readManifestBytes(manifestPath);
+ 	const previous = parseManifest(manifestPath, manifestBytes);
+-	const next: Manifest = { version: 2, files: {} };
++	const next: Manifest = { version: 2, files: newFiles() };
+ 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
+ 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
+ 	const seeds: Array<{ rel: string; planned: DestState }> = [];
+@@ -303,14 +311,15 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
+ 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
+ 	// file by what is really on disk instead of trusting a plan that never completed.
+-	const applied: Record<string, ManifestEntry> = { ...previous.files };
++	const applied = newFiles();
++	for (const [rel, entry] of Object.entries(previous.files)) applied[rel] = entry;
+ 
+ 	for (const rel of managedFiles) {
+ 		const { bytes, hash: wanted, mode } = sources.get(rel)!;
+ 		const dst = path.join(agentDir, rel);
+ 		await assertContained(agentDir, dst);
+ 		const current = await inspect(dst);
+-		const prior = previous.files[rel];
++		const prior = Object.hasOwn(previous.files, rel) ? previous.files[rel] : undefined;
+ 		if (current?.kind === "file" && current.hash === wanted) {
+ 			// Already identical: the installer did not write it. Only a previously owned entry whose hash still equals the
+ 			// current bytes stays owned; anything else (adopted, unknown, or edited to match the source) is adopted.
+@@ -338,7 +347,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 	}
+ 
+ 	for (const rel of Object.keys(previous.files).sort()) {
+-		if (rel in next.files) continue;
++		if (Object.hasOwn(next.files, rel)) continue;
+ 		const dst = path.join(agentDir, rel);
+ 		await assertContained(agentDir, dst);
+ 		const current = await inspect(dst);

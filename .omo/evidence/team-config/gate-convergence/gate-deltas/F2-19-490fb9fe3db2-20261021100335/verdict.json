@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The manifest validation and deployment-order changes leave two evidenced gaps in the requested fix and its verification.",
+  "blockers": [
+    {
+      "area": "CHECK 5 — Deploy staging and publication",
+      "defect": "The smoke-tested binary is not pinned to a run-owned copy, and the required source-change control is absent.",
+      "evidence": "scripts/deploy-local.sh:75-83 uses the shared, predictable $TARGET.new, removes any existing file there, copies into it, and smoke-tests it; lines 87-100 later rename that pathname. A second deploy targeting the same OMP_BIN_DIR can replace $TARGET.new after the first smoke test, causing the first deploy to publish different, untested bytes or remove the other deploy's staging file. The supplied QA evidence compares a successful deploy with its build output but does not change the staging source between smoke test and publication.",
+      "change": "Use an exclusively created, run-unique staging file and publish only that run's tested copy; add a control that substitutes the staging source between test and publication and proves rejection or publication of the original verified bytes."
+    },
+    {
+      "area": "Quality and verification — Version 1 compatibility",
+      "defect": "The compatibility test does not use the exact bytes of a real version 1 install as required by fix entry 19.",
+      "evidence": "001.patch:61-74 constructs a new one-entry JSON string using a newly computed hash; its test calls it 'shaped like a real one'. This is not a preserved prior-install manifest, so it cannot establish that actual historical bytes load.",
+      "change": "Add a fixture containing the verbatim manifest bytes produced by a real v1 installation and test that the installer loads and migrates those bytes."
+    }
+  ],
+  "notes": []
+}

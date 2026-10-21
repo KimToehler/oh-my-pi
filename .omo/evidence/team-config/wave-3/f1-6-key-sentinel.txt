@@ -1,0 +1,32 @@
+# F1-6 router key sentinel through the README key-setup commands
+# head: d46acf3cf206b2076d55987999885c2fd7a693f1
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T10:59:25Z
+
+snippet (from README):
+    ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&
+    [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&
+    { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&
+    printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&
+    printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
+
+== zsh
+stdout/stderr contains sentinel: 0
+variable after snippet: VAR=unset
+.env mode: 600
+.env holds sentinel (intended sink): 1
+other files under HOME containing sentinel (history, temp, etc.): 0
+
+== bash
+stdout/stderr contains sentinel: 0
+variable after snippet: VAR=unset
+.env mode: 600
+.env holds sentinel (intended sink): 1
+other files under HOME containing sentinel (history, temp, etc.): 0
+
+holders/sinks inventory: keyboard/stdin -> shell var ONARA_ROUTER_KEY (unset by the same command line) -> <agentDir>/.env (mode 600, intended sink); models.yml references the name only:
+5:# onara-bifrost/* -> Anthropic Messages on the same router with plain API-key shaping (auth: apiKey):
+13:    apiKey: ONARA_ROUTER_KEY
+97:    apiKey: ONARA_ROUTER_KEY
+98:    auth: apiKey
+evidence files in this directory containing the sentinel: 0

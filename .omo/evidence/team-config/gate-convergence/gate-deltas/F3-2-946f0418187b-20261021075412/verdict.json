@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The cumulative installer can claim ownership of bytes it never wrote and can write a manifest after aborting before any apply step.",
+  "blockers": [
+    {
+      "area": "Correctness — preservation of unowned content",
+      "defect": "An existing file whose bytes match the shipped file is recorded as installer-owned even if the installer never wrote it. A later update or removal can then destroy that file without a backup.",
+      "evidence": "scripts/install-team-config.ts:276-280 adds the hash to both the next and partial manifests and skips the write when bytes match; lines 282-284 and 299-305 choose no backup when the current hash matches the previous manifest. For example, a pre-existing AGENTS.md identical to the initial source is adopted on first install; after the source changes, its original bytes are replaced without backup. This violates the invariant that content the installer did not write is never lost.",
+      "change": "Track actual ownership separately from content equality, or preserve the pre-existing file before claiming it; add a regression covering an identical pre-existing file followed by an update and removal."
+    },
+    {
+      "area": "Correctness — abort before mutation",
+      "defect": "An apply-time containment or state failure before the first successful step still creates or replaces the manifest, despite no step having been applied.",
+      "evidence": "scripts/install-team-config.ts:344 verifies the first step, but any failure enters the unconditional partial-manifest write at lines 374-377. On a fresh agent directory, changing a planned parent into a symlink in beforeApply causes verify to reject and nevertheless creates .team-config-manifest.json. Fix entry 2 requires an abort before changing anything on the first symlink component; entry 9 describes a partial manifest for steps already applied.",
+      "change": "Only persist a partial manifest when an actual managed mutation requiring a manifest update has succeeded; add a fresh-directory apply-time symlink test that checks the entire agent directory, including manifest absence."
+    }
+  ],
+  "notes": []
+}

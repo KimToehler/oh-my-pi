@@ -1,0 +1,22 @@
+# F1-7 real deploy-local.sh into isolated OMP_BIN_DIR and agent dir, then the deployed binary on the installed config
+# head: d46acf3cf206b2076d55987999885c2fd7a693f1
+# date: 2026-10-21T11:01:43Z
+$ OMP_BIN_DIR=<tmp>/bin PI_CODING_AGENT_DIR=<tmp>/agent scripts/deploy-local.sh review/team-config   (deploy 3 above)
+exit=0
+==> Deploying review/team-config (d46acf3cf206b2076d55987999885c2fd7a693f1)
+==> Staging <tmp>/bin/omp.new
+==> Smoke testing <tmp>/bin/omp.new
+==> Syncing team config
+Team config → <tmp>/agent
+  added (417): …
+  seeded (2): config.yml, models.yml
+==> Installing to <tmp>/bin/omp
+==> Deployed d46acf3cf206b2076d55987999885c2fd7a693f1 review/team-config 2026-10-21T13:00:28+0200
+omp.deployed: d46acf3cf206b2076d55987999885c2fd7a693f1 review/team-config 2026-10-21T13:01:41+0200
+manifest: version 2 entries 417
+
+$ env -u ONARA_ROUTER_KEY PI_CODING_AGENT_DIR=<tmp>/agent <tmp>/bin/omp -p --no-session --model onara/cc/claude-haiku-5-5 "<3 questions>"
+Working...
+1) OTTER-77
+2) auditor, oracle, scout, reviewer, security-reviewer, plan-reviewer, seance, task, sonic
+3) review-work: yes; angular-developer: yes

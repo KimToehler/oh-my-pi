@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta has a manifest compatibility defect and does not establish the required deploy verification or checked-byte guarantee.",
+  "blockers": [
+    {
+      "area": "Correctness — strict manifest",
+      "defect": "The parser rejects uppercase hexadecimal SHA-256 hashes even though the specified v2 shape permits a 64-hex hash.",
+      "evidence": "Fix entry 19 specifies `hash: 64-hex`; `scripts/install-team-config.ts` defines `SHA256_HEX` as `/^[0-9a-f]{64}$/`. A 64-character hash containing `A` through `F` is hexadecimal but is rejected before installation.",
+      "change": "Accept the full specified hexadecimal alphabet, or explicitly obtain and record a narrower lowercase-only contract; add a test for an uppercase 64-hex value."
+    },
+    {
+      "area": "CHECK 5 — deploy publication",
+      "defect": "The smoke-tested binary is not pinned to the bytes subsequently published.",
+      "evidence": "`scripts/deploy-local.sh` smoke-tests `$BUILT`, then runs the installer, and only afterwards copies the mutable `$BUILT` path to `$TARGET.new`. A change to that path between the smoke test and copy can publish bytes that were not tested. The delta specifies no pinned copy or source-change control; the accepted path-substitution risk concerns installer paths, not the build artifact.",
+      "change": "Smoke-test and publish the same run-owned immutable or otherwise pinned artifact, and add a control that changes the source between check and publication and expects rejection or publication of the checked bytes."
+    },
+    {
+      "area": "Verification — deploy QA",
+      "defect": "The provided row 20 evidence does not demonstrate either the failed-deploy preservation checks or the successful deploy.",
+      "evidence": "`.omo/evidence/team-config/wave-2/f1-8-deploy-failure-keeps-binary.txt` contains only three Cargo `Finished local profile` lines. It records no installer failure, exit status, binary hashes, `omp.deployed` bytes, absence of a `Deployed` line, or subsequent successful deploy.",
+      "change": "Capture the requested real isolated deploy scenario and its observable comparisons, followed by the successful deploy, in the evidence artifact."
+    }
+  ],
+  "notes": []
+}

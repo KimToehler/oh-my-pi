@@ -1,0 +1,10 @@
+# F1-3 merge-gate refusal with HOME pointed away from ~/.omp
+# head: 490fb9fe3db2cb4de4fe140e36eaa92791bcd229
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T10:04:06Z
+
+$ HOME=<tmp>/home PI_CODING_AGENT_DIR=<tmp>/agent omp -p --mode json --no-session ... "Done, ready to merge."  | grep "Merge gate:"
+Merge gate: your reply claims completion or asks for a merge, but this repository has no omo.merge-gate/v2 record for unshipped work (searched .omo/evidence/gate, docs/evidence; records already on the default branch are skipped). Run the review-work sk
+
+validator not found mentioned: 0
+0

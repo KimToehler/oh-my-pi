@@ -1,0 +1,31 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta does not yet preserve the planned destination state or reliably record partial application.",
+  "blockers": [
+    {
+      "area": "Correctness — partial manifest",
+      "defect": "A failed partial-manifest write is silently discarded, contrary to the fix entry's guarantee that the manifest records applied work.",
+      "evidence": "scripts/install-team-config.ts:315-325 can replace files before a later step fails; :346-349 suppresses any failure from writeManifest. The final manifest write at :352 can also fail after all mutations. The prior manifest then remains authoritative despite describing older bytes. For example, after a partial update, a user edits an updated file back to its previously installed bytes; a later run treats that edit as installer-owned and overwrites it without backup.",
+      "change": "Make manifest persistence failure visible and ensure recovery cannot classify partially applied files using stale ownership records; cover failures during both partial and final manifest writes."
+    },
+    {
+      "area": "CHECK 5 — destination containment and preservation",
+      "defect": "The checked destination and parent paths are mutable references, not pinned objects, and the check is not repeated immediately before every mutation.",
+      "evidence": "scripts/install-team-config.ts:316 verifies once, then :322 may perform asynchronous backup operations before :324 replaces the destination. A concurrent edit after verification can be overwritten without its planned backup; replacing a checked parent with a symlink before a subsequent filesystem operation can redirect it outside the agent directory. The seed path similarly has a check at :337 followed by mkdir and copy at :338-340. The beforeApply tests change paths only before verification, not between verification and use.",
+      "change": "Pin directory and destination identity through the operations or use a filesystem mechanism that prevents following substituted paths; preserve the exact object being replaced. Add controls that change the destination and parent after the check but before each use."
+    },
+    {
+      "area": "CHECK 2 — planned destination identity",
+      "defect": "The planned state omits permission bits and treats every symlink as the same state, so real changes between planning and application pass the drift check.",
+      "evidence": "scripts/install-team-config.ts:66-71 represents all symlinks as the constant LINK; :249-251 plans a chmod using only the content hash, and :316-318 verifies that hash before changing permissions. Replacing a planned symlink with a different symlink, or changing a planned file's mode without changing its bytes, is not detected despite the fix entry requiring an abort when destination state differs.",
+      "change": "Record and compare all state relevant to the planned operation, including mode and symlink identity or target, and test changes to each independently between phases."
+    },
+    {
+      "area": "Correctness — manifest path ownership",
+      "defect": "The manifest is replaced without checking or preserving a pre-existing symlink or changed manifest, despite the unowned-path and drift guarantees.",
+      "evidence": "scripts/install-team-config.ts:146-150 renames the temporary manifest over the destination, and :348 and :352 call it without inspecting or verifying that destination. A pre-existing .team-config-manifest.json symlink to a valid manifest is read through and then the link itself is destroyed; a manifest replaced after planning is likewise overwritten.",
+      "change": "Treat the manifest as a protected destination: inspect without following symlinks, preserve or refuse unowned entries, and detect changes before replacing it."
+    }
+  ],
+  "notes": []
+}

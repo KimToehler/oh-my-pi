@@ -1,0 +1,12 @@
+{
+  "base_sha": "1b44c1d23aed4dc809e2180d427ea6b3c51a523a",
+  "head_sha": "dc82f1f2c772fd1e8c942bcebe3a4af5fb87a986",
+  "commits": [
+    {
+      "sha": "dc82f1f2c772fd1e8c942bcebe3a4af5fb87a986",
+      "subject": "docs(team-config): key append starts on its own line; rollback comment states backup scope",
+      "patch": "001.patch",
+      "sha256": "bc0282c75b8663a982419a7fd45ac2e556549119750d36cf9e67763c06610b4d"
+    }
+  ]
+}

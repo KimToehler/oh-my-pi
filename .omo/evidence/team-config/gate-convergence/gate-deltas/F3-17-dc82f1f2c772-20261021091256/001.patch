@@ -1,0 +1,39 @@
+commit dc82f1f2c772fd1e8c942bcebe3a4af5fb87a986
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 11:12:41 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 11:12:41 2026 +0200
+
+    docs(team-config): key append starts on its own line; rollback comment states backup scope
+
+diff --git a/scripts/deploy-local.sh b/scripts/deploy-local.sh
+index 7a0f91bdc3..57c37aee61 100755
+--- a/scripts/deploy-local.sh
++++ b/scripts/deploy-local.sh
+@@ -11,9 +11,11 @@
+ #
+ # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
+ # uncommitted work in the main checkout never leaks into the binary.
+-# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp. Team config: restore from the
+-# backups/team-config-* dirs the installer reports. A ref that predates team-config/
+-# has no installer, so roll back to it with OMP_SKIP_TEAM_CONFIG=1.
++# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp. The backups/team-config-* dirs the
++# installer reports hold only content it did not write (local edits, pre-existing files),
++# not a full config snapshot. To roll the team config back, redeploy the older ref that
++# contains team-config/; for a ref predating it, deploy with OMP_SKIP_TEAM_CONFIG=1 and
++# restore local edits from the backups.
+ set -euo pipefail
+ 
+ REF="${1:-main}"
+diff --git a/team-config/README.md b/team-config/README.md
+index 337284991c..a8533bec63 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -17,6 +17,7 @@ scripts/deploy-local.sh                       # builds omp, installs ~/.local/bi
+ { [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&  # absent, or a regular non-symlink file: else stop before touch/chmod
+   ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
+   [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&                # a directory or symlink stops here, before read
++  { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&  # unterminated last line: the key starts on its own line
+   printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&            # no echo, not in shell history (zsh and bash)
+   printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
+ omp                                           # ~/.local/bin must be on PATH

@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "The cumulative delta cannot be reviewed fully because the final commit patch is incomplete.",
+  "blockers": [
+    {
+      "area": "Executability",
+      "defect": "The required second patch omits its diff, preventing review of the final commit and any removed or weakened protections.",
+      "evidence": "The manifest lists 002.patch for c961eb0e9574434947fa8617086fb599c68c2ce2, but the file contains two literal `... diff body omitted` lines. A raw read also returned those omissions.",
+      "change": "Provide the complete patch for the final commit and repeat the cumulative delta review."
+    }
+  ],
+  "notes": []
+}

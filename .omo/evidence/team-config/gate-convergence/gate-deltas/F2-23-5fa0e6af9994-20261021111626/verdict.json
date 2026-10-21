@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "The added contract test does not exercise the validator path required by fix row 23.",
+  "blockers": [
+    {
+      "area": "Verification adequacy",
+      "defect": "The filled Gate proof test stops at repository detection and never establishes that the completion reply reaches the validator.",
+      "evidence": "team-config/tests/merge-gate.test.ts:138-140 makes every git command return code 128; the new assertion at lines 489-491 checks only that `git rev-parse` was called. team-config/agent/extensions/merge-gate.ts:243-245 returns immediately on that failure, before record selection or validator invocation. Fix row 23 explicitly requires the reply to reach the validator.",
+      "change": "Add a repository and eligible record fixture, make the git calls succeed, and assert that the full record validator is invoked for the filled block; retain the NOT RUN and plain-reply controls."
+    }
+  ],
+  "notes": []
+}

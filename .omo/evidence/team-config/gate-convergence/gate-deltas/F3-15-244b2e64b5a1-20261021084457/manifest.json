@@ -1,0 +1,12 @@
+{
+  "base_sha": "abff4e6fe9be76d05c820a1cd143dabc60332a2b",
+  "head_sha": "244b2e64b5a1e721f11b11ecb29ef9c4611e1702",
+  "commits": [
+    {
+      "sha": "244b2e64b5a1e721f11b11ecb29ef9c4611e1702",
+      "subject": "fix(team-config): reject symlinked source roots",
+      "patch": "001.patch",
+      "sha256": "a3aab3ce742c4f4f8e6a0cbf44b9f2e33186ad9f4d93da97513951bc2a7a3721"
+    }
+  ]
+}

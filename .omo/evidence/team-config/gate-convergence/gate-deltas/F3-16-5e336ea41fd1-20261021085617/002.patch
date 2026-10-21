@@ -1,0 +1,73 @@
+commit e753b38faf69e71a382c5aa11f377d8861f800a0
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Wed Oct 21 10:55:20 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Wed Oct 21 10:55:20 2026 +0200
+
+    fix(team-config): partial manifests keep touched paths adopted; fail-closed key setup
+
+diff --git a/scripts/install-team-config.test.ts b/scripts/install-team-config.test.ts
+index f6fc27f942..32e4946954 100644
+--- a/scripts/install-team-config.test.ts
++++ b/scripts/install-team-config.test.ts
+@@ -480,6 +480,29 @@ describe("installTeamConfig", () => {
+ 		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("v1\n");
+ 	});
+ 
++	test("a successful partial manifest keeps written paths adopted, so a later edit is backed up", async () => {
++		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
++		await t.install();
++		await Bun.write(t.repo("agent/a.md"), "v2\n");
++		await Bun.write(t.repo("agent/b.md"), "v2\n");
++		await expect(
++			t.install({
++				afterStep: async rel => {
++					if (rel === "a.md") throw new Error("abort mid-apply");
++				},
++			}),
++		).rejects.toThrow("abort mid-apply");
++		const entry = (await Bun.file(t.agent(manifestPath)).json()).files["a.md"];
++		expect(entry.adopted).toBe(true);
++		expect(entry.hash).toBe(new Bun.CryptoHasher("sha256").update("v2\n").digest("hex"));
++
++		await Bun.write(t.agent("a.md"), "user edit\n");
++		await Bun.write(t.repo("agent/a.md"), "v3\n");
++		const report = await t.install();
++		expect(await t.read(t.agent("a.md"))).toBe("v3\n");
++		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("user edit\n");
++	});
++
+ 	test("a failed intent manifest write aborts before any mutation", async () => {
+ 		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
+ 		await t.install();
+diff --git a/scripts/install-team-config.ts b/scripts/install-team-config.ts
+index 8d94c2cb82..c875ed48b4 100755
+--- a/scripts/install-team-config.ts
++++ b/scripts/install-team-config.ts
+@@ -466,7 +466,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
+ 			if (step.kind === "write") {
+ 				await replaceFile(step.bytes, dst, step.mode);
+ 				changed = true;
+-				applied[step.rel] = { hash: step.hash };
++				// Only the successful final manifest converts a written path to owned; a partial one keeps it adopted.
++				applied[step.rel] = { hash: step.hash, adopted: true };
+ 				(step.existed ? report.updated : report.added).push(step.rel);
+ 			} else {
+ 				if (!step.backup) await fs.rm(dst);
+diff --git a/team-config/README.md b/team-config/README.md
+index d9509a62f0..9938e164b5 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -14,9 +14,9 @@ the deploy script re-enters the flake dev shell.
+ git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
+ cd ~/git/oh-my-pi
+ scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
+-( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env   # mode 600 before any key is written
+-printf 'Router key: '; read -rs ONARA_ROUTER_KEY; echo                   # no echo, not in shell history (zsh and bash)
+-printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
++( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
++  printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&            # no echo, not in shell history (zsh and bash)
++  printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
+ omp                                           # ~/.local/bin must be on PATH
+ ```
+ 

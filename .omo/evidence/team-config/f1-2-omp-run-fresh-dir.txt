@@ -1,0 +1,12 @@
+# F1-2 omp -p on fresh agent dir (key only in <agentDir>/.env, unset in env)
+# head: 322542da6777e8d25afe38d598bf1b4f7a6755ec
+# binary: /Users/tim/.bun/bin/omp (90e3e77e68da7b16ac9ffa244444374281972ee0)
+# date: 2026-10-21T09:29:48Z
+
+ONARA_ROUTER_KEY in process env: set
+$ env -u ONARA_ROUTER_KEY PI_CODING_AGENT_DIR=<tmp>/agent omp -p --no-session --model onara/cc/claude-haiku-5-5 "<4 questions>"
+Working...
+1) ZEBRA-42
+2) auditor, oracle, scout, reviewer, security-reviewer, plan-reviewer, seance, task, sonic
+3) review-work: yes; angular-developer: yes
+4) None. The domain-rules list has no entry that mentions destructive git commands. The generic rules cover them, but they are not named domain rules.

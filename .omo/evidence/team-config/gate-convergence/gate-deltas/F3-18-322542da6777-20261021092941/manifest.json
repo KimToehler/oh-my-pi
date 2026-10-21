@@ -1,0 +1,12 @@
+{
+  "base_sha": "dc82f1f2c772fd1e8c942bcebe3a4af5fb87a986",
+  "head_sha": "322542da6777e8d25afe38d598bf1b4f7a6755ec",
+  "commits": [
+    {
+      "sha": "322542da6777e8d25afe38d598bf1b4f7a6755ec",
+      "subject": "docs(team-config): setup blocks paste cleanly into zsh",
+      "patch": "001.patch",
+      "sha256": "6107968997f6532149eff859a95743fd936343f8015858acf335b02a3a3fd54d"
+    }
+  ]
+}

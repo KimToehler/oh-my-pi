@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: A binary-only deployment neither reads nor mutates the agent configuration, even when that configuration contains state that would make the installer reject.
+  positive_witness: With OMP_SKIP_TEAM_CONFIG=1 and a malformed manifest, deployment publishes the built binary while every pre-existing agent-directory file retains its hash.
+  negative_control: The binary-only deployment invokes the installer, fails on the malformed manifest, or changes any agent-directory file; this outcome must fail.
+  observable: Deployment exit status, installer-log count, before-and-after agent-tree hashes, and the published binary hash.
+  boundary: scripts/deploy-local.sh invoked with isolated OMP_BIN_DIR and PI_CODING_AGENT_DIR.
+END-REVIEW-TRAILER
