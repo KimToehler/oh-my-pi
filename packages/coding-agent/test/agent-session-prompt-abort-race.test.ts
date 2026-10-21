@@ -263,4 +263,34 @@ describe("AgentSession prompt admission racing abort", () => {
 		expect(dropped).toEqual(["describe this"]);
 		expect(streamCalls).toEqual([]);
 	});
+
+	it("reserves the goal owner stamp when abort() is requested and hands that stamp to the runtime", async () => {
+		const { session } = await createSession([() => ({ content: ["done"] })]);
+		const reserved: object[] = [];
+		session.goalRuntime.setMutationGate({
+			reserve: () => {
+				const stamp = {};
+				reserved.push(stamp);
+				return stamp;
+			},
+			owns: () => true,
+			admitEntry: () => {},
+		});
+		const received: Array<object | undefined> = [];
+		session.goalRuntime.onTaskAborted = async options => {
+			received.push(options?.stamp);
+		};
+
+		const aborting = session.abort();
+		// Reserved synchronously with the request, before abort() has unwound anything.
+		expect(reserved).toHaveLength(1);
+		await aborting;
+		expect(received).toEqual([reserved[0]]);
+
+		// A caller-supplied stamp is the one used; no second reservation is made.
+		const supplied = {};
+		await session.abort({ goalStamp: supplied });
+		expect(reserved).toHaveLength(1);
+		expect(received[1]).toBe(supplied);
+	});
 });

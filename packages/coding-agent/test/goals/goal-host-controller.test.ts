@@ -686,6 +686,68 @@ describe("GoalHostController continuation gate", () => {
 		});
 	});
 
+	describe("an abandoned entry's recovery restore", () => {
+		for (const goalInC of [true, false]) {
+			test(`is finished by the session change before transcript C ${goalInC ? "with" : "without"} a goal chooses its tools`, async () => {
+				const f = fakeSession(async () => true);
+				f.session.setGoalModeState(undefined);
+				const swap = f.session.setActiveToolsByName;
+				const entryEntered = Promise.withResolvers<void>();
+				const entryRelease = Promise.withResolvers<void>();
+				const recoveryEntered = Promise.withResolvers<void>();
+				const recoveryRelease = Promise.withResolvers<void>();
+				// A's entry swap is held first; the recovery restore it later starts is held second.
+				f.session.setActiveToolsByName = async names => {
+					f.session.setActiveToolsByName = async recoveryNames => {
+						f.session.setActiveToolsByName = swap;
+						recoveryEntered.resolve();
+						await recoveryRelease.promise;
+						await swap(recoveryNames);
+					};
+					entryEntered.resolve();
+					await entryRelease.promise;
+					await swap(names);
+				};
+				const entry = f.controller.createForHostPrompt({ objective: "A" }, { stamp: {} }).then(
+					() => undefined,
+					(error: unknown) => error,
+				);
+				await entryEntered.promise;
+
+				// Transcript B (no goal) is adopted while A's entry is still swapping.
+				f.setOwner(false);
+				await f.controller.beginSessionChange();
+				f.transcript.id = "t2";
+				await swap(["read", "write"]);
+				await f.controller.endSessionChange({ detachedRun: true });
+				await f.controller.settled();
+
+				// A's entry is abandoned: its recovery restore starts and is held.
+				entryRelease.resolve();
+				await recoveryEntered.promise;
+
+				let changeBegun = false;
+				const begin = f.controller.beginSessionChange().then(() => {
+					changeBegun = true;
+				});
+				await nextMacrotask();
+				// The change to C waits for the recovery: C cannot choose tools before it has landed.
+				expect(changeBegun).toBe(false);
+
+				recoveryRelease.resolve();
+				expect(await entry).toBeInstanceOf(GoalOwnerStale);
+				await begin;
+				f.transcript.id = "t3";
+				await swap(["read", "exec"]);
+				if (goalInC) f.journalGoal();
+				await f.controller.endSessionChange({ detachedRun: true });
+				await f.controller.settled();
+
+				expect(f.tools()).toEqual(goalInC ? ["read", "exec", "goal"] : ["read", "exec"]);
+			});
+		}
+	});
+
 	describe("a stamped pause's tool restore", () => {
 		for (const goalInB of [true, false]) {
 			test(`is finished by the session change before transcript B ${goalInB ? "with" : "without"} a goal chooses its tools`, async () => {

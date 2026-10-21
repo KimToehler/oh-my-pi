@@ -360,11 +360,19 @@ class FakeAgentSession {
 		this.acpPromptOpen.push(open);
 	}
 
+	/** Resolved when `abort()` has reserved its goal owner stamp and starts to unwind. */
+	abortEntered = Promise.withResolvers<void>();
+	/** Awaited inside `abort()` before the runtime's abort accounting, so a test can hold an abort open. */
+	abortHold: Promise<void> | undefined;
 	async abort(options?: { goalStamp?: GoalOwnerStamp }): Promise<void> {
 		this.abortCalls++;
 		this.isStreaming = false;
-		// As `AgentSession.abort`: a user interrupt pauses an active goal, bound to the Stop's own stamp.
-		await this.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: options?.goalStamp });
+		// As `AgentSession.abort`: ownership is reserved when the abort is requested (a Stop supplies its own
+		// stamp), and a user interrupt pauses an active goal bound to it.
+		const stamp = options?.goalStamp ?? this.goalRuntime.reserveOwner();
+		this.abortEntered.resolve();
+		await this.abortHold;
+		await this.goalRuntime.onTaskAborted({ reason: "interrupted", stamp });
 	}
 
 	get isDisposed(): boolean {
@@ -6615,6 +6623,43 @@ describe("ACP agent", () => {
 
 			abortGate.resolve();
 			await cancel;
+			await eventLoopTurns(10);
+
+			expect(session.goalModeState).toEqual(goalBefore);
+			expect(session.goalRuntime.snapshot).toEqual(snapshotBefore);
+			expect(session.sessionManager.getEntries().length).toBe(journalBefore);
+			harness.abortController.abort();
+		});
+
+		it("(abort at request) an extension abort in transcript A, released after B adopted an active goal, changes none of B's usage, status, journal or turn snapshot", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			await session.goalRuntime.createGoal({ objective: "A" }, { origin: "host" });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// The extension aborts in A, with no Stop and so no stamp supplied by ACP; the abort is held.
+			const abortRelease = Promise.withResolvers<void>();
+			session.abortHold = abortRelease.promise;
+			session.extensionRunner!.createContext().abort();
+			await session.abortEntered.promise;
+
+			// B adopts an active goal with a token budget, and its turn is mid-flight.
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: { ...adoptedGoal("active"), tokenBudget: 10 } });
+				},
+			});
+			await eventLoopTurns(10);
+			session.goalRuntime.onTurnStart("turn-b", { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+			session.goalUsageTokens = 50;
+			session.goalClockSkewMs = 5_000;
+			const goalBefore = structuredClone(session.goalModeState);
+			const snapshotBefore = structuredClone(session.goalRuntime.snapshot);
+			const journalBefore = session.sessionManager.getEntries().length;
+			expect(goalBefore?.goal.id).toBe("g-adopted");
+			expect(goalBefore?.goal.status).toBe("active");
+
+			abortRelease.resolve();
 			await eventLoopTurns(10);
 
 			expect(session.goalModeState).toEqual(goalBefore);
