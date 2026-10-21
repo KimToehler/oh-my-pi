@@ -394,8 +394,14 @@ describe("installTeamConfig", () => {
 		await t.install();
 		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
 		const changed = '{"version":1,"files":{}}\n';
+		// A change before apply is caught by the intent write, before any mutation; one during apply, by the final write.
 		await expect(
 			t.install({ beforeApply: () => Bun.write(t.agent(".team-config-manifest.json"), changed).then(() => {}) }),
+		).rejects.toThrow("changed after planning");
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+		await expect(
+			t.install({ afterStep: () => Bun.write(t.agent(".team-config-manifest.json"), changed).then(() => {}) }),
 		).rejects.toThrow("manifest was not updated");
 		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
 		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
@@ -410,7 +416,8 @@ describe("installTeamConfig", () => {
 		// AGENTS.md is applied first (so the partial manifest is due); the b.md edit then aborts the apply; the manifest change makes the partial write's recheck fail too.
 		const failure = await t
 			.install({
-				beforeApply: async () => {
+				afterStep: async rel => {
+					if (rel !== "AGENTS.md") return;
 					await Bun.write(t.agent("b.md"), "edited\n");
 					await Bun.write(t.agent(".team-config-manifest.json"), changed);
 				},
@@ -425,6 +432,65 @@ describe("installTeamConfig", () => {
 		expect(writeErr.message).toContain(t.agent(".team-config-manifest.json"));
 		expect((failure as Error).message.startsWith(original.message)).toBe(true);
 		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(changed);
+	});
+
+	const manifestPath = ".team-config-manifest.json";
+	const failOn = (kind: "intent" | "partial" | "final") => async (got: string) => {
+		if (got === kind) throw new Error(`injected ${kind} manifest write failure`);
+	};
+
+	test("a failed final manifest write leaves the touched path adopted, so a later edit back to the old bytes is backed up", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		await expect(t.install({ writeManifestHook: failOn("final") })).rejects.toThrow("injected final");
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v2\n");
+
+		await Bun.write(t.agent("AGENTS.md"), "v1\n");
+		await Bun.write(t.repo("agent/AGENTS.md"), "v3\n");
+		const report = await t.install();
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v3\n");
+		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v1\n");
+	});
+
+	test("a failed partial manifest write leaves the touched path adopted, so a later edit back to the old bytes is backed up", async () => {
+		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/a.md"), "v2\n");
+		await Bun.write(t.repo("agent/b.md"), "v2\n");
+		const failure = await t
+			.install({
+				writeManifestHook: failOn("partial"),
+				afterStep: async rel => {
+					if (rel === "a.md") throw new Error("abort mid-apply");
+				},
+			})
+			.then(
+				() => undefined,
+				err => err as unknown,
+			);
+		expect(failure).toBeInstanceOf(AggregateError);
+		expect(await t.read(t.agent("a.md"))).toBe("v2\n");
+		expect(await t.read(t.agent("b.md"))).toBe("v1\n");
+
+		await Bun.write(t.agent("a.md"), "v1\n");
+		await Bun.write(t.repo("agent/a.md"), "v3\n");
+		const report = await t.install();
+		expect(await t.read(t.agent("a.md"))).toBe("v3\n");
+		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("v1\n");
+	});
+
+	test("a failed intent manifest write aborts before any mutation", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
+		await t.install();
+		const before = await t.read(t.agent(manifestPath));
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		await fs.rm(t.repo("agent/old.md"));
+		await expect(t.install({ writeManifestHook: failOn("intent") })).rejects.toThrow("injected intent");
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+		expect(await t.read(t.agent("old.md"))).toBe("old\n");
+		expect(await t.read(t.agent(manifestPath))).toBe(before);
+		expect(await fs.readdir(t.agentDir)).not.toContain("backups");
 	});
 
 	test("backs up an adopted file once, then treats it as owned", async () => {

@@ -42,6 +42,8 @@ export interface InstallOptions {
 	beforeApply?: () => Promise<void>;
 	/** Test hook: awaited after each planned step completes, with that step's relative path. Lets tests change the filesystem between steps. */
 	afterStep?: (rel: string) => Promise<void>;
+	/** Test hook: awaited right before each manifest write (`intent`, `partial`, `final`); throw to simulate that write failing. */
+	writeManifestHook?: (kind: "intent" | "partial" | "final") => Promise<void>;
 }
 
 export interface InstallReport {
@@ -219,7 +221,12 @@ async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promis
 	}
 }
 
-/** Replace the manifest, but only while it is still exactly what phase 1 read (`expected`; undefined = absent). */
+/** Serialized manifest, exactly as written to disk. */
+function manifestBytesOf(manifest: Manifest): Uint8Array {
+	return Buffer.from(`${JSON.stringify(manifest, null, "\t")}\n`);
+}
+
+/** Replace the manifest, but only while it is still exactly what the caller last knew (`expected`; undefined = absent). */
 async function writeManifest(
 	manifestPath: string,
 	manifest: Manifest,
@@ -231,7 +238,7 @@ async function writeManifest(
 	}
 	const tmp = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
 	try {
-		await fs.writeFile(tmp, `${JSON.stringify(manifest, null, "\t")}\n`, { flag: "wx" });
+		await fs.writeFile(tmp, manifestBytesOf(manifest), { flag: "wx" });
 		await fs.rename(tmp, manifestPath);
 	} catch (err) {
 		if (!isEexist(err)) await fs.rm(tmp, { force: true });
@@ -386,6 +393,34 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
 	};
 
+	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
+	let expectedManifest = manifestBytes;
+	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
+		await options.writeManifestHook?.(kind);
+		await writeManifest(manifestPath, manifest, expectedManifest);
+		expectedManifest = manifestBytesOf(manifest);
+	};
+
+	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
+	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
+	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
+	// have matched again. Seed-only paths are never in the manifest and need no intent.
+	if (steps.length > 0) {
+		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
+		for (const step of steps) await verify(step.rel, step.planned);
+		for (const { rel, planned } of seeds) await verify(rel, planned);
+		const intent: Manifest = { version: 2, files: newFiles() };
+		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
+		for (const step of steps) {
+			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
+			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
+			intent.files[step.rel] = { hash, adopted: true };
+		}
+		await persist("intent", intent);
+		// Until a step completes, a partial manifest keeps its path adopted too.
+		for (const step of steps) applied[step.rel] = intent.files[step.rel];
+	}
+
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
 	let backupDir: string | undefined;
 	// True once any step changed the agent dir; gates the partial manifest.
@@ -460,7 +495,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		if (!changed) throw err;
 		// Persist what was actually applied; if that fails too, the original error stays first and the write error rides along.
 		try {
-			await writeManifest(manifestPath, { version: 2, files: applied }, manifestBytes);
+			await persist("partial", { version: 2, files: applied });
 		} catch (writeErr) {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new AggregateError([err, writeErr], `${message} (and the partial manifest could not be written)`);
@@ -469,7 +504,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	}
 
 	try {
-		await writeManifest(manifestPath, next, manifestBytes);
+		await persist("final", next);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		throw new Error(`Team config files were applied but the manifest was not updated: ${message}`, { cause: err });

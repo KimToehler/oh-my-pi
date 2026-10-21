@@ -11,8 +11,9 @@
 #
 # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
 # uncommitted work in the main checkout never leaks into the binary.
-# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp (team config: see the
-# backups/team-config-* dirs the installer reports, or redeploy the old ref).
+# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp. Team config: restore from the
+# backups/team-config-* dirs the installer reports. A ref that predates team-config/
+# has no installer, so roll back to it with OMP_SKIP_TEAM_CONFIG=1.
 set -euo pipefail
 
 REF="${1:-main}"
