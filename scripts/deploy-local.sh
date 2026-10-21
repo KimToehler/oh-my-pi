@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Build omp from a git ref (default: main) into a standalone binary, sync the
 # team config (team-config/) of the same ref into the omp agent dir, and only
-# then install the binary as $OMP_BIN_DIR/omp (and write omp.deployed). A failed
-# config sync exits non-zero and leaves the live binary untouched. Only this
+# then install the binary as $OMP_BIN_DIR/omp (and write omp.deployed). The binary
+# is copied to omp.new first and that exact copy is smoke-tested and then
+# published, so what ran is what is installed. A failed smoke test or config sync
+# exits non-zero, removes omp.new and leaves the live binary untouched. Only this
 # script changes what `omp` runs; edits in any checkout have no effect until the
 # next deploy.
 #
@@ -67,11 +69,20 @@ log "Compiling omp binary"
 (cd "$WT/packages/coding-agent" && bun run build)
 BUILT="$WT/packages/coding-agent/dist/omp"
 
-log "Smoke testing $BUILT"
-(cd /tmp && "$BUILT" --version && "$BUILT" --smoke-test)
+log "Staging $TARGET.new"
+mkdir -p "$BIN_DIR"
+rm -f "$TARGET.new"
+cp "$BUILT" "$TARGET.new"
+PUBLISHED=0
+cleanup() { [ "$PUBLISHED" = 1 ] || rm -f "$TARGET.new"; }
+trap cleanup EXIT ERR
 
-# Team config first: an installer failure must leave the live binary and
-# omp.deployed untouched. It may have applied part of the config by then.
+# Smoke-test the exact copy that gets published, not the build output.
+log "Smoke testing $TARGET.new"
+(cd /tmp && "$TARGET.new" --version && "$TARGET.new" --smoke-test)
+
+# Team config before publishing: an installer failure must leave the live
+# binary and omp.deployed untouched. It may have applied part of the config.
 if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
 	log "Syncing team config"
 	if ! (cd "$WT" && bun scripts/install-team-config.ts); then
@@ -81,12 +92,11 @@ if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
 fi
 
 log "Installing to $TARGET"
-mkdir -p "$BIN_DIR"
-cp "$BUILT" "$TARGET.new"
 if [ -f "$TARGET" ]; then
 	mv -f "$TARGET" "$TARGET.prev"
 fi
 mv -f "$TARGET.new" "$TARGET"
+PUBLISHED=1
 printf '%s %s %s\n' "$COMMIT" "$REF" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$BIN_DIR/omp.deployed"
 
 log "Deployed $(cat "$BIN_DIR/omp.deployed")"
