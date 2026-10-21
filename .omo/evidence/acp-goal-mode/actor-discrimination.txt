@@ -313,3 +313,10 @@ Ran 5 tests across 1 file. [603.00ms]
  0 fail
 Ran 5 tests across 1 file. [603.00ms]
 restored: cmp identical
+
+=== row28 amend: tool-scope mode clause reverted (#owns(stamp,false)) ===
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume reserved before a default selection and held on the accounting chain until it finished is refused [3.09ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create reserved before a default selection and held on the accounting chain until it finished is refused [2.98ms]
+ 185 pass
+ 2 fail
+Ran 187 tests across 1 file. [1.65s]

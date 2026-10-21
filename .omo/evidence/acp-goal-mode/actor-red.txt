@@ -585,3 +585,14 @@ Ran 223 tests across 2 files. [4.12s]
  4 fail
 Ran 5 tests across 1 file. [644.00ms]
 (the pre-existing row-10 M×T test passes pre-fix by design: it runs after the selection finished)
+
+=== row28 amend RED on pre-fix 539254c958 (test hunks only) ===
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [10.20ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a plan selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [4.08ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [6.12ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create while a default selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools [7.08ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool resume reserved before a default selection and held on the accounting chain until it finished is refused [3.15ms]
+(fail) ACP agent > ACP Goal mode > (M×T) a goal tool create reserved before a default selection and held on the accounting chain until it finished is refused [3.43ms]
+ 3 pass
+ 6 fail
+Ran 9 tests across 1 file. [2.63s]
