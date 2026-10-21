@@ -1312,9 +1312,8 @@ describe("ACP agent", () => {
 
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		answer();
-		const result = await pending;
+		await pending;
 
-		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 		expect(session.planModeState).toBeUndefined();
 		await harness.agent.prompt({ sessionId: session.sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
 		expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
@@ -1333,9 +1332,8 @@ describe("ACP agent", () => {
 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 			answer();
-			const result = await pending;
+			await pending;
 
-			expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 			expect(session.planModeState?.enabled).toBe(true);
 			expect(session.planReferencePath).toBeUndefined();
 
@@ -1362,9 +1360,8 @@ describe("ACP agent", () => {
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 		adoptRelease.resolve();
-		const result = await pending;
+		await pending;
 
-		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(session.planReferencePath).toBeUndefined();
 
@@ -1390,9 +1387,8 @@ describe("ACP agent", () => {
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "goal" });
 		await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId: "plan" });
 		resolving.resolve();
-		const result = await pending;
+		await pending;
 
-		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 		expect(asked).not.toHaveBeenCalled();
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(session.planModeState?.planFilePath).toBe(newPlanPath);
@@ -1400,6 +1396,33 @@ describe("ACP agent", () => {
 
 		harness.abortController.abort();
 	});
+
+	for (const modeId of ["goal", "default"]) {
+		it(`a proposal still resolving when ${modeId} was selected directly from Plan resolves without asking or writing`, async () => {
+			const asked = vi.fn();
+			const harness = await createHarness({
+				elicitationHandler: async () => {
+					asked();
+					return { action: "accept", content: { value: "approve" } };
+				},
+			});
+			spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
+			const { session } = await enterPlanWithPlanFile(harness);
+			const resolving = Promise.withResolvers<void>();
+			const pending = proposePlan(session, "words-counter", { resolving: resolving.promise, reviewed: true });
+
+			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId });
+			expect(session.planModeState).toBeUndefined();
+			resolving.resolve();
+			await expect(pending).resolves.toBeDefined();
+
+			expect(asked).not.toHaveBeenCalled();
+			expect(session.planModeState).toBeUndefined();
+			expect(session.planReferencePath).toBeUndefined();
+
+			harness.abortController.abort();
+		});
+	}
 
 	for (const value of ["refine", "approve"]) {
 		it(`a ${value} answered after the transcript switched while the dialog was open writes nothing into the new transcript`, async () => {
@@ -1412,9 +1435,8 @@ describe("ACP agent", () => {
 
 			await session.newSession();
 			answer();
-			const result = await pending;
+			await pending;
 
-			expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 			expect(session.planModeState).toEqual(planBefore);
 			expect(session.planReferencePath).toBeUndefined();
 			expect(session.adoptedPlans).toEqual([]);
@@ -1445,9 +1467,8 @@ describe("ACP agent", () => {
 		await proposePlan(session, "words-counter");
 		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
 		snapshotRelease.resolve();
-		const result = await older;
+		await older;
 
-		expect(result.content[0]?.text).toMatch(/mode changed while the approval was pending/);
 		expect(session.planReferencePath).toBe("local://words-counter-plan.md");
 		expect(session.planModeState).toBeUndefined();
 

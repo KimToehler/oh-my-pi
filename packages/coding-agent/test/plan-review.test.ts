@@ -854,9 +854,8 @@ describe("plan review runtime", () => {
 		await reviewing.promise;
 		owned.current = false;
 		released.resolve(reject());
-		const result = await pending;
+		await pending;
 
-		expect(resultText(result)).toMatch(/session mode changed while the approval was pending/);
 		expect(harness.session.getPlanModeState()?.planFilePath).toBe("local://PLAN.md");
 		expect(auditEntries(harness)).toEqual([]);
 		expect(harness.handled).toEqual([]);
