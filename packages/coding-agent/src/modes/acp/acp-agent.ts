@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, logger, type postmortem, prompt, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -119,6 +119,7 @@ import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
 import { cfgDisabledExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
+import planProposalSupersededPrompt from "../../prompts/system/plan-proposal-superseded.md" with { type: "text" };
 
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
@@ -2428,12 +2429,19 @@ export class AcpAgent implements Agent {
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
+		// The client may answer after a later mode selection; only a response whose mode generation is still current applies.
+		const proposalCurrent = record.goal.reservePlanProposal();
 		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
 			planExists: true,
 		};
+		const superseded = (): AgentToolResult<unknown> => ({
+			content: [{ type: "text" as const, text: prompt.render(planProposalSupersededPrompt) }],
+			details,
+		});
+		if (!proposalCurrent()) return superseded();
 		if (!choice.approved) {
 			// Rejection keeps plan mode active for another planning turn. Promote the
 			// reviewed path into plan-mode state so the next `#buildPlanModeMessage()`
@@ -2457,8 +2465,14 @@ export class AcpAgent implements Agent {
 		// bytes, so later edits to the agent-chosen file cannot change what gets executed.
 		const configBeforeApproval = this.#selectConfigValues(record);
 		let executionPlanPath = planFilePath;
-		if (plan.reviewedSha256) executionPlanPath = await session.adoptApprovedPlan(plan);
-		else session.setPlanReferencePath(planFilePath);
+		if (plan.reviewedSha256) {
+			const referenceBefore = session.getPlanReferencePath();
+			executionPlanPath = await session.adoptApprovedPlan(plan);
+			if (!proposalCurrent()) {
+				session.setPlanReferencePath(referenceBefore);
+				return superseded();
+			}
+		} else session.setPlanReferencePath(planFilePath);
 		record.goal.exitPlan(() => {
 			session.setPlanProposalHandler?.(null);
 			session.setPlanModeState(undefined);

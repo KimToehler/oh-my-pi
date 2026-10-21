@@ -467,6 +467,12 @@ export class AcpGoalActor {
 		await this.#host.pause({ stamp });
 	}
 
+	/** Reserve the current mode generation for a plan proposal; the returned check is false once a later mode change arrived. */
+	reservePlanProposal(): () => boolean {
+		const reserved = this.#modes;
+		return () => reserved === this.#modes;
+	}
+
 	/** The approved plan exits plan mode. A mode change that already cleared it wins; the goal is not touched. */
 	exitPlan(clearPlan: () => void): void {
 		this.#modes++;

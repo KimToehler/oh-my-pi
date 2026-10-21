@@ -1,0 +1,1 @@
+Plan proposal discarded: the session mode changed while the approval was pending, so the response was not applied. Plan state, plan reference and mode are left as the newer selection set them. Do not write to xd://propose again unless plan mode is active.
