@@ -1,0 +1,40 @@
+# F2 wave 1 implementation-audit finding 'reconciliation-notification reentrancy deadlock': transport probe
+# probe source: verbatim below; run from the worktree at 915bd7737a (code head 539254c958)
+```ts
+// Throwaway probe: does AgentSideConnection.sessionUpdate settle while the peer's
+// sessionUpdate handler is still blocked? If yes, a notification cannot wait on a
+// peer-side mode request, so the F2 "reconciliation-notification reentrancy" cycle is unreachable.
+import { AgentSideConnection, ClientSideConnection } from "/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/utils/src/acp/connection.ts";
+import { ndJsonStream } from "/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/utils/src/acp/stream.ts";
+
+const a2c = new TransformStream<Uint8Array, Uint8Array>();
+const c2a = new TransformStream<Uint8Array, Uint8Array>();
+const peerHandlerEntered = Promise.withResolvers<void>();
+const peerHandlerRelease = Promise.withResolvers<void>();
+let peerHandlerDone = false;
+
+new ClientSideConnection(
+	() =>
+		({
+			sessionUpdate: async () => {
+				peerHandlerEntered.resolve();
+				// The peer blocks inside its notification handler, as a client would if it
+				// answered the update by issuing (and awaiting) a mode request.
+				await peerHandlerRelease.promise;
+				peerHandlerDone = true;
+			},
+			requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
+		}) as never,
+	ndJsonStream(c2a.writable, a2c.readable),
+);
+const agent = new AgentSideConnection(() => ({}) as never, ndJsonStream(a2c.writable, c2a.readable));
+
+const sent = agent.sessionUpdate({ sessionId: "s", update: { sessionUpdate: "current_mode_update", currentModeId: "goal" } } as never);
+const outcome = await Promise.race([sent.then(() => "notify-settled"), Bun.sleep(2000).then(() => "notify-pending-2s")]);
+await Promise.race([peerHandlerEntered.promise, Bun.sleep(2000)]);
+console.log(`agent sessionUpdate: ${outcome}; peer handler entered, still blocked: ${!peerHandlerDone}`);
+peerHandlerRelease.resolve();
+process.exit(0);
+```
+$ bun /tmp/acp-notify-probe.ts
+agent sessionUpdate: notify-settled; peer handler entered, still blocked: true

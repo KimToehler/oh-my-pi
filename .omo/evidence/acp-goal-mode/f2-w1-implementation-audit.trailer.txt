@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: A reattach notification may trigger and await a new mode request without creating a circular wait between notification delivery and session ownership settlement.
+  positive_witness: After reattachment changes the reported mode, the notification callback awaits a new mode selection and both the selection and reattach finish with the selected mode visible.
+  negative_control: Notification delivery waits for a mode request whose actor effect waits for the same notification-bearing reconciliation task; neither operation settles.
+  observable: Bounded completion of both operations and the final mode/config notification sequence.
+  boundary: ACP session reattachment, notification delivery, and mode-request handling.
+END-REVIEW-TRAILER

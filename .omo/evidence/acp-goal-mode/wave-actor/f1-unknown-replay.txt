@@ -1,0 +1,37 @@
+[1.1s] session 01a15ee4-9f70-7639-ad8e-54e82d3d114d modes=default,plan,goal current=default
+[1.1s] current_mode_update -> goal
+[1.1s] config_option_update mode=goal
+[1.1s] USER PICKS mode=goal -> currentValue=goal
+[1.1s] current_mode_update -> goal
+[1.1s] IDE RE-SENDS mode=goal -> currentValue=goal
+[1.1s] PROMPT "/usage"
+[1.1s] text: "Usage\nInput tokens: 0\nOutput tokens: 0\nCache read tokens: 0\nCache write tokens: 0\nTotal tokens: 0\nPremium requests: 0\nCost: $0.000000"
+[1.1s] PROMPT RESOLVED stopReason=end_turn
+[1.1s] current_mode_update -> goal
+[1.1s] IDE RE-SENDS mode=goal -> currentValue=goal
+[1.1s] PROMPT "/unknown Create /tmp/acp-goal-f1/unknown-replay/u.txt containing U, then call the goal too"
+[4.4s] tool_call: Creating u.txt with U
+[6.6s] tool_call: Verifying u.txt content
+[8.0s] tool_call: goal
+[9.9s] text: "I created `/tmp/acp-goal-f1/unknown-replay/u.txt`, read it back to confirm it contains `U`, and then marked the goal complete. The goal used"
+[9.9s] current_mode_update -> default
+[9.9s] config_option_update mode=default
+[9.9s] PROMPT RESOLVED stopReason=end_turn
+[9.9s] u.txt exists=true
+[9.9s] current_mode_update -> default
+[10.0s] IDE RE-SENDS mode=goal -> currentValue=default
+[10.0s] PROMPT "ok?"
+[13.6s] text: "Yes. `u.txt` contains `U`, and I checked that by reading it back. The goal is marked complete. The goal tool has since been removed from my "
+[13.6s] PROMPT RESOLVED stopReason=end_turn
+[13.6s] journal ~/.omp/agent/sessions/--private-tmp-acp-goal-f1-unknown-replay--/2026-10-21T14-36-43-760Z_01a15ee4-9f70-7639-ad8e-54e82d3d114d.jsonl
+  14:36:44 mode_change goal active "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:44 custom_message goal-mode-context
+  14:36:44 user "/unknown Create /tmp/acp-goal-f1/unknown-replay/u.txt contai"
+  14:36:47 mode_change goal active "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:49 mode_change goal active "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:51 mode_change goal active "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:51 mode_change goal complete "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:52 mode_change none  
+  14:36:52 goal-completed "/unknown Create /tmp/acp-goal-f1/unknown-replay/u."
+  14:36:52 acp-stale-client-config {"mode":"goal"}
+  14:36:52 user "ok?"

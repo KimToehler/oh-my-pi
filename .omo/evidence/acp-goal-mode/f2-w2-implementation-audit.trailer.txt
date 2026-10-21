@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: An agent tool invocation concurrent with a client mode transition cannot reactivate a Goal after that transition has paused it but before its tool restoration completes.
+  positive_witness: With restoration held, a concurrent Goal resume is refused or ordered before the pause; after selecting Plan, Plan is enabled, the Goal is paused, and the pre-Goal tools are restored.
+  negative_control: A resume commits during the held restoration and the completed Plan transition leaves the Goal active or selected.
+  observable: Goal journal and status, final ACP mode, Plan state, and enabled tool names after both operations settle.
+  boundary: ACP mode request and Goal tool execution against the shared Goal runtime.
+END-REVIEW-TRAILER

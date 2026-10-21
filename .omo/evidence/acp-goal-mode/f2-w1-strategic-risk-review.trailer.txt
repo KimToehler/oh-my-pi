@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: Completion of an outbound ACP session notification depends only on the local stream write or connection closure, never on the peer processing that notification or completing another request.
+  positive_witness: A session/update write and a concurrently arriving mode request are dispatched independently, and both settle without either waiting for the other's handler.
+  negative_control: The notification promise remains pending until the client processes it and completes a mode request whose server effect is waiting for the same notification-bearing reconciliation.
+  observable: Promise-settlement order for the outbound write and inbound dispatch, together with bounded completion of both operations.
+  boundary: AgentSideConnection.sessionUpdate through RpcConnection.notify/#write and the independent RpcConnection.#dispatch path.
+END-REVIEW-TRAILER

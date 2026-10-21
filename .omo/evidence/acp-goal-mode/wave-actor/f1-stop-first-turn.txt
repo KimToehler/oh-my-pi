@@ -1,0 +1,71 @@
+[1.0s] session 01a15ee4-9f6f-75ef-a436-5d296889875f modes=default,plan,goal current=default
+[1.0s] current_mode_update -> goal
+[1.0s] config_option_update mode=goal
+[1.0s] USER PICKS mode=goal -> currentValue=goal
+[1.0s] current_mode_update -> goal
+[1.0s] IDE RE-SENDS mode=goal -> currentValue=goal
+[1.0s] PROMPT "Create files /tmp/acp-goal-f1/stop-first-turn/f1.txt through f4.txt, each containing its n"
+[5.5s] tool_call: Initializing four file tasks
+[5.5s] tool_call: $ sleep 6
+[7.0s] USER PRESSES STOP (session/cancel) during the objective's first turn
+[7.0s] PROMPT RESOLVED stopReason=cancelled
+[7.0s] files after Stop: f1=false f2=false f3=false f4=false
+[15.0s] waited 8s after Stop; no LATE UPDATE line above means no ownerless turn
+[15.0s] current_mode_update -> goal
+[15.0s] IDE RE-SENDS mode=goal -> currentValue=goal
+[15.0s] PROMPT "continue"
+[17.3s] tool_call: $ sleep 6
+[25.5s] tool_call: Writing f1.txt
+[27.6s] tool_call: Marking f1 done
+[32.1s] text: "1 of 4 done: f1.txt now contains `1`. The first `sleep 6` was aborted, so I re-ran it this turn and it completed before the file was written"
+[32.1s] tool_call: $ sleep 6
+[40.4s] tool_call: Writing f2.txt
+[42.4s] tool_call: Marking f2 done
+[46.1s] text: "2 of 4 done: f2.txt now contains `2`."
+[46.1s] tool_call: $ sleep 6
+[54.3s] tool_call: Writing f3.txt
+[56.3s] tool_call: Marking f3 done
+[60.4s] text: "3 of 4 done: f3.txt now contains `3`."
+[60.4s] tool_call: $ sleep 6
+[68.6s] tool_call: Writing f4.txt
+[71.6s] tool_call: Marking f4 done
+[71.6s] tool_call: $ for i in 1 2 3 4; do printf 'f%s.txt: ' $i; cat f$i.txt; done
+[73.3s] tool_call: goal
+[75.4s] text: "4 of 4 done: f1.txt–f4.txt now contain 1–4 (checked with `cat`), and the goal is marked complete after 63 seconds."
+[75.4s] current_mode_update -> default
+[75.4s] config_option_update mode=default
+[75.4s] PROMPT RESOLVED stopReason=end_turn
+[75.4s] files after resume: f1=true f2=true f3=true f4=true
+[75.4s] journal ~/.omp/agent/sessions/--private-tmp-acp-goal-f1-stop-first-turn--/2026-10-21T14-36-43-759Z_01a15ee4-9f6f-75ef-a436-5d296889875f.jsonl
+  14:36:44 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:36:44 custom_message goal-mode-context
+  14:36:44 user "Create files /tmp/acp-goal-f1/stop-first-turn/f1.txt through"
+  14:36:48 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:36:50 assistant aborted
+  14:36:50 mode_change goal_paused paused "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:36:58 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:36:58 custom_message goal-mode-context
+  14:36:58 user "continue"
+  14:37:06 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:08 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:10 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:12 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:12 developer "<system-reminder>\nYou stopped with 3 incomplete todo item(s)"
+  14:37:21 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:23 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:25 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:26 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:26 developer "<system-reminder>\nYou stopped with 2 incomplete todo item(s)"
+  14:37:35 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:37 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:39 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:40 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:40 developer "<system-reminder>\nYou stopped with 1 incomplete todo item(s)"
+  14:37:49 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:51 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:54 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:56 mode_change goal active "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:56 mode_change goal complete "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:58 mode_change none  
+  14:37:58 goal-completed "Create files /tmp/acp-goal-f1/stop-first-turn/f1.t"
+  14:37:58 acp-stale-client-config {"mode":"goal"}
