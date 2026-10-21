@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Merge gate proof: show it, never make the user ask
 
-Applies when a reply asks to merge, merges, asks for merge approval, or reports work as done that a plan with a `## Merge gate` section governs. Work without such a plan (questions, investigations, plans carrying `- Merge gate: not applicable (<reason>)`) gets no block.
+Applies when a reply asks to merge, merges, asks for merge approval, or reports work as done that a plan with a `## Merge gate` section governs. Work without such a plan (questions, investigations, plans carrying `- Merge gate: not applicable (<reason>)`) gets no block. When you cannot tell, because the governing plan was not read, is missing, cannot be read, or has no complete `## Merge gate` section, the rule applies and every unproven line reads `NOT RUN (<what is missing>)`.
 
 When it applies, put this block in the reply, filled from tool output of this session, never from memory:
 
@@ -21,7 +21,12 @@ Gate proof
 - code committed after reviewed_sha: none | <shas> → gate void, re-run
 ```
 
-Any line that is not RAN/PASS: say so at the top of the reply and do not ask for merge approval. Write it as `NOT RUN (<reason>)`; the merge-gate extension then reads the reply as a status report, not a claim. A reviewer that review-work's depth rule chose not to run is a valid `not run (<reason>)`, except for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers.
+Each line has one of three outcomes:
+- passed: `RAN` with `PASS` verdicts and the record validated;
+- legitimately skipped: integration-review `not needed (<plan's Whole-diff review reason>)`, or strategic-risk-review `not run (<reason>)` when review-work's depth rule chose one reviewer; never for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers;
+- not passed: anything else, written as `NOT RUN (<reason>)` or `FAIL`.
+
+Only passed and legitimately skipped lines allow a merge request. If any line is not passed, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
 
 ## What "ran in full" means
 

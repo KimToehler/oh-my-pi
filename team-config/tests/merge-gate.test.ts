@@ -525,6 +525,15 @@ describe("merge-gate-proof rule contract", () => {
 		]);
 	});
 
+	it("treats legitimately skipped review lines as a claim, not as NOT RUN", async () => {
+		const text = FILLED.replace(
+			"- integration-review: RAN",
+			"- integration-review: not needed (change spans 2 modules)\n- strategic-risk-review: not run (depth rule: mechanical change)",
+		);
+		expect(await stop(text)).toBeUndefined();
+		expect(recordRuns()).toHaveLength(1);
+	});
+
 	it("blocks a filled Gate proof block when the record validator fails", async () => {
 		h.validator = INVALID;
 		const result = await stop(FILLED);
