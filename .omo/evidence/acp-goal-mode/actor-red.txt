@@ -1,0 +1,91 @@
+# RED against fc293833cb (HEAD before any src change); tests only added
+fc293833cb
+bun test v1.4.2 (50a8a8387)
+
+test/acp-agent.test.ts:
+6068 | 
+6069 | 			abortGate.resolve();
+6070 | 			await cancel;
+6071 | 			await eventLoopTurns(10);
+6072 | 			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+6073 | 			expect(session.goalModeState?.goal.status).toBe("active");
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "active"
+Received: "paused"
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/test/acp-agent.test.ts:6073:47)
+(fail) ACP agent > ACP Goal mode > (S×X/R) Stop's late interrupted abort never pauses the goal a new transcript adopted [5.28ms]
+251 | 	#assertCanEnter(): void {
+252 | 		if (!cfgGoalEnabled.get(this.#session.settings)) {
+253 | 			throw new Error("Goal mode is disabled (goal.enabled).");
+254 | 		}
+255 | 		if (this.#session.getPlanModeState()?.enabled) {
+256 | 			throw new Error("Exit plan mode before starting a goal.");
+                   ^
+error: Exit plan mode before starting a goal.
+      at #assertCanEnter (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/src/goals/host-controller.ts:256:14)
+      at #create (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/src/goals/host-controller.ts:261:8)
+      at createForHostPrompt (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/src/goals/host-controller.ts:293:21)
+      at async <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/src/modes/acp/acp-goal.ts:127:22)
+(fail) ACP agent > ACP Goal mode > (M×M) concurrent Plan to Goal and Goal to Plan never end with Plan enabled while Goal is selected [2.38ms]
+6108 | 			// The `goal` tool call was admitted before the selection and reaches the runtime after it.
+6109 | 			await session.goalRuntime.resumeGoal().catch(() => undefined);
+6110 | 			await eventLoopTurns(10);
+6111 | 
+6112 | 			expect(session.planModeState?.enabled).toBe(true);
+6113 | 			expect(session.goalModeState?.enabled).not.toBe(true);
+                                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not true
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/test/acp-agent.test.ts:6113:47)
+(fail) ACP agent > ACP Goal mode > (M×T) the agent's goal tool resume after a Plan selection paused the goal leaves no active goal under Plan [2.93ms]
+6134 | 			hold.release();
+6135 | 			await change;
+6136 | 			await eventLoopTurns(10);
+6137 | 
+6138 | 			expect(session.sessionManager.getSessionId()).not.toBe(transcriptBefore);
+6139 | 			expect(session.goalModeState).toBeUndefined();
+                                        ^
+error: expect(received).toBeUndefined()
+
+Received: {
+  enabled: true,
+  mode: "active",
+  goal: {
+    id: "15aeb827989c4887",
+    objective: "Ship feature X",
+    status: "active",
+    tokenBudget: undefined,
+    tokensUsed: 0,
+    timeUsedSeconds: 0,
+    createdAt: 1792572870242,
+    updatedAt: 1792572870244,
+  },
+}
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/test/acp-agent.test.ts:6139:34)
+(fail) ACP agent > ACP Goal mode > (X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript [4.74ms]
+6165 | 			await ctx.newSession();
+6166 | 			await eventLoopTurns(5);
+6167 | 			expect(session.sessionManager.getSessionFile()).not.toBe(transcriptA);
+6168 | 			// Transcript B recorded nothing stale: selecting goal there is a real choice.
+6169 | 			const appliedInB = await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+6170 | 			expect(selectedMode(appliedInB.configOptions)).toBe("goal");
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "goal"
+Received: "default"
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-goal-mode/packages/coding-agent/test/acp-agent.test.ts:6170:51)
+(fail) ACP agent > ACP Goal mode > (stale per transcript) a stale goal recorded in transcript A neither suppresses the mode in transcript B nor leaks back [5.06ms]
+
+ 30 pass
+ 118 filtered out
+ 5 fail
+ 212 expect() calls
+Ran 35 tests across 1 file. [635.00ms]

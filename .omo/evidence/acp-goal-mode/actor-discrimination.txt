@@ -1,0 +1,26 @@
+## (P×M) - guard: explicitModeChange applies the Plan/Goal effect on the lane behind the in-flight goal entry
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (P×M) a Plan selection landing after a prompt's goal entry never leaves Plan beside a submitted objective turn or an active goal [16.09ms] |  0 pass |  1 fail
+
+## (S×X/R) - guard: admitInterruptPause abort-transcript fence
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (S×X/R) Stop's late interrupted abort never pauses the goal a new transcript adopted [20.34ms] |  0 pass |  1 fail
+
+## (M×M) - guard: explicitModeChange applies on the lane
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (M×M) concurrent Plan to Goal and Goal to Plan never end with Plan enabled while Goal is selected [13.27ms] |  0 pass |  1 fail
+
+## (M×T) - guard: admitEntry plan check
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (M×T) the agent's goal tool resume after a Plan selection paused the goal leaves no active goal under Plan [17.51ms] |  0 pass |  1 fail
+
+## (X/R×T) - guard: admitEntry session-change/reconcile check
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript [17.52ms] |  0 pass |  1 fail
+
+## (stale per transcript) - guard: stale config keyed by transcript id
+with guard:     1 pass |  0 fail
+guard reverted: (fail) ACP agent > ACP Goal mode > (stale per transcript) a stale goal recorded in transcript A neither suppresses the mode in transcript B nor leaks back [29.82ms] |  0 pass |  1 fail
+
+Note: reverting only the `stamp.modes === this.#modes` clause in PromptAdmission confirm, or the `#modes++` bump, leaves (P×M) passing: the lane guard already orders the Plan effect behind the entry. That clause is defence in depth, pinned by no test.
+cmp acp-goal.ts vs /tmp backup after all runs: True
