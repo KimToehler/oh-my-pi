@@ -149,4 +149,73 @@ describe("installTeamConfig", () => {
 		expect(await t.read(t.agent("old.md"))).toBe("old\n");
 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
 	});
+
+	test("never overwrites a pre-existing backup file that shares the run's timestamp", async () => {
+		const t = await setup({ "agent/rules/a.md": "v1\n" });
+		await t.install();
+		const sentinel = t.agent("backups/team-config-t2/rules/a.md");
+		await Bun.write(sentinel, "sentinel\n");
+		await Bun.write(t.agent("rules/a.md"), "local edit\n");
+		const report = await t.install();
+		expect(await t.read(sentinel)).toBe("sentinel\n");
+		expect(report.backupDir).not.toBe(t.agent("backups/team-config-t2"));
+		expect(await t.read(path.join(report.backupDir!, "rules/a.md"))).toBe("local edit\n");
+	});
+
+	test("does not write through a symlink planted at the backup leaf", async () => {
+		const t = await setup({ "agent/AGENTS.md": "team\n" });
+		await t.install();
+		const outsideFile = path.join(path.dirname(t.agentDir), "outside.md");
+		await Bun.write(outsideFile, "outside\n");
+		await fs.mkdir(t.agent("backups/team-config-t2"), { recursive: true });
+		await fs.symlink(outsideFile, t.agent("backups/team-config-t2/AGENTS.md"));
+		await Bun.write(t.agent("AGENTS.md"), "local edit\n");
+		const report = await t.install();
+		expect(await t.read(outsideFile)).toBe("outside\n");
+		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("local edit\n");
+	});
+
+	test("does not write through a symlink planted at the run's backup dir", async () => {
+		const t = await setup({ "agent/AGENTS.md": "team\n" });
+		await t.install();
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await fs.mkdir(outside, { recursive: true });
+		await fs.mkdir(t.agent("backups"), { recursive: true });
+		await fs.symlink(outside, t.agent("backups/team-config-t2"));
+		await Bun.write(t.agent("AGENTS.md"), "local edit\n");
+		const report = await t.install();
+		expect(await fs.readdir(outside)).toEqual([]);
+		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("local edit\n");
+	});
+
+	test("rejects a symlinked backups dir before changing anything, even when no backup is needed", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n" });
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await fs.mkdir(outside, { recursive: true });
+		await fs.mkdir(t.agentDir, { recursive: true });
+		await fs.symlink(outside, t.agent("backups"));
+		await expect(t.install()).rejects.toThrow(t.agent("backups"));
+		expect(await fs.readdir(outside)).toEqual([]);
+		expect((await fs.readdir(t.agentDir)).sort()).toEqual(["backups"]);
+	});
+
+	test("installs a mode-only change without backup and restores a locally removed exec bit", async () => {
+		const t = await setup({ "agent/skills/s/run.sh": "#!/bin/sh\n" });
+		await t.install();
+		expect((await fs.stat(t.agent("skills/s/run.sh"))).mode & 0o111).toBe(0);
+		await fs.chmod(t.repo("agent/skills/s/run.sh"), 0o755);
+		const gained = await t.install();
+		expect(gained.updated).toEqual(["skills/s/run.sh"]);
+		expect(gained.backupDir).toBeUndefined();
+		expect((await fs.stat(t.agent("skills/s/run.sh"))).mode & 0o777).toBe(0o755);
+
+		await fs.chmod(t.agent("skills/s/run.sh"), 0o644);
+		const restored = await t.install();
+		expect(restored.updated).toEqual(["skills/s/run.sh"]);
+		expect(restored.backupDir).toBeUndefined();
+		expect((await fs.stat(t.agent("skills/s/run.sh"))).mode & 0o777).toBe(0o755);
+
+		const settled = await t.install();
+		expect(settled.updated).toEqual([]);
+	});
 });

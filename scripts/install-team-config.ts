@@ -7,7 +7,7 @@
  * - `team-config/seed/*` is copied only when the target does not exist yet (config.yml, models.yml).
  * - Files outside the manifest are never touched. Before a file is overwritten or removed, any
  *   content this installer did not write itself (a local edit, or a same-named file that predates
- *   the manifest) is moved to `<agentDir>/backups/team-config-<timestamp>/`.
+ *   the manifest) is moved to a fresh `<agentDir>/backups/team-config-<timestamp>-<random>/`.
  *
  * Usage: bun scripts/install-team-config.ts   (scripts/deploy-local.sh runs it after installing omp)
  */
@@ -160,10 +160,30 @@ interface WriteStep {
 	existed: boolean;
 }
 
+/** Bytes already match; only the permission bits differ. */
+interface ChmodStep {
+	kind: "chmod";
+	rel: string;
+	mode: number;
+}
+
 interface RemoveStep {
 	kind: "remove";
 	rel: string;
 	backup?: "move";
+}
+
+/** Throw if `<agentDir>/backups` exists as anything but a real directory. */
+async function assertBackupsRoot(backupsRoot: string): Promise<void> {
+	let stat: Stats;
+	try {
+		stat = await fs.lstat(backupsRoot);
+	} catch (err) {
+		if (isEnoent(err)) return;
+		throw err;
+	}
+	if (stat.isSymbolicLink()) throw new Error(`Refusing to back up through symlink: ${backupsRoot}`);
+	if (!stat.isDirectory()) throw new Error(`Expected a directory but found a file: ${backupsRoot}`);
 }
 
 export async function installTeamConfig(options: InstallOptions): Promise<InstallReport> {
@@ -182,11 +202,12 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	await fs.mkdir(options.agentDir, { recursive: true });
 	const agentDir = await fs.realpath(options.agentDir);
 	const manifestPath = path.join(agentDir, MANIFEST_NAME);
-	const backupDir = path.join(agentDir, "backups", `team-config-${options.timestamp}`);
+	const backupsRoot = path.join(agentDir, "backups");
+	await assertBackupsRoot(backupsRoot);
 	const previous = await readManifest(manifestPath);
 	const next: Manifest = { version: 1, files: {} };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
-	const steps: Array<WriteStep | RemoveStep> = [];
+	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
 	const seeds: string[] = [];
 
 	for (const rel of managedFiles) {
@@ -195,11 +216,13 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
 		next.files[rel] = wanted;
-		if (current === wanted) continue;
+		if (current === wanted) {
+			if (((await fs.stat(dst)).mode & 0o777) !== mode) steps.push({ kind: "chmod", rel, mode });
+			continue;
+		}
 		let backup: WriteStep["backup"];
 		if (current === LINK) backup = "move";
 		else if (current !== undefined && current !== previous.files[rel]) backup = "copy";
-		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
 		steps.push({
 			kind: "write",
 			rel,
@@ -217,7 +240,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		const current = await inspect(dst);
 		if (current === undefined) continue;
 		const backup = current === previous.files[rel] ? undefined : "move";
-		if (backup) await assertContained(agentDir, path.join(backupDir, rel));
+
 		steps.push({ kind: "remove", rel, backup });
 	}
 
@@ -227,19 +250,31 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		seeds.push(rel);
 	}
 
-	// Phase 2: apply.
+	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
+	let backupDir: string | undefined;
 	const backup = async (rel: string, mode: "copy" | "move"): Promise<void> => {
+		if (!backupDir) {
+			await assertContained(agentDir, path.join(backupsRoot, "x"));
+			await fs.mkdir(backupsRoot, { recursive: true });
+			await assertBackupsRoot(backupsRoot);
+			backupDir = await fs.mkdtemp(path.join(backupsRoot, `team-config-${options.timestamp}-`));
+		}
 		const dst = path.join(backupDir, rel);
 		await fs.mkdir(path.dirname(dst), { recursive: true });
 		const src = path.join(agentDir, rel);
 		if (mode === "move") await fs.rename(src, dst);
-		else await fs.copyFile(src, dst);
+		else await fs.copyFile(src, dst, fs.constants.COPYFILE_EXCL);
 		report.backedUp.push(rel);
 		report.backupDir = backupDir;
 	};
 
 	for (const step of steps) {
 		const dst = path.join(agentDir, step.rel);
+		if (step.kind === "chmod") {
+			await fs.chmod(dst, step.mode);
+			report.updated.push(step.rel);
+			continue;
+		}
 		if (step.backup) await backup(step.rel, step.backup);
 		if (step.kind === "write") {
 			await replaceFile(step.src, dst, step.mode);
