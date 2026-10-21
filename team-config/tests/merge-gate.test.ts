@@ -44,7 +44,8 @@ const PROPOSE_ALONE = {
 };
 const AFTER_PROPOSE = {
 	block: true,
-	reason: "The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
+	reason:
+		"The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
 };
 const NO_SLUG_PLAN = {
 	block: true,
@@ -72,23 +73,39 @@ async function emit(name: string, event: unknown, sessionId = "sess-A"): Promise
 }
 
 const tool = (toolName: string, toolCallId: string, input: Record<string, unknown>, sessionId = "sess-A") =>
-	emit("tool_call", { type: "tool_call", toolName, toolCallId, input }, sessionId) as Promise<ToolCallEventResult | undefined>;
+	emit("tool_call", { type: "tool_call", toolName, toolCallId, input }, sessionId) as Promise<
+		ToolCallEventResult | undefined
+	>;
 
 const write = (target: string, content: string, sessionId = "sess-A", toolCallId = "t") =>
 	tool("write", toolCallId, { path: target, content }, sessionId);
 
 /** A hashline plan edit as the host delivers it to `tool_call` (path/paths from the `[PATH#TAG]` header). */
 const editPlan = (toolCallId: string, target = "local://x-plan.md", sessionId = "sess-A") =>
-	tool("edit", toolCallId, { input: `[${target}#AB12]\nPUT 2.=2:\n+## Merge gate`, path: target, paths: [target] }, sessionId);
+	tool(
+		"edit",
+		toolCallId,
+		{ input: `[${target}#AB12]\nPUT 2.=2:\n+## Merge gate`, path: target, paths: [target] },
+		sessionId,
+	);
 
 const toolResult = (toolName: string, toolCallId: string, sessionId = "sess-A") =>
-	emit("tool_result", { type: "tool_result", toolName, toolCallId, input: {}, content: [], isError: false }, sessionId);
+	emit(
+		"tool_result",
+		{ type: "tool_result", toolName, toolCallId, input: {}, content: [], isError: false },
+		sessionId,
+	);
 
 const turnEnd = (sessionId = "sess-A") =>
-	emit("turn_end", { type: "turn_end", turnIndex: 0, message: { role: "assistant", content: [] }, toolResults: [] }, sessionId);
+	emit(
+		"turn_end",
+		{ type: "turn_end", turnIndex: 0, message: { role: "assistant", content: [] }, toolResults: [] },
+		sessionId,
+	);
 
 /** A `write xd://propose` prepared inside the current message (no turn end). */
-const proposeCall = (toolCallId: string, slug = "x", sessionId = "sess-A") => write("xd://propose", slug, sessionId, toolCallId);
+const proposeCall = (toolCallId: string, slug = "x", sessionId = "sess-A") =>
+	write("xd://propose", slug, sessionId, toolCallId);
 
 /** One whole message that only proposes: the propose's `tool_call`, then the turn ends. */
 async function propose(sessionId = "sess-A", slug = "x"): Promise<ToolCallEventResult | undefined> {
@@ -107,7 +124,9 @@ const validatorRuns = (): number => h.execCalls.filter(call => call.args.include
 
 /** The plan files the validator was asked to check, in order. */
 const checkedPlans = (): (string | undefined)[] =>
-	h.execCalls.filter(call => call.args.includes("--plan-only")).map(call => call.args[call.args.indexOf("--plan") + 1]);
+	h.execCalls
+		.filter(call => call.args.includes("--plan-only"))
+		.map(call => call.args[call.args.indexOf("--plan") + 1]);
 
 beforeEach(async () => {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mg-test-"));
@@ -195,7 +214,9 @@ describe("propose-alone rule", () => {
 		await planOnDisk(GOOD_PLAN);
 		await proposeCall("p1");
 		expect(await editPlan("e1")).toMatchObject({ block: true });
-		expect(await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] })).toMatchObject({ block: true });
+		expect(
+			await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] }),
+		).toMatchObject({ block: true });
 		expect(await tool("write", "d1", { path: "xd://resolve", content: "apply" })).toMatchObject({ block: true });
 		expect(await tool("read", "r1", { path: "local://x-plan.md" })).toBeUndefined();
 	});
@@ -277,7 +298,9 @@ describe("propose-alone rule", () => {
 	it("refuses a propose nested in xd://write when the host dispatches it", async () => {
 		// Given: the loop prepares the outer device write; executing it emits the inner write under the same id
 		await planOnDisk(GOOD_PLAN);
-		expect(await write("xd://write", JSON.stringify({ path: "xd://propose", content: "x" }), "sess-A", "d1")).toBeUndefined();
+		expect(
+			await write("xd://write", JSON.stringify({ path: "xd://propose", content: "x" }), "sess-A", "d1"),
+		).toBeUndefined();
 		// When
 		const inner = await write("xd://propose", "x", "sess-A", "d1");
 		// Then
@@ -295,7 +318,13 @@ describe("propose-alone rule", () => {
 
 	it("allows a propose sent with read-only calls and checks the plan on disk", async () => {
 		const file = await planOnDisk(GOOD_PLAN);
-		for (const [name, id] of [["read", "r1"], ["grep", "g1"], ["glob", "g2"], ["lsp", "l1"], ["web_search", "s1"]] as const) {
+		for (const [name, id] of [
+			["read", "r1"],
+			["grep", "g1"],
+			["glob", "g2"],
+			["lsp", "l1"],
+			["web_search", "s1"],
+		] as const) {
 			expect(await tool(name, id, { path: "local://x-plan.md", pattern: "x", query: "x" })).toBeUndefined();
 		}
 		expect(await proposeCall("p1")).toBeUndefined();
@@ -434,5 +463,42 @@ describe("session_stop", () => {
 		});
 		expect(h.execCalls[0]).toEqual({ command: "git", args: ["rev-parse", "--show-toplevel"] });
 		expect(result).toBeUndefined();
+	});
+});
+
+describe("merge-gate-proof rule contract", () => {
+	const stop = (text: string) =>
+		emit("session_stop", {
+			type: "session_stop",
+			messages: [],
+			turn_id: 1,
+			last_assistant_message: { role: "assistant", content: [{ type: "text", text }] },
+		});
+	const SHA = "a".repeat(40);
+	const FILLED = [
+		"Gate proof",
+		"- integration-review: RAN",
+		`  range ${SHA}...${SHA} · report docs/r.md · Must-fix: 0 open / 0 fixed in ${SHA}`,
+		"- review-work: RAN",
+		`  reviewed_sha ${SHA} · plan_sha256 ${"b".repeat(64)}`,
+		`- code committed after reviewed_sha: none`,
+		"",
+		"Work is done.",
+	].join("\n");
+
+	it("treats a filled Gate proof block without a merge phrase as a claim", async () => {
+		await stop(FILLED);
+		expect(h.execCalls[0]).toEqual({ command: "git", args: ["rev-parse", "--show-toplevel"] });
+	});
+
+	it("does not treat a Gate proof block with a NOT RUN line as a claim", async () => {
+		const text = FILLED.replace("- review-work: RAN", "- review-work: NOT RUN (gate not finished)");
+		expect(await stop(text)).toBeUndefined();
+		expect(h.execCalls).toHaveLength(0);
+	});
+
+	it("leaves a plain completion report ungated; the rule makes the agent emit the block", async () => {
+		expect(await stop("The requested work is complete.")).toBeUndefined();
+		expect(h.execCalls).toHaveLength(0);
 	});
 });
