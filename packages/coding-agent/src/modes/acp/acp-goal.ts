@@ -1,7 +1,7 @@
 /**
  * ACP goal and mode ownership. One {@link AcpGoalActor} per session record owns every piece of
  * state that decides who may change the goal, the tool set, and the mode the client sees:
- * the transcript and turn generations, the client's goal selection and armed objective, the mode
+ * the transcript generation, the client's goal selection and armed objective, the mode
  * last reported to the client, the stale client config per transcript, and the extension
  * session-change state. The goal lifecycle itself stays {@link GoalHostController}; selecting
  * mode `goal` arms the session and the next prompt that is not a registered command becomes the
