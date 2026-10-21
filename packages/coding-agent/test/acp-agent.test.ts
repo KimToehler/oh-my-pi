@@ -192,6 +192,8 @@ class FakeAgentSession {
 	goalEmitBlocker: ((event: GoalRuntimeEvent) => Promise<void>) | undefined;
 	/** Added to the fake runtime's clock, so a test can make a usage flush find wall-clock time to account. */
 	goalClockSkewMs = 0;
+	/** Token total the fake runtime's usage reads report, so a test can make a flush find tokens to account. */
+	goalUsageTokens = 0;
 	isSessionTransitioning = false;
 	readonly goalRuntime: GoalRuntime;
 	usageFallbackConfirmer: ((confirmation: UsageFallbackConfirmation) => Promise<boolean>) | undefined;
@@ -217,7 +219,7 @@ class FakeAgentSession {
 			setState: state => {
 				this.goalModeState = state;
 			},
-			getCurrentUsage: () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }),
+			getCurrentUsage: () => ({ input: this.goalUsageTokens, output: 0, cacheRead: 0, cacheWrite: 0 }),
 			now: () => Date.now() + this.goalClockSkewMs,
 			emit: event => {
 				if (event.type !== "goal_updated") return;
@@ -6351,6 +6353,215 @@ describe("ACP agent", () => {
 			expect(session.goalModeState?.goal.id).toBe("g-adopted");
 			expect(session.goalModeState?.goal.status).toBe("active");
 			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
+		for (const modeId of ["plan", "default"] as const) {
+			it(`(commit fence) an explicit ${modeId} selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on B`, async () => {
+				const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+				await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+				endTurnsWithoutProgress(session);
+				await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+				expect(session.goalModeState?.goal.status).toBe("active");
+
+				const hold = holdGoalEmit(session);
+				session.goalClockSkewMs = 5_000;
+				const selecting = harness.agent.setSessionMode({ sessionId, modeId });
+				await hold.entered;
+				session.goalClockSkewMs = 0;
+				await ctx.newSession({
+					setup: async manager => {
+						manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+					},
+				});
+				await eventLoopTurns(10);
+				expect(session.goalModeState?.goal.id).toBe("g-adopted");
+
+				hold.release();
+				await selecting;
+				await eventLoopTurns(10);
+
+				expect(session.goalModeState?.goal.id).toBe("g-adopted");
+				expect(session.goalModeState?.goal.status).toBe("active");
+				expect(session.goalModeState?.enabled).toBe(true);
+				expect(session.planModeState?.enabled).not.toBe(true);
+				harness.abortController.abort();
+			});
+		}
+
+		it("(commit fence) a Plan selection whose goal exit is suspended in its tool restore while transcript B is adopted installs no plan on B", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// A's goal is paused; the restore of its pre-goal tools is what suspends.
+			const hold = holdNextToolSwap(session);
+			const selecting = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
+			await hold.entered;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+
+			hold.release();
+			await selecting;
+			await eventLoopTurns(10);
+
+			expect(session.planModeState?.enabled).not.toBe(true);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			harness.abortController.abort();
+		});
+
+		it("(commit fence) a pause whose event delivery is suspended while transcript B is adopted restores none of B's tools", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// The pause commits in A; delivering its event is what suspends.
+			const hold = holdGoalEmit(session);
+			const selecting = harness.agent.setSessionMode({ sessionId, modeId: "default" });
+			await hold.entered;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.enabledTools).toContain("goal");
+
+			hold.release();
+			await selecting;
+			await eventLoopTurns(10);
+
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.enabledTools).toContain("goal");
+			harness.abortController.abort();
+		});
+
+		it("(commit fence) an interrupted abort bound to no Stop, suspended in its usage flush while transcript B is adopted, never pauses B's goal", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			const hold = holdGoalEmit(session);
+			session.goalClockSkewMs = 5_000;
+			const aborting = session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+			await hold.entered;
+			session.goalClockSkewMs = 0;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+
+			hold.release();
+			await aborting;
+			await eventLoopTurns(10);
+
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
+		it("(commit fence) a Stop compensation whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			// Only the compensation pause is under test, not the abort's own interrupted pause.
+			session.abort = async () => {
+				session.abortCalls++;
+				session.isStreaming = false;
+			};
+			const entry = holdGoalEmit(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await entry.entered;
+			// The goal entry committed; Stop overtakes the prompt before it is submitted.
+			await harness.agent.cancel({ sessionId });
+			const compensation = holdGoalEmit(session);
+			session.goalClockSkewMs = 5_000;
+			entry.release();
+			await compensation.entered;
+			session.goalClockSkewMs = 0;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+
+			compensation.release();
+			expect((await prompt).stopReason).toBe("cancelled");
+			await eventLoopTurns(10);
+
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
+		it("(commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn snapshot", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const abortReached = Promise.withResolvers<void>();
+			const abortGate = Promise.withResolvers<void>();
+			session.abort = async () => {
+				session.abortCalls++;
+				session.isStreaming = false;
+				abortReached.resolve();
+				await abortGate.promise;
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+			};
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await continuationStarted.promise;
+			const cancel = harness.agent.cancel({ sessionId });
+			await abortReached.promise;
+			expect((await prompt).stopReason).toBe("cancelled");
+
+			// B adopts an active goal with a token budget, and its turn is mid-flight.
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: { ...adoptedGoal("active"), tokenBudget: 10 } });
+				},
+			});
+			await eventLoopTurns(10);
+			session.goalRuntime.onTurnStart("turn-b", { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+			// Accounting is owed: tokens beyond B's budget and wall-clock seconds, if anything flushes now.
+			session.goalUsageTokens = 50;
+			session.goalClockSkewMs = 5_000;
+			const goalBefore = structuredClone(session.goalModeState);
+			const snapshotBefore = structuredClone(session.goalRuntime.snapshot);
+			const journalBefore = session.sessionManager.getEntries().length;
+			expect(goalBefore?.goal.id).toBe("g-adopted");
+			expect(goalBefore?.goal.status).toBe("active");
+
+			abortGate.resolve();
+			await cancel;
+			await eventLoopTurns(10);
+
+			expect(session.goalModeState).toEqual(goalBefore);
+			expect(session.goalRuntime.snapshot).toEqual(snapshotBefore);
+			expect(session.sessionManager.getEntries().length).toBe(journalBefore);
 			harness.abortController.abort();
 		});
 

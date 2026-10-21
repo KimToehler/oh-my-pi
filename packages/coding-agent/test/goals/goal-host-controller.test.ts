@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import {
-	GoalEntryAbandoned,
-	GoalHostController,
-	type GoalHostSession,
-} from "@oh-my-pi/pi-coding-agent/goals/host-controller";
+import { GoalHostController, type GoalHostSession } from "@oh-my-pi/pi-coding-agent/goals/host-controller";
+import { GoalOwnerStale } from "@oh-my-pi/pi-coding-agent/goals/runtime";
 import type { GoalModeState } from "@oh-my-pi/pi-coding-agent/goals/state";
 import {
 	isRpcSessionSettled,
@@ -51,6 +48,7 @@ describe("GoalHostController continuation gate", () => {
 		let threadResumes = 0;
 		const preservedActive: boolean[] = [];
 		const transcript = { id: "t1" };
+		let owner = true;
 		const session = {
 			settings: Settings.isolated({ "goal.continuationModes": ["rpc"] }),
 			// Provider-facing id pinned by the host: must not be used to detect a session change.
@@ -95,6 +93,7 @@ describe("GoalHostController continuation gate", () => {
 			},
 			getTodoPhases: () => [],
 			goalRuntime: {
+				owns: () => owner,
 				buildContinuationPrompt: () => "continue",
 				clearAccounting: () => {},
 				onThreadResumed: async (options?: { preserveActiveGoal?: boolean }) => {
@@ -146,6 +145,10 @@ describe("GoalHostController continuation gate", () => {
 			threadResumes: () => threadResumes,
 			/** `preserveActiveGoal` of each `onThreadResumed` call, in order. */
 			preservedActive: () => preservedActive,
+			/** Whether the stamp every entry carries still owns the transcript. */
+			setOwner: (owns: boolean) => {
+				owner = owns;
+			},
 			journalGoal: () => {
 				journaledGoal = true;
 			},
@@ -592,9 +595,9 @@ describe("GoalHostController continuation gate", () => {
 		expect(admitted).toEqual(["goal-continuation"]);
 	});
 
-	describe("an entry abandoned by its fence", () => {
-		/** Transcript A's fenced entry is held in its tool swap while the host switches to transcript B and reconciles. */
-		async function abandonedEntry(options: { goalInB: boolean }) {
+	describe("an entry abandoned by its stamp", () => {
+		/** Transcript A's stamped entry is held in its tool swap while the host switches to transcript B and reconciles. */
+		async function abandonedEntry(options: { goalInB: boolean; bTools?: string[]; swapApplied?: boolean }) {
 			const f = fakeSession(async () => true);
 			f.session.setGoalModeState(undefined);
 			const swap = f.session.setActiveToolsByName;
@@ -602,22 +605,24 @@ describe("GoalHostController continuation gate", () => {
 			const release = Promise.withResolvers<void>();
 			f.session.setActiveToolsByName = async names => {
 				f.session.setActiveToolsByName = swap;
+				// The swap may already have installed its target when the owner's reconcile reads the tools.
+				if (options.swapApplied) await swap(names);
 				entered.resolve();
 				await release.promise;
 				await swap(names);
 			};
-			let owner = true;
-			const entry = f.controller.createForHostPrompt({ objective: "A" }, { fence: () => owner }).then(
+			const entry = f.controller.createForHostPrompt({ objective: "A" }, { stamp: {} }).then(
 				() => undefined,
 				(error: unknown) => error,
 			);
 			await entered.promise;
 
 			// Transcript B has a different tool selection and, optionally, a goal.
-			owner = false;
+			f.setOwner(false);
 			await f.controller.beginSessionChange();
 			f.transcript.id = "t2";
-			await swap(["read", "write"]);
+			if (options.bTools) await swap(options.bTools);
+			else if (!options.swapApplied) await swap(["read", "write"]);
 			if (options.goalInB) f.journalGoal();
 			await f.controller.endSessionChange({ detachedRun: true });
 			release.resolve();
@@ -628,7 +633,7 @@ describe("GoalHostController continuation gate", () => {
 
 		test("with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit", async () => {
 			const { f, error } = await abandonedEntry({ goalInB: true });
-			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+			expect(error).toBeInstanceOf(GoalOwnerStale);
 			expect(f.session.getGoalModeState()?.goal.id).toBe("j1");
 			expect(f.tools()).toEqual(["read", "write", "goal"]);
 
@@ -642,9 +647,42 @@ describe("GoalHostController continuation gate", () => {
 
 		test("without a goal in B, B's own tools are restored and A's are not installed", async () => {
 			const { f, error } = await abandonedEntry({ goalInB: false });
-			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+			expect(error).toBeInstanceOf(GoalOwnerStale);
 			expect(f.session.getGoalModeState()).toBeUndefined();
 			expect(f.tools()).toEqual(["read", "write"]);
+		});
+
+		test("an entry's own goal tool, already installed when B's reconcile reads the tools, is not taken for B's selection", async () => {
+			const { f, error } = await abandonedEntry({ goalInB: true, swapApplied: true });
+			expect(error).toBeInstanceOf(GoalOwnerStale);
+			expect(f.session.getGoalModeState()?.goal.id).toBe("j1");
+
+			// B's goal completes: B's pre-goal tools are what the entry replaced, without `goal`.
+			const current = f.session.getGoalModeState();
+			f.session.setGoalModeState(current && { ...current, enabled: false, mode: "exiting", reason: "completed" });
+			f.controller.observe(agentEnd);
+			await f.controller.settled();
+			expect(f.tools()).toEqual(["read"]);
+		});
+
+		test("a goal tool B selected itself survives recovery and the later goal exit", async () => {
+			const { f, error } = await abandonedEntry({ goalInB: true, bTools: ["read", "write", "goal"] });
+			expect(error).toBeInstanceOf(GoalOwnerStale);
+			expect(f.tools().toSorted()).toEqual(["goal", "read", "write"]);
+
+			// B's goal completes: B's own `goal` selection is exactly what comes back.
+			const current = f.session.getGoalModeState();
+			f.session.setGoalModeState(current && { ...current, enabled: false, mode: "exiting", reason: "completed" });
+			f.controller.observe(agentEnd);
+			await f.controller.settled();
+			expect(f.tools().toSorted()).toEqual(["goal", "read", "write"]);
+		});
+
+		test("a goal tool B selected itself survives recovery when B has no goal", async () => {
+			const { f, error } = await abandonedEntry({ goalInB: false, bTools: ["read", "write", "goal"] });
+			expect(error).toBeInstanceOf(GoalOwnerStale);
+			expect(f.session.getGoalModeState()).toBeUndefined();
+			expect(f.tools().toSorted()).toEqual(["goal", "read", "write"]);
 		});
 	});
 
