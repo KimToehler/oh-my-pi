@@ -466,7 +466,8 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			if (step.kind === "write") {
 				await replaceFile(step.bytes, dst, step.mode);
 				changed = true;
-				applied[step.rel] = { hash: step.hash };
+				// Only the successful final manifest converts a written path to owned; a partial one keeps it adopted.
+				applied[step.rel] = { hash: step.hash, adopted: true };
 				(step.existed ? report.updated : report.added).push(step.rel);
 			} else {
 				if (!step.backup) await fs.rm(dst);

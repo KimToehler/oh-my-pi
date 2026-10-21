@@ -480,6 +480,29 @@ describe("installTeamConfig", () => {
 		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("v1\n");
 	});
 
+	test("a successful partial manifest keeps written paths adopted, so a later edit is backed up", async () => {
+		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/a.md"), "v2\n");
+		await Bun.write(t.repo("agent/b.md"), "v2\n");
+		await expect(
+			t.install({
+				afterStep: async rel => {
+					if (rel === "a.md") throw new Error("abort mid-apply");
+				},
+			}),
+		).rejects.toThrow("abort mid-apply");
+		const entry = (await Bun.file(t.agent(manifestPath)).json()).files["a.md"];
+		expect(entry.adopted).toBe(true);
+		expect(entry.hash).toBe(new Bun.CryptoHasher("sha256").update("v2\n").digest("hex"));
+
+		await Bun.write(t.agent("a.md"), "user edit\n");
+		await Bun.write(t.repo("agent/a.md"), "v3\n");
+		const report = await t.install();
+		expect(await t.read(t.agent("a.md"))).toBe("v3\n");
+		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("user edit\n");
+	});
+
 	test("a failed intent manifest write aborts before any mutation", async () => {
 		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
 		await t.install();
