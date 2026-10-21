@@ -1,0 +1,23 @@
+# F1-5 upgrade path: v1 manifest from a real install is read as adopted
+# head: 805bd993a5ed9adaca921a9179d5cae431101b64
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T11:23:55Z
+
+manifest version before: 1
+$ PI_CODING_AGENT_DIR=<tmp>/upgrade bun scripts/install-team-config.ts
+Team config → <tmp>/upgrade
+  added (1): …
+  updated (7): …
+  removed (3): rules/tool-scope-hygiene.md, skills/workspace-health/SKILL.md, skills/workspace-health/scripts/workspace-health.ts
+  seeded (2): config.yml, models.yml
+  previous content of 10 file(s) saved in /private<tmp>/upgrade/backups/team-config-2026-10-21T11-23-55-383Z-YYzU7l
+  next: put ONARA_ROUTER_KEY=<your key> into <tmp>/upgrade/.env
+manifest version after: 2
+adopted entries after: 410 of 418
+locally edited files preserved in backup:
+  rules/plan-review-process.md: yes
+  skills/review-work/SKILL.md: yes
+unmanaged file kept: yes
+
+$ second run (idempotent)
+Team config → <tmp>/upgrade

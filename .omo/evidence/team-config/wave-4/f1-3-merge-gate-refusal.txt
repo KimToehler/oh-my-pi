@@ -1,0 +1,11 @@
+# F1-3 merge-gate refusal with HOME pointed away from ~/.omp
+# head: 805bd993a5ed9adaca921a9179d5cae431101b64
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T11:23:49Z
+
+$ HOME=<tmp>/home PI_CODING_AGENT_DIR=<tmp>/agent omp -p --mode json --no-session ... "Done, ready to merge."  | grep "Merge gate:"
+Merge gate: not appl
+Merge gate: not applicable (<reason>)` line, and I'll run the checks.
+
+validator not found mentioned: 0
+0
