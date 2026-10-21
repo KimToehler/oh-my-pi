@@ -10300,6 +10300,9 @@ export class AgentSession implements SettingsScope {
 		/** Internal `/compact` startup keeps the manual-compaction marker alive while aborting the active turn. */
 		preserveCompaction?: boolean;
 	}): Promise<void> {
+		// Ownership is reserved when the abort is requested, before any await, never at unwind: a transcript
+		// adopted while this abort unwinds must not take its late accounting flush or interrupted pause.
+		const goalStamp = options?.goalStamp ?? this.#goalRuntime.reserveOwner();
 		const userInterrupt = options?.reason === USER_INTERRUPT_LABEL;
 		this.#pendingAbortErrorId = userInterrupt ? AIError.create(AIError.Flag.UserInterrupt) : undefined;
 		if (userInterrupt) this.#advisors.autoResumeSuppressed = true;
@@ -10360,7 +10363,7 @@ export class AgentSession implements SettingsScope {
 			await this.#drainAutolearnCapture();
 			await this.#goalRuntime.onTaskAborted({
 				reason: options?.goalReason ?? "interrupted",
-				stamp: options?.goalStamp,
+				stamp: goalStamp,
 			});
 			// Clear prompt-in-flight state: waitForIdle resolves when the agent loop's finally
 			// block runs, but nested prompt setup/finalizers may still be unwinding. Without this,

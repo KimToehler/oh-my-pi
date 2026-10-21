@@ -203,6 +203,14 @@ export class GoalRuntime {
 		return this.#gate?.owns(stamp) ?? true;
 	}
 
+	/**
+	 * Reserve ownership of the current transcript for an operation the host is requesting now (an abort),
+	 * to pass later as that operation's `stamp`. `undefined` without a gate: RPC and the TUI are unaffected.
+	 */
+	reserveOwner(): GoalOwnerStamp | undefined {
+		return this.#gate?.reserve("transcript");
+	}
+
 	get snapshot(): GoalRuntimeSnapshot {
 		return {
 			turnSnapshot: this.#turnSnapshot

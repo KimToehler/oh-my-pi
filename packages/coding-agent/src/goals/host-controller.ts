@@ -405,15 +405,19 @@ export class GoalHostController {
 			// it is the snapshot taken for the new owner; the tools restored are the new owner's,
 			// never this entry's (the old transcript's) `previousTools`.
 			await this.settled();
-			let restore: string[];
-			if (this.#reconcileEpoch === epoch) {
-				restore = this.#session.getGoalModeState() ? [...new Set([...previousTools, "goal"])] : previousTools;
-			} else if (this.#previousTools) {
-				restore = [...new Set([...this.#previousTools, "goal"])];
-			} else {
-				restore = this.#ownerTools ?? previousTools;
-			}
-			await this.#session.setActiveToolsByName(restore);
+			// The recovery is ordered with session changes like every other restore: a change to another
+			// transcript waits for it, so it cannot land after that transcript's tools were chosen.
+			await this.#ordered(async () => {
+				let restore: string[];
+				if (this.#reconcileEpoch === epoch) {
+					restore = this.#session.getGoalModeState() ? [...new Set([...previousTools, "goal"])] : previousTools;
+				} else if (this.#previousTools) {
+					restore = [...new Set([...this.#previousTools, "goal"])];
+				} else {
+					restore = this.#ownerTools ?? previousTools;
+				}
+				await this.#session.setActiveToolsByName(restore);
+			});
 			throw new GoalOwnerStale();
 		}
 		this.#previousTools = previousTools;
@@ -430,20 +434,27 @@ export class GoalHostController {
 	}
 
 	/**
-	 * {@link #exit} as part of {@link #exitTask}: {@link beginSessionChange} and every reconcile wait for it, so a
-	 * pause's tool restore lands before the next transcript's tools are chosen and never after. The stamp is
-	 * re-checked when the restore reaches the front of the chain, synchronously before it starts: a restore
-	 * queued behind another exit while ownership moved on is discarded with {@link GoalOwnerStale}. It only
-	 * awaits the tool mutation (no extension callback, no host transport), so a session change waiting on it
-	 * cannot wait on anything that waits on that change. The chain itself survives a failure.
+	 * Run a tool mutation as part of {@link #exitTask}: {@link beginSessionChange} and every reconcile wait for it,
+	 * so it lands before the next transcript's tools are chosen and never after. It only awaits the tool mutation
+	 * (no extension callback, no host transport), so a session change waiting on it cannot wait on anything that
+	 * waits on that change. The chain itself survives a failure; the caller sees it.
+	 */
+	async #ordered(mutation: () => Promise<void>): Promise<void> {
+		const run = this.#exitTask.then(mutation);
+		this.#exitTask = run.catch(reportControllerError);
+		await run;
+	}
+
+	/**
+	 * {@link #exit} through {@link #ordered}. The stamp is re-checked when the restore reaches the front of the
+	 * chain, synchronously before it starts: a restore queued behind another exit while ownership moved on is
+	 * discarded with {@link GoalOwnerStale}.
 	 */
 	async #restoreTools(stamp: GoalOwnerStamp | undefined): Promise<void> {
-		const restore = this.#exitTask.then(() => {
+		await this.#ordered(async () => {
 			this.#assertOwned(stamp);
-			return this.#exit();
+			await this.#exit();
 		});
-		this.#exitTask = restore.catch(reportControllerError);
-		await restore;
 	}
 
 	/** Restore the pre-goal tool set. Idempotent. */
