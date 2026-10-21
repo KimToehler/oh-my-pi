@@ -399,4 +399,49 @@ describe("installTeamConfig", () => {
 		expect(await t.read(path.join(outside, "keep.md"))).toBe("outside\n");
 	});
 
+	test("treats a local edit that later matches the source as adopted, so the next update backs it up", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.agent("AGENTS.md"), "v2\n");
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		expect((await t.install()).backupDir).toBeUndefined();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v3\n");
+		const report = await t.install();
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v3\n");
+		expect(await t.read(path.join(report.backupDir!, "AGENTS.md"))).toBe("v2\n");
+	});
+
+	for (const target of ["run dir", "backups root"] as const) {
+		test(`rechecks the backup location before every backup: ${target} swapped for a symlink between two backups`, async () => {
+			const t = await setup({ "agent/a.md": "a1\n", "agent/b.md": "b1\n" });
+			await t.install();
+			await Bun.write(t.agent("a.md"), "a local\n");
+			await Bun.write(t.agent("b.md"), "b local\n");
+			await Bun.write(t.repo("agent/a.md"), "a2\n");
+			await Bun.write(t.repo("agent/b.md"), "b2\n");
+			const outside = path.join(path.dirname(t.agentDir), "outside");
+			await fs.mkdir(outside, { recursive: true });
+			await expect(
+				t.install({
+					afterStep: async rel => {
+						if (rel !== "a.md") return;
+						const root = t.agent("backups");
+						const [run] = await fs.readdir(root);
+						if (target === "run dir") {
+							await fs.rename(path.join(root, run), path.join(root, "moved"));
+							await fs.symlink(outside, path.join(root, run));
+						} else {
+							await fs.rename(root, t.agent("backups-moved"));
+							await fs.symlink(outside, root);
+							await fs.mkdir(path.join(outside, run));
+						}
+					},
+				}),
+			).rejects.toThrow(/symlink/);
+			const leaked =
+				target === "run dir" ? await fs.readdir(outside) : await fs.readdir(path.join(outside, (await fs.readdir(outside))[0]));
+			expect(leaked).toEqual([]);
+		});
+	}
+
 });
