@@ -444,3 +444,23 @@ error: expect(received).toEqual(expected)
  2 fail
  91 expect() calls
 Ran 27 tests across 1 file. [311.00ms]
+
+=== Row 23 RED: tests only on pre-fix head 3c4e505bc9 (bun test test/acp-agent.test.ts -t 'answered after|straddles') ===
+error: expect(received).toMatch(expected)
+Expected substring or pattern: /mode changed while the approval was pending/
+Received: "Plan refinement requested. Update the plan file, then write words-counter to xd://propose again when ready."
+(fail) ACP agent > a rejection answered after the client selected Goal leaves Plan disabled and Goal armed [14.97ms]
+error: expect(received).toMatch(expected)
+Expected substring or pattern: /mode changed while the approval was pending/
+Received: "Plan approved at local://words-counter-plan.md. Plan mode exited; proceed with the implementation."
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: false) [3.83ms]
+error: expect(received).toMatch(expected)
+Expected substring or pattern: /mode changed while the approval was pending/
+Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode exited; proceed with the implementation."
+(fail) ACP agent > an approval answered after Goal and a new Plan were selected leaves the new Plan enabled (reviewed: true) [3.11ms]
+error: expect(received).toMatch(expected)
+Expected substring or pattern: /mode changed while the approval was pending/
+Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode exited; proceed with the implementation."
+(fail) ACP agent > a reviewed approval whose snapshot adoption straddles a mode selection restores the plan reference and exits nothing [2.78ms]
+ 0 pass
+ 4 fail
