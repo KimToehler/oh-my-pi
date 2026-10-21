@@ -151,6 +151,34 @@ describe("installTeamConfig", () => {
 		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
 	});
 
+	test("rejects a managed source file replaced by a symlink and keeps installed files", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n", "agent/b.md": "b\n", "agent/other.md": "other\n" });
+		await t.install();
+		await fs.rm(t.repo("agent/rules/a.md"));
+		await fs.symlink(t.repo("agent/other.md"), t.repo("agent/rules/a.md"));
+		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules/a.md")}`);
+		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+		expect(await t.read(t.agent("b.md"))).toBe("b\n");
+		expect(await t.read(t.agent("other.md"))).toBe("other\n");
+	});
+
+	test("rejects a managed source directory replaced by a symlink and keeps its files installed", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n", "agent/real/x.md": "x\n" });
+		await t.install();
+		await fs.rm(t.repo("agent/rules"), { recursive: true });
+		await fs.symlink(t.repo("agent/real"), t.repo("agent/rules"));
+		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("agent/rules")}`);
+		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+		expect(await t.read(t.agent("real/x.md"))).toBe("x\n");
+	});
+
+	test("rejects a symlink under seed/", async () => {
+		const t = await setup({ "seed/config.yml": "team: 1\n", "agent/a.md": "a\n" });
+		await fs.symlink(t.repo("seed/config.yml"), t.repo("seed/link.yml"));
+		await expect(t.install()).rejects.toThrow(`Unsupported entry in team config source (symlink): ${t.repo("seed/link.yml")}`);
+		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
+	});
+
 	test("never overwrites a pre-existing backup file that shares the run's timestamp", async () => {
 		const t = await setup({ "agent/rules/a.md": "v1\n" });
 		await t.install();

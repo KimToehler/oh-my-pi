@@ -62,8 +62,23 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
 		for (const entry of entries) {
 			if (SKIPPED_NAMES[entry.name]) continue;
 			const childRel = rel ? `${rel}/${entry.name}` : entry.name;
-			if (entry.isDirectory()) await walk(path.join(dir, entry.name), childRel);
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) await walk(full, childRel);
 			else if (entry.isFile()) out.push(childRel);
+			else {
+				const kind = entry.isSymbolicLink()
+					? "symlink"
+					: entry.isFIFO()
+						? "fifo"
+						: entry.isSocket()
+							? "socket"
+							: entry.isCharacterDevice()
+								? "character device"
+								: entry.isBlockDevice()
+									? "block device"
+									: "unknown";
+				throw new Error(`Unsupported entry in team config source (${kind}): ${full}`);
+			}
 		}
 	}
 	if (optional && (await fs.lstat(root).then(() => false, isEnoent))) return [];
