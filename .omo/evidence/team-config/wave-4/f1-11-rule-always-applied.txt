@@ -1,0 +1,15 @@
+# F1-11 the real binary injects the shipped merge-gate-proof rule as an always-applied rule
+# head: 805bd993a5ed9adaca921a9179d5cae431101b64
+# binary: /Users/tim/.bun/bin/omp (62e4b7e999143c86e929ad4dd743b1624d6f1129)
+# date: 2026-10-21T11:23:16Z
+# method: fresh installed agent dir; models.yml baseUrl pointed at a local pass-through proxy that records request bodies (never headers); key only in <agentDir>/.env; the model request is the largest captured body
+
+reply: ok
+requests captured: 8; model request bytes: 53317
+system field present: true (34262 chars)
+<generic-rules> block present: true
+rule heading in system prompt: true
+rule heading lies inside <generic-rules>: true
+rule outcome list present ("Each line has one of three outcomes"): true
+other shipped always-apply rules: destructive-git: false, Plans carry their merge gate: true
+key in captured bodies: 0

@@ -1,6 +1,6 @@
 # Global Instructions
 
-Personal additions (profile, language, stack) go in `~/.omp/agent/AGENTS.local.md`; it loads beside this file and is never overwritten by `scripts/deploy-local.sh`.
+Personal additions (profile, language, stack) go in `AGENTS.local.md` in the agent dir (default `~/.omp/agent`); it is never overwritten by `scripts/deploy-local.sh` and loads beside this file only while `contextFiles.extra` lists it (the seeded `config.yml` does; a pre-existing one needs it added by hand; a project-level `contextFiles.extra` replaces the user list).
 
 ## Git Commits
 

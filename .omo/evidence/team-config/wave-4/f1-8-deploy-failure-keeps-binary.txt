@@ -1,0 +1,36 @@
+SUMMARY (head 805bd993a5ed9adaca921a9179d5cae431101b64)
+exit codes: deploy1=0 deploy2=1 deploy3=0
+deploy2 live binary sha256 == deploy1: yes (221abb7e038bb72afd81cd48ae71d13a4108bce81fa5f5e1aaf6a7b0e86ce951 / 221abb7e038bb72afd81cd48ae71d13a4108bce81fa5f5e1aaf6a7b0e86ce951)
+deploy2 omp.deployed bytes == deploy1: yes
+deploy2 '==> Deployed' present: no
+deploy2 installer error: duplicate member "files"
+deploy2 omp.new left behind: no
+deploy3 '==> Deployed' present: yes
+deploy3 omp.deployed: 805bd993a5ed9adaca921a9179d5cae431101b64 review/team-config 2026-10-21T13:27:33+0200
+deploy3 published sha256 == build output dist/omp: yes (221abb7e038bb72afd81cd48ae71d13a4108bce81fa5f5e1aaf6a7b0e86ce951 / 221abb7e038bb72afd81cd48ae71d13a4108bce81fa5f5e1aaf6a7b0e86ce951)
+
+### deploy 1 (phase lines)
+==> Deploying review/team-config (805bd993a5ed9adaca921a9179d5cae431101b64)
+==> Staging <tmp>/bin/omp.new
+==> Smoke testing <tmp>/bin/omp.new
+==> Syncing team config
+Team config → <tmp>/agent
+  added (418): …
+  seeded (2): config.yml, models.yml
+==> Installing to <tmp>/bin/omp
+==> Deployed 805bd993a5ed9adaca921a9179d5cae431101b64 review/team-config 2026-10-21T13:26:23+0200
+### deploy 2 (phase lines)
+==> Deploying review/team-config (805bd993a5ed9adaca921a9179d5cae431101b64)
+==> Staging <tmp>/bin/omp.new
+==> Smoke testing <tmp>/bin/omp.new
+==> Syncing team config
+[Uncaught Exception] Error: Invalid team config manifest /private<tmp>/agent/.team-config-manifest.json: duplicate member "files"
+Team config sync failed: the binary was NOT replaced, and the team config may be partially applied. Fix the cause and rerun the deploy.
+### deploy 3 (phase lines)
+==> Deploying review/team-config (805bd993a5ed9adaca921a9179d5cae431101b64)
+==> Staging <tmp>/bin/omp.new
+==> Smoke testing <tmp>/bin/omp.new
+==> Syncing team config
+Team config → <tmp>/agent
+==> Installing to <tmp>/bin/omp
+==> Deployed 805bd993a5ed9adaca921a9179d5cae431101b64 review/team-config 2026-10-21T13:27:33+0200

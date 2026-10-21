@@ -60,7 +60,7 @@ const CLAIM_PATTERNS: RegExp[] = [
 	/\bF2\b[^\n]{0,40}\[x\]/i,
 ];
 
-// The merge-gate-proof rule makes the agent print a `Gate proof` block with NOT RUN lines when the
+// The shipped merge-gate-proof rule (rules/merge-gate-proof.md) makes the agent print a `Gate proof` block with NOT RUN lines when the
 // gate has not passed. Such an honest report is not a claim; treating it as one looped the stop
 // check on every retraction.
 const GATE_NOT_PASSED: RegExp[] = [
@@ -80,7 +80,9 @@ function lastAssistantText(message: unknown): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
 	return content
-		.filter((block): block is { type: "text"; text: string } => block?.type === "text" && typeof block.text === "string")
+		.filter(
+			(block): block is { type: "text"; text: string } => block?.type === "text" && typeof block.text === "string",
+		)
 		.map(block => block.text)
 		.join("\n");
 }
@@ -131,7 +133,8 @@ const PROPOSE_ALONE: ToolCallEventResult = {
 };
 const AFTER_PROPOSE: ToolCallEventResult = {
 	block: true,
-	reason: "The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
+	reason:
+		"The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
 };
 
 // The host approves the propose text's slug file when it exists, and otherwise falls back to its plan-mode state
@@ -142,7 +145,8 @@ const NO_SLUG_PLAN: ToolCallEventResult = {
 };
 const UNCLEAR_SLUG: ToolCallEventResult = {
 	block: true,
-	reason: "Write only the plan slug to xd://propose, without line-number or [path#tag] prefixes copied from read output.",
+	reason:
+		"Write only the plan slug to xd://propose, without line-number or [path#tag] prefixes copied from read output.",
 };
 
 /** One assistant message's file-changing calls, whether it proposed already, and the proposal this hook allowed in it. */
@@ -172,7 +176,10 @@ export default function mergeGate(pi: ExtensionAPI) {
 		calls.mutations.delete(event.toolCallId);
 		if (calls.allowedPropose === event.toolCallId) calls.allowedPropose = undefined;
 	});
-	pi.on("turn_end", (_event: TurnEndEvent, ctx: ExtensionContext) => void messages.delete(ctx.sessionManager.getSessionId()));
+	pi.on(
+		"turn_end",
+		(_event: TurnEndEvent, ctx: ExtensionContext) => void messages.delete(ctx.sessionManager.getSessionId()),
+	);
 
 	async function checkPlan(body: string, ctx: ExtensionContext): Promise<ToolCallEventResult | undefined> {
 		const local = ctx.localProtocolOptions;
@@ -180,13 +187,22 @@ export default function mergeGate(pi: ExtensionAPI) {
 		const plan = await proposedPlan(body, { local, cwd: ctx.cwd });
 		if (!plan) return NO_SLUG_PLAN;
 		if (!existsSync(VALIDATOR)) {
-			return { block: true, reason: `Merge gate: validator not found at ${VALIDATOR}; cannot check the plan's ## Merge gate section.` };
+			return {
+				block: true,
+				reason: `Merge gate: validator not found at ${VALIDATOR}; cannot check the plan's ## Merge gate section.`,
+			};
 		}
 		let result: ExecResult;
 		try {
-			result = await pi.exec("node", [VALIDATOR, "--plan-only", "--plan", plan.path], { cwd: ctx.cwd, timeout: 30_000 });
+			result = await pi.exec("node", [VALIDATOR, "--plan-only", "--plan", plan.path], {
+				cwd: ctx.cwd,
+				timeout: 30_000,
+			});
 		} catch (error) {
-			return { block: true, reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${String(error)}).` };
+			return {
+				block: true,
+				reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${String(error)}).`,
+			};
 		}
 		if (result.code !== 0) {
 			const slug = path.basename(plan.path).replace(/-plan\.md$/i, "");
@@ -238,12 +254,18 @@ export default function mergeGate(pi: ExtensionAPI) {
 
 		// Records whose reviewed_sha is already on the pushed default branch gate shipped work; their
 		// plans get archived, so validating them again can only fail. Pick the newest open record.
-		const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, timeout: 10_000 });
+		const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], {
+			cwd: repo,
+			timeout: 10_000,
+		});
 		const shipped = remoteHead.code === 0 ? remoteHead.stdout.trim() : undefined;
 		let found: GateRecord | undefined;
 		for (const candidate of recordsNewestFirst(repo)) {
 			if (shipped && candidate.reviewedSha) {
-				const merged = await pi.exec("git", ["merge-base", "--is-ancestor", candidate.reviewedSha, shipped], { cwd: repo, timeout: 10_000 });
+				const merged = await pi.exec("git", ["merge-base", "--is-ancestor", candidate.reviewedSha, shipped], {
+					cwd: repo,
+					timeout: 10_000,
+				});
 				if (merged.code === 0) continue;
 			}
 			found = candidate;
