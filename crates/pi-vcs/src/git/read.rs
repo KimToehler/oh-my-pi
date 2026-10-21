@@ -828,7 +828,8 @@ impl GitRepo {
 			// the deletion mode makes the walk recurse through it the way
 			// `git ls-files --others` does, stopping at nested repositories.
 			platform = platform.dirwalk_options(|opts| {
-				opts.emit_ignored(Some(gix::dir::walk::EmissionMode::Matching))
+				opts
+					.emit_ignored(Some(gix::dir::walk::EmissionMode::Matching))
 					.for_deletion(Some(
 						gix::dir::walk::ForDeletionMode::FindNonBareRepositoriesInIgnoredDirectories,
 					))
