@@ -24,3 +24,18 @@ guard reverted: (fail) ACP agent > ACP Goal mode > (stale per transcript) a stal
 
 Note: reverting only the `stamp.modes === this.#modes` clause in PromptAdmission confirm, or the `#modes++` bump, leaves (P×M) passing: the lane guard already orders the Plan effect behind the entry. That clause is defence in depth, pinned by no test.
 cmp acp-goal.ts vs /tmp backup after all runs: True
+
+## F3 round 1 rows 11-13: guard reverted on new head (each restored, cmp rc=0)
+### PxM: drop stamp.modes clause in owns
+(fail) ACP agent > ACP Goal mode > (P×M) a Plan selection landing after a prompt's goal entry never submits the objective turn or leaves an active goal [13.59ms]
+restore cmp rc= 0
+### stamp: drop reservation ownership check
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal [9.24ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop admitted in transcript A, released after the switch to B and its reconcile, never drops B's adopted goal [8.42ms]
+restore cmp rc= 0
+### stamp: tool drop skips admitToolMutation
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop admitted in transcript A, released after the switch to B and its reconcile, never drops B's adopted goal [8.86ms]
+restore cmp rc= 0
+### stamp: tool resume passes no reservation
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal [11.08ms]
+restore cmp rc= 0

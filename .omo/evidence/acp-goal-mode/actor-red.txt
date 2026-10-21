@@ -91,3 +91,57 @@ Received: "default"
 Ran 35 tests across 1 file. [635.00ms]
 
 # Note: (P×M) passed on fc293833cb (30 pass, 5 fail above; P×M is among the 30). The old AcpGoalController#op chain already ran leave() behind the in-flight entry and Plan was installed only after it, so the prompt submitted under Goal and Plan applied afterwards, an allowed outcome. Kept as a guard: it fails if the Plan effect is applied off the actor lane (see actor-discrimination.txt).
+
+## F3 round 1 rows 11-13: RED on fc293833cb (test file from new head, throwaway worktree /tmp/acp-red)
+$ bun test test/acp-agent.test.ts -t "P×M|\(stamp\)"
+bun test v1.4.2 (50a8a8387)
+
+test/acp-agent.test.ts:
+6021 | 			hold.release();
+6022 | 			await plan;
+6023 | 			const response = await prompt;
+6024 | 			await eventLoopTurns(10);
+6025 | 
+6026 | 			expect(response.stopReason).toBe("cancelled");
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: "cancelled"
+Received: "end_turn"
+
+      at <anonymous> (/private/tmp/acp-red/packages/coding-agent/test/acp-agent.test.ts:6026:32)
+(fail) ACP agent > ACP Goal mode > (P×M) a Plan selection landing after a prompt's goal entry never submits the objective turn or leaves an active goal [23.00ms]
+6197 | 			hold.release();
+6198 | 			await pausing;
+6199 | 			const error = await staleResume;
+6200 | 			await eventLoopTurns(10);
+6201 | 
+6202 | 			expect(error).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at <anonymous> (/private/tmp/acp-red/packages/coding-agent/test/acp-agent.test.ts:6202:18)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal [8.88ms]
+6232 | 			hold.release();
+6233 | 			await pausing;
+6234 | 			const error = await staleDrop;
+6235 | 			await eventLoopTurns(10);
+6236 | 
+6237 | 			expect(error).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at <anonymous> (/private/tmp/acp-red/packages/coding-agent/test/acp-agent.test.ts:6237:18)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop admitted in transcript A, released after the switch to B and its reconcile, never drops B's adopted goal [12.37ms]
+
+ 0 pass
+ 152 filtered out
+ 3 fail
+ 9 expect() calls
+Ran 3 tests across 1 file. [2.54s]
