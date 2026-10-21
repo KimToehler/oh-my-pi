@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: A plan proposal is approved only when it is the sole tool call in its assistant message, so no capability can change plan bytes between validation and host approval.
+  positive_witness: A message containing only write xd://propose validates and approves the same on-disk plan bytes.
+  negative_control: A message combining a proposal with a shell command, applied LSP mutation, eval, task dispatch, or any other tool call must be refused before approval.
+  observable: The proposal tool result is blocked and no plan-only validator invocation approves the mixed-call message.
+  boundary: The merge-gate extension tool_call handler at the host plan-proposal boundary.
+END-REVIEW-TRAILER
