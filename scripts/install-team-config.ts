@@ -9,6 +9,10 @@
  *   content this installer did not write itself (a local edit, or a same-named file that predates
  *   the manifest) is moved to a fresh `<agentDir>/backups/team-config-<timestamp>-<random>/`.
  *
+ * `.team-config-manifest.json` is installer control state, not a user file: the installer rewrites it
+ * canonically on every run, so do not edit it by hand. A manifest that is not exactly the v1 or v2
+ * shape is rejected before any change.
+ *
  * Usage: bun scripts/install-team-config.ts   (scripts/deploy-local.sh runs it after installing omp)
  */
 import type { Stats } from "node:fs";

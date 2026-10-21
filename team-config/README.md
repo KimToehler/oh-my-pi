@@ -50,6 +50,8 @@ not ship are never touched. If a shipped file was edited locally, or a same-name
 before the first deploy (even an identical one: the installer only owns files it wrote itself), its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
 before it is replaced; the deploy output names the directory.
 
+`.team-config-manifest.json` is installer control state, not a user file: the installer rewrites it canonically on every run, so do not edit it by hand. A manifest that is not exactly the v1 or v2 shape is rejected before any change.
+
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
 
 ## Personal settings
