@@ -249,3 +249,10 @@ Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode ex
 (fail) plan review runtime > a host-reserved proposal ownership lost during the review writes no promotion, audit or handler call [43.66ms]
  0 pass
  1 fail
+
+=== Row 25 discrimination: new head, the ownership check moved back after the Plan-state read (mutation by edit; hashline tag returned to the pre-mutation #300F after restore, file identical) ===
+### E owns() checked after getPlanModeState (acp-agent.ts #handleAcpPlanProposal) [-t selected directly from Plan]
+(fail) ACP agent > a proposal still resolving when goal was selected directly from Plan resolves without asking or writing [19.61ms]
+(fail) ACP agent > a proposal still resolving when default was selected directly from Plan resolves without asking or writing [4.61ms]
+ 0 pass
+ 2 fail

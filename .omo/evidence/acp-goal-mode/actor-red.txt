@@ -524,3 +524,35 @@ Received: ""
  8 fail
  10 expect() calls
 Ran 8 tests across 2 files. [597.00ms]
+
+=== Row 25 RED: new direct Plan->Goal / Plan->Default test only on pre-fix head 1b93defc39 (throwaway worktree /tmp/acp-red9, removed afterwards; bun test test/acp-agent.test.ts -t 'selected directly from Plan') ===
+1416 | 			resolving.resolve();
+1417 | 			await expect(pending).resolves.toBeDefined();
+                                         ^
+error: expect(received).resolves.toBeDefined()
+
+Expected promise that resolves
+Received promise that rejected: Promise { <rejected> }
+
+      at <anonymous> (/private/tmp/acp-red9/packages/coding-agent/test/acp-agent.test.ts:1417:35)
+(fail) ACP agent > a proposal still resolving when goal was selected directly from Plan resolves without asking or writing [17.52ms]
+1412 | 			const pending = proposePlan(session, "words-counter", { resolving: resolving.promise, reviewed: true });
+1413 | 
+1414 | 			await harness.agent.setSessionMode({ sessionId: session.sessionId, modeId });
+1415 | 			expect(session.planModeState).toBeUndefined();
+1416 | 			resolving.resolve();
+1417 | 			await expect(pending).resolves.toBeDefined();
+                                         ^
+error: expect(received).resolves.toBeDefined()
+
+Expected promise that resolves
+Received promise that rejected: Promise { <rejected> }
+
+      at <anonymous> (/private/tmp/acp-red9/packages/coding-agent/test/acp-agent.test.ts:1417:35)
+(fail) ACP agent > a proposal still resolving when default was selected directly from Plan resolves without asking or writing [3.42ms]
+
+ 0 pass
+ 177 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.53s]
