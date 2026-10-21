@@ -17,7 +17,6 @@ import * as path from "node:path";
 import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
 
 const MANIFEST_NAME = ".team-config-manifest.json";
-const SIDECAR_NAME = ".team-config-manifest.sha256";
 const SKIPPED_NAMES = new Set([".DS_Store", "__pycache__", ".pytest_cache"]);
 
 interface ManifestEntry {
@@ -329,36 +328,6 @@ async function writeManifest(
 	}
 }
 
-/** Bytes of the sidecar file; undefined when absent. Throws, naming the path, unless it is a regular file. */
-async function readSidecarBytes(file: string): Promise<Uint8Array | undefined> {
-	let stat: Stats;
-	try {
-		stat = await fs.lstat(file);
-	} catch (err) {
-		if (isEnoent(err)) return undefined;
-		throw err;
-	}
-	if (!stat.isFile()) throw new Error(`Refusing to use manifest checksum that is not a regular file: ${file}`);
-	try {
-		return await Bun.file(file).bytes();
-	} catch (err) {
-		if (isEnoent(err)) return undefined;
-		throw err;
-	}
-}
-
-/** Record the sha256 of the manifest bytes just written, exclusively via temp + rename. */
-async function writeSidecar(sidecarPath: string, manifestBytes: Uint8Array): Promise<void> {
-	const tmp = `${sidecarPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
-	try {
-		await fs.writeFile(tmp, `${hashBytes(manifestBytes)}\n`, { flag: "wx" });
-		await fs.rename(tmp, sidecarPath);
-	} catch (err) {
-		if (!isEexist(err)) await fs.rm(tmp, { force: true });
-		throw err;
-	}
-}
-
 /** Remove now-empty directories from `dir` up to, not including, `stopAt`. */
 async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
 	let current = dir;
@@ -435,11 +404,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const backupsRoot = path.join(agentDir, "backups");
 	await assertBackupsRoot(backupsRoot);
 	const manifestBytes = await readManifestBytes(manifestPath);
-	const sidecarPath = path.join(agentDir, SIDECAR_NAME);
-	const sidecarBytes = await readSidecarBytes(sidecarPath);
-	const needsManifestBackup =
-		manifestBytes !== undefined &&
-		(sidecarBytes === undefined || Buffer.from(sidecarBytes).toString("utf8").trim() !== hashBytes(manifestBytes));
 	const previous = parseManifest(manifestPath, manifestBytes);
 	const next: Manifest = { version: 2, files: newFiles() };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
@@ -511,6 +475,34 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			throw new Error(`Refusing to touch ${dst}: it changed after planning`);
 	};
 
+	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
+	let expectedManifest = manifestBytes;
+	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
+		await options.writeManifestHook?.(kind);
+		await writeManifest(manifestPath, manifest, expectedManifest);
+		expectedManifest = manifestBytesOf(manifest);
+	};
+
+	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
+	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
+	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
+	// have matched again. Seed-only paths are never in the manifest and need no intent.
+	if (steps.length > 0) {
+		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
+		for (const step of steps) await verify(step.rel, step.planned);
+		for (const { rel, planned } of seeds) await verify(rel, planned);
+		const intent: Manifest = { version: 2, files: newFiles() };
+		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
+		for (const step of steps) {
+			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
+			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
+			intent.files[step.rel] = { hash, adopted: true };
+		}
+		await persist("intent", intent);
+		// Until a step completes, a partial manifest keeps its path adopted too.
+		for (const step of steps) applied[step.rel] = intent.files[step.rel];
+	}
+
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
 	let backupDir: string | undefined;
 	// True once any step changed the agent dir; gates the partial manifest.
@@ -540,46 +532,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		report.backedUp.push(rel);
 		report.backupDir = backupDir;
 	};
-
-	// Every manifest write after planning is checked against the bytes this run last wrote (initially what phase 1 read).
-	let expectedManifest = manifestBytes;
-	// A manifest the installer did not write (no matching sidecar) is copied into the run's backup dir before the first
-	// manifest write of the run, so a hand-written file is never silently replaced.
-	let manifestBackupPending = needsManifestBackup;
-	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
-		await options.writeManifestHook?.(kind);
-		if (manifestBackupPending) {
-			const now = await readManifestBytes(manifestPath);
-			if (now === undefined || expectedManifest === undefined || !Buffer.from(now).equals(expectedManifest)) {
-				throw new Error(`Refusing to replace manifest ${manifestPath}: it changed after planning`);
-			}
-			await backup(MANIFEST_NAME, "copy");
-			manifestBackupPending = false;
-		}
-		await writeManifest(manifestPath, manifest, expectedManifest);
-		expectedManifest = manifestBytesOf(manifest);
-		await writeSidecar(sidecarPath, expectedManifest);
-	};
-
-	// Intent manifest: before the first mutation, every path phase 2 will write, chmod or remove is recorded as adopted.
-	// If the run is interrupted anywhere after this, including a failed partial or final manifest write, the next run backs
-	// those paths up before replacing or removing them, instead of trusting a stale "owned" entry that a user edit could
-	// have matched again. Seed-only paths are never in the manifest and need no intent.
-	if (steps.length > 0) {
-		// Changes made after planning are detected here, before the manifest is touched, so such an abort leaves it as it was.
-		for (const step of steps) await verify(step.rel, step.planned);
-		for (const { rel, planned } of seeds) await verify(rel, planned);
-		const intent: Manifest = { version: 2, files: newFiles() };
-		for (const [rel, entry] of Object.entries(previous.files)) intent.files[rel] = entry;
-		for (const step of steps) {
-			// Keep the last hash the installer knew; a path it never knew gets the hash it is about to write.
-			const hash = previous.files[step.rel]?.hash ?? next.files[step.rel]?.hash ?? "";
-			intent.files[step.rel] = { hash, adopted: true };
-		}
-		await persist("intent", intent);
-		// Until a step completes, a partial manifest keeps its path adopted too.
-		for (const step of steps) applied[step.rel] = intent.files[step.rel];
-	}
 
 	try {
 		for (const step of steps) {

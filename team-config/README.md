@@ -40,16 +40,15 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 
 ## What lands where
 
-| Repo path                                                               | Target            | On every deploy                                   |
-| ----------------------------------------------------------------------- | ----------------- | ------------------------------------------------- |
+| Repo path | Target | On every deploy |
+|---|---|---|
 | `agent/**` (`AGENTS.md`, `agents/`, `rules/`, `skills/`, `extensions/`) | `~/.omp/agent/**` | Overwritten; files removed here are removed there |
-| `seed/config.yml`, `seed/models.yml`                                    | `~/.omp/agent/`   | Copied only if missing; your edits are kept       |
+| `seed/config.yml`, `seed/models.yml` | `~/.omp/agent/` | Copied only if missing; your edits are kept |
 
 The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
 not ship are never touched. If a shipped file was edited locally, or a same-named file existed
 before the first deploy (even an identical one: the installer only owns files it wrote itself), its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
 before it is replaced; the deploy output names the directory.
-The sidecar `.team-config-manifest.sha256` holds the hash of the manifest the installer last wrote; if the manifest on disk does not match it (hand-written, edited, or from an older installer), a copy of it is saved in the same backup directory before it is replaced.
 
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
 
