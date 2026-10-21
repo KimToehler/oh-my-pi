@@ -241,3 +241,47 @@ error: expect(received).toEqual(expected)
  2 fail
  6 expect() calls
 Ran 2 tests across 1 file. [247.00ms]
+## F3 round 3 row 17: RED on 89d8b95b24 (tests from the new head; throwaway worktree /tmp/acp-red3, removed afterward)
+error: expect(received).toBe(expected)
+Expected: "active"
+Received: "paused"
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit plan selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on B [19.55ms]
+error: expect(received).toBe(expected)
+Expected: "active"
+Received: "paused"
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit default selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on B [7.95ms]
+error: expect(received).not.toBe(expected)
+Expected: not true
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore while transcript B is adopted installs no plan on B [6.27ms]
+error: expect(received).toBe(expected)
+Expected: "active"
+Received: "paused"
+(fail) ACP agent > ACP Goal mode > (commit fence) a Stop compensation whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active [4.86ms]
+error: expect(received).toEqual(expected)
+- Expected  - 4
++ Received  + 4
+(fail) ACP agent > ACP Goal mode > (commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn snapshot [5.28ms]
+ 0 pass
+ 5 fail
+-- goal-host-controller (hunks: B's own goal tool; exports GoalEntryAbandoned on the pre-fix head)
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > a goal tool B selected itself survives recovery and the later goal exit [4.00ms]
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > a goal tool B selected itself survives recovery when B has no goal [0.26ms]
+ 0 pass
+ 2 fail
+## addendum (row 17): two further tests, same throwaway worktree /tmp/acp-red3 on 89d8b95b24
+error: expect(received).toContain(expected)
+Expected to contain: "goal"
+Received: [ "read" ]
+(fail) ACP agent > ACP Goal mode > (commit fence) a pause whose event delivery is suspended while transcript B is adopted restores none of B's tools [18.76ms]
+error: expect(received).toBe(expected)
+Expected: "active"
+Received: "paused"
+(fail) ACP agent > ACP Goal mode > (commit fence) an interrupted abort bound to no Stop, suspended in its usage flush while transcript B is adopted, never pauses B's goal [8.61ms]
+ 0 pass
+ 2 fail

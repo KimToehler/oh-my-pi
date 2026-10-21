@@ -71,3 +71,72 @@ restore cmp rc= 0
 (fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal [9.04ms]
  3 pass
  3 fail
+
+# Round 3 (row 17) discrimination on the new head: each guard reverted alone via backup in /tmp/disc3, restored and verified with cmp. Suites: acp-agent.test.ts + goals/goal-host-controller.test.ts (188-190 tests)
+### [0] guard reverted: stamp check in the central helper (#assertOwned no-op)
+(fail) ACP agent > ACP Goal mode > (S×X/R) Stop's late interrupted abort never pauses the goal a new transcript adopted [6.20ms]
+(fail) ACP agent > ACP Goal mode > (S×X/R) a Stop whose cleanup timed out keeps its interrupted pause bound to its own transcript until the late abort settles [15.08ms]
+(fail) ACP agent > ACP Goal mode > (X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript [4.08ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal [4.11ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop admitted in transcript A, released after the switch to B and its reconcile, never drops B's adopted goal [5.06ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its usage flush while transcript B is adopted never drops B's goal [4.51ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool complete suspended in its usage flush while transcript B is adopted never completes B's goal [4.18ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal [4.26ms]
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit plan selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on B 
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit default selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on
+(fail) ACP agent > ACP Goal mode > (commit fence) a Stop compensation whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active [3.82ms]
+(fail) ACP agent > ACP Goal mode > (commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn 
+ 176 pass
+ 12 fail
+
+restore cmp: identical
+### [1] guard reverted: onTaskAborted flush/commit bypass the stamp (OWNER_SIDE)
+(fail) ACP agent > ACP Goal mode > (commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn 
+ 187 pass
+ 1 fail
+
+restore cmp: identical
+### [2] guard reverted: pauseGoal ignores its stamp
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit plan selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on B 
+(fail) ACP agent > ACP Goal mode > (commit fence) an explicit default selection whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active and installs no plan on
+(fail) ACP agent > ACP Goal mode > (commit fence) a Stop compensation whose pause is suspended in its usage flush while transcript B is adopted leaves B's goal active [3.82ms]
+ 185 pass
+ 3 fail
+
+restore cmp: identical
+### [3] guard reverted: applyMode: no re-check after the leave (Plan install)
+(fail) ACP agent > ACP Goal mode > (commit fence) a Plan selection whose goal exit is suspended in its tool restore while transcript B is adopted installs no plan on B [4.54ms]
+ 187 pass
+ 1 fail
+
+restore cmp: identical
+### [4] guard reverted: host pause: no re-check after pauseGoal (tool restore)
+ 188 pass
+ 0 fail
+
+restore cmp: identical
+### [5] guard reverted: tool provenance: owner tools read from the enabled set
+(fail) GoalHostController continuation gate > an entry abandoned by its stamp > an entry's own goal tool, already installed when B's reconcile reads the tools, is not taken for B's selection [0.67ms]
+ 187 pass
+ 1 fail
+
+restore cmp: identical
+### [6] guard reverted: abort scope: stamp transcript not compared
+ 188 pass
+ 0 fail
+
+restore cmp: identical
+## re-run after two further tests were added (mutations 4 and 6)
+### [4] guard reverted: host pause: no re-check after pauseGoal (tool restore)
+(fail) ACP agent > ACP Goal mode > (commit fence) a pause whose event delivery is suspended while transcript B is adopted restores none of B's tools [3.67ms]
+ 189 pass
+ 1 fail
+
+restore cmp: identical
+### [6] guard reverted: abort scope: stamp transcript not compared
+(fail) ACP agent > ACP Goal mode > (commit fence) an interrupted abort bound to no Stop, suspended in its usage flush while transcript B is adopted, never pauses B's goal [3.88ms]
+ 189 pass
+ 1 fail
+
+restore cmp: identical
+Note: mutation 0 (the central stamp check alone) fails the row 11 (resume/drop admitted in A), row 14 (drop/complete in usage flush, drop event delivery) and row 17 tests, and the S×X/R and X/R×T tests.
