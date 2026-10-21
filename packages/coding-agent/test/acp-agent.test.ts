@@ -63,7 +63,7 @@ import { TOOL_NAME as DELAYED_MCP_TOOL_NAME } from "./fixtures/delayed-tool-mcp"
 import { cfgPlanAutosave, cfgPlanAutosaveDir, cfgPlanEnabled } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
 import { cfgGoalEnabled } from "@oh-my-pi/pi-coding-agent/goals/settings";
 import { GoalRuntime } from "@oh-my-pi/pi-coding-agent/goals/runtime";
-import type { GoalModeState } from "@oh-my-pi/pi-coding-agent/goals/state";
+import type { GoalModeState, GoalRuntimeEvent } from "@oh-my-pi/pi-coding-agent/goals/state";
 
 /** Validates an ACP wire payload against the in-house protocol schemas. */
 function expectAcpStructure(schema: Validator<unknown>, value: unknown): void {
@@ -187,6 +187,8 @@ class FakeAgentSession {
 	/** Names `isRegisteredPromptCommand` treats as extension/custom/file commands. */
 	registeredPromptCommands: string[] = [];
 	goalContextSends: string[] = [];
+	/** Awaited by the fake runtime's `goal_updated` emit after listeners ran, as an awaited extension handler is. */
+	goalEmitBlocker: ((event: GoalRuntimeEvent) => Promise<void>) | undefined;
 	isSessionTransitioning = false;
 	readonly goalRuntime: GoalRuntime;
 	usageFallbackConfirmer: ((confirmation: UsageFallbackConfirmation) => Promise<boolean>) | undefined;
@@ -218,6 +220,7 @@ class FakeAgentSession {
 				for (const listener of this.#listeners) {
 					listener({ type: "goal_updated", goal: event.goal, state: event.state } as AgentSessionEvent);
 				}
+				return this.goalEmitBlocker?.(event);
 			},
 			persist: (mode, state) => {
 				if (mode === "none") this.sessionManager.appendModeChange("none");
@@ -5973,6 +5976,211 @@ describe("ACP agent", () => {
 			await harness.agent.setSessionMode({ sessionId, modeId: "default" });
 			expect(reopened.sessionManager.getEntries().length).toBe(entriesBefore);
 			expect(reopened.enabledTools).toEqual(["read"]);
+			harness.abortController.abort();
+		});
+
+		/** Harness with an extension runner, JetBrains pinning, and the bootstrap guard already passed. */
+		async function extensionGoalHarness() {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			vi.useFakeTimers();
+			const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+			await advanceBootstrapGuard();
+			vi.useRealTimers();
+			const sessionId = created.sessionId;
+			const session = harness.findSession(sessionId)!;
+			return { harness, sessionId, session, ctx: session.extensionRunner!.createCommandContext() };
+		}
+
+		/** The next ordinary prompt ends its turn without progress, so no continuation follows. */
+		function endTurnsWithoutProgress(session: FakeAgentSession): void {
+			session.promptCustomMessage = async () => {
+				emitTurn(session, "no progress");
+				return true;
+			};
+		}
+
+		it("(P×M) a Plan selection landing after a prompt's goal entry never leaves Plan beside a submitted objective turn or an active goal", async () => {
+			const { harness, sessionId, session } = await goalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const turnGate = Promise.withResolvers<void>();
+			session.promptGate = turnGate.promise;
+			const planAtSubmit: boolean[] = [];
+			const submit = session.prompt.bind(session);
+			session.prompt = async (text, options) => {
+				planAtSubmit.push(session.planModeState?.enabled === true);
+				return await submit(text, options);
+			};
+			const hold = holdNextToolSwap(session);
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await hold.entered;
+			const plan = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
+			await eventLoopTurns(5);
+			hold.release();
+			await plan;
+			turnGate.resolve();
+			await prompt.catch(() => undefined);
+			await eventLoopTurns(10);
+
+			// Either the prompt ran under Goal before Plan applied, or it never ran: never under Plan.
+			expect(planAtSubmit.every(planEnabled => !planEnabled)).toBe(true);
+			expect(session.planModeState?.enabled).toBe(true);
+			expect(session.goalModeState?.enabled).not.toBe(true);
+			expect(session.enabledTools).not.toContain("goal");
+			expect(lastModeNotification(harness, sessionId)).toBe("plan");
+			harness.abortController.abort();
+		});
+
+		it("(S×X/R) Stop's late interrupted abort never pauses the goal a new transcript adopted", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const continuationStarted = Promise.withResolvers<void>();
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				continuationStarted.resolve();
+				return true;
+			};
+			const abortReached = Promise.withResolvers<void>();
+			const abortGate = Promise.withResolvers<void>();
+			session.abort = async () => {
+				session.abortCalls++;
+				session.isStreaming = false;
+				abortReached.resolve();
+				await abortGate.promise;
+				// As `AgentSession.abort`: the interrupted pause lands once the run has unwound.
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+			};
+			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await continuationStarted.promise;
+			const cancel = harness.agent.cancel({ sessionId });
+			await abortReached.promise;
+			expect((await prompt).stopReason).toBe("cancelled");
+
+			// A new transcript adopts an active goal while the abort is still unwinding.
+			const goal = session.goalModeState!.goal;
+			await ctx.newSession({
+				setup: async manager => {
+					manager.appendModeChange("goal", { goal: { ...goal, id: "g-adopted", objective: "adopted" } });
+				},
+			});
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			abortGate.resolve();
+			await cancel;
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+			expect(session.goalModeState?.enabled).toBe(true);
+			harness.abortController.abort();
+		});
+
+		it("(M×M) concurrent Plan to Goal and Goal to Plan never end with Plan enabled while Goal is selected", async () => {
+			const { harness, sessionId, session } = await goalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			const toPlan = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
+			const toGoal = harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			await Promise.all([toPlan, toGoal]);
+			await eventLoopTurns(10);
+
+			const planEnabled = session.planModeState?.enabled === true;
+			endTurnsWithoutProgress(session);
+			// A selected Goal with Plan on would turn this prompt into an objective that cannot enter.
+			const response = await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "next work" }] });
+			expect(response.stopReason).toBe("end_turn");
+			if (planEnabled) {
+				expect(session.goalModeState).toBeUndefined();
+			} else {
+				expect(session.goalModeState?.goal.objective).toBe("next work");
+			}
+			harness.abortController.abort();
+		});
+
+		it("(M×T) the agent's goal tool resume after a Plan selection paused the goal leaves no active goal under Plan", async () => {
+			const { harness, sessionId, session } = await goalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			await harness.agent.setSessionMode({ sessionId, modeId: "plan" });
+			expect(session.goalModeState?.goal.status).toBe("paused");
+			// The `goal` tool call was admitted before the selection and reaches the runtime after it.
+			await session.goalRuntime.resumeGoal().catch(() => undefined);
+			await eventLoopTurns(10);
+
+			expect(session.planModeState?.enabled).toBe(true);
+			expect(session.goalModeState?.enabled).not.toBe(true);
+			expect(session.goalModeState?.goal.status).not.toBe("active");
+			expect(session.enabledTools).not.toContain("goal");
+			expect(lastModeNotification(harness, sessionId)).toBe("plan");
+			harness.abortController.abort();
+		});
+
+		it("(X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+			endTurnsWithoutProgress(session);
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			expect(session.goalModeState?.goal.status).toBe("active");
+			const transcriptBefore = session.sessionManager.getSessionId();
+
+			// The reconcile of the new transcript stalls while restoring the pre-goal tools.
+			const hold = holdNextToolSwap(session);
+			const change = ctx.newSession();
+			await hold.entered;
+			// The old turn's `goal` tool commits meanwhile, into the transcript that is now current.
+			await session.goalRuntime.resumeGoal().catch(() => undefined);
+			hold.release();
+			await change;
+			await eventLoopTurns(10);
+
+			expect(session.sessionManager.getSessionId()).not.toBe(transcriptBefore);
+			expect(session.goalModeState).toBeUndefined();
+			expect(session.sessionManager.buildSessionContext().mode).not.toBe("goal");
+			expect(session.enabledTools).not.toContain("goal");
+			expect(lastModeNotification(harness, session.sessionId)).toBe("default");
+			harness.abortController.abort();
+		});
+
+		it("(stale per transcript) a stale goal recorded in transcript A neither suppresses the mode in transcript B nor leaks back", async () => {
+			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+			await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+			session.promptCustomMessage = async () => {
+				session.isStreaming = true;
+				await session.goalRuntime.completeGoalFromTool();
+				emitTurn(session, "done", { name: "goal", args: { op: "complete" } });
+				session.isStreaming = false;
+				return true;
+			};
+			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+			await eventLoopTurns(5);
+			expect(session.goalModeState).toBeUndefined();
+			// `goal` is now stale in transcript A: JetBrains' re-send is ignored there.
+			const ignoredInA = await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+			expect(selectedMode(ignoredInA.configOptions)).toBe("default");
+			await session.sessionManager.flush();
+			const transcriptA = session.sessionManager.getSessionFile()!;
+
+			await ctx.newSession();
+			await eventLoopTurns(5);
+			expect(session.sessionManager.getSessionFile()).not.toBe(transcriptA);
+			// Transcript B recorded nothing stale: selecting goal there is a real choice.
+			const appliedInB = await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "goal" });
+			expect(selectedMode(appliedInB.configOptions)).toBe("goal");
+
+			// Back in A the stale record is still A's own: the re-send stays ignored.
+			await harness.agent.setSessionConfigOption({ sessionId, configId: "mode", value: "default" });
+			await session.sessionManager.flush();
+			await ctx.switchSession(transcriptA);
+			await eventLoopTurns(5);
+			expect(session.sessionManager.getSessionFile()).toBe(transcriptA);
+			const ignoredBackInA = await harness.agent.setSessionConfigOption({
+				sessionId,
+				configId: "mode",
+				value: "goal",
+			});
+			expect(selectedMode(ignoredBackInA.configOptions)).toBe("default");
 			harness.abortController.abort();
 		});
 	});
