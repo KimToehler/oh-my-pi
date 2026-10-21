@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
-import { installTeamConfig } from "./install-team-config";
+import { type InstallOptions, installTeamConfig } from "./install-team-config";
 
 const dirs: TempDir[] = [];
 afterEach(async () => {
@@ -17,7 +17,8 @@ async function setup(files: Record<string, string>) {
 	await fs.mkdir(path.join(repoDir, "team-config", "agent"), { recursive: true });
 	for (const [rel, content] of Object.entries(files)) await Bun.write(path.join(repoDir, "team-config", rel), content);
 	let run = 0;
-	const install = () => installTeamConfig({ repoDir, agentDir, timestamp: `t${++run}` });
+	const install = (extra?: Partial<InstallOptions>) =>
+		installTeamConfig({ repoDir, agentDir, timestamp: `t${++run}`, ...extra });
 	const repo = (rel: string) => path.join(repoDir, "team-config", rel);
 	const agent = (rel: string) => path.join(agentDir, rel);
 	const read = (file: string) => Bun.file(file).text();
@@ -217,5 +218,41 @@ describe("installTeamConfig", () => {
 
 		const settled = await t.install();
 		expect(settled.updated).toEqual([]);
+	});
+
+	test("installs the bytes it hashed even when the source changes before apply", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install({ beforeApply: () => Bun.write(t.repo("agent/AGENTS.md"), "v2\n").then(() => {}) });
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("v1\n");
+		const manifest = await Bun.file(t.agent(".team-config-manifest.json")).json();
+		expect(manifest.files["AGENTS.md"]).toBe(new Bun.CryptoHasher("sha256").update("v1\n").digest("hex"));
+	});
+
+	test("aborts instead of overwriting a managed file edited after planning", async () => {
+		const t = await setup({ "agent/AGENTS.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/AGENTS.md"), "v2\n");
+		await expect(
+			t.install({ beforeApply: () => Bun.write(t.agent("AGENTS.md"), "edited\n").then(() => {}) }),
+		).rejects.toThrow(t.agent("AGENTS.md"));
+		expect(await t.read(t.agent("AGENTS.md"))).toBe("edited\n");
+	});
+
+	test("aborts when a parent directory becomes a symlink after planning", async () => {
+		const t = await setup({ "agent/rules/a.md": "v1\n" });
+		await t.install();
+		await Bun.write(t.repo("agent/rules/a.md"), "v2\n");
+		const outside = path.join(path.dirname(t.agentDir), "outside");
+		await Bun.write(path.join(outside, "a.md"), "outside\n");
+		await expect(
+			t.install({
+				beforeApply: async () => {
+					await fs.rename(t.agent("rules"), path.join(path.dirname(t.agentDir), "moved-rules"));
+					await fs.symlink(outside, t.agent("rules"));
+				},
+			}),
+		).rejects.toThrow(t.agent("rules"));
+		expect(await fs.readdir(outside)).toEqual(["a.md"]);
+		expect(await t.read(path.join(outside, "a.md"))).toBe("outside\n");
 	});
 });

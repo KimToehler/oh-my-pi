@@ -31,6 +31,8 @@ export interface InstallOptions {
 	agentDir: string;
 	/** Names the backup directory of this run. */
 	timestamp: string;
+	/** Test hook: awaited once after planning and before the first mutation. Lets tests change the filesystem in that window. */
+	beforeApply?: () => Promise<void>;
 }
 
 export interface InstallReport {
@@ -96,11 +98,15 @@ async function assertContained(root: string, target: string): Promise<void> {
 	}
 }
 
+function hashBytes(bytes: Uint8Array): string {
+	const hasher = new Bun.CryptoHasher("sha256");
+	hasher.update(bytes);
+	return hasher.digest("hex");
+}
+
 async function hashFile(file: string): Promise<string | undefined> {
 	try {
-		const hasher = new Bun.CryptoHasher("sha256");
-		hasher.update(await Bun.file(file).bytes());
-		return hasher.digest("hex");
+		return hashBytes(await Bun.file(file).bytes());
 	} catch (err) {
 		if (isEnoent(err)) return undefined;
 		throw err;
@@ -118,12 +124,12 @@ async function readManifest(file: string): Promise<Manifest> {
 	}
 }
 
-/** Copy `src` over `dst` atomically via an exclusively created, run-unique temp; keeps the source's permission bits. */
-async function replaceFile(src: string, dst: string, mode: number): Promise<void> {
+/** Write `bytes` to `dst` atomically via an exclusively created, run-unique temp; sets `mode`. */
+async function replaceFile(bytes: Uint8Array, dst: string, mode: number): Promise<void> {
 	await fs.mkdir(path.dirname(dst), { recursive: true });
 	const tmp = `${dst}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.team-config-tmp`;
 	try {
-		await fs.copyFile(src, tmp, fs.constants.COPYFILE_EXCL);
+		await fs.writeFile(tmp, bytes, { flag: "wx" });
 	} catch (err) {
 		if (!isEexist(err)) await fs.rm(tmp, { force: true });
 		throw err;
@@ -133,6 +139,17 @@ async function replaceFile(src: string, dst: string, mode: number): Promise<void
 		await fs.rename(tmp, dst);
 	} catch (err) {
 		await fs.rm(tmp, { force: true });
+		throw err;
+	}
+}
+
+async function writeManifest(manifestPath: string, manifest: Manifest): Promise<void> {
+	const tmp = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
+	try {
+		await fs.writeFile(tmp, `${JSON.stringify(manifest, null, "\t")}\n`, { flag: "wx" });
+		await fs.rename(tmp, manifestPath);
+	} catch (err) {
+		if (!isEexist(err)) await fs.rm(tmp, { force: true });
 		throw err;
 	}
 }
@@ -153,11 +170,15 @@ async function pruneEmptyDirs(dir: string, stopAt: string): Promise<void> {
 interface WriteStep {
 	kind: "write";
 	rel: string;
-	src: string;
+	/** The exact bytes hashed in phase 1; written as-is, never re-read from the source path. */
+	bytes: Uint8Array;
+	hash: string;
 	mode: number;
 	/** How the existing target is preserved first; absent when nothing needs preserving. */
 	backup?: "copy" | "move";
 	existed: boolean;
+	/** State of the destination phase 1 planned on; phase 2 aborts if it differs. */
+	planned: string | undefined;
 }
 
 /** Bytes already match; only the permission bits differ. */
@@ -165,12 +186,14 @@ interface ChmodStep {
 	kind: "chmod";
 	rel: string;
 	mode: number;
+	planned: string | undefined;
 }
 
 interface RemoveStep {
 	kind: "remove";
 	rel: string;
 	backup?: "move";
+	planned: string | undefined;
 }
 
 /** Throw if `<agentDir>/backups` exists as anything but a real directory. */
@@ -190,13 +213,15 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const managedRoot = path.join(options.repoDir, "team-config", "agent");
 	const seedRoot = path.join(options.repoDir, "team-config", "seed");
 
-	// Phase 1: enumerate and hash every source, then plan every mutation. Nothing is written here.
+	// Phase 1: enumerate and read every source exactly once, then plan every mutation. Nothing is written here.
+	// The in-memory bytes are what gets hashed AND what phase 2 writes, so the manifest always describes installed content.
 	const managedFiles = await listFiles(managedRoot);
 	const seedFiles = await listFiles(seedRoot, true);
-	const sources = new Map<string, { hash: string; mode: number }>();
+	const sources = new Map<string, { bytes: Uint8Array; hash: string; mode: number }>();
 	for (const rel of managedFiles) {
 		const src = path.join(managedRoot, rel);
-		sources.set(rel, { hash: (await hashFile(src))!, mode: (await fs.stat(src)).mode & 0o777 });
+		const bytes = await Bun.file(src).bytes();
+		sources.set(rel, { bytes, hash: hashBytes(bytes), mode: (await fs.stat(src)).mode & 0o777 });
 	}
 
 	await fs.mkdir(options.agentDir, { recursive: true });
@@ -208,16 +233,22 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const next: Manifest = { version: 1, files: {} };
 	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
-	const seeds: string[] = [];
+	const seeds: Array<{ rel: string; planned: string | undefined }> = [];
+	// Manifest to persist if phase 2 aborts midway. Rule: the previous manifest, plus the new hash for every file whose
+	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
+	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
+	// file by what is really on disk instead of trusting a plan that never completed.
+	const applied: Record<string, string> = { ...previous.files };
 
 	for (const rel of managedFiles) {
-		const { hash: wanted, mode } = sources.get(rel)!;
+		const { bytes, hash: wanted, mode } = sources.get(rel)!;
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
 		const current = await inspect(dst);
 		next.files[rel] = wanted;
 		if (current === wanted) {
-			if (((await fs.stat(dst)).mode & 0o777) !== mode) steps.push({ kind: "chmod", rel, mode });
+			applied[rel] = wanted;
+			if (((await fs.stat(dst)).mode & 0o777) !== mode) steps.push({ kind: "chmod", rel, mode, planned: current });
 			continue;
 		}
 		let backup: WriteStep["backup"];
@@ -226,10 +257,12 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		steps.push({
 			kind: "write",
 			rel,
-			src: path.join(managedRoot, rel),
+			bytes,
+			hash: wanted,
 			mode,
 			backup,
 			existed: current !== undefined,
+			planned: current,
 		});
 	}
 
@@ -241,14 +274,23 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		if (current === undefined) continue;
 		const backup = current === previous.files[rel] ? undefined : "move";
 
-		steps.push({ kind: "remove", rel, backup });
+		steps.push({ kind: "remove", rel, backup, planned: current });
 	}
 
 	for (const rel of seedFiles) {
 		const dst = path.join(agentDir, rel);
 		await assertContained(agentDir, dst);
-		seeds.push(rel);
+		seeds.push({ rel, planned: await inspect(dst) });
 	}
+
+	await options.beforeApply?.();
+
+	/** Abort unless `rel` is still contained and in exactly the state phase 1 planned on. */
+	const verify = async (rel: string, planned: string | undefined): Promise<void> => {
+		const dst = path.join(agentDir, rel);
+		await assertContained(agentDir, dst);
+		if ((await inspect(dst)) !== planned) throw new Error(`Refusing to touch ${dst}: it changed after planning`);
+	};
 
 	// Phase 2: apply. The backup dir is created lazily and exclusively, so no destination inside it pre-exists.
 	let backupDir: string | undefined;
@@ -268,43 +310,46 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		report.backupDir = backupDir;
 	};
 
-	for (const step of steps) {
-		const dst = path.join(agentDir, step.rel);
-		if (step.kind === "chmod") {
-			await fs.chmod(dst, step.mode);
-			report.updated.push(step.rel);
-			continue;
-		}
-		if (step.backup) await backup(step.rel, step.backup);
-		if (step.kind === "write") {
-			await replaceFile(step.src, dst, step.mode);
-			(step.existed ? report.updated : report.added).push(step.rel);
-		} else {
-			if (!step.backup) await fs.rm(dst);
-			report.removed.push(step.rel);
-			await pruneEmptyDirs(path.dirname(dst), agentDir);
-		}
-	}
-
-	for (const rel of seeds) {
-		const dst = path.join(agentDir, rel);
-		await fs.mkdir(path.dirname(dst), { recursive: true });
-		try {
-			await fs.copyFile(path.join(seedRoot, rel), dst, fs.constants.COPYFILE_EXCL);
-			report.seeded.push(rel);
-		} catch (err) {
-			if (!isEexist(err)) throw err;
-		}
-	}
-
-	const tmpManifest = `${manifestPath}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
 	try {
-		await fs.writeFile(tmpManifest, `${JSON.stringify(next, null, "\t")}\n`, { flag: "wx" });
-		await fs.rename(tmpManifest, manifestPath);
+		for (const step of steps) {
+			const dst = path.join(agentDir, step.rel);
+			await verify(step.rel, step.planned);
+			if (step.kind === "chmod") {
+				await fs.chmod(dst, step.mode);
+				report.updated.push(step.rel);
+				continue;
+			}
+			if (step.backup) await backup(step.rel, step.backup);
+			if (step.kind === "write") {
+				await replaceFile(step.bytes, dst, step.mode);
+				applied[step.rel] = step.hash;
+				(step.existed ? report.updated : report.added).push(step.rel);
+			} else {
+				if (!step.backup) await fs.rm(dst);
+				delete applied[step.rel];
+				report.removed.push(step.rel);
+				await pruneEmptyDirs(path.dirname(dst), agentDir);
+			}
+		}
+
+		for (const { rel, planned } of seeds) {
+			const dst = path.join(agentDir, rel);
+			await verify(rel, planned);
+			await fs.mkdir(path.dirname(dst), { recursive: true });
+			try {
+				await fs.copyFile(path.join(seedRoot, rel), dst, fs.constants.COPYFILE_EXCL);
+				report.seeded.push(rel);
+			} catch (err) {
+				if (!isEexist(err)) throw err;
+			}
+		}
 	} catch (err) {
-		if (!isEexist(err)) await fs.rm(tmpManifest, { force: true });
+		// Persist what was actually applied; a failure here must not mask the original error.
+		await writeManifest(manifestPath, { version: 1, files: applied }).catch(() => {});
 		throw err;
 	}
+
+	await writeManifest(manifestPath, next);
 	return report;
 }
 
