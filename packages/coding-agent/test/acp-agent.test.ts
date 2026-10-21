@@ -6395,6 +6395,7 @@ describe("ACP agent", () => {
 			for (const op of ["resume", "create"] as const) {
 				it(`(M×T) a goal tool ${op} while a ${modeId} selection holds its pre-goal tool restore is refused and leaves the paused goal and pre-goal tools`, async () => {
 					const { harness, sessionId, session } = await goalHarness();
+					const preGoalTools = [...session.enabledTools];
 					await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
 					endTurnsWithoutProgress(session);
 					await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
@@ -6420,15 +6421,30 @@ describe("ACP agent", () => {
 					await selecting;
 					await eventLoopTurns(10);
 
-					expect(session.planModeState?.enabled === true).toBe(modeId === "plan");
-					expect(session.goalModeState?.enabled).not.toBe(true);
-					expect(session.goalModeState?.goal.status).not.toBe("active");
-					expect(session.goalModeState?.goal.objective).not.toBe("Another goal");
-					expect(session.enabledTools).not.toContain("goal");
+					expectToolEntryRefused(session, op, modeId, preGoalTools);
 					expect(lastModeNotification(harness, sessionId)).toBe(modeId);
 					harness.abortController.abort();
 				});
 			}
+		}
+
+		/** The refused goal tool entry left the selected mode, the original goal (paused or dropped), and the pre-goal tools. */
+		function expectToolEntryRefused(
+			session: FakeAgentSession,
+			op: "resume" | "create",
+			modeId: "plan" | "default",
+			preGoalTools: string[],
+		): void {
+			expect(session.planModeState?.enabled === true).toBe(modeId === "plan");
+			expect(session.goalModeState?.enabled).not.toBe(true);
+			if (op === "resume") {
+				expect(session.goalModeState?.goal.objective).toBe("Ship feature X");
+				expect(session.goalModeState?.goal.status).toBe("paused");
+			} else {
+				// The dropped original is gone and no new objective was created.
+				expect(session.goalModeState).toBeUndefined();
+			}
+			expect(session.enabledTools).toEqual(preGoalTools);
 		}
 
 		it("(X/R×T) a goal tool commit racing a reconcile resurrects neither the old transcript's goal nor its tools in the new transcript", async () => {
@@ -6456,6 +6472,47 @@ describe("ACP agent", () => {
 			expect(lastModeNotification(harness, session.sessionId)).toBe("default");
 			harness.abortController.abort();
 		});
+
+		for (const modeId of ["plan", "default"] as const) {
+			for (const op of ["resume", "create"] as const) {
+				it(`(M×T) a goal tool ${op} reserved before a ${modeId} selection and held on the accounting chain until it finished is refused`, async () => {
+					const { harness, sessionId, session } = await goalHarness();
+					const preGoalTools = [...session.enabledTools];
+					await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+					endTurnsWithoutProgress(session);
+					await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+					expect(session.goalModeState?.goal.status).toBe("active");
+
+					// The accounting chain is held by a goal event delivery; the tool entry reserves its stamp
+					// before the selection starts and queues behind it.
+					const hold = holdGoalEmit(session);
+					const settling = session.goalRuntime.pauseGoal();
+					await hold.entered;
+					// A create needs no conflicting goal: the paused one is dropped ahead of it on the chain.
+					const dropping = op === "create" ? session.goalRuntime.dropGoal() : undefined;
+					const entry =
+						op === "resume"
+							? session.goalRuntime.resumeGoal()
+							: session.goalRuntime.createGoal({ objective: "Another goal" });
+					const outcome = entry.then(
+						() => undefined,
+						(failure: unknown) => failure,
+					);
+					await harness.agent.setSessionMode({ sessionId, modeId });
+					await eventLoopTurns(10);
+					// The selection finished while the entry was still queued; only now does the entry run.
+					hold.release();
+					await settling;
+					await dropping;
+					expect(await outcome).toBeInstanceOf(Error);
+					await eventLoopTurns(10);
+
+					expectToolEntryRefused(session, op, modeId, preGoalTools);
+					expect(lastModeNotification(harness, sessionId)).toBe(modeId);
+					harness.abortController.abort();
+				});
+			}
+		}
 
 		/** Hold the next goal event delivery: the runtime's accounting chain stays busy until released. */
 		function holdGoalEmit(session: FakeAgentSession): { entered: Promise<void>; release: () => void } {
