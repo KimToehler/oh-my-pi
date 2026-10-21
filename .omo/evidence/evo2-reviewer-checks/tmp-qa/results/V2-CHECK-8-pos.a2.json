@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-8-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-8-pos/a2/2026-10-19T10-04-27-018Z_01a1539e-a00a-7530-81e1-6d45074c854c/VariableLamprey.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 8, narrow defaults, explicit choice, no silent runtime fallback",
+    "CHECK 6, entry-path parity"
+  ],
+  "defects": [
+    "`Approach` adds `manager.host` as second bind-address source but defines no precedence against `--host`, no malformed/empty-value result, no bind-address reporting source, and no exact tests. This leaves conflicting CLI/config values nondeterministic in plan and could silently expose LAN listener.",
+    "Plan creates two paths for same bind setting, CLI `--host` and `manager.host`, but has no path inventory, shared resolver, or control for each path. Tests named in `Verification` lack scenarios and expected outcomes."
+  ]
+}

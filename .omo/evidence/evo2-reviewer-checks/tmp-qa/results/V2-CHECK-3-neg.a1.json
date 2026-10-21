@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-3-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-3-neg/a1/2026-10-19T09-55-26-704Z_01a15396-6170-7286-9efa-91972704d9f0/DeepBuzzard.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 3 — Allow-set",
+    "Quality and verification"
+  ],
+  "defects": [
+    "Whitespace rule contradicts planned normalization, so approach cannot enforce its stated rejection rule.",
+    "Claimed whole-input-space control samples non-ASCII instead of covering it.",
+    "Proposed expected set makes valid test impossible for single-character `-`."
+  ]
+}

@@ -1,0 +1,2 @@
+head: 74513097e6cd3930dad71ad6cb8bea5ba30d47ed
+command: bun run check:ts (repo root); exit=0

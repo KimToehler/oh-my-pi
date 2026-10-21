@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-2-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-pos/a3/2026-10-19T10-08-41-919Z_01a153a2-83bf-7767-a240-6a4688694f78/AverageBuzzard.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 2"
+  ],
+  "defects": [
+    "Adding MIME only to `ProviderFileCache` comparison leaves two raw-byte-only reuse paths. Same bytes with `image/png` and `image/jpeg` can still receive first upload's handle.",
+    "Identity plan lacks required complete-input inventory, exclusions, and discriminating controls."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "fixture": "V2-CHECK-7-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-neg/a1/2026-10-19T09-56-49-979Z_01a15397-a6bb-71c0-a638-59d15de9effd/HorribleCod.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1",
+    "DOMAIN 2",
+    "Verification",
+    "Verification"
+  ],
+  "defects": [
+    "Plan changes pre-launch work for container-executed source but omits required phase environment contract and host-vs-target control.",
+    "Plan lacks runtime-file inventory and real target-agent control for changed container launch path.",
+    "Stated negative control cannot prove exec-bit handling by audit.",
+    "No test or manual QA exercises required >50 MB audit logging behavior, threshold, or non-trigger boundary."
+  ]
+}

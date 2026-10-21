@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-4-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-pos/a3/2026-10-19T10-13-43-751Z_01a153a7-1ec7-7316-a3d4-8a12deb4c14b/FreshSilverfish.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 4, Verification",
+    "Executability"
+  ],
+  "defects": [
+    "New `requestsPerTask` metric has no required scope/source/dedup/missing-value contract or work-shift control.",
+    "`FitnessReport`-only change cannot be consumed by current `compareEfficiency` design."
+  ]
+}

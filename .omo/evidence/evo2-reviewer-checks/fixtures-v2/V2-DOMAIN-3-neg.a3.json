@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-3-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-neg/a3/2026-10-19T10-13-02-922Z_01a153a6-7f4a-77c7-b0b3-fd4f4e024753/MeltedPuffin.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 4 — decision predicate"
+  ],
+  "defects": [
+    "Plan retries every upstream request but does not preserve POST body for second attempt. Current proxy passes one-shot `request.body` directly to upstream; after first 502/503 response consumes it, retry cannot resend same bytes. Common model POST then returns retry failure instead of succeeding on second response.",
+    "Liveness table claims exhausted 5xx is model outcome while proxy remains live, but plan neither defines outcome predicate nor covers missing/partial evidence. Proxy liveness alone does not decide phase; a 503 that prevents transcript start or verifier reward is not `model_outcome`."
+  ]
+}

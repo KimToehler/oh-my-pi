@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-2-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-2-pos/a1/2026-10-19T08-55-22-462Z_01a1535f-625e-7649-8d40-1040ac1d8731/SemanticKiwi.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 2, executing is a sink",
+    "DOMAIN 2, executing is a sink"
+  ],
+  "defects": [
+    "Approach binds whole source tree but identity covers only tracked git diff. Untracked, ignored, generated, and built runtime files can enter container without identity or inventory.",
+    "Verification does not start real agent in target container. Unit test cannot show bind mount contains required runtime files, nor detect missing generated/ignored dependencies."
+  ]
+}

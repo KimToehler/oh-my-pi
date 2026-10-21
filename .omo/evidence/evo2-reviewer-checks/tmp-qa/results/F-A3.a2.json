@@ -1,0 +1,9 @@
+{
+  "fixture": "F-A3",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A3/a2/2026-10-19T09-23-47-194Z_01a15379-657a-70b1-88c5-e4251ebb2fcb/TastelessGuppy.json",
+  "verdict": "OKAY",
+  "areas": [],
+  "defects": []
+}

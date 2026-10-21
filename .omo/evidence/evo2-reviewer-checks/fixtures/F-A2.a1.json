@@ -1,0 +1,17 @@
+{
+  "fixture": "F-A2",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A2/a1/2026-10-19T08-56-20-899Z_01a15360-46a3-72f2-8055-f1e65c57631b/IntensiveMongoose.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4 — decision predicate",
+    "CHECK 6 — entry-path parity",
+    "Verification"
+  ],
+  "defects": [
+    "Size admission gate lacks required predicate contract and fail-closed states.",
+    "ACP exclusion has no reason or per-path control.",
+    "Named test command cannot exercise planned TUI change."
+  ]
+}

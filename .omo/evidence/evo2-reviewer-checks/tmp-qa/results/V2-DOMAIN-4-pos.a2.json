@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-4-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-pos/a2/2026-10-19T10-06-25-159Z_01a153a0-6d87-74d0-8d11-68d13ee8a08b/FlakyViper.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 4, one number, one scope"
+  ],
+  "defects": [
+    "Plan adds compared metric `requestsPerTask` without required metric contract or delegation-shift control."
+  ]
+}

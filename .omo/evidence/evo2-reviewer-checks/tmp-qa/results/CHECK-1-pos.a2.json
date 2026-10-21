@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-1-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-1-pos/a2/2026-10-19T09-18-56-625Z_01a15374-f671-757c-9fae-f07cc9e3fe8a/ToxicViper.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "CHECK 1, holders and sinks"
+  ],
+  "defects": [
+    "Implementation starting path absent.",
+    "Token non-leak claim lacks required holder/sink inventory and discriminating negative control."
+  ]
+}

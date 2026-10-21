@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-3-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-3-pos/a2/2026-10-19T09-18-56-625Z_01a15374-f671-7575-997b-cfb3c913b0f9/NumerousPrimate.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 3, enumerated forbidden set"
+  ],
+  "defects": [
+    "Planned source file does not exist.",
+    "Plan rejects partial denylist without allow-set/completeness argument or whole-input-space control."
+  ]
+}

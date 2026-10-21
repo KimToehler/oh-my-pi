@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-8-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-8-neg/a1/2026-10-19T08-54-28-117Z_01a1535e-8e15-7023-9051-feff0b69cba5/NiceMarten.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "CHECK 8 — narrow defaults, explicit choice"
+  ],
+  "defects": [
+    "Task starts from nonexistent file.",
+    "Plan gives opposite bind and run-selection rules. Implementation cannot determine intended safe behavior."
+  ]
+}

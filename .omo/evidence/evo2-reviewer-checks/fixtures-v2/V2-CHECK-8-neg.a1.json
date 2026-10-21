@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-8-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-8-neg/a1/2026-10-19T09-57-01-443Z_01a15397-d383-777c-92ce-d1ac954a5430/BlushingCrab.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 8",
+    "CHECK 6",
+    "CHECK 4"
+  ],
+  "defects": [
+    "Explicit run choice not reported back. Plan only defines `selection: \"newest\"` for omitted `job`; no response shape/source for supplied `job`, `childJob`, or `baselineJob`.",
+    "Plan changes shared run-selection reporting but does not inventory every consuming entry path or state fields/checks per path.",
+    "Run-selection decision lacks required state definition and negative controls. Plan specifies explicit unknown/wrong-scope jobs only, not omitted selection with no run, still-running newest run, corrupt/unreadable run data, or lossy record."
+  ]
+}

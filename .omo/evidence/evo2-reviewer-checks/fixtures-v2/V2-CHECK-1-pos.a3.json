@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-1-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-pos/a3/2026-10-19T10-08-41-917Z_01a153a2-83bd-76ce-b100-e023f7280e57/LeftDove.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 1, holders and sinks",
+    "CHECK 6, entry-path parity"
+  ],
+  "defects": [
+    "Pinggy design directly violates stated goal. It keeps credential in child argv, where redacting logs/diagnostics cannot remove it from process argv.",
+    "Protected-value plan lacks required holder/sink inventory, named chokepoint coverage, and discriminating negative control.",
+    "Plan adds `secrets` and `env` inputs to spawn helper but omits authenticated Pinggy restart path propagation and restart-specific control."
+  ]
+}

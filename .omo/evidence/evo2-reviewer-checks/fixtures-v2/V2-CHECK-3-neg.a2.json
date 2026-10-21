@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-3-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-3-neg/a2/2026-10-19T10-02-11-386Z_01a1539c-8e3a-773e-826f-2a892b31bc2b/WarmHamster.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 3, Allow-set"
+  ],
+  "defects": [
+    "Plan says whitespace names reject before write, but chosen implementation preserves leading/trailing whitespace by trimming it.",
+    "Proposed negative control does not cover whole non-ASCII input space."
+  ]
+}

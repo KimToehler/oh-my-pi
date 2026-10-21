@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-3-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-neg/a2/2026-10-19T10-06-17-863Z_01a153a0-5107-7220-a853-5be6a5608f30/VoluminousMongoose.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "Executability"
+  ],
+  "defects": [
+    "Plan retries every upstream 502/503 but gives no request-body replay or idempotency rule. Proxy forwards POST model requests and passes one-shot `request.body` directly into upstream fetch. Second attempt can send consumed body/fail, or duplicate accepted non-idempotent generation when upstream processed request before returning 502/503.",
+    "Plan's runner location and liveness line reference are wrong."
+  ]
+}

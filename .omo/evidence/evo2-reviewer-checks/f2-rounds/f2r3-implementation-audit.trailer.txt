@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: Cap transition never reduces informational fidelity of a reviewer REJECT delivered to planner.
+  positive_witness: Third REJECT still passes plan to approval, while planner tool result contains every sanitized blocker field and every listed evidence site.
+  negative_control: Third REJECT returns only cap status or UI notice, omits evidence/change, or truncates later sites.
+  observable: Real proposal result after two prior REJECTs contains each unique multi-site evidence token and required-change text; UI notice alone does not satisfy criterion.
+  boundary: `AgentSession.#applyPlanReview` cap handoff through `#announcePlanReviewPass` and `plan-review-status.md`
+END-REVIEW-TRAILER

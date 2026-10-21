@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-7-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-pos/a1/2026-10-19T09-56-59-436Z_01a15397-cbac-74cc-abbf-0c9a68fc6b5a/TraditionalTurkey.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 7, one truth per concept",
+    "Verification"
+  ],
+  "defects": [
+    "Plan adds only `auditStagedTree(root)` and names no caller or insertion point. New audit can remain unused; no audit occurs before Harbor spawn.",
+    "Plan creates separate \"canonical inventory\" and audit enumeration for files that run, but does not require shared manifest/artifact. Independent traversal can drift from staged execution set.",
+    "Verification has no concrete behavioral assertion for 50 MB threshold, emitted log, or audit being invoked on launch. Test can pass while utility is unused or threshold/logging is wrong."
+  ]
+}

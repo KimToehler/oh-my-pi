@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-DOMAIN-2-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-pos/a1/2026-10-19T09-58-19-370Z_01a15399-03ea-7532-9fd5-037af4b518cc/SensitivePython.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2",
+    "DOMAIN 2",
+    "Executability"
+  ],
+  "defects": [
+    "Plan adds dependency-cache bytes to executed input but does not bind or explicitly exclude them from `sourceIdentity`, nor define differing-cache control.",
+    "Foreign-container plan lacks required runtime inventory and real target-environment control.",
+    "Plan points implementer at nonexistent compose module and proposes behavior already present without identifying remaining gap."
+  ]
+}

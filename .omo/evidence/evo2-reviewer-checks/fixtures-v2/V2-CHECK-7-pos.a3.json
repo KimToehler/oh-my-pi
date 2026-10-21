@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-7-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-pos/a3/2026-10-19T10-10-09-404Z_01a153a3-d97c-7512-a4ca-c6c0b996034e/UnsightlySparrow.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7 — one truth per concept",
+    "Verification"
+  ],
+  "defects": [
+    "Plan creates `auditStagedTree(root)` to derive “every file that will run” but never says it consumes existing execution manifest or staged result, nor identifies launch callsite. New traversal can disagree with source identity and staging inventory, or never run at all.",
+    "Planned “control” has no setup, observable, or expected result. Given audit has no named launch integration, test command can pass with an exported but unused audit function."
+  ]
+}

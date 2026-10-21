@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-2-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-2-pos/a2/2026-10-19T09-18-56-622Z_01a15374-f66e-7751-9f4c-9ffd70bb1bee/LengthyCondor.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2, complete identity",
+    "Architecture / executability"
+  ],
+  "defects": [
+    "Plan hashes only provider ID for model-list cache. Discovery result also depends on configured discovery type and endpoint. Same provider ID can point at different catalogs, so cache hit can return models from wrong endpoint.",
+    "Plan adds unconnected second cache at nonexistent path and names no discovery caller, persistence, expiration, invalidation, or read/write integration. Existing registry already owns provider discovery caching."
+  ]
+}

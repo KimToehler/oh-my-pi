@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-3-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-3-neg/a2/2026-10-19T09-18-56-626Z_01a15374-f672-728a-b601-e96767227434/DistinguishedBoar.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "Quality and verification"
+  ],
+  "defects": [
+    "Task names nonexistent implementation file, so no code starting point exists.",
+    "Only planned test does not cover proposed job-name policy or ASCII control."
+  ]
+}

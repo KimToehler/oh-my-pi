@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-4-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-pos/a1/2026-10-19T09-56-48-186Z_01a15397-9fba-7629-9293-065279ef58c1/BreezyTurtle.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 4 — decision predicate"
+  ],
+  "defects": [
+    "Planned behavior already exists, so plan cannot fix stated regression or provide required RED evidence. `pendingRunSummaryFromRow` returns summary when `status === null` and `completedAt !== null`; it never requires `parsedMetrics`.",
+    "Plan defines \"complete\" from `completedAt` alone but omits required state table and rejection default. This can regress logged rows: they have `completedAt` set but must not be offered pending."
+  ]
+}

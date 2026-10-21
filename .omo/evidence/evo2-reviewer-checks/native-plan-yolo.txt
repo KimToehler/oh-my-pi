@@ -1,0 +1,12 @@
+Working...
+Created `/tmp/evo2-qa/scratch/README.md`:
+
+```text
+hello
+```
+
+Verified:
+- Content: single line `hello`
+- Line count: `1`
+- Approved plan re-read; all steps complete.
+{"round":1,"outcome":"okay"}

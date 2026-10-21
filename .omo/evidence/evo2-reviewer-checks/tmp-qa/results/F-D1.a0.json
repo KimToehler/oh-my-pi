@@ -1,0 +1,17 @@
+{
+  "fixture": "F-D1",
+  "attempt": "0",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a0/2026-10-19T09-27-31-640Z_01a1537c-d238-73e2-a378-f085527835ac/SubjectiveCanid.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness — abandoned-claim reaping",
+    "Correctness — stale trial state",
+    "CHECK 6 — entry-path parity"
+  ],
+  "defects": [
+    "Reaper treats any claim with job dir as live. Crash after directory creation, before registration, leaves permanent claimed row.",
+    "Patch removes trial cleanup from `registerLaunch`, but normal launch permits reuse of non-running job names. Reused job exposes prior run trials until new scan replaces them.",
+    "Delta changes run-creation admission and status semantics, but gives no path inventory or path-specific controls."
+  ]
+}

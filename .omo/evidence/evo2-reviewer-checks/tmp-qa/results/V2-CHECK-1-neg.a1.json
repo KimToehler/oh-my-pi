@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-1-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-neg/a1/2026-10-19T09-55-26-706Z_01a15396-6172-7587-9a5c-6345c5a34138/HelplessWasp.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 1",
+    "Quality and verification"
+  ],
+  "defects": [
+    "Pinggy design deliberately leaves token in argv, contradicting stated requirement.",
+    "Log-redaction chokepoint cannot guarantee credential never reaches tunnel log.",
+    "Fake-binary sentinel test cannot verify new `TUNNEL_TOKEN` and `BORE_SECRET` contracts work with real cloudflared/bore."
+  ]
+}

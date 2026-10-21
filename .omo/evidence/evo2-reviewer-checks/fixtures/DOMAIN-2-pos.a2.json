@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-2-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-2-pos/a2/2026-10-19T09-20-44-287Z_01a15376-9aff-774b-8888-b95648876a59/TypicalAnteater.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 5 / DOMAIN 2"
+  ],
+  "defects": [
+    "`tracked git diff` identity is wrong source definition; live bind mount can execute bytes outside identity.",
+    "Plan hashes/checks source then mounts mutable source path without byte pinning or mutation control. It also lacks required foreign-runtime inventory and real-agent target-environment control."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-5-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-neg/a3/2026-10-19T10-13-48-039Z_01a153a7-2f87-7226-91bc-6d1a11e8ee9f/DemocraticPigeon.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness and reasoning"
+  ],
+  "defects": [
+    "Plan claims change \"adds a test\" and tells implementer to extend replay tests with two controls already present verbatim. Following plan either produces duplicate coverage or no diff; it cannot deliver stated new test coverage."
+  ]
+}

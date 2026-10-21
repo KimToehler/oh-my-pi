@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-4-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-neg/a3/2026-10-19T10-13-13-904Z_01a153a6-aa30-7174-ab51-733863b4695f/BetterCephalopod.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7",
+    "DOMAIN 4"
+  ],
+  "defects": [
+    "Plan adds `requestsPerTask` beside existing same-scope request count without one canonical artifact or cutover. This creates two independently derived names for same concept.",
+    "Required delegated-work control is prose only. Planned tests construct aggregate `TranscriptMetrics`, so cannot detect requests failing to fold task snapshots or double-counting them."
+  ]
+}

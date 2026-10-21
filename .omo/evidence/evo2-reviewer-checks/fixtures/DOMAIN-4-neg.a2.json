@@ -1,0 +1,17 @@
+{
+  "fixture": "DOMAIN-4-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-4-neg/a2/2026-10-19T09-21-36-281Z_01a15377-6619-766c-8f0e-3c266f908e67/PreparedCrane.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 4, one number, one scope",
+    "Correctness"
+  ],
+  "defects": [
+    "`fitness.ts` has only one run's trials, no baseline/comparison input. Plan says report `tokensDelta` and `costDelta` there, but never defines delta baseline, pairing, aggregation, or output consumer. Result cannot be a meaningful delta.",
+    "Metric table does not give `tokensDelta`/`costDelta` one comparison scope. It names `tokens` and `cost`, says usage is summed, but omits baseline side and whether result is per-trial, task macro mean, or run total. Control says \"moves both metrics alike\" without expected observable values, so cannot detect unequal scope or double counting.",
+    "Plan claims deduplication over request ID, but target receives already-folded transcript metrics and transcript parser deduplicates delegated usage by task tool-call ID, not request ID. Fitness cannot apply requested dedup."
+  ]
+}

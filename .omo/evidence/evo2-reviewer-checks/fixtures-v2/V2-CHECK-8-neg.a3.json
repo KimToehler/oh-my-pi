@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-8-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-8-neg/a3/2026-10-19T10-10-17-448Z_01a153a3-f8e8-775d-b801-ff620a0d94f2/ColdMule.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 8 — report selection",
+    "CHECK 8 — host config"
+  ],
+  "defects": [
+    "Plan covers only omitted `job`, but report API has independent default selections using `childJob` and `baselineJob`. Compare and reflection bundle can select two newest runs; response plan gives no way to report each selected job/source. Existing explicit parameter claim also false for those routes.",
+    "`manager.host` source has no defined file, loader, validation, or ownership boundary. Existing `models.yml` is fixed Evo agent/provider input, not manager configuration; adding this key without stated server-side read path cannot make config host effective predictably."
+  ]
+}

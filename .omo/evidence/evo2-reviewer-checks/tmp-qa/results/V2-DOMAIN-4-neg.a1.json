@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-4-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-neg/a1/2026-10-19T09-59-05-784Z_01a15399-b938-75fd-854f-24e53fd2e5b5/ProperKiwi.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7 / architecture"
+  ],
+  "defects": [
+    "`requestsPerTask` duplicates existing delegated-inclusive `llmCalls`, creating second truth for same request count. Existing metric already meets stated scope and control; separate field can drift and gives duplicate comparison output."
+  ]
+}

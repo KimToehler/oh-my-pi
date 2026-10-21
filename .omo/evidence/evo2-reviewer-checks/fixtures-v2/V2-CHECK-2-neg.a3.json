@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-2-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-neg/a3/2026-10-19T10-08-41-918Z_01a153a2-83be-7136-98a4-bdb2d4fed036/ConcernedAnt.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2: MIME identity incomplete"
+  ],
+  "defects": [
+    "Plan adds MIME only to `ProviderFileCache` key/tests. `ProviderFileManager` has two other identity decisions keyed solely by provider, credential, content hash, so MIME-distinct inputs still reuse wrong handle before or outside persisted-cache lookup."
+  ]
+}

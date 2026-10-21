@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-7-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-pos/a2/2026-10-19T10-03-56-523Z_01a1539e-28eb-73cc-ab2b-77a290afa19a/MedicalChipmunk.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 7",
+    "Quality and verification"
+  ],
+  "defects": [
+    "No task wires `auditStagedTree` into launch path. Added function can remain unused, so stated pre-launch audit never happens.",
+    "Plan creates second independent definition of files that run instead of consuming canonical manifest/staged artifact.",
+    "“Extend … with the control” gives no scenario, expected log output, or proof audit observes all staged inputs and threshold boundary."
+  ]
+}

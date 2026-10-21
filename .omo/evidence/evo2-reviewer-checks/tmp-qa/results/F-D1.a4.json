@@ -1,0 +1,19 @@
+{
+  "fixture": "F-D1",
+  "attempt": "4",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a4/2026-10-19T10-29-36-478Z_01a153b5-a85e-758f-839b-a9744b170d90/SilentCrow.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "DOMAIN 6, run identity",
+    "DOMAIN 5, replacing means dominating",
+    "CHECK 6, entry-path parity"
+  ],
+  "defects": [
+    "No reviewable implementation or verification exists.",
+    "Delta changes job-name claim/launch semantics without required identity inventory or fresh-name isolation control.",
+    "Claim placeholder is replaced by launched row, but delta defines no key/order/tie/conflict policy or incomplete-replacement controls.",
+    "Same run entity has multiple creators/consumers, but plan does not map claim checks across them."
+  ]
+}

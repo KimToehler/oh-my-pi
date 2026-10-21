@@ -1,0 +1,13 @@
+{
+  "fixture": "CHECK-2-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-2-neg/a1/2026-10-19T08-53-32-092Z_01a1535d-b33c-77cc-822f-5cfd81859bc7/MarvellousTarsier.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2 — Approach"
+  ],
+  "defects": [
+    "Specified cache key hashes only provider ID, but plan says base URL and API-key fingerprint are bound. Same provider with different endpoint or credentials receives same cached model list."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "fixture": "F-D1",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a3/2026-10-19T09-34-07-043Z_01a15382-dac3-7449-9bd9-439c2e5811c9/ScrawnyRodent.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "DOMAIN 6",
+    "CHECK 6"
+  ],
+  "defects": [
+    "Fix diff omitted. Plan gives no changed bytes, task steps, or QA; reviewer cannot establish repair reaches claim caller and launch path.",
+    "Run-name claim change has no required run-identity inventory or fresh-name negative control.",
+    "Plan changes shared run-claim behavior but does not map all creation/consumption paths or test each path."
+  ]
+}

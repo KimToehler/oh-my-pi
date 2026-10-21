@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-1-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-1-neg/a2/2026-10-19T09-18-56-618Z_01a15374-f66a-7733-b080-909b8a3e7088/MaleYak.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 1, holders and sinks"
+  ],
+  "defects": [
+    "Plan rests on demo code and logging chokepoint absent from repo, so tasks have no valid starting point and cannot deliver stated behavior.",
+    "Protected-token inventory and negative control lack complete, searchable scope. Claimed chokepoint only covers helper stdout/stderr and `run.log`; plan also names error messages and “every artifact” without their writers, artifact set, or redaction path. Test command is only a nonexistent redact unit test, not spawned-helper integration proof."
+  ]
+}

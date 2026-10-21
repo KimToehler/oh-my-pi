@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-1-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-pos/a2/2026-10-19T10-05-09-606Z_01a1539f-4666-77e4-a606-3c0e8c772c45/AgreeableMarsupial.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1, environment contract"
+  ],
+  "defects": [
+    "`bun install --frozen-lockfile` placed in generated image build has no phase environment contract or target-environment controls. Plan neither states build/verifier network, runtime/platform, commands, and need met in required table nor proves guard runs in build environment and host-only success fails in target verifier."
+  ]
+}

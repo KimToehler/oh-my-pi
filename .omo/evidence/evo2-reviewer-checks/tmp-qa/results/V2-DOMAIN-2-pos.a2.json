@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-2-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-pos/a2/2026-10-19T10-05-35-912Z_01a1539f-ad28-7724-9568-d685c9efec31/IndividualPiranha.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 2, executing is a sink",
+    "Executability"
+  ],
+  "defects": [
+    "Foreign-container mount plan lacks required runtime inventory and real-agent target-environment control. Worse, it mounts host `node_modules`, while identity/staging intentionally excludes every `node_modules` path; executed dependency bytes can change without source identity changing.",
+    "Plan cites nonexistent compose module path, so task has no valid implementation starting point."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-1-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-1-pos/a1/2026-10-19T08-54-56-246Z_01a1535e-fbf6-7777-aceb-ee745100f350/WorldwideCrab.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "DOMAIN 1 — environment contract"
+  ],
+  "defects": [
+    "Cited implementation file does not exist in workspace.",
+    "Command in verifier phase lacks required environment contract and target-environment negative control."
+  ]
+}

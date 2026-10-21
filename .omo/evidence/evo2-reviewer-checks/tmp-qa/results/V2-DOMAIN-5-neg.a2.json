@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-5-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-neg/a2/2026-10-19T10-07-01-154Z_01a153a0-fa22-736c-a467-bc5a86337d0e/TartHookworm.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 5"
+  ],
+  "defects": [
+    "Replacement does not dominate every recorded component. Strictly richer later replay missing cost replaces stored known-cost snapshot, then loses cost. Plan says only tests change, so cannot fix it; its missing-cost control covers only equal usage."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-5-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-pos/a2/2026-10-19T10-07-07-621Z_01a153a1-1365-71a7-bf1b-922a914f1900/ShinyFalcon.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 5, replacing means dominating"
+  ],
+  "defects": [
+    "Plan defines replacement as arrival order (\"keep the later one\"), not component-wise richness. A later replay missing any usage bucket or known cost can overwrite valid earlier data; equal-total, differently split usage also becomes falsely accepted rather than retained-and-counted conflict."
+  ]
+}

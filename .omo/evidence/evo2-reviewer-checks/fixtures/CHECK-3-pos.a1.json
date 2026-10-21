@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-3-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-3-pos/a1/2026-10-19T08-53-32-098Z_01a1535d-b342-76e8-900a-f80d25976897/AlternativeQuelea.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "CHECK 3 — Approach step 1 / Verification"
+  ],
+  "defects": [
+    "Planned target file does not exist.",
+    "Forbidden-character enumeration lacks completeness argument or allow-set, plus no whole-input-space control."
+  ]
+}

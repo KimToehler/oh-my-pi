@@ -1,0 +1,17 @@
+{
+  "fixture": "DOMAIN-1-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-1-neg/a1/2026-10-19T08-54-54-041Z_01a1535e-f359-75eb-9569-a28392d7d494/LegitimateGrouse.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1 environment contract",
+    "Executability",
+    "Verification"
+  ],
+  "defects": [
+    "Phase design contradicts itself: verifier must run `bun install`, but verifier has no network. No prior build artifact/install copy is specified, so dependency need cannot be met.",
+    "Only implementation target does not exist.",
+    "Listed test is unrelated to container phase/network behavior; it can pass if install remains in no-network verifier."
+  ]
+}

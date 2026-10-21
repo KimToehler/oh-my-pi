@@ -1,0 +1,17 @@
+{
+  "fixture": "DOMAIN-5-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-5-neg/a1/2026-10-19T08-56-02-097Z_01a1535f-fd31-741e-815f-9a172fd51d21/CheapBird.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 5 / correctness",
+    "DOMAIN 5 / correctness",
+    "verification"
+  ],
+  "defects": [
+    "Replace key names trial ID, but stored snapshots are per task tool-call ID. Trial-level key would merge distinct task calls and undercount totals.",
+    "Approach says later replay replaces snapshot when total tokens are higher. This violates component-wise dominance: higher total can lower one bucket and erase richer data. It also contradicts plan's own replace table.",
+    "Only planned command tests unrelated coding-agent plan-review code. It cannot exercise transcript replay replacement, missing cost, bucket conflict, or conflict metric."
+  ]
+}

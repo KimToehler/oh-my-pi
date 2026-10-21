@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-1-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-pos/a1/2026-10-19T09-58-04-225Z_01a15398-c8c1-7600-a1a0-a8ca3127ff81/XenialFrog.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1, environment contract",
+    "DOMAIN 2, executing is a sink"
+  ],
+  "defects": [
+    "Plan has no required phase table, no explicit build-vs-verifier placement for `bun install`, and no target-environment control. Installing during verifier phase cannot fetch packages because verifier container runs with Docker network `none`; install must be specified and proved in build phase, where network policy differs.",
+    "Plan lacks runtime-file inventory and real target-runtime control. Proposed test command can pass against fixture fake Docker without proving generated image contains lockfile, installed dependencies, Bun binary, and verifier inputs needed by isolated container."
+  ]
+}

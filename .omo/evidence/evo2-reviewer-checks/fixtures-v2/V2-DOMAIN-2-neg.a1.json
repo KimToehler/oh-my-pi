@@ -1,0 +1,21 @@
+{
+  "fixture": "V2-DOMAIN-2-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-neg/a1/2026-10-19T09-58-07-383Z_01a15398-d517-7447-a117-92168e2d3d95/StatutoryArmadillo.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "Correctness",
+    "CHECK 2",
+    "CHECK 5",
+    "Executability"
+  ],
+  "defects": [
+    "Planned mount target `/src/node_modules` is not source-mode runtime target. Mount will not shadow dependencies agent executes.",
+    "Host-installed dependencies cannot replace target Linux dependency build. Plan can mount Darwin/native host artifacts into Linux agent container.",
+    "New `lockfileHash` and `nodeModulesTreeHash` identity fields lack complete identity definition and discriminating controls.",
+    "Plan hashes mutable host `node_modules`, then bind-mounts same mutable directory. Checked bytes can differ from used bytes.",
+    "Plan cites nonexistent compose implementation path and gives no concrete live-run command or expected result."
+  ]
+}

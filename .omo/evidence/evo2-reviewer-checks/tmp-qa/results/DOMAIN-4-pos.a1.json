@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-4-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-4-pos/a1/2026-10-19T08-56-00-204Z_01a1535f-f5cc-71d8-bdea-58e164fc2e3f/SelfishCamel.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / DOMAIN 4",
+    "Verification"
+  ],
+  "defects": [
+    "Plan makes compared metrics use different scopes: tokens include delegated agents while cost excludes them. This lets variant shift work into subagents and alter token metric without corresponding cost, corrupting efficiency comparison.",
+    "Only proposed test command cannot test planned fitness change."
+  ]
+}

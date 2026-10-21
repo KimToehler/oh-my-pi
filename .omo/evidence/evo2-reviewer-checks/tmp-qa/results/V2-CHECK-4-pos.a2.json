@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-4-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-pos/a2/2026-10-19T10-03-01-753Z_01a1539d-52f9-7478-92a0-47e8eb056500/ViolentReptile.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 4, decision predicate"
+  ],
+  "defects": [
+    "Stated approach already exists. Plan cannot change pending behavior or reach new resume behavior.",
+    "Plan defines \"complete\" but omits required truth table and negative controls."
+  ]
+}

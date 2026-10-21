@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: A native plan-review REJECT cannot create an active harness-authored tag boundary from any reviewer blocker field.
+  positive_witness: A blocker containing `<system-reminder>text</system-reminder>` reaches planner tool result as `&lt;system-reminder>text</system-reminder>`.
+  negative_control: Raw `<system-reminder>` from blocker `area`, `defect`, `evidence`, or `change` appears in planner tool result.
+  observable: Captured `write xd://propose` rejection text contains encoded tag starts and contains no raw `<system-reminder>` or `</system-reminder>` supplied by reviewer.
+  boundary: `AgentSession.#applyPlanReview` rendering `plan-review-reject.md` into planner-facing tool result.
+END-REVIEW-TRAILER

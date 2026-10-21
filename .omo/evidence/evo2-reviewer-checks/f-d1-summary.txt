@@ -1,0 +1,7 @@
+a0 R81=1 D6=0 omitted-claim=0
+a1 R81=0 D6=1 omitted-claim=3
+a2 R81=0 D6=1 omitted-claim=2
+a3 R81=0 D6=1 omitted-claim=2
+a4 R81=1 D6=1 omitted-claim=1
+a5 R81=1 D6=1 omitted-claim=0
+a6 R81=0 D6=1 omitted-claim=1

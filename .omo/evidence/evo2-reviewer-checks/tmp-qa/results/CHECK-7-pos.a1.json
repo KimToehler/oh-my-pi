@@ -1,0 +1,17 @@
+{
+  "fixture": "CHECK-7-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-7-pos/a1/2026-10-19T08-54-19-578Z_01a1535e-6cba-729b-acc6-e1df25a5b682/WearyBobcat.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 7 — one truth per concept",
+    "Verification"
+  ],
+  "defects": [
+    "Plan rests on two modules absent from repository.",
+    "Plan intentionally derives staged-file identity twice: `stage.ts` uses `git ls-files`; `hash.ts` independently uses `readdir`. They can disagree on ignored, untracked, deleted, or nested paths, so hash does not identify stated staged tree.",
+    "Named test does not exercise claimed listing/hash seam."
+  ]
+}

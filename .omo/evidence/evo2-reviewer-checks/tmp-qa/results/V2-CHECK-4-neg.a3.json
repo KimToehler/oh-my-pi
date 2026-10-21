@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-4-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-neg/a3/2026-10-19T10-09-10-751Z_01a153a2-f45f-715d-9461-3ea558241508/LovelyMosquito.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 4 — Decision predicate"
+  ],
+  "defects": [
+    "Plan requires prompt text to say metrics are missing, but no task changes prompt template or verifies rendered prompt. Current template only omits metric line when `has_pending_run_metric` false; it never says metrics missing.",
+    "Unreadable-storage outcome demands warning naming run number, but storage-open failure yields no row/run number and current entry paths do not catch failure. Predicate cannot meet stated result."
+  ]
+}

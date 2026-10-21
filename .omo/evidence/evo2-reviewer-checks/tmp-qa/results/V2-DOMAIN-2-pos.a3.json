@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-DOMAIN-2-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-pos/a3/2026-10-19T10-12-52-890Z_01a153a6-581a-706f-b023-43238e46f8e6/SovietBooby.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 1, environment contract",
+    "DOMAIN 2, executing is a sink"
+  ],
+  "defects": [
+    "Root-only `/src/node_modules` mount cannot supply dependency trees needed by workspace packages.",
+    "Container-run plan lacks required phase environment contract and target-environment control.",
+    "Plan mounts dependency cache into foreign runtime without runtime-file provenance inventory or real-agent target control."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-5-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-pos/a3/2026-10-19T10-14-28-109Z_01a153a7-cc0d-701d-a2d4-4b45159b8e1d/PreparedSlug.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 5"
+  ],
+  "defects": [
+    "Approach replaces snapshot by arrival order. No `Key | order | tie | conflict` contract; no dominance rule. Later incomplete/conflicting replay can erase richer stored snapshot."
+  ]
+}

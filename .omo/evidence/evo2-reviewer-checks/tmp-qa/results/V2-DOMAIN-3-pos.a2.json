@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-3-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-pos/a2/2026-10-19T10-06-19-118Z_01a153a0-55ee-7469-8c45-fb0935f5d988/EventualWalrus.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 3, liveness is provenance"
+  ],
+  "defects": [
+    "Plan changes behavior of runtime provider proxy but omits dependency lifetime/ownership and loss handling. Retry backoff can span proxy loss; plan gives no required before/after check or result classification proof."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-3-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-3-pos/a1/2026-10-19T08-55-28-535Z_01a1535f-7a17-75aa-a518-2dfe03aa9561/LazyPlanarian.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 1 — holders and sinks",
+    "DOMAIN 3 — liveness is provenance"
+  ],
+  "defects": [
+    "Plan handles token proxy but inventories neither token holders/sinks nor sentinel negative control.",
+    "Detached-agent design has no dependency lifetime contract, before/after probes, or loss-mid-run control preventing model-result attribution."
+  ]
+}

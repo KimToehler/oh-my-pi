@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-4-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-4-neg/a1/2026-10-19T08-56-00-204Z_01a1535f-f5cc-766b-bd43-9a44e917d921/CoastalFly.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 4 / Approach",
+    "Verification"
+  ],
+  "defects": [
+    "Sibling metrics use different scopes, then metric table claims both use one scope. Plan cannot define comparable `tokensDelta` and `costDelta` this way.",
+    "Only planned test does not exercise `fitness.ts`, metric aggregation, missing cost, deduplication, or delegation control."
+  ]
+}

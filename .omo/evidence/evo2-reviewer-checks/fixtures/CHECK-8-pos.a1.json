@@ -1,0 +1,17 @@
+{
+  "fixture": "CHECK-8-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-8-pos/a1/2026-10-19T08-54-35-659Z_01a1535e-ab8b-73db-8e31-e4357eed07b5/UnemployedAardvark.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 4 — decision predicate",
+    "CHECK 8 — narrow defaults, explicit choice, no silent runtime fallback"
+  ],
+  "defects": [
+    "Task names nonexistent edit target.",
+    "`latest run` selection has no definition or fail-closed outcomes.",
+    "Public bind default and implicit run fallback violate required narrow, explicit, deterministic selection."
+  ]
+}

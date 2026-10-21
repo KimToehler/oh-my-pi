@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-4-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-neg/a2/2026-10-19T10-06-22-066Z_01a153a0-6172-77d4-a590-3281b0f1f4c3/CloseMosquito.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7, one truth per concept",
+    "Correctness"
+  ],
+  "defects": [
+    "Plan creates `requestsPerTask` from same main-message plus task-snapshot request counts already held in `llmCalls`, but names no shared artifact or alias. Independent tally can drift from existing efficiency `llmCalls` comparison.",
+    "`compareEfficiency` computes ratios only from per-task `TaskFitness` fields. Adding only report-level `requestsPerTask` cannot produce required per-task geometric ratio."
+  ]
+}

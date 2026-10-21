@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-4-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-pos/a3/2026-10-19T10-09-26-619Z_01a153a3-325b-7267-b100-a675e461d05d/FamiliarSwordtail.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4, Approach 1 / Verification"
+  ],
+  "defects": [
+    "Plan defines pending-completion predicate as `completedAt` set, but gives no result for missing row, still-running row (`completedAt === null`), corrupt/unreadable storage, or lossy metrics. “four controls” names neither inputs nor expected outcomes, so tests can pass while pending run gets offered for partial state or valid run gets hidden."
+  ]
+}

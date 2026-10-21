@@ -1,0 +1,17 @@
+{
+  "fixture": "F-D1",
+  "attempt": "5",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a5/2026-10-19T10-29-36-478Z_01a153b5-a85e-7023-bf8e-7cc726096e9e/HandicappedCrocodile.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 5",
+    "DOMAIN 6",
+    "CHECK 4"
+  ],
+  "defects": [
+    "Removed trial purge leaves prior trial/reward rows attached when normal launch reuses completed job name.",
+    "Directory existence cannot distinguish live claimed launch from crashed pre-launch claim; claim can become permanent. Plan omits required entry/reuse/deleted/kept inventory and finished-name reuse control.",
+    "`#reapAbandonedClaims` uses an unbounded \"abandoned\" admission predicate with no required state outcomes or negative controls."
+  ]
+}

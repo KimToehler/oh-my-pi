@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-3-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-3-pos/a2/2026-10-19T10-02-11-386Z_01a1539c-8e3a-766c-a82d-6842eedee7f0/LegislativeSilverfish.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 3 — Approach 1 / Verification"
+  ],
+  "defects": [
+    "Rule “reject names containing ... whitespace” rejects leading/trailing whitespace, but public sanitizer intentionally accepts and normalizes it.",
+    "Plan defines forbidden-character enumeration but supplies neither completeness argument nor full-input-space control. “Exhaustive loop” has no domain, cases, or expected allow-set."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "F-A1",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A1/a2/2026-10-19T09-23-22-706Z_01a15379-05d2-7201-9e65-26863286ff33/ActualFirefly.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 5 — verified bytes are used bytes",
+    "CHECK 6 — entry-path parity"
+  ],
+  "defects": [
+    "Approach #1 hashes snapshot, then Approach #2 rereads mutable path. Bytes can change after check and before prompt injection; executor then follows unreviewed content.",
+    "Plan names only “executor prompt” and one test file. It does not inventory or cover all paths consuming approved plan, so subagent handoff can bypass new check."
+  ]
+}

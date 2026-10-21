@@ -1,0 +1,17 @@
+{
+  "fixture": "DOMAIN-4-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-4-pos/a2/2026-10-19T09-21-41-282Z_01a15377-79a2-75a2-91e7-ddafadf319e2/VariableMite.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 4",
+    "Verification"
+  ],
+  "defects": [
+    "Task only changes `fitness.ts`, but its input exposes one already-folded transcript cost. Main-only `costDelta` cannot be derived there without preserving main cost before delegated task snapshots are folded.",
+    "Compared sibling metrics use incompatible scopes: `tokensDelta` includes subagents while `costDelta` excludes them. Plan omits required metric table and delegation-shift control, so it can reward hiding spend in subagents.",
+    "Only proposed command does not cover planned metaharness behavior or delegation/cost split."
+  ]
+}

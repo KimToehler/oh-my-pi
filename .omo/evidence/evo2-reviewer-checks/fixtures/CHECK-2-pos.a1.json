@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-2-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-2-pos/a1/2026-10-19T08-53-32-092Z_01a1535d-b33c-7067-a8df-23f45935d0cb/DarkShrew.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2 — complete identity",
+    "Executability"
+  ],
+  "defects": [
+    "Cache key uses only provider id, but plan does not inventory every discovery input, bind/exclude each, state provenance comparison, or specify per-input distinction controls.",
+    "Plan names implementation starting point that does not exist."
+  ]
+}

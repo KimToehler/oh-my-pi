@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-5-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-5-pos/a1/2026-10-19T08-56-07-188Z_01a15360-1114-73ad-918b-90d3501746ef/AnnoyedPike.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / DOMAIN 5",
+    "Verification"
+  ],
+  "defects": [
+    "`total tokens higher` is not safe replacement predicate. It can replace snapshot richer in other accounted components, changing per-bucket metrics and cost semantics.",
+    "Planned test only runs plan-review fixture suite, no behavior check for replacement/conflict rule."
+  ]
+}

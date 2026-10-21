@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-7-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-7-neg/a1/2026-10-19T08-54-05-425Z_01a1535e-3571-7236-9229-4eb9bce1332e/MiddleAnaconda.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 7 — one truth per concept"
+  ],
+  "defects": [
+    "Named implementation modules do not exist. No real starting point for claimed shared `stagedFiles()` cutover.",
+    "Approach states two incompatible enumeration designs and never defines one shared artifact used by both."
+  ]
+}

@@ -1,0 +1,2 @@
+scope: main=0 child=1
+v2 scope: main=0 child=1 delta-first-paragraph-in-child=1

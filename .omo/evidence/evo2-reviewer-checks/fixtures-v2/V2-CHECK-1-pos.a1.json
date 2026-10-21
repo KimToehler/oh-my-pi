@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-1-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-pos/a1/2026-10-19T09-55-26-704Z_01a15396-6170-757a-a1d4-253bff5e005c/RenewedAnteater.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 1, holders and sinks"
+  ],
+  "defects": [
+    "Pinggy approach knowingly retains credential in argv, direct violation of goal that credential must never appear in argv.",
+    "Protected-value plan lacks required holder/sink inventory and sentinel negative control. It also does not specify how raw child output file is redacted before persistence."
+  ]
+}

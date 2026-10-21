@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-3-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-3-neg/a1/2026-10-19T08-55-25-271Z_01a1535f-6d57-76b8-b345-e3319d65e8dd/MinorCrane.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 3, liveness is provenance"
+  ],
+  "defects": [
+    "Approach says runner starts token proxy in manager process and detached agents use it. Runner only adopts externally started proxy from manager environment; no start occurs here.",
+    "Plan omits required behavior when manager restarts while detached work remains. Stated lifetime/holder make proxy state parent-owned, but no restart rule or control exists."
+  ]
+}

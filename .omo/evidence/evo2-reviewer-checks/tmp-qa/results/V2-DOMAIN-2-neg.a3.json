@@ -1,0 +1,21 @@
+{
+  "fixture": "V2-DOMAIN-2-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-neg/a3/2026-10-19T10-12-00-515Z_01a153a5-8b83-707b-992c-42b24c1150bd/MassCobra.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 2",
+    "CHECK 5",
+    "CHECK 6",
+    "DOMAIN 1"
+  ],
+  "defects": [
+    "Approach targets wrong dependency source and container path; it does not describe change needed for current source trials.",
+    "Runtime inventory is incomplete. It omits executable Bun and nested workspace dependency mounts, so identity and mount coverage cannot prove all executed cache bytes are covered.",
+    "Plan hashes mutable shared dependency tree then later bind-mounts it, without pinning copied bytes or proving check/use atomicity.",
+    "Plan covers compose tests only, but source mounts have Docker-compose and non-Docker/Apple JSON entry paths. No parity inventory or per-path control.",
+    "Verification schedules target-container live run but omits required phase environment contract and does not address Apple Container writable binds."
+  ]
+}

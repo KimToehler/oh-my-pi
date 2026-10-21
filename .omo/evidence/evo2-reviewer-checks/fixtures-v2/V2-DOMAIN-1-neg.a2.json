@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-DOMAIN-1-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-neg/a2/2026-10-19T10-05-00-250Z_01a1539f-21da-71a8-b081-7080135b6237/QuietSquid.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "DOMAIN 1",
+    "DOMAIN 2"
+  ],
+  "defects": [
+    "Approach says generated tasks needing npm packages will install dependencies, but names no decision point or caller that detects that condition and sets setup command. Existing generator only emits build RUN when optional caller-supplied `setupCommand` exists. Planned test edits cannot create install behavior.",
+    "Network-negative control is not executable with named verification surface. Plan requires verifier-time install to fail from no network, but only names `evo-task.test.ts`; its runtime is fake Docker, which explicitly does not enforce network isolation. Checking `--network none` argv cannot prove DNS/install failure.",
+    "Plan runs build, agent, verifier, and calibration in task image but supplies no required runtime-file inventory and no real-agent target-environment control."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-2-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-2-neg/a2/2026-10-19T09-18-56-622Z_01a15374-f66d-7430-b24a-34ca2864d7cd/CapableBoa.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2, complete identity",
+    "Executability"
+  ],
+  "defects": [
+    "Cache identity does not inventory every result input or bind/exclude each. Three asserted inputs plus excluded request time do not establish returned model list depends on nothing else.",
+    "Both cited implementation and test starting points do not exist in workspace."
+  ]
+}

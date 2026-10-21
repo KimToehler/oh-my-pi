@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-1-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-neg/a3/2026-10-19T10-11-10-532Z_01a153a4-c844-75e8-bd73-5e92da5bd73c/PlannedGoldfish.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4, decision predicate",
+    "DOMAIN 2, executing is a sink"
+  ],
+  "defects": [
+    "Approach relies on \"checks need npm packages\" but defines no predicate or behavior when setup command/lockfile is missing. Existing generator only emits build-time install when caller explicitly supplies optional `--setup-command`; thus task with npm-based test and omitted flag still reaches no-network verifier without deps.",
+    "Plan runs build and verifier in container but omits required runtime-file inventory and target-environment real-agent control."
+  ]
+}

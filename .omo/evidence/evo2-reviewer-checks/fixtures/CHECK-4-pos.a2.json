@@ -1,0 +1,17 @@
+{
+  "fixture": "CHECK-4-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-4-pos/a2/2026-10-19T09-19-34-571Z_01a15375-8aab-7045-969a-471dabadfd65/InstantPrimate.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4, decision predicate",
+    "Executability",
+    "Verification"
+  ],
+  "defects": [
+    "Plan defines \"complete\" as existence of `result.json` but gives no result for corrupt/unreadable, still-running/partial, or lossy files. No rejection-default definition or negative controls for missing and still-running states.",
+    "Planned implementation file does not exist, so task has no valid starting point.",
+    "Named test suite covers plan-review runtime, not demo run reporting, so it cannot prove planned behavior."
+  ]
+}

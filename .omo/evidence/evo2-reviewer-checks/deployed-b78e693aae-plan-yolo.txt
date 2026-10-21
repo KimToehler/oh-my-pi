@@ -1,0 +1,12 @@
+Working...
+Created `README.md` with exactly:
+
+```text
+hello
+```
+
+Verified:
+- 1 line
+- 6 bytes
+- Approved plan reread
+- All plan steps complete

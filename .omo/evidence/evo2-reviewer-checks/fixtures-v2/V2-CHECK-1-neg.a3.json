@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-1-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-neg/a3/2026-10-19T10-08-41-919Z_01a153a2-83bf-7148-9d7a-8eca1c399d80/CompetentBobolink.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 1, holders and sinks"
+  ],
+  "defects": [
+    "Pinggy branch intentionally leaves credential in argv, contrary to goal covering all three credential branches.",
+    "Tunnel-log chokepoint only redacts text observed during startup polling. It cannot protect bytes child writes after `spawnUrlTunnel` returns."
+  ]
+}

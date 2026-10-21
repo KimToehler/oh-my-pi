@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-3-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-3-neg/a3/2026-10-19T10-08-41-917Z_01a153a2-83bd-771d-ac8c-9687eaf760cb/EarlyCrayfish.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 3 — Allow-set control"
+  ],
+  "defects": [
+    "Plan says names containing whitespace reject and “everything else throws,” but proposes keeping `sanitizeSkillName` trim normalization. Leading/trailing whitespace survives normalization and is accepted. Exhaustive test only uses character alone or middle, so misses this boundary case."
+  ]
+}

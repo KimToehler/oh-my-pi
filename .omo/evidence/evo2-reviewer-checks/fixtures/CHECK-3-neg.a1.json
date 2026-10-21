@@ -1,0 +1,13 @@
+{
+  "fixture": "CHECK-3-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-3-neg/a1/2026-10-19T08-53-32-092Z_01a1535d-b33c-73da-91bd-966b6ff8349b/FullWren.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability"
+  ],
+  "defects": [
+    "Step 1 names nonexistent source file, so no validation path or starting point exists."
+  ]
+}

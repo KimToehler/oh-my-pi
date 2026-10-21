@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-DOMAIN-1-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-pos/a3/2026-10-19T10-11-27-246Z_01a153a5-098e-71d0-a143-05b90ab341cf/WholeMarmot.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1, environment contract",
+    "DOMAIN 2, executing is a sink",
+    "Executability"
+  ],
+  "defects": [
+    "Plan places `bun install --frozen-lockfile` in generated-task workflow but gives no required phase contract or target-environment controls.",
+    "Foreign-container run lacks runtime-file inventory and real target-container control.",
+    "\"Checks need npm packages\" has no defined input or implementation path, so generator cannot decide when to install dependencies."
+  ]
+}

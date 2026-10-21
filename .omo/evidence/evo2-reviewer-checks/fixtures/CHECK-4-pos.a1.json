@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-4-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-4-pos/a1/2026-10-19T08-54-05-111Z_01a1535e-3437-74a2-9903-b691cb40148d/RemainingViper.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4 — decision predicate",
+    "Executability"
+  ],
+  "defects": [
+    "Plan defines `complete` only as `result.json` existing. It gives no result for corrupt/unreadable, still-running/partial, or lossy result; no fail-closed default; no negative control for missing or still-running state.",
+    "Plan names nonexistent implementation starting point."
+  ]
+}

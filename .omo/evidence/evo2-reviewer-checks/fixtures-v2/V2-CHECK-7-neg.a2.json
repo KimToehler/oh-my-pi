@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-7-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-neg/a2/2026-10-19T10-03-33-587Z_01a1539d-cf53-7727-8cc1-b38e894ff4d6/UnitedDragon.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / CHECK 7",
+    "Verification"
+  ],
+  "defects": [
+    "Audit interface and integration contradict existing manifest flow. Plan first specifies `auditStagedTree(root)`, then says it \"takes the `ManifestRead` that `stageSource` already received through its `visit` callback\". `ManifestRead` is one entry read, not full manifest, and `stageSource` itself invokes `readExecutionManifest`; no caller passes it a manifest.",
+    "QA does not prove required >50 MB logging nor production launch invocation. Path-list equality can pass when logging threshold handling is absent or audit never called by source staging."
+  ]
+}

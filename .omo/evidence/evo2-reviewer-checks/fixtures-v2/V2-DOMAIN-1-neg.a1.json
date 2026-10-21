@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-1-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-1-neg/a1/2026-10-19T09-57-53-428Z_01a15398-9e94-75b2-b4e2-9e11c5cc492e/GreasyRabbit.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 1, environment contract"
+  ],
+  "defects": [
+    "Control does not prove host-only successful calibration cannot certify task. `requireCalibratedTasks` only validates persisted record fields and task hash; it never observes execution environment. Plan says host-only run is “rejected by `requireCalibratedTasks`”, but provides no test that host run succeeds, writes no record, then registration rejects it."
+  ]
+}

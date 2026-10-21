@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-1-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-neg/a2/2026-10-19T10-02-11-388Z_01a1539c-8e3c-72f5-8c8d-393b474eefe9/WearyLynx.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 1 — tunnel-log chokepoint",
+    "CHECK 1 — diagnostic sink inventory"
+  ],
+  "defects": [
+    "Post-read rewrite cannot enforce “must never appear” in log. Child writes raw stdout/stderr directly into persistent log; redaction occurs only after parent later reads it, then stops forever once URL/ready marker returns.",
+    "Holder/sink table omits broker startup logger, so claimed complete inventory and sentinel scan do not cover every diagnostics sink."
+  ]
+}

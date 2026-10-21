@@ -1,0 +1,13 @@
+{
+  "fixture": "CHECK-4-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-4-neg/a1/2026-10-19T08-53-53-169Z_01a1535e-0591-7194-8fb9-98c58864d9e2/YoungFerret.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability"
+  ],
+  "defects": [
+    "Task 1 names `packages/coding-agent/src/demo/runs.ts`, but repository has no `src/demo/` directory or `runs.ts` source. No valid starting point for admission predicate."
+  ]
+}

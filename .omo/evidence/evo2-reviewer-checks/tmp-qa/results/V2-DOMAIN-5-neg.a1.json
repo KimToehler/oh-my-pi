@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-DOMAIN-5-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-neg/a1/2026-10-19T09-59-52-476Z_01a1539a-6f9c-70da-a721-435500e37db9/PoliteRaven.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness and reasoning"
+  ],
+  "defects": [
+    "Approach claims both DOMAIN 5 controls still need adding, but target test file already contains both exact scenarios and assertions. Extending it as planned duplicates existing coverage rather than delivering new behavior or test value."
+  ]
+}

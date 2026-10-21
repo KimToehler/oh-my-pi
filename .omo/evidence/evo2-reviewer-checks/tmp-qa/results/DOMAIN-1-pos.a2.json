@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-1-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-1-pos/a2/2026-10-19T09-20-30-066Z_01a15376-6372-7362-923e-90b8f22ba0cc/CurlyPython.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "DOMAIN 1, environment contract"
+  ],
+  "defects": [
+    "Task names nonexistent edit target.",
+    "Plan runs `bun install` in verifier phase but omits required phase environment table and target-environment controls."
+  ]
+}

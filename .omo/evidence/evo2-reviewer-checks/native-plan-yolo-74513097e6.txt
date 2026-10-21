@@ -1,0 +1,13 @@
+Working...
+Created `README.md` with single line:
+
+```text
+hello
+```
+
+Verified:
+- Content: `hello`
+- Line count: `1`
+{"round":1,"outcome":"okay"}
+README.md: hello
+head: 74513097e6

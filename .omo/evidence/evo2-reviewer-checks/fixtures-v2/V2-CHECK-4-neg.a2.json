@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-4-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-neg/a2/2026-10-19T10-02-48-917Z_01a1539d-20d5-71d1-a64b-cd7a25cf249f/FantasticLimpet.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 4, decision predicate",
+    "Correctness and verification",
+    "Correctness and verification"
+  ],
+  "defects": [
+    "Predicate claims pending offer occurs “exactly when” row exists, `status` null, `completedAt` set, log readable. Existing retrieval adds `abandoned_at IS NULL`. An abandoned, completed, readable, unlogged row meets stated predicate but must not be offered. Decision table also omits this reachable state.",
+    "Plan says prompt must state missing metrics, but current prompt omits metric line when primary metric is absent; proposed tests only assert summary field and cannot catch absent/misleading prompt text.",
+    "Plan requires storage-open failure to yield no offer and run-number warning, but names no implementation point or control for that failure. Existing storage opens throw through all pending-summary entry paths."
+  ]
+}

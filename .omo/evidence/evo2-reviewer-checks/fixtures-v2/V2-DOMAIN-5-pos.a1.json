@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-5-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-5-pos/a1/2026-10-19T10-00-20-108Z_01a1539a-db8c-767f-9b79-5f2af3f3ca63/SlowWasp.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 5"
+  ],
+  "defects": [
+    "“Keep later one” can replace richer snapshot with lossy or contradictory replay, corrupting delegated-task totals and cost.",
+    "Replacement plan lacks required Key | order | tie | conflict contract and both mandatory controls. “both controls” is undefined."
+  ]
+}

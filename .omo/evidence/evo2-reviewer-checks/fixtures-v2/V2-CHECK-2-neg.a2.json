@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-2-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-neg/a2/2026-10-19T10-02-11-385Z_01a1539c-8e39-75dc-a917-067fe09f81c3/GiganticApe.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 2"
+  ],
+  "defects": [
+    "Plan declares `mimeType` identity input, but omits two in-memory reuse keys that ignore it. Different MIME requests with same provider, credential, bytes can receive first request’s handle before cache persistence."
+  ]
+}

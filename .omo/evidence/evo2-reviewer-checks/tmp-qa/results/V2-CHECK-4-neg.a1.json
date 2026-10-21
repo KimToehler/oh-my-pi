@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-4-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-4-neg/a1/2026-10-19T09-56-07-617Z_01a15397-0141-7104-b6e8-71ad6b108673/BindingHarrier.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 4, Decision predicate",
+    "Correctness"
+  ],
+  "defects": [
+    "Newest partial row hides older completed unlogged row. Plan changes only summary predicate, not pending-row selection.",
+    "Declared lossy-state observable cannot happen under listed approach. Plan requires prompt text saying metrics missing, but no prompt-template change.",
+    "Unreadable-storage warning requirement has no feasible row identity or error boundary."
+  ]
+}

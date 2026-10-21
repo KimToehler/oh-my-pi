@@ -1,0 +1,19 @@
+{
+  "fixture": "F-D1",
+  "attempt": "6",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a6/2026-10-19T10-29-36-480Z_01a153b5-a860-770a-8740-4c5ba719bf1c/TameCapybara.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "DOMAIN 6, run identity",
+    "CHECK 4, decision predicate",
+    "CHECK 6, entry-path parity"
+  ],
+  "defects": [
+    "Fix delta omits changed hunks, test changes, and QA. No reviewer can verify claimed repair reaches `ManagerServer.launch`, preserves prior run data, or excludes unrelated raw-token work.",
+    "Job-name claim/reclaim change has no required identity inventory or fresh-name reuse control.",
+    "Plan relies on claim/admission decision but defines no result for missing, corrupt, partial, or crash states.",
+    "Plan does not enumerate all paths consuming same job identity or prove new claim check applies correctly to each."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-7-neg",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-7-neg/a3/2026-10-19T10-09-57-247Z_01a153a3-a9ff-76d4-b12a-43a8b26f6430/BrilliantKingfisher.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7",
+    "CHECK 5",
+    "Verification"
+  ],
+  "defects": [
+    "Planned shared derivation has no coherent API or integration point. `auditStagedTree(root)` receives only root, while plan also says it \"takes the `ManifestRead`\". `ManifestRead` has bytes/mode or link target only, no path list; stage callback receives separate `(rel, read)` values. Implementer can only re-enumerate tree or invent unstated buffering/wiring, breaking claimed one-truth design.",
+    "Plan validates/audits files before staged execution but lacks required source-mutation control proving checked bytes are used bytes. Ignored-file and exec-bit controls prove inventory inclusion, not TOCTOU safety between audit and staging/use.",
+    "No planned assertion covers required 50 MB warning. Feature can omit logging, use wrong threshold, or log wrong path and listed control still passes."
+  ]
+}

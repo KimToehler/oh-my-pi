@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-2-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-pos/a2/2026-10-19T10-02-11-386Z_01a1539c-8e3a-70fc-a619-2bf16d4a5325/DemocraticReindeer.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "Correctness",
+    "CHECK 2, complete identity"
+  ],
+  "defects": [
+    "Content-only grouping collapses different requested MIME types before cache lookup. One handle gets uploaded with first block MIME then assigned to every same-byte block, including different MIME request. Cache handle comparison cannot repair this.",
+    "In-flight upload coalescing remains content-only. Concurrent requests with same bytes but different MIME share first upload even if persistent-cache lookup gains MIME comparison.",
+    "Identity-plan slot lacks required input inventory, binding rules, provenance comparison, and per-input discrimination controls."
+  ]
+}

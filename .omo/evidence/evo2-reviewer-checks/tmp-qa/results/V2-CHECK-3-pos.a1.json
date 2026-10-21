@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-3-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-3-pos/a1/2026-10-19T09-55-26-704Z_01a15396-6170-7102-a5bd-9fb02011c7ee/InevitableCentipede.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 3, Approach 1 / Verification"
+  ],
+  "defects": [
+    "Plan enumerates forbidden substrings/chars but neither retains/delegates to existing allowlist nor defines exhaustive input-space control. “exhaustive loop” has no set, expected result, or control over all printable non-word characters."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-1-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-1-neg/a1/2026-10-19T08-53-32-098Z_01a1535d-b342-7249-9f3a-08558e9a8fc2/ItchyMacaw.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "CHECK 1 — holders and sinks"
+  ],
+  "defects": [
+    "Task targets nonexistent source path.",
+    "Secret inventory incomplete, not search-derived. Helper stderr omitted; plan names only helper env and stdout-to-`run.log`."
+  ]
+}

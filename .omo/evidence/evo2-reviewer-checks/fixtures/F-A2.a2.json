@@ -1,0 +1,17 @@
+{
+  "fixture": "F-A2",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A2/a2/2026-10-19T09-23-41-831Z_01a15379-5087-73b2-b072-beaefb71eb8b/DelightedMockingbird.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 6 entry-path parity",
+    "Verification",
+    "CHECK 4 decision predicate"
+  ],
+  "defects": [
+    "ACP exception has no reason or parity control. Same plan approval entity bypasses new size gate.",
+    "Listed test cannot exercise planned TUI-only assertion.",
+    "`assertPlanSize(plan)` has no defined unit or outcomes for unreadable/missing/partial input, and no negative controls."
+  ]
+}

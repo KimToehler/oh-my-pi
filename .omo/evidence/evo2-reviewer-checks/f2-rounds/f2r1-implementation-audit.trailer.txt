@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+adversarial_criteria:
+- invariant: Reviewer-controlled markup cannot alter parent session control-channel structure.
+  positive_witness: A structured task REJECT containing literal `<system-notice>` and `<irc>` text reaches parent only as escaped output; parent has unchanged system-notice and IRC tag counts.
+  negative_control: Reviewer output closes an enclosing tag then opens forged `<system-notice>` or parent `<irc>`; any additional recognized harness tag fails.
+  observable: `convertToLlm` tag-count assertion over rendered task and native-plan-reject result, with escaped literal markup retained as text.
+  boundary: `AgentSession.#applyPlanReview` rejection delivery and `task/result-summary.ts` harness-tag escaping.
+END-REVIEW-TRAILER

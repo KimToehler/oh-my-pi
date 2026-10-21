@@ -1,0 +1,19 @@
+{
+  "fixture": "DOMAIN-1-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-1-neg/a2/2026-10-19T09-20-18-583Z_01a15376-3697-70c7-9a34-2472e18dbf43/GradualFox.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "DOMAIN 1",
+    "DOMAIN 2",
+    "Correctness"
+  ],
+  "defects": [
+    "Task has no valid starting point or named test.",
+    "No discriminating target-environment control proves verifier check runs there rather than only passing on host.",
+    "Foreign container run lacks required runtime-file inventory and real-agent target control.",
+    "Installed dependency tree has no defined persistence from build to verifier."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-4-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-4-pos/a1/2026-10-19T09-59-26-940Z_01a1539a-0bdc-71f2-a90d-ee5e43907c7e/LivelyWalrus.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 4"
+  ],
+  "defects": [
+    "`FitnessReport.requestsPerTask` alone cannot feed `compareEfficiency`'s paired geometric-mean calculation.",
+    "Plan changes compared metric but omits required scope contract and delegation-shift control."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "V2-CHECK-8-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-8-pos/a1/2026-10-19T09-57-30-143Z_01a15398-439f-741c-b320-0e0afed0ba6b/AcademicAnteater.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 8, narrow defaults, explicit choice, no silent runtime fallback"
+  ],
+  "defects": [
+    "`manager.host` adds second bind-address source but plan defines no precedence with existing explicit `--host`, no validation/allow-set for config value, and no report of selected source/address. Conflict cannot be resolved deterministically."
+  ]
+}

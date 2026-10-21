@@ -1,0 +1,22 @@
+bun test v1.4.2 (50a8a8387)
+
+packages/coding-agent/test/bundled-agent-parsing.test.ts:
+49 | 	// let the reviewer write files or slip an unknown verdict past the outcome rules.
+50 | 	it("parses plan-reviewer as a read-only agent whose output schema only accepts OKAY or REJECT", () => {
+51 | 		const planReviewer = getBundledAgent("plan-reviewer");
+52 | 		expect(planReviewer?.tools).toEqual(["read", "grep", "glob"]);
+53 | 		// review-work's fix-delta dispatch runs plan-reviewer through task, where task.structured defaults off; without the flag the verdict arrives as prose the gate cannot read.
+54 | 		expect(planReviewer?.structured).toBe(true);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: undefined
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/evo2-reviewer-checks/packages/coding-agent/test/bundled-agent-parsing.test.ts:54:36)
+(fail) bundled agent parsing > parses plan-reviewer as a read-only agent whose output schema only accepts OKAY or REJECT [0.19ms]
+
+ 4 pass
+ 1 fail
+ 16 expect() calls
+Ran 5 tests across 1 file. [320.00ms]

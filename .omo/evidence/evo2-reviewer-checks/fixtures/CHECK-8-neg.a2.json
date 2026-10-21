@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-8-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-8-neg/a2/2026-10-19T09-20-06-222Z_01a15376-064e-7371-964c-dfecaef674c1/CrazyTarsier.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 8 — narrow defaults, explicit choice, no silent runtime fallback",
+    "Executability / verification"
+  ],
+  "defects": [
+    "`bind` has loopback default, but plan never says how caller sets it, how server reports effective bind, or what occurs for invalid/unbindable value. Verification only proves default. Broken config wiring, ignored override, or silent fallback to loopback passes proposed checks.",
+    "Named test command targets nonexistent file, so plan has no runnable concrete QA starting point."
+  ]
+}

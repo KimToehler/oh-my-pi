@@ -1,0 +1,19 @@
+{
+  "fixture": "V2-DOMAIN-3-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-neg/a1/2026-10-19T09-58-48-333Z_01a15399-750d-7312-ad3f-cc508e159ac9/AcuteSkink.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 3",
+    "DOMAIN 1",
+    "DOMAIN 2"
+  ],
+  "defects": [
+    "Plan adds retries without preserving request bytes for replay. Current forwarding passes one-shot `request.body` directly to upstream fetch; second POST after 502/503 can use consumed/locked stream or send no body.",
+    "Plan classifies upstream-provider loss as model outcome when proxy stays live. Upstream is listed as runtime dependency, so its loss must be infrastructure failure, never subject result.",
+    "Plan has no environment contract for its test/control phases.",
+    "Plan lacks foreign-runtime inventory and real-agent target-environment control."
+  ]
+}

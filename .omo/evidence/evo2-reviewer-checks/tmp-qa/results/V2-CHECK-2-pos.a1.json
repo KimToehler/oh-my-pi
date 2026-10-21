@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-2-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-pos/a1/2026-10-19T09-55-26-704Z_01a15396-6170-74b8-85ce-e75c52ff7efa/SpareCaterpillar.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / CHECK 6",
+    "CHECK 2"
+  ],
+  "defects": [
+    "Plan changes only stored-cache comparison. It leaves pending-upload coalescing MIME-blind, so concurrent requests for identical bytes/account/provider but different MIME types share first upload handle.",
+    "Plan invokes content-hash cache identity but does not inventory all result inputs, bind/exclude each, or specify control per input."
+  ]
+}

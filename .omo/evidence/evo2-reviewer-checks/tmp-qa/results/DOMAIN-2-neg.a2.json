@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-2-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-2-neg/a2/2026-10-19T09-20-42-460Z_01a15376-93dc-7741-8f62-91d7a3621d54/CurlyCanid.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 2, executing is a sink",
+    "CHECK 2, complete identity"
+  ],
+  "defects": [
+    "Required runtime-file inventory absent; planned QA never starts real agent in target container.",
+    "Planned identity hashes only tracked git diff while bind-mount exposes bytes outside that set."
+  ]
+}

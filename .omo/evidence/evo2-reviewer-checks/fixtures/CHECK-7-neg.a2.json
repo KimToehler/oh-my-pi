@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-7-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-7-neg/a2/2026-10-19T09-19-55-912Z_01a15375-de08-730e-a39d-716ee666061d/MagneticCarp.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "CHECK 7 — Verification"
+  ],
+  "defects": [
+    "Plan names source consumer and test target that do not exist, with no task to create hash consumer or wire either consumer to shared function.",
+    "Control compares outputs only. Two separate `git ls-files` calls produce identical file lists, so control passes even if requirement \"one enumeration\" is broken."
+  ]
+}

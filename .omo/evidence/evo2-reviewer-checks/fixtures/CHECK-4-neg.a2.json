@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-4-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-4-neg/a2/2026-10-19T09-19-29-594Z_01a15375-773a-7042-b15c-874746269b3a/GrossBuzzard.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Executability",
+    "Quality and verification"
+  ],
+  "defects": [
+    "Task has no valid starting file. Cited implementation path does not exist.",
+    "Only planned test command cannot verify proposed run-completeness behavior."
+  ]
+}

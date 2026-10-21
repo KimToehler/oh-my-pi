@@ -1,0 +1,13 @@
+{
+  "fixture": "DOMAIN-3-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-3-neg/a2/2026-10-19T09-21-01-255Z_01a15376-dd47-70fe-86bb-aedbc53832bf/XericScorpion.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 3, liveness is provenance"
+  ],
+  "defects": [
+    "Approach says “Proxy tokens are persisted with the run, so a manager restart re-registers them.” Existing proxy tokens are deliberately never persisted and live only in manager memory. Manager shutdown clears registrations. A manager restart while child runner still runs leaves its old token invalid; plan gives no fail-closed handling or restart control."
+  ]
+}

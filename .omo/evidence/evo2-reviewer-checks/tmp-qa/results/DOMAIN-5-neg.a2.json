@@ -1,0 +1,15 @@
+{
+  "fixture": "DOMAIN-5-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-5-neg/a2/2026-10-19T09-21-49-203Z_01a15377-9893-7442-abfc-c6c3dae54d87/PoorWallaby.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 5"
+  ],
+  "defects": [
+    "Approach says dominance replacement changes `transcript.ts`; snapshot selection lives in `transcript-task.ts`. Planned file has only event routing and delegates all replacement decisions.",
+    "Replacement order says cost participates in component-wise dominance, but gives no defined ordering for nullable/unknown cost and conflicts with existing rule, which excludes cost from dominance. This leaves required replay policy non-executable."
+  ]
+}

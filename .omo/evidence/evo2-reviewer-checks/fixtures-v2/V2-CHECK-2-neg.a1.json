@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-2-neg",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-2-neg/a1/2026-10-19T09-55-26-704Z_01a15396-6170-75ef-b86a-775315cad1b0/EntireMongoose.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 6, entry-path parity"
+  ],
+  "defects": [
+    "Changing only stored-cache comparison cannot stop MIME-unsafe reuse inside ProviderFileManager. Same decoded bytes with different MIME types are collapsed before cache access; separate concurrent calls also share one pending upload without MIME in key.",
+    "New MIME key lacks complete entry-path inventory and per-path controls. Plan names cache APIs/load but omits ProviderFileManager grouping, in-flight dedup, and rejection invalidation consumer."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-8-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-8-pos/a2/2026-10-19T09-20-15-148Z_01a15376-292c-725e-b575-c027f8ace38a/SpotlessHedgehog.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 8"
+  ],
+  "defects": [
+    "Task cannot start at cited implementation location.",
+    "Plan adds broad network default plus silent ambiguous run selection without required contract."
+  ]
+}

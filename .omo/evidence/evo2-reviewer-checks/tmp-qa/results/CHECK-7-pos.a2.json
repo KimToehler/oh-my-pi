@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-7-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-7-pos/a2/2026-10-19T09-19-58-222Z_01a15375-e70e-77a3-8ff0-68f05145652a/HotBaboon.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 7, one truth per concept",
+    "Executability"
+  ],
+  "defects": [
+    "Plan knowingly creates two independent staged-tree derivations: `stage.ts` gets files with `git ls-files`; `hash.ts` independently walks with `readdir`. No shared function/artifact or reason why sharing impossible.",
+    "Plan's two implementation starting points do not exist."
+  ]
+}

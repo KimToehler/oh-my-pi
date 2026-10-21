@@ -1,0 +1,17 @@
+{
+  "fixture": "F-D1",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a1/2026-10-19T09-31-43-370Z_01a15380-a98a-7247-94c7-222880517b55/TenseWarbler.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 4, decision predicate",
+    "DOMAIN 6, run identity"
+  ],
+  "defects": [
+    "Fix entry gives no actual change, test, or QA. Both diff lines say `... diff body omitted`, so reviewer cannot verify claimed repair reaches any callsite or preserves claim lifecycle.",
+    "Job-name claim is admission decision, but delta defines neither acceptance predicate nor outcomes for missing/corrupt/partial claim state. No negative control covers missing or still-running state.",
+    "Job-name claim changes run naming/claim path under `packages/metaharness/`, but plan lacks required entry-path inventory and fresh-name reuse control."
+  ]
+}

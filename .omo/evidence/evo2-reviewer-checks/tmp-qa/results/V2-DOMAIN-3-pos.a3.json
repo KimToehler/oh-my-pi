@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-3-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-pos/a3/2026-10-19T10-13-13-571Z_01a153a6-a8e3-73cf-994d-ee9859b57363/TechnologicalTiglon.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 3"
+  ],
+  "defects": [
+    "Plan retries request after 502/503 but never defines how original request body stays available for retry. Proxy forwards live `request.body` straight into first upstream fetch; normal model POST retry must send identical body again. Planned tests name only files, no assertion that retry receives same method/body and succeeds after first 502/503.",
+    "Plan changes runtime provider dependency behavior but omits mandatory liveness/provenance contract and loss control."
+  ]
+}

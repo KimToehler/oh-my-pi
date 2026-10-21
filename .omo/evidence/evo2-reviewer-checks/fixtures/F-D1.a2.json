@@ -1,0 +1,15 @@
+{
+  "fixture": "F-D1",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-D1/a2/2026-10-19T09-34-07-045Z_01a15382-dac5-75a5-b2d8-45ad2b707960/ShiveringLlama.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "DOMAIN 6, run identity"
+  ],
+  "defects": [
+    "Fix entry gives no actual change design, full diff, callsite path, or QA. It cannot show how job-name claim gets repaired.",
+    "Job-name claim changes run naming/claim semantics, but plan omits required identity inventory and fresh-launch reuse control."
+  ]
+}

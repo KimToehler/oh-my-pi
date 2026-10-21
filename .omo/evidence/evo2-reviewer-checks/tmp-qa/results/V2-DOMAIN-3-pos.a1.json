@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-DOMAIN-3-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-3-pos/a1/2026-10-19T09-58-57-865Z_01a15399-9a49-75df-8ffa-82d3ea2d0f08/HilariousOstrich.json",
+  "verdict": "REJECT",
+  "areas": [
+    "DOMAIN 3",
+    "Correctness"
+  ],
+  "defects": [
+    "Plan adds retry around live provider dependency but omits required provenance contract and control. Exhausted upstream failure can still become model result.",
+    "Retry design lacks request-byte and duplicate-execution contract for forwarded model POSTs."
+  ]
+}

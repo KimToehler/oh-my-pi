@@ -1,0 +1,17 @@
+{
+  "fixture": "F-A1-fixed",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A1-fixed/a2/2026-10-19T09-23-10-797Z_01a15378-d74d-731e-86d8-a16d21777863/UniqueToad.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness / executability",
+    "CHECK 6, entry-path parity",
+    "Verification"
+  ],
+  "defects": [
+    "Step 1 assigns snapshot read and executor-prompt construction to `approved-plan.ts`, but that module only resolves proposal data. TUI executor reads path in `handlePlanApproval` and renders prompt in `#approvePlan`; no planned caller connects new buffer to either. Change confined to named file leaves live TUI flow unchanged.",
+    "Plan introduces verified-snapshot rule for plan execution but lists no execution paths or per-path application. ACP and PlanYolo independently select execution reference paths, while TUI has separate approval flow. One unspecified \"executor\" path can pass while another still consumes mutable bytes.",
+    "Listed test command and generic rewrite control do not prove live executor prompt uses verified buffer. Existing test file exercises `AgentSession.adoptApprovedPlan`, not TUI approval/prompt dispatch; regression in `handlePlanApproval` second read remains green."
+  ]
+}

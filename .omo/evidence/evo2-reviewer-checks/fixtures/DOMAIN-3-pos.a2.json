@@ -1,0 +1,17 @@
+{
+  "fixture": "DOMAIN-3-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/DOMAIN-3-pos/a2/2026-10-19T09-21-11-116Z_01a15377-03cc-703b-ade0-0b3ddabb5c87/IndirectLobster.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "DOMAIN 3, liveness is provenance",
+    "Executability"
+  ],
+  "defects": [
+    "Approach rests on false lifecycle claim. Runner does not start token proxy; it adopts externally managed proxy from manager environment.",
+    "Runtime dependency plus detached agents triggers DOMAIN 3, but plan lacks required dependency lifecycle table and loss controls.",
+    "Only listed verification cannot validate this fixture or stated behavior."
+  ]
+}

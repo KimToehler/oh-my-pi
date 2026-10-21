@@ -1,0 +1,13 @@
+{
+  "fixture": "F-A1",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A1/a1/2026-10-19T08-50-09-750Z_01a1535a-9cd6-72d6-a2b4-73af5d7f64de/ContinuousTarsier.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 5 — verified bytes are used bytes"
+  ],
+  "defects": [
+    "Plan hashes snapshot, then later reopens same mutable path for executor prompt. Hash check does not bind bytes executor uses."
+  ]
+}

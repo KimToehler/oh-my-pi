@@ -1,0 +1,15 @@
+{
+  "fixture": "CHECK-1-pos",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/CHECK-1-pos/a1/2026-10-19T08-53-32-092Z_01a1535d-b33c-77d1-9cf3-f402db2f5ecb/RubberCatshark.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 1 — holders and sinks",
+    "Executability / verification"
+  ],
+  "defects": [
+    "Protected `OMP_DEMO_TOKEN` plan lacks required complete holder/sink inventory and sentinel negative control.",
+    "Plan claims existing helper target, but target directory and token references do not exist; sole test is unrelated plan-review suite."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "fixture": "V2-DOMAIN-2-neg",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-DOMAIN-2-neg/a2/2026-10-19T10-05-35-445Z_01a1539f-ab55-7159-85dd-a361f917b5ab/RandomJackal.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 2, complete identity",
+    "CHECK 5, verified bytes are used bytes",
+    "Executability"
+  ],
+  "defects": [
+    "Host `node_modules` cannot replace Linux deps tree. Plan mounts host install into Linux agent, so native/platform-specific packages may be Darwin bytes and fail in target container.",
+    "New dependency identity omits target runtime inputs and lacks per-input discrimination controls. `nodeModulesTreeHash` alone does not bind target arch/platform or Bun runtime, while current deps output depends on both.",
+    "Plan hashes mutable host `node_modules` then later bind-mounts path. Files may change after hash verification and before/during container use; stated mismatch check does not pin bytes.",
+    "Plan cites wrong overlay file and tests omit runner path where dependency preparation, mount selection, and launch refusal happen. Listed tests cannot establish live-agent control."
+  ]
+}

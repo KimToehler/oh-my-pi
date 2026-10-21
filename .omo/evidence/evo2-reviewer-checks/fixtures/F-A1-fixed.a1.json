@@ -1,0 +1,15 @@
+{
+  "fixture": "F-A1-fixed",
+  "attempt": "1",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/F-A1-fixed/a1/2026-10-19T08-56-17-438Z_01a15360-391e-7783-b37f-fb8155d4389e/MinorKiwi.json",
+  "verdict": "REJECT",
+  "areas": [
+    "CHECK 5 — verified bytes used bytes",
+    "CHECK 6 — entry-path parity"
+  ],
+  "defects": [
+    "Verification lacks source-mutation control. Running named suite does not specify test that changes source after digest/read and proves executor uses retained verified buffer or rejects.",
+    "Plan names one unspecified executor build path. Two consumers adopt reviewed plans, so change can leave one path executing unchecked bytes."
+  ]
+}

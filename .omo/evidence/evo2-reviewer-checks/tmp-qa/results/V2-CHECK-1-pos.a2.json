@@ -1,0 +1,15 @@
+{
+  "fixture": "V2-CHECK-1-pos",
+  "attempt": "2",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-1-pos/a2/2026-10-19T10-02-11-386Z_01a1539c-8e3a-7543-a4eb-649c40e99f50/ExcitingVulture.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 1, holders and sinks"
+  ],
+  "defects": [
+    "Pinggy credential remains process argv, direct violation of goal.",
+    "Plan lacks required credential holder/sink inventory, named chokepoint coverage, and artifact-wide sentinel negative control."
+  ]
+}

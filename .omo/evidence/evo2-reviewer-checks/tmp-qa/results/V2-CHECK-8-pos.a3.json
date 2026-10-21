@@ -1,0 +1,17 @@
+{
+  "fixture": "V2-CHECK-8-pos",
+  "attempt": "3",
+  "status": "ok",
+  "path": "/tmp/evo2-qa/runs/V2-CHECK-8-pos/a3/2026-10-19T10-10-36-692Z_01a153a4-4414-768c-8a13-9fccb4adced3/MadConstrictor.json",
+  "verdict": "REJECT",
+  "areas": [
+    "Correctness",
+    "CHECK 8",
+    "DOMAIN 1"
+  ],
+  "defects": [
+    "`manager.host` has no planned consumption path. Adding it to `models.yml` alone cannot change manager bind address.",
+    "New LAN bind option lacks required explicit selection contract, deterministic precedence, reporting, and controls.",
+    "Verification command lacks environment contract and target-environment control."
+  ]
+}
