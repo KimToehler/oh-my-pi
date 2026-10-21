@@ -637,40 +637,6 @@ describe("installTeamConfig", () => {
 			expect(second.backupDir).toBeUndefined();
 		});
 
-		test("backs up an edited manifest whose sidecar still holds the old hash, together with that sidecar", async () => {
-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
-			await t.install();
-			const oldSidecar = await t.read(t.agent(sidecarName));
-			const edited = `${JSON.stringify(await Bun.file(t.agent(manifestName)).json())}\n\n`;
-			await Bun.write(t.agent(manifestName), edited);
-			const report = await t.install();
-			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(edited);
-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe(oldSidecar);
-			expect(report.backedUp).toContain(sidecarName);
-			const next = await t.install();
-			expect(next.backupDir).toBeUndefined();
-		});
-
-		test("backs up a user-created sidecar the installer did not write", async () => {
-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
-			await fs.mkdir(t.agentDir, { recursive: true });
-			await Bun.write(t.agent(sidecarName), "notes\n");
-			const report = await t.install();
-			expect(report.backedUp).toContain(sidecarName);
-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe("notes\n");
-			expect(await t.read(t.agent(sidecarName))).not.toBe("notes\n");
-		});
-
-		test("backs up an edited sidecar and the manifest it no longer matches", async () => {
-			const t = await setup({ "agent/AGENTS.md": "v1\n" });
-			await t.install();
-			const manifest = await t.read(t.agent(manifestName));
-			await Bun.write(t.agent(sidecarName), "other\n");
-			const report = await t.install();
-			expect(await t.read(path.join(report.backupDir!, sidecarName))).toBe("other\n");
-			expect(await t.read(path.join(report.backupDir!, manifestName))).toBe(manifest);
-		});
-
 		test("rejects a symlinked sidecar before any mutation", async () => {
 			const t = await setup({ "agent/AGENTS.md": "v1\n" });
 			await t.install();

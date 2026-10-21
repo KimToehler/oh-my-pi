@@ -546,11 +546,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	// A manifest the installer did not write (no matching sidecar) is copied into the run's backup dir before the first
 	// manifest write of the run, so a hand-written file is never silently replaced.
 	let manifestBackupPending = needsManifestBackup;
-	// A sidecar that is not exactly `<sha256 of the current manifest>\n` (or that exists with no manifest) was not written
-	// by this installer for this manifest; it is copied into the backup dir before the first sidecar replacement.
-	let sidecarBackupPending =
-		sidecarBytes !== undefined &&
-		(manifestBytes === undefined || !Buffer.from(sidecarBytes).equals(Buffer.from(`${hashBytes(manifestBytes)}\n`)));
 	const persist = async (kind: "intent" | "partial" | "final", manifest: Manifest): Promise<void> => {
 		await options.writeManifestHook?.(kind);
 		if (manifestBackupPending) {
@@ -560,10 +555,6 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			}
 			await backup(MANIFEST_NAME, "copy");
 			manifestBackupPending = false;
-		}
-		if (sidecarBackupPending) {
-			await backup(SIDECAR_NAME, "copy");
-			sidecarBackupPending = false;
 		}
 		await writeManifest(manifestPath, manifest, expectedManifest);
 		expectedManifest = manifestBytesOf(manifest);
