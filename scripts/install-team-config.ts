@@ -54,6 +54,25 @@ export interface InstallReport {
 	backupDir?: string;
 }
 
+function entryKind(e: {
+	isSymbolicLink(): boolean;
+	isFile(): boolean;
+	isDirectory(): boolean;
+	isFIFO(): boolean;
+	isSocket(): boolean;
+	isCharacterDevice(): boolean;
+	isBlockDevice(): boolean;
+}): string {
+	if (e.isSymbolicLink()) return "symlink";
+	if (e.isFile()) return "file";
+	if (e.isDirectory()) return "directory";
+	if (e.isFIFO()) return "fifo";
+	if (e.isSocket()) return "socket";
+	if (e.isCharacterDevice()) return "character device";
+	if (e.isBlockDevice()) return "block device";
+	return "unknown";
+}
+
 /** Sorted relative file paths under `root`. Any readdir failure throws; a missing root only passes when `optional`. */
 async function listFiles(root: string, optional = false): Promise<string[]> {
 	const out: string[] = [];
@@ -65,23 +84,17 @@ async function listFiles(root: string, optional = false): Promise<string[]> {
 			const full = path.join(dir, entry.name);
 			if (entry.isDirectory()) await walk(full, childRel);
 			else if (entry.isFile()) out.push(childRel);
-			else {
-				const kind = entry.isSymbolicLink()
-					? "symlink"
-					: entry.isFIFO()
-						? "fifo"
-						: entry.isSocket()
-							? "socket"
-							: entry.isCharacterDevice()
-								? "character device"
-								: entry.isBlockDevice()
-									? "block device"
-									: "unknown";
-				throw new Error(`Unsupported entry in team config source (${kind}): ${full}`);
-			}
+			else throw new Error(`Unsupported entry in team config source (${entryKind(entry)}): ${full}`);
 		}
 	}
-	if (optional && (await fs.lstat(root).then(() => false, isEnoent))) return [];
+	const rootStat = await fs.lstat(root).catch(err => {
+		if (optional && isEnoent(err)) return undefined;
+		throw err;
+	});
+	if (!rootStat) return [];
+	if (!rootStat.isDirectory()) {
+		throw new Error(`Unsupported entry in team config source (${entryKind(rootStat)}): ${root}`);
+	}
 	await walk(root, "");
 	return out.sort();
 }

@@ -216,6 +216,28 @@ describe("installTeamConfig", () => {
 		await expect(fs.lstat(t.agent("a.md"))).rejects.toThrow("ENOENT");
 	});
 
+	test("rejects a managed source root replaced by a symlink and keeps installed files", async () => {
+		const t = await setup({ "agent/rules/a.md": "team\n" });
+		await t.install();
+		const manifestBefore = await t.read(t.agent(".team-config-manifest.json"));
+		const empty = path.join(path.dirname(t.agentDir), "empty-source");
+		await fs.mkdir(empty, { recursive: true });
+		await fs.rm(t.repo("agent"), { recursive: true });
+		await fs.symlink(empty, t.repo("agent"));
+		await expect(t.install()).rejects.toThrow(t.repo("agent"));
+		expect(await t.read(t.agent("rules/a.md"))).toBe("team\n");
+		expect(await t.read(t.agent(".team-config-manifest.json"))).toBe(manifestBefore);
+	});
+
+	test("rejects a symlinked seed root without seeding", async () => {
+		const t = await setup({ "agent/a.md": "a\n" });
+		const real = path.join(path.dirname(t.agentDir), "real-seed");
+		await Bun.write(path.join(real, "config.yml"), "team: 1\n");
+		await fs.symlink(real, t.repo("seed"));
+		await expect(t.install()).rejects.toThrow(t.repo("seed"));
+		await expect(fs.lstat(t.agent("config.yml"))).rejects.toThrow("ENOENT");
+	});
+
 	test("never overwrites a pre-existing backup file that shares the run's timestamp", async () => {
 		const t = await setup({ "agent/rules/a.md": "v1\n" });
 		await t.install();
