@@ -93,6 +93,8 @@ export class GoalHostController {
 	#previousTools: string[] | undefined;
 	/** Bumped by every reconcile; an entry compares it to detect that a new owner took over. */
 	#reconcileEpoch = 0;
+	/** Fenced entries between their start and their commit or abandonment. */
+	#fencedEntries = 0;
 	/** `goal` an in-flight fenced entry adds to the tool set; a reconcile must not read it as the owner's own choice. */
 	#entryAddedGoalTool = 0;
 	/** Tool set the latest reconcile found for its owner once the previous owner's goal tools were restored. */
@@ -351,6 +353,16 @@ export class GoalHostController {
 	}
 
 	async #enter(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
+		if (!options?.fence) return await this.#enterOwned(start, options);
+		this.#fencedEntries++;
+		try {
+			await this.#enterOwned(start, options);
+		} finally {
+			this.#fencedEntries--;
+		}
+	}
+
+	async #enterOwned(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
 		// The pre-goal tool set is captured once, when this controller first adds `goal`
 		// (a reattached paused goal already holds it). A `goal` tool the host enabled
 		// before the goal stays enabled afterwards.
@@ -463,7 +475,8 @@ export class GoalHostController {
 		await this.#exitTask;
 		await this.#exit();
 		this.#reconcileEpoch++;
-		this.#ownerTools = this.#ownerToolNames();
+		// Only a fenced entry still in flight can later overwrite this owner's tools.
+		this.#ownerTools = this.#fencedEntries > 0 ? this.#ownerToolNames() : undefined;
 		this.#session.setGoalModeState(undefined);
 		const context = this.#session.sessionManager.buildSessionContext();
 		const runtime = this.#session.goalRuntime;
