@@ -509,6 +509,8 @@ export class GoalRuntime {
 		return await this.#withAccounting(async () => {
 			if (reservation) this.#gate?.admitToolMutation(reservation);
 			await this.#flushUsageLocked("suppressed");
+			// The flush awaits event delivery; the owner may have changed meanwhile.
+			if (reservation) this.#gate?.admitToolMutation(reservation);
 			const state = this.#getStateClone();
 			if (!state?.goal) return undefined;
 			const dropped = { ...state.goal, status: "dropped" as const, updatedAt: this.#now() };
@@ -519,6 +521,8 @@ export class GoalRuntime {
 				goal: dropped,
 				state: { ...state, enabled: false, goal: dropped },
 			});
+			// The dropped event awaited delivery; refuse the clear if the owner moved on meanwhile.
+			if (reservation) this.#gate?.admitToolMutation(reservation);
 			await this.#commitState(undefined, { persist: "none", emit: false });
 			return dropped;
 		});
@@ -529,6 +533,8 @@ export class GoalRuntime {
 		return await this.#withAccounting(async () => {
 			if (reservation) this.#gate?.admitToolMutation(reservation);
 			await this.#flushUsageLocked("suppressed");
+			// The flush awaits event delivery; the owner may have changed meanwhile.
+			if (reservation) this.#gate?.admitToolMutation(reservation);
 			const state = this.#getStateClone();
 			if (!state?.goal) {
 				throw new Error("cannot complete goal because no goal is active");

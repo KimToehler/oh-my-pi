@@ -91,6 +91,12 @@ export class GoalHostController {
 	readonly #canAutoContinue: (() => boolean) | undefined;
 	/** Active tool set before goal mode added `goal`; restored when the goal ends. */
 	#previousTools: string[] | undefined;
+	/** Bumped by every reconcile; an entry compares it to detect that a new owner took over. */
+	#reconcileEpoch = 0;
+	/** `goal` an in-flight fenced entry adds to the tool set; a reconcile must not read it as the owner's own choice. */
+	#entryAddedGoalTool = 0;
+	/** Tool set the latest reconcile found for its owner once the previous owner's goal tools were restored. */
+	#ownerTools: string[] | undefined;
 	/** Continuation turns submitted whose terminal `agent_end` has not arrived. */
 	#pendingContinuationTurns = 0;
 	#previousContinuationActivity: string | undefined;
@@ -349,18 +355,40 @@ export class GoalHostController {
 		// (a reattached paused goal already holds it). A `goal` tool the host enabled
 		// before the goal stays enabled afterwards.
 		const previousTools = this.#previousTools ?? this.#session.getEnabledToolNames();
+		const epoch = this.#reconcileEpoch;
 		const state = await start();
-		this.#previousTools = previousTools;
-		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
+		if (options?.fence && !options.fence()) {
+			// Owner already moved on before any tool swap: nothing of this entry touched the tools.
+			await this.settled();
+			throw new GoalEntryAbandoned();
+		}
+		const addsGoalTool = options?.fence !== undefined && !previousTools.includes("goal");
+		if (addsGoalTool) this.#entryAddedGoalTool++;
+		try {
+			await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
+		} finally {
+			if (addsGoalTool) this.#entryAddedGoalTool--;
+		}
 		if (options?.fence && !options.fence()) {
 			// The host's owner of this entry moved on (an ACP session change) while the tool swap
 			// was running. The new owner's reconcile already replaced goal state and tools, so this
 			// entry's late swap is undone, deterministically, and its state is never installed.
+			// `#previousTools` is committed only by an entry that wins its fence, so after a reconcile
+			// it is the snapshot taken for the new owner; the tools restored are the new owner's,
+			// never this entry's (the old transcript's) `previousTools`.
 			await this.settled();
-			const current = this.#session.getGoalModeState();
-			await this.#session.setActiveToolsByName(current ? [...new Set([...previousTools, "goal"])] : previousTools);
+			let restore: string[];
+			if (this.#reconcileEpoch === epoch) {
+				restore = this.#session.getGoalModeState() ? [...new Set([...previousTools, "goal"])] : previousTools;
+			} else if (this.#previousTools) {
+				restore = [...new Set([...this.#previousTools, "goal"])];
+			} else {
+				restore = this.#ownerTools ?? previousTools;
+			}
+			await this.#session.setActiveToolsByName(restore);
 			throw new GoalEntryAbandoned();
 		}
+		this.#previousTools = previousTools;
 		this.#session.setGoalModeState(state);
 		this.#resetContinuation();
 		if (this.#session.isStreaming) {
@@ -434,6 +462,8 @@ export class GoalHostController {
 		this.#continuationGeneration++;
 		await this.#exitTask;
 		await this.#exit();
+		this.#reconcileEpoch++;
+		this.#ownerTools = this.#ownerToolNames();
 		this.#session.setGoalModeState(undefined);
 		const context = this.#session.sessionManager.buildSessionContext();
 		const runtime = this.#session.goalRuntime;
@@ -450,9 +480,15 @@ export class GoalHostController {
 		this.#session.setGoalModeState({ enabled: context.mode === "goal", mode: "active", goal });
 		const restored = await runtime.onThreadResumed({ preserveActiveGoal: options?.preserveActiveGoal });
 		if (!restored?.goal) return;
-		const previousTools = this.#session.getEnabledToolNames();
+		const previousTools = this.#ownerToolNames();
 		this.#previousTools = previousTools;
 		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
+	}
+
+	/** The enabled tools minus the `goal` a fenced entry's still-running swap added for itself. */
+	#ownerToolNames(): string[] {
+		const names = this.#session.getEnabledToolNames();
+		return this.#entryAddedGoalTool > 0 ? names.filter(name => name !== "goal") : names;
 	}
 
 	/**

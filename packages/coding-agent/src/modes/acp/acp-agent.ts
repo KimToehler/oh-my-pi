@@ -1306,10 +1306,10 @@ export class AcpAgent implements Agent {
 		// Before the abort: the aborted run's own agent_end must not schedule a goal turn, and its
 		// late interrupted pause is bound to the transcript running now. The actor compensates any
 		// goal entry Stop overtook on its own lane; Stop answers the client without waiting for it.
-		void record.goal.stop();
+		const goalStop = record.goal.stop();
 		promptTurn.abortController.abort();
 		promptTurn.unsubscribe?.();
-		const cleanup = this.#runCancelCleanup(record, promptTurn);
+		const cleanup = this.#runCancelCleanup(record, promptTurn, goalStop.abortSettled);
 		promptTurn.cleanup = cleanup;
 		this.#finishPrompt(record, {
 			stopReason: "cancelled",
@@ -1318,17 +1318,28 @@ export class AcpAgent implements Agent {
 		return cleanup;
 	}
 
-	async #runCancelCleanup(record: ManagedSessionRecord, promptTurn: PromptTurnState): Promise<void> {
+	async #runCancelCleanup(
+		record: ManagedSessionRecord,
+		promptTurn: PromptTurnState,
+		abortSettled: () => void,
+	): Promise<void> {
 		let timer: NodeJS.Timeout | undefined;
+		// The interrupted pause stays bound to this abort until the abort itself settles, even when the
+		// cleanup timeout wins the race below and the session is being closed.
+		const abort = (async () => {
+			try {
+				await record.session.abort({ reason: USER_INTERRUPT_LABEL });
+			} finally {
+				abortSettled();
+			}
+		})();
 		const timeout = new Promise<never>((_, reject) => {
 			timer = setTimeout(() => reject(new Error("ACP cancel cleanup timed out")), this.#cancelCleanupTimeoutMs);
 		});
 		try {
-			await Promise.race([record.session.abort({ reason: USER_INTERRUPT_LABEL }), timeout]);
+			await Promise.race([abort, timeout]);
 		} finally {
 			if (timer) clearTimeout(timer);
-			// The interrupted run has unwound: its pause no longer applies to a later transcript's goal.
-			record.goal.abortSettled();
 			// Order matters: clear `cleanup` before evicting the slot so the slot-eviction
 			// branch matches what `#finishPrompt` saw if it ran first.
 			promptTurn.cleanup = undefined;

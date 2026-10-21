@@ -80,6 +80,12 @@ export interface AcpPromptAdmission {
 	release(): void;
 }
 
+/** A Stop in flight: the release of its interrupted-pause binding. */
+export interface AcpGoalStop {
+	/** Call when the underlying `session.abort()` has settled, never on a cleanup timeout alone. */
+	abortSettled(): void;
+}
+
 interface Stamp {
 	transcript: number;
 	changes: number;
@@ -149,8 +155,12 @@ export class AcpGoalActor {
 	/** Extension session changes begun and not yet ended. */
 	#sessionChanges = 0;
 	#transcriptBeforeChange: string | undefined;
-	/** Transcript generation a Stop's abort began in; undefined while no Stop's abort is unwinding. */
-	#abortTranscript: number | undefined;
+	/**
+	 * Transcript generation of each Stop's abort that has not settled yet. Each abort owns its
+	 * entry until the underlying `session.abort()` itself settles (not when a cleanup timeout wins).
+	 */
+	readonly #aborts = new Set<{ transcript: number }>();
+	#disposed = false;
 
 	/** Explicit mode transitions in flight; lifecycle sync is held back while above zero. */
 	#explicit = 0;
@@ -201,13 +211,19 @@ export class AcpGoalActor {
 			admitInterruptPause: () => {
 				// The pause belongs to the transcript the Stop interrupted; a new transcript's goal is not its.
 				this.#syncTranscript();
-				return this.#abortTranscript === undefined || this.#abortTranscript === this.#transcriptGeneration;
+				for (const abort of this.#aborts) if (abort.transcript !== this.#transcriptGeneration) return false;
+				return true;
 			},
 		});
 	}
 
+	/**
+	 * The gate outlives disposal while an abort is still unwinding: its late interrupted pause must
+	 * still be refused for a goal the transcript switch adopted. It is removed when the last settles.
+	 */
 	dispose(): void {
-		this.#session.goalRuntime.setMutationGate(undefined);
+		this.#disposed = true;
+		if (this.#aborts.size === 0) this.#session.goalRuntime.setMutationGate(undefined);
 	}
 
 	/**
@@ -351,17 +367,18 @@ export class AcpGoalActor {
 	/**
 	 * The client pressed Stop. Synchronous part, before the abort starts: the aborted run's own
 	 * `agent_end` must not schedule a goal turn, and its late interrupted pause is bound to the
-	 * transcript running now. The returned effect compensates admissions Stop overtook (their
+	 * transcript running now, individually, until its own abort settles. A lane effect compensates admissions Stop overtook (their
 	 * entry paused, tools restored, selection kept, continuation held until the next host prompt).
 	 * Never rejects; Stop answers the client without waiting for it.
 	 */
-	stop(): Promise<void> {
+	stop(): AcpGoalStop {
 		this.#syncTranscript();
-		this.#abortTranscript = this.#transcriptGeneration;
+		const abort = { transcript: this.#transcriptGeneration };
+		this.#aborts.add(abort);
 		this.#host.stopForHostAbort();
 		const overtaken = [...this.#admissions];
 		for (const admission of overtaken) admission.stopped = true;
-		return this.#lane(async () => {
+		void this.#lane(async () => {
 			await this.#host.settled();
 			this.#syncTranscript();
 			const needsPause = overtaken.some(
@@ -376,11 +393,13 @@ export class AcpGoalActor {
 				error: error instanceof Error ? error.message : String(error),
 			});
 		});
-	}
-
-	/** The aborted run has unwound (or the abort timed out): its interrupted pause no longer applies. */
-	abortSettled(): void {
-		this.#abortTranscript = undefined;
+		return {
+			// The aborted run has unwound (the abort itself settled): its interrupted pause no longer applies.
+			abortSettled: () => {
+				this.#aborts.delete(abort);
+				if (this.#disposed && this.#aborts.size === 0) this.#session.goalRuntime.setMutationGate(undefined);
+			},
+		};
 	}
 
 	async #pauseForCancel(): Promise<void> {
