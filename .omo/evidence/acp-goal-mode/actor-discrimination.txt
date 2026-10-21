@@ -39,3 +39,35 @@ restore cmp rc= 0
 ### stamp: tool resume passes no reservation
 (fail) ACP agent > ACP Goal mode > (stamp) a goal tool resume admitted in transcript A, released after the switch to B and its reconcile, never activates B's paused goal [11.08ms]
 restore cmp rc= 0
+
+# Round 2 (rows 14-16) discrimination on 41291922d5: each guard reverted alone via backup in /tmp/disc.bak, restored and verified with cmp
+## row14 guard: post-usage-flush reservation re-check (drop+complete)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool complete suspended in its usage flush while transcript B is adopted never completes B's goal [4.95ms]
+ 5 pass
+ 1 fail
+## row14 guard: post-dropped-event reservation re-check
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal [4.17ms]
+ 5 pass
+ 1 fail
+## row15 guard: commit #previousTools only on a won fence (move commit before the fence)
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit [2.10ms]
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > without a goal in B, B's own tools are restored and A's are not installed [0.17ms]
+ 0 pass
+ 2 fail
+## row15 guard: restore the new owner's tools on abandonment (old restore)
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit [2.02ms]
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > without a goal in B, B's own tools are restored and A's are not installed [0.18ms]
+ 0 pass
+ 2 fail
+## row16 guard: abort binding released only when the abort itself settles (release on cleanup timeout)
+(fail) ACP agent > ACP Goal mode > (S×X/R) a Stop whose cleanup timed out keeps its interrupted pause bound to its own transcript until the late abort settles [40.77ms]
+ 5 pass
+ 1 fail
+## row14 note: with only the post-usage-flush re-check removed, the drop-in-usage-flush test still passes because drop's post-event re-check also refuses; complete has no second check and fails.
+## row14 combined: removing both re-checks fails all three row-14 tests (see last block above when both are removed: drop-flush, complete-flush, drop-event).
+## row14 guard: both post-await re-checks removed (all three tests)   [run separately, same procedure]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its usage flush while transcript B is adopted never drops B's goal [4.79ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool complete suspended in its usage flush while transcript B is adopted never completes B's goal [6.28ms]
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal [9.04ms]
+ 3 pass
+ 3 fail

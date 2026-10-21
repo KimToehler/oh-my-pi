@@ -145,3 +145,99 @@ Received value: undefined
  3 fail
  9 expect() calls
 Ran 3 tests across 1 file. [2.54s]
+
+# Round 2 (rows 14-16) RED: new tests applied alone onto pre-fix head 7384c41d67 (tests from 41291922d5; throwaway worktree /tmp/acp-red2, removed afterwards). They do not compile-fail against the old API; they fail on the behaviour. fc293833cb conflicts with the round-1 test hunks, so the pre-fix head is used as the assignment allows.
+bun test v1.4.2 (50a8a8387)
+test/acp-agent.test.ts:
+6122 | 
+6123 | 			abortGate.resolve();
+6124 | 			await lateAbort.promise;
+6125 | 			await eventLoopTurns(10);
+6126 | 			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+6127 | 			expect(session.goalModeState?.goal.status).toBe("active");
+                                                     ^
+error: expect(received).toBe(expected)
+Expected: "active"
+Received: "paused"
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/acp-agent.test.ts:6127:47)
+(fail) ACP agent > ACP Goal mode > (S×X/R) a Stop whose cleanup timed out keeps its interrupted pause bound to its own transcript until the late abort settles [34.52ms]
+6334 | 
+6335 | 		for (const op of ["drop", "complete"] as const) {
+6336 | 			it(`(stamp) a goal tool ${op} suspended in its usage flush while transcript B is adopted never ${op === "drop" ? "drops" : "completes"} B's goal`, async () => {
+6337 | 				const { error, session, harness } = await staleToolMutation(op, "usage flush");
+6338 | 
+6339 | 				expect(error).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class Error]
+Received value: undefined
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/acp-agent.test.ts:6339:19)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its usage flush while transcript B is adopted never drops B's goal [4.43ms]
+6334 | 
+6335 | 		for (const op of ["drop", "complete"] as const) {
+6336 | 			it(`(stamp) a goal tool ${op} suspended in its usage flush while transcript B is adopted never ${op === "drop" ? "drops" : "completes"} B's goal`, async () => {
+6337 | 				const { error, session, harness } = await staleToolMutation(op, "usage flush");
+6338 | 
+6339 | 				expect(error).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class Error]
+Received value: undefined
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/acp-agent.test.ts:6339:19)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool complete suspended in its usage flush while transcript B is adopted never completes B's goal [4.59ms]
+6345 | 		}
+6346 | 
+6347 | 		it("(stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal", async () => {
+6348 | 			const { error, session, harness } = await staleToolMutation("drop", "drop event");
+6349 | 
+6350 | 			expect(error).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class Error]
+Received value: undefined
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/acp-agent.test.ts:6350:18)
+(fail) ACP agent > ACP Goal mode > (stamp) a goal tool drop suspended in its dropped-event delivery while transcript B is adopted never clears B's goal [3.93ms]
+ 2 pass
+ 153 filtered out
+ 4 fail
+ 32 expect() calls
+Ran 6 tests across 1 file. [520.00ms]
+bun test v1.4.2 (50a8a8387)
+test/goals/goal-host-controller.test.ts:
+628 | 
+629 | 		test("with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit", async () => {
+630 | 			const { f, error } = await abandonedEntry({ goalInB: true });
+631 | 			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+632 | 			expect(f.session.getGoalModeState()?.goal.id).toBe("j1");
+633 | 			expect(f.tools()).toEqual(["read", "write", "goal"]);
+                           ^
+error: expect(received).toEqual(expected)
+@@ -2,3 +2,2 @@
+    "read",
+-   "write",
+    "goal",
+- Expected  - 1
++ Received  + 0
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/goals/goal-host-controller.test.ts:633:22)
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit [2.11ms]
+642 | 
+643 | 		test("without a goal in B, B's own tools are restored and A's are not installed", async () => {
+644 | 			const { f, error } = await abandonedEntry({ goalInB: false });
+645 | 			expect(error).toBeInstanceOf(GoalEntryAbandoned);
+646 | 			expect(f.session.getGoalModeState()).toBeUndefined();
+647 | 			expect(f.tools()).toEqual(["read", "write"]);
+                           ^
+error: expect(received).toEqual(expected)
+@@ -2,3 +2,2 @@
+    "read",
+-   "write",
+  ]
+- Expected  - 1
++ Received  + 0
+      at <anonymous> (/private/tmp/acp-red2/packages/coding-agent/test/goals/goal-host-controller.test.ts:647:22)
+(fail) GoalHostController continuation gate > an entry abandoned by its fence > without a goal in B, B's own tools are restored and A's are not installed [0.19ms]
+ 0 pass
+ 19 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [247.00ms]
