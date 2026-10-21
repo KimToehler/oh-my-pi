@@ -229,3 +229,23 @@ Received: "Plan approved at local://approved/words-counter-plan.md. Plan mode ex
 (fail) ACP agent > a reviewed approval whose snapshot adoption straddles a mode selection restores the plan reference and exits nothing [2.96ms]
  0 pass
  4 fail
+
+=== Row 24 discrimination: new head, one guard reverted at a time (file restored by cp, verified by cmp) ===
+### A reserve covers only the mode generation, not transcript/session changes (acp-goal.ts reservePlanProposal) [-t transcript switched]
+(fail) ACP agent > a refine answered after the transcript switched while the dialog was open writes nothing into the new transcript [12.96ms]
+(fail) ACP agent > a approve answered after the transcript switched while the dialog was open writes nothing into the new transcript [4.17ms]
+ 0 pass
+ 2 fail
+### B no ownership check before asking the client (acp-agent.ts) [-t still resolving]
+(fail) ACP agent > a proposal still resolving when Goal and then a new Plan were selected writes nothing into the new Plan [11.85ms]
+ 0 pass
+ 1 fail
+### C no ownership check after snapshot creation (acp-agent.ts) [-t newer approval|straddles]
+(fail) ACP agent > a reviewed approval whose snapshot creation straddles a mode selection writes no plan reference and exits nothing [12.38ms]
+(fail) ACP agent > a newer approval's plan reference survives an older reviewed approval still creating its snapshot [3.11ms]
+ 0 pass
+ 2 fail
+### D no ownership check after the review (agent-session.ts #applyPlanReview) [-t ownership lost during the review]
+(fail) plan review runtime > a host-reserved proposal ownership lost during the review writes no promotion, audit or handler call [43.66ms]
+ 0 pass
+ 1 fail
