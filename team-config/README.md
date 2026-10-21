@@ -14,7 +14,8 @@ the deploy script re-enters the flake dev shell.
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
 cd ~/git/oh-my-pi
 scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
-( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
+{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&  # absent, or a regular non-symlink file: else stop before touch/chmod
+  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
   [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&                # a directory or symlink stops here, before read
   printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&            # no echo, not in shell history (zsh and bash)
   printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY

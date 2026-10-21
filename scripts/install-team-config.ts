@@ -328,7 +328,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
 	const seeds: Array<{ rel: string; planned: DestState }> = [];
 	// Manifest to persist if phase 2 aborts midway. Rule: the previous manifest, plus the new hash for every file whose
-	// bytes now equal the source (written this run, or already identical), minus files removed this run. Planned-but-
+	// bytes now equal the source (written this run, or already identical); removed files keep their adopted intent entry. Planned-but-
 	// unapplied writes keep their previous entry (or stay absent if never installed), so the next run classifies each
 	// file by what is really on disk instead of trusting a plan that never completed.
 	const applied = newFiles();
@@ -472,7 +472,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 			} else {
 				if (!step.backup) await fs.rm(dst);
 				changed = true;
-				delete applied[step.rel];
+				// The intent entry (adopted) stays in a partial manifest; only the final manifest drops removed paths.
 				report.removed.push(step.rel);
 				await pruneEmptyDirs(path.dirname(dst), agentDir);
 			}

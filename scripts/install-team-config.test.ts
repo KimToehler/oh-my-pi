@@ -503,6 +503,27 @@ describe("installTeamConfig", () => {
 		expect(await t.read(path.join(report.backupDir!, "a.md"))).toBe("user edit\n");
 	});
 
+	test("a partial manifest keeps a removed path adopted; only the final manifest drops it", async () => {
+		const t = await setup({ "agent/a.md": "v1\n", "agent/b.md": "v1\n" });
+		await t.install();
+		await fs.rm(t.repo("agent/a.md"));
+		await Bun.write(t.repo("agent/b.md"), "v2\n");
+		await expect(
+			t.install({
+				afterStep: async rel => {
+					if (rel === "a.md") throw new Error("abort mid-apply");
+				},
+			}),
+		).rejects.toThrow("abort mid-apply");
+		expect(await Bun.file(t.agent("a.md")).exists()).toBe(false);
+		const partial = (await Bun.file(t.agent(manifestPath)).json()).files["a.md"];
+		expect(partial.adopted).toBe(true);
+
+		await t.install();
+		expect((await Bun.file(t.agent(manifestPath)).json()).files["a.md"]).toBeUndefined();
+		expect(await t.read(t.agent("b.md"))).toBe("v2\n");
+	});
+
 	test("a failed intent manifest write aborts before any mutation", async () => {
 		const t = await setup({ "agent/AGENTS.md": "v1\n", "agent/old.md": "old\n" });
 		await t.install();
