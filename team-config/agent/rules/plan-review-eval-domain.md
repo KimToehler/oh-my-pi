@@ -10,7 +10,7 @@ Trigger for this whole rule: the plan or delta changes files under `packages/met
 
 Labels are DOMAIN 1-6. Same form as CHECK n: each check fires only on its trigger; a triggered check without the required answer is a blocker naming the label and the plan slot. Blockers are ordered by severity; among equal severity, DOMAIN blockers follow CHECK 1-8.
 
-On a fix delta, check the diff before the tables: for every removed or weakened line in a triggered area (a `DELETE`, cleanup, reset, guard, check, or refusal), state what it protected and whether the delta replaces it. A removal without a replacement is a correctness blocker that names the removed line and the concrete scenario it breaks; a missing table is a separate, lower blocker.
+On a fix delta, PROCESS 4 checks removed and weakened lines first; then apply the triggered DOMAIN tables to what the delta adds, changes or removes.
 
 - **DOMAIN 1, environment contract.** Trigger: a command placed in a phase (build, agent, verifier, calibration, prod). Required: a table `Phase | Network | Runtime/Platform | Commands | Need met?`; a check that guards a phase runs in that phase's environment; a control that runs in the target environment, where a host-only success must fail.
 - **DOMAIN 2, executing is a sink.** Trigger: a run in a foreign environment. Required: an inventory `Runtime file | origin | tracked/untracked/ignored/generated | in identity? | mounted?` that covers ignored, generated and built files (native addons, generated JS); a control that starts the real agent in the target environment, not fixtures.

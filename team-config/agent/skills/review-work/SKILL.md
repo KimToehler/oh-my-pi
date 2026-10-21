@@ -5,6 +5,8 @@ description: "Post-implementation merge gate: run manual QA on the real surface 
 
 Validator: `$SKILL_DIR/scripts/validate-gate-record.mjs`, where `SKILL_DIR=~/.omp/agent/skills/review-work`. Always pass `--repo <repo root>` (Phase 0.6 `--plan-only`, Phase 5 full run).
 
+Convergence: `$SKILL_DIR/scripts/gate-convergence.mjs` (see Fix waves).
+
 omp rules for this skill:
 
 - Dispatch with the `task` tool; one item per reviewer (`agent: "auditor"` / `agent: "oracle"`). Several items in one `tasks[]` run in parallel. Never use generic `task` workers as reviewers.
@@ -141,6 +143,8 @@ An unresolvable invocation is recorded loudly with its reason and becomes `INCON
 
 You are the QA lane. Do not delegate hands-on QA to a sub-agent: the orchestrator owns the real-surface proof, and the record's `qa` rows are written under your name.
 
+When this review is a plan's merge gate (F2), run Fix waves step 1 first.
+
 1. **Reuse first.** If this session already captured real-surface evidence for the FINAL tree (an evidence directory from this plan's execution, a `visual-qa` verdict on this same build), consume it as QA rows instead of re-running. A fix committed after a capture stales that capture: re-run the rows it covered.
 2. **Pick the channel that faithfully exercises the surface** and capture the artifact:
    - HTTP: `curl -i` (or an API request context) - status line, headers, body.
@@ -157,7 +161,7 @@ You are the QA lane. Do not delegate hands-on QA to a sub-agent: the orchestrato
 
 A row without an artifact path is not PASS. If the application cannot even start, that is an immediate FAIL.
 
-Any FAIL ends the review here: report **REVIEW FAILED** with the failing rows and skip the gate reviewer - reviewing code that does not work wastes the reviewer. Fix first, then re-enter at Phase 0 with the delta. When this review is a plan's merge gate (final verification wave F2), each fix is first appended to the plan as an `N.` row under `## TODOs` (mirrored as a todo) before it is dispatched, so its completion is read as an implementation lane, not as a final-wave reviewer result with a missing verdict.
+Any FAIL ends the review here: report **REVIEW FAILED** with the failing rows and skip the gate reviewer - reviewing code that does not work wastes the reviewer. Fix first, then re-enter at Phase 0 with the delta. When this review is a plan's merge gate (final verification wave F2), each fix is first appended to the plan as an `N.` row under `## TODOs` (mirrored as a todo) before it is dispatched, so its completion is read as an implementation lane, not as a final-wave reviewer result with a missing verdict. Record the wave first (Fix waves step 3), then fix through Fix waves.
 
 ---
 
@@ -328,7 +332,7 @@ A re-review after fixes is a new `task` call (never `write agent://<id>` to a re
 
 Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. One `FAIL` or `INCONCLUSIVE` blocks. No-review decision can pass only with clean QA and recorded `decision_reason`, unless mandatory class requires both invocations.
 
-Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence, and re-run the affected invocation before claiming completion or merging.
+Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence through Fix waves, and re-run the affected invocation before claiming completion or merging.
 
 Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not.
 
@@ -371,6 +375,51 @@ Mandatory class: <none or class>
 
 ## Recommendations
 [If blocked: exact fixes in priority order. If passed: short non-blocking notes.]
+```
+
+## Fix waves: delta review and convergence (F2)
+
+Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts/gate-convergence.mjs --repo <repo root> --plan <plan path>`, with the plan path from Phase 0.6. A wave is Phase 1 plus, when it passes, Phases 2-3, all on the snapshot taken in step 1. `.omo/gate-deltas/` holds review artifacts; never commit it.
+
+1. Before Phase 1:
+   - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one);
+   - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
+   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3.
+2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/` and stay uncommitted during waves; `.omo/` is untracked in these repos, so the snapshot's clean-tree check is unaffected. They are staged with the record in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
+3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
+   - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
+   - one `--blocker QA<n>` per failing QA row;
+   - one `--blocker <class>=<site>,<site>…` per distinct reviewer blocker class, with sites from its `sites:` line;
+   - `@fix` appended to an id (`QA2@fix`, `stale-cache@fix=src/a.ts:4`) when the row passed in the previous F2 wave, or when the finding names a fix row or fix commit as its cause.
+
+   Then act on the decision:
+   - `DECISION: PASS` → Phase 4.
+   - `CONTINUE` → step 4.
+   - `STOP` (exit 3) → no fix. `ask` the user, showing the ledger numbers. The options:
+     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, naming every remaining reviewer blocker;
+     - re-plan: a separate plan for the affected mechanism;
+     - continue: one more fix wave.
+
+     Record the answer with `GC decide --lane F2 --choice freeze|replan|continue --by <user> --reason <text>`. The script refuses freeze after failing QA or an INCONCLUSIVE invocation, because the record requires passing QA rows and a trailer per invocation. Without `ask` UI, report the numbers and options and stop.
+4. Each fix is first an `N.` row under `## TODOs`. A fix that adds a subsystem (process, proxy, store, staging tree, daemon, endpoint) is not a row: stop and plan it separately. Implement and commit.
+5. Review each contiguous commit range once, naming every row it implements:
+   a. `GC patch --base <base> --head <head> --out .omo/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.
+   b. Dispatch one `task` item: `agent: "plan-reviewer"`, `solutionSpace: "Review of a fix delta; defects unknown"`, `task:` the delta brief below.
+   c. Write the reviewer's structured result verbatim (copy the delivered payload or `read agent://<id>`, never retype it) to `verdict.json` in that directory, then run `GC delta --lane F2 --dir <dir> --row <id> [--row <id>…]`.
+   d. REJECT: amend with new commits, then review the whole range `<base>..<new head>` in a fresh `task` (never `write agent://`). A range holding only the amendment leaves the rejected commits open. `delta` exit 3 (second REJECT on these commits): `ask` the user: amend again, accept (`GC accept --lane F2 --dir <dir> --by <user> --reason <text>`), or re-plan.
+   e. No structured verdict (failure, timeout): one fresh retry; still none → stop and tell the user. Record nothing; `ready` stays `NOT READY`.
+6. Back to step 1.
+
+Delta brief (substitute the `{...}` inputs, change nothing else):
+
+```
+Review this fix delta. Workspace root: {REPO ROOT}. Plan: {PLAN PATH}.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+{PLAN INVARIANTS}
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+{FIX ROWS}
+Commit range {BASE SHA}..{HEAD SHA}, commits {FIX SHAS}.
+The diff is one patch file per commit, in commit order, each with its commit header. Read {MANIFEST PATH}, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.
 ```
 
 ## Phase 5: Gate record

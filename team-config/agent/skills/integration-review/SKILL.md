@@ -49,12 +49,14 @@ git diff --name-only <base>...HEAD > /tmp/integration-review-<slug>.files
 ```
 
 - `<base>` = the divergence point with the repository's integration branch (`dev` here; `main` in many repos), or the branch point if work was rebased. For features stacked on another feature, it's the parent branch.
-- For uncommitted work, use `git diff <base>` (two-dot, picks up staged and unstaged changes) for the patch file.
+- For uncommitted work, use `git diff <base>` (two-dot, picks up staged and unstaged changes) for the patch file. When a plan exists, commit the work first; F3 of a plan reviews committed state only.
 - If the diff is large (>3000 lines), still keep it whole. The reviewer may chunk its *findings*, but it must see the whole change.
 - Locate the plan if one exists: `.omo/plans/<slug>.md`. If the plan is gitignored and absent from the reviewer's working tree, use the path the reviewer can actually read.
 - Write the seam list: each lane or slice, and the cross-slice contracts it touched (shared types, helpers, config keys, i18n keys, docs). The reviewer was not in the conversation, so this is its map of where the seams are.
 
 ### Step 2 - Dispatch ONE reviewer with the verbatim brief (caller)
+
+When a plan exists, first run `GC baseline --sha HEAD`, `GC ready --lane F3`, then `GC snapshot --lane F3` (`GC` as in review-work Fix waves, `SKILL_DIR=~/.omp/agent/skills/review-work`); keep the snapshot path (first output line). `NOT READY` or a refused snapshot → resolve, no dispatch. Prepare the Step 1 files only after the snapshot.
 
 Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSpace: "Whole-diff review of a finished branch; defects unknown"`, `task:` the brief below unchanged, filling only the placeholders. The result is delivered automatically; do not poll. At integration-review time there is usually **no PR yet**, so the brief puts the reviewer in local mode up front; that stops it from improvising with `gh pr view`, `git fetch`, or its own discovery logic.
 
@@ -132,11 +134,13 @@ Rules for the dispatch:
 
 ### Step 3 - Delta rounds
 
-After fixes land, re-dispatch the same brief with one addition: the previous report path and its class list. The reviewer first confirms each class is closed at every listed site, then looks for new findings. The delta report ends with the same bare PASS or FAIL line.
+When a plan exists, first run `GC ready --lane F3` and `GC snapshot --lane F3`, then regenerate the Step 1 files; a refusal → no dispatch. After fixes land, re-dispatch the same brief with one addition: the previous report path and its class list. The reviewer first confirms each class is closed at every listed site, then looks for new findings. The delta report ends with the same bare PASS or FAIL line.
 
 ### Step 4 - Read the verdict
 
 The last line of the report is the verdict: `PASS` means no Must-fix remains, `FAIL` means at least one does. A report without that final line is not a verdict. Re-dispatch and ask for the closing line; do not infer the verdict from the buckets.
+
+When a plan exists, record every verdict before anything else: `GC wave --lane F3 --snapshot <path> --outcome f3=PASS|FAIL|INCONCLUSIVE` (a report still without its closing line after one re-dispatch is INCONCLUSIVE). After a cleanup commit, also pass `--outcome verification=PASS|FAIL` from the Step 5 verification gate and one `--blocker VERIFY<n>` per failing check. Add one `--blocker <class>=<sites>` per Must-fix class; Should-fix and Nit never count; `@fix` works as in review-work Fix waves step 3. `DECISION: PASS` → F3 done. `CONTINUE` → Step 5. `STOP` (exit 3) → no Step 5; `ask` the user: freeze (the named Must-fix classes become follow-ups, listed in the report F2 receives as `{F3 REPORT PATH}`), re-plan, or continue, and record it with `GC decide --lane F3 --choice freeze|replan|continue --by <user> --reason <text>`. Without `ask` UI, report and stop.
 
 A clean report reads:
 
@@ -153,13 +157,13 @@ The caller never edits product files. Turn each Must-fix (and each Should-fix yo
 
 Nits are user judgment calls. List them in the report, let the user decide.
 
-After the cleanup commit, run the delta round from Step 3, and run the verification gate once more:
+After the cleanup commit, run the verification gate below and save its output. When a plan exists, review the cleanup commit range once with every row it implements, per review-work Fix waves step 5 with lane F3 and directory prefix `F3-`. Then run the delta round from Step 3 and pass the gate's result to its wave as `--outcome verification`. The verification gate:
 - `npm run lint:check` (or project equivalent)
 - `npm run build` (or project equivalent)
 - The plan's global verification checklist if a plan exists.
 - Visual smoke test of the feature's main surfaces (for UI work).
 
-If verification fails after the cleanup commit, the cleanup itself broke something. Have the worker lane fix forward; do not re-roll the cleanup commit.
+If verification fails after the cleanup commit, the cleanup itself broke something. Have the worker lane fix forward as a new `N.` row with its own delta review; do not re-roll the cleanup commit.
 
 ## Skill priority
 
