@@ -13,14 +13,26 @@ the deploy script re-enters the flake dev shell.
 ```sh
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
 cd ~/git/oh-my-pi
-scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
-{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&  # absent, or a regular non-symlink file: else stop before touch/chmod
-  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&   # mode 600 before any key is written
-  [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&                # a directory or symlink stops here, before read
-  { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&  # unterminated last line: the key starts on its own line
-  printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&            # no echo, not in shell history (zsh and bash)
+scripts/deploy-local.sh
+{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&
+  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&
+  [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&
+  { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&
+  printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&
   printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
-omp                                           # ~/.local/bin must be on PATH
+```
+
+- `scripts/deploy-local.sh` builds omp, installs `~/.local/bin/omp` and syncs this config.
+- The first `{ ... }` guard passes only if `~/.omp/agent/.env` is absent or a regular non-symlink file; otherwise the chain stops before `touch`/`chmod`.
+- `touch` under `umask 077` plus `chmod 600` give mode 600 before any key is written.
+- The second `[ -f ... ]` check stops on a directory or symlink before anything is read.
+- The next `{ ... }` group adds a newline if the last line is unterminated, so the key starts on its own line.
+- `read -rs` takes the next line you type or paste as the key; it neither echoes the key nor stores it in shell history (zsh and bash).
+
+Paste the router key at the `Router key:` prompt, then start omp (`~/.local/bin` must be on `PATH`):
+
+```sh
+omp
 ```
 
 Update later with `git pull && scripts/deploy-local.sh`. Restart running omp sessions
