@@ -26,6 +26,7 @@ export const BUILTIN_MODEL_ROLES: readonly string[] = Object.freeze([
 	"memory",
 	"task",
 	"advisor",
+	"widget",
 	"image",
 	"web",
 	"speech",

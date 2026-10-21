@@ -157,7 +157,9 @@ describe("summarizeOmpTranscript", () => {
 		const terminal = {
 			details: {
 				usage: usage(1000, 200, 300, 40),
-				results: [
+				// Background children settle after the call returned: they land in asyncResults, not results.
+				results: [],
+				asyncResults: [
 					{ requests: 3, usage: usage(400, 80, 100, 10) },
 					{ requests: 4, usage: usage(600, 120, 200, 30) },
 				],
@@ -192,17 +194,16 @@ describe("summarizeOmpTranscript", () => {
 		const asyncOnly = {
 			details: {
 				usage: usage(600, 120, 200, 30),
-				results: [{ requests: 4, usage: usage(600, 120, 200, 30) }],
+				results: [],
+				asyncResults: [{ requests: 4, usage: usage(600, 120, 200, 30) }],
 				async: { state: "completed", jobId: "t1", type: "task" },
 			},
 		};
 		const combined = {
 			details: {
 				usage: usage(1000, 200, 300, 40),
-				results: [
-					{ requests: 3, usage: usage(400, 80, 100, 10) },
-					{ requests: 4, usage: usage(600, 120, 200, 30) },
-				],
+				results: [{ requests: 3, usage: usage(400, 80, 100, 10) }],
+				asyncResults: [{ requests: 4, usage: usage(600, 120, 200, 30) }],
 				async: { state: "completed", jobId: "t1", type: "task" },
 			},
 		};

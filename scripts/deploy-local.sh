@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Build omp from a git ref (default: main) into a standalone binary, install it
-# as $OMP_BIN_DIR/omp, and sync the team config (team-config/) of the same ref
-# into the omp agent dir. Only this script changes what `omp` runs; edits in any
-# checkout have no effect until the next deploy.
+# Build omp from a git ref (default: main) into a standalone binary, sync the
+# team config (team-config/) of the same ref into the omp agent dir, and only
+# then install the binary as $OMP_BIN_DIR/omp (and write omp.deployed). The binary
+# is copied to omp.new first and that exact copy is smoke-tested and then
+# published, so what ran is what is installed. A failed smoke test or config sync
+# exits non-zero, removes omp.new and leaves the live binary untouched. Only this
+# script changes what `omp` runs; edits in any checkout have no effect until the
+# next deploy.
 #
 # Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
 #   OMP_BIN_DIR       install dir (default ~/.local/bin)
@@ -11,8 +15,11 @@
 #
 # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
 # uncommitted work in the main checkout never leaks into the binary.
-# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp (team config: see the
-# backups/team-config-* dirs the installer reports, or redeploy the old ref).
+# Rollback: mv ~/.local/bin/omp.prev ~/.local/bin/omp. The backups/team-config-* dirs the
+# installer reports hold only content it did not write (local edits, pre-existing files),
+# not a full config snapshot. To roll the team config back, redeploy the older ref that
+# contains team-config/; for a ref predating it, deploy with OMP_SKIP_TEAM_CONFIG=1 and
+# restore local edits from the backups.
 set -euo pipefail
 
 REF="${1:-main}"
@@ -62,22 +69,35 @@ log "Compiling omp binary"
 (cd "$WT/packages/coding-agent" && bun run build)
 BUILT="$WT/packages/coding-agent/dist/omp"
 
-log "Smoke testing $BUILT"
-(cd /tmp && "$BUILT" --version && "$BUILT" --smoke-test)
+log "Staging $TARGET.new"
+mkdir -p "$BIN_DIR"
+rm -f "$TARGET.new"
+cp "$BUILT" "$TARGET.new"
+PUBLISHED=0
+cleanup() { [ "$PUBLISHED" = 1 ] || rm -f "$TARGET.new"; }
+trap cleanup EXIT ERR
+
+# Smoke-test the exact copy that gets published, not the build output.
+log "Smoke testing $TARGET.new"
+(cd /tmp && "$TARGET.new" --version && "$TARGET.new" --smoke-test)
+
+# Team config before publishing: an installer failure must leave the live
+# binary and omp.deployed untouched. It may have applied part of the config.
+if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
+	log "Syncing team config"
+	if ! (cd "$WT" && bun scripts/install-team-config.ts); then
+		echo "Team config sync failed: the binary was NOT replaced, and the team config may be partially applied. Fix the cause and rerun the deploy." >&2
+		exit 1
+	fi
+fi
 
 log "Installing to $TARGET"
-mkdir -p "$BIN_DIR"
-cp "$BUILT" "$TARGET.new"
 if [ -f "$TARGET" ]; then
 	mv -f "$TARGET" "$TARGET.prev"
 fi
 mv -f "$TARGET.new" "$TARGET"
+PUBLISHED=1
 printf '%s %s %s\n' "$COMMIT" "$REF" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$BIN_DIR/omp.deployed"
-
-if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
-	log "Syncing team config"
-	(cd "$WT" && bun scripts/install-team-config.ts)
-fi
 
 log "Deployed $(cat "$BIN_DIR/omp.deployed")"
 case ":$PATH:" in

@@ -13,10 +13,26 @@ the deploy script re-enters the flake dev shell.
 ```sh
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
 cd ~/git/oh-my-pi
-scripts/deploy-local.sh                       # builds omp, installs ~/.local/bin/omp, syncs this config
-echo 'ONARA_ROUTER_KEY=<your key>' >> ~/.omp/agent/.env
-chmod 600 ~/.omp/agent/.env
-omp                                           # ~/.local/bin must be on PATH
+scripts/deploy-local.sh
+{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&
+  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&
+  [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&
+  { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&
+  printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&
+  printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
+```
+
+- `scripts/deploy-local.sh` builds omp, installs `~/.local/bin/omp` and syncs this config.
+- The first `{ ... }` guard passes only if `~/.omp/agent/.env` is absent or a regular non-symlink file; otherwise the chain stops before `touch`/`chmod`.
+- `touch` under `umask 077` plus `chmod 600` give mode 600 before any key is written.
+- The second `[ -f ... ]` check stops on a directory or symlink before anything is read.
+- The next `{ ... }` group adds a newline if the last line is unterminated, so the key starts on its own line.
+- `read -rs` takes the next line you type or paste as the key; it neither echoes the key nor stores it in shell history (zsh and bash).
+
+Paste the router key at the `Router key:` prompt, then start omp (`~/.local/bin` must be on `PATH`):
+
+```sh
+omp
 ```
 
 Update later with `git pull && scripts/deploy-local.sh`. Restart running omp sessions
@@ -31,15 +47,20 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 
 The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
 not ship are never touched. If a shipped file was edited locally, or a same-named file existed
-before the first deploy, its previous content is moved to `~/.omp/agent/backups/team-config-<time>/`
+before the first deploy (even an identical one: the installer only owns files it wrote itself), its previous content is moved to a fresh `~/.omp/agent/backups/team-config-<time>-<random>/`
 before it is replaced; the deploy output names the directory.
+
+`.team-config-manifest.json` is installer control state, not a user file: the installer rewrites it canonically on every run, so do not edit it by hand. A manifest that is not exactly the v1 or v2 shape is rejected before any change.
 
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
 
 ## Personal settings
 
-- Personal instructions (role, stack, language): `~/.omp/agent/AGENTS.local.md`. The seeded
-  `config.yml` loads it beside the team `AGENTS.md` via `contextFiles.extra`.
+- Personal instructions (role, stack, language): `AGENTS.local.md` in the agent dir (default
+  `~/.omp/agent`). It loads only while `contextFiles.extra` lists it. The seeded `config.yml`
+  does; a pre-existing `config.yml` needs `contextFiles: { extra: [AGENTS.local.md] }` added by
+  hand. A project-level `contextFiles.extra` replaces the user list, so the agent-dir file is
+  then not read.
 - Personal rules or skills: any other file name under `~/.omp/agent/rules/` or `skills/`.
 - Model roles, approval mode, bash patterns: edit `~/.omp/agent/config.yml` directly.
   After a team change to `seed/config.yml`, compare with
