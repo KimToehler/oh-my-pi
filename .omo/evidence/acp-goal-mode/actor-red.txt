@@ -89,3 +89,5 @@ Received: "default"
  5 fail
  212 expect() calls
 Ran 35 tests across 1 file. [635.00ms]
+
+# Note: (P×M) passed on fc293833cb (30 pass, 5 fail above; P×M is among the 30). The old AcpGoalController#op chain already ran leave() behind the in-flight entry and Plan was installed only after it, so the prompt submitted under Goal and Plan applied afterwards, an allowed outcome. Kept as a guard: it fails if the Plan effect is applied off the actor lane (see actor-discrimination.txt).
