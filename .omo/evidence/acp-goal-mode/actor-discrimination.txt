@@ -178,3 +178,34 @@ restored-h
  5 pass
  1 fail
 restored-s
+
+## Row 22 discrimination: new head with only the #ordered guard of #enter's fenced tool phase removed (run inline), 2026-10-21T12:57:51Z
+$ bun test test/goals/goal-host-controller.test.ts   (cwd packages/coding-agent)
+error: expect(received).toEqual(expected)
+- Expected  - 2
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its stamp > with a goal in B, B's tools are restored with goal and B's snapshot survives for the goal exit [0.39ms]
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its stamp > without a goal in B, B's own tools are restored and A's are not installed [0.14ms]
+error: expect(received).toEqual(expected)
+- Expected  - 2
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its stamp > a goal tool B selected itself survives the abandoned entry and the later goal exit [0.15ms]
+error: expect(received).toEqual(expected)
+- Expected  - 2
++ Received  + 0
+(fail) GoalHostController continuation gate > an entry abandoned by its stamp > a goal tool B selected itself survives the abandoned entry when B has no goal [0.11ms]
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 0
+(fail) GoalHostController continuation gate > an abandoned entry's tool phase > never writes tools after the changes to B and then C with a goal have begun [0.39ms]
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 0
+(fail) GoalHostController continuation gate > an abandoned entry's tool phase > never writes tools after the changes to B and then C without a goal have begun [0.15ms]
+ 21 pass
+ 6 fail
+Ran 27 tests across 1 file. [254.00ms]
+restored with cp; cmp clean

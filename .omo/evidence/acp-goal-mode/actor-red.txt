@@ -401,3 +401,46 @@ error: expect(received).toEqual(expected)
  0 pass
  1 fail
 
+
+## Row 22 RED: new tests on pre-fix head 5a042aa594 (test hunks only), 2026-10-21T12:57:44Z
+$ bun test test/goals/goal-host-controller.test.ts   (cwd packages/coding-agent, /tmp/acp-red6)
+bun test v1.4.3 (26aa4e1a9)
+test/goals/goal-host-controller.test.ts:
+720 | 				expect(await entry).toBeInstanceOf(GoalOwnerStale);
+721 | 				cMayEnd.resolve();
+722 | 				await switching;
+723 | 				await f.controller.settled();
+724 | 
+725 | 				expect(f.tools()).toEqual(goalInC ? ["read", "exec", "goal"] : ["read", "exec"]);
+                            ^
+error: expect(received).toEqual(expected)
+@@ -2,3 +2,3 @@
+    "read",
+-   "exec",
++   "write",
+    "goal",
+- Expected  - 1
++ Received  + 1
+      at <anonymous> (/private/tmp/acp-red6/packages/coding-agent/test/goals/goal-host-controller.test.ts:725:23)
+(fail) GoalHostController continuation gate > an abandoned entry's tool phase > never writes tools after the changes to B and then C with a goal have begun [1.21ms]
+720 | 				expect(await entry).toBeInstanceOf(GoalOwnerStale);
+721 | 				cMayEnd.resolve();
+722 | 				await switching;
+723 | 				await f.controller.settled();
+724 | 
+725 | 				expect(f.tools()).toEqual(goalInC ? ["read", "exec", "goal"] : ["read", "exec"]);
+                            ^
+error: expect(received).toEqual(expected)
+@@ -2,3 +2,3 @@
+    "read",
+-   "exec",
++   "write",
+  ]
+- Expected  - 1
++ Received  + 1
+      at <anonymous> (/private/tmp/acp-red6/packages/coding-agent/test/goals/goal-host-controller.test.ts:725:23)
+(fail) GoalHostController continuation gate > an abandoned entry's tool phase > never writes tools after the changes to B and then C without a goal have begun [0.17ms]
+ 25 pass
+ 2 fail
+ 91 expect() calls
+Ran 27 tests across 1 file. [311.00ms]
