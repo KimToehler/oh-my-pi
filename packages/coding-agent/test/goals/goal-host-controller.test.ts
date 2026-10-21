@@ -686,6 +686,55 @@ describe("GoalHostController continuation gate", () => {
 		});
 	});
 
+	describe("a stamped pause's tool restore", () => {
+		for (const goalInB of [true, false]) {
+			test(`is finished by the session change before transcript B ${goalInB ? "with" : "without"} a goal chooses its tools`, async () => {
+				const f = fakeSession(async () => true);
+				f.session.setGoalModeState(undefined);
+				await f.controller.createForHostPrompt({ objective: "A" }, { stamp: {} });
+				expect(f.tools()).toEqual(["read", "goal"]);
+				// A's goal is paused, as the runtime would leave it; only the tool restore remains.
+				const paused = f.session.getGoalModeState();
+				f.session.setGoalModeState(
+					paused && { ...paused, enabled: false, goal: { ...paused.goal, status: "paused" } },
+				);
+
+				const swap = f.session.setActiveToolsByName;
+				const entered = Promise.withResolvers<void>();
+				const release = Promise.withResolvers<void>();
+				f.session.setActiveToolsByName = async names => {
+					f.session.setActiveToolsByName = swap;
+					entered.resolve();
+					await release.promise;
+					await swap(names);
+				};
+				const pausing = f.controller.pause({ stamp: {} });
+				await entered.promise;
+
+				let changeBegun = false;
+				const begin = f.controller.beginSessionChange().then(() => {
+					changeBegun = true;
+				});
+				await nextMacrotask();
+				// The change waits for A's restore: B cannot choose tools before it has landed.
+				expect(changeBegun).toBe(false);
+
+				release.resolve();
+				await pausing;
+				await begin;
+				expect(f.tools()).toEqual(["read"]);
+				f.setOwner(false);
+				f.transcript.id = "t2";
+				await swap(["read", "write"]);
+				if (goalInB) f.journalGoal();
+				await f.controller.endSessionChange({ detachedRun: true });
+				await f.controller.settled();
+
+				expect(f.tools()).toEqual(goalInB ? ["read", "write", "goal"] : ["read", "write"]);
+			});
+		}
+	});
+
 	test("an ACP continuation gate that is closed admits no continuation turn", async () => {
 		const admitted: string[] = [];
 		let promptOpen = true;

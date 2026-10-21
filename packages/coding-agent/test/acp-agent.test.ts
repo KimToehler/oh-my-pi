@@ -62,7 +62,9 @@ import { TOOL_NAME as DELAYED_MCP_TOOL_NAME } from "./fixtures/delayed-tool-mcp"
 
 import { cfgPlanAutosave, cfgPlanAutosaveDir, cfgPlanEnabled } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
 import { cfgGoalEnabled } from "@oh-my-pi/pi-coding-agent/goals/settings";
-import { GoalRuntime } from "@oh-my-pi/pi-coding-agent/goals/runtime";
+import { type GoalOwnerStamp, GoalRuntime } from "@oh-my-pi/pi-coding-agent/goals/runtime";
+import type { GoalHostSession } from "@oh-my-pi/pi-coding-agent/goals/host-controller";
+import { AcpGoalActor } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-goal";
 import type { GoalModeState, GoalRuntimeEvent } from "@oh-my-pi/pi-coding-agent/goals/state";
 import type { Goal } from "@oh-my-pi/pi-tui/tools/goal";
 
@@ -358,11 +360,11 @@ class FakeAgentSession {
 		this.acpPromptOpen.push(open);
 	}
 
-	async abort(): Promise<void> {
+	async abort(options?: { goalStamp?: GoalOwnerStamp }): Promise<void> {
 		this.abortCalls++;
 		this.isStreaming = false;
-		// As `AgentSession.abort`: a user interrupt pauses an active goal.
-		await this.goalRuntime.onTaskAborted({ reason: "interrupted" });
+		// As `AgentSession.abort`: a user interrupt pauses an active goal, bound to the Stop's own stamp.
+		await this.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: options?.goalStamp });
 	}
 
 	get isDisposed(): boolean {
@@ -6050,13 +6052,13 @@ describe("ACP agent", () => {
 			};
 			const abortReached = Promise.withResolvers<void>();
 			const abortGate = Promise.withResolvers<void>();
-			session.abort = async () => {
+			session.abort = async options => {
 				session.abortCalls++;
 				session.isStreaming = false;
 				abortReached.resolve();
 				await abortGate.promise;
 				// As `AgentSession.abort`: the interrupted pause lands once the run has unwound.
-				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: options?.goalStamp });
 			};
 			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
 			await continuationStarted.promise;
@@ -6096,12 +6098,12 @@ describe("ACP agent", () => {
 			};
 			const abortGate = Promise.withResolvers<void>();
 			const lateAbort = Promise.withResolvers<void>();
-			session.abort = async () => {
+			session.abort = async options => {
 				session.abortCalls++;
 				session.isStreaming = false;
 				await abortGate.promise;
 				// As `AgentSession.abort`: the interrupted pause lands once the run has unwound.
-				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: options?.goalStamp });
 				lateAbort.resolve();
 			};
 			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
@@ -6389,34 +6391,41 @@ describe("ACP agent", () => {
 			});
 		}
 
-		it("(commit fence) a Plan selection whose goal exit is suspended in its tool restore while transcript B is adopted installs no plan on B", async () => {
-			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
-			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
-			endTurnsWithoutProgress(session);
-			await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
-			expect(session.goalModeState?.goal.status).toBe("active");
+		for (const goalInB of [true, false]) {
+			it(`(commit fence) a Plan selection whose goal exit is suspended in its tool restore finishes it before transcript B is adopted, so B ${goalInB ? "with" : "without"} a goal keeps its own tools`, async () => {
+				const { harness, sessionId, session, ctx } = await extensionGoalHarness();
+				await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
+				endTurnsWithoutProgress(session);
+				await harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
+				expect(session.goalModeState?.goal.status).toBe("active");
+				expect(session.enabledTools).toEqual(["read", "goal"]);
 
-			// A's goal is paused; the restore of its pre-goal tools is what suspends.
-			const hold = holdNextToolSwap(session);
-			const selecting = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
-			await hold.entered;
-			await ctx.newSession({
-				setup: async manager => {
-					manager.appendModeChange("goal", { goal: adoptedGoal("active") });
-				},
+				// A's goal is paused; the restore of its pre-goal tools is what suspends.
+				const hold = holdNextToolSwap(session);
+				const selecting = harness.agent.setSessionMode({ sessionId, modeId: "plan" });
+				await hold.entered;
+				// The change waits for A's restore: nothing of B can be chosen before it has landed.
+				const change = ctx.newSession({
+					setup: async manager => {
+						if (goalInB) manager.appendModeChange("goal", { goal: adoptedGoal("active") });
+						// B's own selection, made as soon as it exists.
+						await session.setActiveToolsByName(["read", "write"]);
+					},
+				});
+				await eventLoopTurns(10);
+				expect(session.enabledTools).toEqual(["read", "goal"]);
+
+				hold.release();
+				await selecting;
+				await change;
+				await eventLoopTurns(10);
+
+				// A's restore landed before B chose; it did not overwrite B's selection afterwards.
+				expect(session.enabledTools).toEqual(goalInB ? ["read", "write", "goal"] : ["read", "write"]);
+				expect(session.goalModeState?.goal.id).toBe(goalInB ? "g-adopted" : undefined);
+				harness.abortController.abort();
 			});
-			await eventLoopTurns(10);
-			expect(session.goalModeState?.goal.id).toBe("g-adopted");
-
-			hold.release();
-			await selecting;
-			await eventLoopTurns(10);
-
-			expect(session.planModeState?.enabled).not.toBe(true);
-			expect(session.goalModeState?.goal.id).toBe("g-adopted");
-			expect(session.goalModeState?.goal.status).toBe("active");
-			harness.abortController.abort();
-		});
+		}
 
 		it("(commit fence) a pause whose event delivery is suspended while transcript B is adopted restores none of B's tools", async () => {
 			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
@@ -6514,6 +6523,55 @@ describe("ACP agent", () => {
 			harness.abortController.abort();
 		});
 
+		it("(per-abort stamp) a Stop in transcript B pauses B's goal while transcript A's abort is still pending, and A's late abort then changes nothing", async () => {
+			const harness = await createHarness({ extensionRunners: true, clientInfo: INTELLIJ_CLIENT_INFO });
+			const session = new FakeAgentSession(harness.cwdA);
+			const actor = new AcpGoalActor(session as unknown as GoalHostSession, {
+				promptOpen: () => false,
+				clientPinsConfig: () => false,
+				selectValues: () => new Map(),
+				announce: async () => {},
+				onReconciled: async () => {},
+			});
+			await session.goalRuntime.createGoal({ objective: "A" }, { origin: "host" });
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// Stop in A: its abort is still unwinding.
+			const stopA = actor.stop();
+			const abortGateA = Promise.withResolvers<void>();
+			const abortA = abortGateA.promise.then(() =>
+				session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: stopA.stamp }),
+			);
+
+			// B is adopted with an active goal.
+			await actor.beginSessionChange();
+			await session.sessionManager.newSession();
+			session.sessionManager.appendModeChange("goal", { goal: adoptedGoal("active") });
+			await actor.endSessionChange({ detachedRun: true });
+			await eventLoopTurns(10);
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("active");
+
+			// Stop in B settles while A's abort is still pending: B's goal is paused.
+			const stopB = actor.stop();
+			await session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: stopB.stamp });
+			stopB.abortSettled();
+			expect(session.goalModeState?.goal.id).toBe("g-adopted");
+			expect(session.goalModeState?.goal.status).toBe("paused");
+			expect(session.goalModeState?.enabled).toBe(false);
+
+			// A's late abort neither pauses nor changes B's goal.
+			const before = structuredClone(session.goalModeState);
+			const journalBefore = session.sessionManager.getEntries().length;
+			abortGateA.resolve();
+			await abortA;
+			stopA.abortSettled();
+			expect(session.goalModeState).toEqual(before);
+			expect(session.sessionManager.getEntries().length).toBe(journalBefore);
+			actor.dispose();
+			harness.abortController.abort();
+		});
+
 		it("(commit fence) a late abort of transcript A, released after B adopted an active goal with accounting in progress, changes none of B's usage, status, journal or turn snapshot", async () => {
 			const { harness, sessionId, session, ctx } = await extensionGoalHarness();
 			await harness.agent.setSessionMode({ sessionId, modeId: "goal" });
@@ -6525,12 +6583,12 @@ describe("ACP agent", () => {
 			};
 			const abortReached = Promise.withResolvers<void>();
 			const abortGate = Promise.withResolvers<void>();
-			session.abort = async () => {
+			session.abort = async options => {
 				session.abortCalls++;
 				session.isStreaming = false;
 				abortReached.resolve();
 				await abortGate.promise;
-				await session.goalRuntime.onTaskAborted({ reason: "interrupted" });
+				await session.goalRuntime.onTaskAborted({ reason: "interrupted", stamp: options?.goalStamp });
 			};
 			const prompt = harness.agent.prompt({ sessionId, prompt: [{ type: "text", text: "Ship feature X" }] });
 			await continuationStarted.promise;
