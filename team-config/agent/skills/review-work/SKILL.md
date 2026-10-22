@@ -25,7 +25,7 @@ One reviewer by default, never an implicit panel. A single reviewer holding full
 | `implementation-audit` | One resolved implementation-audit invocation | Is implementation correct, safe, complete, and adequately verified? |
 | `strategic-risk-review` (conditional) | One resolved strategic-risk-review invocation | Does architecture hold and which high-consequence risk did line-level audit miss? |
 
-Review completed implementation work through manual QA you run yourself plus reviewer invocations this change actually needs. You decide how much review that is - see Phase 0.5. Review passes only when QA matrix has no failing row AND every invocation you ran returns `PASS`.
+Review completed implementation work through manual QA you run yourself plus reviewer invocations this change actually needs. You decide how much review that is - see Phase 0.5. Review passes only when QA matrix has no failing row AND every invocation you ran returns `PASS`; the only other outcome that permits merge is the user-authorized override in Phase 4.
 
 ---
 
@@ -192,7 +192,9 @@ Inputs:
 - Author-supplied behavioural criteria: {CRITERIA WITH FIVE FIELDS}
 - Whole-diff review report and its class list, when F3 ran: {F3 REPORT PATH}
 
-Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. False positives are cheaper than missed issues.
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when (a) the change - or the plan, when you review one - breaks the goal, the value proof, a `## Merge gate` criterion, an existing consumer, or implements work the plan excludes, or (b) a realistic trigger reaches a protected asset. A realistic trigger is normal use, or an actor outside the trust boundary sending plausible input. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
 
 Review exactly these five sections:
 1. Goal and behavioural contract
@@ -207,7 +209,7 @@ Security scope: a finding blocks only when it cites changed lines in DIFF_RANGE,
 
 Brief guard: if this message did not carry all five numbered sections, or withheld the QA matrix, return INCONCLUSIVE and name what was missing. Do not answer a narrower brief as if it were the whole assignment.
 
-Return blockers with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site; do not re-derive classes F3 already closed. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+Return each blocker on its own `Blocker B<n>:` line with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site; do not re-derive classes F3 already closed. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
 
 End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
 
@@ -217,6 +219,7 @@ sections_covered: <numbers you received, comma-separated>
 model_id: <your exact resolved model ID, or unresolved>
 security_delta: <yes|no from your own section 3>
 verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
 adversarial_criteria:
 - invariant: <your own, not restated from the plan>
   positive_witness: <representative valid outcome>
@@ -249,7 +252,9 @@ Manual QA matrix:
 Implementation-audit findings:
 {AUDITOR FINDINGS}
 
-Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. False positives are cheaper than missed issues.
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when (a) the change - or the plan, when you review one - breaks the goal, the value proof, a `## Merge gate` criterion, an existing consumer, or implements work the plan excludes, or (b) a realistic trigger reaches a protected asset. A realistic trigger is normal use, or an actor outside the trust boundary sending plausible input. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
 
 Answer four questions:
 1. Does change hold up architecturally against rest of system?
@@ -259,7 +264,7 @@ Answer four questions:
 
 Brief guard: if this message did not carry all four questions, the diff, the changed-file list, the QA matrix, and the implementation-audit findings, return INCONCLUSIVE and name what was missing.
 
-Do not re-derive auditor findings. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+Do not re-derive auditor findings. Start each blocker with its own `Blocker B<n>:` line. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
 
 End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
 
@@ -269,6 +274,7 @@ sections_covered: <numbers of the questions you received, comma-separated>
 model_id: <your exact resolved model ID, or unresolved>
 security_delta: <yes|no - did this change move a data class somewhere new>
 verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
 adversarial_criteria:
 - invariant: <your own, not restated from the plan>
   positive_witness: <representative valid outcome>
@@ -314,7 +320,7 @@ Five fields are mandatory for semantic, policy, authorization, transformation, f
 
 Results arrive automatically; use `wait` only when blocked on them, and do independent root work meanwhile. Timeout, ack-only reply, empty result, missing deliverable, or explicit `BLOCKED:` is never `PASS`. Apply one bounded fresh-context retry; if unresolved, record `INCONCLUSIVE` with reason. Never fan out or use a long-lived reviewer carrying stale context.
 
-A rejecting invocation must name its blockers inline, each citing the violated criterion or requirement plus an evidence pointer. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason. A reply carrying no trailer is the same case - without it, what the reviewer was asked cannot be established.
+A rejecting invocation must name its blockers inline, each on its own `Blocker B<n>:` line citing the violated criterion or requirement plus an evidence pointer. A FAIL whose `Blocker B<n>:` lines and trailer `blockers:` field disagree is incomplete: re-dispatch it like a missing trailer; never edit the reply. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason. A reply carrying no trailer is the same case - without it, what the reviewer was asked cannot be established.
 
 Review evidence must be safe to share. Redact or mask secrets and sensitive user data before putting evidence into records, logs, or handoffs. Never include raw tokens, credentials, auth headers, cookies, API keys, env dumps, private logs, or PII; summarize with lengths, hashes, and short non-sensitive prefixes when identity is needed.
 
@@ -330,11 +336,13 @@ A re-review after fixes is a new `task` call (never `write agent://<id>` to a re
 
 ## Phase 4: Deliver Verdict
 
-Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. One `FAIL` or `INCONCLUSIVE` blocks. No-review decision can pass only with clean QA and recorded `decision_reason`, unless mandatory class requires both invocations.
+Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. The one other outcome that permits merge is an override: QA passed, every invocation returned `PASS` or `FAIL` with a stored trailer, the user agreed in this session, and the record names them in `override.by` and carries one `downgrades` entry per blocker of every FAIL trailer. An override is reported as overridden, never as PASS. Without that, one `FAIL` or `INCONCLUSIVE` blocks. No-review decision can pass only with clean QA and recorded `decision_reason`, unless mandatory class requires both invocations.
 
 Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence through Fix waves, and re-run the affected invocation before claiming completion or merging.
 
 Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not.
+
+**Downgrades.** A reviewer blocker the gate leaves unfixed ends only in `override` plus exactly one `downgrades` entry per blocker id of every FAIL trailer, never silently. `rule` says why it may stay: `below-threshold` when you judge that the finding misses both (a) and (b) of the blocking threshold, with `reason` naming the missing trigger or asset, and the user agreed; `accepted-residual` when the plan's `Accepted residual risks` covers it; `out-of-scope` when `Out of scope for blocking` covers it; `frozen` when the user chose freeze at a convergence STOP. `disposition` is `residual` or `follow-up`; a follow-up names where it is tracked in `reason`.
 
 **Write and validate the gate record here, as the last step before merging.** Phase 5 defines the record. Write the record and the reviewer trailers, **stage them**, then run the validator: it requires the artifacts to be in the index, because a file nobody added vanishes from every other checkout and takes the evidence with it.
 
@@ -396,7 +404,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
    - `DECISION: PASS` → Phase 4.
    - `CONTINUE` → step 4.
    - `STOP` (exit 3) → no fix. `ask` the user, showing the ledger numbers. The options:
-     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, naming every remaining reviewer blocker;
+     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, with one `downgrades` entry per remaining reviewer blocker (rule `frozen`);
      - re-plan: a separate plan for the affected mechanism;
      - continue: one more fix wave.
 
@@ -444,6 +452,7 @@ Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step be
   "resolution": [{ "invocation": "implementation-audit", "agent": "auditor", "model": "<exact resolved model ID, or unresolved>", "independence": "cross-provider" }],
   "verdicts": [{ "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "<tracked path to the reviewer's verbatim trailer>", "trailer_sha256": "<sha256 of that artifact's bytes>", "note": "<artifact or finding pointer>" }],
   "blockers": [{ "id": "B1", "severity": "high", "location": "path:line", "coverage": "path::test name", "fix_sha": "<full 40-hex fix SHA>" }],
+  "downgrades": [{ "invocation": "implementation-audit", "blocker": "B1", "rule": "below-threshold", "reason": "<missing trigger or asset, one line>", "disposition": "residual" }],
   "override": { "by": "<non-empty attributable identity>", "reason": "<non-empty reason>" }
 }
 ```
@@ -451,6 +460,8 @@ Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step be
 `v1` records are rejected. They predate the trailer contract, so no honest retrofit exists: re-run the review rather than editing an old record. `implementation_models` names the models that materially authored or rewrote the reviewed diff, and the validator derives each `independence` label from it.
 
 `reviewers_run` is an empty array when no reviewer runs. `mandatory_class` must be exactly one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, or `concurrency-state`; absence or any other value blocks the gate. `qa` must contain at least one row, every row must set `passed` to `true`, and every row must name a non-empty `artifact`. Omit `override` for a normal pass. An override must have non-empty `by` and `reason`, may accompany `FAIL` or `INCONCLUSIVE` verdicts, and must not accompany a full set of `PASS` verdicts. Blocker `coverage` is `path::test name` or `not-testable:<reason>`.
+
+`downgrades` appears only with an override over a FAIL verdict and holds exactly one entry per blocker id of each FAIL trailer. A FAIL trailer's `blockers:` field must equal the reply's `Blocker B<n>:` lines; a PASS or INCONCLUSIVE trailer carries `none` or omits the line. `rule` is `below-threshold`, `accepted-residual`, `out-of-scope`, or `frozen`; `disposition` is `residual` or `follow-up`; `reason` is one line.
 
 Every invocation in `reviewers_run` needs its **own** `trailer_artifact`, and the validator derives its facts from that file rather than from this JSON. Two verdicts may not cite the same file, and each trailer's `invocation` field must name the lane the record cites it for. Without both rules one dispatched reviewer satisfies every recorded invocation: the section sets nest, so an audit trailer covers the strategic set, and the model check only discriminates when the two lanes resolved to different models. The validator also requires the full section set for the invocation (`1,2,3,4,5` for `implementation-audit`, `1,2,3,4` for `strategic-risk-review`), complete five-field adversarial criteria, every one of whose invariants is the reviewer's own rather than restated from the plan, agreement between the trailer's `verdict` and `model_id` and the record's, and blocks `mandatory_class: "none"` against any trailer reporting `security_delta: yes`. A repeated scalar field blocks as ambiguous, so an honest narrow answer cannot be overridden by appending one permissive line - and the same rule holds at every level of both artifacts: a repeated field inside a criterion, a second criterion appended beside a copied one, a second trailer block, and a duplicate key in the record itself all block. That is one rule, applied at every level of the structure - and each level was found only after the previous fix left the next one open, so treat the rule as the invariant rather than the list as complete. A missing trailer block blocks: without it, what the reviewer was asked cannot be established.
 

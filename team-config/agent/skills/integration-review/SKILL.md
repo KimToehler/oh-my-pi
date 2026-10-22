@@ -37,7 +37,7 @@ The caller prepares the inputs. The reviewer does the reading. The reviewer has 
 
 The reviewer must hold the *whole* change in working memory before forming opinions. Per-slice review optimizes for local quality; integration review catches the failures *of composition*: when each slice is fine on its own but the assembly isn't.
 
-The reviewer must also be **slightly hostile** to the implementation. If something looks weird, flag it; let the user dismiss what's intentional. False positives are cheaper than missed issues. Per the writing-plans skill's "trust but verify" principle: verify, don't defer.
+The reviewer must also be **slightly hostile** to the implementation. If something looks weird, flag it; let the user dismiss what's intentional. Findings are cheap; blockers are not: the blocking threshold in the brief decides what is Must-fix. Per the writing-plans skill's "trust but verify" principle: verify, don't defer.
 
 ## The process
 
@@ -68,7 +68,7 @@ Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSp
 **Plan:** `<plan path>` (if it exists, read it for the design rules, the "Out of Scope" list, and the "Verification" checklist)
 **Seam list:** <each lane or slice and the cross-slice contracts it touched>
 
-**Asymmetry constraint:** you have only the diff, the file list, the plan, and the seam list. You do not have my reasoning for any specific decision. Read the whole diff end to end before forming opinions. If something looks wrong, flag it; I will dismiss what is intentional. False positives are cheaper than missed issues.
+**Asymmetry constraint:** you have only the diff, the file list, the plan, and the seam list. You do not have my reasoning for any specific decision. Read the whole diff end to end before forming opinions. If something looks wrong, flag it; I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
 
 ## Walk the seven failure modes
 
@@ -108,11 +108,15 @@ A finding is one instance of a defect class. For EVERY finding write:
 
 Report the whole class in one round. Do not leave sibling sites for a later round.
 
+## Blocking threshold
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when (a) the change - or the plan, when you review one - breaks the goal, the value proof, a `## Merge gate` criterion, an existing consumer, or implements work the plan excludes, or (b) a realistic trigger reaches a protected asset. A realistic trigger is normal use, or an actor outside the trust boundary sending plausible input. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
 ## Report format
 
 Output a markdown report with three buckets:
-- **Must-fix:** correctness issues, dead code, broken consumers, out-of-scope work that slipped in, security smells, plan violations.
-- **Should-fix:** consistency issues, missing abstractions, naming drift, doc drift, premature abstractions, cross-slice simplification candidates.
+- **Must-fix:** every finding that meets the blocking threshold, each on its own `Blocker B<n>:` line. Nothing else is Must-fix.
+- **Should-fix:** findings below the threshold: correctness and security findings without a realistic trigger on a protected asset, dead code, consistency issues, missing abstractions, naming drift, doc drift, premature abstractions, cross-slice simplification candidates.
 - **Nit:** style, optional polish, taste calls.
 
 Each finding carries: `file:line` (or symbol name plus path); **what** the issue is, in one sentence; **why** it matters, in one sentence; **fix**, in 1-3 lines or a small snippet; and its `class:` / `sites:` or `single instance:` line.
