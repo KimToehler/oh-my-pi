@@ -431,6 +431,17 @@ test("#given an internal-tooling cap STOP #when the plan is re-tiered to product
   assert.equal(s.gc("decide", "--lane", "F2", "--choice", "continue", "--by", "tim", "--reason", "t").status, 0)
 })
 
+test("#given an internal-tooling lane decided freeze #when the plan is re-tiered to product #then retier is refused and nothing is written", (t) => {
+  const s = sandbox(t)
+  assert.equal(toolingStop(s).status, 3)
+  assert.equal(s.gc("decide", "--lane", "F2", "--choice", "freeze", "--by", "tim", "--reason", "t").status, 0)
+  tierPlan(s, "product")
+  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+  assert.equal(retier.status, 1)
+  assert.match(retier.stderr, /F2 wave 3 is decided freeze; a closed gate cannot be re-tiered/)
+  assert.equal(s.ledger().filter((e) => e.event === "risk_tier_change").length, 0)
+})
+
 test("#given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")

@@ -595,6 +595,10 @@ const commands = {
     const state = readLedger(ctx.repo, ctx.key)
     if (state.tier !== "internal-tooling") fail(`this gate runs as ${state.tier}; retier moves internal-tooling to product only`)
     if (ctx.planTier !== "product") fail("set - Risk tier: product in the plan before retier")
+    // A freeze or replan closes its lane on a wave whose reviewers read the internal-tooling plan;
+    // re-tiering then would leave a product gate resting on that wave with no way to review again.
+    const closed = state.events.find((e) => e.event === "convergence_decision" && e.choice !== "continue")
+    if (closed) fail(`${closed.lane} wave ${closed.wave} is decided ${closed.choice}; a closed gate cannot be re-tiered: gate the work as product under a new plan file`)
     append(ctx.repo, { event: "risk_tier_change", plan: ctx.key, from: "internal-tooling", to: "product", by: ctx.values.by, reason: ctx.values.reason })
     console.log("RECORDED risk_tier_change internal-tooling -> product")
     for (const lane of LANES) {
