@@ -1,0 +1,192 @@
+{"type":"session","version":3,"id":"01a16370-0dd1-71de-8c3a-042b6c8fa604","timestamp":"2026-10-22T11:47:30.385Z","cwd":"/tmp/mgwt-smoke/main"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"Reply with exactly this text, no fence or commentary:\nGate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none"}],"attribution":"user","timestamp":1792669650526}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"Reply with exactly this text, no fence or commentary:\nGate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none"}],"attribution":"user","timestamp":1792669650526}}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669650572,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDpe1pn4HeQcHNrxN1N\\\"} (reset after 1m 16s)\"}} retry-after-ms=76000","duration":1414.2894159999998}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669650572,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDpe1pn4HeQcHNrxN1N\\\"} (reset after 1m 16s)\"}} retry-after-ms=76000","duration":1414.2894159999998,"completedAt":1792669652013}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669650572,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDpe1pn4HeQcHNrxN1N\\\"} (reset after 1m 16s)\"}} retry-after-ms=76000","duration":1414.2894159999998},"toolResults":[]}
+{"type":"model_changed"}
+{"type":"retry_fallback_applied","from":"onara/cc/claude-opus-5-5:high","to":"onara/cc/claude-opus-5","role":"onara/cc/claude-opus-5-5","reason":"Request failed: 503 {\"error\":{\"message\":\"[claude/claude-opus-5-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDpe1pn4HeQcHNrxN1N\\\"} (reset after 1m 16s)\"}} retry-after-ms=76000"}
+{"type":"auto_retry_start","attempt":1,"maxAttempts":10,"delayMs":0,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDpe1pn4HeQcHNrxN1N\\\"} (reset after 1m 16s)\"}} retry-after-ms=76000","errorId":659456}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669652042,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDphvV61Di18fpVgf4U\\\"} (reset after 1m 15s)\"}} retry-after-ms=75000","duration":710.2670420000004}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669652042,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDphvV61Di18fpVgf4U\\\"} (reset after 1m 15s)\"}} retry-after-ms=75000","duration":710.2670420000004,"completedAt":1792669652774}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"onara","model":"cc/claude-opus-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1792669652042,"errorStatus":503,"errorId":659456,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDphvV61Di18fpVgf4U\\\"} (reset after 1m 15s)\"}} retry-after-ms=75000","duration":710.2670420000004},"toolResults":[]}
+{"type":"model_changed"}
+{"type":"retry_fallback_applied","from":"onara/cc/claude-opus-5:high","to":"onara/cx/gpt-5.6-sol","role":"onara/cc/claude-opus-5-5","reason":"Request failed: 503 {\"error\":{\"message\":\"[claude/claude-opus-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDphvV61Di18fpVgf4U\\\"} (reset after 1m 15s)\"}} retry-after-ms=75000"}
+{"type":"auto_retry_start","attempt":2,"maxAttempts":10,"delayMs":0,"errorMessage":"503 {\"error\":{\"message\":\"[claude/claude-opus-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"rate_limit_error\\\",\\\"message\\\":\\\"This request would exceed your account's rate limit. Please try again later.\\\"},\\\"request_id\\\":\\\"req_011CgHDphvV61Di18fpVgf4U\\\"} (reset after 1m 15s)\"}} retry-after-ms=75000","errorId":659456}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"Gate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n ","textSignature":"{\"v\":1,\"id\":\"msg_06dd721f56ba15e5016ad9f7d61cf88191a7c8f951bf267f87\",\"phase\":\"final_answer\"}"}],"api":"openai-responses","provider":"onara","model":"cx/gpt-5.6-sol","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_start","contentIndex":0}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"Gate"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" proof"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" integration"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-review"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" not"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" needed"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ("}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"one"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" gate"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" mechanism"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":")\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" review"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-work"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" R"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"AN"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" reviewed"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"_sha"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" da"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"ef"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"7"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"acf"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"715"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"8"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"c"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"68"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"efa"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"84"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"aa"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"7"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"d"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"7"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"afe"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"2"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"c"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"025"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"961"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"306"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"c"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" plan"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"_sha"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"256"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" b"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"bbb"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" implementation"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-a"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"udit"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" PASS"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" auditor"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" fixture"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"/model"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" trailer"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" evidence"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"/tr"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"ailer"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":".txt"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" strategic"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-risk"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-review"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" not"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" run"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ("}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"single"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" reviewer"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":")"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" trailer"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" none"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" override"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" none"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" record"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ."}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"omo"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"/e"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"vidence"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"/g"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"ate"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"/work"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"tree"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":".json"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" ·"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" validate"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-g"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"ate"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-record"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":".m"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"js"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" exit"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"0"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" at"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" "}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"4"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"e"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"7"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"fe"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"0"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"b"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"91"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"b"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"7"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"aa"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"874"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"284"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"fa"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"06"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"d"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"807"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"e"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"2"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"b"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"959"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"92"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"db"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"47"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"e"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"-"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" code"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" committed"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" after"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" reviewed"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"_sha"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":":"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":" none"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_end","contentIndex":0,"content":"Gate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Gate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none","textSignature":"{\"v\":1,\"id\":\"msg_06dd721f56ba15e5016ad9f7d61cf88191a7c8f951bf267f87\",\"phase\":\"final_answer\"}"}],"api":"openai-responses","provider":"onara","model":"cx/gpt-5.6-sol","usage":{"input":12747,"output":165,"cacheRead":0,"cacheWrite":0,"totalTokens":12912,"cost":{"input":0.050988,"output":0.0033000000000000004,"cacheRead":0,"cacheWrite":0,"total":0.054287999999999996}},"stopReason":"stop","timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2","duration":2713.147333,"ttft":1425.6686659999996,"completedAt":1792669655531}}
+{"type":"retry_fallback_succeeded","model":"onara/cx/gpt-5.6-sol:high","role":"onara/cc/claude-opus-5-5"}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Gate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none","textSignature":"{\"v\":1,\"id\":\"msg_06dd721f56ba15e5016ad9f7d61cf88191a7c8f951bf267f87\",\"phase\":\"final_answer\"}"}],"api":"openai-responses","provider":"onara","model":"cx/gpt-5.6-sol","usage":{"input":12747,"output":165,"cacheRead":0,"cacheWrite":0,"totalTokens":12912,"cost":{"input":0.050988,"output":0.0033000000000000004,"cacheRead":0,"cacheWrite":0,"total":0.054287999999999996}},"stopReason":"stop","timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2","duration":2713.147333,"ttft":1425.6686659999996},"toolResults":[]}
+{"type":"auto_retry_end","success":true,"attempt":2,"retryErrors":[{"entryId":"b6488385","persistenceKey":"assistant:1792669650572:onara:cc/claude-opus-5-5::error","note":"rate-limited; switched model; retried","retryRecovery":{"kind":"auto-retry","status":"recovered","attempt":1,"recoveredAt":"2026-10-22T11:47:35.536Z","recovery":"model","note":"rate-limited; switched model; retried","supersededBy":{"timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2","provider":"onara","model":"cx/gpt-5.6-sol"}}},{"entryId":"3fe16110","persistenceKey":"assistant:1792669652042:onara:cc/claude-opus-5::error","note":"rate-limited; switched model; retried","retryRecovery":{"kind":"auto-retry","status":"recovered","attempt":2,"recoveredAt":"2026-10-22T11:47:35.537Z","recovery":"model","note":"rate-limited; switched model; retried","supersededBy":{"timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2","provider":"onara","model":"cx/gpt-5.6-sol"}}}]}
+{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"Gate proof\n- integration-review: not needed (one gate mechanism)\n- review-work: RAN\n  reviewed_sha daef7acf7158c68efa84aa7d7afe2c025961306c · plan_sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n  implementation-audit: PASS · auditor · fixture/model · trailer evidence/trailer.txt\n  strategic-risk-review: not run (single reviewer) · trailer none\n  override: none\n  record .omo/evidence/gate/worktree.json · validate-gate-record.mjs exit 0 at 4e7fe0b91b7aa874284fa06d807e2b95992db47e\n- code committed after reviewed_sha: none","textSignature":"{\"v\":1,\"id\":\"msg_06dd721f56ba15e5016ad9f7d61cf88191a7c8f951bf267f87\",\"phase\":\"final_answer\"}"}],"api":"openai-responses","provider":"onara","model":"cx/gpt-5.6-sol","usage":{"input":12747,"output":165,"cacheRead":0,"cacheWrite":0,"totalTokens":12912,"cost":{"input":0.050988,"output":0.0033000000000000004,"cacheRead":0,"cacheWrite":0,"total":0.054287999999999996}},"stopReason":"stop","timestamp":1792669652796,"responseId":"resp_06dd721f56ba15e5016ad9f7d552188191a7f006f224aa2cb2","duration":2713.147333,"ttft":1425.6686659999996}],"isTerminal":true,"yielded":true}
+
+--- stderr ---

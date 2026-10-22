@@ -65,9 +65,9 @@ Do not add `.omo/plans` assumptions. Do not define OpenSpec folder hashing or wh
 5. Install only into an isolated `PI_CODING_AGENT_DIR` for smoke QA. Live `~/.omp/agent` and the deployed binary remain unchanged until merge plus explicit deploy approval.
 
 ## Final verification wave
-- [ ] F3. Whole-diff review: not needed (one gate-selection mechanism; tests and prose express the same contract)
-- [ ] F1. Manual QA on the real hook surface using a scratch repository with a linked worktree
-- [ ] F2. Merge gate: `review-work`, one implementation-audit reviewer, SHA-bound omo.merge-gate/v2 record validated
+- [x] F3. Whole-diff review: not needed (one gate-selection mechanism; tests and prose express the same contract)
+- [x] F1. Manual QA on the real hook surface: isolated `PI_CODING_AGENT_DIR`, actual `omp -p`, scratch main checkout plus linked worktree; evidence under `.omo/evidence/merge-gate-worktree-records/`
+- [x] F2. Merge gate: `review-work`, one implementation-audit reviewer, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 - Author's risk assessment: wrong worktree or SHA selection could falsely validate unrelated work; an overly strict settlement rule could block every local merge. The extension is team-wide internal tooling, reversible by reverting and reinstalling.
