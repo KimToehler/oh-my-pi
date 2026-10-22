@@ -9,7 +9,7 @@ import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-regis
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import { ExtensionRuntime } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
+import { type AcpSessionFactory, createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { ACP_BOOTSTRAP_RACE_GUARD_MS, AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import {
 	isPlanApprovalDetails,
@@ -45,6 +45,19 @@ import { type Client, ClientSideConnection, ndJsonStream, zSessionNotification }
 
 import { type GoalOwnerStamp, GoalRuntime } from "@oh-my-pi/pi-coding-agent/goals/runtime";
 import type { GoalModeState, GoalRuntimeEvent } from "@oh-my-pi/pi-coding-agent/goals/state";
+import { validateAcpV2Frame } from "./acp-v2-schema";
+/** Option id of the first option in a `session/request_permission` request, narrowed at runtime. */
+function firstPermissionOptionId(params: unknown): string | undefined {
+	if (typeof params !== "object" || params === null || !("options" in params) || !Array.isArray(params.options)) {
+		return undefined;
+	}
+	const first: unknown = params.options[0];
+	if (typeof first === "object" && first !== null && "optionId" in first && typeof first.optionId === "string") {
+		return first.optionId;
+	}
+	return undefined;
+}
+
 
 export function expectAcpStructure(schema: Validator<unknown>, value: unknown): void {
 	const result = schema.safeParse(value);
@@ -927,4 +940,318 @@ export async function createWireHarness(
 export async function advanceBootstrapGuard(): Promise<void> {
 	vi.advanceTimersByTime(ACP_BOOTSTRAP_RACE_GUARD_MS);
 	await Promise.resolve();
+}
+
+// ---------------------------------------------------------------------------
+// ACP v2 raw wire client
+// ---------------------------------------------------------------------------
+
+/** A parsed JSON-RPC frame as the v2 client saw it. */
+export type RawAcpFrame = Record<string, unknown>;
+
+export interface RawAcpResponse {
+	result?: unknown;
+	error?: { code: number; message: string; data?: unknown };
+	/** Position of the response frame in {@link RawAcpClient.frames}. */
+	index: number;
+}
+
+/** Answers an agent-to-client request; a thrown error becomes a JSON-RPC error response. */
+export type RawAcpRequestHandler = (method: string, params: unknown) => unknown | Promise<unknown>;
+
+export interface RawAcpUpdate {
+	/** Position of the notification in {@link RawAcpClient.frames}. */
+	index: number;
+	sessionId: string;
+	update: Record<string, unknown>;
+}
+
+export interface RawAcpStateUpdate {
+	index: number;
+	state: string;
+	stopReason?: string;
+	error?: { message?: string };
+}
+
+/** Every v2 frame recorded across all schema-validating clients of the current test file. */
+export const v2SuiteFrames: RawAcpFrame[] = [];
+/** Schema issues found in {@link v2SuiteFrames}, each prefixed with the offending method. */
+export const v2SuiteSchemaIssues: string[] = [];
+
+function isRawFrame(value: unknown): value is RawAcpFrame {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A JSON-RPC client that speaks NDJSON to the agent without any SDK schema in between, so the agent's exact
+ * bytes reach the test. It records every agent-to-client frame in order, validates each against the vendored v2
+ * schema (when `validate`), and answers agent-to-client requests through `onRequest`.
+ */
+export class RawAcpClient {
+	/** Agent-to-client frames in wire order. */
+	readonly frames: RawAcpFrame[] = [];
+	/** Schema issues for this client's frames. */
+	readonly schemaIssues: string[] = [];
+	/** Resolves when the agent closes its output. */
+	readonly done: Promise<void>;
+	readonly #writer: WritableStreamDefaultWriter<Uint8Array>;
+	readonly #encoder = new TextEncoder();
+	readonly #pending = new Map<number, (response: RawAcpResponse) => void>();
+	readonly #methodsById = new Map<unknown, string>();
+	readonly #validate: boolean;
+	readonly #onRequest: RawAcpRequestHandler;
+	#nextId = 0;
+	#waiters = new Set<() => void>();
+
+	constructor(
+		input: WritableStream<Uint8Array>,
+		output: ReadableStream<Uint8Array>,
+		options: { validate: boolean; onRequest?: RawAcpRequestHandler },
+	) {
+		this.#writer = input.getWriter();
+		this.#validate = options.validate;
+		this.#onRequest =
+			options.onRequest ??
+			((method, params) => {
+				if (method === "session/request_permission") {
+					return { outcome: { outcome: "selected", optionId: firstPermissionOptionId(params) } };
+				}
+				throw new Error(`unexpected agent request ${method}`);
+			});
+		this.done = this.#read(output);
+	}
+
+	async #read(output: ReadableStream<Uint8Array>): Promise<void> {
+		const reader = output.getReader();
+		const decoder = new TextDecoder();
+		let buffered = "";
+		while (true) {
+			const next = await reader.read();
+			if (next.done) break;
+			buffered += decoder.decode(next.value, { stream: true });
+			let newline = buffered.indexOf("\n");
+			while (newline >= 0) {
+				const line = buffered.slice(0, newline);
+				buffered = buffered.slice(newline + 1);
+				if (line.length > 0) this.#handle(JSON.parse(line) as unknown);
+				newline = buffered.indexOf("\n");
+			}
+		}
+	}
+
+	#handle(value: unknown): void {
+		if (!isRawFrame(value)) {
+			this.schemaIssues.push("non-object frame from agent");
+			return;
+		}
+		const index = this.frames.length;
+		this.frames.push(value);
+		if (this.#validate) this.#validateFrame(value);
+		const method = typeof value.method === "string" ? value.method : undefined;
+		if (method !== undefined && "id" in value) {
+			void this.#answer(value.id, method, value.params);
+		} else if (method === undefined && "id" in value) {
+			const resolve = this.#pending.get(value.id as number);
+			this.#pending.delete(value.id as number);
+			const error = value.error as RawAcpResponse["error"];
+			resolve?.({ result: value.result, error, index });
+		}
+		for (const waiter of this.#waiters) waiter();
+	}
+
+	#validateFrame(frame: RawAcpFrame): void {
+		const issues: string[] = [];
+		if (frame.jsonrpc !== "2.0") issues.push("jsonrpc: expected 2.0");
+		let label: string | undefined;
+		if (typeof frame.method === "string") {
+			label = frame.method;
+			issues.push(...validateAcpV2Frame("id" in frame ? "request" : "notification", frame.method, frame.params));
+		} else if ("result" in frame) {
+			label = this.#methodsById.get(frame.id);
+			issues.push(
+				...(label === undefined
+					? [`response to unknown request id ${String(frame.id)}`]
+					: validateAcpV2Frame("response", label, frame.result)),
+			);
+		}
+		const record = issues.map(issue => `${label ?? "<frame>"}: ${issue}`);
+		this.schemaIssues.push(...record);
+		v2SuiteFrames.push(frame);
+		v2SuiteSchemaIssues.push(...record);
+	}
+
+	async #answer(id: unknown, method: string, params: unknown): Promise<void> {
+		let response: RawAcpFrame;
+		try {
+			response = { jsonrpc: "2.0", id, result: await this.#onRequest(method, params) };
+		} catch (error) {
+			response = {
+				jsonrpc: "2.0",
+				id,
+				error: { code: -32601, message: error instanceof Error ? error.message : String(error) },
+			};
+		}
+		await this.#write(response);
+	}
+
+	#write(message: unknown): Promise<void> {
+		return this.#writer.write(this.#encoder.encode(`${JSON.stringify(message)}\n`));
+	}
+
+	/** Sends a request and resolves with the raw response (a JSON-RPC error is data, not a rejection). */
+	request(method: string, params?: unknown): Promise<RawAcpResponse> {
+		const id = this.#nextId++;
+		this.#methodsById.set(id, method);
+		const { promise, resolve, reject } = Promise.withResolvers<RawAcpResponse>();
+		this.#pending.set(id, resolve);
+		this.#write({ jsonrpc: "2.0", id, method, params }).catch(reject);
+		return promise;
+	}
+
+	/** Sends a request and returns its result; rejects when the agent answers with an error. */
+	async call<T = Record<string, unknown>>(method: string, params?: unknown): Promise<T> {
+		const response = await this.request(method, params);
+		if (response.error) throw new Error(`${method} failed (${response.error.code}): ${response.error.message}`);
+		return response.result as T;
+	}
+
+	notify(method: string, params?: unknown): Promise<void> {
+		return this.#write({ jsonrpc: "2.0", method, params });
+	}
+
+	/** `session/update` notifications in wire order, optionally for one session. */
+	updates(sessionId?: string): RawAcpUpdate[] {
+		const out: RawAcpUpdate[] = [];
+		this.frames.forEach((frame, index) => {
+			if (frame.method !== "session/update" || !isRawFrame(frame.params)) return;
+			const params = frame.params as { sessionId?: string; update?: Record<string, unknown> };
+			if (!params.update || (sessionId !== undefined && params.sessionId !== sessionId)) return;
+			out.push({ index, sessionId: params.sessionId ?? "", update: params.update });
+		});
+		return out;
+	}
+
+	/** `state_update` notifications in wire order. */
+	states(sessionId?: string): RawAcpStateUpdate[] {
+		return this.updates(sessionId)
+			.filter(entry => entry.update.sessionUpdate === "state_update")
+			.map(entry => {
+				const update = entry.update as { state: string; stopReason?: string; error?: { message?: string } };
+				return { index: entry.index, state: update.state, stopReason: update.stopReason, error: update.error };
+			});
+	}
+
+	/** Agent-to-client requests (e.g. `session/request_permission`) in wire order. */
+	agentRequests(): RawAcpFrame[] {
+		return this.frames.filter(frame => typeof frame.method === "string" && "id" in frame);
+	}
+
+	/** Resolves once `predicate` holds over the recorded frames; rejects after `timeoutMs`. */
+	async waitFor(predicate: (client: RawAcpClient) => boolean, description: string, timeoutMs = 5000): Promise<void> {
+		const deadline = Date.now() + timeoutMs;
+		while (!predicate(this)) {
+			if (Date.now() > deadline) throw new Error(`timed out waiting for ${description}`);
+			const turn = Promise.withResolvers<void>();
+			this.#waiters.add(turn.resolve);
+			setTimeout(turn.resolve, 5);
+			await turn.promise;
+			this.#waiters.delete(turn.resolve);
+		}
+	}
+
+	/** Half-closes the connection: the agent sees end of input and shuts down. */
+	async end(): Promise<void> {
+		await Promise.allSettled([this.#writer.close()]);
+	}
+}
+
+export interface V2Connection {
+	client: RawAcpClient;
+	agent: AcpAgent | undefined;
+}
+
+export interface V2WireHarness {
+	/** Client of the current connection; replaced by {@link V2WireHarness.reconnect}. */
+	client: RawAcpClient;
+	root: string;
+	cwd: string;
+	agentDir: string;
+	/** Sessions the default fake factory created (empty with a custom factory). */
+	sessions: FakeAgentSession[];
+	/** Tears the current connection down and opens a fresh one on the same roots and factory. */
+	reconnect(): Promise<RawAcpClient>;
+	close(): Promise<void>;
+}
+
+/**
+ * Wires `createAcpConnection(..., { maxVersion })` to a {@link RawAcpClient} over in-memory NDJSON streams.
+ * Without `factory`, sessions are {@link FakeAgentSession}s; pass a factory to drive a real `AgentSession`.
+ */
+export async function createV2WireHarness(
+	options: {
+		maxVersion?: 1 | 2;
+		factory?: AcpSessionFactory;
+		onRequest?: RawAcpRequestHandler;
+		/** Validate frames against the v2 schema and record them for the suite-wide assertion; default true. */
+		validate?: boolean;
+	} = {},
+): Promise<V2WireHarness> {
+	const { cwdA } = await prepareHarnessRoots();
+	const fake = options.factory ? undefined : createFakeSessionFactory(cwdA, false);
+	const factory = options.factory ?? fake!.factory;
+	const connections: Array<{ client: RawAcpClient; agent: () => AcpAgent | undefined; closed: Promise<void> }> = [];
+
+	const harness: V2WireHarness = {
+		client: undefined as unknown as RawAcpClient,
+		root: path.dirname(cwdA),
+		cwd: cwdA,
+		agentDir: path.join(path.dirname(cwdA), "agent"),
+		sessions: fake?.sessions ?? [],
+		reconnect: async () => {
+			await closeCurrent();
+			return connect(false);
+		},
+		close: async () => {
+			await closeCurrent();
+		},
+	};
+
+	async function closeCurrent(): Promise<void> {
+		for (const connection of connections.splice(0)) {
+			await connection.client.end();
+			// Dispose below; nothing else holds the client.
+			await Promise.allSettled([connection.agent()?.dispose(), connection.closed]);
+		}
+	}
+
+	function connect(first: boolean): RawAcpClient {
+		const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
+		const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
+		let agent: AcpAgent | undefined;
+		const serverConnection = createAcpConnection(
+			ndJsonStream(agentToClient.writable, clientToAgent.readable),
+			factory,
+			first ? (fake?.initialSession as unknown as AgentSession | undefined) : undefined,
+			created => {
+				agent = created;
+			},
+			{ maxVersion: () => options.maxVersion ?? 2 },
+		);
+		const client = new RawAcpClient(clientToAgent.writable, agentToClient.readable, {
+			validate: options.validate ?? true,
+			onRequest: options.onRequest,
+		});
+		const closed = (async () => {
+			await serverConnection.closed;
+			// `ndJsonStream` takes a transient writer per frame; wait for the lock to clear before closing.
+			for (let attempt = 0; attempt < 100 && agentToClient.writable.locked; attempt++) await eventLoopTurns(1);
+			await Promise.allSettled([agentToClient.writable.close(), client.done]);
+		})();
+		connections.push({ client, agent: () => agent, closed });
+		harness.client = client;
+		return client;
+	}
+
+	connect(true);
+	return harness;
 }
