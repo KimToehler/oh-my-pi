@@ -1,0 +1,110 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/review-blocking-threshold.md",
+  "plan_sha256": "707a2dbe50f4e5baea3e4a06f9ae76c1d1e0f615fd4b96c53cd662d7d9172665",
+  "reviewed_sha": "e95a6288389629e29aa1b2f13dda8558fa457f87",
+  "diff_base": "4ffd03645092a81068dc45122ce172ca9bb5211e",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class schema-migration (new trailer field and record field): both invocations run; F2 wave 2 after fixing wave 1's two strategic blockers.",
+  "mandatory_class": "schema-migration",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "RED: new reconciliation and downgrade rows fail on the original validator",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/red.txt"
+    },
+    {
+      "name": "RED: F3 fix rows fail before their fix",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/f3/red-fix.txt"
+    },
+    {
+      "name": "team-config suites on the reviewed head",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/f1-team-config.txt"
+    },
+    {
+      "name": "bundled plan-reviewer parsing and plan-review suites",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/f1-bundled-agent.txt"
+    },
+    {
+      "name": "merged validator stdout outcome and downgrade rule",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/merge-smoke.txt"
+    },
+    {
+      "name": "real reviewer trailers against the validator",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/real-trailer-validation.txt"
+    },
+    {
+      "name": "reviewer classification on four paths, QA matrix rows 8-15",
+      "passed": true,
+      "artifact": ".omo/evidence/review-blocking-threshold/qa-matrix.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/review-blocking-threshold/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "5bdba09b2db9cbbe7d5e82684e6ca5eb264d589bd51f83c540b3b54df3d63439",
+      "note": "F2 wave 2; no blockers"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/review-blocking-threshold/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "c5e6b545bf6eff5007a7868f17f7fb8a0f55d8ec862d223385845fe1e1f521dc",
+      "note": "F2 wave 2; wave 1 B1 fixed in e95a628838, B2 resolved by plan row 5"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "F3-B1",
+      "severity": "high",
+      "location": "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:reconcileBlockers",
+      "coverage": "team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs::#given two narrative lines with the same blocker id #when validated #then it blocks naming the gap",
+      "fix_sha": "ee9042b8249c3087b4d933df35cd9ef8b24fee5f"
+    },
+    {
+      "id": "F3-B2",
+      "severity": "high",
+      "location": "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:validateRecord",
+      "coverage": "team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs::#given an override over FAIL plus INCONCLUSIVE #when validated #then it blocks",
+      "fix_sha": "ee9042b8249c3087b4d933df35cd9ef8b24fee5f"
+    },
+    {
+      "id": "F2-B1",
+      "severity": "high",
+      "location": "team-config/agent/rules/merge-gate-proof.md:31",
+      "coverage": "not-testable:prose allow/deny rule read by the orchestrator; verified by F3 wave 4 and F2 wave 2 review",
+      "fix_sha": "e95a6288389629e29aa1b2f13dda8558fa457f87"
+    }
+  ]
+}
