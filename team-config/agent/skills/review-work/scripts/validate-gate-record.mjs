@@ -499,7 +499,14 @@ function reconcileBlockers(scalars, narrative, field) {
   }
   const ids = scalars.blockers.split(",").map((id) => id.trim())
   if (new Set(ids).size !== ids.length) block(`${field}.blockers`, "repeats a blocker id")
-  const reported = new Set(narrative.flatMap((line) => NARRATIVE_BLOCKER.exec(line)?.[1] ?? []))
+  // Two findings under one id would let a single downgrade account for both, so each narrative id
+  // must name exactly one finding.
+  const narrativeIds = narrative.flatMap((line) => NARRATIVE_BLOCKER.exec(line)?.[1] ?? [])
+  const reported = new Set()
+  for (const id of narrativeIds) {
+    if (reported.has(id)) block(`${field}.blockers`, `narrative repeats Blocker ${id}; each finding needs its own id`)
+    reported.add(id)
+  }
   for (const id of reported) {
     if (!ids.includes(id)) block(`${field}.blockers`, `narrative reports ${id} but the trailer omits it`)
   }
@@ -794,8 +801,13 @@ function validateRecord(record, context) {
     if (!hasOverride && verdict.verdict !== "PASS") {
       block(`verdicts.${index}.verdict`, `${verdict.verdict ?? "missing"} blocks merge`)
     }
-    if (hasOverride && !new Set(["PASS", "FAIL", "INCONCLUSIVE"]).has(verdict.verdict)) {
-      block(`verdicts.${index}.verdict`, "must be PASS, FAIL, or INCONCLUSIVE")
+    // An override signs off on findings a reviewer delivered. INCONCLUSIVE delivered none, so it
+    // is re-run, never overridden; otherwise a missing review would pass as a completed one.
+    if (hasOverride && verdict.verdict === "INCONCLUSIVE") {
+      block(`verdicts.${index}.verdict`, "INCONCLUSIVE cannot be overridden; re-run the invocation")
+    }
+    if (hasOverride && verdict.verdict !== "PASS" && verdict.verdict !== "FAIL" && verdict.verdict !== "INCONCLUSIVE") {
+      block(`verdicts.${index}.verdict`, "must be PASS or FAIL")
     }
     // The reviewer's own trailer is the only witness of the brief it actually received. Deriving
     // the facts from it is what makes a folded brief fail loudly instead of silently.
