@@ -32,7 +32,6 @@ import type {
 	RoleModelCycle,
 	UsageFallbackConfirmation,
 } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import * as executionModelModule from "@oh-my-pi/pi-coding-agent/plan-mode/execution-model";
 import { SILENT_ABORT_MARKER } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { closeSessionIndex } from "@oh-my-pi/pi-coding-agent/session/session-index";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
@@ -1203,7 +1202,7 @@ describe("ACP agent", () => {
 		harness.abortController.abort();
 	});
 
-	it("plan approval offers one approve option per cycle role, preselects the judge's pick, and applies it", async () => {
+	it("plan approval offers one approve option per cycle role, preselects default, and applies the chosen tier", async () => {
 		const requests: CreateElicitationRequest[] = [];
 		const harness = await createHarness({
 			elicitationHandler: async request => {
@@ -1211,7 +1210,6 @@ describe("ACP agent", () => {
 				return { action: "accept", content: { value: "approve:task" } };
 			},
 		});
-		const recommend = spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue("task");
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
@@ -1219,14 +1217,13 @@ describe("ACP agent", () => {
 			content: Array<{ type: string; text: string }>;
 		};
 
-		expect(recommend).toHaveBeenCalledTimes(1);
 		const field = planApprovalField(requests[0]);
 		expect(field.oneOf).toEqual([
 			{ const: "approve:default", title: "Approve → default · Claude Sonnet" },
-			{ const: "approve:task", title: "Approve → task · GPT-5.4 (recommended)" },
+			{ const: "approve:task", title: "Approve → task · GPT-5.4" },
 			{ const: "refine", title: "Refine plan" },
 		]);
-		expect(field.default).toBe("approve:task");
+		expect(field.default).toBe("approve:default");
 		expect(session.appliedRoleModels.map(entry => entry.role)).toEqual(["task"]);
 		expect(session.model).toBe(TEST_MODELS[1]);
 		expect(result.content[0]?.text).toContain("Implementation model: task");
@@ -1239,7 +1236,6 @@ describe("ACP agent", () => {
 		const harness = await createHarness({
 			elicitationHandler: async () => ({ action: "accept", content: { value: "approve:default" } }),
 		});
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
@@ -1254,7 +1250,7 @@ describe("ACP agent", () => {
 		harness.abortController.abort();
 	});
 
-	it("plan approval preselects the default tier when the judge gives no answer", async () => {
+	it("plan approval preselects the active tier when no default role is configured", async () => {
 		const requests: CreateElicitationRequest[] = [];
 		const harness = await createHarness({
 			elicitationHandler: async request => {
@@ -1262,13 +1258,18 @@ describe("ACP agent", () => {
 				return { action: "cancel" };
 			},
 		});
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
 		const { session } = await enterPlanWithPlanFile(harness);
-		session.roleModelCycle = TWO_TIERS;
+		session.roleModelCycle = {
+			models: [
+				{ role: "task", model: TEST_MODELS[1], explicitThinkingLevel: false },
+				{ role: "slow", model: TEST_MODELS[0], explicitThinkingLevel: false },
+			],
+			currentIndex: 1,
+		};
 
 		await proposePlan(session, "words-counter");
 
-		expect(planApprovalField(requests[0]).default).toBe("approve:default");
+		expect(planApprovalField(requests[0]).default).toBe("approve:slow");
 
 		harness.abortController.abort();
 	});
@@ -1280,7 +1281,6 @@ describe("ACP agent", () => {
 			{ action: "accept", content: { value: "refine" } },
 		];
 		const harness = await createHarness({ elicitationHandler: async () => answers.shift()! });
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue("task");
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 
@@ -1308,7 +1308,6 @@ describe("ACP agent", () => {
 				return { action: "accept", content: { value } };
 			},
 		});
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
 		const { session } = await enterPlanWithPlanFile(harness);
 		return { harness, session, opened: opened.promise, answer: () => answered.resolve() };
 	}
@@ -1384,7 +1383,6 @@ describe("ACP agent", () => {
 				return { action: "accept", content: { value: "refine" } };
 			},
 		});
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
 		const { session } = await enterPlanWithPlanFile(harness);
 		const newPlanPath = session.planModeState?.planFilePath;
 		const resolving = Promise.withResolvers<void>();
@@ -1414,7 +1412,6 @@ describe("ACP agent", () => {
 					return { action: "accept", content: { value: "approve" } };
 				},
 			});
-			spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue(undefined);
 			const { session } = await enterPlanWithPlanFile(harness);
 			const resolving = Promise.withResolvers<void>();
 			const pending = proposePlan(session, "words-counter", { resolving: resolving.promise, reviewed: true });
@@ -1492,7 +1489,6 @@ describe("ACP agent", () => {
 			elicitationHandler: async () => ({ action: "accept", content: { value: "approve:task" } }),
 			clientInfo,
 		});
-		spyOn(executionModelModule, "recommendPlanExecutionRole").mockResolvedValue("task");
 		const { session } = await enterPlanWithPlanFile(harness);
 		session.roleModelCycle = TWO_TIERS;
 		await proposePlan(session, "words-counter");

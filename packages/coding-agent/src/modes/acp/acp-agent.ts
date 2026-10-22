@@ -65,10 +65,8 @@ import {
 	planProposalSupersededResult,
 	type ResolvedApprovedPlan,
 } from "../../plan-mode/approved-plan";
-import { recommendPlanExecutionRole } from "../../plan-mode/execution-model";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
 import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
-import { journalJudgmentUsage } from "../../judgment";
 import { cfgCycleOrder } from "../../config/model-settings";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
 import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
@@ -2443,7 +2441,7 @@ export class AcpAgent implements Agent {
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath, planContent);
+		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
@@ -2552,9 +2550,9 @@ export class AcpAgent implements Agent {
 	/**
 	 * Ask the ACP client to confirm plan approval and pick the execution model.
 	 * With two or more `cycleOrder` role models the select offers one
-	 * `approve:<role>` option per role plus `refine`; the judge's recommended
-	 * role (else `default`) is preselected and marked. Without tiers it offers
-	 * a bare `approve`/`refine` pair.
+	 * `approve:<role>` option per role plus `refine`, preselecting the
+	 * `default` role (else the active tier) like the TUI approval slider.
+	 * Without tiers it offers a bare `approve`/`refine` pair.
 	 *
 	 * Approves ONLY on an explicit approve value naming a known tier (or the
 	 * bare approve without tiers). Refine, dismissal, timeout, or any other
@@ -2571,7 +2569,6 @@ export class AcpAgent implements Agent {
 		session: AgentSession,
 		title: string,
 		planPath: string,
-		planContent: string,
 	): Promise<{ approved: false } | { approved: true; executionModel?: ResolvedRoleModel }> {
 		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
 		if (!supportsForm) return { approved: true };
@@ -2594,22 +2591,14 @@ export class AcpAgent implements Agent {
 		const tiers = cycle && cycle.models.length > 1 ? cycle.models : [];
 		let options: Array<{ const: string; title: string }>;
 		let defaultValue: string;
-		if (tiers.length > 0) {
-			const recommended =
-				(await recommendPlanExecutionRole(planContent, tiers, {
-					settings: session.settings,
-					registry: session.modelRegistry,
-					model: session.model,
-					sessionId: session.sessionId,
-					metadataResolver: provider => session.agent.metadataForProvider(provider),
-					onUsage: journalJudgmentUsage(session.sessionManager),
-					telemetry: session.agent.telemetry,
-				})) ?? (tiers.some(entry => entry.role === "default") ? "default" : tiers[0].role);
+		if (cycle && tiers.length > 0) {
+			const defaultIndex = tiers.findIndex(entry => entry.role === "default");
+			const preselected = tiers[defaultIndex >= 0 ? defaultIndex : cycle.currentIndex].role;
 			options = tiers.map(entry => ({
 				const: `${PLAN_APPROVE_VALUE_PREFIX}${entry.role}`,
-				title: `Approve → ${entry.role} · ${entry.model.name || entry.model.id}${entry.role === recommended ? " (recommended)" : ""}`,
+				title: `Approve → ${entry.role} · ${entry.model.name || entry.model.id}`,
 			}));
-			defaultValue = `${PLAN_APPROVE_VALUE_PREFIX}${recommended}`;
+			defaultValue = `${PLAN_APPROVE_VALUE_PREFIX}${preselected}`;
 		} else {
 			options = [{ const: PLAN_APPROVE_VALUE, title: "Approve and execute" }];
 			defaultValue = PLAN_APPROVE_VALUE;
