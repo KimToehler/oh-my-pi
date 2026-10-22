@@ -432,11 +432,12 @@ From the worktree root:
 2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
 3. F2-B1: a wave's `GC snapshot` is write-once. A rerun for the same unrecorded wave on the same commit SHA and plan bytes, with an intact copy, re-prints the existing snapshot without writing either file. Other plan bytes, another commit (even with the same tree), a copy without its JSON or a JSON without its copy are refused, naming both files to delete and that every reviewer of the wave must be re-dispatched; first writes use exclusive create. Tests: unchanged rerun leaves both files' mtimes, other bytes refused until both files are deleted; empty commit refused; orphaned copy refused. RED against the unchanged script in `red-f2-b1.txt` and against 377f94d113 in `red-f2-b1-round2.txt`. Document the restart in review-work Fix waves step 1 and integration-review Step 2.
 4. F2-B2: both trailer templates define `security_delta: yes` as a real credential, an authentication or authorisation path, third-party personal data, or weakened access to a protected asset; a synthetic credential limited to disposable local/test services is `no`. Phase 0.5 states the same. The validator's `security_delta: yes` + `mandatory_class: none` refusal stays unchanged.
+5. F3-W4-B1: snapshot files are named `<lane>-<first 12 hex of sha256(plan key)>-wave-<n>`, so a second plan gated in the same checkout starts its own wave 1 instead of meeting the first plan's write-once snapshot. Test `#given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched`, RED against 385d14c205 in `red-f3-b1-wave4.txt`.
 
 ## Final verification wave
 - [x] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
 - [x] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
-- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 - Author's risk assessment: a wrong tier parse or tier binding would let a product plan run with one auditor and a cap, or leave internal-tooling lanes looping as before. A wrong decide rule would block a legitimate continue or freeze. The new ledger event and snapshot fields are persisted state. Team-wide config, reversible by reinstalling main.

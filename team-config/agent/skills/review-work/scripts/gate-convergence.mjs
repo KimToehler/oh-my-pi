@@ -330,8 +330,11 @@ const commands = {
     if (reasons.length > 0) fail(`not ready: ${reasons.join("; ")}`)
     const wave = laneWaves(state.events, lane).length + 1
     const dir = path.join(ctx.repo, ".omo", "gate-deltas")
-    const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
-    const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
+    // The ledger numbers waves per plan, so the files carry the plan key too: another plan gated in
+    // this checkout starts its own wave 1 instead of meeting this plan's write-once snapshot.
+    const prefix = `${lane}-${sha256(ctx.key).slice(0, 12)}-wave-${wave}`
+    const file = path.join(dir, `${prefix}.snapshot.json`)
+    const planCopy = path.join(dir, `${prefix}.plan.md`)
     mkdirSync(dir, { recursive: true })
     // A wave's snapshot is write-once: reviewers may already be reading its plan copy, so any rerun
     // only re-prints an unchanged snapshot. Other bytes, another commit or a partial pair mean the

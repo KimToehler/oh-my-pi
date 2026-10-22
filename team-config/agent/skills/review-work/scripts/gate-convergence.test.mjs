@@ -537,6 +537,25 @@ test("#given a plan copy without its snapshot JSON #when snapshot runs #then it 
   assert.equal(existsSync(file), false)
 })
 
+test("#given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const [firstFile, , firstPlanLine] = first.stdout.split("\n")
+  const firstJson = readFileSync(firstFile, "utf8")
+  const OTHER = ".omo/plans/other.md"
+  writeFileSync(path.join(s.repo, OTHER), "# other plan\n")
+  const other = (...args) => s.run(args[0], "--plan", OTHER, ...args.slice(1))
+  assert.equal(other("baseline", "--sha", "HEAD").status, 0)
+  const second = other("snapshot", "--lane", "F2")
+  assert.equal(second.status, 0, second.stderr)
+  const [secondFile, , secondPlanLine] = second.stdout.split("\n")
+  assert.notEqual(secondFile, firstFile)
+  assert.equal(readFileSync(secondPlanLine.replace(/^PLAN /, ""), "utf8"), "# other plan\n")
+  assert.equal(readFileSync(firstFile, "utf8"), firstJson)
+  assert.deepEqual(readFileSync(firstPlanLine.replace(/^PLAN /, "")), readFileSync(path.join(s.repo, PLAN)))
+})
+
 test("#given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")
