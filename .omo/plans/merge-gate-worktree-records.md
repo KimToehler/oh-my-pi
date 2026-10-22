@@ -62,6 +62,8 @@ Do not add `.omo/plans` assumptions. Do not define OpenSpec folder hashing or wh
 2. [x] B2 ambiguous record identity: reject different bytes at the same path and `reviewed_sha` across linked worktrees.
 3. [x] B3 default-ref selection: use only `origin/HEAD` and its local counterpart; never authorize settlement from an unrelated conventional branch.
 4. [x] Default-ref race: pin each actual default ref to one commit before ancestry and record lookup.
+5. [x] Worktree discovery failure: block the claim instead of treating the session checkout as a complete inventory.
+6. [x] Real-surface negative: record an actual hook refusal when only a competing different-SHA worktree record exists.
 
 ## Verification
 

@@ -571,6 +571,7 @@ describe("merge-gate-proof rule contract", () => {
 		(h.pi as unknown as { exec: unknown }).exec = async (command: string, args: string[]): Promise<ExecResult> => {
 			h.execCalls.push({ command, args });
 			if (command === "node") return h.validator;
+			if (args[0] === "worktree" && args[1] === "list") return ok(`worktree ${h.dir}\n`);
 			if (args[0] === "rev-parse") return ok(`${h.dir}\n`);
 			if (args[0] === "symbolic-ref") return ok("origin/main\n");
 			if (args[0] === "merge-base") return { stdout: "", stderr: "", code: 1, killed: false };
@@ -695,6 +696,35 @@ describe("worktree gate binding", () => {
 		// Then
 		expect(result).toMatchObject({ decision: "block" });
 		expect(JSON.stringify(result)).toContain("ambiguous");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("refuses a binding when linked-worktree discovery fails", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/local.md",
+				reviewed_sha: fixture.reviewedSha,
+			}),
+		);
+		useRealGit();
+		const realExec = h.pi.exec;
+		h.pi.exec = async (command: string, args: string[], options?: ExecOptions): Promise<ExecResult> => {
+			if (command === "git" && args[0] === "worktree" && args[1] === "list") {
+				h.execCalls.push({ command, args });
+				return { stdout: "", stderr: "worktree discovery failed", code: 1, killed: false };
+			}
+			return realExec(command, args, options);
+		};
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
 		expect(recordRuns()).toHaveLength(0);
 	});
 

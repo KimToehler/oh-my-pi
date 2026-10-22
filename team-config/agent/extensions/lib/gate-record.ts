@@ -62,9 +62,9 @@ function recordAt(repo: string, binding: GateBinding): GateRecordRef | undefined
 	return { ...binding, content, plan: value.plan, repo };
 }
 
-async function worktreeRoots(pi: Pick<ExtensionAPI, "exec">, repo: string): Promise<readonly string[]> {
+async function worktreeRoots(pi: Pick<ExtensionAPI, "exec">, repo: string): Promise<readonly string[] | undefined> {
 	const listed = await pi.exec("git", ["worktree", "list", "--porcelain"], { cwd: repo, timeout: 10_000 });
-	if (listed.code !== 0) return [repo];
+	if (listed.code !== 0) return undefined;
 	const roots = new Set([repo]);
 	for (const line of listed.stdout.split("\n")) {
 		if (line.startsWith("worktree ")) roots.add(line.slice("worktree ".length));
@@ -76,9 +76,11 @@ export async function recordsForBinding(
 	pi: Pick<ExtensionAPI, "exec">,
 	repo: string,
 	binding: GateBinding,
-): Promise<readonly GateRecordRef[]> {
+): Promise<readonly GateRecordRef[] | undefined> {
+	const roots = await worktreeRoots(pi, repo);
+	if (roots === undefined) return undefined;
 	const records: GateRecordRef[] = [];
-	for (const root of await worktreeRoots(pi, repo)) {
+	for (const root of roots) {
 		const record = recordAt(root, binding);
 		if (record !== undefined) records.push(record);
 	}

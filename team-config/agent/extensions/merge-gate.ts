@@ -221,6 +221,13 @@ export default function mergeGate(pi: ExtensionAPI) {
 			};
 		}
 		const records = await recordsForBinding(pi, repo, binding);
+		if (records === undefined) {
+			return {
+				decision: "block",
+				reason:
+					"Merge gate: could not enumerate this repository's linked worktrees; refusing an incomplete record search.",
+			};
+		}
 		if (records.length === 0) {
 			return {
 				decision: "block",
