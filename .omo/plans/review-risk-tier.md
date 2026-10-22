@@ -432,9 +432,9 @@ From the worktree root:
 2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
 
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
-- [ ] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [x] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
+- [x] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
+- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 - Author's risk assessment: a wrong tier parse or tier binding would let a product plan run with one auditor and a cap, or leave internal-tooling lanes looping as before. A wrong decide rule would block a legitimate continue or freeze. The new ledger event and snapshot fields are persisted state. Team-wide config, reversible by reinstalling main.
