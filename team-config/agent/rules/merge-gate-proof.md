@@ -28,7 +28,7 @@ Each line has one of four outcomes:
 - legitimately skipped: integration-review `not needed (<plan's Whole-diff review reason>)`, or strategic-risk-review `not run (<reason>)` when review-work's depth rule chose one reviewer; never for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers;
 - not passed: anything else, written as `NOT RUN (<reason>)` or `FAIL`.
 
-Only passed, overridden and legitimately skipped lines allow a merge request. If any line is not passed, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
+Only passed, overridden and legitimately skipped lines allow a merge request. If any line is neither passed, overridden, nor legitimately skipped, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
 
 ## What "ran in full" means
 
