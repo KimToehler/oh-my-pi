@@ -130,19 +130,25 @@ describe("validate-openspec-change", () => {
 		});
 	}
 
-	it("accepts explicit skipped specs when no deltas exist", async () => {
-		const root = await fixture();
-		await fs.rm(path.join(root, "specs"), { recursive: true });
-		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\nskip_specs: true\n");
-		expect(run(root).exitCode).toBe(0);
-	});
+	// Exact bytes `openspec new change` (1.14.3, schema omp-gated) writes, plus the appended `skip_specs: true`; `openspec validate --strict` accepts it without specs.
+	const GENERATED_METADATA = "schema: omp-gated\ncreated: 2026-10-22\nskip_specs: true\n";
 
-	it("accepts skip_specs true with a trailing comment", async () => {
+	async function skippedSpecsFixture(metadata: string): Promise<string> {
 		const root = await fixture();
 		await fs.rm(path.join(root, "specs"), { recursive: true });
-		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\nskip_specs: true # no behaviour\n");
-		expect(run(root).exitCode).toBe(0);
-	});
+		await Bun.write(path.join(root, ".openspec.yaml"), metadata);
+		return root;
+	}
+
+	for (const [name, metadata] of [
+		["the generated metadata with skip_specs true", GENERATED_METADATA],
+		["skip_specs true with a trailing comment", "schema: omp-gated\nskip_specs: true # no behaviour\n"],
+		["comments and blank lines around flat keys", "# note\n\nschema: omp-gated\nskip_specs: true\n"],
+	] as const) {
+		it(`accepts explicit skipped specs: ${name}`, async () => {
+			expect(run(await skippedSpecsFixture(metadata))).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
+	}
 
 	it("treats skip_specs false as not skipped and keeps specs validated", async () => {
 		const root = await fixture();
@@ -150,24 +156,53 @@ describe("validate-openspec-change", () => {
 		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 	});
 
+	it("does not inspect metadata that never mentions skip_specs", async () => {
+		const root = await fixture();
+		await Bun.write(path.join(root, ".openspec.yaml"), "owner:\n  broken: [\n");
+		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+
+	it("keeps specs required when metadata without skip_specs is unparsable", async () => {
+		const root = await skippedSpecsFixture("owner:\n  broken: [\n");
+		const result = run(root);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("specs: at least one Markdown spec is required");
+	});
+
 	for (const [name, metadata] of [
-		["duplicate keys", "skip_specs: true\nskip_specs: false\n"],
+		[
+			"a nested map after skip_specs and an unterminated flow value",
+			"schema: omp-gated\nskip_specs: true\nowner:\n  broken: [\n",
+		],
+		["a nested map", "skip_specs: true\nowner:\n  name: x\n"],
+		["a block list", "skip_specs: true\nowners:\n- a\n"],
+		["a flow list", "skip_specs: true\nowners: [a, b]\n"],
+		["a flow map", "skip_specs: true\nowner: {a: b}\n"],
+		["a quoted value on another key", 'skip_specs: true\nowner: "x"\n'],
+		["a duplicate non-skip key", "skip_specs: true\nowner: a\nowner: b\n"],
+		["a document marker", "---\nskip_specs: true\n"],
+		["a tab-indented line", "skip_specs: true\n\towner: x\n"],
+		["a tab separator", "skip_specs:\ttrue\n"],
+		["a colon-space inside a value", "skip_specs: true\nowner: a: b\n"],
+		["an anchor", "skip_specs: true\nowner: &a x\n"],
+		["a tag", "skip_specs: true\nowner: !!str x\n"],
+		["a block scalar", "skip_specs: true\nowner: |\n  x\n"],
+		["a flow collection mentioning skip_specs", "meta: {skip_specs: true}\n"],
+		["duplicate skip_specs", "skip_specs: true\nskip_specs: false\n"],
 		["a quoted duplicate key", 'skip_specs: true\n"skip_specs": true\n'],
 		["a quoted key", '"skip_specs": true\n'],
 		["a quoted value", 'skip_specs: "true"\n'],
 		["a yes value", "skip_specs: yes\n"],
+		["a capitalised value", "skip_specs: True\n"],
+		["an indented declaration", " skip_specs: true\n"],
 		["a nested declaration", "meta:\n  skip_specs: true\n"],
 		["a list declaration", "- skip_specs: true\n"],
-		["an unterminated flow sequence", "schema: omp-gated\nskip_specs: true\nowner: [true\n"],
 		["a non-mapping line", "skip_specs: true\n[true\n"],
 	] as const) {
 		it(`rejects skip_specs metadata with ${name}`, async () => {
-			const root = await fixture();
-			await fs.rm(path.join(root, "specs"), { recursive: true });
-			await Bun.write(path.join(root, ".openspec.yaml"), metadata);
-			const result = run(root);
+			const result = run(await skippedSpecsFixture(metadata));
 			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toContain(".openspec.yaml");
+			expect(result.stderr).toContain(".openspec.yaml: skip_specs requires flat");
 		});
 	}
 

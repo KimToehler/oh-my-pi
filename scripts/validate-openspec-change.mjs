@@ -162,48 +162,42 @@ function validateGate(text, errors) {
 	}
 }
 
-const METADATA_KEY = /^(?:"([^"\n]*)"|'([^'\n]*)'|([A-Za-z0-9_][A-Za-z0-9_.-]*))[ \t]*:(?:[ \t]+(.*))?$/;
-const SKIP_SPECS_KEY = /^[ \t]*(?:-[ \t]+)?["']?skip_specs["']?[ \t]*:/;
-const PLAIN_BOOLEAN = /^(true|false)[ \t]*(?:#.*)?$/;
+const FLAT_METADATA_LINE = /^([A-Za-z0-9_][A-Za-z0-9_.-]*): +(.*)$/;
+const PLAIN_SCALAR = /^[^\s"'[\]{}&*!|>%@`#,?:-]\S*(?: +[^\s#]\S*)*$/;
+
+/** Parses one flat `key: value` line (optional trailing ` # comment`); null for anything else. */
+function parseFlatLine(line) {
+	const match = line.includes("\t") ? null : FLAT_METADATA_LINE.exec(line);
+	if (!match) return null;
+	const value = match[2].replace(/ +#.*$/, "");
+	if (!PLAIN_SCALAR.test(value) || value.includes(": ") || value.endsWith(":")) return null;
+	return { key: match[1], value };
+}
 
 /**
- * Dependency-free reading of `skip_specs` from `.openspec.yaml`. Honours it only when declared exactly once at top
- * level as a plain unquoted boolean; anything OpenSpec's YAML parser would refuse or read differently is an error.
+ * Fail-closed gate for `skip_specs` in `.openspec.yaml`. A plain text test on the key name decides whether the file is
+ * inspected at all; once it is, every line must be a flat `key: value` pair so no YAML construct can hide or alter the
+ * declaration. Returns true only for a unique `skip_specs: true`.
  */
 function parseSkipSpecs(text, errors) {
-	let value;
-	let declarations = 0;
+	if (!text.includes("skip_specs")) return false;
+	const seen = new Set();
+	let skipSpecs = false;
 	for (const line of text.split(/\r?\n/)) {
-		if (/^[ \t]*(?:#.*)?$/.test(line)) continue;
-		if (SKIP_SPECS_KEY.test(line)) {
-			declarations++;
-			const top = METADATA_KEY.exec(line);
-			const key = top && (top[1] ?? top[2] ?? top[3]);
-			if (key !== "skip_specs" || line.startsWith('"') || line.startsWith("'")) {
-				errors.push(".openspec.yaml: skip_specs must be a plain top-level key");
-				continue;
-			}
-			const boolean = PLAIN_BOOLEAN.exec((top?.[4] ?? "").trim());
-			if (boolean) value = boolean[1] === "true";
-			else errors.push(".openspec.yaml: skip_specs must be the plain boolean true or false");
-			continue;
+		if (/^\s*(?:#.*)?$/.test(line)) continue;
+		const entry = parseFlatLine(line);
+		const flat =
+			entry !== null && !seen.has(entry.key) && (entry.key !== "skip_specs" || /^(?:true|false)$/.test(entry.value));
+		if (!flat) {
+			errors.push(
+				`.openspec.yaml: skip_specs requires flat key: value metadata (unquoted keys, plain scalar values, no repeated keys, skip_specs exactly true or false); offending line: ${line}`,
+			);
+			return false;
 		}
-		if (/^[ \t]/.test(line)) continue;
-		const top = METADATA_KEY.exec(line);
-		const rest = top?.[4]?.trim() ?? "";
-		const open = rest.charAt(0);
-		const balanced =
-			open === "["
-				? /^\[.*\]/.test(rest)
-				: open === "{"
-					? /^\{.*\}/.test(rest)
-					: open === '"' || open === "'"
-						? rest.length > 1 && rest.indexOf(open, 1) > 0
-						: true;
-		if (!top || !balanced) errors.push(`.openspec.yaml: malformed metadata line: ${line.trim()}`);
+		seen.add(entry.key);
+		if (entry.key === "skip_specs") skipSpecs = entry.value === "true";
 	}
-	if (declarations > 1) errors.push(".openspec.yaml: skip_specs is declared more than once");
-	return declarations === 1 && value === true;
+	return skipSpecs;
 }
 
 export async function validateOpenSpecChange(changeDir) {
