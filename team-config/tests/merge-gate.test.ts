@@ -674,6 +674,30 @@ describe("worktree gate binding", () => {
 		]);
 	});
 
+	it("refuses different record bytes at the same path and reviewed_sha", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/conflict.md",
+				reviewed_sha: fixture.reviewedSha,
+			}),
+		);
+		await git(fixture.main, "add", fixture.record);
+		await git(fixture.main, "commit", "-q", "-m", "conflicting gate record");
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("ambiguous");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
 	it("refuses a merge claim without a Gate proof reviewed_sha", async () => {
 		// Given
 		const fixture = await worktreeGateFixture();
@@ -699,6 +723,9 @@ describe("worktree gate binding", () => {
 	it("settles a matching record merged into local main without revalidating merged HEAD", async () => {
 		// Given
 		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
 		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge feature", "feature");
 		h.validator = INVALID;
 		useRealGit();
@@ -709,6 +736,42 @@ describe("worktree gate binding", () => {
 		// Then
 		expect(result).toBeUndefined();
 		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("does not settle when only the reviewed commit reached the default branch", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge reviewed code only", fixture.reviewedSha);
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(recordRuns()).toHaveLength(1);
+	});
+
+	it("does not settle from a non-default conventional branch", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "branch", "master", fixture.reviewedSha);
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(recordRuns()).toHaveLength(1);
 	});
 
 	it("refuses a claimed reviewed_sha with no matching record", async () => {

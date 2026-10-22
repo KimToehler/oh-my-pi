@@ -14,6 +14,7 @@ export interface GateBinding {
 }
 
 export interface GateRecordRef extends GateBinding {
+	readonly content: string;
 	readonly plan: string;
 	readonly repo: string;
 }
@@ -36,9 +37,11 @@ function recordAt(repo: string, binding: GateBinding): GateRecordRef | undefined
 	if (relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
 		return undefined;
 	}
+	let content: string;
 	let value: unknown;
 	try {
-		value = JSON.parse(fs.readFileSync(file, "utf8"));
+		content = fs.readFileSync(file, "utf8");
+		value = JSON.parse(content);
 	} catch (error) {
 		if (error instanceof SyntaxError || isEnoent(error)) return undefined;
 		throw error;
@@ -56,7 +59,7 @@ function recordAt(repo: string, binding: GateBinding): GateRecordRef | undefined
 	) {
 		return undefined;
 	}
-	return { ...binding, plan: value.plan, repo };
+	return { ...binding, content, plan: value.plan, repo };
 }
 
 async function worktreeRoots(pi: Pick<ExtensionAPI, "exec">, repo: string): Promise<readonly string[]> {
@@ -87,28 +90,24 @@ export async function recordIsSettled(
 	repo: string,
 	record: GateRecordRef,
 ): Promise<boolean> {
-	const tracked = await pi.exec("git", ["ls-files", "--error-unmatch", "--", record.record], {
-		cwd: record.repo,
-		timeout: 10_000,
-	});
-	if (tracked.code !== 0) return false;
 	const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], {
 		cwd: repo,
 		timeout: 10_000,
 	});
-	const refs = new Set(["refs/heads/main", "refs/heads/master"]);
-	if (remoteHead.code === 0) {
-		const remote = remoteHead.stdout.trim();
-		refs.add(remote);
-		const slash = remote.indexOf("/");
-		if (slash >= 0 && slash < remote.length - 1) refs.add(`refs/heads/${remote.slice(slash + 1)}`);
-	}
+	if (remoteHead.code !== 0) return false;
+	const remote = remoteHead.stdout.trim();
+	if (remote === "") return false;
+	const refs = new Set([remote]);
+	const slash = remote.indexOf("/");
+	if (slash >= 0 && slash < remote.length - 1) refs.add(`refs/heads/${remote.slice(slash + 1)}`);
 	for (const ref of refs) {
 		const merged = await pi.exec("git", ["merge-base", "--is-ancestor", record.reviewedSha, ref], {
 			cwd: repo,
 			timeout: 10_000,
 		});
-		if (merged.code === 0) return true;
+		if (merged.code !== 0) continue;
+		const settledRecord = await pi.exec("git", ["show", `${ref}:${record.record}`], { cwd: repo, timeout: 10_000 });
+		if (settledRecord.code === 0 && settledRecord.stdout === record.content) return true;
 	}
 	return false;
 }

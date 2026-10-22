@@ -229,6 +229,14 @@ export default function mergeGate(pi: ExtensionAPI) {
 					"Run review-work, or state plainly that the gate has NOT run and do not ask for merge approval.",
 			};
 		}
+		if (new Set(records.map(record => record.content)).size !== 1) {
+			return {
+				decision: "block",
+				reason:
+					`Merge gate: record ${binding.record} with reviewed_sha ${binding.reviewedSha} is ambiguous across linked worktrees because its bytes differ. ` +
+					"Keep one exact record version before claiming completion.",
+			};
+		}
 		for (const record of records) {
 			if (await recordIsSettled(pi, repo, record)) return;
 		}

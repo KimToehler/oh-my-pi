@@ -35,13 +35,13 @@ In `team-config/agent/extensions/merge-gate.ts`:
 - Require exactly one distinct `reviewed_sha` for a merge/completion claim. Missing or conflicting values block and request a fresh Gate proof.
 - Enumerate the session repository and linked worktrees with `git worktree list --porcelain`.
 - Search the existing record directories in each checkout for records whose `reviewed_sha` equals the claim.
-- Require at least one matching `omo.merge-gate/v2` record. Never substitute a newer record with another SHA.
-- For an unmerged match, run the validator with that checkout as `--repo`, its relative record path, and the record’s opaque `plan` value. At least one matching checkout must validate.
+- Require at least one matching `omo.merge-gate/v2` record. Never substitute a newer record with another SHA; differing bytes for the same path and SHA are ambiguous and block.
+- For an unmerged unambiguous match, run the validator with that checkout as `--repo`, its relative record path, and the record’s opaque `plan` value. At least one checkout containing those exact bytes must validate.
 - Preserve plan proposal validation unchanged.
 
 ### 3. Local-merge settlement
 
-Resolve the pushed default branch with `refs/remotes/origin/HEAD`; derive its local branch counterpart when present. A matching record is settled when its `reviewed_sha` is an ancestor of either the pushed default branch or the local default branch.
+Resolve the pushed default branch with `refs/remotes/origin/HEAD`; derive its local branch counterpart when present. A matching record is settled only when its exact bytes exist at one of those refs and its `reviewed_sha` is an ancestor of that same ref. If the default ref cannot be established, validate rather than guessing `main` or `master`.
 
 A settled record backs only an explicitly SHA-bound Gate proof. It is never eligible through an implicit “newest record” fallback. This mirrors the existing pushed-default behavior and prevents an already-merged record from being revalidated against unrelated mainline commits.
 
@@ -55,6 +55,12 @@ Update:
 - `team-config/agent/rules/merge-gate-proof.md`: the full literal `reviewed_sha` is the binding key and MUST match the record.
 
 Do not add `.omo/plans` assumptions. Do not define OpenSpec folder hashing or which file inside a change folder owns `## Merge gate`; the OpenSpec integration owns that contract.
+
+## TODOs
+
+1. [x] B1 exact-record settlement: require the claimed record bytes, not only `reviewed_sha`, at the default ref before skipping validation.
+2. [x] B2 ambiguous record identity: reject different bytes at the same path and `reviewed_sha` across linked worktrees.
+3. [x] B3 default-ref selection: use only `origin/HEAD` and its local counterpart; never authorize settlement from an unrelated conventional branch.
 
 ## Verification
 
