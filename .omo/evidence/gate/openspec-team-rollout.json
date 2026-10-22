@@ -1,0 +1,117 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/openspec-team-rollout.md",
+  "plan_sha256": "56ec02e677a3de053ebc2c90058085de0ec177d6bc1b3b63505344a4c259c31d",
+  "reviewed_sha": "47487b7e9a20ec866ac5391411ab2266dd37e3f0",
+  "diff_base": "1e05a7b46ec8c517045000eae3293ba3afdc8bcf",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Real work with mandatory class none (planning artifacts, docs and a dependency-free validator; no auth, schema migration, wire contract or concurrent state): one implementation-audit after F3 wave 4 PASS and 11 F1 rows on the real surface.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cx/gpt-5.6-sol",
+    "onara/cc/claude-sonnet-5-5",
+    "onara/cx/gpt-5.6-terra"
+  ],
+  "qa": [
+    {
+      "name": "S1 schema resolver: openspec schema which/validate omp-gated and new change in a README-set-up repo",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-team-rollout/f1-s1-schema.txt"
+    },
+    {
+      "name": "S2 team validator: complete change passes, one negative control per artifact class fails naming the field",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-team-rollout/f1-s2-validator.txt"
+    },
+    {
+      "name": "S3 ACP advertises the six opsx commands from the user command dir and none without it",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-team-rollout/f1-s3-acp-commands.txt"
+    },
+    {
+      "name": "S4 /opsx-propose in a real omp ACP session writes planning artifacts only; both validators pass",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-team-rollout/f1-s4-propose.txt"
+    },
+    {
+      "name": "Verification gate on the final code SHA: tests, team-config suite, lint, format, OpenSpec strict validation",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-team-rollout/f3-wave-4-verification.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "same-model"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/openspec-team-rollout/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "fae42b77d2e6c89e547c2a92a2bbf4d79b6635bb56934f4d7325be7530012941",
+      "note": "F2 wave 1, no blockers; brief at .omo/evidence/openspec-team-rollout/f2/brief-implementation-audit.md; F3 reports .omo/evidence/openspec-team-rollout/f3-wave-1..4.md"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "F3W1-1",
+      "severity": "high",
+      "location": "scripts/validate-openspec-change.mjs:validateTasks",
+      "coverage": "scripts/validate-openspec-change.test.ts::validate-openspec-change rejects an unnumbered tracked ~ task among valid tasks",
+      "fix_sha": "0d16d343f96d261e4607a1c62584e616d6d0a2a3"
+    },
+    {
+      "id": "F3W1-2",
+      "severity": "high",
+      "location": "scripts/validate-openspec-change.mjs:validateGate",
+      "coverage": "scripts/validate-openspec-change.test.ts::validate-openspec-change rejects an empty Accepted residual risks without capturing an adjacent line",
+      "fix_sha": "0d16d343f96d261e4607a1c62584e616d6d0a2a3"
+    },
+    {
+      "id": "F3W1-3",
+      "severity": "high",
+      "location": "scripts/validate-openspec-change.mjs:validateSpecs",
+      "coverage": "scripts/validate-openspec-change.test.ts::validate-openspec-change accepts a rename-only delta",
+      "fix_sha": "0d16d343f96d261e4607a1c62584e616d6d0a2a3"
+    },
+    {
+      "id": "F3W1-4",
+      "severity": "high",
+      "location": "team-config/README.md:85",
+      "coverage": "not-testable:manual setup documentation; followed verbatim in a temporary repository by F1 S1 and S4",
+      "fix_sha": "d1d7bb1d2a4a81b866e690402431f56befd448a1"
+    },
+    {
+      "id": "F3W1-5",
+      "severity": "medium",
+      "location": ".omo/plans/openspec-team-rollout.md:74",
+      "coverage": "not-testable:QA evidence itself; .omo/evidence/openspec-team-rollout/f1-s1..s4 record reviewed_code_sha and every exit status",
+      "fix_sha": "47487b7e9a20ec866ac5391411ab2266dd37e3f0"
+    },
+    {
+      "id": "F3W2-B1",
+      "severity": "medium",
+      "location": "team-config/README.md:103",
+      "coverage": "not-testable:README shell block; run verbatim with FORK as same checkout, symlinked path, missing path and a separate checkout during row 19",
+      "fix_sha": "6c97f72ddb7c32c45b118f220dcfd8d9822756bb"
+    },
+    {
+      "id": "F3W3-B1",
+      "severity": "high",
+      "location": "scripts/validate-openspec-change.mjs:validateProposal",
+      "coverage": "scripts/validate-openspec-change.test.ts::validate-openspec-change rejects the unfilled schema proposal template",
+      "fix_sha": "49706a5a37f3cdb54bec47bb5974bf28378b5cc8"
+    }
+  ]
+}

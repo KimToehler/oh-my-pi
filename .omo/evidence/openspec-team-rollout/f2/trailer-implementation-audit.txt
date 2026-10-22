@@ -1,0 +1,37 @@
+## 1. Goal and behavioural contract
+
+The reviewed implementation supplies the six global commands, a project-local schema and a dependency-free team validator. The supplied QA evidence exercises schema resolution, command discovery and a real `/opsx-propose` session. The deferred installer, CLI version check and telemetry automation are consistent with the stated P3/P3b split.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+- **Note — task verification guidance differs between the fork and manual setup.** `openspec/config.yaml:18` says to mark a task complete only after its named command passes, but the config in `team-config/README.md:125–145` omits that instruction. The generated apply workflow at `team-config/agent/commands/opsx-apply.md:99–106` tells the agent to mark the task complete without explicitly running its `Verify:` command. Aligning the setup guidance would make completion more dependable. This does not block under the supplied criteria: the reviewed gate requires verifiable tasks, not demonstrated execution of each task’s command.
+- **Note — the schema example conflicts with its own negative-control rule.** The ADDED requirement at `openspec/schemas/omp-gated/schema.yaml:149–154` has no negative control, although the adjacent schema instruction requires one. This is non-blocking because the rule and spec template state the required form; F3 also recorded this discrepancy.
+- **Note — syntactic checks cannot establish semantic quality.** `scripts/validate-openspec-change.mjs:89–98,121–124` checks the shape of negative-control outcomes and verification commands, not whether they actually discriminate or prove the task. This is a residual limitation rather than a blocker: those properties need review, and the tests demonstrate the stated representative syntactic controls.
+- **Note — whitespace-only verification commands and reasons pass.** `scripts/validate-openspec-change.mjs:121,145–161` accepts, for example, a backticked space as a command and `none ( )` as a reason. This is the previously recorded F3 risk; it requires incomplete local artifact content and remains reversible.
+
+## 3. Security and privacy delta
+
+No security or privacy delta found in the reviewed changes. The documented manual setup’s symlink-alias and fixed-name probe cleanup risks are local, reversible risks already recorded in the F3 report; the brief expressly accepts the constructed aliasing case. Telemetry opt-out remains a documented manual step, as scoped.
+
+## 4. Verification adequacy
+
+The supplied evidence records real OpenSpec schema resolution, positive and negative validator cases, ACP discovery with and without the user command directory, and a planning-only `/opsx-propose` run. The final-code verification artifact records 69 validator tests, 377 team-config tests, lint and format checks. I did not rerun these checks in this read-only audit.
+
+The evidence does not exercise an `/opsx-apply` session or prove that its per-task commands run; the guidance discrepancy above remains a non-blocking residual risk.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A skipped-specs declaration cannot silently coexist with delta Markdown files.
+  positive_witness: A change with flat metadata declaring skip_specs true and no delta Markdown files passes this check.
+  negative_control: Adding a delta Markdown file while retaining skip_specs true MUST fail.
+  observable: The validator exits nonzero and reports that skip_specs requires no Markdown specs.
+  boundary: The team validator CLI reading a change directory.
+END-REVIEW-TRAILER
