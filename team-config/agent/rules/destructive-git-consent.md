@@ -1,6 +1,10 @@
 ---
 description: Destructive git commands need explicit user consent; a background lane reports BLOCKED instead
-condition: 'git (reset|clean|restore|checkout|switch|stash|rebase|filter-(branch|repo)|push[^\n]*(--force|-f\b))'
+condition:
+  - '\bgit(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=|\s+)\S+|--(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs|no-optional-locks)|-[Pp]))*(?:\s+|\\?[\x22\x27],\s*\\?[\x22\x27])(?:checkout|switch|restore|clean|rebase|filter-branch|filter-repo)\b'
+  - '\bgit(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=|\s+)\S+|--(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs|no-optional-locks)|-[Pp]))*(?:\s+|\\?[\x22\x27],\s*\\?[\x22\x27])reset\b[^;&|]*--(?:hard|merge|keep)\b'
+  - '\bgit(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=|\s+)\S+|--(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs|no-optional-locks)|-[Pp]))*(?:\s+|\\?[\x22\x27],\s*\\?[\x22\x27])stash\b(?!(?:\s+|\\?[\x22\x27],\s*\\?[\x22\x27])(?:list|show)\b)'
+  - '\bgit(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=|\s+)\S+|--(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs|no-optional-locks)|-[Pp]))*(?:\s+|\\?[\x22\x27],\s*\\?[\x22\x27])(?:push\b[^;&|]*(?:--force|\s-f\b|\s\+\S)|commit\b[^;&|]*--amend\b)'
 scope: ["tool:bash", "tool:eval"]
 interruptMode: always
 ---
@@ -26,7 +30,12 @@ the task being urgent, or from the change looking unimportant.
 - `git clean -f` / `-fd` / `-fdx`
 - `git stash` without `--include-untracked` awareness, when others' files are dirty
 - `git checkout <branch>` / `git switch <branch>` when it would discard or carry over dirty state
-- Any `--force` push, and any history rewrite of a shared branch
+- Any `--force` / `-f` push or force refspec (`git push origin +main`)
+- History rewrites of a shared branch: `git commit --amend`, `git rebase`, `git filter-branch`, `git filter-repo`
+
+Not covered by this rule: `git reset --soft`, `git reset <path>` (unstage), `git stash list`, `git stash show`.
+Git global options (`-C <dir>`, `-c k=v`, `--git-dir`, `--work-tree`) do not change any of the above.
+For staging scope (`git add -A` / `git add .`) see `rule://worktrees`.
 
 Asking costs one turn. Being wrong costs work that cannot be recovered.
 
@@ -55,12 +64,6 @@ so it discards every uncommitted hunk in it, not just yours. A subagent's finish
 work and your throwaway mutation sit in the same file and look identical to git. Before mutating a
 dirty file for a probe (mutation test, RED check), snapshot it; restore from the snapshot, never
 from HEAD.
-
-## SCOPE EVERY COMMAND TO YOUR OWN PATHS
-
-Even non-destructive commands take explicit paths. Never `git add -A`, never `git add .`, never
-`git checkout -- .`. Name the files you were assigned. A wildcard in a shared checkout is a
-decision about somebody else's work made without looking.
 
 ## WHEN IT HAS ALREADY HAPPENED
 
