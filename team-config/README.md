@@ -97,14 +97,22 @@ git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml o
 ```
 
 **Step 2.** Copy the schema and the validator. The old schema directory is removed first so `cp -R` does not nest it; local edits
-and extra files in it are replaced.
+and extra files in it are replaced. The guard stops before deleting anything when `FORK` does not hold the schema or is this
+project itself (run it from the oh-my-pi checkout and there is nothing to copy).
 
 ```sh
 FORK=/path/to/oh-my-pi   # <fork>
-mkdir -p openspec/schemas scripts
-rm -rf openspec/schemas/omp-gated
-cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
-cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
+if [ ! -f "$FORK/openspec/schemas/omp-gated/schema.yaml" ] || [ ! -f "$FORK/scripts/validate-openspec-change.mjs" ]; then
+  echo "FORK=$FORK is not an oh-my-pi checkout with the omp-gated schema; nothing was changed"
+elif [ "$(cd "$FORK" && pwd -P)" = "$(pwd -P)" ]; then
+  echo "FORK is this project; nothing to copy"
+else
+  mkdir -p openspec/schemas scripts &&
+    rm -rf openspec/schemas/omp-gated &&
+    cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated &&
+    cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs &&
+    echo "copied schema and validator from $FORK"
+fi
 ```
 
 **Step 3.** Config, by hand; there is no command for this step, so an existing `openspec/config.yaml` is never touched by a
