@@ -74,13 +74,26 @@ Deploy ships the six core OpenSpec commands to every omp session. Projects keep 
 config, schema, specs and changes in their own repository; the template in this repository is
 `openspec/schemas/omp-gated/`. This keeps planning artifacts harness-independent and reviewable.
 
-Before first use:
+Before first use, install the CLI yourself (the setup command never installs it or any user-level schema):
 
 ```sh
 npm install -g @fission-ai/openspec@1.14.3
 openspec config set telemetry.enabled false
 openspec --version
 ```
+
+Set up or update a project (run from a checkout of this repository; `<project>` is the target repository root):
+
+```sh
+bun scripts/install-openspec-workflow.ts <project>
+```
+
+This installs `openspec/schemas/omp-gated/` and `scripts/validate-openspec-change.mjs` into the project and seeds
+`openspec/config.yaml` (`schema: omp-gated`) only when it does not exist. The same command updates: managed files are
+mirrored, a file you edited locally (or a same-named file that predates the install) is moved to
+`<project>/backups/team-config-<timestamp>-<random>/` before it is replaced, and an existing
+`openspec/config.yaml` is never overwritten. It prints a JSON report of added, updated, backed-up and seeded files and records
+its state in `<project>/.team-config-manifest.json`; do not edit that file. Commit the installed files to the project.
 
 Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
 
@@ -89,10 +102,26 @@ openspec validate <change> --strict
 node scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
 
-The team validator enforces the `Negative control` scenario, exact gate classification and one
-deterministic command per tracked task. OpenSpec's own strict validator does not enforce project
-rules from `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment
-equivalent of the persisted telemetry setting.
+The team validator enforces the `Negative control` scenario for every requirement block, exact gate
+classification, and a numbered task with exactly one `Verify:` command for every tracked checkbox (any marker OpenSpec
+counts, e.g. `[~]`). A change with no behavioural delta must set `skip_specs: true` in `.openspec.yaml` and then has no
+Markdown specs; a rename-only delta needs no scenarios. OpenSpec's own strict validator does not enforce project rules from
+`openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment equivalent of the persisted
+telemetry setting.
+
+### Regenerating the six `opsx-*` commands
+
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are verbatim output of OpenSpec 1.14.3 and
+stay standalone so each deploys on its own. Compare them against a fresh generation after any OpenSpec bump:
+
+```sh
+tmp=$(mktemp -d) && git -C "$tmp" init -q
+DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.14.3 init "$tmp" --tools oh-my-pi --profile core --no-animation
+diff -r "$tmp/.omp/commands" team-config/agent/commands   # empty output = no drift
+```
+
+To update, copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, bump the pinned version everywhere in this
+README, and rerun the diff. Never hand-edit these six files.
 
 ## Changing the team config
 

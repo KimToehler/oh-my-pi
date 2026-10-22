@@ -48,21 +48,34 @@ async function markdownFiles(root) {
 	return out.sort();
 }
 
-function validateSpecs(files, texts, errors) {
+function validateSpecs(files, texts, skipSpecs, errors) {
 	if (files.length === 0) {
-		errors.push("specs: at least one Markdown spec is required");
+		if (!skipSpecs) errors.push("specs: at least one Markdown spec is required");
 		return;
 	}
+	if (skipSpecs) errors.push("specs: skip_specs requires no Markdown specs");
+	let renameCount = 0;
 	let requirementCount = 0;
 	for (const file of files) {
 		const lines = texts.get(file).split(/\r?\n/);
+		for (let i = 0; i < lines.length; i++) {
+			if (!/^## RENAMED Requirements[ \t]*$/i.test(lines[i])) continue;
+			const section = [];
+			for (i++; i < lines.length && !/^## /.test(lines[i]); i++) section.push(lines[i]);
+			if (
+				section.some(line => /^- FROM:[ \t]*`### Requirement: [^`]+`[ \t]*$/.test(line)) &&
+				section.some(line => /^- TO:[ \t]*`### Requirement: [^`]+`[ \t]*$/.test(line))
+			)
+				renameCount++;
+			i--;
+		}
 		for (let i = 0; i < lines.length; i++) {
 			const match = /^### Requirement:\s*(.+?)\s*$/.exec(lines[i]);
 			if (!match) continue;
 			requirementCount++;
 			const name = match[1];
 			let end = i + 1;
-			while (end < lines.length && !/^### Requirement:/.test(lines[end])) end++;
+			while (end < lines.length && !/^#{2,3} /.test(lines[end])) end++;
 			const block = lines.slice(i + 1, end);
 			const controls = [];
 			for (let j = 0; j < block.length; j++) {
@@ -82,31 +95,48 @@ function validateSpecs(files, texts, errors) {
 				errors.push(`${name}: Negative control THEN must state what MUST fail`);
 		}
 	}
-	if (requirementCount === 0) errors.push("specs: at least one Requirement is required");
+	if (requirementCount === 0 && renameCount === 0)
+		errors.push("specs: at least one Requirement or rename is required");
 }
 
+// Mirrors OpenSpec 1.14.3 utils/task-progress.js TASK_LINE_PATTERN: any checkbox it counts as a tracked task must satisfy the team contract.
+const TASK_LINE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[(?:\s*([^\]\s]?)\s*\](?![([])|\s+\])\s*(.*)/;
+
 function validateTasks(text, errors) {
-	const tasks = [...text.matchAll(/^- \[[ xX]\]\s+(\d+(?:\.\d+)*)\s+(.+)$/gm)];
+	const tasks = text.split("\n").flatMap(line => {
+		const match = TASK_LINE.exec(line);
+		return match ? [match[2].trim()] : [];
+	});
 	if (tasks.length === 0) {
 		errors.push("tasks: at least one tracked task is required");
 		return;
 	}
-	for (const task of tasks) {
-		if (!/Verify:\s*`[^`\r\n]+`\s*$/.test(task[2]))
-			errors.push(`task ${task[1]}: expected trailing Verify: \`<deterministic command>\``);
-		else if (PLACEHOLDER.test(task[2])) errors.push(`task ${task[1]}: placeholder text is forbidden`);
+	for (const body of tasks) {
+		const numbered = /^(\d+(?:\.\d+)*)[ \t]+(.+)$/.exec(body);
+		if (!numbered) {
+			errors.push(`task: expected numbered tracked task: ${body}`);
+			continue;
+		}
+		const description = numbered[2];
+		if (!/Verify:[ \t]*`[^`\r\n]+`$/.test(description) || (description.match(/Verify:/g) ?? []).length !== 1)
+			errors.push(`task ${numbered[1]}: expected trailing Verify: \`<deterministic command>\``);
+		else if (PLACEHOLDER.test(description)) errors.push(`task ${numbered[1]}: placeholder text is forbidden`);
 	}
 }
 
 function validateGate(text, errors) {
 	const values = new Map();
+	const lines = text.split(/\r?\n/);
 	for (const field of GATE_FIELDS) {
-		const matches = [...text.matchAll(new RegExp(`^- \\*\\*${field}\\*\\*:\\s*(.+?)\\s*$`, "gmi"))];
-		if (matches.length !== 1) {
-			errors.push(`${field}: expected exactly one top-level bullet`);
+		const prefix = `- **${field.toLowerCase()}**:`;
+		const matches = lines
+			.filter(line => line.toLowerCase().startsWith(prefix))
+			.map(line => line.slice(prefix.length).trim());
+		if (matches.length !== 1 || !matches[0]) {
+			errors.push(`${field}: expected exactly one nonempty top-level bullet`);
 			continue;
 		}
-		const value = matches[0][1].trim();
+		const value = matches[0];
 		values.set(field, value);
 		if (PLACEHOLDER.test(value)) errors.push(`${field}: placeholder text is forbidden`);
 	}
@@ -140,7 +170,11 @@ export async function validateOpenSpecChange(changeDir) {
 	}
 	const specs = await markdownFiles(path.join(root, "specs"));
 	const texts = new Map(await Promise.all(specs.map(async file => [file, await fs.readFile(file, "utf8")])));
-	validateSpecs(specs, texts, errors);
+	const metadata = path.join(root, ".openspec.yaml");
+	const skipSpecs =
+		(await regularFile(metadata)) &&
+		/^skip_specs:[ \t]*true[ \t]*(?:#.*)?$/m.test(await fs.readFile(metadata, "utf8"));
+	validateSpecs(specs, texts, skipSpecs, errors);
 	if (await regularFile(path.join(root, "tasks.md")))
 		validateTasks(await fs.readFile(path.join(root, "tasks.md"), "utf8"), errors);
 	if (await regularFile(path.join(root, "gate.md")))

@@ -65,6 +65,104 @@ describe("validate-openspec-change", () => {
 		const result = run(await fixture());
 		expect(result).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 	});
+	for (const marker of ["~", "-", "", " x"]) {
+		it(`rejects an unnumbered tracked ${marker} task among valid tasks`, async () => {
+			const root = await fixture();
+			await fs.appendFile(path.join(root, "tasks.md"), `- [${marker}] Remove data\n`);
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("task: expected numbered tracked task");
+		});
+	}
+
+	it("accepts every tracked checkbox state when numbered with one Verify contract", async () => {
+		const root = await fixture();
+		await fs.appendFile(
+			path.join(root, "tasks.md"),
+			[
+				"- [~] 1.2 Partly done. Verify: `bun test a`",
+				"* [x] 1.3 Done. Verify: `bun test b`",
+				"  + [] 1.4 Nested. Verify: `bun test c`",
+				"1. [ ] 2 Ordered. Verify: `bun test d`",
+				"",
+			].join("\n"),
+		);
+		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+
+	for (const [name, line, diagnostic] of [
+		["a missing Verify contract", "- [~] 1.2 No contract", "task 1.2: expected trailing Verify"],
+		["two Verify contracts", "- [ ] 1.2 Twice. Verify: `a` Verify: `b`", "task 1.2: expected trailing Verify"],
+		["an unnumbered ordered task", "1. [ ] Unnumbered. Verify: `a`", "task: expected numbered tracked task"],
+	]) {
+		it(`rejects ${name} among valid tasks`, async () => {
+			const root = await fixture();
+			await fs.appendFile(path.join(root, "tasks.md"), `${line}\n`);
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(diagnostic);
+		});
+	}
+
+	it("does not treat link bullets as tracked tasks", async () => {
+		const root = await fixture();
+		await fs.appendFile(path.join(root, "tasks.md"), "- [Docs](./docs.md)\n");
+		expect(run(root).exitCode).toBe(0);
+	});
+
+	for (const field of [
+		"Mandatory class",
+		"Review tier",
+		"Whole-diff review",
+		"Accepted residual risks",
+		"Out of scope for blocking",
+	]) {
+		it(`rejects an empty ${field} without capturing an adjacent line`, async () => {
+			const root = await fixture();
+			const gate = path.join(root, "gate.md");
+			await Bun.write(
+				gate,
+				(await Bun.file(gate).text()).replace(new RegExp(`(\\*\\*${field}\\*\\*:)[^\\n]*`), "$1"),
+			);
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`${field}:`);
+		});
+	}
+
+	it("accepts explicit skipped specs when no deltas exist", async () => {
+		const root = await fixture();
+		await fs.rm(path.join(root, "specs"), { recursive: true });
+		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\nskip_specs: true\n");
+		expect(run(root).exitCode).toBe(0);
+	});
+
+	it("accepts a rename-only delta", async () => {
+		const root = await fixture();
+		await Bun.write(
+			path.join(root, "specs/feature/spec.md"),
+			"## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n",
+		);
+		expect(run(root).exitCode).toBe(0);
+	});
+
+	for (const operation of ["MODIFIED", "REMOVED"]) {
+		it(`accepts ${operation} requirements with negative controls`, async () => {
+			const root = await fixture();
+			const spec = path.join(root, "specs/feature/spec.md");
+			await Bun.write(
+				spec,
+				(await Bun.file(spec).text()).replace("ADDED Requirements", `${operation} Requirements`),
+			);
+			expect(run(root).exitCode).toBe(0);
+		});
+	}
+
+	it("rejects skipped specs when delta files still exist", async () => {
+		const root = await fixture();
+		await Bun.write(path.join(root, ".openspec.yaml"), "skip_specs: true\n");
+		expect(run(root).exitCode).toBe(1);
+	});
 
 	for (const [relative, diagnostic] of [
 		["proposal.md", "proposal.md: required regular file is missing"],

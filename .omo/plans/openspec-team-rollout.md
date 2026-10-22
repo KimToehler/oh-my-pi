@@ -33,6 +33,14 @@ Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema in
 - [x] 5. Document `@fission-ai/openspec@1.14.3` as prerequisite and `openspec config set telemetry.enabled false` / `DO_NOT_TRACK=1`. Existing configs remain untouched by deploy.
 - [x] 6. Smoke the real surface: initialize/use the checked-in schema, run `opsx-propose` through omp, run both OpenSpec strict validation and the team validator, and confirm all six commands are discoverable in ACP.
 
+## TODOs
+
+- [x] 7. Close `incomplete-tracked-task-enumeration` across `scripts/validate-openspec-change.mjs:validateTasks` and `openspec/schemas/omp-gated/schema.yaml` by validating every OpenSpec-tracked checkbox state, including mixed valid/invalid task files. Verify: `bun test scripts/validate-openspec-change.test.ts`
+- [x] 8. Close `cross-line-gate-field-capture` across every required `gate.md` field by parsing top-level bullets line-by-line and rejecting empty adjacent values. Verify: `bun test scripts/validate-openspec-change.test.ts`
+- [x] 9. Close `schema-validator-delta-operation-mismatch` across validator, schema, proposal template, and generated command contracts by accepting explicit `skip_specs` and every schema-supported delta operation while retaining Requirement negative controls where requirements exist. Verify: `bun test scripts/validate-openspec-change.test.ts && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.14.3 validate --strict --all`
+- [x] 10. Close `undistributed-project-local-workflow-dependencies` across `team-config/README.md`, project assets, and installer ownership with a concrete project-local setup/update command that installs the versioned schema, config, and validator without user-level schema installation. Verify: execute the documented setup in a separate initialized temporary repository, then run both strict validators there.
+- [ ] 11. Close `missing-f1-evidence` after the cleanup commit by rerunning every F1 scenario on the final F3 code SHA and storing one command-output evidence path per scenario under `.omo/evidence/openspec-team-rollout/`. Verify: evidence records the literal reviewed SHA and every command exit status.
+
 ## Final verification wave
 
 - [ ] F3. Whole-diff review: `integration-review` over the finished P3 diff; needed because commands, schema, validator and distribution docs are four independently testable layers

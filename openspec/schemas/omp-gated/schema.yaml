@@ -98,6 +98,9 @@ artifacts:
       - **MODIFIED Requirements**: Changed behavior - MUST include full updated content
       - **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**
       - **RENAMED Requirements**: Name changes only - use FROM:/TO: format
+      RENAMED entries do not contain requirement blocks and need no scenarios. Every
+      actual `### Requirement:` block, including REMOVED entries, needs the negative
+      control below. A skipped specs artifact must have no Markdown delta files.
 
       Format requirements:
       - Each requirement: `### Requirement: <name>` followed by description
@@ -155,6 +158,10 @@ artifacts:
       ### Requirement: Legacy export
       **Reason**: Replaced by new export system
       **Migration**: Use new export endpoint at /api/v2/export
+
+      #### Scenario: Negative control
+      - **WHEN** a client invokes the removed legacy export
+      - **THEN** the request MUST fail
       ```
 
       Specs should be testable - each scenario is a potential test case.
@@ -233,8 +240,8 @@ artifacts:
 
       Guidelines:
       - Group related tracked tasks under ## numbered headings
-      - Each tracked task MUST be a checkbox: `- [ ] X.Y Task description`
-      - Each tracked task MUST end with `Verify: \`<deterministic command>\``. The command MUST directly prove that task's observable result; prose, bare not-throw checks and later catch-all verification are invalid.
+      - Every tracked checkbox, regardless of marker, MUST have a numbered description: `- [ ] X.Y Task description`.
+      - Each tracked task MUST end with exactly one `Verify: \`<deterministic command>\``. The command MUST directly prove that task's observable result; prose, bare not-throw checks and later catch-all verification are invalid.
       - Tasks should be small enough to complete in one session
       - Order tasks by dependency (what must be done first?)
       - Track implementation and verification work that can be completed before
