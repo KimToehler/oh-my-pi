@@ -1302,6 +1302,20 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
+	it("forwards a resource_link's uri to the model alongside its title", async () => {
+		const harness = await createHarness();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+
+		await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "resource_link", name: "n", title: "t", uri: "file:///x" }],
+		});
+
+		expect(session.promptCalls).toEqual(["[t](file:///x)"]);
+		harness.abortController.abort();
+	});
+
 	it("injects _session/steering into a running turn", async () => {
 		const harness = await createHarness();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });

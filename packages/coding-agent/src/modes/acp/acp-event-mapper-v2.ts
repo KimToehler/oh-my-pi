@@ -7,6 +7,7 @@
 import * as path from "node:path";
 import type {
 	ContentBlock,
+	SessionConfigOption,
 	SessionUpdate,
 	ToolCall,
 	ToolCallContent,
@@ -108,7 +109,7 @@ export function convertV1UpdateToV2(
 		case "config_option_update":
 			return {
 				sessionUpdate: "config_option_update",
-				configOptions: update.configOptions.map(convertConfigOption),
+				configOptions: convertConfigOptionsToV2(update.configOptions),
 			};
 		case "session_info_update":
 			return {
@@ -260,6 +261,11 @@ function convertContentBlock(block: ContentBlock): v2.ContentBlock {
 							},
 			};
 	}
+}
+
+/** Convert v1 config options to their v2 spelling (session setup and `session/set_config_option` responses). */
+export function convertConfigOptionsToV2(options: SessionConfigOption[]): v2.SessionConfigOption[] {
+	return options.map(convertConfigOption);
 }
 
 function convertConfigOption(

@@ -32,7 +32,7 @@ import type {
 } from "../../session/client-bridge";
 import type { AcpEventMapperOptions } from "./acp-event-mapper";
 import type { AcpGoalActor } from "./acp-goal";
-import type { ForegroundWork, PromptTurnState } from "./acp-foreground";
+import type { ForegroundOrigin, ForegroundWork, PromptTurnState } from "./acp-foreground";
 
 export type AgentImageContent = {
 	type: "image";
@@ -57,6 +57,12 @@ export type ManagedSessionRecord = {
 	mcpRefreshChain: Promise<void> | undefined;
 	/** v1 pending-request half of the open prompt; `promptTurn.work` is the foreground work itself. */
 	promptTurn: PromptTurnState | undefined;
+	/** v2 foreground work (a prompt's or an autonomous turn's); v1 leaves it unset and uses `promptTurn.work`. */
+	foreground: ForegroundWork | undefined;
+	/** v2: a client cancel is latched until the next prompt insertion; agent-initiated work is refused meanwhile. */
+	cancelLatched: boolean;
+	/** v2: last `state_update` sent, so identical consecutive states are suppressed. Unused by v1. */
+	lastEmittedState: v2.StateUpdate["state"] | undefined;
 	promptQueue: PromptQueueState;
 	liveMessageId: string | undefined;
 	liveMessageProgress: { textEmitted: boolean; thoughtEmitted: boolean } | undefined;
@@ -94,6 +100,9 @@ export type ForegroundEnd = { response: PromptResponse } | { error: unknown };
 export const INTELLIJ_CLIENT_PLATFORM = "intellij";
 
 export type SessionSetupKind = "new" | "load" | "resume" | "fork";
+
+/** What a notification was derived from; lets a surface give chunks stable message identities. */
+export type AcpEmitSource = { message?: unknown };
 
 /** Wire types a surface speaks. */
 export interface AcpWire {
@@ -189,4 +198,18 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	): Promise<ClientBridgePermissionOutcome>;
 	/** Replays the transcript to the client. v2: `replayFrom` cursor handling, then the resume `state_update`. */
 	replay(record: ManagedSessionRecord): Promise<void>;
+	/**
+	 * The one funnel for core-built notifications. The core always builds the v1 shape; v1 sends it verbatim,
+	 * v2 converts it (`source.message` identifies the transcript message behind a chunk) and drops what has no v2 equivalent.
+	 */
+	emit(sessionId: string, notification: SessionNotification, source?: AcpEmitSource): Promise<void>;
+	/** Sends a notification `mapUpdate` returned, already in this surface's wire type. */
+	sendMapped(notification: W["notification"]): Promise<void>;
+	/** The foreground work currently owning `record`'s turns, if any. v1: the unsettled prompt's work; v2: `record.foreground`. */
+	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined;
+	/**
+	 * An `agent_start` arrived with no active work. v2: creates the work, sets `record.foreground` and announces `running`;
+	 * v1: `undefined` (turns outside an open prompt are not streamed).
+	 */
+	beginForeground(record: ManagedSessionRecord, origin: ForegroundOrigin): ForegroundWork | undefined;
 }

@@ -33,6 +33,7 @@ import {
 	type SessionConfigOption,
 	type SessionInfo,
 	type SessionModeState,
+	type SessionNotification,
 	type SessionUpdate,
 	type SetSessionConfigOptionRequest,
 	type SetSessionConfigOptionResponse,
@@ -108,6 +109,7 @@ import {
 	trackInteraction,
 } from "./acp-foreground";
 import {
+	type AcpEmitSource,
 	type AcpSurface,
 	type AcpSurfaceHost,
 	type AcpWireV1,
@@ -581,6 +583,11 @@ export class AcpAgent implements Agent {
 	/** Per-connection protocol surface; v1 until `initialize` selects one. */
 	#surface: AcpSurface<AcpWireV1>;
 
+	/** The one send funnel for core-built v1 notifications; the surface sends or converts them. */
+	#emit(notification: SessionNotification, source?: AcpEmitSource): Promise<void> {
+		return this.#surface.emit(notification.sessionId, notification, source);
+	}
+
 	constructor(connection: AgentSideConnection, createSession: CreateAcpSession, initialSession?: AgentSession) {
 		this.#connection = connection;
 		this.#initialSession = initialSession;
@@ -826,7 +833,7 @@ export class AcpAgent implements Agent {
 				await this.#waitForPromptEventHandlers(record);
 			},
 			notifyTitleChanged: async () => {
-				await this.#connection.sessionUpdate({
+				await this.#emit({
 					sessionId: record.session.sessionId,
 					update: {
 						sessionUpdate: "session_info_update",
@@ -1247,7 +1254,7 @@ export class AcpAgent implements Agent {
 			// Armed from `finally` so a failing command or output delivery can never
 			// leave the prompt open.
 			if (record.promptTurn === turn && !turn.settled && !turn.work.cancelRequested) {
-				void this.#finishPromptWhenQuiescent(record, turn, Symbol("acp-steered-command")).catch(
+				void this.#finishPromptWhenQuiescent(record, turn.work, Symbol("acp-steered-command")).catch(
 					(error: unknown) => {
 						logger.warn("ACP steered command settle failed", { sessionId, error });
 					},
@@ -1432,7 +1439,7 @@ export class AcpAgent implements Agent {
 				() => this.#surface.allowsAgentInitiatedWork(record),
 				(toolCall, options, signal) =>
 					trackInteraction(
-						record.promptTurn?.work,
+						this.#surface.activeWork(record),
 						{
 							blocked: work => this.#surface.onForegroundBlocked(record, work),
 							resumed: work => this.#surface.onForegroundResumed(record, work),
@@ -1470,6 +1477,9 @@ export class AcpAgent implements Agent {
 			mcpManager: undefined,
 			mcpRefreshChain: undefined,
 			promptTurn: undefined,
+			foreground: undefined,
+			cancelLatched: false,
+			lastEmittedState: undefined,
 			promptQueue: { promise: Promise.resolve(), release: undefined },
 			liveMessageId: undefined,
 			liveMessageProgress: undefined,
@@ -1488,7 +1498,7 @@ export class AcpAgent implements Agent {
 				clientPinsConfig: () => this.#clientPinsConfigOptions,
 				selectValues: () => this.#selectConfigValues(record),
 				announce: async () => {
-					await this.#connection.sessionUpdate({
+					await this.#emit({
 						sessionId: record.session.sessionId,
 						update: this.#buildCurrentModeUpdate(record),
 					});
@@ -1598,8 +1608,11 @@ export class AcpAgent implements Agent {
 	}
 
 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
-		const promptTurn = record.promptTurn;
-		if (!promptTurn || promptTurn.settled || promptTurn.work.cancelRequested) {
+		let work = this.#surface.activeWork(record);
+		if (!work && event.type === "agent_start") {
+			work = this.#surface.beginForeground(record, "agent");
+		}
+		if (!work || work.cancelRequested) {
 			return;
 		}
 
@@ -1628,7 +1641,7 @@ export class AcpAgent implements Agent {
 			cwd: record.session.sessionManager.getCwd(),
 			resolveImageData: resolveImageDataForAcp,
 		})) {
-			const delivery = this.#connection.sessionUpdate(notification);
+			const delivery = this.#surface.sendMapped(notification);
 			if (streamedAssistantError) {
 				// Resolves true only once the error chunk actually reached the
 				// client — a failed delivery keeps the agent_end fallback armed.
@@ -1636,10 +1649,8 @@ export class AcpAgent implements Agent {
 					() => true,
 					() => false,
 				);
-				const prior = promptTurn.work.errorTextDelivery;
-				promptTurn.work.errorTextDelivery = prior
-					? Promise.all([prior, outcome]).then(([a, b]) => a || b)
-					: outcome;
+				const prior = work.errorTextDelivery;
+				work.errorTextDelivery = prior ? Promise.all([prior, outcome]).then(([a, b]) => a || b) : outcome;
 			}
 			await delivery;
 		}
@@ -1653,7 +1664,7 @@ export class AcpAgent implements Agent {
 		this.#clearLiveAssistantMessageAfterEvent(record, event);
 
 		if (event.type === "agent_end") {
-			promptTurn.work.lastAgentEnd = event;
+			work.lastAgentEnd = event;
 			await this.#flushMissedFinalAssistantText(record, event);
 			await this.#flushUnreportedTurnError(record, event);
 			await this.#emitEndOfTurnUpdates(record);
@@ -1663,34 +1674,30 @@ export class AcpAgent implements Agent {
 			record.liveMessageProgress = undefined;
 			// A wake turn's agent_end: the first handler is already waiting and will
 			// finish the prompt once the session is quiet.
-			await this.#finishPromptWhenQuiescent(record, promptTurn, token);
+			await this.#finishPromptWhenQuiescent(record, work, token);
 		}
 	}
 
 	/**
-	 * Finish `promptTurn` once the session is quiescent. One waiter per prompt:
+	 * Finish `work` once the session is quiescent. One waiter per prompt:
 	 * the first caller (an `agent_end` handler or a steered command) owns it,
 	 * later callers return immediately and leave finishing to that waiter.
 	 */
-	async #finishPromptWhenQuiescent(
-		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState,
-		token: symbol,
-	): Promise<void> {
-		if (promptTurn.work.quiescenceWait) return;
-		promptTurn.work.quiescenceWait = this.#waitForAcpPromptIdle(record, promptTurn.work, token);
-		await promptTurn.work.quiescenceWait;
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
+	async #finishPromptWhenQuiescent(record: ManagedSessionRecord, work: ForegroundWork, token: symbol): Promise<void> {
+		if (work.quiescenceWait) return;
+		work.quiescenceWait = this.#waitForAcpPromptIdle(record, work, token);
+		await work.quiescenceWait;
+		if (this.#surface.activeWork(record) !== work) return;
 		// A goal completed or dropped during this prompt: report default mode inside the turn.
 		await record.goal.syncAgentModeChange();
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
-		if (promptTurn.work.deferredError !== undefined) {
-			this.#finishPrompt(record, undefined, promptTurn.work.deferredError);
+		if (this.#surface.activeWork(record) !== work) return;
+		if (work.deferredError !== undefined) {
+			this.#finishPrompt(record, undefined, work.deferredError);
 			return;
 		}
 		this.#finishPrompt(record, {
-			stopReason: resolveStopReason(promptTurn.work),
-			usage: buildTurnUsage(promptTurn.work, record.session.sessionManager.getUsageStatistics()),
+			stopReason: resolveStopReason(work),
+			usage: buildTurnUsage(work, record.session.sessionManager.getUsageStatistics()),
 		});
 	}
 
@@ -1729,7 +1736,7 @@ export class AcpAgent implements Agent {
 			return;
 		}
 		progress.textEmitted = true;
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -1753,7 +1760,7 @@ export class AcpAgent implements Agent {
 		record: ManagedSessionRecord,
 		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
 	): Promise<void> {
-		const streamedDelivery = record.promptTurn?.work.errorTextDelivery;
+		const streamedDelivery = this.#surface.activeWork(record)?.errorTextDelivery;
 		if (streamedDelivery && (await streamedDelivery)) {
 			return;
 		}
@@ -1767,7 +1774,7 @@ export class AcpAgent implements Agent {
 		if (!errorMessage || isSilentAbort(lastAssistant)) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -1859,13 +1866,13 @@ export class AcpAgent implements Agent {
 	}
 
 	#finishPrompt(record: ManagedSessionRecord, response?: PromptResponse, error?: unknown): void {
-		const promptTurn = record.promptTurn;
-		if (!promptTurn || promptTurn.settled) {
+		const work = this.#surface.activeWork(record);
+		if (!work) {
 			return;
 		}
 		this.#surface.onForegroundEnd(
 			record,
-			promptTurn.work,
+			work,
 			error !== undefined ? { error } : { response: response ?? { stopReason: "end_turn" } },
 		);
 	}
@@ -1874,7 +1881,7 @@ export class AcpAgent implements Agent {
 		if (!text) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -1915,7 +1922,7 @@ export class AcpAgent implements Agent {
 					}
 					break;
 				case "resource_link":
-					textParts.push(block.title ?? block.name ?? block.uri);
+					textParts.push(`[${block.title ?? block.name}](${block.uri})`);
 					break;
 				case "audio":
 					textParts.push("[audio omitted]");
@@ -1929,7 +1936,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #pushConfigOptionUpdate(record: ManagedSessionRecord): Promise<void> {
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "config_option_update",
@@ -2256,7 +2263,7 @@ export class AcpAgent implements Agent {
 		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
 		if (!supportsForm) return { approved: true };
 		try {
-			await this.#connection.sessionUpdate({
+			await this.#emit({
 				sessionId: session.sessionId,
 				update: buildToolCallStartUpdate({
 					toolCallId: crypto.randomUUID(),
@@ -2396,14 +2403,14 @@ export class AcpAgent implements Agent {
 		if (this.#sessions.get(sessionId) !== record) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "available_commands_update",
 				availableCommands: await this.#buildAvailableCommands(record.session),
 			},
 		});
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "session_info_update",
@@ -2416,7 +2423,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #emitAvailableCommandsUpdate(record: ManagedSessionRecord): Promise<void> {
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "available_commands_update",
@@ -2447,7 +2454,7 @@ export class AcpAgent implements Agent {
 			return;
 		}
 		const usageStats = record.session.sessionManager.getUsageStatistics();
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "usage_update",
@@ -2463,7 +2470,7 @@ export class AcpAgent implements Agent {
 		const sessionId = record.session.sessionId;
 		await this.#emitUsageUpdate(record);
 
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "session_info_update",

@@ -29,11 +29,12 @@ export function createAcpConnection(
 	createSession: AcpSessionFactory,
 	initialSession?: AgentSession,
 	onAgent?: (agent: AcpAgent) => void,
+	options?: { maxVersion?: () => 1 | 2 },
 ): AgentSideConnection {
 	return new AgentSideConnection(connection => {
 		const agent = new AcpAgent(connection, createSession, initialSession);
 		onAgent?.(agent);
-		return { v1: agent, maxVersion: () => 1 };
+		return { v1: agent, maxVersion: options?.maxVersion ?? (() => 1) };
 	}, transport);
 }
 
