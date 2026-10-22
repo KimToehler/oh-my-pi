@@ -49,6 +49,8 @@ skills:
     - work-with-pr-workspace
     - omomomo
 task:
+  isolation:
+    enabled: true
   maxConcurrency: 6
   maxRecursionDepth: 2
   enableLsp: true
@@ -56,6 +58,12 @@ task:
   showResolvedModelBadge: true
   agentModelOverrides:
     reviewer: "@review"
+autolearn:
+  enabled: true
+memory:
+  backend: local
+memories:
+  maxRolloutsPerStartup: 0
 tools:
   approvalMode: yolo
 bash:
