@@ -1,6 +1,8 @@
 ---
-description: Destructive git commands (reset --hard, checkout --, restore, clean, stash, force push, history rewrite) need explicit user consent; a background lane reports BLOCKED instead
-alwaysApply: true
+description: Destructive git commands need explicit user consent; a background lane reports BLOCKED instead
+condition: 'git (reset|clean|restore|checkout|switch|stash|rebase|filter-(branch|repo)|push[^\n]*(--force|-f\b))'
+scope: ["tool:bash", "tool:eval"]
+interruptMode: always
 ---
 
 # Destructive git commands need explicit consent, every time

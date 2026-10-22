@@ -25,10 +25,11 @@ Do not include `Co-Authored-By` lines in commit messages.
 
 ### 3. Self-Improvement Loop
 
-- After ANY correction from the user: record the pattern in the project's persistent agent rules (project AGENTS.md / CLAUDE.md, or a rules directory like .omo/rules/ / .claude/rules/)
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review the project's persistent rules at session start
+- After ANY correction from the user, capture the reusable lesson.
+- Personal or project-specific context MUST use `learn` with project scope; it stays local and unversioned.
+- Cross-project team policy or a hard guardrail MUST become a reviewed rule in `team-config/agent/rules/`; NEVER use global memory as team policy.
+- Extend an existing rule before adding another; keep concrete scope and verification.
+- Review persistent team rules at session start.
 
 ### 4. Verification Before Done
 

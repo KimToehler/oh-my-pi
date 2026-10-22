@@ -4,6 +4,7 @@ globs:
   - "**/.omo/plans/**/*.md"
   - "**/.omo/drafts/**/*.md"
   - "**/.omo/handover-*.md"
+  - "**/openspec/changes/**/*.md"
 ---
 
 # Plan Handoff and Status Reporting
