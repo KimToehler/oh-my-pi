@@ -7,6 +7,10 @@ const SCRIPT = path.join(import.meta.dir, "validate-openspec-change.mjs");
 const PROPOSAL_TEMPLATE = path.join(
 	import.meta.dir,
 	"..",
+	"..",
+	"..",
+	"..",
+	"..",
 	"openspec",
 	"schemas",
 	"omp-gated",
@@ -96,6 +100,15 @@ describe("validate-openspec-change", () => {
 	it("accepts a complete change", async () => {
 		const result = run(await fixture());
 		expect(result).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+	it("still validates when started through a symlinked directory", async () => {
+		const root = await fixture();
+		await fs.rm(path.join(root, "gate.md"));
+		const link = path.join(root, "linked-scripts");
+		await fs.symlink(import.meta.dir, link);
+		const result = Bun.spawnSync(["node", path.join(link, "validate-openspec-change.mjs"), root]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stdout.toString()).toBe("");
 	});
 	for (const marker of ["~", "-", "", " x"]) {
 		it(`rejects an unnumbered tracked ${marker} task among valid tasks`, async () => {

@@ -318,4 +318,6 @@ async function main() {
 	console.log("passed");
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) await main();
+// Node resolves the entry module's URL to its real path; a symlinked argv[1] (e.g. a linked agent dir) must too.
+const entry = process.argv[1] ? await fs.realpath(process.argv[1]).catch(() => process.argv[1]) : "";
+if (import.meta.url === pathToFileURL(entry).href) await main();

@@ -14,7 +14,7 @@ rules:
 operations:
   apply:
     guidance:
-      - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
+      - Run `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
       - Keep source edits in the task-owned worktree and mark a task complete only after its named command passes.
   archive:
     guidance:
