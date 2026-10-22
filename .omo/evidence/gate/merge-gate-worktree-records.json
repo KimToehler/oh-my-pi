@@ -1,0 +1,64 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/merge-gate-worktree-records.md",
+  "plan_sha256": "6dfd7520eb945ad470346d990d0107fda870acd8eaa203724e2726c9e41edb99",
+  "reviewed_sha": "30dc3f518fd504fb3ac364f275907c963bf01a00",
+  "diff_base": "57bf389dd72198601a72f86933cee36ceb743ba0",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Focused and team-config suites pass; actual CLI worktree, same-path competing-SHA, and post-merge scenarios pass; the final implementation audit found no blocker.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cx/gpt-5.6-sol"
+  ],
+  "qa": [
+    {
+      "name": "Focused merge-gate contract suite: 51 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omo/evidence/merge-gate-worktree-records/wave-4/focused.txt"
+    },
+    {
+      "name": "Team-config suite: 317 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omo/evidence/merge-gate-worktree-records/wave-4/team-config.txt"
+    },
+    {
+      "name": "TypeScript and lint checks",
+      "passed": true,
+      "artifact": ".omo/evidence/merge-gate-worktree-records/wave-4/check-ts.txt"
+    },
+    {
+      "name": "Actual CLI same-path competing-SHA refusal",
+      "passed": true,
+      "artifact": ".omo/evidence/merge-gate-worktree-records/wave-4/f1-negative-same-path-summary.json"
+    },
+    {
+      "name": "Actual CLI post-merge exact-record settlement",
+      "passed": true,
+      "artifact": ".omo/evidence/merge-gate-worktree-records/wave-3/f1-postmerge-summary.json"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "The change is confined to merge-gate record selection plus its contract tests and prose."
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "same-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/merge-gate-worktree-records/wave-4/f2-audit-pass.md",
+      "trailer_sha256": "c4748e8e781a8667f3b83b396088ddfe1d00a87ce9094c721aa1bd42463edd58",
+      "note": "Closing audit after blocker and fix-delta closure."
+    }
+  ],
+  "blockers": []
+}

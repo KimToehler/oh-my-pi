@@ -1,0 +1,27 @@
+$ bun run check:tools && bun run --filter './packages/*' --sequential --if-present check:types
+$ oxlint . && oxfmt --check 'packages/*/src/**/*.{ts,tsx}' 'packages/*/{test,bench,examples,scripts}/**/*.ts' 'packages/*/*.ts' 'scripts/**/*.ts'
+team-config/agent/skills/visual-qa/scripts/image-diff.ts:71:19: warning unicorn(no-new-array): Do not use `new Array(singleArgument)`. help: It's not clear whether the argument is meant to be the length of the array or the only element. If the argument is the array's length, consider using `Array.from({ length: n })`. If the argument is the only element, use `[element]`.
+team-config/agent/skills/visual-qa/scripts/image-diff.ts:72:20: warning unicorn(no-new-array): Do not use `new Array(singleArgument)`. help: It's not clear whether the argument is meant to be the length of the array or the only element. If the argument is the array's length, consider using `Array.from({ length: n })`. If the argument is the only element, use `[element]`.
+team-config/agent/skills/programming/scripts/typescript/check-no-excuse-rules.ts:287:9: warning eslint(no-unused-vars): Variable 'commentRanges' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+packages/ai/test/anthropic-signature.test.ts:192:6: warning unicorn(no-new-array): Do not use `new Array(singleArgument)`. help: It's not clear whether the argument is meant to be the length of the array or the only element. If the argument is the array's length, consider using `Array.from({ length: n })`. If the argument is the only element, use `[element]`.
+packages/coding-agent/test/task/tan-memory-recall.test.ts:55:6: warning eslint(no-unused-vars): Variable 'startCount' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 165ms on 6294 files using 18 threads.
+@oh-my-pi/browser-relay:check:types             | Done in 85ms
+@oh-my-pi/collab-web:check:types                | Done in 120ms
+@oh-my-pi/omp-stats:check:types                 | Done in 1.26s
+@oh-my-pi/omptype:check:types                   | Done in 178ms
+@oh-my-pi/pi-agent-core:check:types             | Done in 1.20s
+@oh-my-pi/pi-ai:check:types                     | Done in 2.94s
+@oh-my-pi/pi-catalog:check:types                | Done in 2.41s
+@oh-my-pi/pi-coding-agent:check:types           | Done in 3.37s
+@oh-my-pi/pi-metaharness:check:types            | Done in 10.27s
+@oh-my-pi/pi-mnemopi:check:types                | Done in 1.16s
+@oh-my-pi/pi-natives:check:types                | Done in 58ms
+@oh-my-pi/pi-tui:check:types                    | Done in 1.76s
+@oh-my-pi/pi-utils:check:types                  | Done in 139ms
+@oh-my-pi/pi-wire:check:types                   | Done in 37ms
+@oh-my-pi/snapcompact:check:types               | Done in 1.15s
+@oh-my-pi/typescript-edit-benchmark:check:types | Done in 2.30s

@@ -120,6 +120,78 @@ async function planOnDisk(text: string, slug = "x"): Promise<string> {
 	return file;
 }
 
+async function execProcess(command: string, args: readonly string[], cwd: string): Promise<ExecResult> {
+	const child = Bun.spawn([command, ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+	const [stdout, stderr, code] = await Promise.all([
+		new Response(child.stdout).text(),
+		new Response(child.stderr).text(),
+		child.exited,
+	]);
+	return { stdout, stderr, code, killed: false };
+}
+
+async function git(cwd: string, ...args: readonly string[]): Promise<string> {
+	const result = await execProcess("git", args, cwd);
+	if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+	return result.stdout.trim();
+}
+
+function useRealGit(): void {
+	h.pi.exec = async (command: string, args: string[], options?: ExecOptions): Promise<ExecResult> => {
+		h.execCalls.push({ command, args });
+		if (command === "node") return h.validator;
+		return execProcess(command, args, options?.cwd ?? h.dir);
+	};
+}
+
+interface WorktreeGateFixture {
+	readonly main: string;
+	readonly record: string;
+	readonly reviewedSha: string;
+	readonly worktree: string;
+}
+
+async function worktreeGateFixture(): Promise<WorktreeGateFixture> {
+	await git(h.dir, "init", "-q", "-b", "main");
+	await git(h.dir, "config", "user.email", "gate@test");
+	await git(h.dir, "config", "user.name", "Gate Test");
+	await Bun.write(path.join(h.dir, ".gitignore"), "worktrees/\n");
+	await Bun.write(path.join(h.dir, "source.txt"), "base\n");
+	await git(h.dir, "add", ".gitignore", "source.txt");
+	await git(h.dir, "commit", "-q", "-m", "base");
+	const worktreePath = path.join(h.dir, "worktrees", "feature");
+	await git(h.dir, "worktree", "add", "-q", "-b", "feature", worktreePath);
+	const main = await git(h.dir, "rev-parse", "--show-toplevel");
+	const worktree = await git(worktreePath, "rev-parse", "--show-toplevel");
+	await Bun.write(path.join(worktree, "source.txt"), "reviewed\n");
+	await git(worktree, "add", "source.txt");
+	await git(worktree, "commit", "-q", "-m", "reviewed change");
+	const reviewedSha = await git(worktree, "rev-parse", "HEAD");
+	const record = ".omo/evidence/gate/worktree.json";
+	await Bun.write(
+		path.join(worktree, record),
+		JSON.stringify({
+			schema: "omo.merge-gate/v2",
+			plan: "openspec/changes/worktree-gate",
+			reviewed_sha: reviewedSha,
+		}),
+	);
+	await git(worktree, "add", record);
+	await git(worktree, "commit", "-q", "-m", "gate record");
+	return { main, record, reviewedSha, worktree };
+}
+
+function gateProof(reviewedSha: string, record = ".omo/evidence/gate/worktree.json"): string {
+	return [
+		"Gate proof",
+		"- integration-review: not needed (one gate mechanism)",
+		"- review-work: RAN",
+		`  reviewed_sha ${reviewedSha} · plan_sha256 ${"b".repeat(64)}`,
+		`  record ${record} · validate-gate-record.mjs exit 0 at ${reviewedSha}`,
+		"- code committed after reviewed_sha: none",
+	].join("\n");
+}
+
 const validatorRuns = (): number => h.execCalls.filter(call => call.args.includes("--plan-only")).length;
 
 /** The plan files the validator was asked to check, in order. */
@@ -481,6 +553,7 @@ describe("merge-gate-proof rule contract", () => {
 		`  range ${SHA}...${SHA} · report docs/r.md · Must-fix: 0 open / 0 fixed in ${SHA}`,
 		"- review-work: RAN",
 		`  reviewed_sha ${SHA} · plan_sha256 ${"b".repeat(64)}`,
+		`  record .omo/evidence/gate/r.json · validate-gate-record.mjs exit 0 at ${SHA}`,
 		`- code committed after reviewed_sha: none`,
 		"",
 		"Work is done.",
@@ -498,6 +571,7 @@ describe("merge-gate-proof rule contract", () => {
 		(h.pi as unknown as { exec: unknown }).exec = async (command: string, args: string[]): Promise<ExecResult> => {
 			h.execCalls.push({ command, args });
 			if (command === "node") return h.validator;
+			if (args[0] === "worktree" && args[1] === "list") return ok(`worktree ${h.dir}\n`);
 			if (args[0] === "rev-parse") return ok(`${h.dir}\n`);
 			if (args[0] === "symbolic-ref") return ok("origin/main\n");
 			if (args[0] === "merge-base") return { stdout: "", stderr: "", code: 1, killed: false };
@@ -555,5 +629,227 @@ describe("merge-gate-proof rule contract", () => {
 		h.validator = INVALID;
 		expect(await stop("The requested work is complete.")).toBeUndefined();
 		expect(h.execCalls).toHaveLength(0);
+	});
+});
+
+describe("worktree gate binding", () => {
+	const stop = (text: string) =>
+		emit("session_stop", {
+			type: "session_stop",
+			messages: [],
+			turn_id: 1,
+			last_assistant_message: { role: "assistant", content: [{ type: "text", text }] },
+		});
+	const recordRuns = () => h.execCalls.filter(call => call.command === "node" && call.args.includes("--record"));
+
+	it("validates only the reviewed_sha record in its linked worktree", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const unrelatedSha = await git(fixture.main, "rev-parse", "HEAD");
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omo/plans/unrelated.md", reviewed_sha: unrelatedSha }),
+		);
+		await git(fixture.main, "add", fixture.record);
+		await git(fixture.main, "commit", "-q", "-m", "unrelated gate record");
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toBeUndefined();
+		expect(recordRuns()).toEqual([
+			{
+				command: "node",
+				args: [
+					expect.any(String),
+					"--repo",
+					fixture.worktree,
+					"--record",
+					fixture.record,
+					"--plan",
+					"openspec/changes/worktree-gate",
+				],
+			},
+		]);
+	});
+
+	it("refuses different record bytes at the same path and reviewed_sha", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/conflict.md",
+				reviewed_sha: fixture.reviewedSha,
+			}),
+		);
+		await git(fixture.main, "add", fixture.record);
+		await git(fixture.main, "commit", "-q", "-m", "conflicting gate record");
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("ambiguous");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("refuses a binding when linked-worktree discovery fails", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/local.md",
+				reviewed_sha: fixture.reviewedSha,
+			}),
+		);
+		useRealGit();
+		const realExec = h.pi.exec;
+		h.pi.exec = async (command: string, args: string[], options?: ExecOptions): Promise<ExecResult> => {
+			if (command === "git" && args[0] === "worktree" && args[1] === "list") {
+				h.execCalls.push({ command, args });
+				return { stdout: "", stderr: "worktree discovery failed", code: 1, killed: false };
+			}
+			return realExec(command, args, options);
+		};
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("refuses a merge claim without a Gate proof reviewed_sha", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/unrelated.md",
+				reviewed_sha: await git(fixture.main, "rev-parse", "HEAD"),
+			}),
+		);
+		useRealGit();
+
+		// When
+		const result = await stop("Ready to merge.");
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("reviewed_sha");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("settles a matching record merged into local main without revalidating merged HEAD", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge feature", "feature");
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toBeUndefined();
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("does not settle when only the reviewed commit reached the default branch", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge reviewed code only", fixture.reviewedSha);
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(recordRuns()).toHaveLength(1);
+	});
+
+	it("does not settle from a non-default conventional branch", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "branch", "master", fixture.reviewedSha);
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(recordRuns()).toHaveLength(1);
+	});
+
+	it("pins the default ref before classifying a settled record", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge feature", "feature");
+		h.validator = INVALID;
+		useRealGit();
+		const realExec = h.pi.exec;
+		let moved = false;
+		h.pi.exec = async (command: string, args: string[], options?: ExecOptions): Promise<ExecResult> => {
+			const result = await realExec(command, args, options);
+			if (!moved && command === "git" && args[0] === "merge-base" && result.code === 0) {
+				moved = true;
+				await git(fixture.main, "update-ref", "refs/heads/main", remoteMain);
+			}
+			return result;
+		};
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(moved).toBeTrue();
+		expect(result).toBeUndefined();
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("refuses a claimed reviewed_sha with no matching record", async () => {
+		// Given
+		await git(h.dir, "init", "-q", "-b", "main");
+		await git(h.dir, "config", "user.email", "gate@test");
+		await git(h.dir, "config", "user.name", "Gate Test");
+		await Bun.write(path.join(h.dir, "source.txt"), "base\n");
+		await git(h.dir, "add", "source.txt");
+		await git(h.dir, "commit", "-q", "-m", "base");
+		useRealGit();
+		const missingSha = "c".repeat(40);
+
+		// When
+		const result = await stop(gateProof(missingSha));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain(missingSha);
+		expect(recordRuns()).toHaveLength(0);
 	});
 });

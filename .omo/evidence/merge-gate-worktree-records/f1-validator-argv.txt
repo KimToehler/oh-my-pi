@@ -1,0 +1,1 @@
+--repo /private/tmp/mgwt-smoke/main/worktrees/feature --record .omo/evidence/gate/worktree.json --plan openspec/changes/worktree-gate

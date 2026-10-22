@@ -18,9 +18,11 @@ Gate proof
   implementation-audit: <PASS|FAIL|FAIL overridden> · <agent> · <model> · trailer <path>
   strategic-risk-review: <PASS|FAIL|FAIL overridden|not run (reason)> · trailer <path>
   override: none | by <user> · <n> downgrades (<count per rule>)
-  record <path> · validate-gate-record.mjs exit 0 at <HEAD sha>
+  record <tracked repo-relative path> · validate-gate-record.mjs exit 0 at <HEAD sha>
 - code committed after reviewed_sha: none | <shas> → gate void, re-run
 ```
+
+`reviewed_sha` MUST be the record's full literal 40-hex value, and `record` MUST be its tracked repo-relative JSON path. Together they bind the stop hook to that exact gate record across linked worktrees; a different or newer record never substitutes for it. The record's `plan` path remains opaque to the hook; the validator owns file or OpenSpec change-folder interpretation.
 
 Each line has one of four outcomes:
 - passed: `RAN` with `PASS` verdicts and the record validated;
