@@ -204,13 +204,15 @@ function validRecord() {
 function expectBlocked(record, field, options) {
   const result = run(record, options)
   assert.equal(result.status, 1)
+  assert.equal(result.stdout, "blocked\n")
   assert.match(result.stderr, new RegExp(field))
   assert.doesNotMatch(result.stderr, /\n\s+at /)
 }
 
-test("#given valid gate record #when validated #then exits zero", () => {
+test("#given valid gate record #when validated #then exits zero and reports passed", () => {
   const result = run(validRecord())
   assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, "passed\n")
 })
 
 test("#given stale well-formed SHA fixture #when validated #then reviewed_sha blocks", () => {
@@ -248,10 +250,11 @@ for (const [name, fixture, field] of adversarialFixtures) {
   })
 }
 
-test("#given legitimate override with FAIL verdict #when validated #then exits zero", () => {
+test("#given legitimate override with FAIL verdict #when validated #then exits zero and reports overridden", () => {
   const record = fixtureByName("override-with-fail.json")
   const result = run({ ...record, reviewed_sha: head })
   assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, "overridden\n", "an override must not be indistinguishable from a full PASS")
 })
 
 const mutations = [
@@ -448,9 +451,10 @@ const acceptedPlans = [
 ]
 
 for (const [name, text] of acceptedPlans) {
-  test(`#given ${name} #when --plan-only runs #then it exits zero`, () => {
+  test(`#given ${name} #when --plan-only runs #then it exits zero and reports passed`, () => {
     const result = planOnly(text)
     assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
   })
 }
 
@@ -486,6 +490,7 @@ for (const [name, text, expected] of blockedPlans) {
   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
     const result = planOnly(text)
     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+    assert.equal(result.stdout, "blocked\n")
     assert.match(result.stderr, expected)
     assert.doesNotMatch(result.stderr, /\n\s+at /)
   })
