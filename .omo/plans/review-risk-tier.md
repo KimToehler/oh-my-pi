@@ -428,7 +428,7 @@ From the worktree root:
 
 ## TODOs
 
-1. F3-B1: re-run Verification 5 so the inventory contract holds after the runs. Keep `$A` and `$C` as untouched templates; copy each into a fresh trial-owned directory per trial; extract natives with one warm-up smoke before the first scored trial. The pre- and post-run checks compare the templates. Every trial from the first run is reported as INFRA.
+1. F3-B1: re-run Verification 5 so the inventory contract holds after the runs. Keep `$A` and `$C` as untouched templates and freeze a per-file SHA-256 map of each at the pre-run inventory. Each trial copies its template into a fresh trial-owned directory and, before launching omp, compares every file of that copy with the frozen map; a missing, extra or different file writes `COPY-MISMATCH` and classifies as INFRA. Control: freeze a scratch template, change one rule file, run the copy check, expect `COPY-MISMATCH` and INFRA. Extract natives with one warm-up smoke before the first scored trial. Every trial from the first run is reported as INFRA.
 2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
 
 ## Final verification wave
