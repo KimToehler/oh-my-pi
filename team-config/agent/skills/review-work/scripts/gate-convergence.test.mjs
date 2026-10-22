@@ -358,12 +358,13 @@ test("#given a ledger without a trailing newline #when an event is appended #the
 const tierPlan = (s, tier) => writeFileSync(path.join(s.repo, PLAN), `# demo\n\n## Merge gate\n- Mandatory class: none\n- Risk tier: ${tier}\n`)
 const waveEvents = (s) => s.ledger().filter((e) => e.event === "gate_wave")
 
-function toolingStop(s) {
+function toolingStop(s, lane = "F2") {
   tierPlan(s, "internal-tooling")
   s.gc("baseline", "--sha", "HEAD")
+  const outcomes = lane === "F2" ? ["--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL"] : ["--outcome", "f3=FAIL"]
   let last
   for (const [index, count] of [3, 2, 1].entries()) {
-    last = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...blockers(`W${index}B`, count))
+    last = s.wave(lane, ...outcomes, ...blockers(`W${index}B`, count))
   }
   return last
 }
@@ -417,29 +418,35 @@ test("#given an internal-tooling gate whose plan moves to product #when commands
   assert.match(again.stderr, /this gate runs as product/)
 })
 
-test("#given an internal-tooling cap STOP #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded", (t) => {
-  const s = sandbox(t)
-  assert.equal(toolingStop(s).status, 3)
-  tierPlan(s, "product")
-  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
-  assert.equal(retier.status, 0, retier.stderr)
-  assert.match(retier.stdout, /^STALE F2 wave 3: recorded before this retier/m)
-  const freeze = s.gc("decide", "--lane", "F2", "--choice", "freeze", "--by", "tim", "--reason", "t")
-  assert.equal(freeze.status, 1)
-  assert.match(freeze.stderr, /F2 wave 3 predates the retier to product/)
-  assert.equal(s.ledger().filter((e) => e.event === "convergence_decision").length, 0)
-  assert.equal(s.gc("decide", "--lane", "F2", "--choice", "continue", "--by", "tim", "--reason", "t").status, 0)
+test("#given an internal-tooling cap STOP in either lane #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded", (t) => {
+  for (const lane of ["F2", "F3"]) {
+    const s = sandbox(t)
+    assert.equal(toolingStop(s, lane).status, 3)
+    tierPlan(s, "product")
+    const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+    assert.equal(retier.status, 0, retier.stderr)
+    assert.match(retier.stdout, new RegExp(`^STALE ${lane} wave 3: recorded before this retier`, "m"))
+    const freeze = s.gc("decide", "--lane", lane, "--choice", "freeze", "--by", "tim", "--reason", "t")
+    assert.equal(freeze.status, 1, lane)
+    assert.match(freeze.stderr, new RegExp(`${lane} wave 3 predates the retier to product`))
+    assert.equal(s.ledger().filter((e) => e.event === "convergence_decision").length, 0)
+    assert.equal(s.gc("decide", "--lane", lane, "--choice", "continue", "--by", "tim", "--reason", "t").status, 0)
+  }
 })
 
-test("#given an internal-tooling lane decided freeze #when the plan is re-tiered to product #then retier is refused and nothing is written", (t) => {
-  const s = sandbox(t)
-  assert.equal(toolingStop(s).status, 3)
-  assert.equal(s.gc("decide", "--lane", "F2", "--choice", "freeze", "--by", "tim", "--reason", "t").status, 0)
-  tierPlan(s, "product")
-  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
-  assert.equal(retier.status, 1)
-  assert.match(retier.stderr, /F2 wave 3 is decided freeze; a closed gate cannot be re-tiered/)
-  assert.equal(s.ledger().filter((e) => e.event === "risk_tier_change").length, 0)
+test("#given an internal-tooling lane decided freeze or replan, in either lane #when the plan is re-tiered to product #then retier is refused and nothing is written", (t) => {
+  for (const lane of ["F2", "F3"]) {
+    for (const choice of ["freeze", "replan"]) {
+      const s = sandbox(t)
+      assert.equal(toolingStop(s, lane).status, 3)
+      assert.equal(s.gc("decide", "--lane", lane, "--choice", choice, "--by", "tim", "--reason", "t").status, 0, `${lane} ${choice}`)
+      tierPlan(s, "product")
+      const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+      assert.equal(retier.status, 1, `${lane} ${choice}`)
+      assert.match(retier.stderr, new RegExp(`${lane} wave 3 is decided ${choice}; a closed gate cannot be re-tiered`))
+      assert.equal(s.ledger().filter((e) => e.event === "risk_tier_change").length, 0)
+    }
+  }
 })
 
 test("#given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse", (t) => {
