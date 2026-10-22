@@ -33,7 +33,7 @@ export function createAcpConnection(
 	return new AgentSideConnection(connection => {
 		const agent = new AcpAgent(connection, createSession, initialSession);
 		onAgent?.(agent);
-		return agent;
+		return { v1: agent, maxVersion: () => 1 };
 	}, transport);
 }
 

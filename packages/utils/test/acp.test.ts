@@ -2,6 +2,9 @@ import { describe, expect, it } from "bun:test";
 import {
 	AgentSideConnection,
 	type AnyMessage,
+	type Agent,
+	type AgentSurfaces,
+	type AgentV2,
 	type Client,
 	ClientSideConnection,
 	ndJsonStream,
@@ -149,18 +152,21 @@ describe("ACP JSON-RPC transport", () => {
 		const clientConnection = new ClientSideConnection(() => client, pair.left);
 		const agentConnection = new AgentSideConnection(
 			connection => ({
-				initialize: params => ({ protocolVersion: params.protocolVersion }),
-				newSession: async () => ({ sessionId: "session-1" }),
-				prompt: async params => {
-					if (params.prompt.length === 0) throw RequestError.invalidParams({ field: "prompt" });
-					await connection.requestPermission({
-						sessionId: params.sessionId,
-						toolCall: { toolCallId: "tool-1" },
-						options: [],
-					});
-					return { stopReason: "end_turn" };
+				maxVersion: () => 1,
+				v1: {
+					initialize: params => ({ protocolVersion: params.protocolVersion }),
+					newSession: async () => ({ sessionId: "session-1" }),
+					prompt: async params => {
+						if (params.prompt.length === 0) throw RequestError.invalidParams({ field: "prompt" });
+						await connection.requestPermission({
+							sessionId: params.sessionId,
+							toolCall: { toolCallId: "tool-1" },
+							options: [],
+						});
+						return { stopReason: "end_turn" };
+					},
+					cancel: async () => {},
 				},
-				cancel: async () => {},
 			}),
 			pair.right,
 		);
@@ -324,5 +330,113 @@ describe("ACP runtime schemas", () => {
 				update: { sessionUpdate: "agent_message_chunk", content: { type: "text" } },
 			}).success,
 		).toBe(false);
+	});
+});
+
+describe("ACP versioned dispatch", () => {
+	/** Wires an {@link AgentSideConnection} to a raw client; records which surface handled each call. */
+	function versioned(options: { v2: boolean; maxVersion: 1 | 2 }) {
+		const calls: string[] = [];
+		const v1 = {
+			initialize: async () => {
+				calls.push("v1.initialize");
+				return { protocolVersion: 1 };
+			},
+			newSession: async () => {
+				calls.push("v1.newSession");
+				return { sessionId: "s1" };
+			},
+		} as unknown as Agent;
+		const v2 = {
+			initialize: async () => {
+				calls.push("v2.initialize");
+				return { protocolVersion: 2, info: { name: "a", version: "1" } };
+			},
+			logout: async () => {
+				calls.push("v2.logout");
+				return {};
+			},
+		} as unknown as AgentV2;
+		const { left, right } = transportPair();
+		new AgentSideConnection(
+			(): AgentSurfaces => ({ v1, v2: options.v2 ? v2 : undefined, maxVersion: () => options.maxVersion }),
+			left,
+		);
+		const client = new RpcConnection(right, () => {
+			throw RequestError.methodNotFound("client");
+		});
+		return { calls, client };
+	}
+	const info = { name: "c", version: "1" };
+
+	async function errorCode(promise: Promise<unknown>): Promise<number | undefined> {
+		try {
+			await promise;
+			return undefined;
+		} catch (error) {
+			return error instanceof RequestError ? error.code : undefined;
+		}
+	}
+
+	it("runs the v2 initialize when both sides support v2", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 2, info });
+		expect(result.protocolVersion).toBe(2);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("clamps a higher requested version down to 2", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 3, info });
+		expect(result.protocolVersion).toBe(2);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("selects v1 when maxVersion is 1 even if v2 is requested", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 1 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 2 });
+		expect(result.protocolVersion).toBe(1);
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("selects v1 when no v2 surface exists", async () => {
+		const { calls, client } = versioned({ v2: false, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2 });
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("rejects missing, non-integer and sub-1 protocolVersion with invalid params", async () => {
+		for (const params of [{}, { protocolVersion: 0 }, { protocolVersion: "2" }, { protocolVersion: 1.5 }]) {
+			const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+			expect(await errorCode(client.request("initialize", params))).toBe(-32602);
+			expect(calls).toEqual([]);
+		}
+	});
+
+	it("rejects a second initialize with invalid request", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2, info });
+		expect(await errorCode(client.request("initialize", { protocolVersion: 2, info }))).toBe(-32600);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("routes v2-only methods to the v2 handler after v2 selection", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2, info });
+		await client.request("auth/logout", {});
+		expect(calls).toEqual(["v2.initialize", "v2.logout"]);
+	});
+
+	it("answers v2-only methods with method-not-found under v1", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 1 });
+		await client.request("initialize", { protocolVersion: 2 });
+		expect(await errorCode(client.request("auth/logout", {}))).toBe(-32601);
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("keeps dispatching to v1 for frames before initialize", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("session/new", {});
+		expect(calls).toEqual(["v1.newSession"]);
 	});
 });

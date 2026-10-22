@@ -40,6 +40,26 @@ import type {
 } from "./protocol";
 import type { Stream } from "./stream";
 import { RequestError, RpcConnection } from "./transport";
+import type {
+	AgentV2,
+	CancelSessionNotification,
+	CloseSessionRequest as V2CloseSessionRequest,
+	CompleteElicitationNotification as V2CompleteElicitationNotification,
+	CreateElicitationRequest as V2CreateElicitationRequest,
+	CreateElicitationResponse as V2CreateElicitationResponse,
+	DeleteSessionRequest,
+	InitializeRequest as V2InitializeRequest,
+	ListSessionsRequest as V2ListSessionsRequest,
+	LoginAuthRequest,
+	LogoutAuthRequest,
+	NewSessionRequest as V2NewSessionRequest,
+	PromptRequest as V2PromptRequest,
+	RequestPermissionRequest as V2RequestPermissionRequest,
+	RequestPermissionResponse as V2RequestPermissionResponse,
+	ResumeSessionRequest as V2ResumeSessionRequest,
+	SessionNotification as V2SessionNotification,
+	SetSessionConfigOptionRequest as V2SetSessionConfigOptionRequest,
+} from "./v2/protocol";
 
 /** Terminal creation response returned by a client. */
 export interface CreateTerminalResponse {
@@ -62,16 +82,63 @@ export interface Client {
 	extNotification?(method: string, params: Record<string, unknown>): MaybePromise<void>;
 }
 
+/** Agent implementations offered to a negotiated {@link AgentSideConnection}. */
+export interface AgentSurfaces {
+	/** Protocol v1 handler; also serves every frame received before `initialize`. */
+	v1: Agent;
+	/** Protocol v2 handler; absent means the connection always negotiates v1. */
+	v2?: AgentV2;
+	/** Highest protocol version this process is willing to negotiate right now. */
+	maxVersion(): 1 | 2;
+}
+
 /** Agent-side ACP connection. */
 export class AgentSideConnection {
 	#connection: RpcConnection;
+	#v2: AgentSideConnectionV2;
+	#surfaces: AgentSurfaces | undefined;
+	#initialized = false;
+	#selected: 1 | 2 | undefined;
 
-	constructor(toAgent: (connection: AgentSideConnection) => Agent, stream: Stream) {
-		this.#connection = new RpcConnection(stream, async (method, params, notification) => {
-			if (!agent) throw RequestError.internalError(undefined, "Agent is not initialized");
-			return dispatchAgent(agent, method, params, notification);
-		});
-		const agent = toAgent(this);
+	constructor(toAgent: (connection: AgentSideConnection) => AgentSurfaces, stream: Stream) {
+		this.#connection = new RpcConnection(stream, (method, params, notification) =>
+			this.#dispatch(method, params, notification),
+		);
+		this.#v2 = new AgentSideConnectionV2(this.#connection);
+		this.#surfaces = toAgent(this);
+	}
+
+	async #dispatch(method: string, params: unknown, notification: boolean): Promise<unknown> {
+		const surfaces = this.#surfaces;
+		if (!surfaces) throw RequestError.internalError(undefined, "Agent is not initialized");
+		if (method === "initialize" && !notification) return this.#initialize(surfaces, params);
+		if (this.#selected === 2 && surfaces.v2) return dispatchAgentV2(surfaces.v2, method, params, notification);
+		return dispatchAgentV1(surfaces.v1, method, params, notification);
+	}
+
+	async #initialize(surfaces: AgentSurfaces, params: unknown): Promise<unknown> {
+		const requested = (params as { protocolVersion?: unknown } | null | undefined)?.protocolVersion;
+		if (typeof requested !== "number" || !Number.isInteger(requested) || requested < 1) {
+			throw RequestError.invalidParams(undefined, "initialize requires an integer protocolVersion >= 1");
+		}
+		if (this.#initialized) throw RequestError.invalidRequest(undefined, "Connection is already initialized");
+		const selected: 1 | 2 = surfaces.v2 && Math.min(requested, surfaces.maxVersion()) >= 2 ? 2 : 1;
+		this.#initialized = true;
+		this.#selected = selected;
+		try {
+			if (selected === 2 && surfaces.v2) return await surfaces.v2.initialize(params as V2InitializeRequest);
+			return await surfaces.v1.initialize(params as InitializeRequest);
+		} catch (error) {
+			// A failed handshake leaves the connection uninitialized so the client may retry.
+			this.#initialized = false;
+			this.#selected = undefined;
+			throw error;
+		}
+	}
+
+	/** Protocol v2 client-direction view of this connection. */
+	get v2(): AgentSideConnectionV2 {
+		return this.#v2;
 	}
 
 	/** Signal aborted when the transport closes. */
@@ -126,6 +193,48 @@ export class AgentSideConnection {
 	/** Sends a legacy extension notification. */
 	extNotification(method: string, params: Record<string, unknown>): Promise<void> {
 		return this.notify(method, params);
+	}
+}
+
+/** Protocol v2 client-direction view of an agent-side connection. */
+export class AgentSideConnectionV2 {
+	#connection: RpcConnection;
+
+	constructor(connection: RpcConnection) {
+		this.#connection = connection;
+	}
+
+	/** Signal aborted when the transport closes. */
+	get signal(): AbortSignal {
+		return this.#connection.signal;
+	}
+	/** Promise resolved when the transport closes. */
+	get closed(): Promise<void> {
+		return this.#connection.closed;
+	}
+	/** Sends a v2 session update notification. */
+	sessionUpdate(params: V2SessionNotification): Promise<void> {
+		return this.#connection.notify("session/update", params);
+	}
+	/** Requests permission from the client. */
+	requestPermission(params: V2RequestPermissionRequest): Promise<V2RequestPermissionResponse> {
+		return this.#connection.request("session/request_permission", params);
+	}
+	/** Creates an interactive elicitation on the client. */
+	createElicitation(params: V2CreateElicitationRequest): Promise<V2CreateElicitationResponse> {
+		return this.#connection.request("elicitation/create", params);
+	}
+	/** Notifies the client that URL elicitation completed. */
+	completeElicitation(params: V2CompleteElicitationNotification): Promise<void> {
+		return this.#connection.notify("elicitation/complete", params);
+	}
+	/** Sends a custom request. */
+	request<Response = unknown, Params = unknown>(method: string, params?: Params): Promise<Response> {
+		return this.#connection.request(method, params);
+	}
+	/** Sends a custom notification. */
+	notify<Params = unknown>(method: string, params?: Params): Promise<void> {
+		return this.#connection.notify(method, params);
 	}
 }
 
@@ -232,7 +341,7 @@ export class ClientSideConnection {
 	}
 }
 
-async function dispatchAgent(agent: Agent, method: string, params: unknown, notification: boolean): Promise<unknown> {
+async function dispatchAgentV1(agent: Agent, method: string, params: unknown, notification: boolean): Promise<unknown> {
 	switch (method) {
 		case "initialize":
 			return agent.initialize(params as InitializeRequest);
@@ -258,6 +367,42 @@ async function dispatchAgent(agent: Agent, method: string, params: unknown, noti
 			return agent.prompt(params as PromptRequest);
 		case "session/cancel":
 			return agent.cancel(params as { sessionId: string });
+		default:
+			if (method === "$/cancel_request") return;
+			if (notification && agent.extNotification)
+				return agent.extNotification(method, params as Record<string, unknown>);
+			if (!notification && agent.extMethod) return agent.extMethod(method, params as Record<string, unknown>);
+			throw RequestError.methodNotFound(method);
+	}
+}
+
+async function dispatchAgentV2(
+	agent: AgentV2,
+	method: string,
+	params: unknown,
+	notification: boolean,
+): Promise<unknown> {
+	switch (method) {
+		case "auth/login":
+			return invokeRequired(agent, agent.login, method, params as LoginAuthRequest);
+		case "auth/logout":
+			return invokeRequired(agent, agent.logout, method, params as LogoutAuthRequest);
+		case "session/new":
+			return agent.newSession(params as V2NewSessionRequest);
+		case "session/list":
+			return invokeRequired(agent, agent.listSessions, method, params as V2ListSessionsRequest);
+		case "session/delete":
+			return invokeRequired(agent, agent.deleteSession, method, params as DeleteSessionRequest);
+		case "session/resume":
+			return invokeRequired(agent, agent.resumeSession, method, params as V2ResumeSessionRequest);
+		case "session/close":
+			return invokeRequired(agent, agent.closeSession, method, params as V2CloseSessionRequest);
+		case "session/set_config_option":
+			return invokeRequired(agent, agent.setSessionConfigOption, method, params as V2SetSessionConfigOptionRequest);
+		case "session/prompt":
+			return agent.prompt(params as V2PromptRequest);
+		case "session/cancel":
+			return agent.cancel(params as CancelSessionNotification);
 		default:
 			if (method === "$/cancel_request") return;
 			if (notification && agent.extNotification)
@@ -330,7 +475,7 @@ async function dispatchClient(
 }
 
 function invokeRequired<Params, Response>(
-	receiver: Agent | Client,
+	receiver: Agent | AgentV2 | Client,
 	handler: ((params: Params) => MaybePromise<Response>) | undefined,
 	method: string,
 	params: Params,
