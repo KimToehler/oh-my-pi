@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- ACP connections now accept JSON-RPC batch messages and answer malformed lines with a parse error instead of dropping the connection
+
 ## [18.12.4] - 2026-10-20
 
 ### Breaking Changes

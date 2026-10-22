@@ -1,16 +1,20 @@
-import type { AnyMessage } from "./transport";
+import { type OutboundFrame, UNPARSEABLE_FRAME } from "./transport";
 
-/** Bidirectional JSON-RPC message transport. */
+/**
+ * Bidirectional JSON-RPC frame transport. Inbound frames are parsed JSON values (a message, a
+ * batch array, or anything else a peer sent) or {@link UNPARSEABLE_FRAME}; the connection
+ * validates and answers them per JSON-RPC 2.0.
+ */
 export interface Stream {
-	writable: WritableStream<AnyMessage>;
-	readable: ReadableStream<AnyMessage>;
+	writable: WritableStream<OutboundFrame>;
+	readable: ReadableStream<unknown>;
 }
 
 /** Converts byte-oriented newline-delimited JSON streams to an ACP message transport. */
 export function ndJsonStream(output: WritableStream<Uint8Array>, input: ReadableStream<Uint8Array>): Stream {
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
-	const writable = new WritableStream<AnyMessage>({
+	const writable = new WritableStream<OutboundFrame>({
 		async write(message) {
 			const writer = output.getWriter();
 			try {
@@ -37,7 +41,7 @@ export function ndJsonStream(output: WritableStream<Uint8Array>, input: Readable
 		},
 	});
 	let buffered = "";
-	const readable = new ReadableStream<AnyMessage>({
+	const readable = new ReadableStream<unknown>({
 		async start(controller) {
 			const reader = input.getReader();
 			try {
@@ -49,13 +53,13 @@ export function ndJsonStream(output: WritableStream<Uint8Array>, input: Readable
 					while (newline >= 0) {
 						const line = buffered.slice(0, newline).trimEnd();
 						buffered = buffered.slice(newline + 1);
-						if (line.length > 0) controller.enqueue(parseMessage(line));
+						if (line.length > 0) controller.enqueue(parseFrame(line));
 						newline = buffered.indexOf("\n");
 					}
 				}
 				buffered += decoder.decode();
 				const finalLine = buffered.trim();
-				if (finalLine.length > 0) controller.enqueue(parseMessage(finalLine));
+				if (finalLine.length > 0) controller.enqueue(parseFrame(finalLine));
 				controller.close();
 			} catch (error) {
 				controller.error(error);
@@ -67,16 +71,10 @@ export function ndJsonStream(output: WritableStream<Uint8Array>, input: Readable
 	return { writable, readable };
 }
 
-function parseMessage(line: string): AnyMessage {
-	const value: unknown = JSON.parse(line);
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		Array.isArray(value) ||
-		!("jsonrpc" in value) ||
-		value.jsonrpc !== "2.0"
-	) {
-		throw new Error("Invalid JSON-RPC message");
+function parseFrame(line: string): unknown {
+	try {
+		return JSON.parse(line);
+	} catch {
+		return UNPARSEABLE_FRAME;
 	}
-	return value as AnyMessage;
 }
