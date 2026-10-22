@@ -1,0 +1,79 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/tests/merge-gate.test.ts:
+652 | 		// When
+653 | 		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+654 | 
+655 | 		// Then
+656 | 		expect(result).toBeUndefined();
+657 | 		expect(recordRuns()).toEqual([
+                             ^
+error: expect(received).toEqual(expected)
+
+@@ -3,5 +3,5 @@
+      "args": [
+-       Any<String>,
++       "/Users/tim/git/oh-my-pi/.worktrees/merge-gate-worktree-records/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs",
+        "--repo",
+-       "/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/mg-test-FPy48C/worktrees/feature",
++       "/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/mg-test-FPy48C",
+        "--record",
+@@ -9,3 +9,3 @@
+        "--plan",
+-       "openspec/changes/worktree-gate",
++       ".omo/plans/unrelated.md",
+      ],
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/merge-gate-worktree-records/team-config/tests/merge-gate.test.ts:657:24)
+(fail) worktree gate binding > validates only the reviewed_sha record in its linked worktree [226.23ms]
+681 | 
+682 | 		// When
+683 | 		const result = await stop("Ready to merge.");
+684 | 
+685 | 		// Then
+686 | 		expect(result).toMatchObject({ decision: "block" });
+                       ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/merge-gate-worktree-records/team-config/tests/merge-gate.test.ts:686:18)
+(fail) worktree gate binding > refuses a merge claim without a Gate proof reviewed_sha [197.93ms]
+697 | 
+698 | 		// When
+699 | 		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+700 | 
+701 | 		// Then
+702 | 		expect(result).toBeUndefined();
+                       ^
+error: expect(received).toBeUndefined()
+
+Received: {
+  decision: "block",
+  reason: "Merge gate: validate-gate-record.mjs rejected .omo/evidence/gate/worktree.json (plan openspec/changes/worktree-gate) at the current HEAD:\nplan has no ## Merge gate section\nline2\nFix the cause (re-review after code commits, store trailers verbatim, stage the artifacts), or state plainly that the gate is not passed and do not ask for merge approval.",
+}
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/merge-gate-worktree-records/team-config/tests/merge-gate.test.ts:702:18)
+(fail) worktree gate binding > settles a matching record merged into local main without revalidating merged HEAD [216.29ms]
+717 | 		// When
+718 | 		const result = await stop(gateProof(missingSha));
+719 | 
+720 | 		// Then
+721 | 		expect(result).toMatchObject({ decision: "block" });
+722 | 		expect(JSON.stringify(result)).toContain(missingSha);
+                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "cccccccccccccccccccccccccccccccccccccccc"
+Received: "{\"decision\":\"block\",\"reason\":\"Merge gate: your reply claims completion or asks for a merge, but this repository has no omo.merge-gate/v2 record for unshipped work (searched .omo/evidence/gate, docs/evidence; records already on the default branch are skipped). Run the review-work skill (verbatim briefs, trailers stored, record written and staged) and its validator, or state plainly that the gate has NOT run and do not ask for merge approval.\"}"
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/merge-gate-worktree-records/team-config/tests/merge-gate.test.ts:722:34)
+(fail) worktree gate binding > refuses a claimed reviewed_sha with no matching record [80.36ms]
+
+ 42 pass
+ 4 fail
+ 92 expect() calls
+Ran 46 tests across 1 file. [1022.00ms]
