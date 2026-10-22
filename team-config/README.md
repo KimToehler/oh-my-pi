@@ -6,9 +6,9 @@ directory into the omp agent dir (`~/.omp/agent`) from the same commit as the bi
 
 ## New machine
 
-Prerequisites: [bun](https://bun.sh), a Rust toolchain ([rustup](https://rustup.rs)), `git`,
-and `node` (the merge-gate extension runs its validator with it). On NixOS, `nix` replaces bun/rust:
-the deploy script re-enters the flake dev shell.
+Prerequisites: [bun](https://bun.sh), Node.js 20.19+, a Rust toolchain ([rustup](https://rustup.rs)),
+`git`, and OpenSpec 1.14.3 (`npm install -g @fission-ai/openspec@1.14.3`). On NixOS, `nix`
+replaces bun/rust; the deploy script re-enters the flake dev shell.
 
 ```sh
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
@@ -42,7 +42,7 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 
 | Repo path | Target | On every deploy |
 |---|---|---|
-| `agent/**` (`AGENTS.md`, `agents/`, `rules/`, `skills/`, `extensions/`) | `~/.omp/agent/**` | Overwritten; files removed here are removed there |
+| `agent/**` (`AGENTS.md`, `agents/`, `commands/`, `rules/`, `skills/`, `extensions/`) | `~/.omp/agent/**` | Overwritten; files removed here are removed there |
 | `seed/config.yml`, `seed/models.yml` | `~/.omp/agent/` | Copied only if missing; your edits are kept |
 
 The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
@@ -68,6 +68,32 @@ before it is replaced; the deploy output names the directory.
 - Do not edit shipped files in `~/.omp/agent`; the next deploy replaces them (with a backup).
   Change them here and open a PR instead.
 
+## OpenSpec
+
+Deploy ships the six core OpenSpec commands to every omp session. Projects keep their OpenSpec
+config, schema, specs and changes in their own repository; the template in this repository is
+`openspec/schemas/omp-gated/`. This keeps planning artifacts harness-independent and reviewable.
+
+Before first use:
+
+```sh
+npm install -g @fission-ai/openspec@1.14.3
+openspec config set telemetry.enabled false
+openspec --version
+```
+
+Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
+
+```sh
+openspec validate <change> --strict
+node scripts/validate-openspec-change.mjs openspec/changes/<change>
+```
+
+The team validator enforces the `Negative control` scenario, exact gate classification and one
+deterministic command per tracked task. OpenSpec's own strict validator does not enforce project
+rules from `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment
+equivalent of the persisted telemetry setting.
+
 ## Changing the team config
 
 Edit files under `team-config/`, then run `bun run test:team-config`. It covers the merge-gate
@@ -83,3 +109,4 @@ which is published under the Sustainable Use License: free internal and non-comm
 redistribution only free of charge for non-commercial purposes. `frontend` additionally carries
 its own Apache-2.0 notice (`agent/skills/frontend/ATTRIBUTION.md`). `angular-developer` is
 [angular/skills](https://github.com/angular/skills) (MIT, Google LLC).
+The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.14.3 (MIT).
