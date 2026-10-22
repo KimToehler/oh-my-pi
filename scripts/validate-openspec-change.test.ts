@@ -301,19 +301,35 @@ describe("validate-openspec-change", () => {
 			expect(result.stderr).toContain(`proposal ${section}: expected exactly one ## ${section} section`);
 	});
 
-	it("rejects a required proposal section that holds only a subheading", async () => {
+	for (const [label, content] of [
+		["a subheading", "### Details"],
+		["an indented subheading", "  ### Details ##"],
+		["an unclosed HTML comment", "<!-- explained later"],
+	]) {
+		it(`rejects a required proposal section that holds only ${label}`, async () => {
+			const root = await fixture();
+			const proposal = path.join(root, "proposal.md");
+			await Bun.write(
+				proposal,
+				(await Bun.file(proposal).text()).replace(
+					"Records can only be replaced whole, so concurrent edits overwrite each other.",
+					content,
+				),
+			);
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("proposal Why: section needs content");
+		});
+	}
+
+	it("ignores HTML comment markers inside a fenced example", async () => {
 		const root = await fixture();
 		const proposal = path.join(root, "proposal.md");
 		await Bun.write(
 			proposal,
-			(await Bun.file(proposal).text()).replace(
-				"Records can only be replaced whole, so concurrent edits overwrite each other.",
-				"### Details",
-			),
+			`# Proposal\n\n\`\`\`html\n<!-- banner\n\`\`\`\n\n${(await Bun.file(proposal).text()).replace("# Proposal\n", "")}\n-->\n`,
 		);
-		const result = run(root);
-		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toContain("proposal Why: section needs content");
+		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 	});
 
 	it("accepts a fenced example with a section heading inside What Changes", async () => {

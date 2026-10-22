@@ -164,38 +164,79 @@ function validateGate(text, errors) {
 
 const PROPOSAL_SECTIONS = ["Why", "What Changes", "Capabilities", "Impact"];
 
-/** Blanks every line of a fenced code block (``` or ~~~, closed by the same character at least as long; unclosed runs to the end). */
-function withoutFences(lines) {
+const FENCE_OPEN = /^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
+const SETEXT_UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+
+/**
+ * Reads Markdown in one pass as headings (`{ level, title }`, ATX or setext) and visible text lines (`{ text }`).
+ * Fenced code, HTML comments and thematic breaks are dropped; fences and comment blocks hide each other's markers, and a
+ * comment block that starts a line and never closes hides the rest of the file, as a renderer does.
+ */
+function markdownBlocks(markdown) {
+	const blocks = [];
 	let fence = null;
-	return lines.map(line => {
-		const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-		if (fence === null) {
-			if (marker) fence = marker;
-			return marker ? "" : line;
+	let comment = false;
+	let paragraph = false;
+	for (const line of markdown.split(/\r?\n/)) {
+		if (fence !== null) {
+			const close = FENCE_CLOSE.exec(line)?.[1];
+			if (close && close[0] === fence[0] && close.length >= fence.length) fence = null;
+			continue;
 		}
-		if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = null;
-		return "";
-	});
+		if (comment || /^ {0,3}<!--/.test(line)) {
+			const end = line.indexOf("-->", comment ? 0 : line.indexOf("<!--") + 4);
+			comment = end < 0;
+			paragraph = false;
+			const rest = comment ? "" : line.slice(end + 3).replace(/<!--[\s\S]*?-->/g, "");
+			if (rest.trim()) blocks.push({ text: rest });
+			continue;
+		}
+		const open = FENCE_OPEN.exec(line)?.[1];
+		if (open) {
+			fence = open;
+			paragraph = false;
+			continue;
+		}
+		const visible = line.replace(/<!--[\s\S]*?-->/g, "");
+		const atx = ATX_HEADING.exec(visible);
+		const underline = SETEXT_UNDERLINE.exec(visible)?.[1];
+		if (atx) {
+			blocks.push({ level: atx[1].length, title: (atx[2] ?? "").replace(/(?:^|[ \t]+)#+[ \t]*$/, "").trim() });
+		} else if (underline && paragraph && !LIST_ITEM.test(blocks.at(-1).text)) {
+			blocks.push({ level: underline[0] === "=" ? 1 : 2, title: blocks.pop().text.trim() });
+		} else if (visible.trim() && !THEMATIC_BREAK.test(visible)) {
+			blocks.push({ text: visible });
+			paragraph = true;
+			continue;
+		}
+		paragraph = false;
+	}
+	return blocks;
 }
 
 /**
- * Requires each proposal section once. HTML comments, fenced code blocks and headings do not count as content; the
- * Capabilities subsections may stay empty.
+ * Requires each proposal section once as a level-2 heading. Only visible text counts as content (no headings, HTML
+ * comments, fenced code or thematic breaks); the Capabilities subsections may stay empty.
  */
 function validateProposal(text, errors) {
-	const lines = withoutFences(text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/));
+	const blocks = markdownBlocks(text);
 	for (const name of PROPOSAL_SECTIONS) {
-		const heading = new RegExp(`^##[ \\t]+${name}[ \\t]*$`, "i");
-		const starts = lines.flatMap((line, i) => (heading.test(line) ? [i] : []));
+		const starts = blocks.flatMap((block, i) =>
+			block.level === 2 && block.title.replace(/\s+/g, " ").toLowerCase() === name.toLowerCase() ? [i] : [],
+		);
 		if (starts.length !== 1) {
 			errors.push(`proposal ${name}: expected exactly one ## ${name} section`);
 			continue;
 		}
 		let end = starts[0] + 1;
-		while (end < lines.length && !/^#{1,2}[ \t]/.test(lines[end])) end++;
-		const body = lines
+		while (end < blocks.length && !(blocks[end].level <= 2)) end++;
+		const body = blocks
 			.slice(starts[0] + 1, end)
-			.filter(line => !/^#{1,6}(?:[ \t]|$)/.test(line))
+			.flatMap(block => (block.level === undefined ? [block.text] : []))
 			.join("\n");
 		if (name === "Capabilities") {
 			if (PLACEHOLDER.test(body)) errors.push(`proposal ${name}: placeholder text is forbidden`);
