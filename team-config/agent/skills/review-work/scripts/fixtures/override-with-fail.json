@@ -41,5 +41,14 @@
   "override": {
     "by": "release-owner",
     "reason": "accepted residual risk"
-  }
+  },
+  "downgrades": [
+    {
+      "invocation": "implementation-audit",
+      "blocker": "B1",
+      "rule": "below-threshold",
+      "reason": "needs a hand-edited local .env; no protected asset reachable",
+      "disposition": "residual"
+    }
+  ]
 }
