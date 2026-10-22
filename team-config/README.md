@@ -107,12 +107,14 @@ cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
 cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
 ```
 
-**Step 3.** Config. `openspec/config.yaml` is never overwritten: the shell's no-clobber mode (`set -C`) creates it only if it
-does not exist, in the same operation that writes it; when it exists, the team content is printed for you to merge.
+**Step 3.** Config. `openspec/config.yaml` is never overwritten: the team content is written completely to a temporary file
+next to it, then `ln` creates `openspec/config.yaml` as a hard link in one step that fails when the file already exists. A
+failed write therefore never leaves a partial config behind. When the config exists, the team content is printed for you to merge.
 
 ```sh
-TEAM=$(mktemp)
-cat > "$TEAM" <<'EOF'
+mkdir -p openspec
+TEAM=$(mktemp openspec/.config.yaml.XXXXXX) && chmod 644 "$TEAM"
+if ! cat > "$TEAM" <<'EOF'
 schema: omp-gated
 
 rules:
@@ -127,12 +129,15 @@ operations:
     guidance:
       - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
 EOF
-mkdir -p openspec
-if (set -C; cat "$TEAM" > openspec/config.yaml); then
+then
+  echo "the team config could not be written; fix the error above and rerun this step"
+elif ln "$TEAM" openspec/config.yaml; then
   echo "created openspec/config.yaml"
-else
-  echo "openspec/config.yaml was not written (see the shell error above). If it exists, change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
+elif [ -e openspec/config.yaml ]; then
+  echo "openspec/config.yaml exists and was not touched. Change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
   cat "$TEAM"
+else
+  echo "openspec/config.yaml could not be created; fix the error above and rerun this step"
 fi
 rm -f "$TEAM"
 ```
