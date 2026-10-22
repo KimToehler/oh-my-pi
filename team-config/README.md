@@ -74,7 +74,7 @@ Deploy ships the six core OpenSpec commands to every omp session. Projects keep 
 config, schema, specs and changes in their own repository; the template in this repository is
 `openspec/schemas/omp-gated/`. This keeps planning artifacts harness-independent and reviewable.
 
-Before first use, install the CLI yourself (the setup command never installs it or any user-level schema):
+Before first use, install the CLI yourself (deploy never installs it or any user-level schema):
 
 ```sh
 npm install -g @fission-ai/openspec@1.14.3
@@ -82,18 +82,45 @@ openspec config set telemetry.enabled false
 openspec --version
 ```
 
-Set up or update a project (run from a checkout of this repository; `<project>` is the target repository root):
+### Project setup (manual)
+
+Run from the root of the target project's git repository. `<fork>` is your oh-my-pi checkout: set `FORK` to its path
+(the commands below use `"$FORK"` for `<fork>`). `openspec init` is not needed.
 
 ```sh
-bun scripts/install-openspec-workflow.ts <project>
+FORK=/path/to/oh-my-pi   # <fork>
+mkdir -p openspec/schemas scripts
+cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
+cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
+cat > openspec/config.yaml <<'EOF'
+schema: omp-gated
+
+rules:
+  specs:
+    - Every requirement has exactly one Scenario named "Negative control" with a plausible broken input or state whose outcome MUST fail.
+  gate:
+    - Classify risk from realistic consequence and a real trust, process or release boundary.
+    - Use full review for auth/secrets/PII, schema/migration, externally supported wire/API, or concurrency/state-machine changes.
+
+operations:
+  apply:
+    guidance:
+      - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
+EOF
+git add openspec/schemas/omp-gated scripts/validate-openspec-change.mjs openspec/config.yaml
+git commit -m "chore: add omp-gated OpenSpec workflow"
 ```
 
-This installs `openspec/schemas/omp-gated/` and `scripts/validate-openspec-change.mjs` into the project and seeds
-`openspec/config.yaml` (`schema: omp-gated`) only when it does not exist. The same command updates: managed files are
-mirrored, a file you edited locally (or a same-named file that predates the install) is moved to
-`<project>/backups/team-config-<timestamp>-<random>/` before it is replaced, and an existing
-`openspec/config.yaml` is never overwritten. It prints a JSON report of added, updated, backed-up and seeded files and records
-its state in `<project>/.team-config-manifest.json`; do not edit that file. Commit the installed files to the project.
+Check with `openspec new change probe`: it must print `Schema: omp-gated`. Remove the probe afterwards
+(`rm -r openspec/changes/probe`).
+
+If `openspec init` already ran, still do the two `cp` steps; its `openspec/config.yaml` says `schema: spec-driven`: change that line to
+`schema: omp-gated` and add the `rules:` and `operations:` blocks above if you want them. `openspec init --tools oh-my-pi`
+also writes project `.omp/commands/opsx-*` copies that duplicate the globally deployed commands; delete them
+(`rm -f .omp/commands/opsx-*.md`).
+
+To update, repeat the two `cp` steps (the `cp -R` onto an existing directory would nest it, so run
+`rm -r openspec/schemas/omp-gated` first) and commit. Your `openspec/config.yaml` is never touched by them.
 
 Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
 
@@ -104,7 +131,7 @@ node scripts/validate-openspec-change.mjs openspec/changes/<change>
 
 The team validator enforces the `Negative control` scenario for every requirement block, exact gate
 classification, and a numbered task with exactly one `Verify:` command for every tracked checkbox (any marker OpenSpec
-counts, e.g. `[~]`). A change with no behavioural delta must set `skip_specs: true` in `.openspec.yaml` and then has no
+counts, e.g. `[~]`). A change with no behavioural delta must declare `skip_specs: true` once at top level of `.openspec.yaml` (plain boolean; duplicate, quoted, nested or malformed forms are rejected) and then has no
 Markdown specs; a rename-only delta needs no scenarios. OpenSpec's own strict validator does not enforce project rules from
 `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment equivalent of the persisted
 telemetry setting.
@@ -126,7 +153,7 @@ README, and rerun the diff. Never hand-edit these six files.
 ## Changing the team config
 
 Edit files under `team-config/`, then run `bun run test:team-config`. It covers the merge-gate
-extension, the gate validator, and the installer. Rules carry no repo-private paths or
+extension, and the gate validator. Rules carry no repo-private paths or
 evidence: this repository is public.
 
 ## Provenance
