@@ -19,6 +19,121 @@ function transportPair() {
 	};
 }
 
+/** Raw NDJSON peer around an {@link RpcConnection}: send literal lines, collect every outbound frame. */
+function wirePeer(dispatcher: (method: string, params: unknown, notification: boolean) => unknown) {
+	const toAgent = new TransformStream<Uint8Array, Uint8Array>();
+	const fromAgent = new TransformStream<Uint8Array, Uint8Array>();
+	const stream = ndJsonStream(fromAgent.writable, toAgent.readable);
+	const connection = new RpcConnection(stream, dispatcher);
+	const frames: unknown[] = [];
+	const collected = (async () => {
+		const decoder = new TextDecoder();
+		let buffered = "";
+		for await (const chunk of fromAgent.readable) {
+			buffered += decoder.decode(chunk, { stream: true });
+			let newline = buffered.indexOf("\n");
+			while (newline >= 0) {
+				frames.push(JSON.parse(buffered.slice(0, newline)));
+				buffered = buffered.slice(newline + 1);
+				newline = buffered.indexOf("\n");
+			}
+		}
+	})();
+	const writer = toAgent.writable.getWriter();
+	const encoder = new TextEncoder();
+	return {
+		connection,
+		send: (line: string) => writer.write(encoder.encode(`${line}\n`)),
+		/** Ends input, waits until every inbound frame is answered, and returns all outbound frames. */
+		async finish(): Promise<unknown[]> {
+			await writer.close();
+			await connection.closed;
+			await stream.writable.close();
+			await collected;
+			return frames;
+		},
+	};
+}
+
+describe("ACP JSON-RPC batches", () => {
+	const ping = '{"jsonrpc":"2.0","id":9,"method":"ping"}';
+	const pong = { jsonrpc: "2.0", id: 9, result: { method: "ping" } };
+
+	it("answers a batch of requests with one array and runs its notifications", async () => {
+		const notified: string[] = [];
+		const peer = wirePeer((method, _params, notification) => {
+			if (notification) notified.push(method);
+			return { method };
+		});
+		await peer.send(
+			'[{"jsonrpc":"2.0","id":1,"method":"a"},{"jsonrpc":"2.0","method":"n"},{"jsonrpc":"2.0","id":2,"method":"b"}]',
+		);
+		expect(await peer.finish()).toEqual([
+			[
+				{ jsonrpc: "2.0", id: 1, result: { method: "a" } },
+				{ jsonrpc: "2.0", id: 2, result: { method: "b" } },
+			],
+		]);
+		expect(notified).toEqual(["n"]);
+	});
+
+	it("answers invalid batch entries with per-entry invalid-request errors", async () => {
+		const peer = wirePeer(method => ({ method }));
+		await peer.send('[{"jsonrpc":"2.0","id":1,"method":"a"},{"id":2,"method":"b"},5]');
+		const [batch] = await peer.finish();
+		expect(batch).toEqual([
+			{ jsonrpc: "2.0", id: 1, result: { method: "a" } },
+			{ jsonrpc: "2.0", id: 2, error: expect.objectContaining({ code: -32600 }) },
+			{ jsonrpc: "2.0", id: null, error: expect.objectContaining({ code: -32600 }) },
+		]);
+	});
+
+	it("writes nothing for a notification-only batch and keeps the stream usable", async () => {
+		const notified: string[] = [];
+		const peer = wirePeer((method, _params, notification) => {
+			if (notification) notified.push(method);
+			return { method };
+		});
+		await peer.send('[{"jsonrpc":"2.0","method":"x"},{"jsonrpc":"2.0","method":"y"}]');
+		await peer.send(ping);
+		expect(await peer.finish()).toEqual([pong]);
+		expect(notified).toEqual(["x", "y"]);
+	});
+
+	it("rejects an empty batch with one invalid-request error", async () => {
+		const peer = wirePeer(method => ({ method }));
+		await peer.send("[]");
+		await peer.send(ping);
+		expect(await peer.finish()).toEqual([
+			{ jsonrpc: "2.0", id: null, error: expect.objectContaining({ code: -32600 }) },
+			pong,
+		]);
+	});
+
+	it("settles outbound requests from a batched success and error response", async () => {
+		const peer = wirePeer(() => undefined);
+		const granted = peer.connection.request("session/request_permission", { n: 0 });
+		const denied = peer.connection.request("session/request_permission", { n: 1 });
+		await peer.send(
+			'[{"jsonrpc":"2.0","id":0,"result":{"ok":true}},{"jsonrpc":"2.0","id":1,"error":{"code":-32001,"message":"denied"}}]',
+		);
+		await peer.finish();
+		const [first, second] = await Promise.allSettled([granted, denied]);
+		expect(first).toEqual({ status: "fulfilled", value: { ok: true } });
+		expect(second).toMatchObject({ status: "rejected", reason: { code: -32001, message: "denied" } });
+	});
+
+	it("answers malformed JSON with a parse error and keeps the stream usable", async () => {
+		const peer = wirePeer(method => ({ method }));
+		await peer.send("{not json");
+		await peer.send(ping);
+		expect(await peer.finish()).toEqual([
+			{ jsonrpc: "2.0", id: null, error: expect.objectContaining({ code: -32700 }) },
+			pong,
+		]);
+	});
+});
+
 describe("ACP JSON-RPC transport", () => {
 	it("round-trips requests, notifications, and errors", async () => {
 		const pair = transportPair();

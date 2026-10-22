@@ -26,6 +26,36 @@ export interface ErrorResponse {
 export type AnyResponse = { jsonrpc: "2.0"; id: JsonRpcId } & ({ result: unknown } | { error: ErrorResponse });
 /** Any JSON-RPC wire message. */
 export type AnyMessage = AnyRequest | AnyNotification | AnyResponse;
+/** Any frame written to the wire: one message, or the array answering a JSON-RPC batch. */
+export type OutboundFrame = AnyMessage | AnyResponse[];
+/** Inbound frame marker for a line that is not valid JSON; answered with a parse error. */
+export const UNPARSEABLE_FRAME: unique symbol = Symbol("acp.unparseableFrame");
+
+/** An inbound value that is not a JSON-RPC 2.0 message, with the id to answer it under. */
+interface InvalidFrame {
+	invalid: true;
+	id: JsonRpcId;
+}
+
+function isJsonRpcId(value: unknown): value is JsonRpcId {
+	return value === null || typeof value === "string" || typeof value === "number";
+}
+
+/** Validates one inbound value as a JSON-RPC 2.0 request, notification, or response. */
+function classifyFrame(value: unknown): AnyMessage | InvalidFrame {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return { invalid: true, id: null };
+	const record = value as Record<string, unknown>;
+	const id = "id" in record && isJsonRpcId(record.id) ? record.id : null;
+	if (record.jsonrpc !== "2.0") return { invalid: true, id };
+	if (typeof record.method === "string") {
+		if ("id" in record && !isJsonRpcId(record.id)) return { invalid: true, id: null };
+		return record as unknown as AnyRequest | AnyNotification;
+	}
+	if ("id" in record && isJsonRpcId(record.id) && ("result" in record || "error" in record)) {
+		return record as unknown as AnyResponse;
+	}
+	return { invalid: true, id };
+}
 
 /** Error returned by a JSON-RPC peer or handler. */
 export class RequestError extends Error {
@@ -117,7 +147,7 @@ export class RpcConnection {
 	#pending = new Map<JsonRpcId, Pending>();
 	#inbound = new Set<Promise<void>>();
 	#openInboundIds = new Set<JsonRpcId>();
-	#writable: WritableStream<AnyMessage>;
+	#writable: WritableStream<OutboundFrame>;
 	#writeTail: Promise<void> = Promise.resolve();
 	#abort = new AbortController();
 	#closed = Promise.withResolvers<void>();
@@ -165,7 +195,7 @@ export class RpcConnection {
 		this.#closed.resolve();
 	}
 
-	#write(message: AnyMessage): Promise<void> {
+	#write(message: OutboundFrame): Promise<void> {
 		const write = this.#writeTail.then(async () => {
 			const writer = this.#writable.getWriter();
 			try {
@@ -178,7 +208,7 @@ export class RpcConnection {
 		return write;
 	}
 
-	async #read(readable: ReadableStream<AnyMessage>): Promise<void> {
+	async #read(readable: ReadableStream<unknown>): Promise<void> {
 		const reader = readable.getReader();
 		try {
 			while (true) {
@@ -195,11 +225,39 @@ export class RpcConnection {
 		}
 	}
 
-	#dispatch(message: AnyMessage): void {
-		if ("method" in message && "id" in message) this.#openInboundIds.add(message.id);
-		const task = this.#handle(message).catch(error => this.close(error));
+	/** Starts answering one inbound frame: a single message, a batch array, or an unusable value. */
+	#dispatch(frame: unknown): void {
+		const task = this.#handleFrame(frame).catch(error => this.close(error));
 		this.#inbound.add(task);
 		void task.finally(() => this.#inbound.delete(task));
+	}
+
+	async #handleFrame(frame: unknown): Promise<void> {
+		if (frame === UNPARSEABLE_FRAME) {
+			await this.#write({ jsonrpc: "2.0", id: null, error: RequestError.parseError().toErrorResponse() });
+			return;
+		}
+		if (!Array.isArray(frame)) {
+			const response = await this.#answer(this.#admit(frame));
+			if (response) await this.#write(response);
+			return;
+		}
+		if (frame.length === 0) {
+			await this.#write({ jsonrpc: "2.0", id: null, error: RequestError.invalidRequest().toErrorResponse() });
+			return;
+		}
+		// Admit every entry before running any, so a drain timeout sees the whole batch as open.
+		const entries = frame.map(entry => this.#admit(entry));
+		const responses = await Promise.all(entries.map(entry => this.#answer(entry)));
+		const answered = responses.filter(response => response !== undefined);
+		if (answered.length > 0) await this.#write(answered);
+	}
+
+	/** Validates one inbound value and registers its id when it is a request awaiting an answer. */
+	#admit(value: unknown): AnyMessage | InvalidFrame {
+		const message = classifyFrame(value);
+		if (!("invalid" in message) && "method" in message && "id" in message) this.#openInboundIds.add(message.id);
+		return message;
 	}
 
 	async #drainInbound(): Promise<void> {
@@ -218,39 +276,48 @@ export class RpcConnection {
 		await Promise.allSettled([...this.#openInboundIds].map(id => this.#respond(id, { error })));
 	}
 
-	#respond(id: JsonRpcId, body: { result: unknown } | { error: ErrorResponse }): Promise<void> {
-		if (!this.#openInboundIds.delete(id)) return Promise.resolve();
-		return this.#write({ jsonrpc: "2.0", id, ...body });
+	/** Builds the response for an open inbound request, unless the drain timeout already answered it. */
+	#claim(id: JsonRpcId, body: { result: unknown } | { error: ErrorResponse }): AnyResponse | undefined {
+		if (!this.#openInboundIds.delete(id)) return undefined;
+		return { jsonrpc: "2.0", id, ...body };
 	}
 
-	async #handle(message: AnyMessage): Promise<void> {
-		if ("id" in message && !("method" in message)) {
+	async #respond(id: JsonRpcId, body: { result: unknown } | { error: ErrorResponse }): Promise<void> {
+		const response = this.#claim(id, body);
+		if (response) await this.#write(response);
+	}
+
+	/** Settles an inbound response or runs an inbound request/notification; returns the response to send. */
+	async #answer(message: AnyMessage | InvalidFrame): Promise<AnyResponse | undefined> {
+		if ("invalid" in message) {
+			return { jsonrpc: "2.0", id: message.id, error: RequestError.invalidRequest().toErrorResponse() };
+		}
+		if (!("method" in message)) {
 			const pending = this.#pending.get(message.id);
-			if (!pending) return;
+			if (!pending) return undefined;
 			this.#pending.delete(message.id);
 			if ("error" in message)
 				pending.reject(new RequestError(message.error.code, message.error.message, message.error.data));
 			else pending.resolve(message.result);
-			return;
+			return undefined;
 		}
-		if (!("method" in message)) return;
 		if (!("id" in message)) {
 			try {
 				await this.#dispatcher(message.method, message.params, true);
 			} catch {
 				/* Notifications have no error channel. */
 			}
-			return;
+			return undefined;
 		}
 		try {
 			const result = await this.#dispatcher(message.method, message.params, false);
-			await this.#respond(message.id, { result: result ?? {} });
+			return this.#claim(message.id, { result: result ?? {} });
 		} catch (error) {
 			const protocolError =
 				error instanceof RequestError
 					? error
 					: RequestError.internalError({ details: error instanceof Error ? error.message : String(error) });
-			await this.#respond(message.id, { error: protocolError.toErrorResponse() });
+			return this.#claim(message.id, { error: protocolError.toErrorResponse() });
 		}
 	}
 }
