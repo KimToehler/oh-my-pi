@@ -1666,7 +1666,7 @@ export class AcpAgent implements Agent {
 		if (event.type === "agent_end") {
 			work.lastAgentEnd = event;
 			await this.#flushMissedFinalAssistantText(record, event);
-			await this.#flushUnreportedTurnError(record, event);
+			await this.#flushUnreportedTurnError(record, work, event);
 			await this.#emitEndOfTurnUpdates(record);
 			// Live-message tracking is per assistant reply: reset after this reply's
 			// own fallback so a background-job wake reply gets a fresh message id.
@@ -1758,9 +1758,10 @@ export class AcpAgent implements Agent {
 	 */
 	async #flushUnreportedTurnError(
 		record: ManagedSessionRecord,
+		work: ForegroundWork,
 		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
 	): Promise<void> {
-		const streamedDelivery = this.#surface.activeWork(record)?.errorTextDelivery;
+		const streamedDelivery = work.errorTextDelivery;
 		if (streamedDelivery && (await streamedDelivery)) {
 			return;
 		}
