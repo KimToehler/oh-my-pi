@@ -7,6 +7,10 @@ const SCRIPT = path.join(import.meta.dir, "validate-openspec-change.mjs");
 const PROPOSAL_TEMPLATE = path.join(
 	import.meta.dir,
 	"..",
+	"..",
+	"..",
+	"..",
+	"..",
 	"openspec",
 	"schemas",
 	"omp-gated",

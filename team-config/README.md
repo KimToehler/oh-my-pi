@@ -93,25 +93,24 @@ with ` M`, `A ` or similar is an uncommitted change: commit or stash it. `??` (u
 has never stored: move it out of the project, or commit it (`git add -f` for an ignored path), before you continue.
 
 ```sh
-git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated
 ```
 
-**Step 2.** Copy the schema and the validator. The old schema directory is removed first so `cp -R` does not nest it; local edits
+**Step 2.** Copy the schema. The validator is not copied: it ships with team-config (`scripts/deploy-local.sh`) at `~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs`, so projects no longer carry their own copy. A project that copied it under the earlier setup deletes `scripts/validate-openspec-change.mjs` (`git rm`) and updates `openspec/config.yaml` to the deployed path. The old schema directory is removed first so `cp -R` does not nest it; local edits
 and extra files in it are replaced. The guard stops before deleting anything when `FORK` does not hold the schema or is this
 project itself (run it from the oh-my-pi checkout and there is nothing to copy).
 
 ```sh
 FORK=/path/to/oh-my-pi   # <fork>
-if [ ! -f "$FORK/openspec/schemas/omp-gated/schema.yaml" ] || [ ! -f "$FORK/scripts/validate-openspec-change.mjs" ]; then
+if [ ! -f "$FORK/openspec/schemas/omp-gated/schema.yaml" ]; then
   echo "FORK=$FORK is not an oh-my-pi checkout with the omp-gated schema; nothing was changed"
 elif [ "$(cd "$FORK" && pwd -P)" = "$(pwd -P)" ]; then
   echo "FORK is this project; nothing to copy"
 else
-  mkdir -p openspec/schemas scripts &&
+  mkdir -p openspec/schemas &&
     rm -rf openspec/schemas/omp-gated &&
     cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated &&
-    cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs &&
-    echo "copied schema and validator from $FORK"
+    echo "copied schema from $FORK"
 fi
 ```
 
@@ -135,7 +134,7 @@ rules:
 operations:
   apply:
     guidance:
-      - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
+      - Run `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
 ```
 
 **Step 4.** Review what the copy changed, re-apply anything you want to keep, then commit. On a first install the paths show
@@ -144,9 +143,9 @@ up as new files. On an update the diff mixes the team's new version with the rev
 `git show HEAD:<path>` (for the schema directory: `git show HEAD:openspec/schemas/omp-gated/<file>`).
 
 ```sh
-git status -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
-git diff -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
-git add openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+git status -- openspec/config.yaml openspec/schemas/omp-gated
+git diff -- openspec/config.yaml openspec/schemas/omp-gated
+git add openspec/config.yaml openspec/schemas/omp-gated
 git commit -m "chore: add omp-gated OpenSpec workflow"
 ```
 
@@ -162,7 +161,7 @@ Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both 
 
 ```sh
 openspec validate <change> --strict
-node scripts/validate-openspec-change.mjs openspec/changes/<change>
+node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
 
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
