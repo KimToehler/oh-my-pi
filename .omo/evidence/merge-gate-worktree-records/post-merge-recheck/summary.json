@@ -1,0 +1,27 @@
+{
+  "unmerged_routes_to_worktree": {
+    "exit": 0,
+    "gate": [
+      "Merge gate: validate-gate-record.mjs rejected .omo/evidence/gate/r.json (plan openspec/changes/recheck) in /private/tmp/postmerge-smoke/unmerged/main/worktrees/feature:\nplan: cannot read /private/tmp/postmerge-smoke/unmerged/main/worktrees/feature/openspec/changes/recheck: ENOENT: no such file or directory, open '/private/tmp/postmerge-smoke/unmerged/main/worktrees/feature/openspec/changes/recheck'\nFix the cause (re-review after code commits, store trailers verbatim, stage the artifacts), or state plainly that the gate is not passed and do not ask for merge approval."
+    ],
+    "names_worktree": true
+  },
+  "merged_settles": {
+    "exit": 0,
+    "gate": [],
+    "assistant_emitted_proof": true
+  },
+  "competing_sha_refused": {
+    "exit": 0,
+    "gate": [
+      "Merge gate: no omo.merge-gate/v2 record .omo/evidence/gate/r.json with reviewed_sha cccccccccccccccccccccccccccccccccccccccc exists in this repository or its linked worktrees. Run review-work, or state plainly that the gate has NOT run and do not ask for merge approval."
+    ],
+    "competing_sha": "1d4f34ebb6304f2a4c71c47dba93c229d8009ee9"
+  },
+  "code_only_merge_not_settled": {
+    "exit": 0,
+    "gate": [
+      "Merge gate: validate-gate-record.mjs rejected .omo/evidence/gate/r.json (plan openspec/changes/recheck) in /private/tmp/postmerge-smoke/codeonly/main/worktrees/feature:\nplan: cannot read /private/tmp/postmerge-smoke/codeonly/main/worktrees/feature/openspec/changes/recheck: ENOENT: no such file or directory, open '/private/tmp/postmerge-smoke/codeonly/main/worktrees/feature/openspec/changes/recheck'\nFix the cause (re-review after code commits, store trailers verbatim, stage the artifacts), or state plainly that the gate is not passed and do not ask for merge approval."
+    ]
+  }
+}

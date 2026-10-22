@@ -1,0 +1,4 @@
+@oh-my-pi/pi-wire:check:types                   | Done in 33ms
+@oh-my-pi/snapcompact:check:types               | Done in 1.08s
+@oh-my-pi/typescript-edit-benchmark:check:types | Done in 3.12s
+check-ts-exit=0
