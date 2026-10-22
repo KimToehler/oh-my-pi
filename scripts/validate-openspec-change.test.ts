@@ -4,13 +4,45 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 
 const SCRIPT = path.join(import.meta.dir, "validate-openspec-change.mjs");
+const PROPOSAL_TEMPLATE = path.join(
+	import.meta.dir,
+	"..",
+	"openspec",
+	"schemas",
+	"omp-gated",
+	"templates",
+	"proposal.md",
+);
 const roots: string[] = [];
 
 async function fixture(): Promise<string> {
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-change-"));
 	roots.push(root);
 	await fs.mkdir(path.join(root, "specs", "feature"), { recursive: true });
-	await Bun.write(path.join(root, "proposal.md"), "# Proposal\n\nA concrete change.\n");
+	await Bun.write(
+		path.join(root, "proposal.md"),
+		`# Proposal
+
+## Why
+
+Records can only be replaced whole, so concurrent edits overwrite each other.
+
+## What Changes
+
+- Add a safe single-record update.
+
+## Capabilities
+
+### New Capabilities
+- \`feature\`: safe record updates
+
+### Modified Capabilities
+
+## Impact
+
+The update endpoint and its tests.
+`,
+	);
 	await Bun.write(
 		path.join(root, "specs", "feature", "spec.md"),
 		`# Spec Delta
@@ -247,6 +279,31 @@ describe("validate-openspec-change", () => {
 			expect(result.stderr).toContain(diagnostic);
 		});
 	}
+
+	for (const section of ["Why", "What Changes", "Capabilities", "Impact"]) {
+		it(`rejects a proposal without its ${section} section`, async () => {
+			const root = await fixture();
+			const proposal = path.join(root, "proposal.md");
+			await Bun.write(proposal, (await Bun.file(proposal).text()).replace(`## ${section}\n`, ""));
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`proposal ${section}: expected exactly one ## ${section} section`);
+		});
+	}
+
+	it("rejects the unfilled schema proposal template", async () => {
+		const root = await fixture();
+		await Bun.write(path.join(root, "proposal.md"), Bun.file(PROPOSAL_TEMPLATE));
+		const result = run(root);
+		expect(result.exitCode).toBe(1);
+		for (const diagnostic of [
+			"proposal Why: section needs content",
+			"proposal What Changes: section needs content",
+			"proposal Capabilities: placeholder text is forbidden",
+			"proposal Impact: section needs content",
+		])
+			expect(result.stderr).toContain(diagnostic);
+	});
 
 	it("rejects a requirement without its negative control", async () => {
 		const root = await fixture();

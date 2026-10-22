@@ -165,9 +165,11 @@ openspec validate <change> --strict
 node scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
 
-The team validator enforces the `Negative control` scenario for every requirement block, exact gate
-classification, and a numbered task with exactly one `Verify:` command for every tracked checkbox (any marker OpenSpec
-counts, e.g. `[~]`). A change with no behavioural delta must declare `skip_specs: true` in `.openspec.yaml` and then has no
+The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
+comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
+scenario for every requirement block, exact gate classification, and a numbered task with exactly one `Verify:` command for
+every tracked checkbox (any marker OpenSpec counts, e.g. `[~]`). A change with no behavioural delta must declare
+`skip_specs: true` in `.openspec.yaml` and then has no
 Markdown specs. Once `skip_specs` appears there, the whole file must be flat top-level `key: value` lines with plain values and
 no repeated key, and `skip_specs` must be exactly `true` or `false`; anything else is rejected. A rename-only delta needs no
 scenarios. OpenSpec's own strict validator does not enforce project rules from

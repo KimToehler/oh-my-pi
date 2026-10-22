@@ -162,6 +162,27 @@ function validateGate(text, errors) {
 	}
 }
 
+const PROPOSAL_SECTIONS = ["Why", "What Changes", "Capabilities", "Impact"];
+
+/** Requires each proposal section once; HTML comments do not count as content, Capabilities subsections may stay empty. */
+function validateProposal(text, errors) {
+	const lines = text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+	for (const name of PROPOSAL_SECTIONS) {
+		const heading = new RegExp(`^##[ \\t]+${name}[ \\t]*$`, "i");
+		const starts = lines.flatMap((line, i) => (heading.test(line) ? [i] : []));
+		if (starts.length !== 1) {
+			errors.push(`proposal ${name}: expected exactly one ## ${name} section`);
+			continue;
+		}
+		let end = starts[0] + 1;
+		while (end < lines.length && !/^#{1,2}[ \t]/.test(lines[end])) end++;
+		const body = lines.slice(starts[0] + 1, end).join("\n");
+		if (name === "Capabilities") {
+			if (PLACEHOLDER.test(body)) errors.push(`proposal ${name}: placeholder text is forbidden`);
+		} else if (!body.trim()) errors.push(`proposal ${name}: section needs content`);
+	}
+}
+
 const FLAT_METADATA_LINE = /^([A-Za-z0-9_][A-Za-z0-9_.-]*): +(.*)$/;
 const PLAIN_SCALAR = /^[^\s"'[\]{}&*!|>%@`#,?:-]\S*(?: +[^\s#]\S*)*$/;
 
@@ -206,6 +227,8 @@ export async function validateOpenSpecChange(changeDir) {
 	for (const file of ["proposal.md", "gate.md", "tasks.md"]) {
 		if (!(await regularFile(path.join(root, file)))) errors.push(`${file}: required regular file is missing`);
 	}
+	if (await regularFile(path.join(root, "proposal.md")))
+		validateProposal(await fs.readFile(path.join(root, "proposal.md"), "utf8"), errors);
 	const specs = await markdownFiles(path.join(root, "specs"));
 	const texts = new Map(await Promise.all(specs.map(async file => [file, await fs.readFile(file, "utf8")])));
 	const metadata = path.join(root, ".openspec.yaml");
