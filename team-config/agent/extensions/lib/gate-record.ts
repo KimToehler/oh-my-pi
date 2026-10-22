@@ -101,12 +101,22 @@ export async function recordIsSettled(
 	const slash = remote.indexOf("/");
 	if (slash >= 0 && slash < remote.length - 1) refs.add(`refs/heads/${remote.slice(slash + 1)}`);
 	for (const ref of refs) {
-		const merged = await pi.exec("git", ["merge-base", "--is-ancestor", record.reviewedSha, ref], {
+		const resolved = await pi.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+			cwd: repo,
+			timeout: 10_000,
+		});
+		if (resolved.code !== 0) continue;
+		const commit = resolved.stdout.trim();
+		if (commit === "") continue;
+		const merged = await pi.exec("git", ["merge-base", "--is-ancestor", record.reviewedSha, commit], {
 			cwd: repo,
 			timeout: 10_000,
 		});
 		if (merged.code !== 0) continue;
-		const settledRecord = await pi.exec("git", ["show", `${ref}:${record.record}`], { cwd: repo, timeout: 10_000 });
+		const settledRecord = await pi.exec("git", ["show", `${commit}:${record.record}`], {
+			cwd: repo,
+			timeout: 10_000,
+		});
 		if (settledRecord.code === 0 && settledRecord.stdout === record.content) return true;
 	}
 	return false;

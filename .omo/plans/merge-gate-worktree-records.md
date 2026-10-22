@@ -61,6 +61,7 @@ Do not add `.omo/plans` assumptions. Do not define OpenSpec folder hashing or wh
 1. [x] B1 exact-record settlement: require the claimed record bytes, not only `reviewed_sha`, at the default ref before skipping validation.
 2. [x] B2 ambiguous record identity: reject different bytes at the same path and `reviewed_sha` across linked worktrees.
 3. [x] B3 default-ref selection: use only `origin/HEAD` and its local counterpart; never authorize settlement from an unrelated conventional branch.
+4. [x] Default-ref race: pin each actual default ref to one commit before ancestry and record lookup.
 
 ## Verification
 
@@ -79,8 +80,8 @@ Do not add `.omo/plans` assumptions. Do not define OpenSpec folder hashing or wh
 - Author's risk assessment: wrong worktree or SHA selection could falsely validate unrelated work; an overly strict settlement rule could block every local merge. The extension is team-wide internal tooling, reversible by reverting and reinstalling.
 - Mandatory class: none
 - Whole-diff review: not needed (the change is confined to merge-gate record selection plus its contract tests and prose)
-- Accepted residual risks: a deliberately fabricated Gate proof can name another valid record; arbitrary shell merges already bypass the extension, so this cooperative guard does not become a security boundary
-- Out of scope for blocking: OpenSpec change-folder content and digest semantics; Risk tier and fix-round caps from Plan B; fast-forward/direct-default-branch workflow redesign
+- Accepted residual risks: a deliberately fabricated Gate proof can name another valid record; malformed-UTF-8 record bytes or a local record rewritten during the same stop-hook execution can evade byte-for-byte identity at a single instant, but require deliberately corrupted or racing user-controlled files and remain reversible because the validator evaluates the current path; arbitrary shell merges already bypass the extension, so this cooperative guard does not become a security boundary
+- Out of scope for blocking: OpenSpec change-folder content and digest semantics; atomic snapshotting of a user-mutated record during one local hook run; Risk tier and fix-round caps from Plan B; fast-forward/direct-default-branch workflow redesign
 - Feature-specific criteria:
   - Invariant: a Gate proof is validated only against an omo.merge-gate/v2 record with the same full reviewed_sha
     Positive witness: a matching record in a linked worktree invokes the validator with that worktree as --repo and exits zero

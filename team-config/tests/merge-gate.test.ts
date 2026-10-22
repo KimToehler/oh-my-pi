@@ -774,6 +774,35 @@ describe("worktree gate binding", () => {
 		expect(recordRuns()).toHaveLength(1);
 	});
 
+	it("pins the default ref before classifying a settled record", async () => {
+		// Given
+		const fixture = await worktreeGateFixture();
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge feature", "feature");
+		h.validator = INVALID;
+		useRealGit();
+		const realExec = h.pi.exec;
+		let moved = false;
+		h.pi.exec = async (command: string, args: string[], options?: ExecOptions): Promise<ExecResult> => {
+			const result = await realExec(command, args, options);
+			if (!moved && command === "git" && args[0] === "merge-base" && result.code === 0) {
+				moved = true;
+				await git(fixture.main, "update-ref", "refs/heads/main", remoteMain);
+			}
+			return result;
+		};
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(moved).toBeTrue();
+		expect(result).toBeUndefined();
+		expect(recordRuns()).toHaveLength(0);
+	});
+
 	it("refuses a claimed reviewed_sha with no matching record", async () => {
 		// Given
 		await git(h.dir, "init", "-q", "-b", "main");
