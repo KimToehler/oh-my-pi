@@ -85,14 +85,33 @@ openspec --version
 ### Project setup (manual)
 
 Run from the root of the target project's git repository. `<fork>` is your oh-my-pi checkout: set `FORK` to its path
-(the commands below use `"$FORK"` for `<fork>`). `openspec init` is not needed.
+(the commands below use `"$FORK"` for `<fork>`). `openspec init` is not needed. Setup and update are the same steps;
+the copy replaces the schema directory and the validator wholesale, so the committed state is your backup.
+
+**Step 1.** Precondition: these paths must have no uncommitted changes. The command must print nothing; if it prints a path,
+commit or stash that change first.
+
+```sh
+git status --porcelain -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+```
+
+**Step 2.** Copy the schema and the validator. The old schema directory is removed first so `cp -R` does not nest it; local edits
+and extra files in it are replaced.
 
 ```sh
 FORK=/path/to/oh-my-pi   # <fork>
 mkdir -p openspec/schemas scripts
+rm -rf openspec/schemas/omp-gated
 cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
 cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
-cat > openspec/config.yaml <<'EOF'
+```
+
+**Step 3.** Config. `openspec/config.yaml` is never overwritten: it is created only when absent; when it exists the team content
+is printed for you to merge.
+
+```sh
+TEAM=$(mktemp)
+cat > "$TEAM" <<'EOF'
 schema: omp-gated
 
 rules:
@@ -107,20 +126,33 @@ operations:
     guidance:
       - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
 EOF
-git add openspec/schemas/omp-gated scripts/validate-openspec-change.mjs openspec/config.yaml
+if [ -e openspec/config.yaml ]; then
+  echo "openspec/config.yaml exists and was not touched. Change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
+  cat "$TEAM"
+else
+  mkdir -p openspec && cp "$TEAM" openspec/config.yaml
+fi
+rm -f "$TEAM"
+```
+
+**Step 4.** Review what the copy replaced, re-apply anything you want to keep, then commit. Every change listed here replaced a
+local edit; the previous content of each path is still available with `git show HEAD:<path>` (for the schema
+directory: `git show HEAD:openspec/schemas/omp-gated/<file>`).
+
+```sh
+git status -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+git diff -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+git add openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
 git commit -m "chore: add omp-gated OpenSpec workflow"
 ```
 
 Check with `openspec new change probe`: it must print `Schema: omp-gated`. Remove the probe afterwards
 (`rm -r openspec/changes/probe`).
 
-If `openspec init` already ran, still do the two `cp` steps; its `openspec/config.yaml` says `schema: spec-driven`: change that line to
-`schema: omp-gated` and add the `rules:` and `operations:` blocks above if you want them. `openspec init --tools oh-my-pi`
-also writes project `.omp/commands/opsx-*` copies that duplicate the globally deployed commands; delete them
-(`rm -f .omp/commands/opsx-*.md`).
-
-To update, repeat the two `cp` steps (the `cp -R` onto an existing directory would nest it, so run
-`rm -r openspec/schemas/omp-gated` first) and commit. Your `openspec/config.yaml` is never touched by them.
+If `openspec init` already ran, follow the same steps: its `openspec/config.yaml` exists, so step 3 prints the team
+content instead of writing it; change the `schema: spec-driven` line to `schema: omp-gated` and add the `rules:` and
+`operations:` blocks if you want them. `openspec init --tools oh-my-pi` also writes project `.omp/commands/opsx-*`
+copies that duplicate the globally deployed commands; delete them (`rm -f .omp/commands/opsx-*.md`).
 
 Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
 
