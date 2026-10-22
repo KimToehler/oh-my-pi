@@ -99,7 +99,7 @@ Discretion does not apply to these classes. Always run both invocations:
 
 Judgement habituates toward "does not need it". Across 400 repeat reviewers and 11,429 reviews, approval drifted from 30.1% to 36.8%, inline comments fell 22%, and word count fell 28%, while rising approval negatively correlated with comment effort ([Habituation at the Gate](https://arxiv.org/abs/2606.22721)). These four classes remain immune to that drift, supported by [OWASP ASVS](https://github.com/OWASP/ASVS) and [OWASP Top 10](https://owasp.org/www-project-top-ten/).
 
-**Risk tier.** Read `- Risk tier:` from the plan's `## Merge gate`; a plan without it is `product`, and the validator refuses any value other than exactly `product` or `internal-tooling`. `product`: this phase as written. `internal-tooling` (dev, CI, and proof tooling that reaches no protected asset as the blocking threshold defines it): `mandatory_class` is `none`, exactly one `implementation-audit` runs, and each gate lane allows two fix rounds (Fix waves step 3); the validator refuses a record for this tier with any other class or reviewer set. A reviewer's `security_delta: yes` therefore means the work is product: set `- Risk tier: product` in the plan, run `GC retier --by <user> --reason <text>`, reclassify, and review again.
+**Risk tier.** Read `- Risk tier:` from the plan's `## Merge gate`; a plan without it is `product`, and the validator refuses any value other than exactly `product` or `internal-tooling`. `product`: this phase as written. `internal-tooling` (dev, CI, and proof tooling that reaches no protected asset as the blocking threshold defines it): `mandatory_class` is `none`, exactly one `implementation-audit` runs, and each gate lane allows two fix rounds (Fix waves step 3); the validator refuses a record for this tier with any other class or reviewer set. A reviewer's `security_delta: yes` reports a real credential, an authentication or authorisation path, third-party personal data, or weakened access to a protected asset, and therefore means the work is product: set `- Risk tier: product` in the plan, run `GC retier --by <user> --reason <text>`, reclassify, and review again. A synthetic credential limited to disposable local/test services is `security_delta: no`.
 
 ## Phase 0.6: Resolve and record
 
@@ -219,7 +219,7 @@ REVIEW-TRAILER-v1
 invocation: implementation-audit
 sections_covered: <numbers you received, comma-separated>
 model_id: <your exact resolved model ID, or unresolved>
-security_delta: <yes|no from your own section 3>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
 verdict: <PASS|FAIL|INCONCLUSIVE>
 blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
 adversarial_criteria:
@@ -274,7 +274,7 @@ REVIEW-TRAILER-v1
 invocation: strategic-risk-review
 sections_covered: <numbers of the questions you received, comma-separated>
 model_id: <your exact resolved model ID, or unresolved>
-security_delta: <yes|no - did this change move a data class somewhere new>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
 verdict: <PASS|FAIL|INCONCLUSIVE>
 blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
 adversarial_criteria:
@@ -394,7 +394,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
 1. Before Phase 1:
    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one); it records the plan's Risk tier, which binds the gate: a later plan edit to `product` needs `GC retier --by <user> --reason <text>` (internal-tooling to product only; a gate never moves to internal-tooling), and every other command refuses until then;
    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
-   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording.
+   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording. Re-running `snapshot` for the same unrecorded wave is allowed only on the same plan bytes and tree; otherwise it refuses, because reviewers may hold the old copy. Restart the wave: delete the snapshot and its plan copy, snapshot again, and re-dispatch every reviewer of that wave.
 2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;

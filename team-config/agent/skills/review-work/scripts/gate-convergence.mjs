@@ -333,11 +333,27 @@ const commands = {
     const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
     const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
     mkdirSync(dir, { recursive: true })
-    // A previous snapshot of the same unrecorded wave left a read-only copy; replace it.
+    const tree = git(ctx.repo, ["rev-parse", "HEAD^{tree}"])
+    // Reviewers may already hold this wave's copy. Replacing it with other bytes would let their
+    // results be recorded against a plan they never read, so a changed wave needs a deliberate restart.
+    if (existsSync(file)) {
+      let previous
+      try {
+        previous = JSON.parse(readFileSync(file, "utf8"))
+      } catch {
+        previous = undefined
+      }
+      if (previous?.plan_sha256 !== ctx.planSha256 || previous?.tree !== tree) {
+        fail(
+          `${lane} wave ${wave} was already snapshotted on other plan bytes or code; reviewers may hold the old copy. ` +
+            `Delete ${path.relative(ctx.repo, file)} and ${path.relative(ctx.repo, planCopy)}, then snapshot again and re-dispatch every reviewer of this wave`,
+        )
+      }
+    }
     if (existsSync(planCopy)) chmodSync(planCopy, 0o600)
     writeFileSync(planCopy, ctx.planBytes)
     chmodSync(planCopy, 0o444)
-    const record = { lane, wave, sha: head, tree: git(ctx.repo, ["rev-parse", "HEAD^{tree}"]), plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
+    const record = { lane, wave, sha: head, tree, plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
     writeFileSync(file, `${JSON.stringify(record)}\n`)
     console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
   },
