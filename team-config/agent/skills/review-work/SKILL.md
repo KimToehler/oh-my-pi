@@ -11,7 +11,7 @@ omp rules for this skill:
 
 - Dispatch with the `task` tool; one item per reviewer (`agent: "auditor"` / `agent: "oracle"`). Several items in one `tasks[]` run in parallel. Never use generic `task` workers as reviewers.
 - `auditor` and `oracle` have no shell. Put the diff, changed-file list, and QA matrix into the brief itself.
-- Store each reviewer's trailer verbatim at a tracked path, compute `trailer_sha256` with `shasum -a 256`, never retype it.
+- Store each reviewer's trailer verbatim at a tracked path whose file name contains `trailer` (e.g. `.omo/evidence/<plan basename>/f2/trailer-implementation-audit.txt`; `.omo/evidence/` is otherwise git-ignored, only `*trailer*` and `evidence/gate/` stay addable), compute `trailer_sha256` with `shasum -a 256`, never retype it.
 - `implementation_models`: the models that wrote the diff, from the session (main model and any `task` subagent's model badge), e.g. `onara/cc/claude-opus-5-5`, `onara/cc/claude-sonnet-5-5`. `model_id` comes from the reviewer's own trailer.
 - Record path: `.omo/evidence/gate/<plan-basename>.json` or the repo's convention (`docs/evidence/<slug>/merge-gate.json` in onara). The record and every trailer must be staged before validating.
 
@@ -393,7 +393,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one);
    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
    - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3.
-2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/` and stay uncommitted during waves; `.omo/` is untracked in these repos, so the snapshot's clean-tree check is unaffected. They are staged with the record in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
+2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
    - one `--blocker QA<n>` per failing QA row;
@@ -434,7 +434,7 @@ The diff is one patch file per commit, in commit order, each with its commit hea
 
 Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step before merging, write the JSON gate record to `.omo/evidence/gate/<plan-basename>.json`, where `<plan-basename>` is the plan filename without `.md`. Before reusing a lane's coverage after a continuation or compaction, re-read the record and require the exact invocation and SHA pair; chat history or an unstamped report is not coverage.
 
-**The record and every trailer artifact must be tracked by git, not merely un-ignored.** The validator checks the index: a path that is un-ignored but was never added still disappears for the next reader, so it blocks. Stage the artifacts before validating. If your project ignores `.omo/`, either un-ignore `.omo/evidence/` or place the record somewhere tracked and use that path consistently. Record schema is `omo.merge-gate/v2`:
+**The record and every trailer artifact must be tracked by git, not merely un-ignored.** The validator checks the index: a path that is un-ignored but was never added still disappears for the next reader, so it blocks. Stage the artifacts before validating. The ignore file keeps `.omo/evidence/gate/**` and `.omo/evidence/**/*trailer*` addable; if your project ignores more of `.omo/`, un-ignore those or place the record somewhere tracked and use that path consistently. Record schema is `omo.merge-gate/v2`:
 
 ```json
 {
