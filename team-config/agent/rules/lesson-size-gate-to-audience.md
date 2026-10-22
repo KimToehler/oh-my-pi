@@ -1,5 +1,5 @@
 ---
-description: Size the threat model and merge gate to who runs the tool; a personal local-only tool gets "Merge gate: not applicable" and proves value with a real run, not adversarial review waves
+description: Size the threat model and merge gate to who runs the tool and what it can damage; personal tools opt out, dev/CI/proof tooling declares Risk tier: internal-tooling
 globs:
   - "**/plan.md"
   - "**/.omo/plans/**/*.md"
@@ -31,5 +31,6 @@ the gate leaves unfixed goes into the record's downgrades with the user's overri
   eligibility. Hardening beyond that is a follow-up, driven by real use.
 - Before the gate, write the **value proof**: the one real end-to-end run whose result the user would act on.
   Run it before any review wave.
+- Dev, CI, or proof tooling in a product repo: `- Risk tier: internal-tooling` with `Mandatory class: none`. One auditor, two fix rounds per lane, then freeze or re-plan; unfixed blockers go into the record's downgrades.
 - Gate waves: follow the review-work skill's "Fix waves" section; it stops when fix-induced blockers
-  rise or the blocker count does not fall over three waves.
+  rise, the blocker count does not fall over three waves, or an internal-tooling lane has used its two fix rounds.

@@ -92,16 +92,18 @@ Docs-only is not automatically skippable. Instructions, skills, config docs, run
 
 Discretion does not apply to these classes. Always run both invocations:
 
-1. auth, secrets, PII
+1. auth, secrets, PII: the change touches a real credential, an authentication or authorisation path, or third-party personal data. A real credential currently grants access outside disposable local/test services, regardless of where it is stored; a provider key or production token in a local `.env` is real. A synthetic password generated only for the developer's disposable local stack, or a test fixture that grants no external access, is not.
 2. schema or migration
 3. wire contract or public API shape
 4. concurrency or state machine
 
 Judgement habituates toward "does not need it". Across 400 repeat reviewers and 11,429 reviews, approval drifted from 30.1% to 36.8%, inline comments fell 22%, and word count fell 28%, while rising approval negatively correlated with comment effort ([Habituation at the Gate](https://arxiv.org/abs/2606.22721)). These four classes remain immune to that drift, supported by [OWASP ASVS](https://github.com/OWASP/ASVS) and [OWASP Top 10](https://owasp.org/www-project-top-ten/).
 
+**Risk tier.** Read `- Risk tier:` from the plan's `## Merge gate`; a plan without it is `product`, and the validator refuses any value other than exactly `product` or `internal-tooling`. `product`: this phase as written. `internal-tooling` (dev, CI, and proof tooling that reaches no protected asset as the blocking threshold defines it): `mandatory_class` is `none`, exactly one `implementation-audit` runs, and each gate lane allows two fix rounds (Fix waves step 3); the validator refuses a record for this tier with any other class or reviewer set. A reviewer's `security_delta: yes` therefore means the work is product: set `- Risk tier: product` in the plan, run `GC retier --by <user> --reason <text>`, reclassify, and review again.
+
 ## Phase 0.6: Resolve and record
 
-Before anything is dispatched, run the plan half of the validator against the plan alone: `node $SKILL_DIR/scripts/validate-gate-record.mjs --repo <repo root> --plan-only --plan <plan-path>`. It runs the `## Merge gate` criteria check the full validation runs at the end, plus two plan-time rules the full run does not repeat: the opt-out decision (only a top-level `- Merge gate: not applicable (<reason>)` outside code fences counts) and the abort-rule fields `Accepted residual risks` and `Out of scope for blocking`, each with concrete text or `none (<reason>)`. A plan that fails it would fail the gate only after every reviewer was paid for, so fix the plan first, before `plan_sha256` is taken.
+Before anything is dispatched, run the plan half of the validator against the plan alone: `node $SKILL_DIR/scripts/validate-gate-record.mjs --repo <repo root> --plan-only --plan <plan-path>`. It runs the `## Merge gate` criteria check the full validation runs at the end, plus two plan-time rules the full run does not repeat: the opt-out decision (only a top-level `- Merge gate: not applicable (<reason>)` outside code fences counts) and the abort-rule fields `Accepted residual risks` and `Out of scope for blocking`, each with concrete text or `none (<reason>)`. Both modes also read the optional `Risk tier`: exactly `product` or `internal-tooling`, and `internal-tooling` needs exactly one `Mandatory class` bullet whose whole value is `none`. A plan that fails it would fail the gate only after every reviewer was paid for, so fix the plan first, before `plan_sha256` is taken.
 
 A plan written before the abort-rule fields existed fails this check. Reassess it, then add both fields honestly. Use `none (plan predates abort-rule fields; reassessed before F2)` only when the reassessment found nothing to name.
 
@@ -340,7 +342,7 @@ Gate passes only when QA matrix has no failing row and every invocation actually
 
 Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence through Fix waves, and re-run the affected invocation before claiming completion or merging.
 
-Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not.
+Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not. Under Risk tier `internal-tooling` that block means re-tier, as in Phase 0.5.
 
 **Downgrades.** A reviewer blocker the gate leaves unfixed ends only in `override` plus exactly one `downgrades` entry per blocker id of every FAIL trailer, never silently. `rule` says why it may stay: `below-threshold` when you judge that the finding misses both (a) and (b) of the blocking threshold, with `reason` naming the missing trigger or asset, and the user agreed; `accepted-residual` when the plan's `Accepted residual risks` covers it; `out-of-scope` when `Out of scope for blocking` covers it; `frozen` when the user chose freeze at a convergence STOP. `disposition` is `residual` or `follow-up`; a follow-up names where it is tracked in `reason`.
 
@@ -390,9 +392,9 @@ Mandatory class: <none or class>
 Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts/gate-convergence.mjs --repo <repo root> --plan <plan path>`, with the plan path from Phase 0.6. A wave is Phase 1 plus, when it passes, Phases 2-3, all on the snapshot taken in step 1. `.omo/gate-deltas/` holds review artifacts; never commit it.
 
 1. Before Phase 1:
-   - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one);
+   - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one); it records the plan's Risk tier, which binds the gate: a later plan edit to `product` needs `GC retier --by <user> --reason <text>` (internal-tooling to product only; a gate never moves to internal-tooling), and every other command refuses until then;
    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
-   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3.
+   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording.
 2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
@@ -408,7 +410,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
      - re-plan: a separate plan for the affected mechanism;
      - continue: one more fix wave.
 
-     Record the answer with `GC decide --lane F2 --choice freeze|replan|continue --by <user> --reason <text>`. The script refuses freeze after failing QA or an INCONCLUSIVE invocation, because the record requires passing QA rows and a trailer per invocation. Without `ask` UI, report the numbers and options and stop.
+     Record the answer with `GC decide --lane F2 --choice freeze|replan|continue --by <user> --reason <text>`. The script refuses freeze after failing QA or an INCONCLUSIVE invocation, because the record requires passing QA rows and a trailer per invocation. Without `ask` UI, report the numbers and options and stop. Under Risk tier `internal-tooling` a STOP at wave 3 or later is the fix-round cap: offer freeze or re-plan only; the script refuses continue there. Work that needs more rounds is product: re-tier it as in Phase 0.5, after which continue is legal.
 4. Each fix is first an `N.` row under `## TODOs`. A fix that adds a subsystem (process, proxy, store, staging tree, daemon, endpoint) is not a row: stop and plan it separately. Implement and commit.
 5. Review each contiguous commit range once, naming every row it implements:
    a. `GC patch --base <base> --head <head> --out .omo/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.

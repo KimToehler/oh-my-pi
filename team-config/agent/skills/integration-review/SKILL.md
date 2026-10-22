@@ -56,7 +56,7 @@ git diff --name-only <base>...HEAD > /tmp/integration-review-<slug>.files
 
 ### Step 2 - Dispatch ONE reviewer with the verbatim brief (caller)
 
-When a plan exists, first run `GC baseline --sha HEAD`, `GC ready --lane F3`, then `GC snapshot --lane F3` (`GC` as in review-work Fix waves, `SKILL_DIR=~/.omp/agent/skills/review-work`); keep the snapshot path (first output line). `NOT READY` or a refused snapshot → resolve, no dispatch. Prepare the Step 1 files only after the snapshot.
+When a plan exists, first run `GC baseline --sha HEAD`, `GC ready --lane F3`, then `GC snapshot --lane F3` (`GC` as in review-work Fix waves, `SKILL_DIR=~/.omp/agent/skills/review-work`); keep the snapshot path (first output line) and the `PLAN <path>` line; substitute that pinned path for `<plan path>` in the reviewer brief, since the source plan is not a review input for the wave. `NOT READY` or a refused snapshot → resolve, no dispatch. Prepare the Step 1 files only after the snapshot.
 
 Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSpace: "Whole-diff review of a finished branch; defects unknown"`, `task:` the brief below unchanged, filling only the placeholders. The result is delivered automatically; do not poll. At integration-review time there is usually **no PR yet**, so the brief puts the reviewer in local mode up front; that stops it from improvising with `gh pr view`, `git fetch`, or its own discovery logic.
 
@@ -65,7 +65,7 @@ Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSp
 
 **Diff:** `/tmp/integration-review-<slug>.patch`
 **Changed files:** `/tmp/integration-review-<slug>.files`
-**Plan:** `<plan path>` (if it exists, read it for the design rules, the "Out of Scope" list, and the "Verification" checklist)
+**Plan:** `<plan path>` (the pinned `PLAN` path from `GC snapshot`, never the source plan; if it exists, read it for the design rules, the "Out of Scope" list, and the "Verification" checklist)
 **Seam list:** <each lane or slice and the cross-slice contracts it touched>
 
 **Asymmetry constraint:** you have only the diff, the file list, the plan, and the seam list. You do not have my reasoning for any specific decision. Read the whole diff end to end before forming opinions. If something looks wrong, flag it; I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
@@ -144,7 +144,7 @@ When a plan exists, first run `GC ready --lane F3` and `GC snapshot --lane F3`, 
 
 The last line of the report is the verdict: `PASS` means no Must-fix remains, `FAIL` means at least one does. A report without that final line is not a verdict. Re-dispatch and ask for the closing line; do not infer the verdict from the buckets.
 
-When a plan exists, record every verdict before anything else: `GC wave --lane F3 --snapshot <path> --outcome f3=PASS|FAIL|INCONCLUSIVE` (a report still without its closing line after one re-dispatch is INCONCLUSIVE). After a cleanup commit, also pass `--outcome verification=PASS|FAIL` from the Step 5 verification gate and one `--blocker VERIFY<n>` per failing check. Add one `--blocker <class>=<sites>` per Must-fix class; Should-fix and Nit never count; `@fix` works as in review-work Fix waves step 3. `DECISION: PASS` → F3 done. `CONTINUE` → Step 5. `STOP` (exit 3) → no Step 5; `ask` the user: freeze (the named Must-fix classes become follow-ups, listed in the report F2 receives as `{F3 REPORT PATH}`), re-plan, or continue, and record it with `GC decide --lane F3 --choice freeze|replan|continue --by <user> --reason <text>`. Without `ask` UI, report and stop.
+When a plan exists, record every verdict before anything else: `GC wave --lane F3 --snapshot <path> --outcome f3=PASS|FAIL|INCONCLUSIVE` (a report still without its closing line after one re-dispatch is INCONCLUSIVE). After a cleanup commit, also pass `--outcome verification=PASS|FAIL` from the Step 5 verification gate and one `--blocker VERIFY<n>` per failing check. Add one `--blocker <class>=<sites>` per Must-fix class; Should-fix and Nit never count; `@fix` works as in review-work Fix waves step 3. `DECISION: PASS` → F3 done. `CONTINUE` → Step 5. `STOP` (exit 3) → no Step 5; `ask` the user: freeze (the named Must-fix classes become follow-ups, listed in the report F2 receives as `{F3 REPORT PATH}`), re-plan, or continue, and record it with `GC decide --lane F3 --choice freeze|replan|continue --by <user> --reason <text>`. Without `ask` UI, report and stop. Under Risk tier `internal-tooling` a STOP at wave 3 or later is the fix-round cap: offer freeze or re-plan only; `GC decide` refuses continue there.
 
 A clean report reads:
 
