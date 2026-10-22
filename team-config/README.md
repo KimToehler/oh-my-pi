@@ -88,11 +88,12 @@ Run from the root of the target project's git repository. `<fork>` is your oh-my
 (the commands below use `"$FORK"` for `<fork>`). `openspec init` is not needed. Setup and update are the same steps;
 the copy replaces the schema directory and the validator wholesale, so the committed state is your backup.
 
-**Step 1.** Precondition: these paths must have no uncommitted changes. The command must print nothing; if it prints a path,
-commit or stash that change first.
+**Step 1.** Precondition: these paths must hold nothing git cannot restore. The command must print nothing. A line starting
+with ` M`, `A ` or similar is an uncommitted change: commit or stash it. `??` (untracked) or `!!` (ignored) is content git
+has never stored: move it out of the project, or commit it (`git add -f` for an ignored path), before you continue.
 
 ```sh
-git status --porcelain -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
+git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
 ```
 
 **Step 2.** Copy the schema and the validator. The old schema directory is removed first so `cp -R` does not nest it; local edits
@@ -106,8 +107,8 @@ cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
 cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
 ```
 
-**Step 3.** Config. `openspec/config.yaml` is never overwritten: it is created only when absent; when it exists the team content
-is printed for you to merge.
+**Step 3.** Config. `openspec/config.yaml` is never overwritten: the shell's no-clobber mode (`set -C`) creates it only if it
+does not exist, in the same operation that writes it; when it exists, the team content is printed for you to merge.
 
 ```sh
 TEAM=$(mktemp)
@@ -126,11 +127,12 @@ operations:
     guidance:
       - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
 EOF
-if [ -e openspec/config.yaml ]; then
-  echo "openspec/config.yaml exists and was not touched. Change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
-  cat "$TEAM"
+mkdir -p openspec
+if (set -C; cat "$TEAM" > openspec/config.yaml); then
+  echo "created openspec/config.yaml"
 else
-  mkdir -p openspec && cp "$TEAM" openspec/config.yaml
+  echo "openspec/config.yaml was not written (see the shell error above). If it exists, change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
+  cat "$TEAM"
 fi
 rm -f "$TEAM"
 ```
