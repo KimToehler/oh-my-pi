@@ -164,9 +164,26 @@ function validateGate(text, errors) {
 
 const PROPOSAL_SECTIONS = ["Why", "What Changes", "Capabilities", "Impact"];
 
-/** Requires each proposal section once; HTML comments do not count as content, Capabilities subsections may stay empty. */
+/** Blanks every line of a fenced code block (``` or ~~~, closed by the same character at least as long; unclosed runs to the end). */
+function withoutFences(lines) {
+	let fence = null;
+	return lines.map(line => {
+		const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+		if (fence === null) {
+			if (marker) fence = marker;
+			return marker ? "" : line;
+		}
+		if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = null;
+		return "";
+	});
+}
+
+/**
+ * Requires each proposal section once. HTML comments, fenced code blocks and headings do not count as content; the
+ * Capabilities subsections may stay empty.
+ */
 function validateProposal(text, errors) {
-	const lines = text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+	const lines = withoutFences(text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/));
 	for (const name of PROPOSAL_SECTIONS) {
 		const heading = new RegExp(`^##[ \\t]+${name}[ \\t]*$`, "i");
 		const starts = lines.flatMap((line, i) => (heading.test(line) ? [i] : []));
@@ -176,7 +193,10 @@ function validateProposal(text, errors) {
 		}
 		let end = starts[0] + 1;
 		while (end < lines.length && !/^#{1,2}[ \t]/.test(lines[end])) end++;
-		const body = lines.slice(starts[0] + 1, end).join("\n");
+		const body = lines
+			.slice(starts[0] + 1, end)
+			.filter(line => !/^#{1,6}(?:[ \t]|$)/.test(line))
+			.join("\n");
 		if (name === "Capabilities") {
 			if (PLACEHOLDER.test(body)) errors.push(`proposal ${name}: placeholder text is forbidden`);
 		} else if (!body.trim()) errors.push(`proposal ${name}: section needs content`);
