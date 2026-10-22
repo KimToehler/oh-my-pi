@@ -183,7 +183,6 @@ class FakeAgentSession {
 		this.pendingAsyncWork = false;
 	};
 	abortCalls = 0;
-	acpPromptOpen: boolean[] = [];
 	/** Goal state the real `GoalRuntime` below reads and writes, as on `AgentSession`. */
 	goalModeState: GoalModeState | undefined;
 	enabledTools: string[] = ["read"];
@@ -356,8 +355,9 @@ class FakeAgentSession {
 		return this.pendingAsyncWork;
 	}
 
-	setAcpPromptOpen(open: boolean): void {
-		this.acpPromptOpen.push(open);
+	/** The v1 open-prompt gate as the real session reads it: through the client bridge callback. */
+	get acpPromptOpen(): boolean {
+		return this.bridge?.allowAgentInitiatedTurns?.() ?? true;
 	}
 
 	/** Resolved when `abort()` has reserved its goal owner stamp and starts to unwind. */
@@ -467,7 +467,10 @@ class FakeAgentSession {
 		this.enabledTools = [...toolNames];
 	}
 
-	setClientBridge(_bridge: unknown): void {}
+	bridge: { allowAgentInitiatedTurns?: () => boolean } | undefined;
+	setClientBridge(bridge: { allowAgentInitiatedTurns?: () => boolean } | undefined): void {
+		this.bridge = bridge;
+	}
 
 	getPlanModeState(): PlanModeState | undefined {
 		return this.planModeState;
@@ -3743,6 +3746,7 @@ describe("ACP agent", () => {
 		session.pendingAsyncWork = true;
 		session.settleAsyncWork = async () => {
 			settleEntered.resolve();
+			expect(session.acpPromptOpen).toBe(true);
 			await jobDone.promise;
 			const wake = makeAssistantMessage("job wake");
 			emit({
@@ -3779,7 +3783,7 @@ describe("ACP agent", () => {
 				update.update.content.text === "job wake",
 		);
 		expect(wakeChunks).toHaveLength(1);
-		expect(session.acpPromptOpen).toEqual([true, false]);
+		expect(session.acpPromptOpen).toBe(false);
 		harness.abortController.abort();
 	});
 
@@ -3888,7 +3892,7 @@ describe("ACP agent", () => {
 		expect(session.abortCalls).toBe(1);
 		// The job is still owed: cancel stops the turn, not the background work.
 		expect(session.pendingAsyncWork).toBe(true);
-		expect(session.acpPromptOpen.at(-1)).toBe(false);
+		expect(session.acpPromptOpen).toBe(false);
 		harness.abortController.abort();
 	});
 
