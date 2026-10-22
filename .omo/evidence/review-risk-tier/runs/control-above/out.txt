@@ -1,0 +1,43 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan lacks an executable deployment path and a gate appropriate to its production database and CI secret.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The script alone cannot establish the promised run on every merge, and the migration command has no identified implementation. A normal merge may perform no migration, or the script may fail instead; the production schema remains unmigrated.",
+      "evidence": "Context says to run from CI on every merge; Approach only adds scripts/deploy-prod.sh and invokes bun run migrate. The repository root contains only README, .gitignore and .omo; no package.json, migration implementation or CI workflow was found.",
+      "change": "Identify or implement the actual migration command and CI merge trigger, including secret injection and a concrete end-to-end CI verification."
+    },
+    {
+      "area": "Correctness and verification",
+      "defect": "A staging log showing migrations once and a second run applying nothing does not establish exactly-once application or safe recovery after a failed or overlapping production run. A failure can leave production schema partially applied or make a retry unsafe; damage may be irreversible.",
+      "evidence": "The risk assessment explicitly says a failed migration leaves the schema half-applied; the sole verification is a staging run listing applied migrations. The invariant requires every pending migration exactly once.",
+      "change": "Specify the migration engine's transactional, retry and concurrency guarantees, and verify interrupted and overlapping runs against actual database state, not just log lines."
+    },
+    {
+      "area": "CHECK 1 — Approach and Verification",
+      "defect": "The production database credential reaches a process whose output is printed to CI, but the plan provides no holder/sink inventory or controls against disclosure. A migration error or log containing the connection string can expose a real production credential in CI artifacts; disclosure is not reliably reversible.",
+      "evidence": "Approach reads PROD_DATABASE_URL and prints the migration log to CI job output; Verification only checks that migrations are listed.",
+      "change": "Search and inventory credential holders and sinks, define a chokepoint or justified exclusions, and add a sentinel negative control covering inputs and all output artifacts."
+    },
+    {
+      "area": "CHECK 4 — Feature-specific criteria",
+      "defect": "The exactly-once acceptance predicate has no defined result for missing, partial, corrupt or lossy migration evidence. A successful-looking partial log can satisfy the stated witness without proving the database reached the required state.",
+      "evidence": "The criterion defines Observable as migration log and its negative control as a second run applying nothing, without a missing or interrupted-run control.",
+      "change": "Define acceptance using authoritative database state and explicit rejection or undecidable outcomes for missing, partial and lossy evidence; test missing and interrupted runs."
+    },
+    {
+      "area": "Merge gate — risk classification",
+      "defect": "The plan classifies production database migrations and a real CI secret as internal tooling with no mandatory class. This understates protected-asset risk and could omit a required independent reviewer.",
+      "evidence": "Approach explicitly reaches PROD_DATABASE_URL and the production database; Merge gate says Mandatory class: none and Risk tier: internal-tooling.",
+      "change": "Classify the gate as product and account for both schema-migration and auth-secrets-pii exposure; require both reviewers."
+    },
+    {
+      "area": "Merge gate — criterion boundary",
+      "defect": "The stated criterion boundary cannot be located in the repository, so it cannot bind the review to an existing real code location.",
+      "evidence": "Boundary is scripts/deploy-prod.sh, but the repository root has no scripts directory.",
+      "change": "Bind the criterion to an identifiable real implementation boundary and ensure it exists when the gate is evaluated."
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,31 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not yet define a link check or verification that reliably proves the stated invariant.",
+  "blockers": [
+    {
+      "area": "Correctness: relative link resolution",
+      "defect": "Resolving every relative link as a filesystem target does not account for Markdown fragment or query components. Ordinary valid links can therefore be reported as broken, and the plan does not specify how to handle them.",
+      "evidence": "The approach says to resolve “every relative link against its file's directory” and report each missing target. For `[section](guide.md#setup)`, the filesystem target is `guide.md`, not a file named `guide.md#setup`; an in-page `[section](#setup)` likewise has no separate target file. These are normal documentation inputs, and false failure is reversible but breaks the checker’s goal.",
+      "change": "Define Markdown link parsing and resolution, including fragment-only links and stripping query and fragment components before checking filesystem targets; add passing controls for these cases."
+    },
+    {
+      "area": "PROCESS 1: feature-specific criteria",
+      "defect": "The behavioral criterion’s negative control does not test the invariant: it exercises a clean tree, not a broken implementation presented with a broken link.",
+      "evidence": "The criterion requires every broken relative link to be reported, but its negative control is “a tree without broken links exits 0 with no output.” A checker that always exits 0 without reporting anything passes that control. The only positive witness uses one broken link and cannot establish that multiple links or files are all reported.",
+      "change": "Use a broken implementation or missing-report outcome as the negative control, and require a fixture containing multiple broken links across files with exact expected file, line, target and exit status."
+    },
+    {
+      "area": "Merge gate: criterion boundary",
+      "defect": "The criterion names a boundary that cannot be located in the repository.",
+      "evidence": "The sole boundary is `scripts/check-docs-links.ts`; the path does not exist, and the repository root contains no `scripts` directory.",
+      "change": "Identify a real existing contract surface, or explicitly establish the new script as the executable boundary and ensure the gate’s boundary requirement can validate it before review."
+    },
+    {
+      "area": "Executability: verification and manual QA",
+      "defect": "The verification does not name an executable command or concrete fixture setup, and the manual QA task has no scenario or evidence path.",
+      "evidence": "The repository root has no `docs` directory; the plan says only “A docs tree with one broken link” and “Manual QA on the real surface.” It gives no way to create or select that tree, invoke the script, or record evidence. Consequently the described verification cannot be executed from this checkout as written.",
+      "change": "Specify how to construct the fixture and invoke the checker, the exact expected output and exit statuses before and after repair, and an evidence path for the real-surface QA scenario."
+    }
+  ],
+  "notes": []
+}

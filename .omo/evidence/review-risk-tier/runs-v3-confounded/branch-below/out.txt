@@ -1,0 +1,33 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The link-resolution approach can report valid Markdown links as broken, and the plan does not define an executable check for the repository’s current state.",
+  "blockers": [
+    {
+      "area": "Correctness: Markdown link resolution",
+      "defect": "Resolving every relative link directly against the containing directory does not define how to handle fragment-only links or fragments on file links. Valid links such as `[section](#overview)` and `[section](guide.md#overview)` can be reported missing if their literal targets are treated as filesystem paths. This occurs with ordinary Markdown documentation, breaks the no-false-report goal, and is reversible.",
+      "evidence": "Approach 1: “resolves every relative link against its file's directory” and reports each missing target. The plan gives no fragment handling or corresponding control.",
+      "change": "Define Markdown target parsing: resolve fragment-only links against the current file, separate file paths from fragments, and state whether and how anchors are validated. Add valid and broken fragment-link cases to verification."
+    },
+    {
+      "area": "CHECK 4: Missing documentation tree",
+      "defect": "The acceptance predicate does not specify the result when the input tree is absent. The assigned repository currently has no docs directory, so the planned script’s normal invocation has no defined behavior; treating an empty scan as success would falsely signal that documentation was checked. The impact is a misleading local result and is reversible.",
+      "evidence": "The repository root contains only `.omo/` and `.gitignore`; `docs/` does not exist. Approach 1 says to walk `docs/**/*.md` and exit 0 if no target is missing, but does not address an absent tree.",
+      "change": "Define and implement an explicit, visible outcome for a missing or unreadable docs tree, and add a missing-tree negative control."
+    },
+    {
+      "area": "Merge gate: Feature-specific criteria boundary",
+      "defect": "The criterion points to a file that does not exist, rather than a real code location that can currently be found, so the specified gate boundary cannot be located.",
+      "evidence": "The criterion says `Boundary: scripts/check-docs-links.ts`; the repository has no `scripts/` directory or that file.",
+      "change": "Identify an existing real contract surface for the criterion, or establish the new script before binding and validating the final gate boundary."
+    },
+    {
+      "area": "Executability: Final verification wave",
+      "defect": "Manual QA has neither a concrete invocation nor an evidence path, and the plan does not specify how the new TypeScript script is run in this repository. With no package or script infrastructure present, an implementer cannot execute the stated real-surface QA from the plan. This affects verification and is reversible.",
+      "evidence": "F1 says only “Manual QA on the real surface”; Verification describes outcomes but no commands, fixture paths, or evidence artifact. The repository root has no package manifest or scripts directory.",
+      "change": "Specify the runtime and exact commands for creating the fixture, invoking the checker, checking both exit codes and output, and recording evidence for each scenario."
+    }
+  ],
+  "notes": []
+}
+```

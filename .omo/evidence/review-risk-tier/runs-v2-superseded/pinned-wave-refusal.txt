@@ -1,0 +1,3 @@
+gate-convergence: state changed since the wave was dispatched: plan bytes differ from the snapshot
+wave-exit=1
+gate_wave-count=0

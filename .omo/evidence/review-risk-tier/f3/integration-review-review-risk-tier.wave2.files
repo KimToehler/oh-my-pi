@@ -1,0 +1,12 @@
+.omo/plans/review-risk-tier.md
+team-config/agent/extensions/merge-gate.ts
+team-config/agent/rules/lesson-size-gate-to-audience.md
+team-config/agent/rules/plan-merge-gate.md
+team-config/agent/rules/plan-review-process.md
+team-config/agent/skills/integration-review/SKILL.md
+team-config/agent/skills/review-work/SKILL.md
+team-config/agent/skills/review-work/scripts/gate-convergence.mjs
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
+team-config/agent/skills/review-work/scripts/plan-contract.mjs
+team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs

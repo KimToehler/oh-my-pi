@@ -1,0 +1,295 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a personal tier #when --plan-only runs #then it blocks naming the defect [13.82ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an unknown tier #when --plan-only runs #then it blocks naming the defect [15.33ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given the template tier line #when --plan-only runs #then it blocks naming the defect [12.34ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a tier with an inline reason #when --plan-only runs #then it blocks naming the defect [11.71ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a duplicate tier #when --plan-only runs #then it blocks naming the defect [12.88ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given internal-tooling with a mandatory class #when --plan-only runs #then it blocks naming the defect [12.19ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given internal-tooling with none plus a parenthesised class #when --plan-only runs #then it blocks naming the defect [12.14ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given internal-tooling with none plus a listed class #when --plan-only runs #then it blocks naming the defect [12.48ms]
+561 | ]
+562 | 
+563 | for (const [name, text, expected] of blockedPlans) {
+564 |   test(`#given ${name} #when --plan-only runs #then it blocks naming the defect`, () => {
+565 |     const result = planOnly(text)
+566 |     assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+                 ^
+AssertionError: expected a block, got exit 0
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:566:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given internal-tooling without a Mandatory class bullet #when --plan-only runs #then it blocks naming the defect [13.31ms]
+583 |   ["a second reviewer", (r) => { r.reviewers_run = ["implementation-audit", "strategic-risk-review"] }, "reviewers_run"],
+584 | ]) {
+585 |   test(`#given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (${name})`, () => {
+586 |     const result = fullMode(IT, mutate)
+587 |     assert.equal(result.status, 1)
+588 |     assert.match(result.stderr, new RegExp(`^${field}: the plan declares Risk tier internal-tooling`))
+                 ^
+AssertionError: The input did not match the regular expression /^mandatory_class: the plan declares Risk tier internal-tooling/. Input:
+
+'reviewers_run: mandatory_class requires missing invocation strategic-risk-review\n'
+
+ generatedMessage: true,
+     actual: "reviewers_run: mandatory_class requires missing invocation strategic-risk-review\n",
+   expected: /^mandatory_class: the plan declares Risk tier internal-tooling/,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:588:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (a mandatory class) [71.92ms]
+583 |   ["a second reviewer", (r) => { r.reviewers_run = ["implementation-audit", "strategic-risk-review"] }, "reviewers_run"],
+584 | ]) {
+585 |   test(`#given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (${name})`, () => {
+586 |     const result = fullMode(IT, mutate)
+587 |     assert.equal(result.status, 1)
+588 |     assert.match(result.stderr, new RegExp(`^${field}: the plan declares Risk tier internal-tooling`))
+                 ^
+AssertionError: The input did not match the regular expression /^reviewers_run: the plan declares Risk tier internal-tooling/. Input:
+
+'resolution: invocation implementation-audit is not in reviewers_run\n'
+
+ generatedMessage: true,
+     actual: "resolution: invocation implementation-audit is not in reviewers_run\n",
+   expected: /^reviewers_run: the plan declares Risk tier internal-tooling/,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:588:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (no reviewer) [82.47ms]
+583 |   ["a second reviewer", (r) => { r.reviewers_run = ["implementation-audit", "strategic-risk-review"] }, "reviewers_run"],
+584 | ]) {
+585 |   test(`#given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (${name})`, () => {
+586 |     const result = fullMode(IT, mutate)
+587 |     assert.equal(result.status, 1)
+588 |     assert.match(result.stderr, new RegExp(`^${field}: the plan declares Risk tier internal-tooling`))
+                 ^
+AssertionError: The input did not match the regular expression /^reviewers_run: the plan declares Risk tier internal-tooling/. Input:
+
+'resolution: missing invocation strategic-risk-review\n'
+
+ generatedMessage: true,
+     actual: "resolution: missing invocation strategic-risk-review\n",
+   expected: /^reviewers_run: the plan declares Risk tier internal-tooling/,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:588:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (a second reviewer) [76.82ms]
+
+ 200 pass
+ 12 fail
+Ran 212 tests across 1 file. [17.48s]

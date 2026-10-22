@@ -1,0 +1,7 @@
+$ bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts
+bun test v1.4.3 (26aa4e1a9)
+
+ 444 pass
+ 0 fail
+ 445 expect() calls
+Ran 444 tests across 6 files. [40.07s]

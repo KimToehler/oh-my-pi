@@ -1,0 +1,21 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan lacks an existing gate boundary and a discriminating negative control, so its merge gate cannot establish the stated link-checking invariant.",
+  "blockers": [
+    {
+      "area": "Merge gate boundary",
+      "defect": "The criterion points to a file that does not exist, so the required real code boundary cannot be located. The repository also has no scripts directory or docs tree, leaving the planned real-surface QA without an identified target. The effect is a reversible verification gap, but the gate cannot currently prove the change.",
+      "evidence": "The plan names `Boundary: scripts/check-docs-links.ts`; the `/tmp/rrt-repo/` listing contains only `.omo/` and `a.txt`, and both `/tmp/rrt-repo/scripts/` and `/tmp/rrt-repo/docs/` are absent.",
+      "change": "Identify an existing, real contract boundary and the actual documentation tree, or establish the prerequisite repository content before proposing this gate; specify how real-surface QA runs there."
+    },
+    {
+      "area": "PROCESS 1 — feature-specific criteria",
+      "defect": "The negative control is a valid clean tree, not a broken implementation or input that must fail. A script that always exits 0 silently passes that control, so the criterion does not discriminate against the central failure of missing broken links. This is a reversible tooling defect, but it defeats the value proof.",
+      "evidence": "The invariant is `every broken relative link is reported with its file and line`; its negative control is `a tree without broken links exits 0 with no output`.",
+      "change": "Keep the clean-tree case as a positive witness and add a negative control that suppresses or omits a known broken link and requires the gate to fail; check the reported file, line, target, and exit status."
+    }
+  ],
+  "notes": [
+    "The final verification wave does not specify a manual-QA evidence path or an explicit SHA-bound, validated gate record; include these when making the gate executable."
+  ]
+}

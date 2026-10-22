@@ -1,0 +1,3 @@
+unchanged: COPY-OK files=436
+mutated: COPY-MISMATCH differs rules/plan-review-process.md
+classify-mutated: INFRA trial agent copy differs from the frozen template map

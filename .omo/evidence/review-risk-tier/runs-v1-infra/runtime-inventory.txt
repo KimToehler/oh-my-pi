@@ -1,0 +1,31 @@
+PASS deployed-marker-is-commit 3c51382ace38bc4d2a30b3ad2f5c984d05d0aa38
+INFO omp sha256=62b88249249d73e18021527eef276468f6f324b07dde060ddc01aac0d88e3ead version=omp/18.12.5
+PASS reviewer-runtime-source-identical-deployed-vs-base packages/coding-agent/src/prompts/agents/plan-reviewer.md packages/coding-agent/src/task packages/coding-agent/src/modes/print-mode.ts packages/coding-agent/src/discovery packages/ai/src packages/agent/src packages/natives crates
+INFO manifest sha256=a84446d2eb4b6846dd354f77157f6e4ca0d5a45987dcef56742d62ed31dfad26 entries=433 branch_head=463209043e55c79843e141a54a96414c3a90ac25
+PASS A-manifest-entries-match-branch mismatch=[]
+PASS A-vs-C-differs-only-in-process-rule 1 diff line(s)
+INFO rule branch=df271a0699689df241ade680800c606a47e3c960bcaa2ca0919d985547316ea5 control=d0145c6254df0c1ee7b01fbbaedaa2fa717d8de47a6d56735f852e17b48b7886
+INFO config.yml A=13e4b632cc386b6d6b77547d62dd7662ba903159d68b993ee44b6849a464ba10 C=13e4b632cc386b6d6b77547d62dd7662ba903159d68b993ee44b6849a464ba10
+PASS config.yml-identical-A-C
+INFO models.yml A=b2ce5344cee953784b47076c2ad41f8bbcde7b2cbc828aaeef75fe1a63f14542 C=b2ce5344cee953784b47076c2ad41f8bbcde7b2cbc828aaeef75fe1a63f14542
+PASS models.yml-identical-A-C
+PASS empty-cwd-empty
+PASS natives-dir-empty-before-launch
+INFO external-candidate /Users/tim/.omo/rules exists=True
+INFO external-candidate /Users/tim/.claude/rules exists=True
+INFO external-candidate /Users/tim/.agents exists=True
+INFO external-candidate /Users/tim/.agent exists=False
+INFO external-candidate /Users/tim/.cursor/rules exists=False
+INFO external-candidate /Users/tim/.windsurf/rules exists=False
+PASS no-external-PROCESS5 []
+INFO helper rrt-proxy.mjs sha256=3786bb99022c76c4c73795d3676a24f1a64a5ec7f4ed0ae0a7b3a3e5f54ee391
+INFO helper rrt-run.mjs sha256=fd9dc454ff8d474e55d8d9a11bb05a554f3a8cd0911d8353a61708d24a7127d6
+INFO helper rrt-classify.mjs sha256=207b4debf524f3c4371abe8d8f2203fb13e718c779b5752a762808857f72075a
+INFO natives extracted by deployed omp during branch-above attempt 1 (INFRA: identity changed): mode=755 sha256=f75ee59032fd34be19510cf840f4f2ad1c3d462dfc2627b671f35792ed885595 path=/tmp/rrt-natives/18.12.5/pi_natives.darwin-arm64.node
+PASS post-omp-hash
+PASS post-A-manifest-entries-match-branch []
+FAIL post-A-vs-C-one-file 6
+PASS post-empty-cwd-empty
+PASS post-natives-hash
+PASS post-pinned-copy-hash
+NOTE post-A-vs-C extra diffs are runtime-written state only: agent.db, agent.db-shm, models.db, models.db-shm, skill-descriptions.db-shm (branch dir ran 4 trials, control 1). Input files (rules, config.yml, models.yml, manifest entries) unchanged; per-trial HASH-PRE == HASH-POST for every counted trial.

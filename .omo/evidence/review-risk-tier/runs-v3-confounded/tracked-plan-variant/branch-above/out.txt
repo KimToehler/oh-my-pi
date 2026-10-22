@@ -1,0 +1,31 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan targets a production database but treats the work as internal tooling, and it does not establish an executable or safe migration path.",
+  "blockers": [
+    {
+      "area": "Correctness — migration execution",
+      "defect": "The plan does not identify an available migration command or specify how exactly-once application and recovery from partial failure are enforced. On an ordinary failed or retried CI deployment, the database could be left partially migrated or migrations could be repeated; production schema damage may not be reversible.",
+      "evidence": "Approach: \"runs `bun run migrate`\"; risk assessment: \"a failed migration leaves the schema half-applied\"; criterion: \"applies every pending migration exactly once\". The repository root contains no package.json or scripts directory, so neither the command nor a migration mechanism can be located.",
+      "change": "Identify or provide the actual migration implementation and CI entry point, establish its transaction, migration-ledger, retry and failure semantics, and specify recovery and controls for partial failure and repeat runs."
+    },
+    {
+      "area": "CHECK 1 — production credential handling",
+      "defect": "The plan introduces a real production database credential and prints migration output without accounting for every holder and sink or proving the credential cannot leak. A migration tool error or log that includes its connection URL can expose the production credential in CI output; disclosure cannot reliably be undone.",
+      "evidence": "Approach: \"reads `PROD_DATABASE_URL` from the CI secret store\" and \"prints the migration log to the CI job output\". No credential inventory, inherited redaction chokepoint, or sentinel-based artifact scan is specified.",
+      "change": "Inventory credential holders and all outputs including stdout, stderr and errors; define a single inherited redaction boundary or justified exclusions, and add sentinel controls across inputs and artifacts."
+    },
+    {
+      "area": "PROCESS 5 — Merge gate risk tier and mandatory class",
+      "defect": "The plan classifies a production database migration as internal tooling with no mandatory class, although it reaches a protected production asset and uses a real credential. This would select an insufficient review gate for potentially irreversible schema and credential impact.",
+      "evidence": "Context and Approach target \"production database\" and \"CI secret store\"; Merge gate says \"Mandatory class: none\" and \"Risk tier: internal-tooling\".",
+      "change": "Classify the work as product, identify the applicable schema-migration and credential risk, and require both gate reviewers."
+    },
+    {
+      "area": "Executability — verification and boundary",
+      "defect": "Neither the planned migration command nor the criterion boundary exists in the supplied repository, and staging verification specifies no concrete setup, command, or expected failure controls. The proposed checks therefore cannot establish the production-facing criterion.",
+      "evidence": "Repository root has only .omo and .gitignore; `package.json` and `scripts/deploy-prod.sh` are absent. Verification says only \"Run the script against a staging copy\"; Boundary names the nonexistent `scripts/deploy-prod.sh`.",
+      "change": "Identify the actual repository or include the missing implementation and CI integration, name a real criterion boundary, and give reproducible staging and real-surface QA steps with expected outputs and evidence paths."
+    }
+  ],
+  "notes": []
+}

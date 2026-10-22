@@ -1,0 +1,32 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+425 |     tierPlan(s, "product")
+426 |     const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+427 |     assert.equal(retier.status, 0, retier.stderr)
+428 |     assert.match(retier.stdout, new RegExp(`^STALE ${lane} wave 3: recorded before this retier`, "m"))
+429 |     const freeze = s.gc("decide", "--lane", lane, "--choice", "freeze", "--by", "tim", "--reason", "t")
+430 |     assert.equal(freeze.status, 1, lane)
+                 ^
+AssertionError: F2
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:430:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling cap STOP in either lane #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded [520.24ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+Ran 1 test across 1 file. [554.00ms]

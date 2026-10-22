@@ -1,0 +1,258 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+349 | 
+350 | test("#given an internal-tooling plan with totals 3, 2, 1 #when the third wave records #then the fix-round cap stops it", (t) => {
+351 |   const s = sandbox(t)
+352 |   tierPlan(s, "internal-tooling")
+353 |   s.gc("baseline", "--sha", "HEAD")
+354 |   assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "internal-tooling")
+               ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- 'internal-tooling'
+
+ generatedMessage: true,
+     actual: undefined,
+   expected: "internal-tooling",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:354:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling plan with totals 3, 2, 1 #when the third wave records #then the fix-round cap stops it [92.25ms]
+364 |   assert.equal(first(last.stdout), "DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers")
+365 | })
+366 | 
+367 | test("#given an internal-tooling cap STOP #when decide runs #then continue is refused and freeze is recorded", (t) => {
+368 |   const s = sandbox(t)
+369 |   assert.equal(toolingStop(s).status, 3)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 3
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 3,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:369:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling cap STOP #when decide runs #then continue is refused and freeze is recorded [571.25ms]
+380 |   for (const [index, count] of [3, 2].entries()) {
+381 |     assert.equal(s.wave("F2", "--outcome", "qa=FAIL", ...blockers(`W${index}B`, count)).status, 0)
+382 |   }
+383 |   tierPlan(s, "product")
+384 |   const refused = s.gc("snapshot", "--lane", "F2")
+385 |   assert.equal(refused.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:385:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling gate whose plan moves to product #when commands run #then they refuse until retier, and after retier the lane runs as product [470.46ms]
+399 | test("#given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse", (t) => {
+400 |   const s = sandbox(t)
+401 |   s.gc("baseline", "--sha", "HEAD")
+402 |   tierPlan(s, "internal-tooling")
+403 |   const snap = s.gc("snapshot", "--lane", "F2")
+404 |   assert.equal(snap.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:404:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse [166.53ms]
+413 |   s.gc("baseline", "--sha", "HEAD")
+414 |   const snap = s.gc("snapshot", "--lane", "F2")
+415 |   assert.equal(snap.status, 0, snap.stderr)
+416 |   const lines = snap.stdout.split("\n")
+417 |   const copy = lines[2].replace(/^PLAN /, "")
+418 |   assert.ok(lines[2].startsWith("PLAN ") && path.isAbsolute(copy), lines[2])
+               ^
+AssertionError: 
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:418:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a snapshot #when it is written #then the plan copy is exact, read-only and named on stdout [175.88ms]
+429 |   s.gc("baseline", "--sha", "HEAD")
+430 |   const snap = s.gc("snapshot", "--lane", "F2")
+431 |   const copy = snap.stdout.split("\n")[2].replace(/^PLAN /, "")
+432 |   const original = readFileSync(path.join(s.repo, PLAN))
+433 |   writeFileSync(path.join(s.repo, PLAN), "# changed\n")
+434 |   assert.deepEqual(readFileSync(copy), original)
+                         ^
+ENOENT: no such file or directory, open
+ syscall: "open",
+   errno: -2,
+    code: "ENOENT"
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:434:20)
+      at run (node:async_hooks:144:29)
+      at <anonymous> (node:test:1445:26)
+      at executeTestNode (node:test:1448:45)
+      at <anonymous> (node:test:1591:20)
+(fail) #given a source plan changed and restored after snapshot #when the pinned copy is read and the wave records #then the copy stays original and the wave passes [163.44ms]
+440 | test("#given a pinned plan copy is tampered with #when the wave records #then it is refused and nothing is written", (t) => {
+441 |   const s = sandbox(t)
+442 |   s.gc("baseline", "--sha", "HEAD")
+443 |   const snap = s.gc("snapshot", "--lane", "F2")
+444 |   const copy = snap.stdout.split("\n")[2].replace(/^PLAN /, "")
+445 |   chmodSync(copy, 0o644)
+        ^
+ENOENT: no such file or directory, chmod
+ syscall: "chmod",
+   errno: -2,
+    code: "ENOENT"
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:445:3)
+      at run (node:async_hooks:144:29)
+      at <anonymous> (node:test:1445:26)
+      at executeTestNode (node:test:1448:45)
+      at <anonymous> (node:test:1591:20)
+(fail) #given a pinned plan copy is tampered with #when the wave records #then it is refused and nothing is written [177.89ms]
+454 |   const s = sandbox(t)
+455 |   tierPlan(s, "internal-tooling")
+456 |   s.gc("baseline", "--sha", "HEAD")
+457 |   const snap = s.gc("snapshot", "--lane", "F2")
+458 |   tierPlan(s, "product")
+459 |   assert.equal(s.gc("retier", "--by", "tim", "--reason", "t").status, 0)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+1 !== 0
+
+ generatedMessage: true,
+     actual: 1,
+   expected: 0,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:459:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a snapshot taken before a retier #when the wave records on it #then it is refused and nothing is written [179.02ms]
+467 |   const s = sandbox(t)
+468 |   s.gc("baseline", "--sha", "HEAD")
+469 |   const snap = s.gc("snapshot", "--lane", "F2")
+470 |   appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
+471 |   const result = s.gc("wave", "--lane", "F2", "--snapshot", snap.stdout.split("\n")[0], "--outcome", "qa=PASS")
+472 |   assert.equal(result.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:472:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a same-tier plan edit between snapshot and wave #when the wave records #then it is refused and nothing is written [239.94ms]
+482 |   const json = JSON.parse(readFileSync(file, "utf8"))
+483 |   delete json.plan_sha256
+484 |   delete json.plan_copy
+485 |   writeFileSync(file, `${JSON.stringify(json)}\n`)
+486 |   const result = s.gc("wave", "--lane", "F2", "--snapshot", file, "--outcome", "qa=PASS")
+487 |   assert.equal(result.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:487:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written [231.08ms]
+491 | 
+492 | test("#given a personal tier #when baseline runs #then it is refused", (t) => {
+493 |   const s = sandbox(t)
+494 |   tierPlan(s, "personal")
+495 |   const result = s.gc("baseline", "--sha", "HEAD")
+496 |   assert.equal(result.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:496:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a personal tier #when baseline runs #then it is refused [92.92ms]
+
+ 15 pass
+ 11 fail
+Ran 26 tests across 1 file. [12.90s]

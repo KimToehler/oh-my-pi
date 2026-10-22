@@ -1,0 +1,9 @@
+BASELINE a3f1f19c2778 recorded
+SNAPSHOT F2 wave 1 a3f1f19c2778
+first=0
+SNAPSHOT F2 wave 1 a3f1f19c2778
+identical-resnapshot ok
+gate-convergence: F2 wave 1 was already snapshotted on other plan bytes or code; reviewers may hold the old copy. Delete .omo/gate-deltas/F2-wave-1.snapshot.json and .omo/gate-deltas/F2-wave-1.plan.md, then snapshot again and re-dispatch every reviewer of this wave
+changed-resnapshot exit=1
+SNAPSHOT F2 wave 1 a3f1f19c2778
+after-restart exit=0

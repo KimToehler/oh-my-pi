@@ -1,0 +1,193 @@
+diff --git a/.omo/plans/review-risk-tier.md b/.omo/plans/review-risk-tier.md
+index 2f413a18d1..01af9d6ac8 100644
+--- a/.omo/plans/review-risk-tier.md
++++ b/.omo/plans/review-risk-tier.md
+@@ -430,11 +430,13 @@ From the worktree root:
+ 
+ 1. F3-B1: re-run Verification 5 so the inventory contract holds after the runs. Keep `$A` and `$C` as untouched templates that are never a launch directory, and freeze a per-file SHA-256 map of each at the pre-run inventory; the pre, post and final inventories check each template against its map. Each trial copies its template into a fresh `/tmp/rrt-trials/<trial>` and, before launching omp, compares every file of that copy with the frozen map; a missing, extra or different file writes `COPY-MISMATCH`, skips the launch and classifies as INFRA. omp then runs with `PI_CODING_AGENT_DIR=/tmp/rrt-trials/<trial>` (table rows `$A/**`, `$C/**` and `rrt-run.mjs`). Use-time binding: HASH-PRE and HASH-POST hash that copy's `rules/plan-review-process.md`, `config.yml` and `models.yml`, so a change to them that lasts into the run shows as identity drift and classifies as INFRA. Nothing but the trial's own omp writes the trial copy; a change made and reverted inside the sub-second window between the copy check and omp's load is not detected. Controls: freeze a scratch template; an unchanged copy gives `COPY-OK`; a rule file changed after freezing gives `COPY-MISMATCH` and INFRA. Extract natives with one warm-up smoke before the first scored trial. Every trial from the earlier runs is reported as INFRA.
+ 2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
++3. F2-B1: a wave's `GC snapshot` is write-once. A rerun for the same unrecorded wave on the same commit SHA and plan bytes, with an intact copy, re-prints the existing snapshot without writing either file. Other plan bytes, another commit (even with the same tree), a copy without its JSON or a JSON without its copy are refused, naming both files to delete and that every reviewer of the wave must be re-dispatched; first writes use exclusive create. Tests: unchanged rerun leaves both files' mtimes, other bytes refused until both files are deleted; empty commit refused; orphaned copy refused. RED against the unchanged script in `red-f2-b1.txt` and against 377f94d113 in `red-f2-b1-round2.txt`. Document the restart in review-work Fix waves step 1 and integration-review Step 2.
++4. F2-B2: both trailer templates define `security_delta: yes` as a real credential, an authentication or authorisation path, third-party personal data, or weakened access to a protected asset; a synthetic credential limited to disposable local/test services is `no`. Phase 0.5 states the same. The validator's `security_delta: yes` + `mandatory_class: none` refusal stays unchanged.
+ 
+ ## Final verification wave
+-- [ ] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
+-- [ ] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
+-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
++- [x] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
++- [x] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
++- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+ 
+ ## Merge gate
+ - Author's risk assessment: a wrong tier parse or tier binding would let a product plan run with one auditor and a cap, or leave internal-tooling lanes looping as before. A wrong decide rule would block a legitimate continue or freeze. The new ledger event and snapshot fields are persisted state. Team-wide config, reversible by reinstalling main.
+diff --git a/team-config/agent/skills/integration-review/SKILL.md b/team-config/agent/skills/integration-review/SKILL.md
+index 3e677ebb46..128727c554 100644
+--- a/team-config/agent/skills/integration-review/SKILL.md
++++ b/team-config/agent/skills/integration-review/SKILL.md
+@@ -56,7 +56,7 @@ git diff --name-only <base>...HEAD > /tmp/integration-review-<slug>.files
+ 
+ ### Step 2 - Dispatch ONE reviewer with the verbatim brief (caller)
+ 
+-When a plan exists, first run `GC baseline --sha HEAD`, `GC ready --lane F3`, then `GC snapshot --lane F3` (`GC` as in review-work Fix waves, `SKILL_DIR=~/.omp/agent/skills/review-work`); keep the snapshot path (first output line) and the `PLAN <path>` line; substitute that pinned path for `<plan path>` in the reviewer brief, since the source plan is not a review input for the wave. `NOT READY` or a refused snapshot → resolve, no dispatch. Prepare the Step 1 files only after the snapshot.
++When a plan exists, first run `GC baseline --sha HEAD`, `GC ready --lane F3`, then `GC snapshot --lane F3` (`GC` as in review-work Fix waves, `SKILL_DIR=~/.omp/agent/skills/review-work`); keep the snapshot path (first output line) and the `PLAN <path>` line; substitute that pinned path for `<plan path>` in the reviewer brief, since the source plan is not a review input for the wave. `NOT READY` or a refused snapshot → resolve, no dispatch. A snapshot refused because this unrecorded wave already has a different or incomplete snapshot is resolved by restarting the wave as in review-work Fix waves step 1. Prepare the Step 1 files only after the snapshot.
+ 
+ Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSpace: "Whole-diff review of a finished branch; defects unknown"`, `task:` the brief below unchanged, filling only the placeholders. The result is delivered automatically; do not poll. At integration-review time there is usually **no PR yet**, so the brief puts the reviewer in local mode up front; that stops it from improvising with `gh pr view`, `git fetch`, or its own discovery logic.
+ 
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index f8f13c8323..9119de9b03 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -99,7 +99,7 @@ Discretion does not apply to these classes. Always run both invocations:
+ 
+ Judgement habituates toward "does not need it". Across 400 repeat reviewers and 11,429 reviews, approval drifted from 30.1% to 36.8%, inline comments fell 22%, and word count fell 28%, while rising approval negatively correlated with comment effort ([Habituation at the Gate](https://arxiv.org/abs/2606.22721)). These four classes remain immune to that drift, supported by [OWASP ASVS](https://github.com/OWASP/ASVS) and [OWASP Top 10](https://owasp.org/www-project-top-ten/).
+ 
+-**Risk tier.** Read `- Risk tier:` from the plan's `## Merge gate`; a plan without it is `product`, and the validator refuses any value other than exactly `product` or `internal-tooling`. `product`: this phase as written. `internal-tooling` (dev, CI, and proof tooling that reaches no protected asset as the blocking threshold defines it): `mandatory_class` is `none`, exactly one `implementation-audit` runs, and each gate lane allows two fix rounds (Fix waves step 3); the validator refuses a record for this tier with any other class or reviewer set. A reviewer's `security_delta: yes` therefore means the work is product: set `- Risk tier: product` in the plan, run `GC retier --by <user> --reason <text>`, reclassify, and review again.
++**Risk tier.** Read `- Risk tier:` from the plan's `## Merge gate`; a plan without it is `product`, and the validator refuses any value other than exactly `product` or `internal-tooling`. `product`: this phase as written. `internal-tooling` (dev, CI, and proof tooling that reaches no protected asset as the blocking threshold defines it): `mandatory_class` is `none`, exactly one `implementation-audit` runs, and each gate lane allows two fix rounds (Fix waves step 3); the validator refuses a record for this tier with any other class or reviewer set. A reviewer's `security_delta: yes` reports a real credential, an authentication or authorisation path, third-party personal data, or weakened access to a protected asset, and therefore means the work is product: set `- Risk tier: product` in the plan, run `GC retier --by <user> --reason <text>`, reclassify, and review again. A synthetic credential limited to disposable local/test services is `security_delta: no`.
+ 
+ ## Phase 0.6: Resolve and record
+ 
+@@ -219,7 +219,7 @@ REVIEW-TRAILER-v1
+ invocation: implementation-audit
+ sections_covered: <numbers you received, comma-separated>
+ model_id: <your exact resolved model ID, or unresolved>
+-security_delta: <yes|no from your own section 3>
++security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+ verdict: <PASS|FAIL|INCONCLUSIVE>
+ blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+ adversarial_criteria:
+@@ -274,7 +274,7 @@ REVIEW-TRAILER-v1
+ invocation: strategic-risk-review
+ sections_covered: <numbers of the questions you received, comma-separated>
+ model_id: <your exact resolved model ID, or unresolved>
+-security_delta: <yes|no - did this change move a data class somewhere new>
++security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+ verdict: <PASS|FAIL|INCONCLUSIVE>
+ blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+ adversarial_criteria:
+@@ -394,7 +394,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
+ 1. Before Phase 1:
+    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one); it records the plan's Risk tier, which binds the gate: a later plan edit to `product` needs `GC retier --by <user> --reason <text>` (internal-tooling to product only; a gate never moves to internal-tooling), and every other command refuses until then;
+    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
+-   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording.
++   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording. A wave's snapshot is write-once: re-running `snapshot` on the same commit and plan bytes only re-prints it, and anything else (other plan bytes, another commit, a copy without its JSON) is refused, because reviewers may hold the old copy. Restart the wave: delete the snapshot and its plan copy, snapshot again, and re-dispatch every reviewer of that wave.
+ 2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
+ 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
+    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
+diff --git a/team-config/agent/skills/review-work/scripts/gate-convergence.mjs b/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
+index b0c6831193..0d656ac175 100755
+--- a/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
++++ b/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
+@@ -333,12 +333,36 @@ const commands = {
+     const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
+     const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
+     mkdirSync(dir, { recursive: true })
+-    // A previous snapshot of the same unrecorded wave left a read-only copy; replace it.
+-    if (existsSync(planCopy)) chmodSync(planCopy, 0o600)
+-    writeFileSync(planCopy, ctx.planBytes)
++    // A wave's snapshot is write-once: reviewers may already be reading its plan copy, so any rerun
++    // only re-prints an unchanged snapshot. Other bytes, another commit or a partial pair mean the
++    // wave must be restarted deliberately, with every reviewer re-dispatched.
++    if (existsSync(file) || existsSync(planCopy)) {
++      let previous
++      let copyBytes
++      try {
++        previous = JSON.parse(readFileSync(file, "utf8"))
++        copyBytes = readFileSync(planCopy)
++      } catch {
++        previous = undefined
++      }
++      const same =
++        previous !== undefined &&
++        previous.sha === head &&
++        previous.plan_sha256 === ctx.planSha256 &&
++        previous.plan_copy === path.relative(ctx.repo, planCopy) &&
++        sha256(copyBytes) === ctx.planSha256
++      if (!same) {
++        fail(
++          `${lane} wave ${wave} already has a snapshot on other plan bytes or another commit, or an incomplete one; reviewers may hold the old copy. ` +
++            `Delete ${path.relative(ctx.repo, file)} and ${path.relative(ctx.repo, planCopy)}, then snapshot again and re-dispatch every reviewer of this wave`,
++        )
++      }
++      return console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
++    }
++    writeFileSync(planCopy, ctx.planBytes, { flag: "wx" })
+     chmodSync(planCopy, 0o444)
+     const record = { lane, wave, sha: head, tree: git(ctx.repo, ["rev-parse", "HEAD^{tree}"]), plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
+-    writeFileSync(file, `${JSON.stringify(record)}\n`)
++    writeFileSync(file, `${JSON.stringify(record)}\n`, { flag: "wx" })
+     console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
+   },
+ 
+diff --git a/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs b/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
+index 915ae34382..699bde6f2f 100644
+--- a/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
+@@ -474,6 +474,69 @@ test("#given a same-tier plan edit between snapshot and wave #when the wave reco
+   assert.equal(waveEvents(s).length, 0)
+ })
+ 
++const REFUSED_RESNAPSHOT = /F2 wave 1 already has a snapshot on other plan bytes or another commit, or an incomplete one/
++
++test("#given an unrecorded wave snapshot #when snapshot reruns unchanged #then neither file is rewritten, and other plan bytes are refused until both files are deleted", (t) => {
++  const s = sandbox(t)
++  s.gc("baseline", "--sha", "HEAD")
++  const first = s.gc("snapshot", "--lane", "F2")
++  assert.equal(first.status, 0, first.stderr)
++  const [file, , planLine] = first.stdout.split("\n")
++  const copy = planLine.replace(/^PLAN /, "")
++  const dispatched = readFileSync(copy)
++  const json = readFileSync(file, "utf8")
++  const written = [statSync(copy).mtimeMs, statSync(file).mtimeMs]
++  const again = s.gc("snapshot", "--lane", "F2")
++  assert.equal(again.status, 0, again.stderr)
++  assert.equal(again.stdout, first.stdout)
++  assert.deepEqual([statSync(copy).mtimeMs, statSync(file).mtimeMs], written)
++  assert.equal(statSync(copy).mode & 0o777, 0o444)
++  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
++  const refused = s.gc("snapshot", "--lane", "F2")
++  assert.equal(refused.status, 1)
++  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
++  assert.deepEqual(readFileSync(copy), dispatched)
++  assert.equal(readFileSync(file, "utf8"), json)
++  rmSync(file)
++  chmodSync(copy, 0o600)
++  rmSync(copy)
++  const retaken = s.gc("snapshot", "--lane", "F2")
++  assert.equal(retaken.status, 0, retaken.stderr)
++  assert.notDeepEqual(readFileSync(copy), dispatched)
++  assert.equal(waveEvents(s).length, 0)
++})
++
++test("#given an unrecorded wave snapshot #when a new commit with the same tree lands and snapshot reruns #then it is refused and the dispatched SHA stays", (t) => {
++  const s = sandbox(t)
++  s.gc("baseline", "--sha", "HEAD")
++  const first = s.gc("snapshot", "--lane", "F2")
++  const file = first.stdout.split("\n")[0]
++  const json = readFileSync(file, "utf8")
++  s.git("commit", "-q", "--allow-empty", "-m", "empty")
++  const delta = s.delta("F2", JSON.parse(json).sha, s.head(), "OKAY")
++  assert.equal(delta.result.status, 0, delta.result.stderr)
++  const refused = s.gc("snapshot", "--lane", "F2")
++  assert.equal(refused.status, 1)
++  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
++  assert.equal(readFileSync(file, "utf8"), json)
++})
++
++test("#given a plan copy without its snapshot JSON #when snapshot runs #then it is refused and the copy is not replaced", (t) => {
++  const s = sandbox(t)
++  s.gc("baseline", "--sha", "HEAD")
++  const first = s.gc("snapshot", "--lane", "F2")
++  const [file, , planLine] = first.stdout.split("\n")
++  const copy = planLine.replace(/^PLAN /, "")
++  const dispatched = readFileSync(copy)
++  rmSync(file)
++  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after the JSON was lost\n")
++  const refused = s.gc("snapshot", "--lane", "F2")
++  assert.equal(refused.status, 1)
++  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
++  assert.deepEqual(readFileSync(copy), dispatched)
++  assert.equal(existsSync(file), false)
++})
++
+ test("#given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written", (t) => {
+   const s = sandbox(t)
+   s.gc("baseline", "--sha", "HEAD")

@@ -1,0 +1,39 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish a working or safe production migration path, and its merge-gate classification excludes the production assets it explicitly reaches.",
+  "blockers": [
+    {
+      "area": "Correctness: migration execution",
+      "defect": "The plan asserts exactly-once migration behaviour but provides no mechanism for coordinating concurrent deployments or recovering from a partially applied migration. Two merges can produce overlapping CI jobs, and a failed migration can leave the database in the half-applied state the plan itself identifies; a retry can then encounter or repeat partial work. Production schema damage may not be reversible.",
+      "evidence": "Approach 1 runs `bun run migrate` on every merge; the risk assessment says a failed migration can leave the schema half-applied. The sole negative control is a second run that applies nothing; it does not exercise overlap or failure and retry.",
+      "change": "Specify the migration tool's locking, atomicity and durable migration-record guarantees, or design protections and a recovery procedure that satisfy the invariant; test concurrent jobs and failure followed by retry against database state."
+    },
+    {
+      "area": "Executability: CI and migration entry point",
+      "defect": "The plan adds only a script but does not define how CI invokes it or establish that the migration command exists. In the supplied repository, there is no package manifest, migration implementation, or CI configuration. Consequently the planned merge event cannot actually run the stated production deployment.",
+      "evidence": "The context promises a script run by CI on every merge to main; the approach only adds `scripts/deploy-prod.sh` and invokes `bun run migrate`. The repository root contains only README, .gitignore and .omo; no scripts, package manifest or CI configuration are present.",
+      "change": "Identify and implement the actual CI merge trigger and existing migration entry point, including secret injection, or identify the missing repository and integration prerequisites before implementation."
+    },
+    {
+      "area": "CHECK 1: production credential holders and sinks",
+      "defect": "The production database URL is a real credential, but the plan neither inventories its holders and output sinks nor establishes how migration and script output avoid disclosing it. A migration failure or diagnostic that prints connection details can expose the secret in CI logs; that exposure is not necessarily reversible.",
+      "evidence": "Approach 1 reads `PROD_DATABASE_URL` from CI secrets and prints the migration log to CI job output. No holder/sink inventory, shared redaction chokepoint, or sentinel-based negative control is specified.",
+      "change": "Inventory the secret's CI, process, environment and output holders and sinks; define a shared protection or justified exclusions, and test a sentinel through relevant inputs while scanning all artifacts and output."
+    },
+    {
+      "area": "PROCESS 5: risk tier and mandatory class",
+      "defect": "The plan classifies the change as internal tooling with no mandatory class even though it uses a real production credential and mutates a production database. This would apply the reduced gate to protected assets and omit mandatory reviewers.",
+      "evidence": "The approach uses `PROD_DATABASE_URL` and runs migrations against production; the merge gate declares `Mandatory class: none` and `Risk tier: internal-tooling`.",
+      "change": "Classify the plan as product and identify the applicable credential and schema-migration mandatory classes; require both reviewers at F2."
+    },
+    {
+      "area": "Merge gate boundary and evidence",
+      "defect": "The invariant's boundary is not a real code location in the supplied repository, and the proposed log-only witness cannot establish that every pending migration actually changed the database exactly once. A script that prints plausible migration lines without applying them could pass the stated observation.",
+      "evidence": "The criterion names `scripts/deploy-prod.sh` as its boundary, but the repository contains no scripts directory. Its observable is only `migration log`, and staging verification only checks that the log lists migrations.",
+      "change": "Identify a locatable migration execution boundary and verify durable migration records and schema effects against the initial pending set, with a negative control for a misleading log."
+    }
+  ],
+  "notes": []
+}
+```

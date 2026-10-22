@@ -1,0 +1,200 @@
+diff --git a/.omo/plans/review-risk-tier.md b/.omo/plans/review-risk-tier.md
+index 01af9d6ac8..02638fb5a4 100644
+--- a/.omo/plans/review-risk-tier.md
++++ b/.omo/plans/review-risk-tier.md
+@@ -432,18 +432,21 @@ From the worktree root:
+ 2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
+ 3. F2-B1: a wave's `GC snapshot` is write-once. A rerun for the same unrecorded wave on the same commit SHA and plan bytes, with an intact copy, re-prints the existing snapshot without writing either file. Other plan bytes, another commit (even with the same tree), a copy without its JSON or a JSON without its copy are refused, naming both files to delete and that every reviewer of the wave must be re-dispatched; first writes use exclusive create. Tests: unchanged rerun leaves both files' mtimes, other bytes refused until both files are deleted; empty commit refused; orphaned copy refused. RED against the unchanged script in `red-f2-b1.txt` and against 377f94d113 in `red-f2-b1-round2.txt`. Document the restart in review-work Fix waves step 1 and integration-review Step 2.
+ 4. F2-B2: both trailer templates define `security_delta: yes` as a real credential, an authentication or authorisation path, third-party personal data, or weakened access to a protected asset; a synthetic credential limited to disposable local/test services is `no`. Phase 0.5 states the same. The validator's `security_delta: yes` + `mandatory_class: none` refusal stays unchanged.
++5. F3-W4-B1: snapshot files are named `<lane>-<first 12 hex of sha256(plan key)>-wave-<n>`, so a second plan gated in the same checkout starts its own wave 1 instead of meeting the first plan's write-once snapshot. Test `#given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched`, RED against 385d14c205 in `red-f3-b1-wave4.txt`.
++6. Proportionate verification (Tim, 2026-10-22): review-work Fix waves step 4 runs the changed module's own tests plus RED for each new test after each fix, and the full suite once per fix round after its last code commit; an exempted commit needs no tests.
++7. Orchestrator delta exemption. Scope addition, not a fix: on 2026-10-22, after F3 wave 4, Tim decided to add this mechanism to this plan and gate rather than a separate plan (decide-before-code: designed here, with its own Merge gate criterion below), because a separate plan would again change the gate and need the same full gate. `GC exempt --sha <commit> --reason <text>` appends a `delta_exemption` ledger event; `commitStates` treats the latest event naming a commit (delta verdict or exemption) as its state, so an exempted commit no longer blocks `ready`. Like `fix_delta_review`, which `commitStates` already reads without its lane, an exemption decides the commit for the whole gate, F2 and F3 alike. A commit whose latest verdict is REJECT cannot be exempted, and exempt without `--reason` is refused. Review-work Fix waves step 5 limits exemptions to commits that change no behaviour and no review input (final-verification checkboxes, comments, prose no brief or criterion reads); criteria, residual risks, scope and `## TODOs` rows stay reviewed. Test `#given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes in both lanes, while a rejected commit cannot be exempted in either` (F3-lane REJECT control), RED against b765adbc7f in `red-exempt.txt`.
+ 
+ ## Final verification wave
+ - [x] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
+ - [x] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
+-- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
++- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+ 
+ ## Merge gate
+ - Author's risk assessment: a wrong tier parse or tier binding would let a product plan run with one auditor and a cap, or leave internal-tooling lanes looping as before. A wrong decide rule would block a legitimate continue or freeze. The new ledger event and snapshot fields are persisted state. Team-wide config, reversible by reinstalling main.
+ - Mandatory class: concurrency-state
+ - Risk tier: product
+ - Whole-diff review: needed (two gate scripts, a new shared module, two skills, three rules, one extension comment)
+-- Accepted residual risks: `--by` on retier and decide is self-reported, so an agent can enter the user's name; a plan that falsely declares internal-tooling is caught only by plan-review PROCESS 5 and the auditor's security_delta, both judgement calls; the owner of the local checkout can deliberately chmod, alter and restore a pinned plan copy during a review read, but this requires active gate tampering and gains no capability the owner lacks
++- Accepted residual risks: `--by` on retier and decide is self-reported, so an agent can enter the user's name; a plan that falsely declares internal-tooling is caught only by plan-review PROCESS 5 and the auditor's security_delta, both judgement calls; the owner of the local checkout can deliberately chmod, alter and restore a pinned plan copy during a review read, but this requires active gate tampering and gains no capability the owner lacks; whether a commit qualifies for `GC exempt` is the orchestrator's judgement, recorded with its reason in the ledger but not checked by the script, and the next gate wave still reviews the exempted code
+ - Out of scope for blocking: ledgers, snapshots and gate records written before this change; OpenSpec change folders as --plan; the bundled plan-reviewer prompt packages/coding-agent/src/prompts/agents/plan-reviewer.md
+ - Feature-specific criteria:
+   - Invariant: an internal-tooling gate lane stops after two fix rounds, and continue is refused at that stop
+@@ -471,3 +474,8 @@ From the worktree root:
+     Negative control: the production migration fixture reads a real CI credential and reaches production; under the same installed branch rule it is REJECT with a PROCESS 5 blocker despite naming itself internal-tooling
+     Observable: structured plan-reviewer verdict and blocker area from valid `MODEL` trials
+     Boundary: installed `plan-review-process.md`, `plan-merge-gate.md` and review-work Phase 0.5
++  - Invariant: an orchestrator exemption closes an unreviewed commit for `ready`, but never a rejected one
++    Positive witness: a checkbox commit after a wave makes ready NOT READY in F2 and F3; after `exempt --sha <it> --reason <text>`, ready prints READY in both lanes
++    Negative control: exempt without --reason exits 1; exempt on a commit whose latest delta verdict (recorded in F3) is REJECT exits 1 with `has a REJECT`, writes no `delta_exemption`, and ready in F2 and F3 still names the rejected commit
++    Observable: gate-convergence exit codes, stderr, ready stdout, ledger events
++    Boundary: gate-convergence.mjs exempt and commitStates
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index 9119de9b03..db923dbca7 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -394,8 +394,8 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
+ 1. Before Phase 1:
+    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one); it records the plan's Risk tier, which binds the gate: a later plan edit to `product` needs `GC retier --by <user> --reason <text>` (internal-tooling to product only; a gate never moves to internal-tooling), and every other command refuses until then;
+    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
+-   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording. A wave's snapshot is write-once: re-running `snapshot` on the same commit and plan bytes only re-prints it, and anything else (other plan bytes, another commit, a copy without its JSON) is refused, because reviewers may hold the old copy. Restart the wave: delete the snapshot and its plan copy, snapshot again, and re-dispatch every reviewer of that wave.
+-2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
++   - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording. A wave's snapshot is write-once and named per plan, lane and wave: re-running `snapshot` on the same commit and plan bytes only re-prints it, and anything else (other plan bytes, another commit, a copy without its JSON) is refused, because reviewers may hold the old copy. Restart the wave: delete the snapshot and its plan copy, snapshot again, and re-dispatch every reviewer of that wave.
++2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code and the plan edits a fix or freeze needs. A commit with neither a delta review nor an exemption (step 5) blocks the next wave.
+ 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
+    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
+    - one `--blocker QA<n>` per failing QA row;
+@@ -411,8 +411,9 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
+      - continue: one more fix wave.
+ 
+      Record the answer with `GC decide --lane F2 --choice freeze|replan|continue --by <user> --reason <text>`. The script refuses freeze after failing QA or an INCONCLUSIVE invocation, because the record requires passing QA rows and a trailer per invocation. Without `ask` UI, report the numbers and options and stop. Under Risk tier `internal-tooling` a STOP at wave 3 or later is the fix-round cap: offer freeze or re-plan only; the script refuses continue there. Work that needs more rounds is product: re-tier it as in Phase 0.5, after which continue is legal.
+-4. Each fix is first an `N.` row under `## TODOs`. A fix that adds a subsystem (process, proxy, store, staging tree, daemon, endpoint) is not a row: stop and plan it separately. Implement and commit.
++4. Each fix is first an `N.` row under `## TODOs`. A fix that adds a subsystem (process, proxy, store, staging tree, daemon, endpoint) is not a row: stop and plan it separately. Implement and commit. Verify in proportion: after each fix, the changed module's own tests plus RED for each new test; the full suite once per fix round, after its last code commit and before the next snapshot. A commit exempted in step 5 needs no tests.
+ 5. Review each contiguous commit range once, naming every row it implements:
++   Exempt instead, at your judgement, a commit that changes no behaviour and no review input: a final-verification checkbox, a comment, prose that no reviewer brief or criterion reads. Run `GC exempt --sha <commit> --reason <what it changes>`; the reason is in the ledger, so a wrong exemption stays visible. Like a delta verdict, an exemption decides the commit for the whole gate, F2 and F3 alike. Plan edits to criteria, residual risks, scope or `## TODOs` rows are review inputs: review them with their fix. A commit with a REJECT cannot be exempted. When in doubt, review.
+    a. `GC patch --base <base> --head <head> --out .omo/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.
+    b. Dispatch one `task` item: `agent: "plan-reviewer"`, `solutionSpace: "Review of a fix delta; defects unknown"`, `task:` the delta brief below.
+    c. Write the reviewer's structured result verbatim (copy the delivered payload or `read agent://<id>`, never retype it) to `verdict.json` in that directory, then run `GC delta --lane F2 --dir <dir> --row <id> [--row <id>…]`.
+diff --git a/team-config/agent/skills/review-work/scripts/gate-convergence.mjs b/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
+index 0d656ac175..e977592215 100755
+--- a/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
++++ b/team-config/agent/skills/review-work/scripts/gate-convergence.mjs
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env node
+ // Gate-wave convergence and fix-delta coverage for review-work (F2) and integration-review (F3).
+ // The skills call this script; it is the only writer and judge of the gate_baseline,
+-// fix_delta_review, gate_wave, convergence_decision and risk_tier_change ledger events. Every decision is
++// fix_delta_review, delta_exemption, gate_wave, convergence_decision and risk_tier_change ledger events. Every decision is
+ // deterministic and every undecidable state refuses rather than guesses.
+ import { execFileSync, spawnSync } from "node:child_process"
+ import { createHash } from "node:crypto"
+@@ -15,7 +15,7 @@ const fail = (message) => {
+   throw new GateError(message)
+ }
+ 
+-const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "gate_wave", "convergence_decision", "risk_tier_change"])
++const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "delta_exemption", "gate_wave", "convergence_decision", "risk_tier_change"])
+ const TIERS = new Set(["product", "internal-tooling"])
+ const TOOLING_FIX_ROUNDS = 2
+ const LANES = new Set(["F2", "F3"])
+@@ -86,6 +86,7 @@ const SHAPES = {
+     verdict_sha256: (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v),
+     round: (v) => Number.isInteger(v) && v >= 1,
+   },
++  delta_exemption: { sha: isSha, reason: isString },
+   gate_wave: {
+     lane: (v) => LANES.has(v),
+     wave: (v) => Number.isInteger(v) && v >= 1,
+@@ -171,11 +172,13 @@ function laneWaves(events, lane) {
+   return waves
+ }
+ 
++// The latest ledger event naming a commit decides it: a delta verdict, or the orchestrator's
++// exemption for a commit that changes no behaviour and no review input.
+ function commitStates(repo, state, head) {
+-  const deltas = state.events.filter((e) => e.event === "fix_delta_review")
++  const verdicts = state.events.filter((e) => e.event === "fix_delta_review" || e.event === "delta_exemption")
+   return revList(repo, state.baseline, head).map((sha) => {
+     let latest
+-    for (const delta of deltas) if (delta.fix_shas.includes(sha)) latest = delta
++    for (const event of verdicts) if (event.event === "delta_exemption" ? event.sha === sha : event.fix_shas.includes(sha)) latest = event
+     const status = latest === undefined ? "unreviewed" : latest.verdict === "REJECT" ? "rejected" : "accepted"
+     return { sha, status }
+   })
+@@ -330,8 +333,11 @@ const commands = {
+     if (reasons.length > 0) fail(`not ready: ${reasons.join("; ")}`)
+     const wave = laneWaves(state.events, lane).length + 1
+     const dir = path.join(ctx.repo, ".omo", "gate-deltas")
+-    const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
+-    const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
++    // The ledger numbers waves per plan, so the files carry the plan key too: another plan gated in
++    // this checkout starts its own wave 1 instead of meeting this plan's write-once snapshot.
++    const prefix = `${lane}-${sha256(ctx.key).slice(0, 12)}-wave-${wave}`
++    const file = path.join(dir, `${prefix}.snapshot.json`)
++    const planCopy = path.join(dir, `${prefix}.plan.md`)
+     mkdirSync(dir, { recursive: true })
+     // A wave's snapshot is write-once: reviewers may already be reading its plan copy, so any rerun
+     // only re-prints an unchanged snapshot. Other bytes, another commit or a partial pair mean the
+@@ -448,6 +454,18 @@ const commands = {
+     console.log("RECORDED fix_delta_review verdict=accepted-risk")
+   },
+ 
++  exempt(ctx) {
++    if (!isString(ctx.values.reason)) fail("exempt needs --reason")
++    const state = gateState(ctx)
++    const sha = resolveCommit(ctx.repo, ctx.values.sha)
++    const found = commitStates(ctx.repo, state, resolveCommit(ctx.repo, "HEAD")).find((entry) => entry.sha === sha)
++    if (!found) fail(`${short(sha)} is not a commit in baseline..HEAD`)
++    // A REJECT is closed by a covering review or the user's accept, never by the orchestrator alone.
++    if (found.status === "rejected") fail(`${short(sha)} has a REJECT; review a covering range again or accept it`)
++    append(ctx.repo, { event: "delta_exemption", plan: ctx.key, sha, reason: ctx.values.reason })
++    console.log(`RECORDED delta_exemption ${short(sha)}`)
++  },
++
+   wave(ctx) {
+     const lane = requireLane(ctx.values)
+     const state = gateState(ctx)
+diff --git a/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs b/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
+index 699bde6f2f..6651ed5850 100644
+--- a/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs
+@@ -148,6 +148,27 @@ test("#given a fix commit after a wave #when ready runs #then it names the commi
+   assert.equal(after.stdout.trim(), "READY")
+ })
+ 
++test("#given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes in both lanes, while a rejected commit cannot be exempted in either", (t) => {
++  const s = sandbox(t)
++  s.gc("baseline", "--sha", "HEAD")
++  assert.equal(s.wave("F2", "--outcome", "qa=FAIL", "--blocker", "B1").status, 0)
++  const tick = s.commit("docs/plan.md", "- [x] F2\n", "tick F2")
++  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`unreviewed fix commit ${tick.slice(0, 12)}`))
++  assert.equal(s.gc("exempt", "--sha", tick).status, 1)
++  const exempted = s.gc("exempt", "--sha", tick, "--reason", "checkbox only")
++  assert.equal(exempted.status, 0, exempted.stderr)
++  // Like a delta verdict, an exemption decides the commit for the whole gate, so both lanes read it.
++  for (const lane of ["F2", "F3"]) assert.equal(s.gc("ready", "--lane", lane).stdout.trim(), "READY")
++  const base = s.head()
++  const fix = s.commit("src/a.ts", "line one\nbroken\nline three\n", "fix R1")
++  assert.equal(s.delta("F3", base, fix, "REJECT").result.status, 0)
++  const refused = s.gc("exempt", "--sha", fix, "--reason", "comment only")
++  assert.equal(refused.status, 1)
++  assert.match(refused.stderr, /has a REJECT/)
++  assert.equal(s.ledger().filter((e) => e.event === "delta_exemption").length, 1)
++  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`rejected fix commit ${fix.slice(0, 12)}`))
++})
++
+ test("#given a rejected commit #when only its amendment is approved #then it stays open until a covering range is accepted", (t) => {
+   const s = sandbox(t)
+   s.gc("baseline", "--sha", "HEAD")
+@@ -537,6 +558,25 @@ test("#given a plan copy without its snapshot JSON #when snapshot runs #then it
+   assert.equal(existsSync(file), false)
+ })
+ 
++test("#given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched", (t) => {
++  const s = sandbox(t)
++  s.gc("baseline", "--sha", "HEAD")
++  const first = s.gc("snapshot", "--lane", "F2")
++  const [firstFile, , firstPlanLine] = first.stdout.split("\n")
++  const firstJson = readFileSync(firstFile, "utf8")
++  const OTHER = ".omo/plans/other.md"
++  writeFileSync(path.join(s.repo, OTHER), "# other plan\n")
++  const other = (...args) => s.run(args[0], "--plan", OTHER, ...args.slice(1))
++  assert.equal(other("baseline", "--sha", "HEAD").status, 0)
++  const second = other("snapshot", "--lane", "F2")
++  assert.equal(second.status, 0, second.stderr)
++  const [secondFile, , secondPlanLine] = second.stdout.split("\n")
++  assert.notEqual(secondFile, firstFile)
++  assert.equal(readFileSync(secondPlanLine.replace(/^PLAN /, ""), "utf8"), "# other plan\n")
++  assert.equal(readFileSync(firstFile, "utf8"), firstJson)
++  assert.deepEqual(readFileSync(firstPlanLine.replace(/^PLAN /, "")), readFileSync(path.join(s.repo, PLAN)))
++})
++
+ test("#given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written", (t) => {
+   const s = sandbox(t)
+   s.gc("baseline", "--sha", "HEAD")

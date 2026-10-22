@@ -1,0 +1,33 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not yet establish a working or safely classified production deployment path.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The deployment path has no implementation starting point for either the migration command or the CI trigger. On a merge to main, the planned script alone will not establish that a job invokes it, and the repository does not establish what `bun run migrate` executes or how `PROD_DATABASE_URL` reaches it. A failed or absent deployment is reversible, but breaks the stated goal.",
+      "evidence": "The plan says “run from CI on every merge to main” and “runs `bun run migrate`,” but `/tmp/rrt5-repo/` contains only README, .gitignore and .omo, and a repository search found no `migrate` or `PROD_DATABASE_URL` references.",
+      "change": "Identify or specify the actual CI workflow, migration command and database connection contract, including how the secret reaches the migration process; add the necessary integration to the plan."
+    },
+    {
+      "area": "PROCESS 5 — Merge gate risk tier and mandatory class",
+      "defect": "The plan classifies a production database migration as internal tooling with no mandatory class. Normal execution reaches production data and modifies its schema, potentially irreversibly; it also uses a real CI credential. This excludes the required product gate and second reviewer.",
+      "evidence": "Approach: “reads `PROD_DATABASE_URL` from the CI secret store” and “runs `bun run migrate` against the production database”; Merge gate: “Mandatory class: none” and “Risk tier: internal-tooling.”",
+      "change": "Set the risk tier to product, classify the schema migration and real credential exposure appropriately, and require both review lanes."
+    },
+    {
+      "area": "CHECK 1 — Approach and verification",
+      "defect": "The plan passes a real production database credential into a process whose migration log is printed to CI, but supplies no holder/sink inventory, inherited redaction chokepoint, or sentinel control. If migration output or an error includes the connection string, the credential can reach CI logs; exposure is not reliably reversible without credential rotation.",
+      "evidence": "The plan reads `PROD_DATABASE_URL` and “prints the migration log to the CI job output”; its only verification checks that staging output lists applied migrations.",
+      "change": "Inventory credential holders and all output/error sinks, establish a shared redaction or safe-output chokepoint, and test sentinel-bearing inputs against every resulting artifact."
+    },
+    {
+      "area": "Merge gate — Feature-specific criteria boundary",
+      "defect": "The criterion names a boundary that does not exist in the repository, so the required review cannot locate the contract surface. The planned new script does not yet establish where the once-only behavior is actually enforced.",
+      "evidence": "The criterion specifies “Boundary: scripts/deploy-prod.sh”; the repository root has no scripts directory.",
+      "change": "Specify an existing migration enforcement boundary, or provide the concrete implementation location and contract that will exist before the gate review."
+    }
+  ],
+  "notes": []
+}
+```
