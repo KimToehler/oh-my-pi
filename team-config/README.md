@@ -135,9 +135,10 @@ fi
 rm -f "$TEAM"
 ```
 
-**Step 4.** Review what the copy replaced, re-apply anything you want to keep, then commit. Every change listed here replaced a
-local edit; the previous content of each path is still available with `git show HEAD:<path>` (for the schema
-directory: `git show HEAD:openspec/schemas/omp-gated/<file>`).
+**Step 4.** Review what the copy changed, re-apply anything you want to keep, then commit. On a first install the paths show
+up as new files. On an update the diff mixes the team's new version with the reversal of any local edits you had committed
+(lines you added appear as removed, files you added as deleted); the previous content of each path stays available with
+`git show HEAD:<path>` (for the schema directory: `git show HEAD:openspec/schemas/omp-gated/<file>`).
 
 ```sh
 git status -- openspec/config.yaml openspec/schemas/omp-gated scripts/validate-openspec-change.mjs
@@ -163,8 +164,10 @@ node scripts/validate-openspec-change.mjs openspec/changes/<change>
 
 The team validator enforces the `Negative control` scenario for every requirement block, exact gate
 classification, and a numbered task with exactly one `Verify:` command for every tracked checkbox (any marker OpenSpec
-counts, e.g. `[~]`). A change with no behavioural delta must declare `skip_specs: true` once at top level of `.openspec.yaml` (plain boolean; duplicate, quoted, nested or malformed forms are rejected) and then has no
-Markdown specs; a rename-only delta needs no scenarios. OpenSpec's own strict validator does not enforce project rules from
+counts, e.g. `[~]`). A change with no behavioural delta must declare `skip_specs: true` in `.openspec.yaml` and then has no
+Markdown specs. Once `skip_specs` appears there, the whole file must be flat top-level `key: value` lines with plain values and
+no repeated key, and `skip_specs` must be exactly `true` or `false`; anything else is rejected. A rename-only delta needs no
+scenarios. OpenSpec's own strict validator does not enforce project rules from
 `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment equivalent of the persisted
 telemetry setting.
 
