@@ -417,6 +417,20 @@ test("#given an internal-tooling gate whose plan moves to product #when commands
   assert.match(again.stderr, /this gate runs as product/)
 })
 
+test("#given an internal-tooling cap STOP #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded", (t) => {
+  const s = sandbox(t)
+  assert.equal(toolingStop(s).status, 3)
+  tierPlan(s, "product")
+  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+  assert.equal(retier.status, 0, retier.stderr)
+  assert.match(retier.stdout, /^STALE F2 wave 3: recorded before this retier/m)
+  const freeze = s.gc("decide", "--lane", "F2", "--choice", "freeze", "--by", "tim", "--reason", "t")
+  assert.equal(freeze.status, 1)
+  assert.match(freeze.stderr, /F2 wave 3 predates the retier to product/)
+  assert.equal(s.ledger().filter((e) => e.event === "convergence_decision").length, 0)
+  assert.equal(s.gc("decide", "--lane", "F2", "--choice", "continue", "--by", "tim", "--reason", "t").status, 0)
+})
+
 test("#given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")

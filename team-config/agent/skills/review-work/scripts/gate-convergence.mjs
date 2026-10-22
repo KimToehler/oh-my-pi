@@ -573,6 +573,12 @@ const commands = {
     if (state.tier === "internal-tooling" && last.wave > TOOLING_FIX_ROUNDS && ctx.values.choice === "continue") {
       fail(`internal-tooling allows ${TOOLING_FIX_ROUNDS} fix rounds per lane: choose freeze or replan, or re-tier the plan to product (retier) to continue`)
     }
+    // Reviewers of a wave recorded before a retier read the internal-tooling plan, so its verdicts
+    // cannot be frozen into a product record; a new wave reviews the current plan.
+    const retierIndex = state.events.findLastIndex((e) => e.event === "risk_tier_change")
+    if (ctx.values.choice === "freeze" && state.events.indexOf(last) < retierIndex) {
+      fail(`${lane} wave ${last.wave} predates the retier to product, so its reviewers saw the internal-tooling plan: choose continue or replan`)
+    }
     if (lane === "F2" && ctx.values.choice === "freeze") {
       const outcomes = Object.values(last.outcomes)
       if (last.outcomes.qa !== "PASS" || outcomes.includes("INCONCLUSIVE")) {
@@ -591,6 +597,10 @@ const commands = {
     if (ctx.planTier !== "product") fail("set - Risk tier: product in the plan before retier")
     append(ctx.repo, { event: "risk_tier_change", plan: ctx.key, from: "internal-tooling", to: "product", by: ctx.values.by, reason: ctx.values.reason })
     console.log("RECORDED risk_tier_change internal-tooling -> product")
+    for (const lane of LANES) {
+      const last = laneWaves(state.events, lane).at(-1)
+      if (last) console.log(`STALE ${lane} wave ${last.wave}: recorded before this retier; run a new ${lane} wave before Phase 4 or freeze`)
+    }
   },
 }
 
