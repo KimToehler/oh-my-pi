@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Gate-wave convergence and fix-delta coverage for review-work (F2) and integration-review (F3).
 // The skills call this script; it is the only writer and judge of the gate_baseline,
-// fix_delta_review, gate_wave, convergence_decision and risk_tier_change ledger events. Every decision is
+// fix_delta_review, delta_exemption, gate_wave, convergence_decision and risk_tier_change ledger events. Every decision is
 // deterministic and every undecidable state refuses rather than guesses.
 import { execFileSync, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -15,7 +15,7 @@ const fail = (message) => {
   throw new GateError(message)
 }
 
-const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "gate_wave", "convergence_decision", "risk_tier_change"])
+const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "delta_exemption", "gate_wave", "convergence_decision", "risk_tier_change"])
 const TIERS = new Set(["product", "internal-tooling"])
 const TOOLING_FIX_ROUNDS = 2
 const LANES = new Set(["F2", "F3"])
@@ -86,6 +86,7 @@ const SHAPES = {
     verdict_sha256: (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v),
     round: (v) => Number.isInteger(v) && v >= 1,
   },
+  delta_exemption: { sha: isSha, reason: isString },
   gate_wave: {
     lane: (v) => LANES.has(v),
     wave: (v) => Number.isInteger(v) && v >= 1,
@@ -171,11 +172,13 @@ function laneWaves(events, lane) {
   return waves
 }
 
+// The latest ledger event naming a commit decides it: a delta verdict, or the orchestrator's
+// exemption for a commit that changes no behaviour and no review input.
 function commitStates(repo, state, head) {
-  const deltas = state.events.filter((e) => e.event === "fix_delta_review")
+  const verdicts = state.events.filter((e) => e.event === "fix_delta_review" || e.event === "delta_exemption")
   return revList(repo, state.baseline, head).map((sha) => {
     let latest
-    for (const delta of deltas) if (delta.fix_shas.includes(sha)) latest = delta
+    for (const event of verdicts) if (event.event === "delta_exemption" ? event.sha === sha : event.fix_shas.includes(sha)) latest = event
     const status = latest === undefined ? "unreviewed" : latest.verdict === "REJECT" ? "rejected" : "accepted"
     return { sha, status }
   })
@@ -449,6 +452,18 @@ const commands = {
       reason: ctx.values.reason,
     })
     console.log("RECORDED fix_delta_review verdict=accepted-risk")
+  },
+
+  exempt(ctx) {
+    if (!isString(ctx.values.reason)) fail("exempt needs --reason")
+    const state = gateState(ctx)
+    const sha = resolveCommit(ctx.repo, ctx.values.sha)
+    const found = commitStates(ctx.repo, state, resolveCommit(ctx.repo, "HEAD")).find((entry) => entry.sha === sha)
+    if (!found) fail(`${short(sha)} is not a commit in baseline..HEAD`)
+    // A REJECT is closed by a covering review or the user's accept, never by the orchestrator alone.
+    if (found.status === "rejected") fail(`${short(sha)} has a REJECT; review a covering range again or accept it`)
+    append(ctx.repo, { event: "delta_exemption", plan: ctx.key, sha, reason: ctx.values.reason })
+    console.log(`RECORDED delta_exemption ${short(sha)}`)
   },
 
   wave(ctx) {
