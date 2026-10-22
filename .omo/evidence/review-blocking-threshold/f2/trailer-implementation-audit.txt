@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+No blocker found. The reviewed prompts apply the shared threshold and require numbered blocker lines; the validator reconciles FAIL trailers with those lines and requires a downgrade for each listed blocker. The documented gate outcome distinguishes an override from a PASS.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+The validator rejects an override over an INCONCLUSIVE invocation and rejects missing, duplicate, or mismatched blocker and downgrade entries. The implementation preserves the `passed` / `overridden` / `blocked` stdout outcomes. I found no implementation of the excluded Plan B features in the supplied diff.
+
+## 3. Security and privacy delta
+
+No new data recipient or movement of a data class is evident in the supplied diff. The change affects review and gate decisions, including decisions about security findings, but I found no substantiated protected-asset security regression.
+
+## 4. Verification adequacy
+
+I reviewed the reconciliation tests, the stored team-config result, real-trailer validation output, reviewer transcripts, and the final integration report. The stored real-trailer evidence shows both a successful override with one downgrade per FAIL invocation and rejection when one is missing.
+
+**Non-blocking evidence limitation:** the plan-reviewer’s below-threshold transcript asks for QA of existing `.env` files rather than describing a concrete defect. The supplied criterion explicitly accepts that note by Tim’s decision; it is therefore not a blocker, but it is weaker evidence of defect classification than the other below-threshold transcripts. Reviewer judgment remains nondeterministic. I did not run checks.
+
+## 5. Final
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A missing reviewer result cannot become an authorized completed review merely because another invocation supplied actionable findings.
+  positive_witness: Two FAIL invocations with complete trailers and a downgrade for each listed finding produce an overridden outcome.
+  negative_control: One FAIL invocation and one INCONCLUSIVE invocation accompanied by an override produce an overridden outcome.
+  observable: The validator exits zero with overridden for the positive case and exits nonzero with an INCONCLUSIVE diagnostic for the negative case.
+  boundary: validateRecord verdict processing in validate-gate-record.mjs.
+END-REVIEW-TRAILER

@@ -143,6 +143,8 @@ function buildTrailer(overrides = {}) {
     model_id: "onara/cc/claude-opus-5",
     security_delta: "no",
     verdict: "PASS",
+    blockers: null,
+    narrative: "Narrative findings precede the trailer.",
     criteria: [
       {
         invariant: "an incomplete brief cannot produce a passing record",
@@ -155,7 +157,7 @@ function buildTrailer(overrides = {}) {
     ...overrides,
   }
   const head = ["REVIEW-TRAILER-v1"]
-  for (const key of ["invocation", "sections_covered", "model_id", "security_delta", "verdict"]) {
+  for (const key of ["invocation", "sections_covered", "model_id", "security_delta", "verdict", "blockers"]) {
     if (fields[key] !== null) head.push(`${key}: ${fields[key]}`)
   }
   head.push("adversarial_criteria:")
@@ -165,7 +167,7 @@ function buildTrailer(overrides = {}) {
     for (const [key, value] of entries.slice(1)) head.push(`  ${key}: ${value}`)
   }
   head.push("END-REVIEW-TRAILER")
-  return `Narrative findings precede the trailer.\n\n${head.join("\n")}\n`
+  return `${fields.narrative}\n\n${head.join("\n")}\n`
 }
 
 // Writes a trailer under a tracked repo path and points the record's verdict at it.
@@ -255,6 +257,66 @@ test("#given legitimate override with FAIL verdict #when validated #then exits z
   const result = run({ ...record, reviewed_sha: head })
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, "overridden\n", "an override must not be indistinguishable from a full PASS")
+})
+
+// Blocker reconciliation. An override over a FAIL may leave blockers unfixed only by naming each one
+// in `downgrades`; the trailer's `blockers:` list must equal the reply's own `Blocker B<n>:` lines,
+// so neither an omitted trailer id nor an omitted narrative blocker can drop a finding silently.
+function overrideRecord(mutate = () => {}) {
+  const record = { ...fixtureByName("override-with-fail.json"), reviewed_sha: head }
+  mutate(record)
+  return record
+}
+
+const downgradeOf = (blocker, rule = "below-threshold") => ({
+  invocation: "implementation-audit",
+  blocker,
+  rule,
+  reason: "local dev default only; no protected asset reachable",
+  disposition: "residual",
+})
+
+const failTrailer = (blockers, narrative) => buildTrailer({ verdict: "FAIL", blockers, narrative })
+
+const blockedReconciliations = [
+  ["two trailer blockers with one downgrade", overrideRecord(), failTrailer("B1, B2", "Blocker B1: a\nBlocker B2: b"), /blocker B2 of implementation-audit has no downgrade entry/],
+  ["a narrative blocker the trailer omits", overrideRecord(), failTrailer("B1", "Blocker B1: a\nBlocker B2: b"), /narrative reports B2/],
+  ["a trailer id without a narrative blocker", overrideRecord((r) => { r.downgrades.push(downgradeOf("B2")) }), failTrailer("B1, B2", "Blocker B1: a"), /no narrative Blocker B2/],
+  ["a FAIL trailer without blockers", overrideRecord(), failTrailer(null, "Blocker B1: a"), /blockers/],
+  ["a repeated trailer blocker id", overrideRecord(), failTrailer("B1, B1", "Blocker B1: a"), /repeats a blocker id/],
+  ["two narrative lines with the same blocker id", overrideRecord(), failTrailer("B1", "Blocker B1: a\nBlocker B1: b"), /narrative repeats Blocker B1/],
+  ["a PASS trailer listing blockers", validRecord(), buildTrailer({ blockers: "B1" }), /only a FAIL trailer lists blockers/],
+]
+
+for (const [name, record, trailer, expected] of blockedReconciliations) {
+  test(`#given ${name} #when validated #then it blocks naming the gap`, () => {
+    const result = runWithTrailer(record, trailer)
+    assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+    assert.match(result.stderr, expected)
+  })
+}
+
+const blockedDowngrades = [
+  ["an override over FAIL without downgrades", overrideRecord((r) => { delete r.downgrades }), "downgrades"],
+  ["an unknown downgrade rule", overrideRecord((r) => { r.downgrades[0].rule = "nitpick" }), "downgrades\\.0\\.rule"],
+  ["an unknown downgrade disposition", overrideRecord((r) => { r.downgrades[0].disposition = "later" }), "downgrades\\.0\\.disposition"],
+  ["a downgrade for a blocker the trailer does not list", overrideRecord((r) => { r.downgrades[0].blocker = "B7" }), "downgrades\\.0\\.blocker"],
+  ["a downgrade naming a non-FAIL invocation", overrideRecord((r) => { r.downgrades[0].invocation = "strategic-risk-review" }), "downgrades\\.0\\.invocation"],
+  ["a multi-line downgrade reason", overrideRecord((r) => { r.downgrades[0].reason = "one\ntwo" }), "downgrades\\.0\\.reason"],
+  ["the same blocker downgraded twice", overrideRecord((r) => { r.downgrades.push(downgradeOf("B1", "frozen")) }), "downgrades the same blocker twice"],
+  ["downgrades on a full PASS record", (() => { const r = validRecord(); r.downgrades = [downgradeOf("B1")]; return r })(), "downgrades"],
+]
+
+for (const [name, record, field] of blockedDowngrades) {
+  test(`#given ${name} #when validated #then ${field.replaceAll("\\", "")} blocks`, () => {
+    expectBlocked(record, field)
+  })
+}
+
+test("#given two narrative blockers, a matching trailer and one downgrade each #when validated #then exits zero", () => {
+  const record = overrideRecord((r) => { r.downgrades.push(downgradeOf("B2", "frozen")) })
+  const result = runWithTrailer(record, failTrailer("B1, B2", "Blocker B1: a\n**Blocker B2**: b"))
+  assert.equal(result.status, 0, result.stderr)
 })
 
 const mutations = [
@@ -800,6 +862,31 @@ test("#given two verdicts pointing at one identical trailer artifact #when valid
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+// An override signs off on findings a reviewer actually delivered. An INCONCLUSIVE invocation
+// delivered none, so overriding it would let a missing review pass as a completed one.
+test("#given an override over an INCONCLUSIVE-only verdict #when validated #then it blocks", () => {
+  const record = validRecord()
+  record.verdicts[0].verdict = "INCONCLUSIVE"
+  record.override = { by: "tim", reason: "reviewer timed out" }
+  const result = runWithTrailer(record, buildTrailer({ verdict: "INCONCLUSIVE" }))
+  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
+})
+
+test("#given an override over FAIL plus INCONCLUSIVE #when validated #then it blocks", () => {
+  const record = twoInvocationRecord()
+  record.verdicts[0].verdict = "FAIL"
+  record.verdicts[1].verdict = "INCONCLUSIVE"
+  record.override = { by: "tim", reason: "freeze" }
+  record.downgrades = [{ invocation: "implementation-audit", blocker: "B1", rule: "frozen", reason: "frozen at STOP", disposition: "follow-up" }]
+  const result = runWithTrailers(record, [
+    buildTrailer({ verdict: "FAIL", blockers: "B1", narrative: "Blocker B1: a" }),
+    buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4", verdict: "INCONCLUSIVE" }),
+  ])
+  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
+  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
 })
 
 test("#given a trailer whose invocation names another lane #when validated #then invocation blocks", () => {

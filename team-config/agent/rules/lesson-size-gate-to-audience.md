@@ -18,6 +18,12 @@ Every dual-review wave found new sinks, and the one thing that mattered was neve
 comparison with a decision-eligible result. The user stopped it with "it doesn't need to be perfect.
 It needs to work and deliver real value."
 
+A product repo's dev tooling hit the same loop: a dev-env script that writes a local .env ran about
+eight fix-delta rounds over NUL bytes and short reads, and a local docs-check script ran seven F2
+waves, while the product milestones had not started. Every round counted every finding as a
+blocker. Reviewers now mark blockers only against the shared blocking threshold, and every blocker
+the gate leaves unfixed goes into the record's downgrades with the user's override.
+
 **How to apply:**
 - Personal, local-only tool: put `- Merge gate: not applicable (<reason>)` in the plan. Threat model
   = accidents that corrupt your own results, not an adversary on your own machine.

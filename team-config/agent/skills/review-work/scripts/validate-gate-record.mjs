@@ -392,7 +392,10 @@ function parseTrailer(text, field) {
     block(field, "carries more than one trailer block; an appended block would override what the reviewer actually answered")
   }
   if (closeIndexes[0] < openIndexes[0]) block(field, "trailer close marker precedes its open marker")
-  return parseTrailerBody(lines.slice(openIndexes[0] + 1, closeIndexes[0]), field)
+  // The reply around the block is the reviewer's narrative: its `Blocker B<n>:` lines are the
+  // findings the trailer's `blockers:` list must account for.
+  const narrative = lines.slice(0, openIndexes[0]).concat(lines.slice(closeIndexes[0] + 1))
+  return { ...parseTrailerBody(lines.slice(openIndexes[0] + 1, closeIndexes[0]), field), narrative }
 }
 
 function parseTrailerBody(lines, field) {
@@ -413,7 +416,7 @@ function parseTrailerBody(lines, field) {
 
 function validateTrailer(trailer, options) {
   const { field, invocation, recordVerdict, resolvedModel, planText } = options
-  const { scalars, criteria } = trailer
+  const { scalars, criteria, narrative } = trailer
 
   // Without this binding a single dispatched reviewer satisfies every recorded invocation: the
   // section sets nest (1,2,3,4 is a subset of 1,2,3,4,5) and the model check only discriminates
@@ -453,6 +456,11 @@ function validateTrailer(trailer, options) {
     block(`${field}.verdict`, `trailer reports ${scalars.verdict} but the record claims ${recordVerdict}`)
   }
 
+  // An override may leave a FAIL's blockers unfixed only by downgrading each one, so the blocker
+  // list has to be complete: it must equal the reply's own `Blocker B<n>:` lines. Either list alone
+  // lets one finding drop out - an id the trailer omits, or a narrative blocker nobody numbered.
+  const blockerIds = reconcileBlockers(scalars, narrative, field)
+
   if (criteria.length === 0) {
     block(`${field}.adversarial_criteria`, "reviewer must generate at least one adversarial criterion of its own")
   }
@@ -473,7 +481,39 @@ function validateTrailer(trailer, options) {
     block(`${field}.adversarial_criteria`, "a criterion restates an invariant already in the plan; every criterion must be the reviewer's own")
   }
 
-  return { securityDelta: scalars.security_delta === "yes" }
+  return { securityDelta: scalars.security_delta === "yes", blockerIds }
+}
+
+const BLOCKER_LIST = /^B[1-9]\d*(?:\s*,\s*B[1-9]\d*)*$/
+const NARRATIVE_BLOCKER = /^\s*(?:[-*]\s+)?(?:\*\*)?Blocker (B[1-9]\d*)(?:\*\*)?\s*:/
+
+function reconcileBlockers(scalars, narrative, field) {
+  if (scalars.verdict !== "FAIL") {
+    if (scalars.blockers !== undefined && scalars.blockers !== "none") {
+      block(`${field}.blockers`, "only a FAIL trailer lists blockers; a PASS or INCONCLUSIVE trailer carries none or omits the line")
+    }
+    return []
+  }
+  if (typeof scalars.blockers !== "string" || !BLOCKER_LIST.test(scalars.blockers)) {
+    block(`${field}.blockers`, "a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled")
+  }
+  const ids = scalars.blockers.split(",").map((id) => id.trim())
+  if (new Set(ids).size !== ids.length) block(`${field}.blockers`, "repeats a blocker id")
+  // Two findings under one id would let a single downgrade account for both, so each narrative id
+  // must name exactly one finding.
+  const narrativeIds = narrative.flatMap((line) => NARRATIVE_BLOCKER.exec(line)?.[1] ?? [])
+  const reported = new Set()
+  for (const id of narrativeIds) {
+    if (reported.has(id)) block(`${field}.blockers`, `narrative repeats Blocker ${id}; each finding needs its own id`)
+    reported.add(id)
+  }
+  for (const id of reported) {
+    if (!ids.includes(id)) block(`${field}.blockers`, `narrative reports ${id} but the trailer omits it`)
+  }
+  for (const id of ids) {
+    if (!reported.has(id)) block(`${field}.blockers`, `no narrative Blocker ${id}: line in the reply`)
+  }
+  return ids
 }
 
 // omp-local plan contract. Code fences and HTML comments are not plan content: a template or an
@@ -755,13 +795,19 @@ function validateRecord(record, context) {
   }
   let reportedSecurityDelta = false
   const trailerArtifacts = new Map()
+  const blockersByInvocation = new Map()
   for (const [index, verdict] of verdicts.entries()) {
     if (!reviewerSet.has(verdict.invocation)) block("verdicts", `invocation ${verdict.invocation} is not in reviewers_run`)
     if (!hasOverride && verdict.verdict !== "PASS") {
       block(`verdicts.${index}.verdict`, `${verdict.verdict ?? "missing"} blocks merge`)
     }
-    if (hasOverride && !new Set(["PASS", "FAIL", "INCONCLUSIVE"]).has(verdict.verdict)) {
-      block(`verdicts.${index}.verdict`, "must be PASS, FAIL, or INCONCLUSIVE")
+    // An override signs off on findings a reviewer delivered. INCONCLUSIVE delivered none, so it
+    // is re-run, never overridden; otherwise a missing review would pass as a completed one.
+    if (hasOverride && verdict.verdict === "INCONCLUSIVE") {
+      block(`verdicts.${index}.verdict`, "INCONCLUSIVE cannot be overridden; re-run the invocation")
+    }
+    if (hasOverride && verdict.verdict !== "PASS" && verdict.verdict !== "FAIL" && verdict.verdict !== "INCONCLUSIVE") {
+      block(`verdicts.${index}.verdict`, "must be PASS or FAIL")
     }
     // The reviewer's own trailer is the only witness of the brief it actually received. Deriving
     // the facts from it is what makes a folded brief fail loudly instead of silently.
@@ -786,6 +832,7 @@ function validateRecord(record, context) {
       planText: context.planText,
     })
     if (outcome.securityDelta) reportedSecurityDelta = true
+    blockersByInvocation.set(verdict.invocation, outcome.blockerIds)
   }
   // PHASE 3 - the SHA binding, once every artifact has been authenticated and pinned.
   // It cannot run earlier: the exemption set is now a by-product of `verifyAndPinArtifact`, so it is
@@ -813,9 +860,46 @@ function validateRecord(record, context) {
       block(`blockers.${index}.fix_sha`, "full 40-hex SHA required when PASS is claimed")
     }
   }
+  validateDowngrades(record, verdicts, hasOverride, blockersByInvocation)
   // An override reaching this point carries at least one non-PASS verdict (the full-PASS case
   // blocked above), so it must stay distinguishable from a clean PASS to anyone reading stdout.
   return hasOverride ? "overridden" : "passed"
+}
+
+const DOWNGRADE_RULES = new Set(["below-threshold", "accepted-residual", "out-of-scope", "frozen"])
+const DOWNGRADE_DISPOSITIONS = new Set(["residual", "follow-up"])
+
+// An override over a FAIL leaves that reviewer's blockers unfixed. Each one must be accounted for
+// by name, with the rule that lets it go and where it goes; an override naming only some of them
+// would hide the rest behind one attributable signature.
+function validateDowngrades(record, verdicts, hasOverride, blockersByInvocation) {
+  const failing = new Set(verdicts.filter((entry) => entry.verdict === "FAIL").map((entry) => entry.invocation))
+  if (!hasOverride || failing.size === 0) {
+    if (Object.hasOwn(record, "downgrades")) block("downgrades", "only with an override over a FAIL verdict; nothing else leaves a blocker unfixed")
+    return
+  }
+  const seen = new Set()
+  for (const [index, entry] of requireArray(record, "downgrades").entries()) {
+    const at = `downgrades.${index}`
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) block(at, "must be an object")
+    if (!failing.has(entry.invocation)) block(`${at}.invocation`, "must name an invocation whose verdict is FAIL")
+    if (!blockersByInvocation.get(entry.invocation).includes(entry.blocker)) {
+      block(`${at}.blocker`, `${entry.blocker ?? "missing"} is not a blocker id in the ${entry.invocation} trailer`)
+    }
+    if (!DOWNGRADE_RULES.has(entry.rule)) block(`${at}.rule`, "must be below-threshold, accepted-residual, out-of-scope, or frozen")
+    if (typeof entry.reason !== "string" || entry.reason.trim() === "" || entry.reason.includes("\n")) {
+      block(`${at}.reason`, "must be one non-empty line")
+    }
+    if (!DOWNGRADE_DISPOSITIONS.has(entry.disposition)) block(`${at}.disposition`, "must be residual or follow-up")
+    const key = `${entry.invocation}/${entry.blocker}`
+    if (seen.has(key)) block(at, "downgrades the same blocker twice")
+    seen.add(key)
+  }
+  for (const invocation of failing) {
+    for (const id of blockersByInvocation.get(invocation)) {
+      if (!seen.has(`${invocation}/${id}`)) block("downgrades", `blocker ${id} of ${invocation} has no downgrade entry`)
+    }
+  }
 }
 
 function main() {

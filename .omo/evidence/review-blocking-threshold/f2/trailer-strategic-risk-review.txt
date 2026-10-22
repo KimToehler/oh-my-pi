@@ -1,0 +1,35 @@
+**Bottom line:** The change holds together: reviewer prose, trailer structure, validator reconciliation, downgrade accounting, and gate-proof reporting form one coherent override contract without collapsing an override into PASS. I found no blocker meeting the supplied threshold.
+
+**Action plan:**
+1. **Architecture:** The reviewer paths consistently classify findings before the validator accounts for them. `review-work/SKILL.md` requires numbered blocker lines and truthful `FAIL overridden` reporting; `validate-gate-record.mjs` reconciles narrative IDs, trailer IDs, and one downgrade per blocker.
+2. **What line-level audit structurally misses:** The policy remains partly semantic. The validator can enforce the shape of `below-threshold`, `accepted-residual`, `out-of-scope`, and `frozen` entries, but cannot prove that a reason is truthful, that a follow-up location is real, or that consent occurred in the current session. This is non-blocking because the design intentionally makes the attributable user override—not mechanical policy inference—the authorization boundary.
+3. **Highest-consequence failure:** A reviewer could misclassify a realistic protected-asset regression as a note, especially tenant-isolation or credential exposure. The shared threshold, mandatory dual-review classes, above-threshold tenant fixture, explicit downgrade ledger, and `FAIL overridden` presentation address that risk adequately; reviewer judgment remains the plan’s accepted residual risk.
+4. **Auditor findings:** None is a false positive about unchanged behavior. Its only finding is an evidence-strength limitation in the plan-reviewer below-threshold probe, and the QA matrix records the user’s explicit acceptance of that interpretation.
+5. **Non-blocking maintenance note:** The threshold is duplicated across several prompt surfaces, with intentional adaptations in `plan-reviewer.md` and the auditor fallback. Future edits should continue checking all copies together to prevent classification drift.
+6. **Non-blocking accountability note:** Human review must continue rejecting misleading downgrade reasons even when the JSON is structurally valid; the validator is an accounting mechanism, not a semantic proof engine.
+
+**Effort:** Quick (<1h)
+
+**Confidence:** Medium—the supplied diff, plan, QA matrix, and audit findings are internally consistent, but the assignment prohibited reading surrounding repository context or independently exercising the evidence.
+
+**Watch out for:**
+- Drift between duplicated threshold text.
+- Treating structurally valid downgrade metadata as proof that its rationale is true.
+- Reporting an overridden FAIL as PASS in downstream handoffs despite the updated gate-proof contract.
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A merge-permitting override remains visibly distinguishable from a clean PASS at both the machine-validation boundary and the human gate-proof boundary.
+  positive_witness: A complete FAIL override with one downgrade per blocker produces validator stdout `overridden` and is reported as `FAIL overridden` with attributable override and downgrade counts.
+  negative_control: The same reviewed outcome is presented as PASS or without its override accounting.
+  observable: Validator stdout differs from `passed`, and the rendered Gate proof retains the FAIL verdict, override identity, and downgrade summary.
+  boundary: The `validateRecord` outcome in validate-gate-record.mjs and the final handoff contract in merge-gate-proof.md.
+END-REVIEW-TRAILER

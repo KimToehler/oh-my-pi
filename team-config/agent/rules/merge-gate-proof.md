@@ -15,18 +15,20 @@ Gate proof
   range <base>...<head> (literal SHAs) · report <tracked path> · Must-fix: <n> open / <n> fixed in <sha>
 - review-work: RAN | NOT RUN (<reason>)
   reviewed_sha <40-hex> · plan_sha256 <hex>
-  implementation-audit: <PASS|FAIL> · <agent> · <model> · trailer <path>
-  strategic-risk-review: <PASS|FAIL|not run (reason)> · trailer <path>
+  implementation-audit: <PASS|FAIL|FAIL overridden> · <agent> · <model> · trailer <path>
+  strategic-risk-review: <PASS|FAIL|FAIL overridden|not run (reason)> · trailer <path>
+  override: none | by <user> · <n> downgrades (<count per rule>)
   record <path> · validate-gate-record.mjs exit 0 at <HEAD sha>
 - code committed after reviewed_sha: none | <shas> → gate void, re-run
 ```
 
-Each line has one of three outcomes:
+Each line has one of four outcomes:
 - passed: `RAN` with `PASS` verdicts and the record validated;
+- overridden: `RAN`, every FAIL carries an override the user gave in this session, one `downgrades` entry per blocker, and the record validated; write the verdict as `FAIL overridden` and fill the override line;
 - legitimately skipped: integration-review `not needed (<plan's Whole-diff review reason>)`, or strategic-risk-review `not run (<reason>)` when review-work's depth rule chose one reviewer; never for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers;
 - not passed: anything else, written as `NOT RUN (<reason>)` or `FAIL`.
 
-Only passed and legitimately skipped lines allow a merge request. If any line is not passed, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
+Only passed, overridden and legitimately skipped lines allow a merge request. If any line is neither passed, overridden, nor legitimately skipped, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
 
 ## What "ran in full" means
 

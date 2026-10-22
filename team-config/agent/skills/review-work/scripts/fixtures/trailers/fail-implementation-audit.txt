@@ -6,6 +6,7 @@ sections_covered: 1,2,3,4,5
 model_id: onara/cc/claude-opus-5
 security_delta: no
 verdict: FAIL
+blockers: B1
 adversarial_criteria:
 - invariant: every severity band retains at least one enforcement layer
   positive_witness: each band rejects its own out-of-range input
