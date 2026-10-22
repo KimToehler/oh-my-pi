@@ -333,28 +333,36 @@ const commands = {
     const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
     const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
     mkdirSync(dir, { recursive: true })
-    const tree = git(ctx.repo, ["rev-parse", "HEAD^{tree}"])
-    // Reviewers may already hold this wave's copy. Replacing it with other bytes would let their
-    // results be recorded against a plan they never read, so a changed wave needs a deliberate restart.
-    if (existsSync(file)) {
+    // A wave's snapshot is write-once: reviewers may already be reading its plan copy, so any rerun
+    // only re-prints an unchanged snapshot. Other bytes, another commit or a partial pair mean the
+    // wave must be restarted deliberately, with every reviewer re-dispatched.
+    if (existsSync(file) || existsSync(planCopy)) {
       let previous
+      let copyBytes
       try {
         previous = JSON.parse(readFileSync(file, "utf8"))
+        copyBytes = readFileSync(planCopy)
       } catch {
         previous = undefined
       }
-      if (previous?.plan_sha256 !== ctx.planSha256 || previous?.tree !== tree) {
+      const same =
+        previous !== undefined &&
+        previous.sha === head &&
+        previous.plan_sha256 === ctx.planSha256 &&
+        previous.plan_copy === path.relative(ctx.repo, planCopy) &&
+        sha256(copyBytes) === ctx.planSha256
+      if (!same) {
         fail(
-          `${lane} wave ${wave} was already snapshotted on other plan bytes or code; reviewers may hold the old copy. ` +
+          `${lane} wave ${wave} already has a snapshot on other plan bytes or another commit, or an incomplete one; reviewers may hold the old copy. ` +
             `Delete ${path.relative(ctx.repo, file)} and ${path.relative(ctx.repo, planCopy)}, then snapshot again and re-dispatch every reviewer of this wave`,
         )
       }
+      return console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
     }
-    if (existsSync(planCopy)) chmodSync(planCopy, 0o600)
-    writeFileSync(planCopy, ctx.planBytes)
+    writeFileSync(planCopy, ctx.planBytes, { flag: "wx" })
     chmodSync(planCopy, 0o444)
-    const record = { lane, wave, sha: head, tree, plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
-    writeFileSync(file, `${JSON.stringify(record)}\n`)
+    const record = { lane, wave, sha: head, tree: git(ctx.repo, ["rev-parse", "HEAD^{tree}"]), plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
+    writeFileSync(file, `${JSON.stringify(record)}\n`, { flag: "wx" })
     console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
   },
 

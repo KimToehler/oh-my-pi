@@ -474,7 +474,9 @@ test("#given a same-tier plan edit between snapshot and wave #when the wave reco
   assert.equal(waveEvents(s).length, 0)
 })
 
-test("#given an unrecorded wave snapshot #when snapshot reruns on other plan bytes #then it refuses and keeps the dispatched copy until both files are deleted", (t) => {
+const REFUSED_RESNAPSHOT = /F2 wave 1 already has a snapshot on other plan bytes or another commit, or an incomplete one/
+
+test("#given an unrecorded wave snapshot #when snapshot reruns unchanged #then neither file is rewritten, and other plan bytes are refused until both files are deleted", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")
   const first = s.gc("snapshot", "--lane", "F2")
@@ -483,11 +485,16 @@ test("#given an unrecorded wave snapshot #when snapshot reruns on other plan byt
   const copy = planLine.replace(/^PLAN /, "")
   const dispatched = readFileSync(copy)
   const json = readFileSync(file, "utf8")
-  assert.equal(s.gc("snapshot", "--lane", "F2").status, 0, "an identical re-snapshot stays allowed")
+  const written = [statSync(copy).mtimeMs, statSync(file).mtimeMs]
+  const again = s.gc("snapshot", "--lane", "F2")
+  assert.equal(again.status, 0, again.stderr)
+  assert.equal(again.stdout, first.stdout)
+  assert.deepEqual([statSync(copy).mtimeMs, statSync(file).mtimeMs], written)
+  assert.equal(statSync(copy).mode & 0o777, 0o444)
   appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
   const refused = s.gc("snapshot", "--lane", "F2")
   assert.equal(refused.status, 1)
-  assert.match(refused.stderr, /F2 wave 1 was already snapshotted on other plan bytes or code/)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
   assert.deepEqual(readFileSync(copy), dispatched)
   assert.equal(readFileSync(file, "utf8"), json)
   rmSync(file)
@@ -497,6 +504,37 @@ test("#given an unrecorded wave snapshot #when snapshot reruns on other plan byt
   assert.equal(retaken.status, 0, retaken.stderr)
   assert.notDeepEqual(readFileSync(copy), dispatched)
   assert.equal(waveEvents(s).length, 0)
+})
+
+test("#given an unrecorded wave snapshot #when a new commit with the same tree lands and snapshot reruns #then it is refused and the dispatched SHA stays", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const file = first.stdout.split("\n")[0]
+  const json = readFileSync(file, "utf8")
+  s.git("commit", "-q", "--allow-empty", "-m", "empty")
+  const delta = s.delta("F2", JSON.parse(json).sha, s.head(), "OKAY")
+  assert.equal(delta.result.status, 0, delta.result.stderr)
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
+  assert.equal(readFileSync(file, "utf8"), json)
+})
+
+test("#given a plan copy without its snapshot JSON #when snapshot runs #then it is refused and the copy is not replaced", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const [file, , planLine] = first.stdout.split("\n")
+  const copy = planLine.replace(/^PLAN /, "")
+  const dispatched = readFileSync(copy)
+  rmSync(file)
+  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after the JSON was lost\n")
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
+  assert.deepEqual(readFileSync(copy), dispatched)
+  assert.equal(existsSync(file), false)
 })
 
 test("#given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written", (t) => {
