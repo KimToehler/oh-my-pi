@@ -426,6 +426,11 @@ From the worktree root:
 - A missing `Risk tier` means `product`. Ledgers and records written before this change keep their behaviour. Snapshots in flight lack `plan_sha256` and `plan_copy` and are refused; take a new snapshot.
 - If an isolated Verification 5 run fails authentication or twice classifies as `INFRA`, stop that row and report it. Do not install branch config into `~/.omp/agent`, because other sessions read it.
 
+## TODOs
+
+1. F3-B1: re-run Verification 5 so the inventory contract holds after the runs. Keep `$A` and `$C` as untouched templates; copy each into a fresh trial-owned directory per trial; extract natives with one warm-up smoke before the first scored trial. The pre- and post-run checks compare the templates. Every trial from the first run is reported as INFRA.
+2. F3 Should-fix: `lesson-size-gate-to-audience.md` limits `internal-tooling` to dev, CI, or proof tooling that reaches no protected asset, matching `plan-merge-gate.md`.
+
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over <main at worktree creation>...<head>
 - [ ] F1. Manual QA on the real surface: Verification 2-5 transcripts under `.omo/evidence/review-risk-tier/`, on the head after F3's last code commit
