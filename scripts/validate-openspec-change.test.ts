@@ -137,6 +137,40 @@ describe("validate-openspec-change", () => {
 		expect(run(root).exitCode).toBe(0);
 	});
 
+	it("accepts skip_specs true with a trailing comment", async () => {
+		const root = await fixture();
+		await fs.rm(path.join(root, "specs"), { recursive: true });
+		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\nskip_specs: true # no behaviour\n");
+		expect(run(root).exitCode).toBe(0);
+	});
+
+	it("treats skip_specs false as not skipped and keeps specs validated", async () => {
+		const root = await fixture();
+		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\nskip_specs: false\n");
+		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+
+	for (const [name, metadata] of [
+		["duplicate keys", "skip_specs: true\nskip_specs: false\n"],
+		["a quoted duplicate key", 'skip_specs: true\n"skip_specs": true\n'],
+		["a quoted key", '"skip_specs": true\n'],
+		["a quoted value", 'skip_specs: "true"\n'],
+		["a yes value", "skip_specs: yes\n"],
+		["a nested declaration", "meta:\n  skip_specs: true\n"],
+		["a list declaration", "- skip_specs: true\n"],
+		["an unterminated flow sequence", "schema: omp-gated\nskip_specs: true\nowner: [true\n"],
+		["a non-mapping line", "skip_specs: true\n[true\n"],
+	] as const) {
+		it(`rejects skip_specs metadata with ${name}`, async () => {
+			const root = await fixture();
+			await fs.rm(path.join(root, "specs"), { recursive: true });
+			await Bun.write(path.join(root, ".openspec.yaml"), metadata);
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(".openspec.yaml");
+		});
+	}
+
 	it("accepts a rename-only delta", async () => {
 		const root = await fixture();
 		await Bun.write(

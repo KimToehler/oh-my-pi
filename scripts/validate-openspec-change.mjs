@@ -162,6 +162,50 @@ function validateGate(text, errors) {
 	}
 }
 
+const METADATA_KEY = /^(?:"([^"\n]*)"|'([^'\n]*)'|([A-Za-z0-9_][A-Za-z0-9_.-]*))[ \t]*:(?:[ \t]+(.*))?$/;
+const SKIP_SPECS_KEY = /^[ \t]*(?:-[ \t]+)?["']?skip_specs["']?[ \t]*:/;
+const PLAIN_BOOLEAN = /^(true|false)[ \t]*(?:#.*)?$/;
+
+/**
+ * Dependency-free reading of `skip_specs` from `.openspec.yaml`. Honours it only when declared exactly once at top
+ * level as a plain unquoted boolean; anything OpenSpec's YAML parser would refuse or read differently is an error.
+ */
+function parseSkipSpecs(text, errors) {
+	let value;
+	let declarations = 0;
+	for (const line of text.split(/\r?\n/)) {
+		if (/^[ \t]*(?:#.*)?$/.test(line)) continue;
+		if (SKIP_SPECS_KEY.test(line)) {
+			declarations++;
+			const top = METADATA_KEY.exec(line);
+			const key = top && (top[1] ?? top[2] ?? top[3]);
+			if (key !== "skip_specs" || line.startsWith('"') || line.startsWith("'")) {
+				errors.push(".openspec.yaml: skip_specs must be a plain top-level key");
+				continue;
+			}
+			const boolean = PLAIN_BOOLEAN.exec((top?.[4] ?? "").trim());
+			if (boolean) value = boolean[1] === "true";
+			else errors.push(".openspec.yaml: skip_specs must be the plain boolean true or false");
+			continue;
+		}
+		if (/^[ \t]/.test(line)) continue;
+		const top = METADATA_KEY.exec(line);
+		const rest = top?.[4]?.trim() ?? "";
+		const open = rest.charAt(0);
+		const balanced =
+			open === "["
+				? /^\[.*\]/.test(rest)
+				: open === "{"
+					? /^\{.*\}/.test(rest)
+					: open === '"' || open === "'"
+						? rest.length > 1 && rest.indexOf(open, 1) > 0
+						: true;
+		if (!top || !balanced) errors.push(`.openspec.yaml: malformed metadata line: ${line.trim()}`);
+	}
+	if (declarations > 1) errors.push(".openspec.yaml: skip_specs is declared more than once");
+	return declarations === 1 && value === true;
+}
+
 export async function validateOpenSpecChange(changeDir) {
 	const errors = [];
 	const root = path.resolve(changeDir);
@@ -171,9 +215,7 @@ export async function validateOpenSpecChange(changeDir) {
 	const specs = await markdownFiles(path.join(root, "specs"));
 	const texts = new Map(await Promise.all(specs.map(async file => [file, await fs.readFile(file, "utf8")])));
 	const metadata = path.join(root, ".openspec.yaml");
-	const skipSpecs =
-		(await regularFile(metadata)) &&
-		/^skip_specs:[ \t]*true[ \t]*(?:#.*)?$/m.test(await fs.readFile(metadata, "utf8"));
+	const skipSpecs = (await regularFile(metadata)) && parseSkipSpecs(await fs.readFile(metadata, "utf8"), errors);
 	validateSpecs(specs, texts, skipSpecs, errors);
 	if (await regularFile(path.join(root, "tasks.md")))
 		validateTasks(await fs.readFile(path.join(root, "tasks.md"), "utf8"), errors);

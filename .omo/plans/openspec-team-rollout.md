@@ -11,6 +11,8 @@ Ship one versioned OpenSpec workflow for the team without replacing omp executio
 
 Decisions by Tim (2026-10-22): rollout is team-wide now; behaviour-changing features use OpenSpec and small work uses omp plan mode; independent review later follows option B (existing core cross-family review over the OpenSpec change folder) plus artifact hashes at merge time; all distributed material remains public and free.
 
+Decision by Tim (2026-10-22, after F3 delta round 1 REJECT): split distribution out of P3. P3 ships content only (commands, schema, validator) with a documented manual project setup; the project-local installer, the deploy-time OpenSpec CLI version check and the automatic telemetry opt-out move to `.omo/plans/openspec-distribution.md` (P3b) with its own gate.
+
 ## Scope
 
 Files:
@@ -22,7 +24,7 @@ Files:
 - `team-config/README.md` — CLI prerequisite, telemetry opt-out, usage and update path.
 - `.omo/plans/harness-integration.md` — roadmap status only.
 
-Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema installation; plan-mode writable roots; review/hash records; migration/deletion of `.omo` artifacts.
+Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema installation; plan-mode writable roots; review/hash records; migration/deletion of `.omo` artifacts; the project-local workflow installer, deploy-time OpenSpec CLI version check and telemetry opt-out automation (all P3b).
 
 ## Implementation
 
@@ -40,6 +42,8 @@ Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema in
 - [x] 9. Close `schema-validator-delta-operation-mismatch` across validator, schema, proposal template, and generated command contracts by accepting explicit `skip_specs` and every schema-supported delta operation while retaining Requirement negative controls where requirements exist. Verify: `bun test scripts/validate-openspec-change.test.ts && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.14.3 validate --strict --all`
 - [x] 10. Close `undistributed-project-local-workflow-dependencies` across `team-config/README.md`, project assets, and installer ownership with a concrete project-local setup/update command that installs the versioned schema, config, and validator without user-level schema installation. Verify: execute the documented setup in a separate initialized temporary repository, then run both strict validators there.
 - [ ] 11. Close `missing-f1-evidence` after the cleanup commit by rerunning every F1 scenario on the final F3 code SHA and storing one command-output evidence path per scenario under `.omo/evidence/openspec-team-rollout/`. Verify: evidence records the literal reviewed SHA and every command exit status.
+- [x] 12. Close `delta-r1-skip-specs-raw-text`: `scripts/validate-openspec-change.mjs` honours `skip_specs` only when `.openspec.yaml` declares it exactly once with a plain boolean, and rejects duplicate, non-boolean, quoted, nested or malformed declarations with a `.openspec.yaml` diagnostic, matching OpenSpec 1.14.3 which refuses that metadata. Verify: `bun test scripts/validate-openspec-change.test.ts`
+- [ ] 13. Close `delta-r1-installer-ownership`, `delta-r1-foreign-schema-setup` and `delta-r1-new-subsystem` by re-scoping row 10: remove `scripts/install-openspec-workflow.ts`, its test, `team-config/openspec-config.yaml` and the `test:team-config` entry from P3 (they move to P3b); document the manual project setup in `team-config/README.md` as exact copy steps for `openspec/schemas/omp-gated/` and `scripts/validate-openspec-change.mjs`, `schema: omp-gated` in `openspec/config.yaml`, no `openspec init` needed, and the fix when `openspec init` already wrote another schema. Verify: follow the README steps verbatim in a separate temporary git repository, then `openspec new change`, `openspec status` shows `omp-gated`, and both strict validators run there.
 
 ## Final verification wave
 
@@ -52,7 +56,7 @@ Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema in
 - Author's risk assessment: a broken schema or command can silently create incomplete plans across every team repo; impact is reversible before implementation but broad because distribution is user-wide
 - Mandatory class: none (planning artifacts only; no auth, schema migration, public wire contract or concurrent state machine changes)
 - Whole-diff review: needed (commands, schema, validator and team distribution span four layers)
-- Accepted residual risks: OpenSpec CLI installation stays manual, so an unprepared machine gets a clear command-not-found instead of automatic setup; P3a is required before OpenSpec changes receive the current ACP independent-review dialog
+- Accepted residual risks: OpenSpec CLI installation stays manual, so an unprepared machine gets a clear command-not-found instead of automatic setup; P3a is required before OpenSpec changes receive the current ACP independent-review dialog; until P3b lands, project setup and updates are manual copy steps and the deploy does not check the OpenSpec CLI version or set the telemetry opt-out
 - Out of scope for blocking: OpenSpec behaviour outside version 1.14.3 and non-omp harness adapters; they become follow-ups rather than P3 blockers
 - Feature-specific criteria:
   - Invariant: an OpenSpec change missing any team-required planning field cannot pass the deterministic validator
