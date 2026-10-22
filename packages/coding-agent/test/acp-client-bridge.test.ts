@@ -12,7 +12,7 @@ describe("ACP client bridge permission requests", () => {
 			},
 		} as unknown as AgentSideConnection;
 
-		const bridge = createAcpClientBridge(connection, "session-1", {});
+		const bridge = createAcpClientBridge(connection, "session-1", {}, () => true);
 
 		await bridge.requestPermission!(
 			{

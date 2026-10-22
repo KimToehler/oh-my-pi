@@ -236,6 +236,8 @@ type ManagedSessionRecord = {
 	// refresh can never land after a newer configuration's tools.
 	mcpRefreshChain: Promise<void> | undefined;
 	promptTurn: PromptTurnState | undefined;
+	/** v1 open-prompt gate: agent-initiated turns run only while a prompt is open. */
+	acpPromptOpen: boolean;
 	promptQueue: PromptQueueState;
 	liveMessageId: string | undefined;
 	liveMessageProgress: { textEmitted: boolean; thoughtEmitted: boolean } | undefined;
@@ -976,7 +978,7 @@ export class AcpAgent implements Agent {
 			};
 			// While this prompt is open, background-job wakes may start turns: they
 			// stream into this prompt instead of running unseen by the client.
-			record.session.setAcpPromptOpen(true);
+			record.acpPromptOpen = true;
 
 			record.promptTurn.unsubscribe = record.session.subscribe(event => {
 				this.#trackPromptEvent(record, event);
@@ -1714,7 +1716,14 @@ export class AcpAgent implements Agent {
 		setToolUIContext: ((uiContext: ExtensionUIContext, hasUI: boolean) => void) | undefined,
 	): Promise<ManagedSessionRecord> {
 		const record = this.#createManagedSessionRecord(session, setToolUIContext);
-		session.setClientBridge(createAcpClientBridge(this.#connection, session.sessionId, this.#clientCapabilities));
+		session.setClientBridge(
+			createAcpClientBridge(
+				this.#connection,
+				session.sessionId,
+				this.#clientCapabilities,
+				() => record.acpPromptOpen,
+			),
+		);
 		// Before any prompt subscriber: a continuation decided at agent_end is already
 		// pending when the open prompt checks whether the session is quiet.
 		record.goalUnsubscribe = session.subscribe(event => record.goal.observe(event));
@@ -1744,6 +1753,7 @@ export class AcpAgent implements Agent {
 			mcpManager: undefined,
 			mcpRefreshChain: undefined,
 			promptTurn: undefined,
+			acpPromptOpen: false,
 			promptQueue: { promise: Promise.resolve(), release: undefined },
 			liveMessageId: undefined,
 			liveMessageProgress: undefined,
@@ -2145,7 +2155,7 @@ export class AcpAgent implements Agent {
 			return;
 		}
 		promptTurn.settled = true;
-		record.session.setAcpPromptOpen(false);
+		record.acpPromptOpen = false;
 		promptTurn.unsubscribe?.();
 		// Keep the slot occupied until cancel cleanup finishes — `#runCancelCleanup`
 		// evicts the slot in its finally block once both flags say it's safe.

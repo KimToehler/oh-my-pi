@@ -3005,6 +3005,7 @@ describe("ACP agent", () => {
 		session.pendingAsyncWork = true;
 		session.settleAsyncWork = async () => {
 			settleEntered.resolve();
+			expect(session.acpPromptOpen).toBe(true);
 			await jobDone.promise;
 			const wake = makeAssistantMessage("job wake");
 			emit({
@@ -3041,7 +3042,7 @@ describe("ACP agent", () => {
 				update.update.content.text === "job wake",
 		);
 		expect(wakeChunks).toHaveLength(1);
-		expect(session.acpPromptOpen).toEqual([true, false]);
+		expect(session.acpPromptOpen).toBe(false);
 		harness.abortController.abort();
 	});
 
@@ -3150,7 +3151,7 @@ describe("ACP agent", () => {
 		expect(session.abortCalls).toBe(1);
 		// The job is still owed: cancel stops the turn, not the background work.
 		expect(session.pendingAsyncWork).toBe(true);
-		expect(session.acpPromptOpen.at(-1)).toBe(false);
+		expect(session.acpPromptOpen).toBe(false);
 		harness.abortController.abort();
 	});
 

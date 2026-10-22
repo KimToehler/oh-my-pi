@@ -160,7 +160,6 @@ export class FakeAgentSession {
 		this.pendingAsyncWork = false;
 	};
 	abortCalls = 0;
-	acpPromptOpen: boolean[] = [];
 	/** Goal state the real `GoalRuntime` below reads and writes, as on `AgentSession`. */
 	goalModeState: GoalModeState | undefined;
 	enabledTools: string[] = ["read"];
@@ -333,8 +332,9 @@ export class FakeAgentSession {
 		return this.pendingAsyncWork;
 	}
 
-	setAcpPromptOpen(open: boolean): void {
-		this.acpPromptOpen.push(open);
+	/** The v1 open-prompt gate as the real session reads it: through the client bridge callback. */
+	get acpPromptOpen(): boolean {
+		return this.clientBridge?.allowAgentInitiatedTurns?.() ?? true;
 	}
 
 	/** Resolved when `abort()` has reserved its goal owner stamp and starts to unwind. */

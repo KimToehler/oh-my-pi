@@ -26,6 +26,7 @@ export function createAcpClientBridge(
 	connection: AgentSideConnection,
 	sessionId: string,
 	clientCapabilities: ClientCapabilities | undefined,
+	allowAgentInitiatedTurns: () => boolean,
 ): ClientBridge {
 	const capabilities: ClientBridgeCapabilities = {
 		readTextFile: clientCapabilities?.fs?.readTextFile === true,
@@ -36,7 +37,7 @@ export function createAcpClientBridge(
 		requestPermission: true,
 	};
 
-	const bridge: ClientBridge = { capabilities, deferAgentInitiatedTurns: true };
+	const bridge: ClientBridge = { capabilities, allowAgentInitiatedTurns };
 
 	if (capabilities.readTextFile) {
 		bridge.readTextFile = async params => {

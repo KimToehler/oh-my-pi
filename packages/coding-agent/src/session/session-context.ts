@@ -26,6 +26,7 @@ import {
 	type SessionEntry,
 	type SessionMessageEntry,
 } from "./session-entries";
+import { stampSessionEntryId } from "./session-entry-id";
 
 // #4470 crash artifacts had legacy frames (no shape metadata) with 17 frames,
 // ~306k archive chars, and ~1.5M truncated chars. Current snapcompact frames
@@ -405,6 +406,7 @@ export function buildSessionContext(
 			) {
 				return;
 			}
+			stampSessionEntryId(entry.message, entry.id);
 			pushMessage(entry.message);
 		} else if (entry.type === "custom_message") {
 			if (

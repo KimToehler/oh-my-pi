@@ -1826,7 +1826,7 @@ export class SessionAdvisors {
 	 * cannot, so `sendCustomMessage({ triggerTurn: true })` would silently bury
 	 * the card in `#pendingNextTurnMessages` until the next user prompt —
 	 * strictly worse than the visible preserved card. Preserve instead:
-	 *  - ACP bridges with `deferAgentInitiatedTurns`: the client cannot show an
+	 *  - ACP bridges whose `allowAgentInitiatedTurns` returns false: the client cannot show an
 	 *    agent-initiated turn as busy, so idle triggers are refused (#5628 review).
 	 */
 	#deliverAdvisorBatch(notes: AdvisorNote[], content: string, steer: boolean): void {
@@ -1835,10 +1835,7 @@ export class SessionAdvisors {
 			// Plan mode preserves would-be-steering advice as a visible card:
 			// only user-driven turns converge on ask/resolve.
 			const planModePreservesAdvice = this.#host.planModeState()?.enabled === true;
-			const cannotAutoTrigger =
-				!this.#host.agent.state.isStreaming &&
-				this.#host.clientBridge()?.deferAgentInitiatedTurns === true &&
-				!this.#host.allowAgentInitiatedTurns();
+			const cannotAutoTrigger = !this.#host.agent.state.isStreaming && !this.#host.allowAgentInitiatedTurns();
 			if (!planModePreservesAdvice && !cannotAutoTrigger) {
 				// Arm the post-interrupt immune window only now that a turn is actually
 				// being steered/triggered. A merely preserved card never interrupts, so

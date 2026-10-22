@@ -333,6 +333,7 @@ import type {
 	SessionOAuthAccountList,
 	SessionStats,
 	SteerOptions,
+	SubmissionOutcome,
 	UsageFallbackConfirmer,
 } from "./agent-session-types";
 import { writeArtifact } from "./artifacts";
@@ -458,6 +459,7 @@ import {
 } from "./session-advisors";
 import type { SessionContext, TranscriptSessionContextOptions } from "./session-context";
 import { buildSessionContext, getRestorableSessionModels, isTranscriptEntry } from "./session-context";
+import { sessionEntryIdOf, stampSessionEntryId } from "./session-entry-id";
 import type { CacheWarmer, CacheWarmingMode, CacheWarmingStatus, PromptCacheEntry } from "./cache-warmer";
 import { isUserRequestEntry, transcriptEntryMessage, userTurnDraft } from "@oh-my-pi/pi-tui/chat/transcript-entry";
 import { anonymizeSessionTranscripts } from "./session-anonymizer";
@@ -767,8 +769,17 @@ interface TitleInput {
 	tried: boolean;
 }
 
-const kPersistedSessionEntryId = Symbol("persistedSessionEntryId");
-type PersistedAssistantMessage = AssistantMessage & { [kPersistedSessionEntryId]?: string };
+function reportSubmissionOutcome(
+	callback: ((outcome: SubmissionOutcome) => void) | undefined,
+	outcome: SubmissionOutcome,
+): void {
+	if (!callback) return;
+	try {
+		callback(outcome);
+	} catch (error) {
+		logger.warn("Submission outcome callback failed", { error: String(error) });
+	}
+}
 
 const INTERRUPTED_THINKING_MIN_CHARS = 60;
 const SESSION_CWD_CHANGE_REJECTED = Symbol("sessionCwdChangeRejected");
@@ -987,7 +998,10 @@ export class AgentSession implements SettingsScope {
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
 	#clientBridge: ClientBridge | undefined;
-	#allowAcpAgentInitiatedTurns = false;
+	/** User messages whose submitter passed `onSubmissionOutcome`, awaiting insertion or drop. */
+	readonly #pendingSubmissions = new Map<AgentMessage, (outcome: SubmissionOutcome) => void>();
+	/** Dropped submissions: never persisted, even if a lagging run still emits them. */
+	readonly #droppedSubmissions = new WeakSet<AgentMessage>();
 	/** Session file created by this session's `/move`; removed on dispose if it stayed empty. */
 	#movedFromEmptySessionFile?: string;
 
@@ -2194,7 +2208,7 @@ export class AgentSession implements SettingsScope {
 			scheduleAgentContinue: options => this.#scheduleAgentContinue(options),
 			waitForSessionMessagePersistence: message => this.#waitForSessionMessagePersistence(message),
 			appendSessionMessage: message => this.#appendSessionMessage(message),
-			persistedAssistantEntryId: message => (message as PersistedAssistantMessage)[kPersistedSessionEntryId],
+			persistedAssistantEntryId: message => sessionEntryIdOf(message),
 			sessionMessageAlreadyPersisted: message => this.#sessionMessageAlreadyPersisted(message),
 			setModelWithProviderSessionReset: model => this.#setModelWithProviderSessionReset(model),
 			resolveActiveEditMode: () => this.#tools.resolveActiveEditMode(),
@@ -2334,7 +2348,7 @@ export class AgentSession implements SettingsScope {
 				// An ACP client with no prompt open cannot show this wake turn: park the
 				// results for the user's next prompt, as #sendCustomMessage does for
 				// other agent-initiated turns. An open prompt streams the wake instead.
-				if (this.#clientBridge?.deferAgentInitiatedTurns && !this.#allowAcpAgentInitiatedTurns) {
+				if (this.#agentInitiatedTurnsParked()) {
 					for (const message of messages) {
 						if (message.role === "custom") this.#queueHiddenNextTurnMessage(message, false);
 						else this.agent.appendMessage(message);
@@ -2627,7 +2641,7 @@ export class AgentSession implements SettingsScope {
 			onSseEvent: this.#onSseEvent,
 			isDisposed: () => this.#isDisposed,
 			abortInProgress: () => this.#abortInProgress,
-			allowAgentInitiatedTurns: () => this.#allowAcpAgentInitiatedTurns,
+			allowAgentInitiatedTurns: () => !this.#agentInitiatedTurnsParked(),
 			planModeState: () => this.#planModeState,
 			clientBridge: () => this.#clientBridge,
 			emitSessionEvent: event => this.#emitSessionEvent(event),
@@ -4076,9 +4090,10 @@ export class AgentSession implements SettingsScope {
 		// A digest entry carries no persistence key, so the memo stays valid across it.
 		if (message.role === "assistant") this.#tools.recordReplyPrompt(message);
 		const entryId = this.sessionManager.appendMessage(message);
-		if (message.role === "assistant") {
-			(message as PersistedAssistantMessage)[kPersistedSessionEntryId] = entryId;
+		if (message.role === "assistant" || message.role === "user" || message.role === "developer") {
+			stampSessionEntryId(message, entryId);
 		}
+		this.#settleSubmission(message, { kind: "inserted", entryId });
 		const key = sessionMessagePersistenceKey(message);
 		if (wasFresh && cache && key) {
 			cache.keys.add(key);
@@ -4097,7 +4112,10 @@ export class AgentSession implements SettingsScope {
 		) {
 			return;
 		}
-		if (this.#sessionMessageAlreadyPersisted(message)) return;
+		if (this.#droppedSubmissions.has(message)) return;
+		// A message still pending was never persisted by this session; skip the structural dedup
+		// so identical same-millisecond prompts each get their own entry.
+		if (!this.#pendingSubmissions.has(message) && this.#sessionMessageAlreadyPersisted(message)) return;
 		if (message.role === "assistant") {
 			const assistantMsg = message as AssistantMessage;
 			if (this.#recovery.isClassifierRefusal(assistantMsg)) return;
@@ -4117,6 +4135,48 @@ export class AgentSession implements SettingsScope {
 		if (!skipPersistedRewindResult) {
 			this.#appendSessionMessage(message);
 		}
+	}
+
+	#registerSubmission(message: AgentMessage, callback: ((outcome: SubmissionOutcome) => void) | undefined): void {
+		if (callback) this.#pendingSubmissions.set(message, callback);
+	}
+
+	/** The one place a submission outcome fires: only for a message still pending, removed first. */
+	#settleSubmission(message: AgentMessage, outcome: SubmissionOutcome): void {
+		const callback = this.#pendingSubmissions.get(message);
+		if (!callback) return;
+		this.#pendingSubmissions.delete(message);
+		reportSubmissionOutcome(callback, outcome);
+	}
+
+	/** `dropped` for a pending message and tombstone it so a late emission never persists it. */
+	#dropSubmission(message: AgentMessage): void {
+		if (!this.#pendingSubmissions.has(message)) return;
+		this.#droppedSubmissions.add(message);
+		this.#settleSubmission(message, { kind: "dropped" });
+	}
+
+	/** A rejected `prompt()` reports through its rejection only: unregister silently, tombstone. */
+	#discardSubmission(message: AgentMessage): void {
+		if (this.#pendingSubmissions.delete(message)) this.#droppedSubmissions.add(message);
+	}
+
+	/**
+	 * Closure for submissions that passed `onSubmissionOutcome`: every message still pending is
+	 * removed from the steering queue by identity, tombstoned and reported `dropped`. Call it
+	 * where the session is quiescent (foreground end) or its transcript is replaced; absence from
+	 * a queue is never evidence of a drop mid-run, so nothing else infers one.
+	 */
+	settlePendingSubmissions(): void {
+		if (this.#pendingSubmissions.size === 0) return;
+		const pending = [...this.#pendingSubmissions.keys()];
+		const steering = this.agent.peekSteeringQueue();
+		const remaining = steering.filter(message => !this.#pendingSubmissions.has(message));
+		if (remaining.length !== steering.length) {
+			this.agent.replaceQueue("steering", remaining);
+			this.#reconcileQueuedMessageDrain();
+		}
+		for (const message of pending) this.#dropSubmission(message);
 	}
 
 	/**
@@ -6274,6 +6334,7 @@ export class AgentSession implements SettingsScope {
 	}
 
 	async #doDispose(options: AgentSessionDisposeOptions = {}): Promise<void> {
+		this.settlePendingSubmissions();
 		this.beginDispose();
 		// Stop cache warming before the drain windows below: an armed tick firing
 		// mid-dispose would issue a paid warm request and persist usage into the
@@ -6531,6 +6592,7 @@ export class AgentSession implements SettingsScope {
 		// Drop the conversation: messages, queued steers/follow-ups, pending tool
 		// calls, and error state. agent.reset() keeps the model and system prompt.
 		this.#releaseQueuedTtsrReservations();
+		this.settlePendingSubmissions();
 		this.agent.reset();
 		this.#pendingNextTurnMessages = [];
 		this.#experimentalContextNotesReminder = undefined;
@@ -6818,12 +6880,11 @@ export class AgentSession implements SettingsScope {
 	}
 
 	/**
-	 * ACP owner hook: while a client prompt is open, agent-initiated turns
-	 * (background-job wakes) run and stream into it; otherwise they defer to the
-	 * user's next prompt.
+	 * True while the client bridge refuses agent-initiated turns (ACP v1 with no
+	 * prompt open): background wakes park for the user's next prompt instead.
 	 */
-	setAcpPromptOpen(open: boolean): void {
-		this.#allowAcpAgentInitiatedTurns = open;
+	#agentInitiatedTurnsParked(): boolean {
+		return this.#clientBridge?.allowAgentInitiatedTurns?.() === false;
 	}
 
 	/**
@@ -7919,6 +7980,12 @@ export class AgentSession implements SettingsScope {
 	 * {@link PromptDroppedError} instead.
 	 */
 	async prompt(text: string, options?: PromptOptions): Promise<boolean> {
+		if (
+			options?.onSubmissionOutcome &&
+			(options.streamingBehavior === "followUp" || options.streamingBehavior === "aside")
+		) {
+			throw new TypeError('onSubmissionOutcome supports only streamingBehavior "steer" or none');
+		}
 		return this.#admitSubmission(() => this.#prompt(text, options));
 	}
 
@@ -7957,6 +8024,7 @@ export class AgentSession implements SettingsScope {
 			if (options?.runCommands !== false) {
 				const handled = await this.#tryExecuteExtensionCommand(text, options?.onPromptAdmitted);
 				if (handled) {
+					reportSubmissionOutcome(options?.onSubmissionOutcome, { kind: "command" });
 					return false;
 				}
 
@@ -7964,6 +8032,7 @@ export class AgentSession implements SettingsScope {
 				const customResult = await this.#tryExecuteCustomCommand(text);
 				if (customResult !== null) {
 					if (customResult === "") {
+						reportSubmissionOutcome(options?.onSubmissionOutcome, { kind: "command" });
 						return false;
 					}
 					text = customResult;
@@ -8027,6 +8096,7 @@ export class AgentSession implements SettingsScope {
 				prependMessages: prependNotices,
 				rawText: typedText,
 				onPromptAdmitted: options?.onPromptAdmitted,
+				onSubmissionOutcome: options?.onSubmissionOutcome,
 				promptGeneration: queueGeneration,
 			});
 			outcome.sessionClaimed = queued;
@@ -8076,6 +8146,7 @@ export class AgentSession implements SettingsScope {
 		// generation-race checks further down.
 		if (this.#promptGeneration !== preflightGeneration) {
 			outcome.sessionClaimed = false;
+			reportSubmissionOutcome(options?.onSubmissionOutcome, { kind: "dropped" });
 			if (!options?.synthetic) {
 				this.#promptDropped?.({ text: typedText, images: options?.images });
 			}
@@ -8106,6 +8177,7 @@ export class AgentSession implements SettingsScope {
 					descriptionNotice: imageDescriptionNotice,
 				},
 				onPromptAdmitted: options?.onPromptAdmitted,
+				onSubmissionOutcome: options?.onSubmissionOutcome,
 			});
 			outcome.sessionClaimed = true;
 			return true;
@@ -8127,6 +8199,7 @@ export class AgentSession implements SettingsScope {
 					userInitiated: options?.userInitiated === true ? true : undefined,
 				}
 			: { role: "user" as const, content: userContent, attribution: promptAttribution, timestamp: submittedAt };
+		if (options?.onSubmissionOutcome) this.#registerSubmission(message, options.onSubmissionOutcome);
 
 		const preludeMessages: AgentMessage[] = [];
 		if (eagerTodoPrelude) {
@@ -8171,6 +8244,7 @@ export class AgentSession implements SettingsScope {
 			});
 		} catch (error) {
 			turnError = error;
+			this.#discardSubmission(message);
 			if (error instanceof AgentStartPolicyChangedError && message.role === "user") {
 				this.#promptDropped?.({ text: typedText, images: options?.images });
 			}
@@ -8184,6 +8258,7 @@ export class AgentSession implements SettingsScope {
 			void this.#finishTurnObservation(observation, turnError);
 		}
 		outcome.sessionClaimed = dispatched;
+		if (!dispatched) this.#dropSubmission(message);
 		if (!dispatched && message.role === "user") {
 			// An abort (Esc) or preflight denial raced turn setup: the prompt never
 			// reached the agent or the session file. Hand it back to the host so the
@@ -9079,6 +9154,8 @@ export class AgentSession implements SettingsScope {
 			};
 			/** Called synchronously once the message is pushed onto its queue. See {@link PromptOptions.onPromptAdmitted}. */
 			onPromptAdmitted?: () => void;
+			/** Outcome callback for a steer-mode user message; see {@link PromptOptions.onSubmissionOutcome}. */
+			onSubmissionOutcome?: (outcome: SubmissionOutcome) => void;
 			/**
 			 * `#promptGeneration` captured when prompt() took this submission. abort() (or a
 			 * history rewrite) bumps it; if that lands while images are being prepared, the
@@ -9122,6 +9199,8 @@ export class AgentSession implements SettingsScope {
 				? await this.#buildImageDescriptionNotice(normalizedImages)
 				: undefined;
 		if (options?.promptGeneration !== undefined && this.#promptGeneration !== options.promptGeneration) {
+			// Nothing was created or registered yet: report the drop straight to the caller.
+			reportSubmissionOutcome(options?.onSubmissionOutcome, { kind: "dropped" });
 			return false;
 		}
 		if (mode === "aside") {
@@ -9168,6 +9247,7 @@ export class AgentSession implements SettingsScope {
 				timestamp: timestamp ?? Date.now(),
 			};
 			this.#queuedMessageRawText.set(userMessage, rawText);
+			this.#registerSubmission(userMessage, options?.onSubmissionOutcome);
 			this.agent.steer(userMessage);
 		}
 		options?.onPromptAdmitted?.();
@@ -9557,7 +9637,7 @@ export class AgentSession implements SettingsScope {
 
 		if (options?.deliverAs === "nextTurn") {
 			if (options?.triggerTurn) {
-				if (this.#clientBridge?.deferAgentInitiatedTurns && !this.#allowAcpAgentInitiatedTurns) {
+				if (this.#agentInitiatedTurnsParked()) {
 					this.#queueHiddenNextTurnMessage(normalizedAppMessage, false);
 					return false;
 				}
@@ -9597,7 +9677,7 @@ export class AgentSession implements SettingsScope {
 				this.#foldStrandedIrcAsidesIntoContext([normalizedAppMessage]);
 				return false;
 			}
-			if (this.#clientBridge?.deferAgentInitiatedTurns && !this.#allowAcpAgentInitiatedTurns) {
+			if (this.#agentInitiatedTurnsParked()) {
 				this.#queueHiddenNextTurnMessage(normalizedAppMessage, false);
 				return false;
 			}
@@ -9617,7 +9697,7 @@ export class AgentSession implements SettingsScope {
 		}
 
 		if (options?.triggerTurn) {
-			if (this.#clientBridge?.deferAgentInitiatedTurns && !this.#allowAcpAgentInitiatedTurns) {
+			if (this.#agentInitiatedTurnsParked()) {
 				this.#queueHiddenNextTurnMessage(normalizedAppMessage, false);
 				return false;
 			}
@@ -9743,6 +9823,9 @@ export class AgentSession implements SettingsScope {
 			}
 		}
 		this.agent.replaceQueues(steeringAll.filter(keep), followUpAll.filter(keep));
+		for (const message of [...steeringAll, ...followUpAll]) {
+			if (!keep(message)) this.#dropSubmission(message);
+		}
 		this.#reconcileQueuedMessageDrain();
 		return { steering, followUp };
 	}
@@ -9835,6 +9918,7 @@ export class AgentSession implements SettingsScope {
 
 		const removed = selected[index];
 		this.agent.replaceQueue(queue, this.#withoutQueuedUserMessage(selected, index));
+		this.#dropSubmission(removed);
 		this.#reconcileQueuedMessageDrain();
 		return toRestoredQueuedMessage(removed);
 	}
@@ -9914,6 +9998,7 @@ export class AgentSession implements SettingsScope {
 		if (fromSteer >= 0) {
 			const removed = steering[fromSteer];
 			this.agent.replaceQueues(this.#withoutQueuedUserMessage(steering, fromSteer), followUp.slice());
+			this.#dropSubmission(removed);
 			this.#reconcileQueuedMessageDrain();
 			return toRestoredQueuedMessage(removed);
 		}
@@ -9921,6 +10006,7 @@ export class AgentSession implements SettingsScope {
 		if (fromFollowUp >= 0) {
 			const removed = followUp[fromFollowUp];
 			this.agent.replaceQueues(steering.slice(), this.#withoutQueuedUserMessage(followUp, fromFollowUp));
+			this.#dropSubmission(removed);
 			this.#reconcileQueuedMessageDrain();
 			return toRestoredQueuedMessage(removed);
 		}
@@ -10649,6 +10735,7 @@ export class AgentSession implements SettingsScope {
 			// outgoing session also drops its record instead of landing in this new one.
 			this.#irc.clearPending();
 			this.#sessionGeneration++;
+			this.settlePendingSubmissions();
 			this.#scheduledHiddenNextTurnGeneration = undefined;
 			this.#queuedMessageDrainBlocked = false;
 			this.#usagePreflightReadyForNextModelCall = false;
@@ -12485,6 +12572,7 @@ export class AgentSession implements SettingsScope {
 			if (previousSessionState.sessionId !== this.sessionManager.getSessionId()) {
 				this.#notifySessionChangeCallbacks();
 			}
+			this.settlePendingSubmissions();
 			generationSettled.resolve();
 			this.#sessionGenerationSettled = previousSessionGenerationSettled;
 			if (modelFallbackWarning) {
@@ -12792,6 +12880,7 @@ export class AgentSession implements SettingsScope {
 		this.#scheduledHiddenNextTurnGeneration = undefined;
 		this.#releaseQueuedTtsrReservations();
 		this.agent.replaceQueues([], []);
+		this.settlePendingSubmissions();
 		this.#queuedMessageDrainBlocked = false;
 		this.#usagePreflightReadyForNextModelCall = false;
 		await this.#bash.flushPending();
