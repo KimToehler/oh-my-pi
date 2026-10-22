@@ -51,6 +51,20 @@ export const cfgGitEnabled = register({
 	},
 });
 
+/** Opt-in to ACP protocol v2 for `omp acp`; v1 stays the default until v2 leaves alpha. */
+export const cfgAcpProtocolV2 = register({
+	id: "acp.protocolV2",
+	type: "boolean",
+	default: false,
+	ui: {
+		tab: "providers",
+		group: "Protocol",
+		label: "ACP Protocol v2",
+		description:
+			"Let `omp acp` negotiate ACP protocol v2 (alpha) with clients that request it; v1 otherwise. Same opt-in as Air's `air.acp.v2.enabled`",
+	},
+});
+
 // ────────────────────────────────────────────────────────────────────────
 // Appearance
 // ────────────────────────────────────────────────────────────────────────
