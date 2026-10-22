@@ -107,14 +107,14 @@ cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated
 cp "$FORK"/scripts/validate-openspec-change.mjs scripts/validate-openspec-change.mjs
 ```
 
-**Step 3.** Config. `openspec/config.yaml` is never overwritten: the team content is written completely to a temporary file
-next to it, then `ln` creates `openspec/config.yaml` as a hard link in one step that fails when the file already exists. A
-failed write therefore never leaves a partial config behind. When the config exists, the team content is printed for you to merge.
+**Step 3.** Config, by hand; there is no command for this step, so an existing `openspec/config.yaml` is never touched by a
+script.
 
-```sh
-mkdir -p openspec
-TEAM=$(mktemp openspec/.config.yaml.XXXXXX) && chmod 644 "$TEAM"
-if ! cat > "$TEAM" <<'EOF'
+- If `openspec/config.yaml` does not exist, create it in your editor with exactly the content below.
+- If it exists, change only its `schema:` line to `schema: omp-gated` and merge the `rules:` and `operations:` blocks below
+  into it by hand, keeping your own entries.
+
+```yaml
 schema: omp-gated
 
 rules:
@@ -128,18 +128,6 @@ operations:
   apply:
     guidance:
       - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
-EOF
-then
-  echo "the team config could not be written; fix the error above and rerun this step"
-elif ln "$TEAM" openspec/config.yaml; then
-  echo "created openspec/config.yaml"
-elif [ -e openspec/config.yaml ]; then
-  echo "openspec/config.yaml exists and was not touched. Change only its schema: line to 'schema: omp-gated' and merge the rules/operations below by hand:"
-  cat "$TEAM"
-else
-  echo "openspec/config.yaml could not be created; fix the error above and rerun this step"
-fi
-rm -f "$TEAM"
 ```
 
 **Step 4.** Review what the copy changed, re-apply anything you want to keep, then commit. On a first install the paths show
@@ -157,9 +145,9 @@ git commit -m "chore: add omp-gated OpenSpec workflow"
 Check with `openspec new change probe`: it must print `Schema: omp-gated`. Remove the probe afterwards
 (`rm -r openspec/changes/probe`).
 
-If `openspec init` already ran, follow the same steps: its `openspec/config.yaml` exists, so step 3 prints the team
-content instead of writing it; change the `schema: spec-driven` line to `schema: omp-gated` and add the `rules:` and
-`operations:` blocks if you want them. `openspec init --tools oh-my-pi` also writes project `.omp/commands/opsx-*`
+If `openspec init` already ran, follow the same steps: its `openspec/config.yaml` exists, so in step 3 change its
+`schema: spec-driven` line to `schema: omp-gated` and add the `rules:` and `operations:` blocks if you want them.
+`openspec init --tools oh-my-pi` also writes project `.omp/commands/opsx-*`
 copies that duplicate the globally deployed commands; delete them (`rm -f .omp/commands/opsx-*.md`).
 
 Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
