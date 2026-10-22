@@ -9,27 +9,47 @@ describe("buildGitPatch", () => {
 	it("renders a modification with absolute paths", () => {
 		const patch = buildGitPatch([{ path: "/w/a.txt", oldText: "one\ntwo\nthree\n", newText: "one\n2\nthree\n" }]);
 		expect(patch).toBe(
-			["diff --git /w/a.txt /w/a.txt", "--- /w/a.txt", "+++ /w/a.txt", "@@ -1,3 +1,3 @@", " one", "-two", "+2", " three", ""].join(
-				"\n",
-			),
+			[
+				"diff --git /w/a.txt /w/a.txt",
+				"--- /w/a.txt",
+				"+++ /w/a.txt",
+				"@@ -1,3 +1,3 @@",
+				" one",
+				"-two",
+				"+2",
+				" three",
+				"",
+			].join("\n"),
 		);
 	});
 
 	it("uses /dev/null as the old side for additions", () => {
 		const patch = buildGitPatch([{ path: "/w/new.txt", oldText: null, newText: "hi\n" }]);
 		expect(patch).toBe(
-			["diff --git /w/new.txt /w/new.txt", "new file mode 100644", "--- /dev/null", "+++ /w/new.txt", "@@ -0,0 +1 @@", "+hi", ""].join(
-				"\n",
-			),
+			[
+				"diff --git /w/new.txt /w/new.txt",
+				"new file mode 100644",
+				"--- /dev/null",
+				"+++ /w/new.txt",
+				"@@ -0,0 +1 @@",
+				"+hi",
+				"",
+			].join("\n"),
 		);
 	});
 
 	it("uses /dev/null as the new side for deletions", () => {
 		const patch = buildGitPatch([{ path: "/w/old.txt", oldText: "bye\n", newText: null }]);
 		expect(patch).toBe(
-			["diff --git /w/old.txt /w/old.txt", "deleted file mode 100644", "--- /w/old.txt", "+++ /dev/null", "@@ -1 +0,0 @@", "-bye", ""].join(
-				"\n",
-			),
+			[
+				"diff --git /w/old.txt /w/old.txt",
+				"deleted file mode 100644",
+				"--- /w/old.txt",
+				"+++ /dev/null",
+				"@@ -1 +0,0 @@",
+				"-bye",
+				"",
+			].join("\n"),
 		);
 	});
 
@@ -87,7 +107,14 @@ describe("buildGitPatch", () => {
 
 	it("marks a missing trailing newline on the affected side", () => {
 		const patch = buildGitPatch([{ path: "/w/a.txt", oldText: "a\nb", newText: "a\nb\n" }]);
-		expect(patch.split("\n").slice(3)).toEqual(["@@ -1,2 +1,2 @@", " a", "-b", "\\ No newline at end of file", "+b", ""]);
+		expect(patch.split("\n").slice(3)).toEqual([
+			"@@ -1,2 +1,2 @@",
+			" a",
+			"-b",
+			"\\ No newline at end of file",
+			"+b",
+			"",
+		]);
 	});
 });
 
@@ -133,7 +160,9 @@ describe("buildGitPatch applies with git", () => {
 						const name = header[2].replace(/\t$/, "");
 						return `${header[1]}${prefixed(name, header[1] === "--- " ? "a/" : "b/")}`;
 					}
-					const diff = /^diff --git ("(?:[^"\\]|\\.)*"|\S+(?: \S+)*?) ("(?:[^"\\]|\\.)*"|\S+(?: \S+)*)$/.exec(line);
+					const diff = /^diff --git ("(?:[^"\\]|\\.)*"|\S+(?: \S+)*?) ("(?:[^"\\]|\\.)*"|\S+(?: \S+)*)$/.exec(
+						line,
+					);
 					if (diff) {
 						return `diff --git ${prefixed(diff[1], "a/")} ${prefixed(diff[2], "b/")}`;
 					}

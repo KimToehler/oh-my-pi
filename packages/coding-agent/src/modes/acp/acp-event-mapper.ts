@@ -20,7 +20,7 @@ interface MessageProgress {
 	thoughtEmitted: boolean;
 }
 
-interface AcpEventMapperOptions {
+export interface AcpEventMapperOptions {
 	getMessageId?: (message: unknown) => string | undefined;
 	getMessageProgress?: (message: unknown) => MessageProgress | undefined;
 	getToolArgs?: (toolCallId: string) => unknown;
