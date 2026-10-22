@@ -148,23 +148,25 @@ test("#given a fix commit after a wave #when ready runs #then it names the commi
   assert.equal(after.stdout.trim(), "READY")
 })
 
-test("#given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes, while a rejected commit cannot be exempted", (t) => {
+test("#given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes in both lanes, while a rejected commit cannot be exempted in either", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")
   assert.equal(s.wave("F2", "--outcome", "qa=FAIL", "--blocker", "B1").status, 0)
   const tick = s.commit("docs/plan.md", "- [x] F2\n", "tick F2")
+  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`unreviewed fix commit ${tick.slice(0, 12)}`))
   assert.equal(s.gc("exempt", "--sha", tick).status, 1)
   const exempted = s.gc("exempt", "--sha", tick, "--reason", "checkbox only")
   assert.equal(exempted.status, 0, exempted.stderr)
-  assert.equal(s.gc("ready", "--lane", "F2").stdout.trim(), "READY")
+  // Like a delta verdict, an exemption decides the commit for the whole gate, so both lanes read it.
+  for (const lane of ["F2", "F3"]) assert.equal(s.gc("ready", "--lane", lane).stdout.trim(), "READY")
   const base = s.head()
   const fix = s.commit("src/a.ts", "line one\nbroken\nline three\n", "fix R1")
-  assert.equal(s.delta("F2", base, fix, "REJECT").result.status, 0)
+  assert.equal(s.delta("F3", base, fix, "REJECT").result.status, 0)
   const refused = s.gc("exempt", "--sha", fix, "--reason", "comment only")
   assert.equal(refused.status, 1)
   assert.match(refused.stderr, /has a REJECT/)
   assert.equal(s.ledger().filter((e) => e.event === "delta_exemption").length, 1)
-  assert.match(s.gc("ready", "--lane", "F2").stdout, new RegExp(`rejected fix commit ${fix.slice(0, 12)}`))
+  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`rejected fix commit ${fix.slice(0, 12)}`))
 })
 
 test("#given a rejected commit #when only its amendment is approved #then it stays open until a covering range is accepted", (t) => {
