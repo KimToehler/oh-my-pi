@@ -1,0 +1,32 @@
+## 1. Goal and behavioural contract
+
+The signature is simpler, but the change removes the tenant constraint rather than preserving tenant-scoped lookup.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+**Note:** The brief says the HTTP handler calls `getInvoice` with the caller’s tenant, but does not include the handler source. If it still passes two arguments directly, the new TypeScript signature can cause a compile-time argument-count error. This does not block independently because the supplied diff does not establish the call’s exact syntax.
+
+## 3. Security and privacy delta
+
+Blocker B1: **Critical — `src/invoices.ts:3–4`**. **Trigger:** an authenticated tenant requests an invoice ID belonging to another tenant. **Preconditions:** the ID is known or guessed, and no independent database or handler authorization prevents the lookup. **Impact:** the changed query no longer filters by `tenant_id`, weakening tenant isolation and potentially exposing another tenant’s invoice through `GET /invoices/:id`; disclosure of copied data is not reversible. **Violated contract:** the public lookup is made for the caller’s tenant and must not return another tenant’s data. **Fix direction:** preserve an authoritative tenant constraint in the lookup, including propagation of the caller’s tenant, or establish an equivalent enforced tenant boundary before returning the row. **class:** missing tenant authorization in invoice lookup. **sites:** `src/invoices.ts:3–4`; **single instance:** the supplied fixture identifies this as the only changed file and the only lookup implementation supplied. Repository search was expressly prohibited and the fixture files do not exist in the workspace, so closure beyond this supplied site cannot be confirmed; this site remains open.
+
+## 4. Verification adequacy
+
+**Note:** The supplied QA matrix exercises only a successful ID lookup. It does not demonstrate the unknown-ID negative control or tenant isolation at the HTTP boundary. This is not a separate blocker: B1 identifies the underlying authorization defect, and the missing evidence does not independently establish another defect. The cited artifact was not independently inspected.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An authenticated tenant cannot retrieve another tenant's invoice by supplying its identifier.
+  positive_witness: A tenant requesting its own existing invoice receives that invoice.
+  negative_control: A tenant requesting another tenant's existing invoice receives its invoice data.
+  observable: HTTP response status and body for both requests, with no foreign invoice data in the second response.
+  boundary: GET /invoices/:id with authenticated callers from two tenants.
+END-REVIEW-TRAILER

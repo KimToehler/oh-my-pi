@@ -1,0 +1,33 @@
+## Must-fix
+
+None.
+
+## Should-fix
+
+- **`scripts/dev-env.sh:3–6` — The script reads and writes `.env` relative to the caller’s current directory, not a fixed project directory.** Running it from another directory can create or modify the wrong `.env` while leaving the intended development configuration unchanged. **Fix:** resolve the intended project directory from the script location and use an explicit path, or document and enforce the required working directory.  
+  **class:** working-directory-dependent configuration. **single instance:** the supplied diff contains one script; repository searches were explicitly excluded for this fixture.  
+  **Why non-blocking:** the supplied plan does not specify a working-directory contract, and the described impact is confined to local development configuration.
+
+- **`scripts/dev-env.sh:3–6` — A failure to read `.env` is suppressed and treated like an absent password.** If an existing file is writable but unreadable, the script can append a second `POSTGRES_PASSWORD` entry without inspecting the existing one. **Fix:** distinguish a missing file from a read failure and stop with an error on the latter.  
+  **class:** suppressed configuration-read errors. **single instance:** the supplied diff contains one configuration-read site; repository searches were explicitly excluded for this fixture.  
+  **Why non-blocking:** this requires unusual local file permissions, and the supplied scope identifies the password as a throwaway developer-machine default rather than a protected asset.
+
+## Nit
+
+None.
+
+## Checked
+
+- **Duplication across slices/files:** no instance found; the supplied diff has one file and one slice.
+- **Naming inconsistency:** no instance found; `current`, `.env`, and `POSTGRES_PASSWORD` have no cross-file counterparts in the supplied diff.
+- **Uneven API surface:** no instance found; no sibling APIs are supplied.
+- **Mixed conventions:** no instance found; no comparable slices are supplied.
+- **Missing abstractions:** no instance found; there is no repeated multi-file pattern or one-consumer helper in the supplied diff.
+- **Dead code:** no instance found within the diff; `current` is used by the password check. External consumers cannot be established from the supplied fixture, and repository searches were excluded.
+- **Doc drift:** no instance found in the supplied materials. No user-facing documentation or locale files were provided for comparison.
+- **Surprise scope:** the sole changed file and its contents match the plan’s specified script.
+- **Plan walks:** the plan has no Out of Scope list, Verification checklist, i18n keys, or per-slice file lists. Its sole step specifies this exact file and content.
+- **Seams:** the supplied seam list identifies a single self-contained slice and no cross-slice contracts.
+- **Simplification pass:** no cross-slice candidate found.
+
+PASS

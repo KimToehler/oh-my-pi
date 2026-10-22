@@ -1,0 +1,32 @@
+### 1. Goal and behavioural contract
+
+The signature is simplified, but the change removes the caller’s tenant from the lookup rather than preserving tenant isolation.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+**Note:** An unchanged TypeScript caller that still passes both `id` and `tenantId` could fail type-checking. The handler’s source is not supplied, so this is not a substantiated blocker.
+
+### 3. Security and privacy delta
+
+Blocker B1: **Critical** — `src/invoices.ts:3–4` removes the `tenant_id` predicate and tenant parameter. **Trigger:** an authenticated caller requests another tenant’s invoice ID through `GET /invoices/:id`. **Preconditions:** an invoice with that ID exists and the caller can supply its ID; the caller need not already have access to it. **Impact:** the lookup can return another tenant’s production invoice, breaking the multi-tenant contract and exposing protected data. A disclosure cannot reliably be reversed. **Fix direction:** preserve tenant scoping in the query and ensure the handler supplies the authenticated caller’s tenant, even if the interface is otherwise simplified. **class:** missing tenant authorization in invoice lookup. **sites:** single instance in the supplied diff; the fixture expressly excludes repository search and supplies no other implementation sites. The class is **not closed** at this site.
+
+### 4. Verification adequacy
+
+**Note:** The QA witness checks only a successful ID lookup; it does not exercise a cross-tenant request. It therefore does not detect B1. The table records an observation, but the artifact contents were not supplied for independent inspection.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A caller cannot obtain an invoice belonging to a different tenant by supplying its ID.
+  positive_witness: A caller retrieves an invoice belonging to the caller's own tenant.
+  negative_control: A caller supplies another tenant's existing invoice ID and receives that invoice.
+  observable: The HTTP response and returned invoice data for both requests.
+  boundary: GET /invoices/:id with authenticated tenant context.
+END-REVIEW-TRAILER

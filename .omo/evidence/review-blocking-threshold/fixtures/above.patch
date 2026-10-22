@@ -1,0 +1,11 @@
+diff --git a/src/invoices.ts b/src/invoices.ts
+--- a/src/invoices.ts
++++ b/src/invoices.ts
+@@ -1,6 +1,6 @@
+ import { db } from "./db";
+ 
+-export async function getInvoice(id: string, tenantId: string) {
+-  return db.query("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2", [id, tenantId]);
++export async function getInvoice(id: string) {
++  return db.query("SELECT * FROM invoices WHERE id = $1", [id]);
+ }

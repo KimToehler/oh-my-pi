@@ -1,0 +1,16 @@
+(fail) #given two trailer blockers with one downgrade #when validated #then it blocks naming the gap [115.06ms]
+(fail) #given a narrative blocker the trailer omits #when validated #then it blocks naming the gap [120.10ms]
+(fail) #given a trailer id without a narrative blocker #when validated #then it blocks naming the gap [123.36ms]
+(fail) #given a FAIL trailer without blockers #when validated #then it blocks naming the gap [112.51ms]
+(fail) #given a repeated trailer blocker id #when validated #then it blocks naming the gap [108.43ms]
+(fail) #given a PASS trailer listing blockers #when validated #then it blocks naming the gap [108.42ms]
+(fail) #given an override over FAIL without downgrades #when validated #then downgrades blocks [88.10ms]
+(fail) #given an unknown downgrade rule #when validated #then downgrades.0.rule blocks [87.30ms]
+(fail) #given an unknown downgrade disposition #when validated #then downgrades.0.disposition blocks [85.30ms]
+(fail) #given a downgrade for a blocker the trailer does not list #when validated #then downgrades.0.blocker blocks [83.19ms]
+(fail) #given a downgrade naming a non-FAIL invocation #when validated #then downgrades.0.invocation blocks [84.92ms]
+(fail) #given a multi-line downgrade reason #when validated #then downgrades.0.reason blocks [88.30ms]
+(fail) #given the same blocker downgraded twice #when validated #then downgrades the same blocker twice blocks [84.22ms]
+(fail) #given downgrades on a full PASS record #when validated #then downgrades blocks [86.42ms]
+ 180 pass
+ 14 fail

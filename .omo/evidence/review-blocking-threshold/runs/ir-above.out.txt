@@ -1,0 +1,28 @@
+## Must-fix
+
+Blocker B1: **`src/invoices.ts:3–4` — Cross-tenant invoice disclosure.** A user who can call the public multi-tenant `GET /invoices/:id` endpoint and supplies another tenant’s invoice ID can retrieve that invoice because the query no longer filters by tenant. This weakens tenant isolation and can expose protected production data; disclosure cannot be reversed once the data is seen. **Fix:** restore the `tenantId` parameter and the `tenant_id = $2` predicate, with the tenant ID derived from the authenticated request context.  
+**Class:** Missing tenant authorization in a data lookup. **Single instance:** The supplied fixture contains one lookup; the brief prohibits searching the repository for fixture sites.
+
+## Should-fix
+
+None.
+
+## Nit
+
+None.
+
+## Checked
+
+- **Duplication across slices/files:** No instance found in the supplied single-file diff.
+- **Naming inconsistency:** No instance found among `invoice`, `id`, and `tenantId` in the supplied diff.
+- **Uneven API surface:** No sibling API is supplied for comparison; no instance found.
+- **Mixed conventions:** No instance found in the supplied diff.
+- **Missing or premature abstractions:** No instance found in the supplied diff.
+- **Dead code:** No new helper, type, input, variable, class, or key is introduced; no instance found. Repository-wide usage could not be checked under the fixture constraint.
+- **Doc drift:** No documentation is supplied for comparison; no instance found in the diff.
+- **Surprise scope:** The diff changes only the file and lookup specified by the plan.
+- **Plan walks:** The plan specifies the exact change and public endpoint. It has no Out of Scope list, Verification checklist, i18n keys, or slice file lists. It opts out of a merge gate.
+- **Seam list:** The brief identifies one self-contained slice and no cross-slice contracts.
+- **Simplification pass:** No cross-slice simplification candidate found.
+
+FAIL

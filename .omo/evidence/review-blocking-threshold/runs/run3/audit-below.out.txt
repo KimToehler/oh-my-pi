@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+Blocker B1: **High** — `scripts/dev-env.sh:4-6`. **Trigger:** a developer runs the script from the checkout root with a normal shell-compatible `.env` containing `export POSTGRES_PASSWORD=custom`. **Precondition:** the existing assignment uses the `export ` prefix. The anchored check misses it and appends `POSTGRES_PASSWORD=devpass`; when the file is sourced, the later assignment replaces the developer’s value. This violates the requirement to seed a default only when the key is absent and can break a local database connection. The damage is **reversible** by removing the appended line. **Fix direction:** recognize existing supported assignment syntax before appending and preserve its value. **class:** existing-key detection. **single instance:** the supplied fixture has one changed file and one detection-and-append site; the brief explicitly excludes searching the workspace. The class remains open at that site.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Note: `scripts/dev-env.sh:3-6` also does not recognize an assignment with leading whitespace, such as ` POSTGRES_PASSWORD=custom`, which is valid when sourced by a shell. This is another instance of B1’s detection class, not a separate blocker.
+
+## 3. Security and privacy delta
+
+No substantiated protected-asset exposure is shown by the supplied diff. The hard-coded value is explicitly a throwaway local-development default; it is not itself a real credential. The existing-value overwrite in B1 is a correctness issue under the stated scope.
+
+## 4. Verification adequacy
+
+Note: The supplied QA matrix covers only an absent-key run. It does not demonstrate preservation of existing values or the author’s second-run negative control. This evidence gap is not a separate blocker; B1 is substantiated directly by the diff.
+
+## 5. Final
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An existing shell-compatible exported password assignment retains its effective value after the script runs.
+  positive_witness: An .env containing export POSTGRES_PASSWORD=custom still yields custom when sourced after the script runs.
+  negative_control: The script appends a default that makes sourcing the same .env yield devpass.
+  observable: The effective POSTGRES_PASSWORD value after sourcing the resulting .env.
+  boundary: Developer checkout .env consumed by a shell after running scripts/dev-env.sh.
+END-REVIEW-TRAILER

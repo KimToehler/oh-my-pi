@@ -1,0 +1,1 @@
+Call the task tool exactly once with exactly one item: agent "plan-reviewer", solutionSpace "plan review", task "Review the plan at /Users/tim/git/oh-my-pi/.worktrees/review-blocking-threshold/.omo/evidence/review-blocking-threshold/fixtures/plan-below.md". Do not do anything else. When the result arrives, print the subagent's structured result as JSON verbatim and nothing else.

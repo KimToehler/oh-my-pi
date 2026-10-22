@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+Blocker B1: **Medium — `scripts/dev-env.sh:4–6`.** Trigger: a developer’s `.env` contains a valid shell assignment such as `export POSTGRES_PASSWORD=my-local-password`. Preconditions: the file is consumed as shell environment configuration and the developer runs the script from the checkout. The anchored match misses the existing key, so the script appends `POSTGRES_PASSWORD=devpass`; sourcing the file then replaces the developer’s value with the default. This violates the requirement to seed only when the key is absent. The local change is reversible by removing the appended line. **Fix direction:** recognize supported assignment syntax, including `export`, before appending, and preserve an existing value. **class:** incomplete existing-key detection. **single instance:** the supplied fixture has one changed file and one key-detection site; the brief prohibits a repository search. The class inventory is closed for the supplied diff, not for an independently searched tree.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+For plain `POSTGRES_PASSWORD=` assignments, the detection prevents a second append. The script also adds a separating newline when a nonempty file lacks one. These conclusions are from the supplied diff, not a runtime exercise.
+
+## 3. Security and privacy delta
+
+The change introduces a predictable password into the developer’s local environment. It is expressly a throwaway development default; the supplied context does not establish exposure of a protected asset. **Note:** this does not block under the stated threshold.
+
+## 4. Verification adequacy
+
+**Note:** The supplied QA matrix covers an absent key once, but not a second run or preservation of an existing exported assignment. This is an evidence gap; the concrete failure is B1. The artifact itself was not supplied for inspection.
+
+## 5. Final
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An existing exported password assignment retains its effective value after the script runs.
+  positive_witness: An env file containing export POSTGRES_PASSWORD=my-local-password still supplies my-local-password when sourced after the script runs.
+  negative_control: The script appends a default assignment that causes the sourced value to become devpass.
+  observable: The effective POSTGRES_PASSWORD value after sourcing the resulting env file.
+  boundary: The developer checkout env file consumed by a shell after running scripts/dev-env.sh.
+END-REVIEW-TRAILER

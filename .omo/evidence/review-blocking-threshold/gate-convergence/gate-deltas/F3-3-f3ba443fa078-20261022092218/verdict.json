@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "No blocking defect found in the fix delta.",
+  "blockers": [],
+  "notes": [
+    "The eight reviewer probes remain to be rerun on the changed threshold: the available QA matrix identifies ee9042b8249c3087b4d933df35cd9ef8b24fee5f, the pre-delta head, and records two below-threshold paths as inconclusive."
+  ]
+}

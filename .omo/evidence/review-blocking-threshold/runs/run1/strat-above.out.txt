@@ -1,0 +1,43 @@
+Bottom line: The change does not hold up architecturally because it removes the only visible tenant-isolation control from an exported invoice lookup. The positive QA proves ordinary lookup still works, but does not test the security property that the removed predicate previously enforced.
+
+Blocker B1: class: auth-secrets-pii (cross-tenant authorization/IDOR); sites: `src/invoices.ts:getInvoice` — single instance: the supplied diff is the only reviewable source and whole-tree search was explicitly prohibited; trigger: during normal use, a caller supplies an invoice ID belonging to another tenant; preconditions: user-controlled or otherwise untrusted invoice IDs can reach this function, the caller does not already possess access to the victim tenant, and no independently verified database RLS/session policy enforces tenant ownership; impact: the query can return another tenant’s invoice data, weakening tenant isolation and potentially exposing financial or personal information; reversibility: restoring the authorization constraint is reversible, but disclosure of data already returned is not.
+
+1. **Architectural fit:** No. `src/invoices.ts:getInvoice` changes from a tenant-qualified repository contract to a global identifier lookup, while also deleting the tenant context from its API. Unless an independently verified lower layer enforces equivalent isolation, this moves authorization out of the function without replacing it.
+2. **What line-level review structurally misses:** The end-to-end trust boundary—where `id` originates, how tenant identity is derived, whether database RLS exists, and which callers relied on the exported two-argument contract. It also misses that the QA matrix has only a positive witness and therefore cannot distinguish the new query from a cross-tenant data leak.
+3. **Highest-impact production failure:** Cross-tenant invoice disclosure is the most harmful realistic failure because it compromises tenant isolation and potentially third-party financial/PII data. It is not addressed by the supplied QA; `getInvoice('inv-1')` succeeding says nothing about whether a foreign tenant can retrieve `inv-1`.
+4. **Auditor false positives:** None to assess—the implementation audit reported no findings.
+
+Note: [INFERENCE] Changing the exported function from two parameters to one may also break typed consumers that still call `getInvoice(id, tenantId)`. This is not independently blocking here because no callsites or compiler evidence were available under the review constraint.
+
+Action plan:
+1. Restore `tenantId` to `getInvoice` and retain `AND tenant_id = $2`, unless equivalent database-enforced tenant isolation is demonstrated at this exact query boundary.
+2. Ensure the tenant value comes from authenticated server-side context rather than caller-controlled request data.
+3. Inventory all `getInvoice` callsites and confirm each supplies the authenticated tenant context.
+4. Add a negative cross-tenant check: requesting a valid invoice ID under a different tenant must return no row or an authorization failure.
+5. Retain the supplied same-tenant positive scenario to verify authorized lookup still succeeds.
+
+Effort: Quick (<1h)
+
+Confidence: medium—the removed predicate is direct evidence of weakened isolation, but review constraints prevented verification of callers and any database-level RLS that might independently preserve the boundary.
+
+Watch out for:
+- Globally unique or unguessable invoice IDs are identifiers, not authorization controls.
+- Database RLS is mitigating evidence only if it is active for this connection and covered by a cross-tenant negative test.
+- A client-provided `tenantId` would not safely restore isolation; it must be derived from trusted identity context.
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An invoice lookup must never return a row owned by a tenant other than the authenticated tenant.
+  positive_witness: An authenticated tenant requesting one of its own invoice IDs receives exactly that invoice.
+  negative_control: The same authenticated tenant requesting a valid invoice ID owned by another tenant receives no row or an authorization failure.
+  observable: Same-tenant lookup returns one matching row while the foreign-tenant lookup returns zero rows or a denied response.
+  boundary: The repository-to-database lookup boundary implemented by src/invoices.ts:getInvoice.
+END-REVIEW-TRAILER

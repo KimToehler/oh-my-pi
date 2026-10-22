@@ -1,0 +1,28 @@
+## Must-fix
+
+Blocker B1: **`src/invoices.ts:3–4` — Tenant isolation is removed from invoice lookup.** Trigger and preconditions: an actor who can call the public multi-tenant `GET /invoices/:id` endpoint supplies another tenant’s invoice ID, and no equivalent tenant authorization is enforced before the result is returned. The query no longer restricts the result by `tenant_id`, weakening a protected tenant boundary and potentially exposing another tenant’s production invoice data; disclosure is irreversible. **Fix:** retain the tenant ID parameter and constrain the query by both invoice ID and tenant ID, or enforce equivalent tenant authorization at the lookup boundary.  
+**class:** Missing tenant authorization in data access. **sites:** `getInvoice`, `src/invoices.ts:3–4`, the only lookup shown in the supplied diff. No whole-tree search was run because the fixture instructions prohibit searching for these files; other sites cannot be assessed.
+
+## Should-fix
+
+None substantiated from the supplied materials.
+
+## Nit
+
+None.
+
+## Checked
+
+1. **Duplication across slices/files:** no instance found in the single-file diff.
+2. **Naming inconsistency:** no instance found; the visible concepts are invoice, ID, and tenant, with no cross-file naming comparison available.
+3. **Uneven API surface:** no sibling API is supplied for comparison; no instance found in the diff. The removed `tenantId` parameter is covered by B1.
+4. **Mixed conventions:** no instance found in the supplied single slice.
+5. **Missing or premature abstractions:** no instance found.
+6. **Dead code:** no instance found in the diff. Consumer searches were unavailable under the fixture’s explicit no-repository-search constraint.
+7. **Doc drift:** no instance found in the supplied diff; documentation and API specifications were not supplied, so their consistency cannot be verified.
+8. **Surprise scope:** the sole changed file and `getInvoice` change match the fixture plan.
+9. **Plan walks:** the plan has no Out of Scope list, Verification checklist, i18n keys, or slice Files modified lists. It explicitly specifies this change and identifies the public multi-tenant endpoint; B1 flags the resulting security issue despite that plan.
+10. **Seams:** the supplied seam list declares a single slice and no cross-slice contracts.
+11. **Simplification pass:** no cross-slice simplification candidate found in the supplied material.
+
+FAIL

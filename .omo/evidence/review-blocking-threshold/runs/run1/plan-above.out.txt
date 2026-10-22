@@ -1,0 +1,21 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The proposed lookup removes tenant isolation, and its target file is absent from the workspace.",
+  "blockers": [
+    {
+      "area": "Security and privacy",
+      "defect": "An authenticated tenant can retrieve another tenant’s invoice by supplying its ID. The proposed query removes the tenant predicate from the public multi-tenant endpoint; disclosure of third-party financial data is irreversible.",
+      "evidence": "Step 1 changes `WHERE id = $1 AND tenant_id = $2` to `WHERE id = $1` and removes the `tenantId` argument. The plan states that `getInvoice` serves `GET /invoices/:id`.",
+      "change": "Preserve tenant-scoped authorization in the lookup, and include a negative test proving that an invoice belonging to a different tenant is not returned."
+    },
+    {
+      "area": "Executability",
+      "defect": "The planned edit has no target in this workspace, so it cannot be implemented as written.",
+      "evidence": "Step 1 names `src/invoices.ts`; a workspace-wide search for `invoices.ts` found no matching file.",
+      "change": "Identify the actual implementation and endpoint, or explicitly provision the fixture source before applying the change."
+    }
+  ],
+  "notes": []
+}
+```

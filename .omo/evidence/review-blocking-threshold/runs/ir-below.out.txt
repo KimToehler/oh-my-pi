@@ -1,0 +1,35 @@
+## Must-fix
+
+None.
+
+## Should-fix
+
+- **`scripts/dev-env.sh:3–6` — Working-directory-dependent target.** The script reads and writes `.env` in the caller’s current directory, rather than resolving it relative to the script. Running it from another project or directory can modify or create a different local `.env` than the developer intended.  
+  **Fix:** Resolve the intended project directory from the script’s location, or explicitly document and enforce the required working directory.  
+  **Single instance:** The supplied diff contains one script and one `.env` target; the brief prohibits searching the workspace for this fixture.  
+  **Why not blocking:** The plan does not specify the target directory, and the resulting change to a developer’s local file is reversible.
+
+- **`scripts/dev-env.sh:4` — Empty password treated as configured.** An existing `POSTGRES_PASSWORD=` line prevents the local default from being added even though its value is empty. This may leave a developer with no usable password if they expected the script to populate an empty setting.  
+  **Fix:** If empty values are intended to receive the default, distinguish an empty assignment from a populated one and replace it rather than appending a duplicate.  
+  **Single instance:** The supplied diff has one password-presence check; the brief prohibits searching the workspace for this fixture.  
+  **Why not blocking:** The plan specifies the check exactly as implemented and does not claim to fill empty values; the local state is reversible.
+
+## Nit
+
+None.
+
+## Checked
+
+- **Duplication across slices/files:** No instance found; the diff contains one file and the seam list describes one slice.
+- **Naming inconsistency:** No instance found in the diff for the password, `.env` file, or `current` content variable.
+- **Uneven API surface:** No instance found; no sibling API surfaces are supplied.
+- **Mixed conventions:** No instance found within the supplied single slice.
+- **Missing abstractions:** No instance found; there are no repeated cross-file patterns or one-consumer helpers in the diff.
+- **Dead code:** No instance found within the diff; `current` is consumed by the check. External consumers cannot be established under the fixture’s no-workspace-search constraint.
+- **Doc drift:** No instance found against the supplied plan. Workspace documentation was not searched because the fixture is expressly self-contained.
+- **Surprise scope:** The sole changed file and its complete contents match the plan. No other changed symbols or files are supplied.
+- **Plan walks:** The plan has no Out of Scope list, Verification checklist, i18n keys, or slice file lists. Its merge-gate opt-out identifies this as a QA fixture.
+- **Seams:** The supplied seam list says there are no cross-slice contracts.
+- **Simplification pass:** No cross-slice candidate found in the single-file diff.
+
+PASS

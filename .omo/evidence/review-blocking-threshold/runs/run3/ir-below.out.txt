@@ -1,0 +1,29 @@
+## Must-fix
+
+None.
+
+## Should-fix
+
+- **`scripts/dev-env.sh:4` — Export-prefixed assignments are not recognized.** An existing line such as `export POSTGRES_PASSWORD=secret` does not match the anchored check, so the script appends a second assignment with the default. For dotenv consumers that accept `export` and use the later assignment, this can change the effective local password. **Fix:** If export-prefixed dotenv entries are supported, recognize that syntax when checking for an existing assignment.  
+  **class:** incomplete dotenv assignment detection. **sites:** The only check in the supplied diff is at line 4; searched the supplied patch with `functions.grep` pattern `POSTGRES_PASSWORD|grep -q`. The brief restricts the review to the supplied artifacts, so a whole-tree search was not performed.  
+  **Why not blocking:** No dotenv consumer or supported dotenv syntax was supplied, and the plan identifies the password as a throwaway local default.
+
+## Nit
+
+None.
+
+## Checked
+
+1. **Duplication across slices/files:** no instance found; the diff contains one file and the seam list identifies one slice.
+2. **Naming inconsistency:** no instance found for the three visible concepts: `.env`, `POSTGRES_PASSWORD`, and `current`.
+3. **Uneven API surface:** no instance found; the diff exposes no sibling APIs.
+4. **Mixed conventions:** no instance found within the supplied diff.
+5. **Missing or premature abstractions:** no instance found.
+6. **Dead code:** no instance found within the diff; tree-wide consumer checks were unavailable under the fixture’s review scope.
+7. **Doc drift:** no instance found in the supplied plan; other documentation was outside the supplied review scope.
+- **Surprise scope:** the sole changed file and its contents match the plan’s step.
+- **Plan walks:** the plan has no Out of Scope section, Verification checklist, i18n keys, or slice file lists. Its single implementation step matches the diff; the plan marks the merge gate not applicable.
+- **Seams:** the supplied seam list says there are no cross-slice contracts.
+- **Simplification pass:** no cross-slice candidate found.
+
+PASS

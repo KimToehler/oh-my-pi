@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+The signature simplification removes the tenant constraint from a lookup used by a multi-tenant public endpoint. Matching the invoice ID alone does not preserve the caller’s tenant boundary.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Blocker B1: **Critical — cross-tenant invoice disclosure**, `src/invoices.ts:3–4` (changed query). **Trigger:** a caller requests an existing invoice belonging to another tenant, using its plausible ID. **Preconditions:** the HTTP handler returns the lookup result without an independent, effective tenant-authorization check; the supplied contract identifies the caller’s tenant as an input to the lookup, and the changed query no longer uses it. **Impact:** the lookup can return another tenant’s invoice, weakening tenant isolation and potentially disclosing production data. Disclosure is not fully reversible. **Violated contract:** the public multi-tenant lookup must restrict results to the caller’s tenant. **Fix direction:** retain tenant-scoped authorization in the query or enforce it at an equally effective boundary before returning the row. **class:** removal of tenant isolation from a data lookup. **sites:** single instance in the supplied, complete one-file diff; repository-wide search was not run because the fixture files do not exist and the brief expressly prohibits searching for them. This class is **not closed** at the changed site.
+
+**Note:** If an existing TypeScript caller still passes two arguments, the signature change may cause a compilation error. The caller and its type-checking configuration were not supplied, so a consumer regression cannot be established from the diff.
+
+## 3. Security and privacy delta
+
+**Yes.** The changed SQL removes `tenant_id = $2` and its bound value. That changes exposure at the lookup boundary rather than merely identifying a pre-existing issue. B1 depends on whether another effective authorization check exists; none is shown in the supplied evidence.
+
+## 4. Verification adequacy
+
+**Note:** The supplied QA matrix covers a successful same-ID lookup only. It does not exercise a cross-tenant request or the unknown-ID negative control. This is a verification gap, not a separate blocker; B1 identifies the substantive protected-asset risk. The artifact’s contents were not supplied, so the review relies on the matrix’s reported observation.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A caller cannot retrieve an invoice belonging to a different tenant by supplying its existing ID.
+  positive_witness: A caller retrieves an existing invoice belonging to their own tenant.
+  negative_control: A caller supplies another tenant's existing invoice ID and receives that invoice.
+  observable: The HTTP response contains the caller's own invoice for the positive case and no other tenant's invoice data for the negative case.
+  boundary: GET /invoices/:id with authenticated tenant context
+END-REVIEW-TRAILER

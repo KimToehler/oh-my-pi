@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The gate-proof change resolves the stated outcome contradiction, and the plan contains the user-decided negative-control wording.",
+  "blockers": [],
+  "notes": [
+    "The criterion wording is present in the current plan but is not part of the supplied commit patch."
+  ]
+}

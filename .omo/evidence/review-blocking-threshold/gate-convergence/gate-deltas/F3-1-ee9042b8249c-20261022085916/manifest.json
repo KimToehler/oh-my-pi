@@ -1,0 +1,18 @@
+{
+  "base_sha": "3256e66ed7b8e86e833719f62057169f7ce35924",
+  "head_sha": "ee9042b8249c3087b4d933df35cd9ef8b24fee5f",
+  "commits": [
+    {
+      "sha": "ccc437d18786c9b09b7b2c28658d430e9d2201fc",
+      "subject": "test(review-work): duplicate narrative blocker ids and INCONCLUSIVE overrides must block (RED)",
+      "patch": "001.patch",
+      "sha256": "924e2d9bbd13286560fc81c2b6d1f202b478ee3651b48dcbaee96c88761e3444"
+    },
+    {
+      "sha": "ee9042b8249c3087b4d933df35cd9ef8b24fee5f",
+      "subject": "fix(review-work): one finding per narrative blocker id; INCONCLUSIVE is re-run, never overridden",
+      "patch": "002.patch",
+      "sha256": "792a156e98dfa48b2b96646c9c95f2f2a0a38a3c3e5eca3dbe2897b89b3ea520"
+    }
+  ]
+}

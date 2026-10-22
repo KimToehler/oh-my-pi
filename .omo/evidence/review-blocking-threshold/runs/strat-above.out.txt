@@ -1,0 +1,52 @@
+**Bottom line:** The change does not hold up architecturally: it removes tenant context from both the exported API and SQL predicate, weakening an explicit tenant-isolation boundary around invoice data. The positive-only QA proves ordinary lookup still works but cannot detect the resulting cross-tenant disclosure.
+
+Blocker B1: **class: tenant-isolation authorization regression;** **trigger:** a tenant submits or otherwise causes lookup of a valid invoice ID belonging to another tenant; **preconditions:** invoices from multiple tenants share the table and the caller exposes or uses attacker-influenced invoice IDs, both consistent with the removed `tenantId` contract; **impact:** `src/invoices.ts:getInvoice` now returns the foreign tenant’s invoice because the query filters only by `id`, exposing protected tenant data; **reversibility:** the code change is reversible, but confidentiality loss after disclosure is not; **single instance:** the boundary regression is introduced at the only supplied changed site, `src/invoices.ts:getInvoice`; the brief expressly prohibited a whole-tree search, so downstream caller sites cannot be enumerated.
+
+### Answers
+
+1. **Does the change hold up architecturally against the rest of the system?**
+   No. The previous function signature and `tenant_id = $2` predicate jointly encoded tenant scoping at the persistence boundary. Removing both turns an exported tenant-scoped lookup into a global lookup. JavaScript callers that still pass `tenantId` are especially dangerous because the extra argument can be silently ignored at runtime; typed TypeScript callers may instead fail compilation until migrated.
+
+2. **What does the auditor’s line-level view structurally miss?**
+   It misses the trust-boundary change, the semantic contract change for every caller, and the absence of a negative authorization test. The supplied QA checks only that an owner-visible invoice remains retrievable; it never asks whether one tenant can retrieve another tenant’s invoice.
+
+3. **Which failure mode would hurt most in production, and is it addressed?**
+   Cross-tenant invoice disclosure is the highest-impact failure because invoice records can contain financial and personal data. It is not addressed by the implementation or QA matrix; the exact SQL change enables it.
+
+4. **Is any auditor finding a false positive on unchanged behaviour?**
+   No implementation-audit findings were supplied, so there is no auditor finding to classify as a false positive.
+
+### Action plan
+
+1. Restore `tenantId` as a required argument to `getInvoice`.
+2. Restore `AND tenant_id = $2` and bind `[id, tenantId]`.
+3. Inventory every reference to `getInvoice` and verify each caller supplies tenant identity derived from trusted authorization context, not untrusted request data alone.
+4. Keep the successful same-tenant QA scenario.
+5. Add a negative control: tenant A requests a known invoice ID owned by tenant B and receives no invoice.
+6. Verify typed callers still compile and any JavaScript callers cannot bypass tenant scoping.
+
+**Effort:** Quick (<1h)
+
+**Confidence:** High — the removed parameter and SQL predicate directly show the loss of tenant enforcement, and tenant isolation is explicitly a protected asset.
+
+**Watch out for:**
+- Globally unique or hard-to-guess invoice IDs do not replace authorization.
+- Fixing only upstream callers leaves alternate or future callers able to bypass tenant scoping.
+- A negative test should use a real foreign-tenant row, not merely an unknown invoice ID.
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A tenant-scoped invoice lookup must never return an invoice owned by a different tenant, even when given that invoice's valid identifier.
+  positive_witness: A lookup using tenant A and an invoice owned by tenant A returns that invoice.
+  negative_control: A lookup in tenant A's context using a valid invoice identifier owned by tenant B MUST return no invoice.
+  observable: The database query result contains the same-tenant row in the positive case and zero rows in the cross-tenant case.
+  boundary: The invoice data-access function and its SQL tenant predicate.
+END-REVIEW-TRAILER

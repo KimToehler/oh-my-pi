@@ -1,0 +1,12 @@
+diff --git a/scripts/dev-env.sh b/scripts/dev-env.sh
+new file mode 100755
+--- /dev/null
++++ b/scripts/dev-env.sh
+@@ -0,0 +1,7 @@
++#!/usr/bin/env bash
++set -u
++current=$(cat .env 2>/dev/null)
++if ! grep -q '^POSTGRES_PASSWORD=' <<<"$current"; then
++  [ -s .env ] && [ -n "$(tail -c1 .env 2>/dev/null)" ] && echo >> .env
++  echo 'POSTGRES_PASSWORD=devpass' >> .env
++fi

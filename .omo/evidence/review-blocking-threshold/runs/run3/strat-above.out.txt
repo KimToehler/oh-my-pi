@@ -1,0 +1,45 @@
+Bottom line: The change does not hold up architecturally: `src/invoices.ts:getInvoice` removes both the tenant context and the database-enforced tenant predicate, turning a tenant-scoped lookup into a global lookup. The supplied QA proves only that a valid invoice remains retrievable; it does not test tenant isolation and would pass for both the secure and insecure implementations.
+
+Blocker B1: class: auth-secrets-pii / tenant isolation; single instance: `src/invoices.ts:getInvoice` is the sole changed implementation site in the supplied materials, and the brief explicitly prohibits whole-tree search; trigger: a caller authenticated for tenant A submits or otherwise reaches the function with an invoice ID belonging to tenant B; preconditions: multiple tenants share the `invoices` table, invoice IDs can reach this lookup through ordinary operation, and no independently proven tenant authorization check precedes it; impact: the query can return tenant B's invoice, weakening tenant isolation and potentially disclosing production financial or personal data; reversibility: restoring the predicate prevents future disclosures, but information already disclosed is irreversible.
+
+1. **Architectural fit:** No. The previous function encoded tenant isolation in both its API and SQL predicate; removing both eliminates defense at the persistence boundary. No supplied evidence establishes an equivalent authorization boundary elsewhere.
+2. **What the line-level audit misses:** It misses the end-to-end trust boundary, the security significance of deleting `tenantId`, cross-file consumer compatibility, and the need for a cross-tenant negative control. A successful same-tenant lookup cannot validate authorization.
+3. **Highest-impact production failure:** Cross-tenant invoice disclosure is the most damaging realistic failure because it reaches tenant isolation and production financial data. It is not addressed; the changed SQL directly enables it when no earlier check rejects the foreign invoice ID.
+4. **False positives from the auditor:** None. The implementation audit reported no findings, so there is no auditor finding to classify as a false positive.
+
+Note N1: Changing `getInvoice(id, tenantId)` to `getInvoice(id)` may break typed consumers still passing two arguments; this is not an additional blocker because no consumer inventory is available under the explicit no-search constraint.
+
+Note N2: The QA matrix lacks a tenant-A/tenant-B negative case; that evidence deficiency does not block independently because B1 identifies the underlying production defect.
+
+Action plan:
+1. Restore `tenantId` as a required `getInvoice` argument and restore `AND tenant_id = $2` in the SQL predicate.
+2. Verify every caller obtains the tenant ID from trusted authentication context rather than request-controlled invoice metadata.
+3. Add a test with invoices belonging to two tenants: the owning tenant succeeds, while the other tenant receives no row or an authorization failure.
+4. Inventory existing call sites to confirm the function contract remains consistent and no caller bypasses tenant scoping.
+5. Repeat manual QA with both the current positive scenario and the cross-tenant negative control.
+
+Effort: Quick (<1h) for the focused restoration and negative coverage, assuming callers already retain tenant context.
+
+Confidence: high—the removed parameter and SQL predicate are directly visible in `src/invoices.ts:getInvoice`, and tenant isolation is explicitly a protected asset under the review threshold.
+
+Watch out for:
+- Globally unique or unguessable invoice IDs are not an authorization control.
+- An upstream check is sufficient only if it is mandatory for every call path and is proven by caller inventory and negative coverage.
+- Any already-disclosed invoice data cannot be made confidential again.
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An invoice lookup must produce a row only when the requested invoice belongs to the authenticated caller's tenant.
+  positive_witness: A caller authenticated for tenant A requests tenant A's invoice and receives that invoice.
+  negative_control: A caller authenticated for tenant A requests tenant B's valid invoice ID and MUST receive no invoice.
+  observable: The returned row count or authorization response differs between the owning-tenant and foreign-tenant requests.
+  boundary: The invoice data-access query where tenant identity is applied to the database predicate.
+END-REVIEW-TRAILER

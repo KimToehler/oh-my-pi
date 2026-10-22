@@ -1,0 +1,11 @@
+packages/coding-agent/src/prompts/agents/plan-reviewer.md
+team-config/agent/agents/auditor.md
+team-config/agent/rules/lesson-size-gate-to-audience.md
+team-config/agent/rules/merge-gate-proof.md
+team-config/agent/rules/plan-review-process.md
+team-config/agent/skills/integration-review/SKILL.md
+team-config/agent/skills/review-work/SKILL.md
+team-config/agent/skills/review-work/scripts/fixtures/override-with-fail.json
+team-config/agent/skills/review-work/scripts/fixtures/trailers/fail-implementation-audit.txt
+team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs

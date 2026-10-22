@@ -1,0 +1,605 @@
+diff --git a/packages/coding-agent/src/prompts/agents/plan-reviewer.md b/packages/coding-agent/src/prompts/agents/plan-reviewer.md
+index 3268c5f3fa..23ba36173c 100644
+--- a/packages/coding-agent/src/prompts/agents/plan-reviewer.md
++++ b/packages/coding-agent/src/prompts/agents/plan-reviewer.md
+@@ -48,7 +48,7 @@ You are an independent plan reviewer from a different model family than the plan
+ </identity>
+ 
+ <method>
+-The plan arrives inline in your assignment, or as one file path you read once. An assignment may instead carry a delta: one fix entry plus its diff, with the plan's invariants as context. Review a delta like a plan: its claims are the fix entry and the diff, and every check applies to what the delta adds, changes or removes. Work targeted:
++The plan arrives inline in your assignment, or as one file path you read once. An assignment may instead carry a delta: one fix entry plus its diff, with the plan's invariants as context. Review a delta like a plan: its claims are the fix entry and the diff, and every check applies to what the delta adds, changes or removes. A defect the delta causes or exposes in unchanged code also counts; a pre-existing defect it neither causes nor exposes is a note. Work targeted:
+ 1. Read the plan once, fully. List the claims it makes about existing code (files, symbols, line numbers, behaviour, contracts) and the decisions it rests on.
+ 2. Verify claims with the smallest probe: `grep` the cited symbol, `read` the cited lines with a narrow range. Do not read whole modules or explore unrelated code. Stop probing a claim as soon as it is confirmed or refuted.
+ 3. Prioritise claims that later tasks depend on; skip incidental ones if time is short.
+@@ -72,9 +72,9 @@ Review in this order. It ranks blockers of equal severity; it never hides one.
+ </review_scope>
+ 
+ <mechanical_checks>
+-Eight binary checks. Each applies ONLY when the plan contains its trigger. When a check is triggered and the plan lacks the required answer, that is a blocker: name the check number and the exact plan slot (section, todo id, or quoted line). Rules loaded for you may define further checks under their own labels in the same form. Start the `area` with the check label (`CHECK 5`, or the rule's own label), so a blocker can be traced to its check.
++Eight binary checks. Each applies ONLY when the plan contains its trigger. When a check is triggered and the plan lacks the required answer, that gap is a blocker when it meets the blocking threshold in <decision>, otherwise a note; either way name the check number and the exact plan slot (section, todo id, or quoted line). Rules loaded for you may define further checks under their own labels in the same form. Start the `area` with the check label (`CHECK 5`, or the rule's own label), so a blocker can be traced to its check.
+ 
+-- **CHECK 1, holders and sinks.** Trigger: a protected value (credential, token, PII) or "X must never reach / leak to / appear in Y". Required: an inventory, derived by search, of every holder of X (process, env, file, argv, request body, in-memory object) and every sink (file, DB column, log, path name, error message, diff, and the stdout/stderr of every holder, because a holder is a sink for everything it prints); ONE named chokepoint new paths inherit automatically, or a reason a sink is excluded; and a negative control that plants a sentinel in every input field and scans every artifact for zero hits.
++- **CHECK 1, holders and sinks.** Trigger: a protected value (a real credential or token, third-party personal data; a local development default or test fixture value is not one) or "X must never reach / leak to / appear in Y". Required: an inventory, derived by search, of every holder of X (process, env, file, argv, request body, in-memory object) and every sink (file, DB column, log, path name, error message, diff, and the stdout/stderr of every holder, because a holder is a sink for everything it prints); ONE named chokepoint new paths inherit automatically, or a reason a sink is excluded; and a negative control that plants a sentinel in every input field and scans every artifact for zero hits.
+ - **CHECK 2, complete identity.** Trigger: a hash, digest, cache key, fingerprint, identity, or recorded provenance field used to decide sameness. Required: every input that influences the result, each bound or excluded with a reason; for every recorded provenance field the value it is compared against (a field only checked for presence binds nothing); and a control per input: two runs differing only in that input must be told apart.
+ - **CHECK 3, enumerated forbidden set.** Trigger: a rule that lists forbidden characters, strings, paths, fields, error types, or spellings. Required: inversion to an allow-set, delegation to existing tooling (parser, canonicaliser, type), or an argument why the enumeration is complete; and a control over the whole input space (for example every printable non-word character), not a few examples.
+ - **CHECK 4, decision predicate.** Trigger: a predicate the plan defines or relies on as a decision (gate, admission, or acceptance criterion), such as "complete", "ready", "safe", "matched", "valid", "eligible". A test runner's pass/fail status ("bun test -> all pass") is not a trigger. Required: a one-sentence definition; the result for each of these input states the input can be in: missing, corrupt or unreadable, still running or partial, lossy, with rejection (or a visible "undecidable" value) as the default; and a negative control covering at least "missing" and, where it applies, "still running".
+@@ -87,11 +87,12 @@ Also: every `## Merge gate` criterion's `Boundary:` must name a real code locati
+ </mechanical_checks>
+ 
+ <decision>
++- Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+ - **REJECT** only with evidence: a `file:line` that contradicts the plan, a quote from the plan showing the gap, or a concrete scenario (input, sequence, state) in which the plan misses its goal or introduces a defect. No evidence, no blocker.
+ - A claim about runtime or library behaviour that you cannot back with a repo `file:line` or a quote from docs shipped in the repo is never a blocker by itself (you have no shell to test it); list it as a note `unverified: <claim>`.
+ - Taste, style, naming, and "could be nicer" alternatives are notes, never blockers.
+ - Do not reject for things the plan explicitly scopes out with a reason, unless that reason is factually wrong.
+-- Report every evidenced blocker; never hold one back to keep the list short. One blocker per defect class: when the same defect appears in several places, it is one blocker whose evidence lists every site. Order blockers by severity (a plan that misses its goal, breaks a contract, or opens a security gap outranks one that is only hard to execute); among equal severity, follow the `<review_scope>` order, then CHECK numbers.
++- Report every evidenced blocker that meets the threshold; never hold one back to keep the list short. One blocker per defect class: when the same defect appears in several places, it is one blocker whose evidence lists every site. Order blockers by severity (a plan that misses its goal, breaks a contract, or opens a security gap outranks one that is only hard to execute); among equal severity, follow the `<review_scope>` order, then CHECK numbers.
+ </decision>
+ 
+ <output>
+diff --git a/team-config/agent/agents/auditor.md b/team-config/agent/agents/auditor.md
+index bedb3136e3..15bd478179 100644
+--- a/team-config/agent/agents/auditor.md
++++ b/team-config/agent/agents/auditor.md
+@@ -14,7 +14,7 @@ Review supplied implementation and diffs for correctness, regressions, security,
+ <review_method>
+ - Trace behavior from changed code through callers, types, tests, and configuration.
+ - Verify each finding with file and line evidence. Report only issues you can substantiate.
+-- Distinguish blockers from non-blocking risks. Do not invent defects or restate implementation.
++- Mark a finding as a blocker only when it meets the brief's blocking threshold. Without one in the brief: a realistic trigger (normal use, state that occurs in ordinary operation, or plausible input from outside the trust boundary; not a state the user must construct on their own machine, and not an input variant the change does not claim to handle when the damage stays local and reversible) leads to it, and it breaks the goal or a consumer the change affects (also in unchanged code) or reaches a protected asset (production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, irreversible state). Report every other finding as a non-blocking risk with one line on why. Do not invent defects or restate implementation.
+ - Check that tests exercise meaningful behavior, not only mocks or prompt prose.
+ - For every blocker, name the defect class and list every site of that class across the repository with the search you ran, or state single instance with the reason.
+ </review_method>
+diff --git a/team-config/agent/rules/lesson-size-gate-to-audience.md b/team-config/agent/rules/lesson-size-gate-to-audience.md
+index 8dd1e77a12..24be336b09 100644
+--- a/team-config/agent/rules/lesson-size-gate-to-audience.md
++++ b/team-config/agent/rules/lesson-size-gate-to-audience.md
+@@ -18,6 +18,12 @@ Every dual-review wave found new sinks, and the one thing that mattered was neve
+ comparison with a decision-eligible result. The user stopped it with "it doesn't need to be perfect.
+ It needs to work and deliver real value."
+ 
++A product repo's dev tooling hit the same loop: a dev-env script that writes a local .env ran about
++eight fix-delta rounds over NUL bytes and short reads, and a local docs-check script ran seven F2
++waves, while the product milestones had not started. Every round counted every finding as a
++blocker. Reviewers now mark blockers only against the shared blocking threshold, and every blocker
++the gate leaves unfixed goes into the record's downgrades with the user's override.
++
+ **How to apply:**
+ - Personal, local-only tool: put `- Merge gate: not applicable (<reason>)` in the plan. Threat model
+   = accidents that corrupt your own results, not an adversary on your own machine.
+diff --git a/team-config/agent/rules/merge-gate-proof.md b/team-config/agent/rules/merge-gate-proof.md
+index 9dd33dea14..2aa39c44e0 100644
+--- a/team-config/agent/rules/merge-gate-proof.md
++++ b/team-config/agent/rules/merge-gate-proof.md
+@@ -15,18 +15,20 @@ Gate proof
+   range <base>...<head> (literal SHAs) · report <tracked path> · Must-fix: <n> open / <n> fixed in <sha>
+ - review-work: RAN | NOT RUN (<reason>)
+   reviewed_sha <40-hex> · plan_sha256 <hex>
+-  implementation-audit: <PASS|FAIL> · <agent> · <model> · trailer <path>
+-  strategic-risk-review: <PASS|FAIL|not run (reason)> · trailer <path>
++  implementation-audit: <PASS|FAIL|FAIL overridden> · <agent> · <model> · trailer <path>
++  strategic-risk-review: <PASS|FAIL|FAIL overridden|not run (reason)> · trailer <path>
++  override: none | by <user> · <n> downgrades (<count per rule>)
+   record <path> · validate-gate-record.mjs exit 0 at <HEAD sha>
+ - code committed after reviewed_sha: none | <shas> → gate void, re-run
+ ```
+ 
+-Each line has one of three outcomes:
++Each line has one of four outcomes:
+ - passed: `RAN` with `PASS` verdicts and the record validated;
++- overridden: `RAN`, every FAIL carries an override the user gave in this session, one `downgrades` entry per blocker, and the record validated; write the verdict as `FAIL overridden` and fill the override line;
+ - legitimately skipped: integration-review `not needed (<plan's Whole-diff review reason>)`, or strategic-risk-review `not run (<reason>)` when review-work's depth rule chose one reviewer; never for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers;
+ - not passed: anything else, written as `NOT RUN (<reason>)` or `FAIL`.
+ 
+-Only passed and legitimately skipped lines allow a merge request. If any line is not passed, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
++Only passed, overridden and legitimately skipped lines allow a merge request. If any line is neither passed, overridden, nor legitimately skipped, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
+ 
+ ## What "ran in full" means
+ 
+diff --git a/team-config/agent/rules/plan-review-process.md b/team-config/agent/rules/plan-review-process.md
+index 5e6f9a2b05..ccc7104dc0 100644
+--- a/team-config/agent/rules/plan-review-process.md
++++ b/team-config/agent/rules/plan-review-process.md
+@@ -6,11 +6,11 @@ alwaysApply: true
+ 
+ # Process checks
+ 
+-Labels are PROCESS 1-4. Same form as CHECK n: each fires only on its trigger; a triggered check without the required answer is a blocker naming the label and the plan slot. Among equal severity, PROCESS blockers follow CHECK 1-8.
++Labels are PROCESS 1-4. Same form as CHECK n: each fires only on its trigger; a triggered check without the required answer is a blocker under the blocking threshold of the reviewer's <decision> (otherwise a note), naming the label and the plan slot. Among equal severity, PROCESS blockers follow CHECK 1-8.
+ 
+ Opt-out first: before any PROCESS check, look for a top-level bullet `- Merge gate: not applicable (<reason>)` outside code fences. If the plan has one, you MUST NOT report PROCESS 1, 2 or 3 for it, not even as a lower-severity blocker; PROCESS 4 is never skipped; an undecided contingency in such a plan is out of PROCESS scope. CHECK and DOMAIN rules still apply on their own triggers. A quoted or nested opt-out line is not an opt-out.
+ 
+ - **PROCESS 1, abort rule.** Trigger: a `## Merge gate` section with feature-specific criteria. Required: every criterion is decidable, meaning its invariant names an observable property of a named component and its negative control names an input or state that must fail ("the system is secure" is not decidable); `Accepted residual risks` and `Out of scope for blocking` name concrete risks or areas, or `none` with a reason that holds against the plan; no accepted residual risk or out-of-scope area contradicts a criterion's invariant.
+ - **PROCESS 2, decided assumptions.** Trigger: an assumption or contingency whose acceptance is open ("if not acceptable", "otherwise", "if reality is X", "falls nicht", "sonst"). Required: the decision and who made it; a fallback that adds a subsystem (proxy, staging tree, daemon, store, endpoint) is designed in this plan or named as a separate plan before implementation.
+ - **PROCESS 3, cut.** Trigger: the plan changes more than two subsystems (packages, services, or independently testable mechanisms). Required: a cut into plans with their own gates, or evidence that the parts cannot ship separately.
+-- **PROCESS 4, fix delta.** Trigger: the assignment is a fix delta (fix entries plus their diff). Check the diff before any table. Required: (a) the delta adds no subsystem (process, proxy, store, staging tree, daemon, endpoint, or another independently testable mechanism); one that does is a blocker: it becomes its own plan; (b) every removed or weakened line that protected something (a `DELETE`, cleanup, reset, guard, check, validation, refusal) has a named replacement in the delta or a reason the protection is obsolete; a removal without either is a correctness blocker that quotes the removed line and names the scenario it now breaks; (c) CHECK 1-8 and triggered DOMAIN checks apply to what the delta adds, changes or removes, against the plan invariants in the assignment. A missing table is a separate blocker ranked below (b).
++- **PROCESS 4, fix delta.** Trigger: the assignment is a fix delta (fix entries plus their diff). Check the diff before any table. Required: (a) the delta adds no subsystem (process, proxy, store, staging tree, daemon, endpoint, or another independently testable mechanism); one that does is a blocker: it becomes its own plan; (b) every removed or weakened line that protected something (a `DELETE`, cleanup, reset, guard, check, validation, refusal) has a named replacement in the delta or a reason the protection is obsolete; a removal without either is a correctness blocker that quotes the removed line and names the scenario it now breaks; (c) the delta fixes what its fix entries name; CHECK 1-8 and triggered DOMAIN checks apply to what the delta adds, changes or removes and to defects it causes or exposes in unchanged code, under the blocking threshold, against the plan invariants in the assignment. A missing table is a separate blocker ranked below (b).
+diff --git a/team-config/agent/skills/integration-review/SKILL.md b/team-config/agent/skills/integration-review/SKILL.md
+index 425f4d879e..5acbc43867 100644
+--- a/team-config/agent/skills/integration-review/SKILL.md
++++ b/team-config/agent/skills/integration-review/SKILL.md
+@@ -37,7 +37,7 @@ The caller prepares the inputs. The reviewer does the reading. The reviewer has
+ 
+ The reviewer must hold the *whole* change in working memory before forming opinions. Per-slice review optimizes for local quality; integration review catches the failures *of composition*: when each slice is fine on its own but the assembly isn't.
+ 
+-The reviewer must also be **slightly hostile** to the implementation. If something looks weird, flag it; let the user dismiss what's intentional. False positives are cheaper than missed issues. Per the writing-plans skill's "trust but verify" principle: verify, don't defer.
++The reviewer must also be **slightly hostile** to the implementation. If something looks weird, flag it; let the user dismiss what's intentional. Findings are cheap; blockers are not: the blocking threshold in the brief decides what is Must-fix. Per the writing-plans skill's "trust but verify" principle: verify, don't defer.
+ 
+ ## The process
+ 
+@@ -68,7 +68,7 @@ Dispatch a single omp `task` call with one item: `agent: "auditor"`, `solutionSp
+ **Plan:** `<plan path>` (if it exists, read it for the design rules, the "Out of Scope" list, and the "Verification" checklist)
+ **Seam list:** <each lane or slice and the cross-slice contracts it touched>
+ 
+-**Asymmetry constraint:** you have only the diff, the file list, the plan, and the seam list. You do not have my reasoning for any specific decision. Read the whole diff end to end before forming opinions. If something looks wrong, flag it; I will dismiss what is intentional. False positives are cheaper than missed issues.
++**Asymmetry constraint:** you have only the diff, the file list, the plan, and the seam list. You do not have my reasoning for any specific decision. Read the whole diff end to end before forming opinions. If something looks wrong, flag it; I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+ 
+ ## Walk the seven failure modes
+ 
+@@ -108,11 +108,15 @@ A finding is one instance of a defect class. For EVERY finding write:
+ 
+ Report the whole class in one round. Do not leave sibling sites for a later round.
+ 
++## Blocking threshold
++
++Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
++
+ ## Report format
+ 
+ Output a markdown report with three buckets:
+-- **Must-fix:** correctness issues, dead code, broken consumers, out-of-scope work that slipped in, security smells, plan violations.
+-- **Should-fix:** consistency issues, missing abstractions, naming drift, doc drift, premature abstractions, cross-slice simplification candidates.
++- **Must-fix:** every finding that meets the blocking threshold, each on its own `Blocker B<n>:` line. Nothing else is Must-fix.
++- **Should-fix:** findings below the threshold: correctness and security findings without a realistic trigger on a protected asset, dead code, consistency issues, missing abstractions, naming drift, doc drift, premature abstractions, cross-slice simplification candidates.
+ - **Nit:** style, optional polish, taste calls.
+ 
+ Each finding carries: `file:line` (or symbol name plus path); **what** the issue is, in one sentence; **why** it matters, in one sentence; **fix**, in 1-3 lines or a small snippet; and its `class:` / `sites:` or `single instance:` line.
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index f146bd4f53..e849ffbfdb 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -25,7 +25,7 @@ One reviewer by default, never an implicit panel. A single reviewer holding full
+ | `implementation-audit` | One resolved implementation-audit invocation | Is implementation correct, safe, complete, and adequately verified? |
+ | `strategic-risk-review` (conditional) | One resolved strategic-risk-review invocation | Does architecture hold and which high-consequence risk did line-level audit miss? |
+ 
+-Review completed implementation work through manual QA you run yourself plus reviewer invocations this change actually needs. You decide how much review that is - see Phase 0.5. Review passes only when QA matrix has no failing row AND every invocation you ran returns `PASS`.
++Review completed implementation work through manual QA you run yourself plus reviewer invocations this change actually needs. You decide how much review that is - see Phase 0.5. Review passes only when QA matrix has no failing row AND every invocation you ran returns `PASS`; the only other outcome that permits merge is the user-authorized override in Phase 4.
+ 
+ ---
+ 
+@@ -192,7 +192,9 @@ Inputs:
+ - Author-supplied behavioural criteria: {CRITERIA WITH FIVE FIELDS}
+ - Whole-diff review report and its class list, when F3 ran: {F3 REPORT PATH}
+ 
+-Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. False positives are cheaper than missed issues.
++Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
++
++Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+ 
+ Review exactly these five sections:
+ 1. Goal and behavioural contract
+@@ -207,7 +209,7 @@ Security scope: a finding blocks only when it cites changed lines in DIFF_RANGE,
+ 
+ Brief guard: if this message did not carry all five numbered sections, or withheld the QA matrix, return INCONCLUSIVE and name what was missing. Do not answer a narrower brief as if it were the whole assignment.
+ 
+-Return blockers with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site; do not re-derive classes F3 already closed. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
++Return each blocker on its own `Blocker B<n>:` line with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site; do not re-derive classes F3 already closed. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+ 
+ End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+ 
+@@ -217,6 +219,7 @@ sections_covered: <numbers you received, comma-separated>
+ model_id: <your exact resolved model ID, or unresolved>
+ security_delta: <yes|no from your own section 3>
+ verdict: <PASS|FAIL|INCONCLUSIVE>
++blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+ adversarial_criteria:
+ - invariant: <your own, not restated from the plan>
+   positive_witness: <representative valid outcome>
+@@ -249,7 +252,9 @@ Manual QA matrix:
+ Implementation-audit findings:
+ {AUDITOR FINDINGS}
+ 
+-Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. False positives are cheaper than missed issues.
++Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
++
++Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+ 
+ Answer four questions:
+ 1. Does change hold up architecturally against rest of system?
+@@ -259,7 +264,7 @@ Answer four questions:
+ 
+ Brief guard: if this message did not carry all four questions, the diff, the changed-file list, the QA matrix, and the implementation-audit findings, return INCONCLUSIVE and name what was missing.
+ 
+-Do not re-derive auditor findings. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
++Do not re-derive auditor findings. Start each blocker with its own `Blocker B<n>:` line. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+ 
+ End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+ 
+@@ -269,6 +274,7 @@ sections_covered: <numbers of the questions you received, comma-separated>
+ model_id: <your exact resolved model ID, or unresolved>
+ security_delta: <yes|no - did this change move a data class somewhere new>
+ verdict: <PASS|FAIL|INCONCLUSIVE>
++blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+ adversarial_criteria:
+ - invariant: <your own, not restated from the plan>
+   positive_witness: <representative valid outcome>
+@@ -314,7 +320,7 @@ Five fields are mandatory for semantic, policy, authorization, transformation, f
+ 
+ Results arrive automatically; use `wait` only when blocked on them, and do independent root work meanwhile. Timeout, ack-only reply, empty result, missing deliverable, or explicit `BLOCKED:` is never `PASS`. Apply one bounded fresh-context retry; if unresolved, record `INCONCLUSIVE` with reason. Never fan out or use a long-lived reviewer carrying stale context.
+ 
+-A rejecting invocation must name its blockers inline, each citing the violated criterion or requirement plus an evidence pointer. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason. A reply carrying no trailer is the same case - without it, what the reviewer was asked cannot be established.
++A rejecting invocation must name its blockers inline, each on its own `Blocker B<n>:` line citing the violated criterion or requirement plus an evidence pointer. A FAIL whose `Blocker B<n>:` lines and trailer `blockers:` field disagree is incomplete: re-dispatch it like a missing trailer; never edit the reply. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason. A reply carrying no trailer is the same case - without it, what the reviewer was asked cannot be established.
+ 
+ Review evidence must be safe to share. Redact or mask secrets and sensitive user data before putting evidence into records, logs, or handoffs. Never include raw tokens, credentials, auth headers, cookies, API keys, env dumps, private logs, or PII; summarize with lengths, hashes, and short non-sensitive prefixes when identity is needed.
+ 
+@@ -330,12 +336,14 @@ A re-review after fixes is a new `task` call (never `write agent://<id>` to a re
+ 
+ ## Phase 4: Deliver Verdict
+ 
+-Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. One `FAIL` or `INCONCLUSIVE` blocks. No-review decision can pass only with clean QA and recorded `decision_reason`, unless mandatory class requires both invocations.
++Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. The one other outcome that permits merge is an override: QA passed, every invocation returned `PASS` or `FAIL` with a stored trailer, the user agreed in this session, and the record names them in `override.by` and carries one `downgrades` entry per blocker of every FAIL trailer. An override is reported as overridden, never as PASS. Without that, one `FAIL` or `INCONCLUSIVE` blocks. No-review decision can pass only with clean QA and recorded `decision_reason`, unless mandatory class requires both invocations.
+ 
+ Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence through Fix waves, and re-run the affected invocation before claiming completion or merging.
+ 
+ Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not.
+ 
++**Downgrades.** A reviewer blocker the gate leaves unfixed ends only in `override` plus exactly one `downgrades` entry per blocker id of every FAIL trailer, never silently. `rule` says why it may stay: `below-threshold` when you judge that the finding misses both (a) and (b) of the blocking threshold, with `reason` naming the missing trigger or asset, and the user agreed; `accepted-residual` when the plan's `Accepted residual risks` covers it; `out-of-scope` when `Out of scope for blocking` covers it; `frozen` when the user chose freeze at a convergence STOP. `disposition` is `residual` or `follow-up`; a follow-up names where it is tracked in `reason`.
++
+ **Write and validate the gate record here, as the last step before merging.** Phase 5 defines the record. Write the record and the reviewer trailers, **stage them**, then run the validator: it requires the artifacts to be in the index, because a file nobody added vanishes from every other checkout and takes the evidence with it.
+ 
+ Committing that evidence afterwards does not invalidate the record. The reviewed target is the **code**: commits on top of `reviewed_sha` are tolerated while they touch only the record, the trailers it cites, and the plan - the files whose existence storing the record causes, each of which the validator also reads and requires to be tracked. Anything else among them blocks, which is the point. Without that rule the gate would demand durable evidence and then reject the record for having been stored, and the cheap way out would be to leave the evidence untracked.
+@@ -396,7 +404,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
+    - `DECISION: PASS` → Phase 4.
+    - `CONTINUE` → step 4.
+    - `STOP` (exit 3) → no fix. `ask` the user, showing the ledger numbers. The options:
+-     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, naming every remaining reviewer blocker;
++     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, with one `downgrades` entry per remaining reviewer blocker (rule `frozen`);
+      - re-plan: a separate plan for the affected mechanism;
+      - continue: one more fix wave.
+ 
+@@ -444,13 +452,16 @@ Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step be
+   "resolution": [{ "invocation": "implementation-audit", "agent": "auditor", "model": "<exact resolved model ID, or unresolved>", "independence": "cross-provider" }],
+   "verdicts": [{ "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "<tracked path to the reviewer's verbatim trailer>", "trailer_sha256": "<sha256 of that artifact's bytes>", "note": "<artifact or finding pointer>" }],
+   "blockers": [{ "id": "B1", "severity": "high", "location": "path:line", "coverage": "path::test name", "fix_sha": "<full 40-hex fix SHA>" }],
++  "downgrades": [{ "invocation": "implementation-audit", "blocker": "B1", "rule": "below-threshold", "reason": "<missing trigger or asset, one line>", "disposition": "residual" }],
+   "override": { "by": "<non-empty attributable identity>", "reason": "<non-empty reason>" }
+ }
+ ```
+ 
+ `v1` records are rejected. They predate the trailer contract, so no honest retrofit exists: re-run the review rather than editing an old record. `implementation_models` names the models that materially authored or rewrote the reviewed diff, and the validator derives each `independence` label from it.
+ 
+-`reviewers_run` is an empty array when no reviewer runs. `mandatory_class` must be exactly one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, or `concurrency-state`; absence or any other value blocks the gate. `qa` must contain at least one row, every row must set `passed` to `true`, and every row must name a non-empty `artifact`. Omit `override` for a normal pass. An override must have non-empty `by` and `reason`, may accompany `FAIL` or `INCONCLUSIVE` verdicts, and must not accompany a full set of `PASS` verdicts. Blocker `coverage` is `path::test name` or `not-testable:<reason>`.
++`reviewers_run` is an empty array when no reviewer runs. `mandatory_class` must be exactly one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, or `concurrency-state`; absence or any other value blocks the gate. `qa` must contain at least one row, every row must set `passed` to `true`, and every row must name a non-empty `artifact`. Omit `override` for a normal pass. An override must have non-empty `by` and `reason`, may accompany `FAIL` verdicts only (an `INCONCLUSIVE` invocation is re-run, never overridden), and must not accompany a full set of `PASS` verdicts. Blocker `coverage` is `path::test name` or `not-testable:<reason>`.
++
++`downgrades` appears only with an override over a FAIL verdict and holds exactly one entry per blocker id of each FAIL trailer. A FAIL trailer's `blockers:` field must equal the reply's `Blocker B<n>:` lines; a PASS or INCONCLUSIVE trailer carries `none` or omits the line. `rule` is `below-threshold`, `accepted-residual`, `out-of-scope`, or `frozen`; `disposition` is `residual` or `follow-up`; `reason` is one line.
+ 
+ Every invocation in `reviewers_run` needs its **own** `trailer_artifact`, and the validator derives its facts from that file rather than from this JSON. Two verdicts may not cite the same file, and each trailer's `invocation` field must name the lane the record cites it for. Without both rules one dispatched reviewer satisfies every recorded invocation: the section sets nest, so an audit trailer covers the strategic set, and the model check only discriminates when the two lanes resolved to different models. The validator also requires the full section set for the invocation (`1,2,3,4,5` for `implementation-audit`, `1,2,3,4` for `strategic-risk-review`), complete five-field adversarial criteria, every one of whose invariants is the reviewer's own rather than restated from the plan, agreement between the trailer's `verdict` and `model_id` and the record's, and blocks `mandatory_class: "none"` against any trailer reporting `security_delta: yes`. A repeated scalar field blocks as ambiguous, so an honest narrow answer cannot be overridden by appending one permissive line - and the same rule holds at every level of both artifacts: a repeated field inside a criterion, a second criterion appended beside a copied one, a second trailer block, and a duplicate key in the record itself all block. That is one rule, applied at every level of the structure - and each level was found only after the previous fix left the next one open, so treat the rule as the invariant rather than the list as complete. A missing trailer block blocks: without it, what the reviewer was asked cannot be established.
+ 
+@@ -465,7 +476,7 @@ node $SKILL_DIR/scripts/validate-gate-record.mjs \
+   --plan <plan-path>
+ ```
+ 
+-Validator binds the plan and every trailer artifact by content and the reviewed code by SHA, requires both invocations for mandatory classes, requires QA evidence, requires a complete reviewer trailer per invocation, requires every artifact to be tracked, derives independence from `implementation_models`, and prints one outcome word on stdout: `passed` (exit 0) for a valid full PASS record, `overridden` (exit 0) for legal non-PASS verdicts with an attributable override, `blocked` (exit 1) otherwise, with the blocking field and reason on stderr. `--plan-only` prints `passed` or `blocked` the same way. Missing records, invalid records, `v1` records, untracked or ignored record and trailer paths, artifacts resolving outside the repository, a plan whose bytes no longer match `plan_sha256`, a trailer whose bytes no longer match its `trailer_sha256`, incomplete briefs, unrecognized mandatory classes, non-PASS verdicts without a legal override, and every error path are `blocked`. A commit touching anything beyond the record's own evidence paths invalidates it and requires fresh review.
++Validator binds the plan and every trailer artifact by content and the reviewed code by SHA, requires both invocations for mandatory classes, requires QA evidence, requires a complete reviewer trailer per invocation, requires every artifact to be tracked, derives independence from `implementation_models`, and prints one outcome word on stdout: `passed` (exit 0) for a valid full PASS record, `overridden` (exit 0) for FAIL verdicts with an attributable override and one downgrade per blocker, `blocked` (exit 1) otherwise, with the blocking field and reason on stderr. `--plan-only` prints `passed` or `blocked` the same way. Missing records, invalid records, `v1` records, untracked or ignored record and trailer paths, artifacts resolving outside the repository, a plan whose bytes no longer match `plan_sha256`, a trailer whose bytes no longer match its `trailer_sha256`, incomplete briefs, unrecognized mandatory classes, non-PASS verdicts without a legal override, an override over `INCONCLUSIVE`, and every error path are `blocked`. A commit touching anything beyond the record's own evidence paths invalidates it and requires fresh review.
+ 
+ ## Enforcement
+ 
+diff --git a/team-config/agent/skills/review-work/scripts/fixtures/override-with-fail.json b/team-config/agent/skills/review-work/scripts/fixtures/override-with-fail.json
+index c6f58c5417..9b2e33aa80 100644
+--- a/team-config/agent/skills/review-work/scripts/fixtures/override-with-fail.json
++++ b/team-config/agent/skills/review-work/scripts/fixtures/override-with-fail.json
+@@ -41,5 +41,14 @@
+   "override": {
+     "by": "release-owner",
+     "reason": "accepted residual risk"
+-  }
++  },
++  "downgrades": [
++    {
++      "invocation": "implementation-audit",
++      "blocker": "B1",
++      "rule": "below-threshold",
++      "reason": "needs a hand-edited local .env; no protected asset reachable",
++      "disposition": "residual"
++    }
++  ]
+ }
+diff --git a/team-config/agent/skills/review-work/scripts/fixtures/trailers/fail-implementation-audit.txt b/team-config/agent/skills/review-work/scripts/fixtures/trailers/fail-implementation-audit.txt
+index 0336b2b997..bc6530197b 100644
+--- a/team-config/agent/skills/review-work/scripts/fixtures/trailers/fail-implementation-audit.txt
++++ b/team-config/agent/skills/review-work/scripts/fixtures/trailers/fail-implementation-audit.txt
+@@ -6,6 +6,7 @@ sections_covered: 1,2,3,4,5
+ model_id: onara/cc/claude-opus-5
+ security_delta: no
+ verdict: FAIL
++blockers: B1
+ adversarial_criteria:
+ - invariant: every severity band retains at least one enforcement layer
+   positive_witness: each band rejects its own out-of-range input
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+index 2b9b899323..651d02d403 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+@@ -392,7 +392,10 @@ function parseTrailer(text, field) {
+     block(field, "carries more than one trailer block; an appended block would override what the reviewer actually answered")
+   }
+   if (closeIndexes[0] < openIndexes[0]) block(field, "trailer close marker precedes its open marker")
+-  return parseTrailerBody(lines.slice(openIndexes[0] + 1, closeIndexes[0]), field)
++  // The reply around the block is the reviewer's narrative: its `Blocker B<n>:` lines are the
++  // findings the trailer's `blockers:` list must account for.
++  const narrative = lines.slice(0, openIndexes[0]).concat(lines.slice(closeIndexes[0] + 1))
++  return { ...parseTrailerBody(lines.slice(openIndexes[0] + 1, closeIndexes[0]), field), narrative }
+ }
+ 
+ function parseTrailerBody(lines, field) {
+@@ -413,7 +416,7 @@ function parseTrailerBody(lines, field) {
+ 
+ function validateTrailer(trailer, options) {
+   const { field, invocation, recordVerdict, resolvedModel, planText } = options
+-  const { scalars, criteria } = trailer
++  const { scalars, criteria, narrative } = trailer
+ 
+   // Without this binding a single dispatched reviewer satisfies every recorded invocation: the
+   // section sets nest (1,2,3,4 is a subset of 1,2,3,4,5) and the model check only discriminates
+@@ -453,6 +456,11 @@ function validateTrailer(trailer, options) {
+     block(`${field}.verdict`, `trailer reports ${scalars.verdict} but the record claims ${recordVerdict}`)
+   }
+ 
++  // An override may leave a FAIL's blockers unfixed only by downgrading each one, so the blocker
++  // list has to be complete: it must equal the reply's own `Blocker B<n>:` lines. Either list alone
++  // lets one finding drop out - an id the trailer omits, or a narrative blocker nobody numbered.
++  const blockerIds = reconcileBlockers(scalars, narrative, field)
++
+   if (criteria.length === 0) {
+     block(`${field}.adversarial_criteria`, "reviewer must generate at least one adversarial criterion of its own")
+   }
+@@ -473,7 +481,39 @@ function validateTrailer(trailer, options) {
+     block(`${field}.adversarial_criteria`, "a criterion restates an invariant already in the plan; every criterion must be the reviewer's own")
+   }
+ 
+-  return { securityDelta: scalars.security_delta === "yes" }
++  return { securityDelta: scalars.security_delta === "yes", blockerIds }
++}
++
++const BLOCKER_LIST = /^B[1-9]\d*(?:\s*,\s*B[1-9]\d*)*$/
++const NARRATIVE_BLOCKER = /^\s*(?:[-*]\s+)?(?:\*\*)?Blocker (B[1-9]\d*)(?:\*\*)?\s*:/
++
++function reconcileBlockers(scalars, narrative, field) {
++  if (scalars.verdict !== "FAIL") {
++    if (scalars.blockers !== undefined && scalars.blockers !== "none") {
++      block(`${field}.blockers`, "only a FAIL trailer lists blockers; a PASS or INCONCLUSIVE trailer carries none or omits the line")
++    }
++    return []
++  }
++  if (typeof scalars.blockers !== "string" || !BLOCKER_LIST.test(scalars.blockers)) {
++    block(`${field}.blockers`, "a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled")
++  }
++  const ids = scalars.blockers.split(",").map((id) => id.trim())
++  if (new Set(ids).size !== ids.length) block(`${field}.blockers`, "repeats a blocker id")
++  // Two findings under one id would let a single downgrade account for both, so each narrative id
++  // must name exactly one finding.
++  const narrativeIds = narrative.flatMap((line) => NARRATIVE_BLOCKER.exec(line)?.[1] ?? [])
++  const reported = new Set()
++  for (const id of narrativeIds) {
++    if (reported.has(id)) block(`${field}.blockers`, `narrative repeats Blocker ${id}; each finding needs its own id`)
++    reported.add(id)
++  }
++  for (const id of reported) {
++    if (!ids.includes(id)) block(`${field}.blockers`, `narrative reports ${id} but the trailer omits it`)
++  }
++  for (const id of ids) {
++    if (!reported.has(id)) block(`${field}.blockers`, `no narrative Blocker ${id}: line in the reply`)
++  }
++  return ids
+ }
+ 
+ // omp-local plan contract. Code fences and HTML comments are not plan content: a template or an
+@@ -755,13 +795,19 @@ function validateRecord(record, context) {
+   }
+   let reportedSecurityDelta = false
+   const trailerArtifacts = new Map()
++  const blockersByInvocation = new Map()
+   for (const [index, verdict] of verdicts.entries()) {
+     if (!reviewerSet.has(verdict.invocation)) block("verdicts", `invocation ${verdict.invocation} is not in reviewers_run`)
+     if (!hasOverride && verdict.verdict !== "PASS") {
+       block(`verdicts.${index}.verdict`, `${verdict.verdict ?? "missing"} blocks merge`)
+     }
+-    if (hasOverride && !new Set(["PASS", "FAIL", "INCONCLUSIVE"]).has(verdict.verdict)) {
+-      block(`verdicts.${index}.verdict`, "must be PASS, FAIL, or INCONCLUSIVE")
++    // An override signs off on findings a reviewer delivered. INCONCLUSIVE delivered none, so it
++    // is re-run, never overridden; otherwise a missing review would pass as a completed one.
++    if (hasOverride && verdict.verdict === "INCONCLUSIVE") {
++      block(`verdicts.${index}.verdict`, "INCONCLUSIVE cannot be overridden; re-run the invocation")
++    }
++    if (hasOverride && verdict.verdict !== "PASS" && verdict.verdict !== "FAIL" && verdict.verdict !== "INCONCLUSIVE") {
++      block(`verdicts.${index}.verdict`, "must be PASS or FAIL")
+     }
+     // The reviewer's own trailer is the only witness of the brief it actually received. Deriving
+     // the facts from it is what makes a folded brief fail loudly instead of silently.
+@@ -786,6 +832,7 @@ function validateRecord(record, context) {
+       planText: context.planText,
+     })
+     if (outcome.securityDelta) reportedSecurityDelta = true
++    blockersByInvocation.set(verdict.invocation, outcome.blockerIds)
+   }
+   // PHASE 3 - the SHA binding, once every artifact has been authenticated and pinned.
+   // It cannot run earlier: the exemption set is now a by-product of `verifyAndPinArtifact`, so it is
+@@ -813,11 +860,48 @@ function validateRecord(record, context) {
+       block(`blockers.${index}.fix_sha`, "full 40-hex SHA required when PASS is claimed")
+     }
+   }
++  validateDowngrades(record, verdicts, hasOverride, blockersByInvocation)
+   // An override reaching this point carries at least one non-PASS verdict (the full-PASS case
+   // blocked above), so it must stay distinguishable from a clean PASS to anyone reading stdout.
+   return hasOverride ? "overridden" : "passed"
+ }
+ 
++const DOWNGRADE_RULES = new Set(["below-threshold", "accepted-residual", "out-of-scope", "frozen"])
++const DOWNGRADE_DISPOSITIONS = new Set(["residual", "follow-up"])
++
++// An override over a FAIL leaves that reviewer's blockers unfixed. Each one must be accounted for
++// by name, with the rule that lets it go and where it goes; an override naming only some of them
++// would hide the rest behind one attributable signature.
++function validateDowngrades(record, verdicts, hasOverride, blockersByInvocation) {
++  const failing = new Set(verdicts.filter((entry) => entry.verdict === "FAIL").map((entry) => entry.invocation))
++  if (!hasOverride || failing.size === 0) {
++    if (Object.hasOwn(record, "downgrades")) block("downgrades", "only with an override over a FAIL verdict; nothing else leaves a blocker unfixed")
++    return
++  }
++  const seen = new Set()
++  for (const [index, entry] of requireArray(record, "downgrades").entries()) {
++    const at = `downgrades.${index}`
++    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) block(at, "must be an object")
++    if (!failing.has(entry.invocation)) block(`${at}.invocation`, "must name an invocation whose verdict is FAIL")
++    if (!blockersByInvocation.get(entry.invocation).includes(entry.blocker)) {
++      block(`${at}.blocker`, `${entry.blocker ?? "missing"} is not a blocker id in the ${entry.invocation} trailer`)
++    }
++    if (!DOWNGRADE_RULES.has(entry.rule)) block(`${at}.rule`, "must be below-threshold, accepted-residual, out-of-scope, or frozen")
++    if (typeof entry.reason !== "string" || entry.reason.trim() === "" || entry.reason.includes("\n")) {
++      block(`${at}.reason`, "must be one non-empty line")
++    }
++    if (!DOWNGRADE_DISPOSITIONS.has(entry.disposition)) block(`${at}.disposition`, "must be residual or follow-up")
++    const key = `${entry.invocation}/${entry.blocker}`
++    if (seen.has(key)) block(at, "downgrades the same blocker twice")
++    seen.add(key)
++  }
++  for (const invocation of failing) {
++    for (const id of blockersByInvocation.get(invocation)) {
++      if (!seen.has(`${invocation}/${id}`)) block("downgrades", `blocker ${id} of ${invocation} has no downgrade entry`)
++    }
++  }
++}
++
+ function main() {
+   const { values } = parseArgs({ options: {
+     record: { type: "string" },
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+index e8d0434693..f0481ae006 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+@@ -143,6 +143,8 @@ function buildTrailer(overrides = {}) {
+     model_id: "onara/cc/claude-opus-5",
+     security_delta: "no",
+     verdict: "PASS",
++    blockers: null,
++    narrative: "Narrative findings precede the trailer.",
+     criteria: [
+       {
+         invariant: "an incomplete brief cannot produce a passing record",
+@@ -155,7 +157,7 @@ function buildTrailer(overrides = {}) {
+     ...overrides,
+   }
+   const head = ["REVIEW-TRAILER-v1"]
+-  for (const key of ["invocation", "sections_covered", "model_id", "security_delta", "verdict"]) {
++  for (const key of ["invocation", "sections_covered", "model_id", "security_delta", "verdict", "blockers"]) {
+     if (fields[key] !== null) head.push(`${key}: ${fields[key]}`)
+   }
+   head.push("adversarial_criteria:")
+@@ -165,7 +167,7 @@ function buildTrailer(overrides = {}) {
+     for (const [key, value] of entries.slice(1)) head.push(`  ${key}: ${value}`)
+   }
+   head.push("END-REVIEW-TRAILER")
+-  return `Narrative findings precede the trailer.\n\n${head.join("\n")}\n`
++  return `${fields.narrative}\n\n${head.join("\n")}\n`
+ }
+ 
+ // Writes a trailer under a tracked repo path and points the record's verdict at it.
+@@ -257,6 +259,66 @@ test("#given legitimate override with FAIL verdict #when validated #then exits z
+   assert.equal(result.stdout, "overridden\n", "an override must not be indistinguishable from a full PASS")
+ })
+ 
++// Blocker reconciliation. An override over a FAIL may leave blockers unfixed only by naming each one
++// in `downgrades`; the trailer's `blockers:` list must equal the reply's own `Blocker B<n>:` lines,
++// so neither an omitted trailer id nor an omitted narrative blocker can drop a finding silently.
++function overrideRecord(mutate = () => {}) {
++  const record = { ...fixtureByName("override-with-fail.json"), reviewed_sha: head }
++  mutate(record)
++  return record
++}
++
++const downgradeOf = (blocker, rule = "below-threshold") => ({
++  invocation: "implementation-audit",
++  blocker,
++  rule,
++  reason: "local dev default only; no protected asset reachable",
++  disposition: "residual",
++})
++
++const failTrailer = (blockers, narrative) => buildTrailer({ verdict: "FAIL", blockers, narrative })
++
++const blockedReconciliations = [
++  ["two trailer blockers with one downgrade", overrideRecord(), failTrailer("B1, B2", "Blocker B1: a\nBlocker B2: b"), /blocker B2 of implementation-audit has no downgrade entry/],
++  ["a narrative blocker the trailer omits", overrideRecord(), failTrailer("B1", "Blocker B1: a\nBlocker B2: b"), /narrative reports B2/],
++  ["a trailer id without a narrative blocker", overrideRecord((r) => { r.downgrades.push(downgradeOf("B2")) }), failTrailer("B1, B2", "Blocker B1: a"), /no narrative Blocker B2/],
++  ["a FAIL trailer without blockers", overrideRecord(), failTrailer(null, "Blocker B1: a"), /blockers/],
++  ["a repeated trailer blocker id", overrideRecord(), failTrailer("B1, B1", "Blocker B1: a"), /repeats a blocker id/],
++  ["two narrative lines with the same blocker id", overrideRecord(), failTrailer("B1", "Blocker B1: a\nBlocker B1: b"), /narrative repeats Blocker B1/],
++  ["a PASS trailer listing blockers", validRecord(), buildTrailer({ blockers: "B1" }), /only a FAIL trailer lists blockers/],
++]
++
++for (const [name, record, trailer, expected] of blockedReconciliations) {
++  test(`#given ${name} #when validated #then it blocks naming the gap`, () => {
++    const result = runWithTrailer(record, trailer)
++    assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
++    assert.match(result.stderr, expected)
++  })
++}
++
++const blockedDowngrades = [
++  ["an override over FAIL without downgrades", overrideRecord((r) => { delete r.downgrades }), "downgrades"],
++  ["an unknown downgrade rule", overrideRecord((r) => { r.downgrades[0].rule = "nitpick" }), "downgrades\\.0\\.rule"],
++  ["an unknown downgrade disposition", overrideRecord((r) => { r.downgrades[0].disposition = "later" }), "downgrades\\.0\\.disposition"],
++  ["a downgrade for a blocker the trailer does not list", overrideRecord((r) => { r.downgrades[0].blocker = "B7" }), "downgrades\\.0\\.blocker"],
++  ["a downgrade naming a non-FAIL invocation", overrideRecord((r) => { r.downgrades[0].invocation = "strategic-risk-review" }), "downgrades\\.0\\.invocation"],
++  ["a multi-line downgrade reason", overrideRecord((r) => { r.downgrades[0].reason = "one\ntwo" }), "downgrades\\.0\\.reason"],
++  ["the same blocker downgraded twice", overrideRecord((r) => { r.downgrades.push(downgradeOf("B1", "frozen")) }), "downgrades the same blocker twice"],
++  ["downgrades on a full PASS record", (() => { const r = validRecord(); r.downgrades = [downgradeOf("B1")]; return r })(), "downgrades"],
++]
++
++for (const [name, record, field] of blockedDowngrades) {
++  test(`#given ${name} #when validated #then ${field.replaceAll("\\", "")} blocks`, () => {
++    expectBlocked(record, field)
++  })
++}
++
++test("#given two narrative blockers, a matching trailer and one downgrade each #when validated #then exits zero", () => {
++  const record = overrideRecord((r) => { r.downgrades.push(downgradeOf("B2", "frozen")) })
++  const result = runWithTrailer(record, failTrailer("B1, B2", "Blocker B1: a\n**Blocker B2**: b"))
++  assert.equal(result.status, 0, result.stderr)
++})
++
+ const mutations = [
+   ["FAIL verdict", "verdicts", (r) => { r.verdicts[0].verdict = "FAIL" }],
+   ["INCONCLUSIVE verdict", "verdicts", (r) => { r.verdicts[0].verdict = "INCONCLUSIVE"; r.verdicts[0].note = "timeout" }],
+@@ -802,6 +864,31 @@ test("#given two verdicts pointing at one identical trailer artifact #when valid
+   }
+ })
+ 
++// An override signs off on findings a reviewer actually delivered. An INCONCLUSIVE invocation
++// delivered none, so overriding it would let a missing review pass as a completed one.
++test("#given an override over an INCONCLUSIVE-only verdict #when validated #then it blocks", () => {
++  const record = validRecord()
++  record.verdicts[0].verdict = "INCONCLUSIVE"
++  record.override = { by: "tim", reason: "reviewer timed out" }
++  const result = runWithTrailer(record, buildTrailer({ verdict: "INCONCLUSIVE" }))
++  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
++  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
++})
++
++test("#given an override over FAIL plus INCONCLUSIVE #when validated #then it blocks", () => {
++  const record = twoInvocationRecord()
++  record.verdicts[0].verdict = "FAIL"
++  record.verdicts[1].verdict = "INCONCLUSIVE"
++  record.override = { by: "tim", reason: "freeze" }
++  record.downgrades = [{ invocation: "implementation-audit", blocker: "B1", rule: "frozen", reason: "frozen at STOP", disposition: "follow-up" }]
++  const result = runWithTrailers(record, [
++    buildTrailer({ verdict: "FAIL", blockers: "B1", narrative: "Blocker B1: a" }),
++    buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4", verdict: "INCONCLUSIVE" }),
++  ])
++  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
++  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
++})
++
+ test("#given a trailer whose invocation names another lane #when validated #then invocation blocks", () => {
+   const record = twoInvocationRecord()
+   const result = runWithTrailers(record, [

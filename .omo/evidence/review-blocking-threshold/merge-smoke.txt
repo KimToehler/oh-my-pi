@@ -1,0 +1,2 @@
+with downgrades: (0, 'overridden', '')
+without downgrades: (1, 'blocked', 'downgrades: must be an array')

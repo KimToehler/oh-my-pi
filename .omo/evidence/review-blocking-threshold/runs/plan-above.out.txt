@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The proposed invoice lookup removes tenant isolation.",
+  "blockers": [
+    {
+      "area": "Security and privacy",
+      "defect": "A caller who knows another tenant's invoice ID can retrieve that invoice through the public endpoint. Disclosure of tenant data is irreversible.",
+      "evidence": "Step 1 removes the tenantId argument and SQL tenant_id predicate, while stating that getInvoice serves the public multi-tenant GET /invoices/:id endpoint.",
+      "change": "Retain tenant-scoped authorization and the tenant_id predicate; add a cross-tenant access rejection test."
+    },
+    {
+      "area": "Executability",
+      "defect": "The specified implementation cannot be located in the worktree, so the change has no executable starting point.",
+      "evidence": "Step 1 names src/invoices.ts; a worktree-wide search for invoices.ts found no matching file.",
+      "change": "Identify the actual implementation and its endpoint, or supply the missing target as part of the plan."
+    }
+  ],
+  "notes": []
+}

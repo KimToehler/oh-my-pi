@@ -1,0 +1,12 @@
+{
+  "base_sha": "ee9042b8249c3087b4d933df35cd9ef8b24fee5f",
+  "head_sha": "f3ba443fa0788a3bede14c645ada615e01e84ceb",
+  "commits": [
+    {
+      "sha": "f3ba443fa0788a3bede14c645ada615e01e84ceb",
+      "subject": "docs(review): a gap in an input variant the change does not claim to handle is a note when the damage stays local",
+      "patch": "001.patch",
+      "sha256": "bd5f2e208ba6a0058d9fa056298006d733fcb9d5de68aba9d15687da78e5fef8"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+commit e95a6288389629e29aa1b2f13dda8558fa457f87
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 11:52:31 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 11:52:31 2026 +0200
+
+    docs(gate-proof): an overridden line permits the merge request it allows
+
+diff --git a/team-config/agent/rules/merge-gate-proof.md b/team-config/agent/rules/merge-gate-proof.md
+index 7502c327ec..2aa39c44e0 100644
+--- a/team-config/agent/rules/merge-gate-proof.md
++++ b/team-config/agent/rules/merge-gate-proof.md
+@@ -28,7 +28,7 @@ Each line has one of four outcomes:
+ - legitimately skipped: integration-review `not needed (<plan's Whole-diff review reason>)`, or strategic-risk-review `not run (<reason>)` when review-work's depth rule chose one reviewer; never for the four mandatory classes (auth/secrets/PII, schema or migration, wire contract or public API, concurrency or state machine), which always need both reviewers;
+ - not passed: anything else, written as `NOT RUN (<reason>)` or `FAIL`.
+ 
+-Only passed, overridden and legitimately skipped lines allow a merge request. If any line is not passed, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
++Only passed, overridden and legitimately skipped lines allow a merge request. If any line is neither passed, overridden, nor legitimately skipped, say so at the top of the reply and do not ask for merge approval; the `NOT RUN` wording makes the merge-gate extension read the reply as a status report, not a claim.
+ 
+ ## What "ran in full" means
+ 

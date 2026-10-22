@@ -1,0 +1,36 @@
+### 1. Goal and behavioural contract
+
+The script handles an ordinary readable `.env` with an absent key, including a missing final newline. It does not reliably distinguish an absent key from a failed read.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+Blocker B1: **Medium — `scripts/dev-env.sh:3–6`**. **Trigger:** run the script with an existing `.env` that the developer can append to but cannot read. **Preconditions:** the file already contains `POSTGRES_PASSWORD=`. `cat` fails silently, `current` becomes empty, and the script appends the default despite the key being present. **Impact:** it violates the seed-only-when-absent contract and creates a duplicate assignment; the change is reversible by repairing the developer’s local file. **Fix direction:** distinguish a genuinely missing file from an existing file that cannot be read, and exit without modifying the latter on read failure. **class:** treating an input read failure as an empty input. **sites:** single instance in the supplied diff, at line 3; the fixture explicitly prohibits repository search and supplies no other files. The class is **not closed** at this site.
+
+**Note — concurrent runs:** Two invocations can both observe the key as absent and append it. This does not block: the supplied contract does not specify concurrent execution.
+
+### 3. Security and privacy delta
+
+**Security delta: no.** The hard-coded value is explicitly a throwaway local-development default, not a protected credential. The supplied diff does not establish a path to a protected asset. The read-failure defect above is a local correctness issue under the stated scope.
+
+### 4. Verification adequacy
+
+The supplied QA matrix reports only the absent-key happy path. It does not demonstrate the author’s second-run negative control, preservation of an existing value, handling of an unterminated last line, or read-failure behavior. The artifact itself was not available in this fixture; the matrix was reviewed as supplied. These gaps are notes rather than independent blockers.
+
+The adversarial criterion below checks preservation of unrelated content when the existing file lacks a final newline; it is distinct from the author’s line-count criterion.
+
+### 5. Final `PASS | FAIL | INCONCLUSIVE`
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: Existing unrelated configuration remains intact when the file has no final newline.
+  positive_witness: An .env containing OTHER=value without a trailing newline becomes two separate lines, retaining OTHER=value and adding POSTGRES_PASSWORD=devpass.
+  negative_control: The default is concatenated to OTHER=value or the existing assignment is altered.
+  observable: Compare the resulting file bytes with OTHER=value followed by a newline and POSTGRES_PASSWORD=devpass followed by a newline.
+  boundary: scripts/dev-env.sh operating on a developer checkout's .env
+END-REVIEW-TRAILER

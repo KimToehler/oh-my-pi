@@ -1,0 +1,32 @@
+### 1. Goal and behavioural contract
+
+The signature simplification must preserve tenant isolation for invoice lookups made through the public HTTP handler. An invoice ID match alone is insufficient authorization in a multi-tenant API.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+Blocker B1: **Critical** — `src/invoices.ts:3-4` removes both the tenant parameter and the `tenant_id` predicate. **Trigger:** an authenticated caller requests an invoice ID belonging to another tenant. **Preconditions:** the caller can supply or learn a valid ID and the handler uses this lookup to retrieve the row; the caller need not already have access to that invoice. **Impact:** the lookup returns another tenant’s production data, violating tenant isolation and the handler’s caller-tenant contract. Disclosure is irreversible once the response reaches the caller. **Fix direction:** retain tenant scoping in the lookup and ensure the handler supplies a trusted caller tenant. **class:** missing tenant authorization in invoice retrieval. **sites:** single instance: the supplied fixture contains one changed lookup; the brief explicitly says its files are absent from the workspace and prohibits searching for them. This instance remains open; closure at other, unsupplied sites cannot be confirmed.
+
+### 3. Security and privacy delta
+
+**Security delta: yes.** The changed SQL removes an existing tenant restriction, altering exploitability at the public invoice lookup boundary. B1 addresses that change.
+
+### 4. Verification adequacy
+
+**Note:** The supplied QA exercises a successful same-ID lookup but does not test a cross-tenant request. It therefore does not detect B1. The QA gap is not a separate blocker from the demonstrated authorization defect.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A caller cannot retrieve an invoice belonging to a different tenant by supplying its valid ID.
+  positive_witness: A tenant can retrieve its own existing invoice through the public handler.
+  negative_control: A caller supplies another tenant's existing invoice ID and receives that invoice's row.
+  observable: HTTP response status and body for same-tenant and cross-tenant requests against seeded invoices.
+  boundary: GET /invoices/:id with authenticated tenant context.
+END-REVIEW-TRAILER

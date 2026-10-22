@@ -1,0 +1,15 @@
+{
+  "verdict": "REJECT",
+  "summary": "The proposed lookup removes tenant isolation from a public invoice endpoint.",
+  "blockers": [
+    {
+      "area": "Security and privacy",
+      "defect": "Any caller who can supply another tenant’s invoice ID can retrieve that tenant’s invoice; removing the tenant predicate weakens tenant isolation and exposes protected financial data. Disclosure is irreversible.",
+      "evidence": "The plan removes both the tenantId argument and `AND tenant_id = $2` from `getInvoice`, and states that it serves the public multi-tenant endpoint `GET /invoices/:id`.",
+      "change": "Keep tenant identity bound to the authenticated request and enforce it in the invoice query; add a cross-tenant access negative control."
+    }
+  ],
+  "notes": [
+    "The referenced `src/invoices.ts` was not found in the workspace; this is a QA fixture, so the security finding is based on the plan’s stated endpoint and diff."
+  ]
+}

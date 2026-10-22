@@ -1,0 +1,52 @@
+commit ccc437d18786c9b09b7b2c28658d430e9d2201fc
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 10:57:50 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 10:57:50 2026 +0200
+
+    test(review-work): duplicate narrative blocker ids and INCONCLUSIVE overrides must block (RED)
+
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+index 0b9fa145c8..f0481ae006 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+@@ -284,6 +284,7 @@ const blockedReconciliations = [
+   ["a trailer id without a narrative blocker", overrideRecord((r) => { r.downgrades.push(downgradeOf("B2")) }), failTrailer("B1, B2", "Blocker B1: a"), /no narrative Blocker B2/],
+   ["a FAIL trailer without blockers", overrideRecord(), failTrailer(null, "Blocker B1: a"), /blockers/],
+   ["a repeated trailer blocker id", overrideRecord(), failTrailer("B1, B1", "Blocker B1: a"), /repeats a blocker id/],
++  ["two narrative lines with the same blocker id", overrideRecord(), failTrailer("B1", "Blocker B1: a\nBlocker B1: b"), /narrative repeats Blocker B1/],
+   ["a PASS trailer listing blockers", validRecord(), buildTrailer({ blockers: "B1" }), /only a FAIL trailer lists blockers/],
+ ]
+ 
+@@ -863,6 +864,31 @@ test("#given two verdicts pointing at one identical trailer artifact #when valid
+   }
+ })
+ 
++// An override signs off on findings a reviewer actually delivered. An INCONCLUSIVE invocation
++// delivered none, so overriding it would let a missing review pass as a completed one.
++test("#given an override over an INCONCLUSIVE-only verdict #when validated #then it blocks", () => {
++  const record = validRecord()
++  record.verdicts[0].verdict = "INCONCLUSIVE"
++  record.override = { by: "tim", reason: "reviewer timed out" }
++  const result = runWithTrailer(record, buildTrailer({ verdict: "INCONCLUSIVE" }))
++  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
++  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
++})
++
++test("#given an override over FAIL plus INCONCLUSIVE #when validated #then it blocks", () => {
++  const record = twoInvocationRecord()
++  record.verdicts[0].verdict = "FAIL"
++  record.verdicts[1].verdict = "INCONCLUSIVE"
++  record.override = { by: "tim", reason: "freeze" }
++  record.downgrades = [{ invocation: "implementation-audit", blocker: "B1", rule: "frozen", reason: "frozen at STOP", disposition: "follow-up" }]
++  const result = runWithTrailers(record, [
++    buildTrailer({ verdict: "FAIL", blockers: "B1", narrative: "Blocker B1: a" }),
++    buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4", verdict: "INCONCLUSIVE" }),
++  ])
++  assert.equal(result.status, 1, `expected a block, got exit ${result.status}`)
++  assert.match(result.stderr, /INCONCLUSIVE cannot be overridden/)
++})
++
+ test("#given a trailer whose invocation names another lane #when validated #then invocation blocks", () => {
+   const record = twoInvocationRecord()
+   const result = runWithTrailers(record, [

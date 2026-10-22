@@ -1,0 +1,52 @@
+## Bottom line
+
+No substantiated blocker is present under the demonstrated contract: invoking `bash scripts/dev-env.sh` from the checkout root when the key is absent. Architecturally, the script is a minimal local-development mutator, but its caller-relative path, exact-text interpretation, and non-atomic update make that contract narrower than the filename alone suggests. The supplied evidence does not show integration with production or any protected asset.
+
+## Answers
+
+1. **Does the change hold up architecturally against the rest of the system?**  
+   Within the supplied boundary, yes: `scripts/dev-env.sh:3-7` performs the demonstrated one-way initialization without introducing another subsystem or runtime dependency. A whole-system conclusion is necessarily limited because the assignment prohibits repository inspection and provides no callers or `.env` consumer semantics.
+
+2. **What does the auditor’s line-level view structurally miss?**  
+   It misses boundary assumptions: `.env` is resolved from the caller’s working directory, key presence is defined by exact textual syntax rather than the eventual dotenv parser, and read/check/append is not atomic. It also misses whether production automation or developers invoke the script from locations other than the repository root.
+
+3. **Which failure mode would hurt most in production, and is it addressed?**  
+   The highest-impact conditional failure is a trusted operator invoking the helper from a production checkout whose `.env` lacks the key, causing a known development password to be appended and potentially consumed during initialization. No path or environment guard addresses that misuse, but it is not a blocker on the supplied evidence: no production caller is shown, the invocation is outside the demonstrated development contract, the operator already has the ability to mutate that file, and the file change itself is reversible.
+
+4. **Is any auditor finding a false positive on unchanged behaviour?**  
+   No. The implementation audit reported no findings, so there is nothing to classify as a false positive.
+
+## Findings
+
+- **Note N1:** `scripts/dev-env.sh:3,5-7` resolves `.env` relative to the caller’s current directory; this does not block because the exact QA invocation implies the checkout root, no production caller is evidenced, and a local edit is reversible.
+- **Note N2:** `scripts/dev-env.sh:4` recognizes only an unindented literal `POSTGRES_PASSWORD=` assignment, so `export POSTGRES_PASSWORD=...`, leading whitespace, or other syntax accepted by a consumer could produce a duplicate assignment; this does not block because no such consumer contract is supplied and the impact is confined to reversible local configuration.
+- **Note N3:** `scripts/dev-env.sh:3-7` has a read/check/append race, allowing simultaneous invocations to append the same assignment twice; this does not block because concurrent invocation is not part of the stated usage and the duplicate known development value neither reaches a protected asset nor causes irreversible state.
+- **Note N4:** The single QA scenario does not exercise sequential idempotency, an existing empty assignment, a missing `.env`, or preservation of a non-newline-terminated final line; this does not block because the demonstrated absent-key value proof succeeded and no contrary runtime observation was provided.
+
+## Action plan
+
+1. Keep the implementation unblocked for its stated checkout-root development use.
+2. Add deterministic QA for two sequential invocations and a pre-existing file without a final newline.
+3. If callers are expected to invoke the script outside the checkout root, resolve `.env` from the repository/script location rather than the current directory.
+4. Do not add locking unless concurrent invocation is an actual supported workflow.
+
+**Effort:** Quick (<1h)
+
+**Confidence:** medium — the diff supports the stated behavior, but repository-wide callers and dotenv parsing semantics were intentionally unavailable.
+
+**Watch out for:** accidental invocation from the wrong working directory; parser syntax differing from the grep predicate; concurrent duplicate appends.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Sequential checkout-root invocations preserve all pre-existing bytes and leave exactly one active POSTGRES_PASSWORD assignment
+  positive_witness: A keyless .env without a trailing newline gains one separating newline and one POSTGRES_PASSWORD=devpass line, while a second invocation makes no further change
+  negative_control: A second sequential invocation appends another POSTGRES_PASSWORD assignment and MUST fail
+  observable: Byte comparison before and after each invocation plus a count of active POSTGRES_PASSWORD assignments
+  boundary: Filesystem mutation of the checkout-root .env file
+END-REVIEW-TRAILER

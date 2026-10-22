@@ -1,0 +1,28 @@
+## Must-fix
+
+Blocker B1: **`src/invoices.ts:3–4` — The invoice lookup removes the tenant constraint from a public multi-tenant endpoint.** Trigger: an authenticated tenant requests an invoice ID belonging to another tenant; preconditions: the ID is known or guessed and no separate authorization check rejects the result, neither of which is established by the supplied diff. The query can return another tenant’s invoice, weakening tenant isolation and potentially disclosing protected data; a disclosure cannot be reversed. **Fix:** retain the tenant ID in the lookup contract and query, or enforce an equivalent tenant authorization check before returning the invoice.  
+**class:** Missing tenant authorization in data lookup. **single instance:** The supplied diff contains one lookup; the fixture instructions prohibit searching the workspace, so other repository sites cannot be assessed.
+
+## Should-fix
+
+None substantiated from the supplied materials.
+
+## Nit
+
+None.
+
+## Checked
+
+1. **Duplication across slices/files:** no instance found in the single-file diff.
+2. **Naming inconsistency:** no instance found among the available invoice, ID, and tenant concepts.
+3. **Uneven API surface:** no instance found in the supplied material; sibling APIs are not available.
+4. **Mixed conventions:** no instance found in the supplied material.
+5. **Missing or premature abstractions:** no instance found in the single-slice diff.
+6. **Dead code:** no instance found in the diff; workspace consumer searches were expressly excluded.
+7. **Doc drift:** no instance found in the supplied material; documentation and API specifications were not supplied.
+8. **Surprise scope:** The sole changed file and symbol match the plan’s specified change.
+9. **Plan walks:** The plan has no Out of Scope section, Verification checklist, i18n keys, or slice file lists. Its specified change matches the diff.
+10. **Seams:** The supplied seam list states there are no cross-slice contracts. Endpoint callers and any separate authorization checks were not supplied.
+11. **Simplification pass:** No cross-slice candidate found in the single-slice diff.
+
+FAIL

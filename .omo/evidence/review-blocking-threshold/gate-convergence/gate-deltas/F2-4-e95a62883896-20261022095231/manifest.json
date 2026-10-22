@@ -1,0 +1,12 @@
+{
+  "base_sha": "f3ba443fa0788a3bede14c645ada615e01e84ceb",
+  "head_sha": "e95a6288389629e29aa1b2f13dda8558fa457f87",
+  "commits": [
+    {
+      "sha": "e95a6288389629e29aa1b2f13dda8558fa457f87",
+      "subject": "docs(gate-proof): an overridden line permits the merge request it allows",
+      "patch": "001.patch",
+      "sha256": "052c274d2f42651b3f891753f5849cf2b1efe3e06391b001405b336657554a47"
+    }
+  ]
+}

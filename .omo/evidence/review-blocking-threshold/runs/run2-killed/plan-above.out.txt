@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The planned lookup removes tenant isolation from a public multi-tenant endpoint.",
+  "blockers": [
+    {
+      "area": "Security and privacy",
+      "defect": "Removing the tenant predicate lets a request retrieve another tenant’s invoice when its ID is known or obtained. This exposes protected tenant data; the disclosure cannot be undone.",
+      "evidence": "The plan identifies getInvoice as serving GET /invoices/:id and replaces `WHERE id = $1 AND tenant_id = $2` with `WHERE id = $1`, also removing the tenantId parameter.",
+      "change": "Retain tenant-scoped authorization and the tenant predicate for every invoice lookup; cover requests for another tenant’s invoice with a denial test."
+    },
+    {
+      "area": "Executability",
+      "defect": "The specified implementation target is absent from this worktree, so the edit has no actionable starting point.",
+      "evidence": "The plan specifies `src/invoices.ts`; locating that exact path returned `Path not found`.",
+      "change": "Identify the actual invoice implementation and endpoint, or explicitly provide the fixture implementation to which the plan applies."
+    }
+  ],
+  "notes": []
+}

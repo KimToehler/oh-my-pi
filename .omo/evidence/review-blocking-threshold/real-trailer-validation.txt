@@ -1,0 +1,5 @@
+above: both FAIL trailers, one downgrade each: exit 0 stdout=overridden stderr=
+above: strategic B1 not downgraded: exit 1 stdout=blocked stderr=downgrades: blocker B1 of strategic-risk-review has no downgrade entry
+above: override without downgrades: exit 1 stdout=blocked stderr=downgrades: must be an array
+below: audit PASS + strategic PASS trailers (blockers none), no override: exit 0 stdout=passed stderr=
+validator at e95a6288389629e29aa1b2f13dda8558fa457f87

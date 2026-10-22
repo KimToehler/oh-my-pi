@@ -1,0 +1,6 @@
+{
+  "verdict": "OKAY",
+  "summary": "No evidenced blocking defects found in the fixture plan.",
+  "blockers": [],
+  "notes": []
+}
