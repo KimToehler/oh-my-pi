@@ -482,7 +482,7 @@ function planOnly(text) {
   }
 }
 
-function fullMode(text) {
+function fullMode(text, mutate = () => {}) {
   const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-abort-"))
   try {
     const planPath = path.join(directory, "plan.md")
@@ -490,6 +490,7 @@ function fullMode(text) {
     const record = validRecord()
     record.plan = path.relative(sandboxRepo, planPath)
     record.plan_sha256 = planDigest(planPath)
+    mutate(record)
     return run(record, { plan: planPath })
   } finally {
     rmSync(directory, { recursive: true, force: true })
@@ -510,6 +511,8 @@ const acceptedPlans = [
   // A list-indented fence inside an outer fence must not close the outer one: the onara
   // AGENTS_MD_SLIM_PLAN quotes "  ```python ... ```" inside "```markdown", then opts out.
   ["an opt-out after an outer fence quoting an indented fence", `# Plan\n\n${fence}markdown\n- example:\n\n  ${fence}python\n  x = 1\n  ${fence}\n${fence}\n\n- Merge gate: not applicable (docs-only)\n`],
+  ["an internal-tooling tier with Mandatory class none", gatedPlan({ after: "- Risk tier: internal-tooling\n" })],
+  ["a bold product tier", gatedPlan({ after: "- **Risk tier:** product\n" })],
 ]
 
 for (const [name, text] of acceptedPlans) {
@@ -546,6 +549,15 @@ const blockedPlans = [
   ["an opt-out with a slash suffix", "# Plan\n- Merge gate: not applicable/xyz\n", /Merge gate: section is required/],
   ["an opt-out together with feature criteria", gatedPlan({ after: "- Merge gate: not applicable (contradiction)\n" }), /opt-out.*criteria|criteria.*opt-out/i],
   ["a Merge gate heading only inside a fence", `# Plan\n${fence}\n## Merge gate\n${criteriaBlock}${fence}\n`, /Merge gate: section is required/],
+  ["a personal tier", gatedPlan({ after: "- Risk tier: personal\n" }), /plan Risk tier: personal plans run no merge gate.*not applicable/],
+  ["an unknown tier", gatedPlan({ after: "- Risk tier: internal\n" }), /plan Risk tier: must be exactly product or internal-tooling/],
+  ["the template tier line", gatedPlan({ after: "- Risk tier: <product | internal-tooling>\n" }), /plan Risk tier: must be exactly/],
+  ["a tier with an inline reason", gatedPlan({ after: "- Risk tier: internal-tooling (or product)\n" }), /plan Risk tier: must be exactly/],
+  ["a duplicate tier", gatedPlan({ after: "- Risk tier: product\n- Risk tier: product\n" }), /plan Risk tier: duplicate/],
+  ["internal-tooling with a mandatory class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: auth-secrets-pii"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling with none plus a parenthesised class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: none (auth-secrets-pii)"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling with none plus a listed class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: none, concurrency-state"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling without a Mandatory class bullet", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none\n", ""), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
 ]
 
 for (const [name, text, expected] of blockedPlans) {
@@ -555,6 +567,25 @@ for (const [name, text, expected] of blockedPlans) {
     assert.equal(result.stdout, "blocked\n")
     assert.match(result.stderr, expected)
     assert.doesNotMatch(result.stderr, /\n\s+at /)
+  })
+}
+
+const IT = gatedPlan({ after: "- Risk tier: internal-tooling\n" })
+
+test("#given an internal-tooling plan #when full mode validates the pass record #then it exits zero", () => {
+  const result = fullMode(IT)
+  assert.equal(result.status, 0, result.stderr)
+})
+
+for (const [name, mutate, field] of [
+  ["a mandatory class", (r) => { r.mandatory_class = "auth-secrets-pii" }, "mandatory_class"],
+  ["no reviewer", (r) => { r.reviewers_run = [] }, "reviewers_run"],
+  ["a second reviewer", (r) => { r.reviewers_run = ["implementation-audit", "strategic-risk-review"] }, "reviewers_run"],
+]) {
+  test(`#given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (${name})`, () => {
+    const result = fullMode(IT, mutate)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, new RegExp(`^${field}: the plan declares Risk tier internal-tooling`))
   })
 }
 

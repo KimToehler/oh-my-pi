@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -145,6 +146,27 @@ test("#given a fix commit after a wave #when ready runs #then it names the commi
   const after = s.gc("ready", "--lane", "F2")
   assert.equal(after.status, 0, after.stdout)
   assert.equal(after.stdout.trim(), "READY")
+})
+
+test("#given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes in both lanes, while a rejected commit cannot be exempted in either", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  assert.equal(s.wave("F2", "--outcome", "qa=FAIL", "--blocker", "B1").status, 0)
+  const tick = s.commit("docs/plan.md", "- [x] F2\n", "tick F2")
+  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`unreviewed fix commit ${tick.slice(0, 12)}`))
+  assert.equal(s.gc("exempt", "--sha", tick).status, 1)
+  const exempted = s.gc("exempt", "--sha", tick, "--reason", "checkbox only")
+  assert.equal(exempted.status, 0, exempted.stderr)
+  // Like a delta verdict, an exemption decides the commit for the whole gate, so both lanes read it.
+  for (const lane of ["F2", "F3"]) assert.equal(s.gc("ready", "--lane", lane).stdout.trim(), "READY")
+  const base = s.head()
+  const fix = s.commit("src/a.ts", "line one\nbroken\nline three\n", "fix R1")
+  assert.equal(s.delta("F3", base, fix, "REJECT").result.status, 0)
+  const refused = s.gc("exempt", "--sha", fix, "--reason", "comment only")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, /has a REJECT/)
+  assert.equal(s.ledger().filter((e) => e.event === "delta_exemption").length, 1)
+  for (const lane of ["F2", "F3"]) assert.match(s.gc("ready", "--lane", lane).stdout, new RegExp(`rejected fix commit ${fix.slice(0, 12)}`))
 })
 
 test("#given a rejected commit #when only its amendment is approved #then it stays open until a covering range is accepted", (t) => {
@@ -329,4 +351,283 @@ test("#given a ledger without a trailing newline #when an event is appended #the
   assert.equal(lines.length, 2)
   assert.deepEqual(JSON.parse(lines[0]), { ts: "x", event: "merge", plan: "other" })
   assert.equal(JSON.parse(lines[1]).event, "gate_baseline")
+})
+
+// Risk tier: the tier is bound at baseline, internal-tooling lanes stop after two fix rounds, and
+// every wave pins the plan bytes its reviewers read.
+const tierPlan = (s, tier) => writeFileSync(path.join(s.repo, PLAN), `# demo\n\n## Merge gate\n- Mandatory class: none\n- Risk tier: ${tier}\n`)
+const waveEvents = (s) => s.ledger().filter((e) => e.event === "gate_wave")
+
+function toolingStop(s, lane = "F2") {
+  tierPlan(s, "internal-tooling")
+  s.gc("baseline", "--sha", "HEAD")
+  const outcomes = lane === "F2" ? ["--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL"] : ["--outcome", "f3=FAIL"]
+  let last
+  for (const [index, count] of [3, 2, 1].entries()) {
+    last = s.wave(lane, ...outcomes, ...blockers(`W${index}B`, count))
+  }
+  return last
+}
+
+test("#given an internal-tooling plan with totals 3, 2, 1 #when the third wave records #then the fix-round cap stops it", (t) => {
+  const s = sandbox(t)
+  tierPlan(s, "internal-tooling")
+  s.gc("baseline", "--sha", "HEAD")
+  assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "internal-tooling")
+  let last
+  for (const [index, count] of [3, 2, 1].entries()) {
+    last = s.wave("F2", "--outcome", "qa=FAIL", ...blockers(`W${index}B`, count))
+    if (index < 2) {
+      assert.equal(last.status, 0, last.stderr)
+      assert.equal(first(last.stdout), "DECISION: CONTINUE")
+    }
+  }
+  assert.equal(last.status, 3, last.stderr)
+  assert.equal(first(last.stdout), "DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers")
+})
+
+test("#given an internal-tooling cap STOP #when decide runs #then continue is refused and freeze is recorded", (t) => {
+  const s = sandbox(t)
+  assert.equal(toolingStop(s).status, 3)
+  const refused = s.gc("decide", "--lane", "F2", "--choice", "continue", "--by", "tim", "--reason", "t")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, /internal-tooling allows 2 fix rounds per lane/)
+  assert.equal(s.gc("decide", "--lane", "F2", "--choice", "freeze", "--by", "tim", "--reason", "t").status, 0)
+})
+
+test("#given an internal-tooling gate whose plan moves to product #when commands run #then they refuse until retier, and after retier the lane runs as product", (t) => {
+  const s = sandbox(t)
+  tierPlan(s, "internal-tooling")
+  s.gc("baseline", "--sha", "HEAD")
+  for (const [index, count] of [3, 2].entries()) {
+    assert.equal(s.wave("F2", "--outcome", "qa=FAIL", ...blockers(`W${index}B`, count)).status, 0)
+  }
+  tierPlan(s, "product")
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, /record the change with retier/)
+  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+  assert.equal(retier.status, 0, retier.stderr)
+  assert.equal(first(retier.stdout), "RECORDED risk_tier_change internal-tooling -> product")
+  const third = s.wave("F2", "--outcome", "qa=FAIL", ...blockers("W2B", 1))
+  assert.equal(third.status, 0, third.stderr)
+  assert.equal(first(third.stdout), "DECISION: CONTINUE")
+  assert.equal(s.ledger().filter((e) => e.event === "risk_tier_change").length, 1)
+  const again = s.gc("retier", "--by", "tim", "--reason", "t")
+  assert.equal(again.status, 1)
+  assert.match(again.stderr, /this gate runs as product/)
+})
+
+test("#given an internal-tooling cap STOP in either lane #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded", (t) => {
+  for (const lane of ["F2", "F3"]) {
+    const s = sandbox(t)
+    assert.equal(toolingStop(s, lane).status, 3)
+    tierPlan(s, "product")
+    const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+    assert.equal(retier.status, 0, retier.stderr)
+    assert.match(retier.stdout, new RegExp(`^STALE ${lane} wave 3: recorded before this retier`, "m"))
+    const freeze = s.gc("decide", "--lane", lane, "--choice", "freeze", "--by", "tim", "--reason", "t")
+    assert.equal(freeze.status, 1, lane)
+    assert.match(freeze.stderr, new RegExp(`${lane} wave 3 predates the retier to product`))
+    assert.equal(s.ledger().filter((e) => e.event === "convergence_decision").length, 0)
+    assert.equal(s.gc("decide", "--lane", lane, "--choice", "continue", "--by", "tim", "--reason", "t").status, 0)
+  }
+})
+
+test("#given an internal-tooling lane decided freeze or replan, in either lane #when the plan is re-tiered to product #then retier is refused and nothing is written", (t) => {
+  for (const lane of ["F2", "F3"]) {
+    for (const choice of ["freeze", "replan"]) {
+      const s = sandbox(t)
+      assert.equal(toolingStop(s, lane).status, 3)
+      assert.equal(s.gc("decide", "--lane", lane, "--choice", choice, "--by", "tim", "--reason", "t").status, 0, `${lane} ${choice}`)
+      tierPlan(s, "product")
+      const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+      assert.equal(retier.status, 1, `${lane} ${choice}`)
+      assert.match(retier.stderr, new RegExp(`${lane} wave 3 is decided ${choice}; a closed gate cannot be re-tiered`))
+      assert.equal(s.ledger().filter((e) => e.event === "risk_tier_change").length, 0)
+    }
+  }
+})
+
+test("#given a product gate whose plan moves to internal-tooling #when snapshot or retier runs #then both refuse", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  tierPlan(s, "internal-tooling")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  assert.equal(snap.status, 1)
+  assert.match(snap.stderr, /never moves to internal-tooling/)
+  const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+  assert.equal(retier.status, 1)
+  assert.match(retier.stderr, /this gate runs as product/)
+})
+
+test("#given a snapshot #when it is written #then the plan copy is exact, read-only and named on stdout", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  assert.equal(snap.status, 0, snap.stderr)
+  const lines = snap.stdout.split("\n")
+  const copy = lines[2].replace(/^PLAN /, "")
+  assert.ok(lines[2].startsWith("PLAN ") && path.isAbsolute(copy), lines[2])
+  const source = readFileSync(path.join(s.repo, PLAN))
+  assert.deepEqual(readFileSync(copy), source)
+  assert.equal(statSync(copy).mode & 0o777, 0o444)
+  const json = JSON.parse(readFileSync(lines[0], "utf8"))
+  assert.equal(json.plan_sha256, createHash("sha256").update(source).digest("hex"))
+  assert.equal(path.join(s.repo, json.plan_copy), copy)
+})
+
+test("#given a source plan changed and restored after snapshot #when the pinned copy is read and the wave records #then the copy stays original and the wave passes", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  const copy = snap.stdout.split("\n")[2].replace(/^PLAN /, "")
+  const original = readFileSync(path.join(s.repo, PLAN))
+  writeFileSync(path.join(s.repo, PLAN), "# changed\n")
+  assert.deepEqual(readFileSync(copy), original)
+  writeFileSync(path.join(s.repo, PLAN), original)
+  const result = s.gc("wave", "--lane", "F2", "--snapshot", snap.stdout.split("\n")[0], "--outcome", "qa=PASS")
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test("#given a pinned plan copy is tampered with #when the wave records #then it is refused and nothing is written", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  const copy = snap.stdout.split("\n")[2].replace(/^PLAN /, "")
+  chmodSync(copy, 0o644)
+  writeFileSync(copy, "# tampered\n")
+  const result = s.gc("wave", "--lane", "F2", "--snapshot", snap.stdout.split("\n")[0], "--outcome", "qa=PASS")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /pinned plan copy differs/)
+  assert.equal(waveEvents(s).length, 0)
+})
+
+test("#given a snapshot taken before a retier #when the wave records on it #then it is refused and nothing is written", (t) => {
+  const s = sandbox(t)
+  tierPlan(s, "internal-tooling")
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  tierPlan(s, "product")
+  assert.equal(s.gc("retier", "--by", "tim", "--reason", "t").status, 0)
+  const result = s.gc("wave", "--lane", "F2", "--snapshot", snap.stdout.split("\n")[0], "--outcome", "qa=PASS")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /plan bytes differ from the snapshot/)
+  assert.equal(waveEvents(s).length, 0)
+})
+
+test("#given a same-tier plan edit between snapshot and wave #when the wave records #then it is refused and nothing is written", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
+  const result = s.gc("wave", "--lane", "F2", "--snapshot", snap.stdout.split("\n")[0], "--outcome", "qa=PASS")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /plan bytes differ from the snapshot/)
+  assert.equal(waveEvents(s).length, 0)
+})
+
+const REFUSED_RESNAPSHOT = /F2 wave 1 already has a snapshot on other plan bytes or another commit, or an incomplete one/
+
+test("#given an unrecorded wave snapshot #when snapshot reruns unchanged #then neither file is rewritten, and other plan bytes are refused until both files are deleted", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  assert.equal(first.status, 0, first.stderr)
+  const [file, , planLine] = first.stdout.split("\n")
+  const copy = planLine.replace(/^PLAN /, "")
+  const dispatched = readFileSync(copy)
+  const json = readFileSync(file, "utf8")
+  const written = [statSync(copy).mtimeMs, statSync(file).mtimeMs]
+  const again = s.gc("snapshot", "--lane", "F2")
+  assert.equal(again.status, 0, again.stderr)
+  assert.equal(again.stdout, first.stdout)
+  assert.deepEqual([statSync(copy).mtimeMs, statSync(file).mtimeMs], written)
+  assert.equal(statSync(copy).mode & 0o777, 0o444)
+  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
+  assert.deepEqual(readFileSync(copy), dispatched)
+  assert.equal(readFileSync(file, "utf8"), json)
+  rmSync(file)
+  chmodSync(copy, 0o600)
+  rmSync(copy)
+  const retaken = s.gc("snapshot", "--lane", "F2")
+  assert.equal(retaken.status, 0, retaken.stderr)
+  assert.notDeepEqual(readFileSync(copy), dispatched)
+  assert.equal(waveEvents(s).length, 0)
+})
+
+test("#given an unrecorded wave snapshot #when a new commit with the same tree lands and snapshot reruns #then it is refused and the dispatched SHA stays", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const file = first.stdout.split("\n")[0]
+  const json = readFileSync(file, "utf8")
+  s.git("commit", "-q", "--allow-empty", "-m", "empty")
+  const delta = s.delta("F2", JSON.parse(json).sha, s.head(), "OKAY")
+  assert.equal(delta.result.status, 0, delta.result.stderr)
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
+  assert.equal(readFileSync(file, "utf8"), json)
+})
+
+test("#given a plan copy without its snapshot JSON #when snapshot runs #then it is refused and the copy is not replaced", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const [file, , planLine] = first.stdout.split("\n")
+  const copy = planLine.replace(/^PLAN /, "")
+  const dispatched = readFileSync(copy)
+  rmSync(file)
+  appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after the JSON was lost\n")
+  const refused = s.gc("snapshot", "--lane", "F2")
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, REFUSED_RESNAPSHOT)
+  assert.deepEqual(readFileSync(copy), dispatched)
+  assert.equal(existsSync(file), false)
+})
+
+test("#given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const first = s.gc("snapshot", "--lane", "F2")
+  const [firstFile, , firstPlanLine] = first.stdout.split("\n")
+  const firstJson = readFileSync(firstFile, "utf8")
+  const OTHER = ".omo/plans/other.md"
+  writeFileSync(path.join(s.repo, OTHER), "# other plan\n")
+  const other = (...args) => s.run(args[0], "--plan", OTHER, ...args.slice(1))
+  assert.equal(other("baseline", "--sha", "HEAD").status, 0)
+  const second = other("snapshot", "--lane", "F2")
+  assert.equal(second.status, 0, second.stderr)
+  const [secondFile, , secondPlanLine] = second.stdout.split("\n")
+  assert.notEqual(secondFile, firstFile)
+  assert.equal(readFileSync(secondPlanLine.replace(/^PLAN /, ""), "utf8"), "# other plan\n")
+  assert.equal(readFileSync(firstFile, "utf8"), firstJson)
+  assert.deepEqual(readFileSync(firstPlanLine.replace(/^PLAN /, "")), readFileSync(path.join(s.repo, PLAN)))
+})
+
+test("#given a legacy snapshot without the plan fields #when wave runs #then it is refused and nothing is written", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  const file = snap.stdout.split("\n")[0]
+  const json = JSON.parse(readFileSync(file, "utf8"))
+  delete json.plan_sha256
+  delete json.plan_copy
+  writeFileSync(file, `${JSON.stringify(json)}\n`)
+  const result = s.gc("wave", "--lane", "F2", "--snapshot", file, "--outcome", "qa=PASS")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /retake|plan_sha256|snapshot/)
+  assert.equal(waveEvents(s).length, 0)
+})
+
+test("#given a personal tier #when baseline runs #then it is refused", (t) => {
+  const s = sandbox(t)
+  tierPlan(s, "personal")
+  const result = s.gc("baseline", "--sha", "HEAD")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /plan Risk tier: personal plans run no merge gate/)
 })

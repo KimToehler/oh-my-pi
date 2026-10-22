@@ -4,6 +4,7 @@ import { createHash } from "node:crypto"
 import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
+import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 
 class GateError extends Error {}
 
@@ -516,10 +517,6 @@ function reconcileBlockers(scalars, narrative, field) {
   return ids
 }
 
-// omp-local plan contract. Code fences and HTML comments are not plan content: a template or an
-// example quoted there must neither satisfy nor skip a plan check. Every plan parser reads the
-// content-only text, so a plan without fences or comments parses exactly as before.
-const SECTION_PATTERN = /^## Merge gate\s*$([\s\S]*?)(?=^## |$(?![\s\S]))/m
 const CRITERIA_HEADER_PATTERN = /^(\s*)-\s+(?:\*\*)?Feature-specific criteria\b[^\n]*(?:\*\*)?\s*:?\s*$/mi
 // The opt-out is one top-level bullet. A glued suffix (`not applicableXYZ`) is not a declaration.
 const OPT_OUT_PATTERN = /^-\s+(?:\*\*)?Merge gate(?:\*\*)?\s*:\s*(?:\*\*)?\s*not applicable(?=$|[\s(.,;:\u2013\u2014])/i
@@ -527,59 +524,10 @@ const ABORT_FIELDS = ["Accepted residual risks", "Out of scope for blocking"]
 const DEFERRAL_MARKERS = new Set(["tbd", "tba", "tbc", "todo", "fixme", "xxx", "n/a", "na", "?", "-", "...", "\u2026"])
 const DEFERRAL_PREFIX = /^(?:tbd|tba|tbc|todo|fixme|xxx|n\/a)(?!\p{L})/u
 
-function scanMarkdown(text) {
-  const lines = []
-  let fence = null
-  let inComment = false
-  for (const raw of text.split("\n")) {
-    if (fence !== null) {
-      // A closer may not sit deeper than its opener: plans quote list-indented fences inside an
-      // outer fence, and CommonMark's 0-3 space closer would end the outer fence there.
-      const close = /^( {0,3})(`{3,}|~{3,})\s*$/.exec(raw)
-      if (close && close[1].length <= fence.indent && close[2][0] === fence.marker[0] && close[2].length >= fence.marker.length) fence = null
-      lines.push({ text: raw, content: false })
-      continue
-    }
-    if (!inComment) {
-      const open = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(raw)
-      // A backtick fence's info string carries no backtick; "```a``` b" is inline code, not a fence.
-      if (open && !(open[2][0] === "`" && open[3].includes("`"))) {
-        fence = { indent: open[1].length, marker: open[2] }
-        lines.push({ text: raw, content: false })
-        continue
-      }
-    }
-    let rest = raw
-    let kept = ""
-    while (rest.length > 0) {
-      if (inComment) {
-        const end = rest.indexOf("-->")
-        if (end === -1) break
-        rest = rest.slice(end + 3)
-        inComment = false
-      } else {
-        const start = rest.indexOf("<!--")
-        if (start === -1) {
-          kept += rest
-          break
-        }
-        kept += rest.slice(0, start)
-        rest = rest.slice(start + 4)
-        inComment = true
-      }
-    }
-    if (kept === raw) lines.push({ text: raw, content: true })
-    else lines.push({ text: kept.trimEnd(), content: kept.trim() !== "" })
-  }
-  return lines
-}
-
-function planContent(lines) {
-  return lines.filter((line) => line.content).map((line) => line.text).join("\n")
-}
-
-function mergeGateSection(content) {
-  return content.match(SECTION_PATTERN)?.[1]
+function riskTier(section) {
+  const parsed = readRiskTier(section)
+  if (parsed.error) block("plan Risk tier", parsed.error)
+  return parsed.tier
 }
 
 function validateCriteria(section) {
@@ -673,6 +621,7 @@ function validatePlanContract(planText) {
   }
   validateCriteria(section)
   validateAbortRuleFields(section)
+  riskTier(section)
 }
 
 function validateRecord(record, context) {
@@ -736,6 +685,9 @@ function validateRecord(record, context) {
   if (!mandatoryClasses.has(record.mandatory_class)) {
     block("mandatory_class", "must be none, auth-secrets-pii, schema-migration, wire-contract-api, or concurrency-state")
   }
+  if (context.riskTier === "internal-tooling" && record.mandatory_class !== "none") {
+    block("mandatory_class", "the plan declares Risk tier internal-tooling, which requires none; a mandatory class makes the work product: set - Risk tier: product, run gate-convergence retier, and review again")
+  }
 
   const implementationModels = requireArray(record, "implementation_models")
   if (implementationModels.length === 0) {
@@ -759,6 +711,9 @@ function validateRecord(record, context) {
     for (const required of ["implementation-audit", "strategic-risk-review"]) {
       if (!reviewerSet.has(required)) block("reviewers_run", `mandatory_class requires missing invocation ${required}`)
     }
+  }
+  if (context.riskTier === "internal-tooling" && (reviewers.length !== 1 || reviewers[0] !== "implementation-audit")) {
+    block("reviewers_run", "the plan declares Risk tier internal-tooling, which runs exactly implementation-audit; for no reviewer or a second one, use Risk tier product")
   }
 
   const resolutions = requireArray(record, "resolution")
@@ -926,7 +881,8 @@ function main() {
     validatePlanContract(planText)
     return "passed"
   }
-  validateCriteria(mergeGateSection(planContent(scanMarkdown(planText))))
+  const section = mergeGateSection(planContent(scanMarkdown(planText)))
+  validateCriteria(section)
   const recordPath = path.resolve(repo, values.record)
   const context = {
     head: execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
@@ -935,6 +891,7 @@ function main() {
     planText,
     pinned: new Set(),
     repo,
+    riskTier: riskTier(section),
   }
   // PHASE 2 begins here. The plan and every trailer are pinned by `validateRecord` against their
   // recorded digests; the record itself cannot self-bind, so it has its own admission.

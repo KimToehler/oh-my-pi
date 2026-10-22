@@ -12,7 +12,7 @@
  * Plan time: a plan-mode proposal (`write xd://propose`) is refused until the plan passes
  * `validate-gate-record.mjs --plan-only`. The validator owns every plan decision: the opt-out
  * declaration (`- Merge gate: not applicable (<reason>)` as a top-level bullet outside code fences),
- * the `## Merge gate` criteria, the abort-rule fields, and file-or-directory plan interpretation.
+ * the `## Merge gate` criteria, the abort-rule fields, the optional Risk tier field, and file-or-directory plan interpretation.
  * This hook treats the plan path as opaque and never reads plan content.
  *
  * Cross-family plan review is native in omp (`plan.review.enabled`); this extension does not review.

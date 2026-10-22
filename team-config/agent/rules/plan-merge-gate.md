@@ -19,6 +19,7 @@ time, after reviewers were paid for, so get it right at plan time.
 ## Merge gate
 - Author's risk assessment: <what could break, and how badly>
 - Mandatory class: <none | auth-secrets-pii | schema-migration | wire-contract-api | concurrency-state>
+- Risk tier: <product | internal-tooling>
 - Whole-diff review: <needed | not needed + reason>   (needed when the change spans 3+ modules/layers)
 - Accepted residual risks: <named risks that may not block a gate wave, or none (<reason>)>
 - Out of scope for blocking: <areas, modes, providers whose findings become follow-ups, or none (<reason>)>
@@ -37,6 +38,20 @@ time, after reviewers were paid for, so get it right at plan time.
 Every behavioural criterion needs all five fields; the negative control is the one that is most
 often missing and the one that makes the criterion discriminate. Mandatory class other than
 `none` means both reviewers run at F2, no discretion.
+`auth-secrets-pii` applies when the change touches a real credential, an authentication or authorisation path, or third-party personal data. Classify the value and its reach, never the filename: a provider key or production token read from a local `.env` is real; a synthetic password generated only for disposable local/test services is not.
+
+## Risk tier
+
+- `product`: ships to users or production, or can reach a protected asset (production data, a
+  real credential, third-party personal data, tenant isolation, money, an audit trail,
+  irreversible state). Full gate; mandatory classes apply. A plan without the field is product.
+- `internal-tooling`: dev, CI, and proof tooling that reaches no protected asset. `Mandatory
+  class` must be exactly `none`. F2 runs exactly one implementation-audit; each gate lane allows
+  two fix rounds, and a third wave that still has blockers stops for freeze or re-plan, with
+  unfixed blockers in the record's `downgrades`. A protected asset in reach makes the plan product.
+- `personal`: a local tool for one user opts out with `- Merge gate: not applicable (<reason>)`;
+  the validator refuses `Risk tier: personal`.
+- The value is exactly one tier word; the reason goes into `Author's risk assessment`.
 
 ## The criteria are the abort rule
 
