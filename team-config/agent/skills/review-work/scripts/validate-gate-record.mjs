@@ -813,6 +813,9 @@ function validateRecord(record, context) {
       block(`blockers.${index}.fix_sha`, "full 40-hex SHA required when PASS is claimed")
     }
   }
+  // An override reaching this point carries at least one non-PASS verdict (the full-PASS case
+  // blocked above), so it must stay distinguishable from a clean PASS to anyone reading stdout.
+  return hasOverride ? "overridden" : "passed"
 }
 
 function main() {
@@ -837,7 +840,7 @@ function main() {
   const planText = readText(planPath, "plan")
   if (values["plan-only"]) {
     validatePlanContract(planText)
-    return
+    return "passed"
   }
   validateCriteria(mergeGateSection(planContent(scanMarkdown(planText))))
   const recordPath = path.resolve(repo, values.record)
@@ -852,20 +855,21 @@ function main() {
   // PHASE 2 begins here. The plan and every trailer are pinned by `validateRecord` against their
   // recorded digests; the record itself cannot self-bind, so it has its own admission.
   pinRecordPath(context, recordPath)
-  validateRecord(parseRecord(recordPath), context)
+  return validateRecord(parseRecord(recordPath), context)
 }
 
+// stdout carries exactly one outcome word (passed | overridden | blocked); stderr carries the
+// blocking field and reason. The exit code stays the gate: 0 for passed or overridden, 1 for blocked.
 try {
-  main()
+  console.log(main())
 } catch (error) {
+  console.log("blocked")
   if (error instanceof GateError) {
     console.error(error.message)
-    process.exitCode = 1
   } else if (error instanceof Error) {
     console.error(`validator: ${error.message}`)
-    process.exitCode = 1
   } else {
     console.error("validator: unknown failure")
-    process.exitCode = 1
   }
+  process.exitCode = 1
 }
