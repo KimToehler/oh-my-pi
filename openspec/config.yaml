@@ -1,0 +1,21 @@
+schema: omp-gated
+
+context: |
+  This repository is the public oh-my-pi fork. Behavioural requirements belong in OpenSpec specs;
+  implementation policy remains in AGENTS.md and scoped omp rules.
+
+rules:
+  specs:
+    - Every requirement has exactly one Scenario named "Negative control" with a plausible broken input or state whose outcome MUST fail.
+  gate:
+    - Classify risk from realistic consequence and a real trust, process or release boundary, never filenames or an internal export keyword alone.
+    - Use full review for auth/secrets/PII, schema/migration, externally supported wire/API, or concurrency/state-machine changes.
+
+operations:
+  apply:
+    guidance:
+      - Run `node scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
+      - Keep source edits in the task-owned worktree and mark a task complete only after its named command passes.
+  archive:
+    guidance:
+      - Archive only after the repository merge gate is satisfied.

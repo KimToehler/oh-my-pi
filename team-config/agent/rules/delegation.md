@@ -1,6 +1,9 @@
 ---
 description: Before spawning subagents with the task tool - pick the agent by reasoning difficulty, serialize overlapping file-sets, isolate concurrent editing tasks, never touch files a running subagent owns, keep reviews small and fresh
-alwaysApply: true
+condition: ".*"
+scope: ["tool:task"]
+agents: [main]
+interruptMode: always
 ---
 
 # Delegation and Parallel Dispatch (omp)
