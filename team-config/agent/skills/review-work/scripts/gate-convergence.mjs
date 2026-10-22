@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 // Gate-wave convergence and fix-delta coverage for review-work (F2) and integration-review (F3).
 // The skills call this script; it is the only writer and judge of the gate_baseline,
-// fix_delta_review, gate_wave and convergence_decision ledger events. Every decision is
+// fix_delta_review, gate_wave, convergence_decision and risk_tier_change ledger events. Every decision is
 // deterministic and every undecidable state refuses rather than guesses.
 import { execFileSync, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
+import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 
 class GateError extends Error {}
 const fail = (message) => {
   throw new GateError(message)
 }
 
-const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "gate_wave", "convergence_decision"])
+const OWN_EVENTS = new Set(["gate_baseline", "fix_delta_review", "gate_wave", "convergence_decision", "risk_tier_change"])
+const TIERS = new Set(["product", "internal-tooling"])
+const TOOLING_FIX_ROUNDS = 2
 const LANES = new Set(["F2", "F3"])
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const SHA = /^[0-9a-f]{40}$/
@@ -63,6 +66,7 @@ function append(repo, event) {
   appendFileSync(file, `${prefix}${JSON.stringify({ ts: new Date().toISOString(), ...event })}\n`)
 }
 
+const isSha256 = (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v)
 const isString = (v) => typeof v === "string" && v.length > 0
 const isSha = (v) => typeof v === "string" && SHA.test(v)
 const isShaList = (v) => Array.isArray(v) && v.every(isSha)
@@ -70,7 +74,7 @@ const isStringList = (v) => Array.isArray(v) && v.every(isString)
 
 // Field checks per own event; a wrong shape is undecidable, never silently skipped.
 const SHAPES = {
-  gate_baseline: { base_sha: isSha },
+  gate_baseline: { base_sha: isSha, risk_tier: (v) => v === undefined || TIERS.has(v) },
   fix_delta_review: {
     lane: (v) => LANES.has(v),
     rows: (v) => isStringList(v) && v.length > 0,
@@ -100,6 +104,7 @@ const SHAPES = {
     by: isString,
     reason: isString,
   },
+  risk_tier_change: { from: (v) => v === "internal-tooling", to: (v) => v === "product", by: isString, reason: isString },
 }
 
 function readLedger(repo, key, { requireBaseline = true } = {}) {
@@ -118,7 +123,7 @@ function readLedger(repo, key, { requireBaseline = true } = {}) {
   if (baselines.length > 1) fail(`undecidable: ${baselines.length} gate_baseline events for ${key}`)
   if (baselines.length === 0) {
     if (requireBaseline) fail(`undecidable: no gate_baseline for ${key}; run baseline before the first gate wave`)
-    return { baseline: undefined, events: [] }
+    return { baseline: undefined, tier: undefined, events: [] }
   }
   const start = baselines[0].index
   const events = []
@@ -137,7 +142,25 @@ function readLedger(repo, key, { requireBaseline = true } = {}) {
     }
     events.push(event)
   }
-  return { baseline: baselines[0].value.base_sha, events }
+  let tier = baselines[0].value.risk_tier ?? "product"
+  for (const event of events) {
+    if (event.event !== "risk_tier_change") continue
+    if (event.from !== tier) fail(`undecidable: ledger risk_tier_change from ${event.from} while the gate runs as ${tier}`)
+    tier = event.to
+  }
+  return { baseline: baselines[0].value.base_sha, tier, events }
+}
+
+// The ledger state of a gate whose bound tier must match the plan's current Risk tier.
+function gateState(ctx) {
+  const state = readLedger(ctx.repo, ctx.key)
+  if (state.tier !== ctx.planTier) {
+    if (state.tier === "internal-tooling") {
+      fail("plan Risk tier is product but this gate runs as internal-tooling; record the change with retier --by <user> --reason <text>")
+    }
+    fail("plan Risk tier is internal-tooling but this gate runs as product; a gate never moves to internal-tooling: set the plan back to product or gate the work under a new plan file")
+  }
+  return state
 }
 
 function laneWaves(events, lane) {
@@ -250,9 +273,12 @@ function blameCommit(repo, sha, { file, line }) {
   return out ? out.split(/\s/)[0] : null
 }
 
-function decide(waves, total, fixInduced) {
+function decide(waves, total, fixInduced, tier) {
   const n = waves.length + 1
   if (total === 0) return { decision: "PASS" }
+  if (tier === "internal-tooling" && n > TOOLING_FIX_ROUNDS) {
+    return { decision: "STOP", reason: `internal-tooling allows ${TOOLING_FIX_ROUNDS} fix rounds; wave ${n} still has ${total} blockers` }
+  }
   if (n >= 2 && fixInduced > waves[n - 2].blockers_fix_induced) {
     return { decision: "STOP", reason: `fix-induced blockers rose from ${waves[n - 2].blockers_fix_induced} to ${fixInduced}` }
   }
@@ -280,13 +306,13 @@ const commands = {
     const { baseline } = readLedger(ctx.repo, ctx.key, { requireBaseline: false })
     if (baseline) return console.log(`BASELINE ${short(baseline)} existing`)
     const sha = resolveCommit(ctx.repo, ctx.values.sha)
-    append(ctx.repo, { event: "gate_baseline", plan: ctx.key, base_sha: sha })
+    append(ctx.repo, { event: "gate_baseline", plan: ctx.key, base_sha: sha, risk_tier: ctx.planTier })
     console.log(`BASELINE ${short(sha)} recorded`)
   },
 
   ready(ctx) {
     const lane = requireLane(ctx.values)
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     const reasons = readyReasons(ctx.repo, state, lane, resolveCommit(ctx.repo, "HEAD"))
     if (reasons.length === 0) return console.log("READY")
     console.log(["NOT READY", ...reasons].join("\n"))
@@ -295,7 +321,7 @@ const commands = {
 
   snapshot(ctx) {
     const lane = requireLane(ctx.values)
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     if (trackedChanges(ctx.repo) !== "") {
       fail("working tree has uncommitted tracked changes; commit them (and review them as a delta) before the wave")
     }
@@ -303,10 +329,17 @@ const commands = {
     const reasons = readyReasons(ctx.repo, state, lane, head)
     if (reasons.length > 0) fail(`not ready: ${reasons.join("; ")}`)
     const wave = laneWaves(state.events, lane).length + 1
-    const file = path.join(ctx.repo, ".omo", "gate-deltas", `${lane}-wave-${wave}.snapshot.json`)
-    mkdirSync(path.dirname(file), { recursive: true })
-    writeFileSync(file, `${JSON.stringify({ lane, wave, sha: head, tree: git(ctx.repo, ["rev-parse", "HEAD^{tree}"]) })}\n`)
-    console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}`)
+    const dir = path.join(ctx.repo, ".omo", "gate-deltas")
+    const file = path.join(dir, `${lane}-wave-${wave}.snapshot.json`)
+    const planCopy = path.join(dir, `${lane}-wave-${wave}.plan.md`)
+    mkdirSync(dir, { recursive: true })
+    // A previous snapshot of the same unrecorded wave left a read-only copy; replace it.
+    if (existsSync(planCopy)) chmodSync(planCopy, 0o600)
+    writeFileSync(planCopy, ctx.planBytes)
+    chmodSync(planCopy, 0o444)
+    const record = { lane, wave, sha: head, tree: git(ctx.repo, ["rev-parse", "HEAD^{tree}"]), plan_sha256: ctx.planSha256, plan_copy: path.relative(ctx.repo, planCopy) }
+    writeFileSync(file, `${JSON.stringify(record)}\n`)
+    console.log(`${file}\nSNAPSHOT ${lane} wave ${wave} ${short(head)}\nPLAN ${planCopy}`)
   },
 
   patch(ctx) {
@@ -333,7 +366,7 @@ const commands = {
   delta(ctx) {
     const lane = requireLane(ctx.values)
     const rows = requireRows(ctx.values)
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     const checked = verifyDeltaDir(ctx.repo, ctx.values.dir ?? "")
     const head = resolveCommit(ctx.repo, "HEAD")
     if (!isAncestor(ctx.repo, state.baseline, checked.manifest.base_sha) || !isAncestor(ctx.repo, checked.manifest.head_sha, head)) {
@@ -365,7 +398,7 @@ const commands = {
   accept(ctx) {
     const lane = requireLane(ctx.values)
     if (!isString(ctx.values.by) || !isString(ctx.values.reason)) fail("accept needs --by and --reason")
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     const checked = verifyDeltaDir(ctx.repo, ctx.values.dir ?? "")
     const latest = state.events
       .filter((e) => e.event === "fix_delta_review" && e.base_sha === checked.manifest.base_sha && e.head_sha === checked.manifest.head_sha)
@@ -393,7 +426,7 @@ const commands = {
 
   wave(ctx) {
     const lane = requireLane(ctx.values)
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     const waves = laneWaves(state.events, lane)
     const n = waves.length + 1
 
@@ -409,6 +442,17 @@ const commands = {
     if (snapshot.tree !== git(ctx.repo, ["rev-parse", "HEAD^{tree}"]) || trackedChanges(ctx.repo) !== "") {
       fail("state changed since the wave was dispatched: tracked files differ from the snapshot")
     }
+    if (!isSha256(snapshot.plan_sha256) || !isString(snapshot.plan_copy)) {
+      fail("state changed since the wave was dispatched: snapshot predates the pinned plan copy; retake the snapshot")
+    }
+    let pinned
+    try {
+      pinned = readFileSync(path.resolve(ctx.repo, snapshot.plan_copy))
+    } catch {
+      fail("state changed since the wave was dispatched: pinned plan copy differs from the snapshot")
+    }
+    if (sha256(pinned) !== snapshot.plan_sha256) fail("state changed since the wave was dispatched: pinned plan copy differs from the snapshot")
+    if (snapshot.plan_sha256 !== ctx.planSha256) fail("state changed since the wave was dispatched: plan bytes differ from the snapshot")
 
     const outcomes = {}
     for (const spec of ctx.values.outcome ?? []) {
@@ -454,7 +498,7 @@ const commands = {
       if (blamed.some((sha) => fixCommits.has(sha))) fixInduced.push(blocker.id)
       else if (blamed.length === 0) unlocated.push(blocker.id)
     }
-    const outcome = decide(waves, blockers.length, fixInduced.length)
+    const outcome = decide(waves, blockers.length, fixInduced.length, state.tier)
     append(ctx.repo, {
       event: "gate_wave",
       plan: ctx.key,
@@ -478,11 +522,14 @@ const commands = {
     const lane = requireLane(ctx.values)
     if (!CHOICES.has(ctx.values.choice)) fail("--choice must be freeze, replan or continue")
     if (!isString(ctx.values.by) || !isString(ctx.values.reason)) fail("decide needs --by and --reason")
-    const state = readLedger(ctx.repo, ctx.key)
+    const state = gateState(ctx)
     const last = laneWaves(state.events, lane).at(-1)
     if (last?.decision !== "STOP") fail(`${lane} has no stopped wave to decide`)
     if (state.events.some((e) => e.event === "convergence_decision" && e.lane === lane && e.wave === last.wave)) {
       fail(`${lane} wave ${last.wave} is already decided`)
+    }
+    if (state.tier === "internal-tooling" && last.wave > TOOLING_FIX_ROUNDS && ctx.values.choice === "continue") {
+      fail(`internal-tooling allows ${TOOLING_FIX_ROUNDS} fix rounds per lane: choose freeze or replan, or re-tier the plan to product (retier) to continue`)
     }
     if (lane === "F2" && ctx.values.choice === "freeze") {
       const outcomes = Object.values(last.outcomes)
@@ -492,6 +539,16 @@ const commands = {
     }
     append(ctx.repo, { event: "convergence_decision", plan: ctx.key, lane, wave: last.wave, choice: ctx.values.choice, by: ctx.values.by, reason: ctx.values.reason })
     console.log(`RECORDED convergence_decision lane=${lane} wave=${last.wave} choice=${ctx.values.choice}`)
+  },
+
+  retier(ctx) {
+    if (!isString(ctx.values.by) || !isString(ctx.values.reason)) fail("retier needs --by and --reason")
+    // Not gateState: the tier mismatch is the reason this command runs.
+    const state = readLedger(ctx.repo, ctx.key)
+    if (state.tier !== "internal-tooling") fail(`this gate runs as ${state.tier}; retier moves internal-tooling to product only`)
+    if (ctx.planTier !== "product") fail("set - Risk tier: product in the plan before retier")
+    append(ctx.repo, { event: "risk_tier_change", plan: ctx.key, from: "internal-tooling", to: "product", by: ctx.values.by, reason: ctx.values.reason })
+    console.log("RECORDED risk_tier_change internal-tooling -> product")
   },
 }
 
@@ -522,18 +579,25 @@ function main() {
   if (!isString(values.repo)) fail("--repo is required")
   const repo = path.resolve(values.repo)
   let key
+  let planBytes
+  let planTier
+  let planSha256
   if (command !== "patch") {
     if (!isString(values.plan)) fail("--plan is required")
     const resolved = path.resolve(repo, values.plan)
     try {
-      readFileSync(resolved)
+      planBytes = readFileSync(resolved)
     } catch {
       fail(`plan ${values.plan} is not readable`)
     }
+    planSha256 = sha256(planBytes)
+    const parsed = readRiskTier(mergeGateSection(planContent(scanMarkdown(planBytes.toString("utf8")))))
+    if (parsed.error) fail(`plan Risk tier: ${parsed.error}`)
+    planTier = parsed.tier
     const relative = path.relative(repo, resolved)
     key = relative.startsWith("..") || path.isAbsolute(relative) ? resolved : relative
   }
-  commands[command]({ repo, key, values })
+  commands[command]({ repo, key, values, planBytes, planTier, planSha256 })
 }
 
 try {
