@@ -66,7 +66,7 @@ Out of scope: automatic OpenSpec CLI installation; user-level OpenSpec schema in
 - Author's risk assessment: a broken schema or command can silently create incomplete plans across every team repo; impact is reversible before implementation but broad because distribution is user-wide
 - Mandatory class: none (planning artifacts only; no auth, schema migration, public wire contract or concurrent state machine changes)
 - Whole-diff review: needed (commands, schema, validator and team distribution span four layers)
-- Accepted residual risks: OpenSpec CLI installation stays manual, so an unprepared machine gets a clear command-not-found instead of automatic setup; P3a is required before OpenSpec changes receive the current ACP independent-review dialog; until P3b lands, project setup and updates are manual copy steps and the deploy does not check the OpenSpec CLI version or set the telemetry opt-out
+- Accepted residual risks: OpenSpec CLI installation stays manual, so an unprepared machine gets a clear command-not-found instead of automatic setup; P3a is required before OpenSpec changes receive the current ACP independent-review dialog; until P3b lands, project setup and updates are manual copy steps and the deploy does not check the OpenSpec CLI version or set the telemetry opt-out; the manual setup does not lock the workflow paths, so a process that changes one between the step-1 check and the step-2 copy loses that change (P3b's installer owns locking)
 - Out of scope for blocking: OpenSpec behaviour outside version 1.14.3 and non-omp harness adapters; they become follow-ups rather than P3 blockers
 - Feature-specific criteria:
   - Invariant: an OpenSpec change missing any team-required planning field cannot pass the deterministic validator
