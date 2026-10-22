@@ -26,7 +26,7 @@ Do not include `Co-Authored-By` lines in commit messages.
 ### 3. Self-Improvement Loop
 
 - After ANY correction from the user, capture the reusable lesson.
-- Personal or project-specific context MUST use `learn` with project scope; it stays local and unversioned.
+- Personal or project-specific context MUST use `learn` with project scope. With `memory.backend: local` it stays local and unversioned; with a remote backend (Hindsight) the lesson goes to the remote service, so personal context MUST NOT go into `learn` unless the user agreed.
 - Cross-project team policy or a hard guardrail MUST become a reviewed rule in `team-config/agent/rules/`; NEVER use global memory as team policy.
 - Extend an existing rule before adding another; keep concrete scope and verification.
 - Review persistent team rules at session start.

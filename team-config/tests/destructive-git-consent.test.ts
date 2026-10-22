@@ -56,7 +56,7 @@ const BASH_MUST_TRIGGER = [
 
 const EVAL_MUST_TRIGGER = [
 	'subprocess.run(["git", "reset", "--hard"])',
-	"await $`git -C ${dir} clean -fd`",
+	`await $\`git -C \${dir} clean -fd\``,
 	"!git checkout -- .",
 ];
 
