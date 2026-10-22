@@ -1,10 +1,10 @@
 /**
  * Merge-gate enforcement for omp (review-work / final verification wave F2 gate).
  *
- * On session stop, if the final assistant message claims the work is done or asks for a
- * merge, the claim must be backed by a gate record that `validate-gate-record.mjs` accepts
- * at the current HEAD. Otherwise the stop is refused with the validator's own message, so the
- * agent has to run review-work (or retract the claim) instead of the owner having to ask.
+ * On session stop, a merge/completion claim must name one full reviewed_sha and its record. The
+ * extension resolves that exact pair across the repository's linked worktrees. Unmerged work runs
+ * the validator in the checkout that owns the record; a tracked record already merged into the
+ * local or pushed default branch is settled. Missing, ambiguous, or rejected bindings refuse stop.
  *
  * Deterministic and stateless: no idle nudges, no continuation counters. A refusal stays in
  * force until the claim is backed or withdrawn; the operator can always interrupt.
@@ -12,8 +12,8 @@
  * Plan time: a plan-mode proposal (`write xd://propose`) is refused until the plan passes
  * `validate-gate-record.mjs --plan-only`. The validator owns every plan decision: the opt-out
  * declaration (`- Merge gate: not applicable (<reason>)` as a top-level bullet outside code fences),
- * the `## Merge gate` criteria, and the abort-rule fields `Accepted residual risks` and
- * `Out of scope for blocking`. This hook never reads the plan text itself.
+ * the `## Merge gate` criteria, the abort-rule fields, and file-or-directory plan interpretation.
+ * This hook treats the plan path as opaque and never reads plan content.
  *
  * Cross-family plan review is native in omp (`plan.review.enabled`); this extension does not review.
  *
@@ -24,7 +24,7 @@
  * proposal in the same message are refused, and a proposal whose text names no existing `local://<slug>-plan.md` is
  * refused, so the checked plan is the plan on disk that is approved.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type {
 	ExecResult,
@@ -37,15 +37,13 @@ import type {
 	TurnEndEvent,
 } from "@oh-my-pi/pi-coding-agent";
 import { classifyCall, proposedPlan } from "./lib/plan-file";
+import { gateBinding, recordIsSettled, recordsForBinding } from "./lib/gate-record";
 
 // The validator ships in the same agent dir as this extension (skills/review-work), so resolve it
 // from here: that stays correct under profiles and PI_CODING_AGENT_DIR, where ~/.omp/agent is wrong.
 const VALIDATOR =
 	process.env.OMP_GATE_VALIDATOR ??
 	path.join(import.meta.dir, "..", "skills", "review-work", "scripts", "validate-gate-record.mjs");
-
-const RECORD_DIRS = [".omo/evidence/gate", "docs/evidence"];
-const SCHEMA = '"omo.merge-gate/v2"';
 
 // Phrases that turn a reply into a merge or completion claim. Kept narrow on purpose:
 // a status update or a question must not trigger the gate.
@@ -85,46 +83,6 @@ function lastAssistantText(message: unknown): string {
 		)
 		.map(block => block.text)
 		.join("\n");
-}
-
-type GateRecord = { record: string; plan: string; reviewedSha?: string; mtime: number };
-
-function recordsNewestFirst(repo: string): GateRecord[] {
-	const found: GateRecord[] = [];
-	const visit = (dir: string, depth: number) => {
-		let entries: string[];
-		try {
-			entries = readdirSync(dir);
-		} catch {
-			return;
-		}
-		for (const name of entries) {
-			const full = path.join(dir, name);
-			let stat;
-			try {
-				stat = statSync(full);
-			} catch {
-				continue;
-			}
-			if (stat.isDirectory()) {
-				if (depth < 3) visit(full, depth + 1);
-				continue;
-			}
-			if (!name.endsWith(".json")) continue;
-			let text: string;
-			try {
-				text = readFileSync(full, "utf8");
-			} catch {
-				continue;
-			}
-			if (!text.includes(SCHEMA)) continue;
-			const plan = /"plan"\s*:\s*"([^"]+)"/.exec(text)?.[1];
-			const reviewedSha = /"reviewed_sha"\s*:\s*"([0-9a-f]{40})"/.exec(text)?.[1];
-			if (plan) found.push({ record: path.relative(repo, full), plan, reviewedSha, mtime: stat.mtimeMs });
-		}
-	};
-	for (const dir of RECORD_DIRS) visit(path.join(repo, dir), 0);
-	return found.sort((a, b) => b.mtime - a.mtime);
 }
 
 const PROPOSE_ALONE: ToolCallEventResult = {
@@ -199,9 +157,10 @@ export default function mergeGate(pi: ExtensionAPI) {
 				timeout: 30_000,
 			});
 		} catch (error) {
+			if (!(error instanceof Error)) throw error;
 			return {
 				block: true,
-				reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${String(error)}).`,
+				reason: `Merge gate: could not run validate-gate-record.mjs --plan-only (${error.message}).`,
 			};
 		}
 		if (result.code !== 0) {
@@ -252,48 +211,53 @@ export default function mergeGate(pi: ExtensionAPI) {
 			};
 		}
 
-		// Records whose reviewed_sha is already on the pushed default branch gate shipped work; their
-		// plans get archived, so validating them again can only fail. Pick the newest open record.
-		const remoteHead = await pi.exec("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], {
-			cwd: repo,
-			timeout: 10_000,
-		});
-		const shipped = remoteHead.code === 0 ? remoteHead.stdout.trim() : undefined;
-		let found: GateRecord | undefined;
-		for (const candidate of recordsNewestFirst(repo)) {
-			if (shipped && candidate.reviewedSha) {
-				const merged = await pi.exec("git", ["merge-base", "--is-ancestor", candidate.reviewedSha, shipped], {
-					cwd: repo,
-					timeout: 10_000,
-				});
-				if (merged.code === 0) continue;
-			}
-			found = candidate;
-			break;
-		}
-		if (!found) {
+		const binding = gateBinding(text);
+		if (binding === undefined) {
 			return {
 				decision: "block",
 				reason:
-					"Merge gate: your reply claims completion or asks for a merge, but this repository has no omo.merge-gate/v2 record " +
-					`for unshipped work (searched ${RECORD_DIRS.join(", ")}; records already on ${shipped ?? "the default branch"} are skipped). ` +
-					"Run the review-work skill (verbatim briefs, trailers stored, record written and staged) and its validator, " +
+					"Merge gate: the claim has no single Gate proof binding. Include one full reviewed_sha and its record line, " +
 					"or state plainly that the gate has NOT run and do not ask for merge approval.",
 			};
 		}
-
-		const result = await pi.exec(
-			"node",
-			[VALIDATOR, "--repo", repo, "--record", found.record, "--plan", found.plan],
-			{ cwd: repo, timeout: 60_000 },
-		);
-		if (result.code === 0) return;
-
-		const detail = (result.stderr || result.stdout).trim().split("\n").slice(0, 6).join("\n");
+		const records = await recordsForBinding(pi, repo, binding);
+		if (records.length === 0) {
+			return {
+				decision: "block",
+				reason:
+					`Merge gate: no omo.merge-gate/v2 record ${binding.record} with reviewed_sha ${binding.reviewedSha} exists in this repository or its linked worktrees. ` +
+					"Run review-work, or state plainly that the gate has NOT run and do not ask for merge approval.",
+			};
+		}
+		for (const record of records) {
+			if (await recordIsSettled(pi, repo, record)) return;
+		}
+		let firstFailure:
+			| { readonly detail: string; readonly plan: string; readonly record: string; readonly repo: string }
+			| undefined;
+		for (const record of records) {
+			const result = await pi.exec(
+				"node",
+				[VALIDATOR, "--repo", record.repo, "--record", record.record, "--plan", record.plan],
+				{ cwd: record.repo, timeout: 60_000 },
+			);
+			if (result.code === 0) return;
+			if (firstFailure === undefined) {
+				firstFailure = {
+					detail: (result.stderr || result.stdout).trim().split("\n").slice(0, 6).join("\n"),
+					plan: record.plan,
+					record: record.record,
+					repo: record.repo,
+				};
+			}
+		}
+		if (firstFailure === undefined) {
+			return { decision: "block", reason: "Merge gate: no matching checkout produced a validator result." };
+		}
 		return {
 			decision: "block",
 			reason:
-				`Merge gate: validate-gate-record.mjs rejected ${found.record} (plan ${found.plan}) at the current HEAD:\n${detail}\n` +
+				`Merge gate: validate-gate-record.mjs rejected ${firstFailure.record} (plan ${firstFailure.plan}) in ${firstFailure.repo}:\n${firstFailure.detail}\n` +
 				"Fix the cause (re-review after code commits, store trailers verbatim, stage the artifacts), or state plainly that the gate is " +
 				"not passed and do not ask for merge approval.",
 		};

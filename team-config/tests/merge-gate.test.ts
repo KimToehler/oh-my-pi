@@ -170,7 +170,11 @@ async function worktreeGateFixture(): Promise<WorktreeGateFixture> {
 	const record = ".omo/evidence/gate/worktree.json";
 	await Bun.write(
 		path.join(worktree, record),
-		JSON.stringify({ schema: "omo.merge-gate/v2", plan: "openspec/changes/worktree-gate", reviewed_sha: reviewedSha }),
+		JSON.stringify({
+			schema: "omo.merge-gate/v2",
+			plan: "openspec/changes/worktree-gate",
+			reviewed_sha: reviewedSha,
+		}),
 	);
 	await git(worktree, "add", record);
 	await git(worktree, "commit", "-q", "-m", "gate record");
@@ -675,7 +679,11 @@ describe("worktree gate binding", () => {
 		const fixture = await worktreeGateFixture();
 		await Bun.write(
 			path.join(fixture.main, fixture.record),
-			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omo/plans/unrelated.md", reviewed_sha: await git(fixture.main, "rev-parse", "HEAD") }),
+			JSON.stringify({
+				schema: "omo.merge-gate/v2",
+				plan: ".omo/plans/unrelated.md",
+				reviewed_sha: await git(fixture.main, "rev-parse", "HEAD"),
+			}),
 		);
 		useRealGit();
 
