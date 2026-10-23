@@ -1,0 +1,1 @@
+[budget notice] This run has been compacted {{compactions}} times (soft compaction budget: {{budget}}). Repeated compaction usually means the task is circling. Wrap up now: finish the current step and deliver your final report. One more compaction force-stops the run and you will be asked to report whatever you have.

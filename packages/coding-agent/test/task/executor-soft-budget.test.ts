@@ -15,7 +15,12 @@ import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { buildBudgetNotice, resolveSoftRequestBudget, runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
+import {
+	buildBudgetNotice,
+	buildCompactionBudgetNotice,
+	resolveSoftRequestBudget,
+	runSubprocess,
+} from "@oh-my-pi/pi-coding-agent/task/executor";
 import { cfgTaskAgentSoftRequestBudget } from "@oh-my-pi/pi-coding-agent/task/settings";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import { TASK_SUBAGENT_LIFECYCLE_CHANNEL } from "@oh-my-pi/pi-coding-agent/task/types";
@@ -662,6 +667,292 @@ describe("runSubprocess soft request budget", () => {
 
 		const receipt = await new IrcBus().send({ from: "Main", to: id, body: "resume" });
 		expect(receipt.outcome).toBe("woken");
+	});
+});
+
+type CompactionEndEvent = Extract<AgentSessionEvent, { type: "auto_compaction_end" }>;
+
+// Each fixture copies the shape of a real `auto_compaction_end` emitter in
+// session/session-maintenance.ts, named after its source.
+const snapcompactDone: CompactionEndEvent = {
+	// #commitAutoCompactionResult: a committed threshold/overflow compaction.
+	type: "auto_compaction_end",
+	action: "snapcompact",
+	result: { summary: "summary", firstKeptEntryId: "entry-1", tokensBefore: 120_000 },
+	aborted: false,
+	willRetry: false,
+};
+const shakeReclaimed: CompactionEndEvent = {
+	// #runAutoShake success: a reclaimed shake carries no result.
+	type: "auto_compaction_end",
+	action: "shake",
+	result: undefined,
+	aborted: false,
+	willRetry: true,
+	skipped: false,
+};
+const shakeNothing: CompactionEndEvent = {
+	// #runAutoShake success path when nothing was reclaimed.
+	type: "auto_compaction_end",
+	action: "shake",
+	result: undefined,
+	aborted: false,
+	willRetry: false,
+	skipped: true,
+};
+const shakeFallback: CompactionEndEvent = {
+	// #runAutoShake fallback: reclaimed but still over threshold; the next method emits its own end.
+	type: "auto_compaction_end",
+	action: "shake",
+	result: undefined,
+	aborted: false,
+	willRetry: false,
+	skipped: false,
+	errorMessage: "Auto-shake reclaimed ~1000 tokens but context is still above the threshold",
+};
+const abortedEnd: CompactionEndEvent = {
+	// runAutoCompaction: a hook cancelled the compaction.
+	type: "auto_compaction_end",
+	action: "snapcompact",
+	result: undefined,
+	aborted: true,
+	willRetry: false,
+};
+const failedEnd: CompactionEndEvent = {
+	// #runAutoShake catch: the shake threw.
+	type: "auto_compaction_end",
+	action: "shake",
+	result: undefined,
+	aborted: false,
+	willRetry: false,
+	skipped: false,
+	errorMessage: "shake failed",
+};
+
+describe("runSubprocess soft compaction budget", () => {
+	let tempDir: TempDir;
+
+	beforeEach(() => {
+		AgentRegistry.resetGlobalForTests();
+		AgentLifecycleManager.resetGlobalForTests();
+		AsyncJobManager.resetForTests();
+		tempDir = TempDir.createSync("@pi-compaction-budget-");
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+		AgentLifecycleManager.resetGlobalForTests();
+		AgentRegistry.resetGlobalForTests();
+		AsyncJobManager.resetForTests();
+		tempDir[Symbol.dispose]();
+	});
+
+	function compactionOptions(id: string, compactionBudget: number) {
+		return {
+			cwd: "/tmp",
+			agent: baseAgent,
+			task: "inventory the api surface",
+			index: 0,
+			id,
+			settings: Settings.isolated({ "task.softRequestBudget": 0, "task.softCompactionBudget": compactionBudget }),
+			modelRegistry: { refresh: async () => {} } as unknown as ModelRegistry,
+			enableLsp: false,
+			artifactsDir: tempDir.path(),
+		};
+	}
+
+	function start(id: string, handle: MockSessionHandle) {
+		mockCreateAgentSession(handle.session);
+		AgentRegistry.global().register({
+			id,
+			displayName: id,
+			kind: "sub",
+			session: handle.session,
+			sessionFile: null,
+			status: "running",
+		});
+	}
+
+	function emitYield(
+		emit: (event: AgentSessionEvent) => void,
+		pushMessage: (message: unknown) => void,
+		report: string,
+	): void {
+		const yieldMessage = {
+			role: "assistant" as const,
+			content: [
+				{ type: "toolCall" as const, id: `tool-yield-${report}`, name: "yield", arguments: { data: { report } } },
+			],
+			stopReason: "toolUse" as const,
+		};
+		pushMessage(yieldMessage);
+		emit({ type: "message_end", message: yieldMessage } as unknown as AgentSessionEvent);
+		emit({
+			type: "tool_execution_end",
+			toolCallId: `tool-yield-${report}`,
+			toolName: "yield",
+			result: {
+				content: [{ type: "text", text: "Result submitted." }],
+				details: { status: "success", data: { report } },
+			},
+			isError: false,
+		} as AgentSessionEvent);
+	}
+
+	function emitAssistant(
+		emit: (event: AgentSessionEvent) => void,
+		pushMessage: (message: unknown) => void,
+		text: string,
+	): void {
+		const message = assistantText(text);
+		pushMessage(message);
+		emit({ type: "message_end", message } as unknown as AgentSessionEvent);
+	}
+
+	const compactionNotices = (handle: MockSessionHandle) =>
+		handle.sentUserMessages.filter(message => message.options?.deliverAs === "steer");
+
+	/** Runs `ends` on the first prompt and answers a forced wrap-up prompt with a terminal yield. */
+	async function runWithEnds(id: string, budget: number, ends: readonly CompactionEndEvent[]) {
+		let abortCallsAtReminder: number | undefined;
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex === 1) {
+				for (const [index, end] of ends.entries()) {
+					emitAssistant(emit, pushMessage, `exploring ${index + 1}`);
+					emit(end);
+				}
+				return;
+			}
+			abortCallsAtReminder = handle.abortCalls();
+			emitYield(emit, pushMessage, "partial findings");
+		});
+		start(id, handle);
+		const result = await runSubprocess(compactionOptions(id, budget));
+		return { handle, result, abortCallsAtReminder };
+	}
+
+	it("#given compaction budget 2 #when a third completed compaction ends #then the turn is stopped and a forced final yield returns the partial report", async () => {
+		const { handle, result, abortCallsAtReminder } = await runWithEnds("CompactingScout", 2, [
+			snapcompactDone,
+			snapcompactDone,
+			snapcompactDone,
+		]);
+
+		// One notice, built when the count reached the budget (2), not at compaction 1.
+		expect(compactionNotices(handle)).toEqual([
+			{ content: buildCompactionBudgetNotice(2, 2), options: { deliverAs: "steer", attribution: "agent" } },
+		]);
+		expect(abortCallsAtReminder).toBe(1);
+		expect(handle.prompts).toHaveLength(2);
+		expect(handle.prompts[1]?.options?.synthetic).toBe(true);
+		expect(handle.prompts[1]?.options?.toolChoice).toEqual({ type: "tool", name: "yield" });
+		expect(handle.prompts[1]?.text).toContain("Compaction budget crossed");
+		expect(result.aborted).toBe(false);
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.output)).toEqual({ report: "partial findings" });
+	});
+
+	it("#given compaction budget 2 #when reclaimed shakes end #then they count like any compaction", async () => {
+		const { handle, result } = await runWithEnds("ShakingScout", 2, [shakeReclaimed, shakeReclaimed, shakeReclaimed]);
+
+		expect(compactionNotices(handle)).toEqual([
+			{ content: buildCompactionBudgetNotice(2, 2), options: { deliverAs: "steer", attribution: "agent" } },
+		]);
+		expect(handle.prompts).toHaveLength(2);
+		expect(handle.prompts[1]?.options?.toolChoice).toEqual({ type: "tool", name: "yield" });
+		expect(result.aborted).toBe(false);
+		expect(JSON.parse(result.output)).toEqual({ report: "partial findings" });
+	});
+
+	for (const [name, fixture] of [
+		["shakeNothing", shakeNothing],
+		["shakeFallback", shakeFallback],
+		["abortedEnd", abortedEnd],
+		["failedEnd", failedEnd],
+	] as const) {
+		it(`#given compaction budget 2 #when one non-counting end (${name}) and then one completed compaction end #then no notice is sent`, async () => {
+			const id = `Uncounted${name}`;
+			let noticesAfterFirstCompletion: number | undefined;
+			const handle = createMockSession(async ({ promptIndex, emit, pushMessage }) => {
+				if (promptIndex !== 1) return;
+				emitAssistant(emit, pushMessage, "exploring 1");
+				emit(fixture);
+				emitAssistant(emit, pushMessage, "exploring 2");
+				emit(snapcompactDone);
+				// The notice is sent behind one microtask boundary; let it land before counting.
+				await Promise.resolve();
+				noticesAfterFirstCompletion = compactionNotices(handle).length;
+				emitAssistant(emit, pushMessage, "exploring 3");
+				emit(snapcompactDone);
+				emitYield(emit, pushMessage, "full findings");
+			});
+			start(id, handle);
+
+			const result = await runSubprocess(compactionOptions(id, 2));
+
+			expect(noticesAfterFirstCompletion).toBe(0);
+			expect(compactionNotices(handle)).toEqual([
+				{ content: buildCompactionBudgetNotice(2, 2), options: { deliverAs: "steer", attribution: "agent" } },
+			]);
+			// No stop: the run ends on its own yield, without a forced wrap-up prompt.
+			expect(handle.prompts).toHaveLength(1);
+			expect(result.aborted).toBe(false);
+			expect(JSON.parse(result.output)).toEqual({ report: "full findings" });
+		});
+	}
+
+	it("#given compaction budget 0 #when five compactions end #then no notice and no stop", async () => {
+		const id = "UnguardedScout";
+		const handle = createMockSession(async ({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) return;
+			for (let i = 1; i <= 5; i++) {
+				emitAssistant(emit, pushMessage, `exploring ${i}`);
+				emit(snapcompactDone);
+			}
+			emitYield(emit, pushMessage, "full findings");
+		});
+		start(id, handle);
+
+		const result = await runSubprocess(compactionOptions(id, 0));
+
+		expect(compactionNotices(handle)).toEqual([]);
+		expect(handle.prompts).toHaveLength(1);
+		expect(result.aborted).toBe(false);
+		expect(JSON.parse(result.output)).toEqual({ report: "full findings" });
+	});
+
+	it("#given a compaction stop #when the agent keeps answering without yield #then the run hard-aborts after 5 more requests with the compaction abort reason", async () => {
+		const id = "CirclingScout";
+		let emittedRequests = 0;
+		const emittedAtAbort: number[] = [];
+		const handle = createMockSession(
+			({ promptIndex, emit, pushMessage }) => {
+				if (promptIndex !== 1) return;
+				// Request 1, then compactions 1-3: the stop lands at request 1.
+				emittedRequests = 1;
+				emitAssistant(emit, pushMessage, "exploring 1");
+				emit(snapcompactDone);
+				emit(snapcompactDone);
+				emit(snapcompactDone);
+				// Never yields: requests 2-7 would run past the grace window (1 + 5).
+				for (let i = 2; i <= 7; i++) {
+					emittedRequests = i;
+					emitAssistant(emit, pushMessage, `circling ${i}`);
+				}
+			},
+			() => {
+				emittedAtAbort.push(emittedRequests);
+			},
+		);
+		start(id, handle);
+
+		const result = await runSubprocess(compactionOptions(id, 2));
+
+		// abort #1 = compaction soft-stop at request 1; abort #2 = grace hard-abort at 1 + 5.
+		expect(emittedAtAbort.slice(0, 2)).toEqual([1, 6]);
+		expect(result.aborted).toBe(true);
+		expect(result.abortReason).toBe(
+			"Soft compaction budget exceeded (3 compactions; budget 2) — agent did not yield when force-stopped",
+		);
 	});
 });
 

@@ -1,7 +1,7 @@
 {{#if budgetStop}}
 {{#if structured}}
 <system-reminder>
-Request budget crossed; in-flight turn stopped → forced wrap-up. MUST call `yield` NOW with best final report from completed work.
+{{#when budgetStopKind "==" "compactions"}}Compaction{{else}}Request{{/when}} budget crossed; in-flight turn stopped → forced wrap-up. MUST call `yield` NOW with best final report from completed work.
 
 - Consolidate all gathered value; mark remaining gaps incomplete, do not investigate further.
 - Do NOT call another tool or resume assignment.
@@ -9,7 +9,7 @@ Request budget crossed; in-flight turn stopped → forced wrap-up. MUST call `yi
 </system-reminder>
 {{else}}
 <system-reminder>
-Request budget crossed; in-flight turn stopped → forced wrap-up. Tools disabled. Reply NOW with best final report from completed work; this message is your result.
+{{#when budgetStopKind "==" "compactions"}}Compaction{{else}}Request{{/when}} budget crossed; in-flight turn stopped → forced wrap-up. Tools disabled. Reply NOW with best final report from completed work; this message is your result.
 
 - Consolidate all gathered value; mark remaining gaps incomplete, do not investigate further.
 </system-reminder>
