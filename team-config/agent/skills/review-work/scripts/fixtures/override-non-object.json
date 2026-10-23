@@ -1,6 +1,6 @@
 {
-  "schema": "omo.merge-gate/v2",
-  "plan": ".omo/plans/2026-09-06-review-work-tiered-merge-gate.md",
+  "schema": "team-config.merge-gate/v3",
+  "plan": ".omp/plans/2026-09-06-review-work-tiered-merge-gate.md",
   "reviewed_sha": "<HEAD>",
   "diff_base": "bb7b6dcd10000000000000000000000000000000",
   "reviewers_run": [
@@ -13,6 +13,7 @@
   ],
   "whole_diff": {
     "run": true,
+    "report": "skills/review-work/scripts/fixtures/reports/integration-review-report.md",
     "reason": null
   },
   "resolution": [
@@ -35,7 +36,7 @@
     {
       "name": "validator tests",
       "passed": true,
-      "artifact": ".omo/evidence/review-work/validator-tests.txt"
+      "artifact": ".omp/team-config/evidence/review-work/validator-tests.txt"
     }
   ],
   "override": "human"

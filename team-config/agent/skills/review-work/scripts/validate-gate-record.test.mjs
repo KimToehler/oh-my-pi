@@ -53,41 +53,47 @@ const pass = JSON.parse(readFileSync(path.join(scriptsDir, "fixtures/pass.json")
 // do it in a throwaway repository rather than in the working checkout: staging into the real index
 // would leave debris behind, and the parallel test cases would race each other on one shared index.
 // The sandbox reproduces what the validator actually reads - HEAD, the index, and a .gitignore that
-// un-ignores `.omo/evidence/` while leaving `.omo/` itself ignored, which gives both path cases.
+// un-ignores `.omp/team-config/evidence/` while leaving `.omp/` itself ignored, which gives both path cases.
 const trailerRoot = "skills/review-work/scripts/fixtures/trailers"
+const reportRoot = "skills/review-work/scripts/fixtures/reports"
 const sandboxRepo = mkdtempSync(path.join(tmpdir(), "omo-gate-sandbox-"))
 execFileSync("git", ["init", "-q", "-b", "sandbox", sandboxRepo], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "config", "user.email", "gate@test"], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "config", "user.name", "Gate Test"], { encoding: "utf8" })
-writeFileSync(path.join(sandboxRepo, ".gitignore"), ".omo/*\n!.omo/evidence/\n!.omo/evidence/**\n")
+writeFileSync(path.join(sandboxRepo, ".gitignore"), ".omp/*\n!.omp/team-config/\n.omp/team-config/*\n!.omp/team-config/evidence/\n!.omp/team-config/evidence/**\n")
 execFileSync("git", ["-C", sandboxRepo, "add", ".gitignore"], { encoding: "utf8" })
 // Two commits so `diff_base` can differ from `reviewed_sha`, and the fixtures' SHA can be rebound.
 execFileSync("git", ["-C", sandboxRepo, "commit", "-q", "-m", "base"], { encoding: "utf8" })
 writeFileSync(path.join(sandboxRepo, "source.txt"), "reviewed\n")
 execFileSync("git", ["-C", sandboxRepo, "add", "source.txt"], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "commit", "-q", "-m", "reviewed change"], { encoding: "utf8" })
-execFileSync("mkdir", ["-p", path.join(sandboxRepo, ".omo", "evidence"), path.join(sandboxRepo, ".omo", "plans")], { encoding: "utf8" })
+execFileSync("mkdir", ["-p", path.join(sandboxRepo, ".omp", "team-config", "evidence"), path.join(sandboxRepo, ".omp", "plans")], { encoding: "utf8" })
 process.on("exit", () => rmSync(sandboxRepo, { recursive: true, force: true }))
 
-const trackedRecordRoot = path.join(sandboxRepo, ".omo", "evidence")
-const ignoredRecordRoot = path.join(sandboxRepo, ".omo")
+const trackedRecordRoot = path.join(sandboxRepo, ".omp", "team-config", "evidence")
+const ignoredRecordRoot = path.join(sandboxRepo, ".omp")
 
 // Committed fixture trailers are referenced by the record fixtures, so mirror them into the sandbox
 // at the same relative path and commit them: the validator requires artifacts to be in the index.
 const fixtureTrailerRoot = path.join(sandboxRepo, trailerRoot)
 execFileSync("mkdir", ["-p", fixtureTrailerRoot], { encoding: "utf8" })
 execFileSync("cp", ["-R", `${path.join(scriptsDir, "fixtures", "trailers")}/.`, fixtureTrailerRoot], { encoding: "utf8" })
-execFileSync("git", ["-C", sandboxRepo, "add", "--", trailerRoot], { encoding: "utf8" })
+const fixtureReportRoot = path.join(sandboxRepo, reportRoot)
+execFileSync("mkdir", ["-p", fixtureReportRoot], { encoding: "utf8" })
+execFileSync("cp", ["-R", `${path.join(scriptsDir, "fixtures", "reports")}/.`, fixtureReportRoot], { encoding: "utf8" })
+execFileSync("git", ["-C", sandboxRepo, "add", "--", trailerRoot, reportRoot], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "commit", "-q", "-m", "fixture trailers"], { encoding: "utf8" })
 const sandboxHead = execFileSync("git", ["-C", sandboxRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim()
 const sandboxBase = execFileSync("git", ["-C", sandboxRepo, "rev-parse", "HEAD~1"], { encoding: "utf8" }).trim()
 
 const head = sandboxHead
-const plan = path.join(sandboxRepo, ".omo", "plans", "gate-plan.md")
+const plan = path.join(sandboxRepo, ".omp", "plans", "gate-plan.md")
 writeFileSync(plan, buildPlanSkeleton("gate-plan", "exercise the gate record contract"))
 
+// A real `git add`, never `--intent-to-add`: the validator compares each artifact's working-tree bytes
+// with its index blob, and an intent-to-add entry has an empty blob, so it would differ from every file.
 function stage(file) {
-  spawnSync("git", ["-C", sandboxRepo, "add", "--intent-to-add", "--", path.relative(sandboxRepo, file)], { encoding: "utf8" })
+  spawnSync("git", ["-C", sandboxRepo, "add", "--", path.relative(sandboxRepo, file)], { encoding: "utf8" })
 }
 
 function unstage(file) {
@@ -120,8 +126,14 @@ function planDigest(planPath) {
   return createHash("sha256").update(readFileSync(planPath)).digest("hex")
 }
 
+const reportBody = "INTEGRATION-REVIEW-REPORT-v1\n\n# Integration review\n\nWhole diff read; no failure mode left open.\n"
+
 function rebind(record) {
   const bound = { ...record, plan: path.relative(sandboxRepo, plan), reviewed_sha: head, diff_base: sandboxBase, plan_sha256: planDigest(plan) }
+  // Same derivation for the whole-diff report the record names.
+  if (typeof bound.whole_diff?.report === "string" && existsSync(path.resolve(sandboxRepo, bound.whole_diff.report))) {
+    bound.whole_diff = { ...bound.whole_diff, report_sha256: planDigest(path.resolve(sandboxRepo, bound.whole_diff.report)) }
+  }
   // Fixture trailers are real committed files, so their digests are derived rather than hardcoded -
   // otherwise every fixture edit would need a hand-updated hash.
   bound.verdicts = (bound.verdicts ?? []).map((verdict) => {
@@ -334,8 +346,8 @@ const mutations = [
   ["missing resolution model", "resolution.0.model", (r) => { delete r.resolution[0].model }],
   ["invalid resolution independence", "resolution.0.independence", (r) => { r.resolution[0].independence = "claimed-independent" }],
   ["empty diff range", "diff_base", (r) => { r.diff_base = head }],
-  ["wrong schema", "schema", (r) => { r.schema = "omo.merge-gate/v3" }],
-  ["superseded v1 schema", "schema", (r) => { r.schema = "omo.merge-gate/v1" }],
+  ["wrong schema", "schema", (r) => { r.schema = "team-config.merge-gate/v4" }],
+  ["retired v2 schema", "schema", (r) => { r.schema = "omo.merge-gate/v2" }],
   ["malformed reviewed SHA", "reviewed_sha", (r) => { r.reviewed_sha = "abc" }],
   ["malformed diff base", "diff_base", (r) => { r.diff_base = "abc" }],
   ["whole diff reason absent", "whole_diff.reason", (r) => { r.whole_diff = { run: false, reason: "" } }],
@@ -389,7 +401,7 @@ for (const [name, mergeGate, field] of [
   ["renamed Invariant label", "## Merge gate\n\n- Feature-specific criteria:\n  - Property: stable\n    Negative control: mutation fails\n", "at least one criterion with Invariant"],
 ]) {
   test(`#given ${name} #when validated #then Merge gate criteria blocks`, () => {
-    const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+    const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
     try {
       const badPlan = path.join(directory, "plan.md")
       writeFileSync(badPlan, mergeGate)
@@ -411,7 +423,7 @@ const flatCriteria = "## Merge gate\n\n- Invariant I1: stable\n  Positive witnes
 
 test("#given a scaffolded plan and no record #when --plan-only runs #then it exits zero", () => {
   // given
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-only-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-only-"))
   try {
     const planPath = path.join(directory, "plan.md")
     writeFileSync(planPath, buildPlanSkeleton("plan-only", "check criteria before review"))
@@ -428,7 +440,7 @@ test("#given a scaffolded plan and no record #when --plan-only runs #then it exi
 
 test("#given flat criteria bullets without the header #when --plan-only runs #then it blocks and names the expected nesting", () => {
   // given
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-only-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-only-"))
   try {
     const planPath = path.join(directory, "plan.md")
     writeFileSync(planPath, flatCriteria)
@@ -447,7 +459,7 @@ test("#given flat criteria bullets without the header #when --plan-only runs #th
 
 test("#given --plan-only together with --record #when run #then it refuses the ambiguous invocation", () => {
   // given
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-only-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-only-"))
   try {
     const planPath = path.join(directory, "plan.md")
     writeFileSync(planPath, buildPlanSkeleton("plan-only", "check criteria before review"))
@@ -472,7 +484,7 @@ function gatedPlan({ risks = "- Accepted residual risks: reviewer verdicts vary 
 }
 
 function planOnly(text) {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-abort-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-abort-"))
   try {
     const planPath = path.join(directory, "plan.md")
     writeFileSync(planPath, text)
@@ -483,7 +495,7 @@ function planOnly(text) {
 }
 
 function fullMode(text, mutate = () => {}) {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-abort-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-abort-"))
   try {
     const planPath = path.join(directory, "plan.md")
     writeFileSync(planPath, text)
@@ -614,7 +626,7 @@ for (const [name, text] of [
 }
 
 test("#given scaffolded behavioural criterion without negative control #when validated #then Negative control blocks", () => {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
   try {
     const badPlan = path.join(directory, "plan.md")
     const skeleton = buildPlanSkeleton("validator-seam", "exercise generated criterion contract")
@@ -630,7 +642,7 @@ test("#given scaffolded behavioural criterion without negative control #when val
 })
 
 test("#given scaffolded behavioural criterion with negative control #when validated #then exits zero", () => {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
   try {
     const completePlan = path.join(directory, "plan.md")
     writeFileSync(completePlan, buildPlanSkeleton("validator-seam", "exercise generated criterion contract"))
@@ -645,7 +657,7 @@ test("#given scaffolded behavioural criterion with negative control #when valida
 })
 
 test("#given mechanical criterion without negative control #when validated #then exits zero", () => {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
   try {
     const mechanicalPlan = path.join(directory, "plan.md")
     writeFileSync(mechanicalPlan, "## Merge gate\n\n- Feature-specific criteria:\n  - Mechanical: byte equality\n    Invariant: copies match\n    Positive witness: diff exits zero\n    Observable: exit code\n    Boundary: generated file\n")
@@ -748,7 +760,7 @@ test("#given an adversarial criterion missing a field #when validated #then adve
 })
 
 test("#given every adversarial criterion copied verbatim from the plan #when validated #then adversarial_criteria blocks", () => {
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
   try {
     const planPath = path.join(directory, "plan.md")
     const invariant = "the copied invariant proves nothing the author had not already assumed"
@@ -981,12 +993,15 @@ function scratchArtifacts({ directory, git }, overrides = {}) {
   writeFileSync(planPath, buildPlanSkeleton("gate-lifecycle", "exercise the evidence lifecycle"))
   const trailerPath = path.join(evidence, "trailer.txt")
   writeFileSync(trailerPath, buildTrailer())
+  const reportPath = path.join(evidence, "integration-review-report.md")
+  writeFileSync(reportPath, reportBody)
   const record = {
     ...structuredClone(pass),
     plan: path.relative(directory, planPath),
     plan_sha256: planDigest(planPath),
     reviewed_sha: git("rev-parse", "HEAD"),
     diff_base: git("rev-parse", "HEAD~1"),
+    whole_diff: { run: true, report: path.relative(directory, reportPath), report_sha256: planDigest(reportPath), reason: null },
     ...overrides,
   }
   record.verdicts[0].trailer_artifact = path.relative(directory, trailerPath)
@@ -994,8 +1009,8 @@ function scratchArtifacts({ directory, git }, overrides = {}) {
   const recordPath = path.join(evidence, "merge-gate.json")
   writeFileSync(recordPath, JSON.stringify(record, null, 2))
   // Staged, not yet committed: the state an operator is in when running the validator before merge.
-  git("add", "--intent-to-add", "--", path.relative(directory, planPath), path.relative(directory, trailerPath), path.relative(directory, recordPath))
-  return { planPath, recordPath, trailerPath }
+  git("add", "--", path.relative(directory, planPath), path.relative(directory, trailerPath), path.relative(directory, reportPath), path.relative(directory, recordPath))
+  return { planPath, recordPath, trailerPath, reportPath }
 }
 
 function runScratch({ directory }, { recordPath, planPath }) {
@@ -1139,7 +1154,7 @@ test("#given duplicate record keys spelled with unicode escapes #when validated 
   const honest = JSON.stringify(record, null, 2).trimEnd()
   const escaped = String.raw`,"mandatory_cla\u0073s":"none","reviewers_ru\u006e":[],"re\u0073olution":[],"verdict\u0073":[]}`
   const attacked = honest.slice(0, -1) + escaped
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "evidence", "gate-esc-record-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate-esc-record-"))
   const recordPath = path.join(directory, "record.json")
   try {
     writeFileSync(recordPath, attacked)
@@ -1163,7 +1178,7 @@ test("#given a record with duplicate keys appended #when validated #then the dup
   record.reviewers_run = ["implementation-audit", "strategic-risk-review"]
   const honest = JSON.stringify(record, null, 2).trimEnd()
   const attacked = `${honest.slice(0, -1)},"mandatory_class":"none","reviewers_run":[],"resolution":[],"verdicts":[]}`
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "evidence", "gate-dup-record-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate-dup-record-"))
   const recordPath = path.join(directory, "record.json")
   try {
     writeFileSync(recordPath, attacked)
@@ -1181,7 +1196,7 @@ test("#given a criterion copied from the plan #when a second criterion is append
   // The rule holds against criterion COUNT, not only field content. Appending a well-formed block
   // must not satisfy a rule the pre-existing criteria alone violate - otherwise five appended lines
   // launder a wholly copied criterion, which is cheaper than the declared forgery boundary.
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-test-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "gate-plan-test-"))
   try {
     const planPath = path.join(directory, "plan.md")
     const invariant = "the copied invariant proves nothing the author had not already assumed"
@@ -1389,7 +1404,7 @@ const keySpellings = [
 for (const [label, spelling] of keySpellings) {
   test(`#given a duplicate key spelled ${label} #when validated #then the guard agrees with JSON.parse`, () => {
     // given
-    const source = `{"schema":"omo.merge-gate/v2","mandatory_class":"auth-secrets-pii",${spelling}:"none"}`
+    const source = `{"schema":"team-config.merge-gate/v3","mandatory_class":"auth-secrets-pii",${spelling}:"none"}`
     const parsedKeys = Object.keys(JSON.parse(source)).length
     const literalKeys = 3
 
@@ -1398,7 +1413,7 @@ for (const [label, spelling] of keySpellings) {
 
     // then
     assert.ok(collides, `${label} must collide with mandatory_class, otherwise this case proves nothing`)
-    const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "evidence", "gate-diff-"))
+    const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate-diff-"))
     const recordPath = path.join(directory, "record.json")
     try {
       writeFileSync(recordPath, source)
@@ -1491,7 +1506,7 @@ test("#given an oversized record #when validated #then the byte limit blocks", (
 test("#given an oversized plan #when validated #then the byte limit blocks", () => {
   // The plan's first read happens in `main` before any artifact check runs, so it was never
   // covered even before this round. Whichever read comes first must carry the bound.
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "plans", "gate-big-plan-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "plans", "gate-big-plan-"))
   const bigPlan = path.join(directory, "plan.md")
   try {
     writeFileSync(bigPlan, `${readFileSync(plan, "utf8")}\n<!-- ${"x".repeat(2 * 1024 * 1024)} -->\n`)
@@ -1596,7 +1611,7 @@ test("#given an artifact whose stat fails #when validated #then the reader repor
   // still throw. Placing the stat ahead of the reader made those two escape as a generic
   // `validator: EACCES …`, losing the field name the parent commit reported - the exact burial the
   // containment comment forbids. A stat that fails is not a size verdict.
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "plans", "gate-eloop-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "plans", "gate-eloop-"))
   const looping = path.join(directory, "plan.md")
   try {
     // A symlink pointing at itself: stat raises ELOOP, and so does the read.
@@ -1679,7 +1694,7 @@ test("#given an evidence path carrying non-ASCII bytes #when the evidence is com
 // These pin the byte semantics the operator's documented `shasum -a 256` command produces.
 test("#given a trailer artifact containing invalid UTF-8 #when its shasum digest is recorded #then it validates", () => {
   const record = validRecord()
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "evidence", "gate-bytes-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate-bytes-"))
   const artifact = path.join(directory, "trailer.txt")
   try {
     // A reviewer reply plus a region no UTF-8 decode can represent losslessly.
@@ -1696,7 +1711,7 @@ test("#given a trailer artifact containing invalid UTF-8 #when its shasum digest
 
 test("#given an exempt artifact whose invalid-UTF-8 bytes change after the review #when validated #then the digest blocks", () => {
   const record = validRecord()
-  const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "evidence", "gate-bytes-tamper-"))
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate-bytes-tamper-"))
   const artifact = path.join(directory, "trailer.txt")
   try {
     const head = Buffer.from(buildTrailer(), "utf8")
@@ -1884,6 +1899,8 @@ function folderScenario(options = {}) {
   git("commit", "-q", "--allow-empty", "-m", "qa log and change folder")
   const invocations = settings.invocations ?? (tier === "internal-tooling" || cls === "none" ? ["implementation-audit"] : ["implementation-audit", "strategic-risk-review"])
   const bodies = { "implementation-audit": auditTrailer, "strategic-risk-review": riskTrailer }
+  const reportPath = path.join(evidence, "integration-review-report.md")
+  if (whole === "needed") writeFileSync(reportPath, reportBody)
   const record = structuredClone(pass)
   Object.assign(record, {
     plan: FOLDER,
@@ -1891,7 +1908,9 @@ function folderScenario(options = {}) {
     reviewed_sha: git("rev-parse", "HEAD"),
     diff_base: git("rev-parse", "HEAD~1"),
     mandatory_class: cls,
-    whole_diff: whole === "needed" ? { run: true, reason: null } : { run: false, reason: "one module" },
+    whole_diff: whole === "needed"
+      ? { run: true, report: path.relative(directory, reportPath), report_sha256: planDigest(reportPath), reason: null }
+      : { run: false, reason: "one module" },
     qa: [{ name: "validator tests", passed: true, artifact: "evidence/qa.txt" }],
     reviewers_run: invocations,
     resolution: invocations.map((invocation) => ({ invocation, agent: invocation === "implementation-audit" ? "auditor" : "oracle", model: "onara/cc/claude-opus-5", independence: "same-model" })),
@@ -1910,7 +1929,7 @@ function folderScenario(options = {}) {
     evidence,
     save() {
       writeFileSync(recordPath, JSON.stringify(record, null, 2))
-      git("add", "--intent-to-add", "--", ...folderFiles(evidence).filter((rel) => rel !== "qa.txt").map((rel) => path.join("evidence", rel)))
+      git("add", "--", ...folderFiles(evidence).filter((rel) => rel !== "qa.txt").map((rel) => path.join("evidence", rel)))
     },
     validate(extra = []) {
       return spawnSync(process.execPath, [validator, "--record", recordPath, "--plan", folder, "--repo", directory, ...extra], { encoding: "utf8" })
@@ -2287,3 +2306,223 @@ for (const [kind, base] of [["skip_specs", skipFolder], ["rename-only", renameFo
     })
   })
 }
+
+// ---------------------------------------------------------------------------------------------
+// Record id, whole-diff report binding, and committed bytes. The sandbox cases cover the default
+// layout; the scratch cases turn on real commits and on what is staged versus what is on disk.
+// ---------------------------------------------------------------------------------------------
+
+const gateRecordRoot = path.join(sandboxRepo, ".omp", "team-config", "evidence", "gate")
+execFileSync("mkdir", ["-p", gateRecordRoot], { encoding: "utf8" })
+
+test("record id: a v3 record at the default gate path passes", () => {
+  const result = run(validRecord(), { recordRoot: gateRecordRoot })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, "passed\n")
+})
+
+test("record id: a v3 record at docs/evidence/demo/merge-gate.json passes", () => {
+  const directory = path.join(sandboxRepo, "docs", "evidence", "demo")
+  mkdirSync(directory, { recursive: true })
+  const recordPath = path.join(directory, "merge-gate.json")
+  try {
+    writeFileSync(recordPath, JSON.stringify(validRecord()))
+    stage(recordPath)
+    const result = spawnSync(process.execPath, [validator, "--record", recordPath, "--plan", plan, "--repo", sandboxRepo], { encoding: "utf8" })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
+  } finally {
+    unstage(recordPath)
+    rmSync(path.join(sandboxRepo, "docs"), { recursive: true, force: true })
+  }
+})
+
+test("record id: a v2 record is refused with a schema finding naming v3", () => {
+  const record = validRecord()
+  record.schema = "omo.merge-gate/v2"
+  const result = run(record)
+  assert.equal(result.status, 1)
+  assert.equal(result.stdout, "blocked\n")
+  assert.match(result.stderr, /^schema: /m)
+  assert.match(result.stderr, /team-config\.merge-gate\/v3/)
+  assert.match(result.stderr, /review-work/)
+})
+
+function rewriteRecord(repository, artifacts, mutate) {
+  const record = JSON.parse(readFileSync(artifacts.recordPath, "utf8"))
+  mutate(record)
+  writeFileSync(artifacts.recordPath, JSON.stringify(record, null, 2))
+  repository.git("add", "--", path.relative(repository.directory, artifacts.recordPath))
+}
+
+function commitAll(repository, message = "gate evidence") {
+  repository.git("add", "-A")
+  repository.git("commit", "-q", "-m", message)
+}
+
+function expectFinding(result, field) {
+  assert.equal(result.status, 1, `expected a ${field} finding, got: ${result.stdout}${result.stderr}`)
+  assert.equal(result.stdout, "blocked\n")
+  assert.match(result.stderr, new RegExp(`^${field.replaceAll(".", "\\.")}: `, "m"))
+}
+
+function withScratch(body) {
+  const repository = scratchRepo()
+  try {
+    return body(repository, scratchArtifacts(repository))
+  } finally {
+    rmSync(repository.directory, { recursive: true, force: true })
+  }
+}
+
+test("whole-diff report: a report committed with the record on top of reviewed_sha passes", () => {
+  withScratch((repository, artifacts) => {
+    commitAll(repository)
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test("whole-diff report: an untracked report with a matching digest blocks on whole_diff.report", () => {
+  withScratch((repository, artifacts) => {
+    repository.git("rm", "-q", "--cached", "--", path.relative(repository.directory, artifacts.reportPath))
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report")
+  })
+})
+
+test("whole-diff report: a missing digest blocks on whole_diff.report_sha256", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { delete r.whole_diff.report_sha256 })
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report_sha256")
+  })
+})
+
+test("whole-diff report: a mismatching digest blocks on whole_diff.report_sha256", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { r.whole_diff.report_sha256 = "0".repeat(64) })
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report_sha256")
+  })
+})
+
+test("whole-diff report: a missing report path blocks on whole_diff.report", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { delete r.whole_diff.report })
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report")
+  })
+})
+
+test("whole-diff report: a commit adding the report together with a source change blocks on reviewed_sha", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(path.join(repository.directory, "source.txt"), "unreviewed change\n")
+    commitAll(repository)
+    expectFinding(runScratch(repository, artifacts), "reviewed_sha")
+  })
+})
+
+// Names the report at `relative` with `bytes`, commits everything, and validates.
+function runWithReportAt(repository, artifacts, relative, bytes) {
+  // The original report is replaced, not kept beside it: an unreferenced new file would void the record
+  // for a reason the case under test must not depend on.
+  rmSync(artifacts.reportPath, { force: true })
+  repository.git("rm", "-q", "--cached", "--ignore-unmatch", "--", path.relative(repository.directory, artifacts.reportPath))
+  const target = path.join(repository.directory, relative)
+  mkdirSync(path.dirname(target), { recursive: true })
+  writeFileSync(target, bytes)
+  rewriteRecord(repository, artifacts, (r) => {
+    r.whole_diff.report = relative
+    r.whole_diff.report_sha256 = planDigest(target)
+  })
+  commitAll(repository)
+  return runScratch(repository, artifacts)
+}
+
+test("whole-diff report: a report added outside the record's directory blocks on reviewed_sha", () => {
+  withScratch((repository, artifacts) => {
+    expectFinding(runWithReportAt(repository, artifacts, "docs/integration-review-report.md", reportBody), "reviewed_sha")
+  })
+})
+
+test("whole-diff report: a new .mjs file inside the record's directory named as the report blocks on reviewed_sha", () => {
+  withScratch((repository, artifacts) => {
+    expectFinding(runWithReportAt(repository, artifacts, "evidence/review.mjs", reportBody), "reviewed_sha")
+  })
+})
+
+test("whole-diff report: a new .md report without the marker line blocks on reviewed_sha", () => {
+  withScratch((repository, artifacts) => {
+    expectFinding(runWithReportAt(repository, artifacts, "evidence/notes.md", "# Integration review\n\nNo marker line.\n"), "reviewed_sha")
+  })
+})
+
+test("whole-diff report: a report in a subdirectory of the record's directory passes", () => {
+  withScratch((repository, artifacts) => {
+    const result = runWithReportAt(repository, artifacts, "evidence/sub/integration-review-report.md", reportBody)
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test("whole-diff report: a post-review edit of a file that existed at reviewed_sha, named as the report with its new digest, blocks on reviewed_sha", () => {
+  const repository = scratchRepo()
+  try {
+    mkdirSync(path.join(repository.directory, "evidence"))
+    writeFileSync(path.join(repository.directory, "evidence", "existing.md"), reportBody)
+    commitAll(repository, "a marked file that already exists at the reviewed commit")
+    const artifacts = scratchArtifacts(repository)
+    expectFinding(runWithReportAt(repository, artifacts, "evidence/existing.md", `${reportBody}\nedited after the review\n`), "reviewed_sha")
+  } finally {
+    rmSync(repository.directory, { recursive: true, force: true })
+  }
+})
+
+test("committed bytes: a trailer staged and then edited before the record commit blocks on verdicts.0.trailer_artifact", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(artifacts.trailerPath, `${readFileSync(artifacts.trailerPath, "utf8")}\nedited after staging\n`)
+    rewriteRecord(repository, artifacts, (r) => { r.verdicts[0].trailer_sha256 = planDigest(artifacts.trailerPath) })
+    expectFinding(runScratch(repository, artifacts), "verdicts.0.trailer_artifact")
+  })
+})
+
+test("committed bytes: a report staged as A and edited to B, the record carrying B's digest, blocks on whole_diff.report", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(artifacts.reportPath, `${reportBody}\nbytes B\n`)
+    rewriteRecord(repository, artifacts, (r) => { r.whole_diff.report_sha256 = planDigest(artifacts.reportPath) })
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report")
+  })
+})
+
+test("committed bytes: a report committed as A beside a record carrying B's digest, with B then staged, blocks on whole_diff.report", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(artifacts.reportPath, `${reportBody}\nbytes B\n`)
+    rewriteRecord(repository, artifacts, (r) => { r.whole_diff.report_sha256 = planDigest(artifacts.reportPath) })
+    // The index still holds A for the report, so the commit stores A beside a record that binds B.
+    repository.git("commit", "-q", "-m", "gate evidence")
+    repository.git("add", "--", path.relative(repository.directory, artifacts.reportPath))
+    expectFinding(runScratch(repository, artifacts), "whole_diff.report")
+  })
+})
+
+test("committed bytes: a committed trailer edited and staged, its working-tree file restored to HEAD, blocks on verdicts.0.trailer_artifact", () => {
+  withScratch((repository, artifacts) => {
+    commitAll(repository)
+    const committed = readFileSync(artifacts.trailerPath)
+    writeFileSync(artifacts.trailerPath, `${committed.toString("utf8")}\nedited and staged\n`)
+    repository.git("add", "--", path.relative(repository.directory, artifacts.trailerPath))
+    writeFileSync(artifacts.trailerPath, committed)
+    expectFinding(runScratch(repository, artifacts), "verdicts.0.trailer_artifact")
+  })
+})
+
+test("committed bytes: a record edited after staging blocks on record", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(artifacts.recordPath, `${readFileSync(artifacts.recordPath, "utf8")}\n`)
+    expectFinding(runScratch(repository, artifacts), "record")
+  })
+})
+
+test("committed bytes: a clean committed record with its artifacts passes", () => {
+  withScratch((repository, artifacts) => {
+    commitAll(repository)
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
