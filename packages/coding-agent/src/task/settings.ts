@@ -449,7 +449,7 @@ export const cfgTaskSoftCompactionBudget = register({
 		group: "Subagents",
 		label: "Soft Subagent Compaction Budget",
 		description:
-			"Soft per-subagent compaction budget (automatic compactions per run). Reaching it injects a wrap-up steering notice (see task.softRequestBudgetNotice); one more compaction force-stops the run and the agent must hand back its partial findings. 0 disables the guard.",
+			"Soft per-subagent compaction budget (automatic compactions per run). Reaching it injects a wrap-up steering notice (see task.softRequestBudgetNotice); one more compaction force-stops the run and asks the agent for a final report. 0 disables the guard.",
 		options: [
 			{ value: "0", label: "Disabled" },
 			{ value: "2", label: "2 compactions" },
