@@ -13,6 +13,8 @@ The team config still runs on oh-my-openagent (OmO) conventions: plans default t
   - `gate-deltas/` (was `.omo/gate-deltas/`);
   - `frontend-design/state.md` (was `.omo/frontend-design/state.md`, the frontend skill's design state).
 - **BREAKING** The record id `omo.merge-gate/v2` becomes `team-config.merge-gate/v3`. `validate-gate-record.mjs` and the merge-gate extension accept only the new id. No second read path, no alias. Every record written before the cutover carries a retired id, so none of them lets the stop hook pass, wherever it lies, including a historical v2 record already merged into the default branch. Record and trailer paths stay free.
+- **BREAKING** A v3 record with `whole_diff.run` `true` binds its whole-diff review report like a trailer: `whole_diff.report` must be tracked and `whole_diff.report_sha256` must match its bytes. A new `.md` report inside the record's directory whose first line is `INTEGRATION-REVIEW-REPORT-v1` may then be committed with the record after the review without voiding it; integration-review writes that line when saving the report (decided by Tim, 2026-10-23, after the `subagent-compaction-budget` gate: its record cited an F3 report that was never tracked, because committing it voided the record).
+- The validator checks the bytes that are committed, not only the working tree: every tracked artifact (record, trailers, report) must equal its `HEAD` blob once the record is committed, and its index blob before (decided by Tim, 2026-10-23). Today a file staged as A and edited to B validates as B while the commit stores A.
 - **BREAKING** `gate-convergence.mjs` reads and writes only the new ledger and delta locations. A gate running on the old ledger is finished with the old tooling before the deploy; no migration code.
 - Rules (texts and globs), the review-work, integration-review, visual-qa, frontend and git-master skills, and `team-config/README.md` name the new locations and record id. The README documents the `.omp/team-config/` layout and the ignore rules a project needs.
 - This repository's root `.gitignore` gains the `.omp/team-config/` policy: ledger, gate deltas, design state and QA output stay local; gate records and trailers stay addable.
@@ -23,7 +25,7 @@ Not part of this change: moving this repository's existing `.omo/plans` and `.om
 
 ### New Capabilities
 
-- `merge-gate-record`: which gate record backs a merge or completion claim: its id, and how the validator and the stop hook refuse a record under a retired id.
+- `merge-gate-record`: which gate record backs a merge or completion claim: its id, how it binds the whole-diff review report, and how the validator and the stop hook refuse a record under a retired id.
 - `gate-workspace-layout`: where the team-config gate tooling keeps its ledger, delta artifacts and evidence, which of them a repository ignores, and which locations the shipped skills and rules name.
 - `team-config-install`: what the team-config seed and deploy do with plan locations for new and existing installs.
 
