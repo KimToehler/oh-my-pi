@@ -16,7 +16,7 @@
    "check": "prompt acknowledged",
    "ok": true,
    "detail": {
-    "messageId": "376ab607"
+    "messageId": "3fd71960"
    }
   },
   {
@@ -29,9 +29,9 @@
    "ok": true,
    "detail": {
     "running": 19,
-    "idle": 29,
+    "idle": 30,
     "stopReason": "end_turn",
-    "updates": 9
+    "updates": 10
    }
   },
   {
@@ -43,7 +43,7 @@
  "frames": [
   {
    "i": 0,
-   "t": 1,
+   "t": 0,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -61,7 +61,7 @@
   },
   {
    "i": 1,
-   "t": 562,
+   "t": 565,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -98,7 +98,7 @@
   },
   {
    "i": 2,
-   "t": 563,
+   "t": 565,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -112,13 +112,13 @@
   },
   {
    "i": 3,
-   "t": 725,
+   "t": 726,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 2,
     "result": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "configOptions": [
       {
        "configId": "mode",
@@ -728,14 +728,14 @@
   },
   {
    "i": 4,
-   "t": 725,
+   "t": 726,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 3,
     "method": "session/prompt",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "prompt": [
       {
        "type": "text",
@@ -747,13 +747,13 @@
   },
   {
    "i": 5,
-   "t": 726,
+   "t": 727,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "state_update",
       "state": "running"
@@ -763,13 +763,13 @@
   },
   {
    "i": 6,
-   "t": 780,
+   "t": 779,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "available_commands_update",
       "availableCommands": [
@@ -1264,29 +1264,29 @@
   },
   {
    "i": 7,
-   "t": 780,
+   "t": 779,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "session_info_update",
-      "updatedAt": "2026-10-23T18:30:55.629Z"
+      "updatedAt": "2026-10-23T19:48:12.935Z"
      }
     }
    }
   },
   {
    "i": 8,
-   "t": 788,
+   "t": 787,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "usage_update",
       "used": 14681,
@@ -1297,28 +1297,28 @@
   },
   {
    "i": 9,
-   "t": 1174,
+   "t": 1194,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 3,
     "result": {
-     "messageId": "376ab607"
+     "messageId": "3fd71960"
     }
    }
   },
   {
    "i": 10,
-   "t": 1174,
+   "t": 1194,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "user_message",
-      "messageId": "376ab607",
+      "messageId": "3fd71960",
       "content": [
        {
         "type": "text",
@@ -1331,16 +1331,16 @@
   },
   {
    "i": 11,
-   "t": 3391,
+   "t": 2951,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "tool_call_update",
-      "toolCallId": "toolu_01585eKyXPFMwWS4jBQSX674",
+      "toolCallId": "toolu_01NRS4ik6a1FWdZ5XCa1LSgy",
       "title": "$ sleep 6 && echo wake-done",
       "kind": "execute",
       "status": "pending",
@@ -1363,16 +1363,16 @@
   },
   {
    "i": 12,
-   "t": 3395,
+   "t": 2955,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "tool_call_update",
-      "toolCallId": "toolu_01585eKyXPFMwWS4jBQSX674",
+      "toolCallId": "toolu_01NRS4ik6a1FWdZ5XCa1LSgy",
       "status": "completed",
       "rawOutput": {
        "content": [
@@ -1412,13 +1412,13 @@
   },
   {
    "i": 13,
-   "t": 3403,
+   "t": 2983,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "usage_update",
       "used": 22222,
@@ -1433,16 +1433,16 @@
   },
   {
    "i": 14,
-   "t": 4082,
+   "t": 4209,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "6032cec4-d62c-4217-8c32-ac4086f81e4c",
+      "messageId": "37dd8b15-7aea-49d5-9a7a-ca9fd0eae287",
       "content": {
        "type": "text",
        "text": "started"
@@ -1453,13 +1453,13 @@
   },
   {
    "i": 15,
-   "t": 4085,
+   "t": 4211,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "usage_update",
       "used": 22648,
@@ -1474,13 +1474,13 @@
   },
   {
    "i": 16,
-   "t": 4097,
+   "t": 4222,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "usage_update",
       "used": 22648,
@@ -1495,29 +1495,29 @@
   },
   {
    "i": 17,
-   "t": 4098,
+   "t": 4223,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "session_info_update",
-      "updatedAt": "2026-10-23T18:30:59.162Z"
+      "updatedAt": "2026-10-23T19:48:16.590Z"
      }
     }
    }
   },
   {
    "i": 18,
-   "t": 4098,
+   "t": 4223,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "state_update",
       "state": "idle",
@@ -1528,13 +1528,13 @@
   },
   {
    "i": 19,
-   "t": 9456,
+   "t": 9012,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "state_update",
       "state": "running"
@@ -1544,19 +1544,19 @@
   },
   {
    "i": 20,
-   "t": 11048,
+   "t": 10719,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
       "content": {
        "type": "text",
-       "text": "bg_1"
+       "text": "Background job b"
       }
      }
     }
@@ -1564,19 +1564,19 @@
   },
   {
    "i": 21,
-   "t": 11049,
+   "t": 10719,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
       "content": {
        "type": "text",
-       "text": " finished: "
+       "text": "g_1 finished and"
       }
      }
     }
@@ -1584,16 +1584,36 @@
   },
   {
    "i": 22,
-   "t": 11049,
+   "t": 10720,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
+      "content": {
+       "type": "text",
+       "text": " printed "
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 23,
+   "t": 10720,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
       "content": {
        "type": "text",
        "text": "`"
@@ -1603,40 +1623,20 @@
    }
   },
   {
-   "i": 23,
-   "t": 11049,
-   "dir": "←agent",
-   "frame": {
-    "jsonrpc": "2.0",
-    "method": "session/update",
-    "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
-     "update": {
-      "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
-      "content": {
-       "type": "text",
-       "text": "wake-"
-      }
-     }
-    }
-   }
-  },
-  {
    "i": 24,
-   "t": 11049,
+   "t": 10720,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
       "content": {
        "type": "text",
-       "text": "done`"
+       "text": "wake-done"
       }
      }
     }
@@ -1644,16 +1644,36 @@
   },
   {
    "i": 25,
-   "t": 11050,
+   "t": 10742,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "cfb501ca-dde3-4f06-895b-4115c4956c3c",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
+      "content": {
+       "type": "text",
+       "text": "`"
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 26,
+   "t": 10743,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "messageId": "ca64bbff-0041-4fd6-a776-bc8757142187",
       "content": {
        "type": "text",
        "text": "."
@@ -1663,41 +1683,20 @@
    }
   },
   {
-   "i": 26,
-   "t": 11050,
-   "dir": "←agent",
-   "frame": {
-    "jsonrpc": "2.0",
-    "method": "session/update",
-    "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
-     "update": {
-      "sessionUpdate": "usage_update",
-      "used": 22710,
-      "size": 200000,
-      "cost": {
-       "amount": 0.00927115,
-       "currency": "USD"
-      }
-     }
-    }
-   }
-  },
-  {
    "i": 27,
-   "t": 11064,
+   "t": 10751,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "usage_update",
       "used": 22710,
       "size": 200000,
       "cost": {
-       "amount": 0.00927115,
+       "amount": 0.00890615,
        "currency": "USD"
       }
      }
@@ -1706,29 +1705,50 @@
   },
   {
    "i": 28,
-   "t": 11064,
+   "t": 10756,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
-      "sessionUpdate": "session_info_update",
-      "updatedAt": "2026-10-23T18:31:06.129Z"
+      "sessionUpdate": "usage_update",
+      "used": 22710,
+      "size": 200000,
+      "cost": {
+       "amount": 0.00890615,
+       "currency": "USD"
+      }
      }
     }
    }
   },
   {
    "i": 29,
-   "t": 11065,
+   "t": 10756,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16a07-c18d-7323-bfd4-b810394f6e8a",
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
+     "update": {
+      "sessionUpdate": "session_info_update",
+      "updatedAt": "2026-10-23T19:48:23.124Z"
+     }
+    }
+   }
+  },
+  {
+   "i": 30,
+   "t": 10757,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-8407-765c-bde3-7ee39db8c356",
      "update": {
       "sessionUpdate": "state_update",
       "state": "idle",
