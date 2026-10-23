@@ -3,7 +3,7 @@
  * Prompt admission, run states, cancel semantics and replay land in later slices; until then the methods
  * that need them either fail loudly (`admitPrompt`, `replay`) or are inert (`onForeground*`, `beforeCancel`).
  */
-import { AgentBusyError } from "@oh-my-pi/pi-agent-core";
+import { type AgentMessage, AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { logger, VERSION } from "@oh-my-pi/pi-utils";
 import { RequestError, type SessionNotification, type v2 } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSessionEvent } from "../../session/agent-session";
@@ -39,6 +39,8 @@ import type {
 	ManagedSessionRecord,
 	SessionSetupKind,
 } from "./acp-surface";
+import { sessionEntryIdOf } from "../../session/session-entry-id";
+import { iterateSessionReplay } from "./acp-replay";
 import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
 
 export const ACP_V2_PROTOCOL_VERSION = 2;
@@ -247,8 +249,33 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		});
 	}
 
-	replay(): Promise<void> {
-		return Promise.reject(RequestError.internalError(undefined, "ACP v2 replay is not implemented yet"));
+	/**
+	 * Resume replay: `replayFrom: {type:"start"}` streams the transcript through the v2 mapping (user messages keep
+	 * their persisted entry id, other roles get one fresh id per message); no cursor replays nothing. Either way the
+	 * `state_update` snapshot follows, bypassing dedup because snapshots are idempotent.
+	 */
+	async replay(record: ManagedSessionRecord, replayFrom?: unknown): Promise<void> {
+		const replayStart =
+			typeof replayFrom === "object" && replayFrom !== null && "type" in replayFrom && replayFrom.type === "start";
+		if (replayFrom !== undefined && replayFrom !== null && !replayStart) {
+			throw RequestError.invalidParams(undefined, "Unsupported replayFrom cursor");
+		}
+		const sessionId = record.session.sessionId;
+		if (replayStart) {
+			const cwd = record.session.sessionManager.getCwd();
+			for (const { message, notifications } of iterateSessionReplay(record.session, this.#host.blobs)) {
+				const messageId =
+					(message.role === "user" ? sessionEntryIdOf(message as AgentMessage) : undefined) ?? crypto.randomUUID();
+				const options: AcpV2MapperOptions = { cwd, messageIdFor: () => messageId };
+				for (const notification of notifications) {
+					const update = convertV1UpdateToV2(notification.update, options, { message });
+					if (update) await this.sendMapped({ sessionId, update });
+				}
+			}
+		}
+		const state = this.currentState(record);
+		record.lastEmittedState = state.state;
+		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
 	}
 
 	onForegroundStart(record: ManagedSessionRecord, _work: ForegroundWork): void {

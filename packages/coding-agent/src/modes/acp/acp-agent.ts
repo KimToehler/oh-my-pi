@@ -765,6 +765,7 @@ export class AcpAgent implements Agent {
 					params.cwd,
 					toV1McpServers(params.mcpServers),
 				);
+				await this.#surfaceV2.replay(record, params.replayFrom);
 				const setup = await this.#surfaceV2.sessionSetupResponse(record, "resume");
 				this.#scheduleBootstrapUpdates(record.session.sessionId);
 				return setup;
@@ -1553,7 +1554,11 @@ export class AcpAgent implements Agent {
 			}),
 		);
 		try {
-			const success = await session.switchSession(sessionPath);
+			// v2 has no UI to warn about a model fallback; the ACP session keeps its configured model.
+			const success = await session.switchSession(
+				sessionPath,
+				this.#surface.version === 2 ? { keepModel: true } : undefined,
+			);
 			if (!success) {
 				throw new Error(`ACP session load was cancelled: ${sessionId}`);
 			}
