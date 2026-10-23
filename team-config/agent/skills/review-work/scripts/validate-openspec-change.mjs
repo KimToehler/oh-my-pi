@@ -355,6 +355,16 @@ export function reviewDigest(snapshot) {
 	return bundleDigest(buildBundle(reviewed));
 }
 
+/** The trimmed body of the one top-level `## Blockers` section, or undefined when there is none or more than one. */
+function blockersSection(content) {
+	const lines = content.split("\n");
+	const starts = lines.flatMap((line, index) => (/^##\s+Blockers\s*$/.test(line) ? [index] : []));
+	if (starts.length !== 1) return undefined;
+	const rest = lines.slice(starts[0] + 1);
+	const end = rest.findIndex((line) => /^#{1,2}\s/.test(line));
+	return (end === -1 ? rest : rest.slice(0, end)).join("\n").trim();
+}
+
 /** Checks review.md against the current digest; returns the defects and, when it passes, the line to print. */
 export function checkReview(snapshot) {
 	const errors = [];
@@ -385,6 +395,12 @@ export function checkReview(snapshot) {
 	const overridden = override !== undefined && override.toLowerCase() !== "none";
 	if (overridden && (valueDefect(override) || PLACEHOLDER.test(override)))
 		errors.push(`${REVIEW_FILE} Override: none, or the user's reason in their words`);
+	const blockers = blockersSection(content);
+	if (blockers === undefined) errors.push(`${REVIEW_FILE} Blockers: expected exactly one "## Blockers" section`);
+	else if (/^<[^>\n]*>$/.test(blockers))
+		errors.push(`${REVIEW_FILE} Blockers: replace the template placeholder with the reviewer's blockers verbatim, or none`);
+	else if (verdict === "REJECT" && (blockers === "" || /^none\.?$/i.test(blockers.replace(/`/g, ""))))
+		errors.push(`${REVIEW_FILE} Blockers: a REJECT needs the reviewer's blockers verbatim`);
 	if (errors.length > 0) return { errors };
 
 	const current = reviewDigest(snapshot);

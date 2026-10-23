@@ -525,11 +525,12 @@ The system SHALL export records in batches.
 - **WHEN** the target is not writable
 - **THEN** the export MUST fail
 `;
-	const REVIEW = (fields: Record<string, string | null>, extra = "") =>
+	const REVIEW = (fields: Record<string, string | null>, extra: string, blockers: string | null) =>
 		`# Review\n\n${Object.entries(fields)
 			.filter(([, value]) => value !== null)
 			.map(([label, value]) => `- **${label}**: ${value}`)
-			.join("\n")}\n${extra}\n## Blockers\n\nnone\n`;
+			.join("\n")}\n${extra}\n${blockers === null ? "" : `## Blockers\n\n${blockers}\n`}`;
+	const REJECT_BLOCKERS = "1. **Verification**\n   - Defect: task 1.1's Verify passes before implementation";
 
 	/** A complete change with design.md, .openspec.yaml and two tasks, so every artifact kind can be edited after review. */
 	async function changeFixture(): Promise<string> {
@@ -546,7 +547,7 @@ The system SHALL export records in batches.
 		return result.stdout.trim();
 	}
 
-	async function reviewed(fields: Record<string, string | null> = {}, extra = ""): Promise<string> {
+	async function reviewed(fields: Record<string, string | null> = {}, extra = "", blockers: string | null = "none"): Promise<string> {
 		const root = await changeFixture();
 		const current = digest(root);
 		await Bun.write(
@@ -561,6 +562,7 @@ The system SHALL export records in batches.
 					...fields,
 				},
 				extra,
+				blockers,
 			),
 		);
 		return root;
@@ -634,17 +636,32 @@ The system SHALL export records in batches.
 	}
 
 	it("refuses a REJECT without a user override", async () => {
-		const result = run("--reviewed", await reviewed({ Verdict: "REJECT" }));
+		const result = run("--reviewed", await reviewed({ Verdict: "REJECT" }, "", REJECT_BLOCKERS));
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("REJECT");
 	});
 
 	it("accepts a REJECT the user overrode and prints the override", async () => {
 		const reason = "Tim accepts the missing load test for this internal tool";
-		const result = run("--reviewed", await reviewed({ Verdict: "REJECT", Override: reason }));
+		const result = run("--reviewed", await reviewed({ Verdict: "REJECT", Override: reason }, "", REJECT_BLOCKERS));
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain(reason);
 	});
+
+	const OVERRIDDEN = { Verdict: "REJECT", Override: "Tim accepts the missing load test for this internal tool" };
+	for (const [name, fields, extra, blockers] of [
+		["no Blockers section", {}, "", null],
+		["two Blockers sections", {}, "\n## Blockers\n\nnone\n", "none"],
+		["the template placeholder as Blockers", {}, "", "<the reviewer's blockers verbatim, or none>"],
+		["an overridden REJECT whose Blockers are none", OVERRIDDEN, "", "none"],
+		["an overridden REJECT with an empty Blockers section", OVERRIDDEN, "", ""],
+	] as const) {
+		it(`refuses ${name}`, async () => {
+			const result = run("--reviewed", await reviewed(fields, extra, blockers));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("review.md Blockers:");
+		});
+	}
 
 	for (const [name, change] of [
 		["proposal.md", (root: string) => edit(path.join(root, "proposal.md"), "single-record update", "batch update")],
