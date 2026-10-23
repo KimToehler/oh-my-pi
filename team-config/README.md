@@ -168,6 +168,11 @@ artifact changed after the review (`stale`; ticking tasks does not count). Re-ru
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
 
+When a task names a worktree for the change, `/opsx-apply` implements only in a session started inside it. Started
+anywhere else, it creates a missing worktree (once the change folder is committed), ticks nothing and asks you to run
+`cd <worktree> && omp` and `/opsx-apply <change>` there, because a running session cannot change the checkout its
+relative paths and task ticks resolve against.
+
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
 comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
 scenario for every requirement block, the `gate.md` fields (exactly one `Mandatory class` token, `Risk tier` `product` or
