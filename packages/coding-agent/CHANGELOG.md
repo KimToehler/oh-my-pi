@@ -9,7 +9,7 @@
 ### Added
 
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
-- ACP protocol v2 is available as an opt-in (`acp.protocolV2`): clients get explicit run-state updates, prompt message ids that stay stable across resume, and resume replay on request.
+- ACP protocol v2 is available as an opt-in (`acp.protocolV2`): clients get explicit run-state updates, ids for the prompts saved in your transcript that stay stable across resume (agent replies and locally handled commands get fresh ids), and resume replay on request.
 - ACP clients such as JetBrains IDEs can pick a Goal mode: your next message becomes the objective, the agent keeps working on it turn after turn within that reply until the goal is complete, Stop pauses the goal, and your next message resumes it (`goal.continuationModes` now includes `"acp"` by default)
 - `wait` and `read proc://` now show a running subagent's run time, request count, cost, context fill and stage, so a subagent that is looping is visible without opening its transcript
 
