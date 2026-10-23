@@ -93,12 +93,29 @@ function preflight(target, source) {
       `these workflow paths hold changes git cannot restore; commit or move them yourself, then rerun:\n${dirty.map((line) => `  ${line}`).join("\n")}`,
     )
   }
+  const created = [
+    ...(lstat(path.join(root, CONFIG)) ? [] : [CONFIG]),
+    ...files.map((rel) => `${SCHEMA}/${rel}`).filter((rel) => !lstat(path.join(root, rel))),
+  ]
+  if (created.length > 0) {
+    const ignored = git(root, "check-ignore", "-v", "--no-index", "--", ...created)
+    if (ignored.status === 0) {
+      const lines = ignored.stdout.split("\n").filter(Boolean).map((line) => {
+        const [rule, file] = line.split("\t")
+        return `  ${file}  (${rule})`
+      })
+      throw new Refusal(
+        `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
+      )
+    }
+    if (ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
+  }
 
   const configStat = lstat(path.join(root, CONFIG))
   if (configStat) {
     if (!configStat.isFile()) throw new Refusal(`${CONFIG} is not a regular file`)
     const schema = /^schema:[ \t]*(.*?)[ \t]*(?:#.*)?$/m.exec(fs.readFileSync(path.join(root, CONFIG), "utf8"))
-    if (schema?.[1] !== "omp-gated") {
+    if (schema?.[1].replace(/^(["'])(.*)\1$/, "$2") !== "omp-gated") {
       const found = schema ? `schema: ${schema[1]}` : "no top-level schema: line"
       throw new Refusal(`${CONFIG} has ${found}; change it to "schema: omp-gated" (keep your rules), commit, then rerun`)
     }

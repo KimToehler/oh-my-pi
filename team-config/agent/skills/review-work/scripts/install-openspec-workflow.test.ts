@@ -120,7 +120,9 @@ describe("install", () => {
 			encoding: "utf8",
 			env: { ...process.env, DO_NOT_TRACK: "1", OPENSPEC_TELEMETRY: "0" },
 		});
-		if (which.error === undefined) expect(which.stdout).toContain("Source: project");
+		expect(which.error).toBeUndefined();
+		expect(which.status).toBe(0);
+		expect(which.stdout).toContain("Source: project");
 	});
 
 	test("update over a committed local edit and an extra file: replaced wholesale, the old bytes stay in HEAD, the config is untouched", () => {
@@ -135,9 +137,43 @@ describe("install", () => {
 		expect(git(root, "show", `HEAD:${SCHEMA}/templates/gate.md`)).toContain("local edit");
 		expect(text(r)).toContain(`${SCHEMA}/templates/gate.md`);
 	});
+
+	for (const [label, line] of [
+		["double-quoted", 'schema: "omp-gated" # ours\n'],
+		["single-quoted", "schema: 'omp-gated'\n"],
+	] as const) {
+		test(`a ${label} omp-gated schema in the config is accepted and the config stays byte-identical`, () => {
+			const config = `${line}\nrules:\n  specs:\n    - ours\n`;
+			const root = project({ [CONFIG]: config });
+			const r = installWorkflow(root);
+			expect(r.code).toBe(0);
+			expect(fs.readFileSync(path.join(root, CONFIG), "utf8")).toBe(config);
+		});
+	}
 });
 
 describe("refusals leave the project byte-identical", () => {
+
+	test("a committed .gitignore rule that would ignore the config to be created", () => {
+		const root = project({ ".gitignore": "openspec/config.yaml\n" });
+		const before = tree(root);
+		const r = installWorkflow(root);
+		expect(r.code).toBe(1);
+		expect(text(r)).toContain(CONFIG);
+		expect(text(r)).toContain(".gitignore");
+		expect(tree(root)).toEqual(before);
+	});
+
+	test("a rule ignoring schema files that do not exist yet", () => {
+		const root = project({ ".gitignore": "*.md\n" });
+		const before = tree(root);
+		const r = installWorkflow(root);
+		expect(r.code).toBe(1);
+		expect(text(r)).toMatch(new RegExp(`${SCHEMA}/templates/[^\\s]+\\.md`));
+		expect(text(r)).toContain("*.md");
+		expect(tree(root)).toEqual(before);
+	});
+
 	test("a modified tracked file under the schema", () => {
 		const root = project(committedSchema());
 		write(root, { [`${SCHEMA}/schema.yaml`]: "edited\n" });

@@ -102,7 +102,7 @@ It runs on the work-tree root (or the root given as its argument) and writes onl
 
 Git is the backup. The installer refuses, changing nothing, unless
 `git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated` is empty, so
-every byte it replaces is in `HEAD`. It also refuses on a symlinked `openspec`, `openspec/schemas`, schema directory or
+every byte it replaces is in `HEAD`. It also refuses when a `.gitignore` rule would ignore a file it is about to create (it names the path and rule), on a symlinked `openspec`, `openspec/schemas`, schema directory or
 config, and outside a git work tree. If the copy fails, it rolls back to `HEAD` before exiting and checks that the
 status is clean again; if that rollback fails too, it says so and prints the remaining paths. It never suggests
 deleting anything on a refusal: inspect the listed paths yourself.
