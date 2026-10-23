@@ -5,6 +5,7 @@
 ### Breaking Changes
 
 - SDK: `PlanProposalHandler` now receives the resolved plan (`{ planFilePath, planContent, title }`) instead of the proposed title; `AgentSession.preparePlanForReview` was removed.
+- SDK: `ClientBridge.deferAgentInitiatedTurns` and `AgentSession.setAcpPromptOpen()` were replaced by one callback, `ClientBridge.allowAgentInitiatedTurns?: () => boolean`, asked whenever a turn the agent starts on its own (such as a background-job wake) would begin; return what you used to pass to `setAcpPromptOpen`.
 
 ### Added
 

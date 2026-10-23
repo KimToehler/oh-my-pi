@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- ACP: the `AgentSideConnection` factory now returns `AgentSurfaces` instead of an `Agent`; wrap an existing agent as `{ v1: agent, maxVersion: () => 1 }` to keep protocol v1 only, or add a `v2` handler with `maxVersion: () => 2` to negotiate v2
+
 ### Added
 
 - ACP `responseWritten()` lets a request handler wait until its response frame (single or batched) has been written, and `inBatch()` tells whether it answers a JSON-RPC batch entry
