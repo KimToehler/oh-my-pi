@@ -229,6 +229,13 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		else send();
 	}
 
+	/** `idle` without foreground work; `requires_action` while an interaction is open; else `running`. */
+	currentState(record: ManagedSessionRecord): v2.StateUpdate {
+		const work = record.foreground;
+		if (!work) return { state: "idle" };
+		return { state: work.pendingInteractions > 0 ? "requires_action" : "running" };
+	}
+
 	#emitState(record: ManagedSessionRecord, state: v2.StateUpdate): void {
 		if (state.state !== "idle" && record.lastEmittedState === state.state) return;
 		record.lastEmittedState = state.state;
@@ -248,9 +255,13 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		this.#emitState(record, { state: "running" });
 	}
 
-	onForegroundBlocked(): void {}
+	onForegroundBlocked(record: ManagedSessionRecord, work: ForegroundWork): void {
+		if (record.foreground === work) this.#emitState(record, { state: "requires_action" });
+	}
 
-	onForegroundResumed(): void {}
+	onForegroundResumed(record: ManagedSessionRecord, work: ForegroundWork): void {
+		if (record.foreground === work) this.#emitState(record, { state: "running" });
+	}
 
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void {
 		if (record.foreground !== work) return;
@@ -274,7 +285,13 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		this.#afterEcho(record, () => this.#emitState(record, state));
 	}
 
-	beforeCancel(): void {}
+	beforeCancel(record: ManagedSessionRecord): void {
+		const work = record.foreground;
+		if (!work) return;
+		record.cancelLatched = true;
+		work.cancelRequested = true;
+		record.session.clearQueue({ forInterrupt: true });
+	}
 
 	subscribe(record: ManagedSessionRecord): () => void {
 		return record.session.subscribe(event => {

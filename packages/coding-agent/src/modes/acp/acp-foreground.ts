@@ -220,9 +220,11 @@ export async function trackInteraction<T>(
 	run: () => Promise<T>,
 ): Promise<T> {
 	if (!work) return await run();
+	// `run` starts first so the client's request is on the wire before `blocked` announces it.
+	const pending = run();
 	if (++work.pendingInteractions === 1) hooks.blocked(work);
 	try {
-		return await run();
+		return await pending;
 	} finally {
 		if (--work.pendingInteractions === 0) hooks.resumed(work);
 	}

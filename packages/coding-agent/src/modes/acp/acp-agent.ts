@@ -110,6 +110,7 @@ import {
 	type PromptTurnState,
 	resolveStopReason,
 	trackInteraction,
+	type InteractionTracker,
 } from "./acp-foreground";
 import { convertConfigOptionsToV2 } from "./acp-event-mapper-v2";
 import {
@@ -415,13 +416,15 @@ export function createAcpExtensionUiContext(
 	connection: AgentSideConnection,
 	getSessionId: () => string,
 	clientCapabilities: ClientCapabilities | undefined,
+	track: InteractionTracker = run => run(),
 ): ExtensionUIContext {
+	const elicit = (...args: Parameters<typeof elicitFromAcpClient>) => track(() => elicitFromAcpClient(...args));
 	const supportsForm = clientCapabilities?.elicitation?.form != null;
 	return {
 		supportsEditor: false,
 		select: async (title, options, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
+			const value = await elicit(
 				connection,
 				getSessionId(),
 				"select",
@@ -433,7 +436,7 @@ export function createAcpExtensionUiContext(
 		},
 		confirm: async (title, message, dialogOptions) => {
 			if (!supportsForm) return false;
-			const value = await elicitFromAcpClient(
+			const value = await elicit(
 				connection,
 				getSessionId(),
 				"confirm",
@@ -445,7 +448,7 @@ export function createAcpExtensionUiContext(
 		},
 		input: async (title, placeholder, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
+			const value = await elicit(
 				connection,
 				getSessionId(),
 				"input",
@@ -497,20 +500,22 @@ export function createAcpExtensionUiContext(
 			}
 
 			let timedOut = false;
-			const content = await elicitFormFromAcpClient(
-				connection,
-				getSessionId(),
-				"askDialog",
-				questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
-				properties,
-				undefined,
-				{
-					...dialogOptions,
-					onTimeout: () => {
-						timedOut = true;
-						dialogOptions?.onTimeout?.();
+			const content = await track(() =>
+				elicitFormFromAcpClient(
+					connection,
+					getSessionId(),
+					"askDialog",
+					questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
+					properties,
+					undefined,
+					{
+						...dialogOptions,
+						onTimeout: () => {
+							timedOut = true;
+							dialogOptions?.onTimeout?.();
+						},
 					},
-				},
+				),
 			);
 			if (timedOut) return timedOutAskDialogResult(questions);
 			if (!content) return undefined;
@@ -559,7 +564,7 @@ export function createAcpExtensionUiContext(
 		getEditorText: () => "",
 		editor: async (title, prefill, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
+			const value = await elicit(
 				connection,
 				getSessionId(),
 				"editor",
@@ -2661,6 +2666,15 @@ export class AcpAgent implements Agent {
 			this.#connection,
 			() => record.session.sessionId,
 			this.#clientCapabilities,
+			run =>
+				trackInteraction(
+					this.#surface.activeWork(record),
+					{
+						blocked: work => this.#surface.onForegroundBlocked(record, work),
+						resumed: work => this.#surface.onForegroundResumed(record, work),
+					},
+					run,
+				),
 		);
 		if (this.#clientCapabilities?.elicitation?.form != null) {
 			record.setToolUIContext?.(uiContext, true);
