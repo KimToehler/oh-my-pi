@@ -376,6 +376,9 @@ ACP v2 (schema `schema-v2.0.0-alpha.9`, 2026-10-16) fixes this at the protocol l
 5. v2 surface: subscription, prompt/insertion, states, cancel, mapping, git patch, permission, resume/replay, auth, capabilities; shared resource-link fix
 6. Setting, README, changelog
 7. `bun check`; focused, golden and regression suites green
+8. F3 B1 (class `v2-foreground-waits-background-work`): under v2 a foreground ends without waiting for owner-scoped background jobs (`acp-agent.ts` `#waitForAcpPromptIdle` `settleAsyncWork` branch, `isAcpSessionQuiescent` `hasPendingAsyncWork`); the job's later wake is a separate agent-initiated foreground (`running` … `idle`). v1 keeps holding the open prompt. Test: a job started during the prompt and still running after the turn gives `idle(end_turn)` first, then the wake framed by its own `running`/`idle`.
+9. F3 B2 (class `interaction-count-as-aggregate-state`): v2 reports `requires_action` only when every running foreground tool is blocked on an open interaction (or an interaction is open with no tool running); a tool start/end re-evaluates the state; `currentState` (live and resume snapshot) uses the same rule. Test: two parallel tools, one awaiting permission while the other is still running, stay `running`; once the other ends the state becomes `requires_action`; the answer returns `running`.
+10. F3 Should-fix/Nit: `acp-surface-v2.ts` uses `PROTOCOL_VERSION_V2` from `v2/protocol.ts` instead of its own constant; its module header describes the finished surface.
 
 ## Implementation deviations (recorded at the end of TODO 7)
 
