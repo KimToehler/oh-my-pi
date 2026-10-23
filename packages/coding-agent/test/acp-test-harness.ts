@@ -58,7 +58,6 @@ function firstPermissionOptionId(params: unknown): string | undefined {
 	return undefined;
 }
 
-
 export function expectAcpStructure(schema: Validator<unknown>, value: unknown): void {
 	const result = schema.safeParse(value);
 	expect(result.success, result.success ? undefined : JSON.stringify(result.error.issues, null, 2)).toBe(true);
