@@ -233,6 +233,12 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void;
 	/** Gate read by `AgentSession`: may an agent-initiated turn start now? v1: an open prompt exists; v2: cancel latch clear. */
 	allowsAgentInitiatedWork(record: ManagedSessionRecord): boolean;
+	/**
+	 * May a handler still running for `work` send foreground content? v1: always (the prompt response, not a frame,
+	 * ends a v1 turn); v2: only while `work` is the foreground, so its terminal `idle` stays its last content frame.
+	 * Callers check right before each send: the check and the enqueue must not be separated by an await.
+	 */
+	acceptsUpdates(record: ManagedSessionRecord, work: ForegroundWork): boolean;
 	/** Maps one session event to client notifications. v2: renames tool/plan updates, drops mode updates, defines message ids. */
 	mapUpdate(event: AgentSessionEvent, sessionId: string, options: AcpEventMapperOptions): W["notification"][];
 	/** Asks the client to permit a tool call. v2: `title`/`subject` shape and strict `selected` handling. */

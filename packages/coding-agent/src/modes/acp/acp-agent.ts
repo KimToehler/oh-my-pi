@@ -1794,6 +1794,8 @@ export class AcpAgent implements Agent {
 			cwd: record.session.sessionManager.getCwd(),
 			resolveImageData: resolveImageDataForAcp,
 		})) {
+			// A cancel or close between two notifications of one event ends `work`; v2 then drops the rest.
+			if (!this.#surface.acceptsUpdates(record, work)) break;
 			const delivery = this.#surface.sendMapped(notification);
 			if (streamedAssistantError) {
 				// Resolves true only once the error chunk actually reached the
@@ -1818,7 +1820,7 @@ export class AcpAgent implements Agent {
 
 		if (event.type === "agent_end") {
 			work.lastAgentEnd = event;
-			await this.#flushMissedFinalAssistantText(record, event);
+			await this.#flushMissedFinalAssistantText(record, work, event);
 			await this.#flushUnreportedTurnError(record, work, event);
 			await this.#emitEndOfTurnUpdates(record);
 			// Live-message tracking is per assistant reply: reset after this reply's
@@ -1872,6 +1874,7 @@ export class AcpAgent implements Agent {
 	 */
 	async #flushMissedFinalAssistantText(
 		record: ManagedSessionRecord,
+		work: ForegroundWork,
 		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
 	): Promise<void> {
 		const progress = record.liveMessageProgress;
@@ -1888,6 +1891,7 @@ export class AcpAgent implements Agent {
 		if (text.length === 0) {
 			return;
 		}
+		if (!this.#surface.acceptsUpdates(record, work)) return;
 		progress.textEmitted = true;
 		await this.#emit({
 			sessionId: record.session.sessionId,
@@ -1928,6 +1932,7 @@ export class AcpAgent implements Agent {
 		if (!errorMessage || isSilentAbort(lastAssistant)) {
 			return;
 		}
+		if (!this.#surface.acceptsUpdates(record, work)) return;
 		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {

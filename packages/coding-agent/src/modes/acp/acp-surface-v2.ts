@@ -470,6 +470,11 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		return !record.cancelLatched && record.closedError === undefined;
 	}
 
+	acceptsUpdates(record: ManagedSessionRecord, work: ForegroundWork): boolean {
+		// `onForegroundEnd` clears the foreground in the same step that enqueues `idle`.
+		return record.foreground === work;
+	}
+
 	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined {
 		return record.foreground;
 	}

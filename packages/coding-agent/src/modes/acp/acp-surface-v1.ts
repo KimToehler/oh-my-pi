@@ -259,6 +259,10 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 		return record.promptTurn !== undefined && !record.promptTurn.settled;
 	}
 
+	acceptsUpdates(): boolean {
+		return true;
+	}
+
 	mapUpdate(event: AgentSessionEvent, sessionId: string, options: AcpEventMapperOptions): SessionNotification[] {
 		return mapAgentSessionEventToAcpSessionUpdates(event, sessionId, options);
 	}

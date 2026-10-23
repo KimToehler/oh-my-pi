@@ -33,6 +33,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { TurnRecovery } from "@oh-my-pi/pi-coding-agent/session/turn-recovery";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { getAgentDbPath, isRecord } from "@oh-my-pi/pi-utils";
+import { AgentSideConnectionV2 } from "@oh-my-pi/pi-utils/acp";
 import {
 	cleanupHarnessState,
 	createV2WireHarness,
@@ -890,6 +891,87 @@ describe("cancel and errors (plan 5)", () => {
 			stopReason: "cancelled",
 		});
 	});
+
+	for (const ending of ["cancel", "close"] as const) {
+		it(`sends nothing after idle(cancelled) when a ${ending} lands between two updates of one event`, async () => {
+			// Guards: a completed `todo` maps to tool_call_update then plan_update; a Stop or close while the first is
+			// still being written ends the foreground, and the handler's second update then lands after the terminal idle.
+			const todo: AgentTool = {
+				name: "todo",
+				label: "todo",
+				description: "Updates the todo list",
+				parameters: type({}),
+				async execute() {
+					return {
+						content: [{ type: "text" as const, text: "updated" }],
+						details: { phases: [{ name: "Work", tasks: [{ content: "step one", status: "in_progress" }] }] },
+					};
+				},
+			};
+			// An ordered transport whose write of the completed todo update blocks, as under client backpressure.
+			const original = AgentSideConnectionV2.prototype.sessionUpdate;
+			const writeHeld = Promise.withResolvers<void>();
+			const releaseWrite = Promise.withResolvers<void>();
+			const idleQueued = Promise.withResolvers<void>();
+			let chain: Promise<unknown> = Promise.resolve();
+			const spy = vi
+				.spyOn(AgentSideConnectionV2.prototype, "sessionUpdate")
+				.mockImplementation(function (this: AgentSideConnectionV2, notification) {
+					const { update } = notification;
+					const hold =
+						update.sessionUpdate === "tool_call_update" &&
+						update.toolCallId === "call-todo" &&
+						update.status === "completed";
+					if (update.sessionUpdate === "state_update" && update.state === "idle") idleQueued.resolve();
+					const previous = chain;
+					const write = (async () => {
+						await previous;
+						if (hold) {
+							writeHeld.resolve();
+							await releaseWrite.promise;
+						}
+						return await original.call(this, notification);
+					})();
+					chain = write.catch(() => {});
+					return write;
+				});
+			teardown.unshift(async () => {
+				releaseWrite.resolve();
+				spy.mockRestore();
+			});
+			// Call 0 runs the todo tool; call 1 (the turn that follows) is held, so the foreground is still running.
+			const { h, client, sessionId } = await startReal({
+				hold: [1],
+				tools: [todo],
+				script: { 0: { content: [{ type: "toolCall", id: "call-todo", name: "todo", arguments: {} }] } },
+			});
+			await sendPrompt(client, sessionId, "plan it");
+			await writeHeld.promise;
+			const ended =
+				ending === "cancel"
+					? client.notify("session/cancel", { sessionId })
+					: h.agent()!.closeSession({ sessionId });
+			await idleQueued.promise;
+			releaseWrite.resolve();
+			await ended;
+			await client.waitFor(
+				c => c.states(sessionId).some(state => state.state === "idle" && state.stopReason === "cancelled"),
+				"idle(cancelled)",
+			);
+			await eventLoopTurns(30);
+
+			const kinds = client.updates(sessionId).map(entry => kindOf(entry.update));
+			const idleAt = client
+				.updates(sessionId)
+				.findIndex(entry => kindOf(entry.update) === "state_update" && entry.update.state === "idle");
+			expect(kinds.indexOf("tool_call_update")).toBeLessThan(idleAt);
+			// Session metadata may follow; foreground content may not.
+			const afterIdle = kinds
+				.slice(idleAt + 1)
+				.filter(kind => !["usage_update", "session_info_update"].includes(kind));
+			expect(afterIdle).toEqual([]);
+		});
+	}
 
 	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {
 		// Guards: a stopped session restarts itself when a background job that was already running settles.
