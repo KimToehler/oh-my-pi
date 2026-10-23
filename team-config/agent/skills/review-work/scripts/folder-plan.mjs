@@ -2,7 +2,7 @@
 // bundle whose sha256 is the folder's `plan_sha256`. Lives beside the validator rather than inside
 // it because the validator's fs surface is pinned to three primitives; this module is the only
 // place that opens folder entries.
-import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import path from "node:path"
 
@@ -62,8 +62,4 @@ export function buildBundle(snapshot) {
 
 export function bundleDigest(bundle) {
   return sha256(bundle)
-}
-
-export function writeBundleFile(file, bundle) {
-  writeFileSync(file, bundle)
 }

@@ -57,10 +57,12 @@ async function markdownFiles(root) {
 	return out.sort();
 }
 
+// Returns whether the specs hold a requirement, counted by the same per-line parse that validates it, so the gate.md
+// criteria fallback applies exactly when no requirement supplies the review criteria.
 function validateSpecs(files, texts, skipSpecs, errors) {
 	if (files.length === 0) {
 		if (!skipSpecs) errors.push("specs: at least one Markdown spec is required");
-		return;
+		return false;
 	}
 	if (skipSpecs) errors.push("specs: skip_specs requires no Markdown specs");
 	let renameCount = 0;
@@ -106,6 +108,7 @@ function validateSpecs(files, texts, skipSpecs, errors) {
 	}
 	if (requirementCount === 0 && renameCount === 0)
 		errors.push("specs: at least one Requirement or rename is required");
+	return requirementCount > 0;
 }
 
 // Mirrors OpenSpec 1.14.3 utils/task-progress.js TASK_LINE_PATTERN: any checkbox it counts as a tracked task must satisfy the team contract.
@@ -312,8 +315,7 @@ export function validateOpenSpecFiles(snapshot) {
 	const specs = [...snapshot.keys()].filter(name => name.startsWith("specs/") && name.endsWith(".md")).sort();
 	const texts = new Map(specs.map(file => [file, text(file)]));
 	const skipSpecs = snapshot.has(".openspec.yaml") && parseSkipSpecs(text(".openspec.yaml"), errors);
-	validateSpecs(specs, texts, skipSpecs, errors);
-	const hasRequirements = [...texts.values()].some(spec => /^### Requirement:\s*\S/m.test(spec));
+	const hasRequirements = validateSpecs(specs, texts, skipSpecs, errors);
 	if (snapshot.has("tasks.md")) validateTasks(text("tasks.md"), errors);
 	if (snapshot.has("gate.md")) validateGate(text("gate.md"), hasRequirements, errors);
 	return errors;

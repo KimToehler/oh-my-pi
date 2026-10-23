@@ -204,14 +204,16 @@ function criterionField(criterion, field) {
 }
 
 // Criteria carried by a plan that has no requirements to derive them from: the shape check, then
-// `Invariant`, `Negative control` (behavioural only) and `Observable` held to the content grammar.
-// Returns every defect as { field, detail }.
+// every field the authoring template asks for held to the content grammar (behavioural: all five;
+// Mechanical: the check itself, Invariant, Observable and Boundary). Returns every defect as { field, detail }.
 export function substantiveCriteriaDefects(section, label = "plan Merge gate criteria") {
   const shape = criteriaShapeDefect(section, label)
   if (shape) return [shape]
   const defects = []
   for (const [index, criterion] of criterionBullets(section).entries()) {
-    const fields = /^\s*(?:\*\*)?Mechanical\b/i.test(criterion[2]) ? ["Invariant", "Observable"] : ["Invariant", "Negative control", "Observable"]
+    const fields = /^\s*(?:\*\*)?Mechanical\b/i.test(criterion[2])
+      ? ["Mechanical", "Invariant", "Observable", "Boundary"]
+      : ["Invariant", "Positive witness", "Negative control", "Observable", "Boundary"]
     for (const field of fields) {
       const defect = valueDefect(criterionField(criterion[2], field) ?? "")
       if (defect) defects.push({ field: `${label}.${index}.${field}`, detail: `${defect}; the criteria need concrete text when the change carries no requirements` })
