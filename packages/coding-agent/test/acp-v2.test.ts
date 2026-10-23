@@ -786,7 +786,9 @@ describe("submission lifecycle at the adapter boundary (plan 2)", () => {
 	});
 
 	it("drops a steer once when the cleanup timeout closes the session, and a late emission persists nothing and sends no frame", async () => {
-		// Guards: a run released after the session closed inserts the steer it still holds and writes to a closed client.
+		// Guards: a cancel whose cleanup times out never closes the session, or a run released after the close writes to a closed client.
+		// Negative control (RED): removing the `#closeManagedSession` call in `AcpAgent.cancel` leaves the session undisposed.
+		// The held steer is already withdrawn by Stop, so the tombstone control lives in the dispose-under-a-held-turn test below.
 		const { h, rig, client, sessionId, session } = await startReal({ hold: [0, 1], heldIgnoresAbort: true });
 		const appendSpy = vi.spyOn(session.sessionManager, "appendMessage");
 		h.agent()?.setCancelCleanupTimeoutForTesting(1);
