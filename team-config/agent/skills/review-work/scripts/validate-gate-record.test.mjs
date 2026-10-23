@@ -1827,10 +1827,14 @@ function writeFolder(folder, { cls, tier, whole, assessment, specs, skipSpecs, g
     [/<!-- Affected code[^]*?-->/, "The update endpoint and its tests."],
   ]))
   write("design.md", template("design.md").replace(/<!--[^]*?-->/g, "Fixture text for the design section."))
-  write("tasks.md", template("tasks.md").replace(/<!-- Task Group Name -->/g, "Update").replace(/<!-- Task description --> Verify: `<deterministic command>`/g, () => {
+  write("tasks.md", fillTemplate(template("tasks.md").replace(/<!-- Task Group Name -->/g, "Update").replace(/<!-- Task description --> Verify: `<deterministic command>`/g, () => {
     tasks += 1
     return `Implement step ${tasks}. Verify: \`bun test step-${tasks}.test.ts\``
-  }))
+  }), [
+    [/<base>/g, "main"],
+    [/<change>/g, "fixture"],
+    [/<command that checks every scenario's recorded result>/, "grep -c RESULT qa.txt"],
+  ]))
   write("gate.md", gateText({ cls, tier, whole, assessment, extra: gateExtra, example }))
   write(".openspec.yaml", skipSpecs ? "schema: omp-gated\nskip_specs: true\n" : "schema: omp-gated\n")
   for (const [rel, text] of Object.entries(specs)) write(`specs/${rel}`, text)
