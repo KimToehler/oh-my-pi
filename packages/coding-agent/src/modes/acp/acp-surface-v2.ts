@@ -83,6 +83,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
 	/** Transport write of the last frame a record's ordered path handed over; writes complete in call order. */
 	#lastWrites = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Records a close has drained: their session sends nothing more; see {@link drain}. */
+	#sealed = new WeakSet<ManagedSessionRecord>();
 	/** Submissions of a record that have not yet reported an outcome; Stop drops them. */
 	#pendingSubmissions = new WeakMap<ManagedSessionRecord, Set<() => void>>();
 	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
@@ -555,8 +557,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	/**
 	 * Every `session/update` goes through its record's ordered path, so content never overtakes a queued
 	 * `user_message` or state transition. Resolves once the frame has been sent. A session that is neither
-	 * registered nor closing gets nothing: a producer that resumes after its session's close response would
-	 * otherwise send after it.
+	 * registered nor closing, or whose close has drained it, gets nothing: a producer that resumes late would
+	 * otherwise send after the close response.
 	 */
 	sendMapped(notification: v2.SessionNotification): Promise<void> {
 		const record = this.#host.recordFor(notification.sessionId);
@@ -575,14 +577,34 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	}
 
 	async drain(record: ManagedSessionRecord): Promise<void> {
-		await this.#host.waitForUpdateDeliveries(record);
-		// A step may enqueue behind the tail it ran in; wait until no step is pending.
-		for (let tail = this.#echoes.get(record); tail; tail = this.#echoes.get(record)) await tail;
-		await this.#lastWrites.get(record);
+		// Settle until no handler, step or write is pending, then seal in that same step, so a producer that
+		// resumes afterwards (bootstrap, command metadata) sends nothing while the close finishes.
+		for (;;) {
+			await this.#host.waitForUpdateDeliveries(record);
+			const tail = this.#echoes.get(record);
+			if (tail) {
+				await tail;
+				continue;
+			}
+			const last = this.#lastWrites.get(record);
+			await last;
+			if (!this.#echoes.has(record) && this.#lastWrites.get(record) === last) break;
+		}
+		this.#sealed.add(record);
 	}
 
-	/** The wire send of an enqueued step; the write is recorded so {@link drain} can wait for it. */
+	/**
+	 * The one wire send of a record (enqueued steps only); the write is recorded so {@link drain} can wait for it.
+	 * A sealed record sends nothing.
+	 */
 	#sendOrdered(record: ManagedSessionRecord, notification: v2.SessionNotification): Promise<void> {
+		if (this.#sealed.has(record)) {
+			logger.debug("ACP v2 update for a closed session dropped", {
+				sessionId: notification.sessionId,
+				sessionUpdate: notification.update.sessionUpdate,
+			});
+			return Promise.resolve();
+		}
 		const write = this.#host.connection.v2.sessionUpdate(notification);
 		this.#lastWrites.set(
 			record,

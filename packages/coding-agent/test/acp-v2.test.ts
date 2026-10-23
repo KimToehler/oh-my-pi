@@ -1015,49 +1015,73 @@ describe("cancel and errors (plan 5)", () => {
 		}
 	});
 
-	it("sends nothing for a closed session when a bootstrap producer resumes after the close", async () => {
-		// Guards: the bootstrap `available_commands_update`, still in slash-command discovery when the client closed
-		// the session, went out unordered after both close responses.
-		const { client, sessionId } = await startReal();
-		const original = availableCommandsModule.buildAvailableSlashCommands;
-		const building = Promise.withResolvers<void>();
-		const release = Promise.withResolvers<void>();
-		const built = Promise.withResolvers<void>();
-		const spy = vi
-			.spyOn(availableCommandsModule, "buildAvailableSlashCommands")
-			.mockImplementation(async (...args) => {
-				building.resolve();
-				await release.promise;
-				try {
-					return await original(...args);
-				} finally {
-					built.resolve();
+	for (const resume of ["after the close responses", "while the close disposes the session"] as const) {
+		it(`sends nothing for a closed session when a bootstrap producer resumes ${resume}`, async () => {
+			// Guards: the bootstrap `available_commands_update`, still in slash-command discovery when the client closed
+			// the session, went out after both close responses: unordered once the close was done, or with its write
+			// still pending (as under client backpressure) when it resumed after the drain, while the session was disposed.
+			const { client, sessionId, session } = await startReal();
+			const original = availableCommandsModule.buildAvailableSlashCommands;
+			const building = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const built = Promise.withResolvers<void>();
+			const build = vi
+				.spyOn(availableCommandsModule, "buildAvailableSlashCommands")
+				.mockImplementation(async (...args) => {
+					building.resolve();
+					await release.promise;
+					try {
+						return await original(...args);
+					} finally {
+						built.resolve();
+					}
+				});
+			const releaseWrite = Promise.withResolvers<void>();
+			const originalUpdate = AgentSideConnectionV2.prototype.sessionUpdate;
+			const write = vi
+				.spyOn(AgentSideConnectionV2.prototype, "sessionUpdate")
+				.mockImplementation(async function (this: AgentSideConnectionV2, notification) {
+					if (notification.update.sessionUpdate === "available_commands_update") await releaseWrite.promise;
+					return await originalUpdate.call(this, notification);
+				});
+			const originalDispose = session.dispose.bind(session);
+			const dispose = vi.spyOn(session, "dispose").mockImplementation(async (...args) => {
+				if (resume === "while the close disposes the session") {
+					release.resolve();
+					await built.promise;
+					await eventLoopTurns(10);
 				}
+				return await originalDispose(...args);
 			});
-		teardown.unshift(async () => {
+			teardown.unshift(async () => {
+				release.resolve();
+				releaseWrite.resolve();
+				build.mockRestore();
+				write.mockRestore();
+				dispose.mockRestore();
+			});
+			await building.promise;
+			const responses = await Promise.all([
+				client.request("session/close", { sessionId }),
+				client.request("session/close", { sessionId }),
+			]);
+			for (const response of responses) resultOf(response);
 			release.resolve();
-			spy.mockRestore();
-		});
-		await building.promise;
-		const responses = await Promise.all([
-			client.request("session/close", { sessionId }),
-			client.request("session/close", { sessionId }),
-		]);
-		for (const response of responses) resultOf(response);
-		release.resolve();
-		await built.promise;
-		await eventLoopTurns(30);
+			await built.promise;
+			releaseWrite.resolve();
+			await eventLoopTurns(30);
 
-		const after = client.frames.flatMap((frame, index) =>
-			frame.method === "session/update" &&
-			isRecord(frame.params) &&
-			frame.params.sessionId === sessionId &&
-			responses.some(response => index > response.index)
-				? [isRecord(frame.params.update) ? kindOf(frame.params.update) : ""]
-				: [],
-		);
-		expect(after).toEqual([]);
-	});
+			const after = client.frames.flatMap((frame, index) =>
+				frame.method === "session/update" &&
+				isRecord(frame.params) &&
+				frame.params.sessionId === sessionId &&
+				responses.some(response => index > response.index)
+					? [isRecord(frame.params.update) ? kindOf(frame.params.update) : ""]
+					: [],
+			);
+			expect(after).toEqual([]);
+		});
+	}
 
 	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {
 		// Guards: a stopped session restarts itself when a background job that was already running settles.
