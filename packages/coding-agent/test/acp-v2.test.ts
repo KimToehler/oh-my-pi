@@ -508,47 +508,62 @@ describe("prompt acknowledgement (plan 2)", () => {
 		expect(h.client.states(sessionId).at(-1)?.state).toBe("idle");
 	});
 
-	it("answers a same-batch prompt and resume without deadlock; replay goes ahead of the barrier-blocked echo", async () => {
-		// Guards: resume replay queued behind the echo, which waits for the batch response that waits for resume.
-		const rig = new RealSessionRig();
-		const h = await createV2WireHarness({ factory: rig.factory });
-		teardown.push(async () => {
-			await h.close();
-			await rig.dispose();
+	for (const order of ["prompt-first", "resume-first"] as const) {
+		it(`rejects a same-session resume in the batch of a prompt (${order}) and keeps the order intact`, async () => {
+			// Guards: resume replay queued behind the echo barrier, which waits for the batch response that waits for resume
+			// (deadlock), or a bypass that sends replay frames before the prompt response.
+			const rig = new RealSessionRig();
+			const h = await createV2WireHarness({ factory: rig.factory });
+			const resumeGate = Promise.withResolvers<void>();
+			teardown.push(async () => {
+				resumeGate.resolve();
+				await h.close();
+				await rig.dispose();
+			});
+			await initialize(h.client);
+			const sessionId = String(
+				resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] })).sessionId,
+			);
+			// Hold any resume past its pre-replay work, so a regression deadlocks deterministically instead of racing.
+			const session = rig.sessionById(sessionId);
+			const refresh = session.refreshMCPTools.bind(session);
+			session.refreshMCPTools = async tools => {
+				await resumeGate.promise;
+				return refresh(tools);
+			};
+			const promptEntry = {
+				method: "session/prompt",
+				params: { sessionId, prompt: [{ type: "text", text: "hello" }] },
+			};
+			const resumeEntry = {
+				method: "session/resume",
+				params: { sessionId, cwd: h.cwd, replayFrom: { type: "start" } },
+			};
+			const timeout = Bun.sleep(5000).then(() => {
+				throw new Error("batch of prompt + resume never answered");
+			});
+			const batch = h.client.batch(
+				order === "prompt-first" ? [promptEntry, resumeEntry] : [resumeEntry, promptEntry],
+			);
+			while (rig.outcomes.length === 0) await eventLoopTurns(1);
+			await eventLoopTurns(5);
+			resumeGate.resolve();
+			const responses = await Promise.race([batch, timeout]);
+			const [promptResponse, resumeResponse] =
+				order === "prompt-first" ? [responses[0]!, responses[1]!] : [responses[1]!, responses[0]!];
+			const messageId = messageIdOf(promptResponse);
+			expect(errorCode(resumeResponse)).toBe(-32600);
+			await waitForIdle(h.client, sessionId);
+			// No replay frame precedes the batch response: only the prompt's initial `running`.
+			const before = h.client.updates(sessionId).filter(entry => entry.index < promptResponse.index);
+			expect(before.map(entry => entry.update)).toEqual([{ sessionUpdate: "state_update", state: "running" }]);
+			const echoed = userMessages(h.client, sessionId);
+			expect(echoed).toHaveLength(1);
+			expect(echoed[0]).toMatchObject({ messageId, text: "hello" });
+			expect(echoed[0]!.index).toBeGreaterThanOrEqual(promptResponse.index);
+			expect(h.client.states(sessionId).at(-1)?.state).toBe("idle");
 		});
-		await initialize(h.client);
-		const sessionId = String(
-			resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] })).sessionId,
-		);
-		// Hold the resume handler before its replay until the prompt is inserted, so the echo is already queued behind
-		// the batch response barrier when the replay sends.
-		const resumeGate = Promise.withResolvers<void>();
-		const session = rig.sessionById(sessionId);
-		const refresh = session.refreshMCPTools.bind(session);
-		session.refreshMCPTools = async tools => {
-			await resumeGate.promise;
-			return refresh(tools);
-		};
-		const timeout = Bun.sleep(5000).then(() => {
-			throw new Error("batch of prompt + resume never answered");
-		});
-		const batch = h.client.batch([
-			{ method: "session/prompt", params: { sessionId, prompt: [{ type: "text", text: "hello" }] } },
-			{ method: "session/resume", params: { sessionId, cwd: h.cwd, replayFrom: { type: "start" } } },
-		]);
-		while (rig.outcomes.length === 0) await eventLoopTurns(1);
-		await eventLoopTurns(5);
-		resumeGate.resolve();
-		const [promptResponse, resumeResponse] = await Promise.race([batch, timeout]);
-		const messageId = messageIdOf(promptResponse!);
-		resultOf(resumeResponse!);
-		await waitForIdle(h.client, sessionId);
-		const echoes = userMessages(h.client, sessionId).filter(message => message.messageId === messageId);
-		// Order: replay frames and snapshot (ahead of the echo), the batch response, then the echo and later frames.
-		expect(echoes.length).toBeGreaterThanOrEqual(1);
-		expect(echoes.at(-1)!.index).toBeGreaterThanOrEqual(promptResponse!.index);
-		expect(h.client.states(sessionId).at(-1)?.state).toBe("idle");
-	});
+	}
 
 	it("maps a usage-preflight denial to a JSON-RPC error and does not block the next prompt", async () => {
 		// Guards: a denied prompt is acknowledged (client shows a message that never exists) or wedges the session.

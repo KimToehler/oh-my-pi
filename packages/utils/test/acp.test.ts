@@ -6,10 +6,12 @@ import {
 	type AgentSurfaces,
 	type AgentV2,
 	type Client,
+	type InboundBatchEntry,
 	type OutboundFrame,
 	ClientSideConnection,
 	ndJsonStream,
 	RequestError,
+	inboundBatch,
 	RpcConnection,
 	responseWritten,
 	schema,
@@ -161,6 +163,29 @@ function framePeer(dispatcher: (method: string, params: unknown, notification: b
 		end: () => inbound.close(),
 	};
 }
+
+describe("ACP inboundBatch", () => {
+	it("exposes every method call of the handler's batch, and nothing for a single message or outside a handler", async () => {
+		expect(inboundBatch()).toEqual([]);
+		const seen: Array<readonly InboundBatchEntry[]> = [];
+		const peer = framePeer(() => {
+			seen.push(inboundBatch());
+			return {};
+		});
+		peer.send({ jsonrpc: "2.0", id: 1, method: "single", params: { a: 1 } });
+		peer.send([
+			{ jsonrpc: "2.0", id: 2, method: "a", params: { x: 1 } },
+			{ jsonrpc: "2.0", method: "n" },
+		]);
+		peer.end();
+		await peer.connection.closed;
+		const batch = [
+			{ method: "a", params: { x: 1 } },
+			{ method: "n", params: undefined },
+		];
+		expect(seen).toEqual([[], batch, batch]);
+	});
+});
 
 describe("ACP responseWritten", () => {
 	it("resolves immediately outside a request handler", async () => {
