@@ -59,8 +59,8 @@ Design constraints:
 
 ## Final verification wave
 
-- [ ] F3. Whole-diff review: `integration-review` over `main...<head>`; needed because deploy script, CLI check, schema relocation, project installer and docs span several layers
-- [ ] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
+- [x] F3. Whole-diff review: `integration-review` over `main...<head>`; needed because deploy script, CLI check, schema relocation, project installer and docs span several layers
+- [x] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 F1 scenarios:
