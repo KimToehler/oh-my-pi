@@ -114,7 +114,6 @@ extensionHandlers:
   toolCallTimeoutMs: 420000
 plan:
   autosave: true
-  autosaveDir: .omo/plans
   review:
     enabled: true
 steeringMode: one-at-a-time

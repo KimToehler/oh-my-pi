@@ -61,6 +61,39 @@ other than `team-config/openspec-version` stops the deploy with the `npm install
 runs with `DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0`. The opt-out covers the config of the environment that deploys; a
 shell with a different `XDG_CONFIG_HOME` reads another file. `OMP_SKIP_TEAM_CONFIG=1` skips the check too.
 
+## Where plans and gate state live
+
+The team config follows omp's own locations; omp does not load `.omp/team-config/` itself, only the skills, rules and the merge-gate extension read and write it.
+
+- Plans: `.omp/plans/<slug>.md`.
+- `.omp/team-config/` holds the team-config state of a project:
+  - `evidence/`: QA artifacts and reviewer trailers, `evidence/<plan basename>/…`;
+  - `evidence/gate/`: gate records (`<plan basename>.json`) and the F3 integration-review reports (`<plan basename>/f3-integration-review-report.md`);
+  - `ledger.jsonl`: the gate-convergence ledger;
+  - `gate-deltas/`: delta-review artifacts;
+  - `frontend-design/`: the design state ledger (`state.md`).
+
+Only `evidence/gate/**` and `*trailer*` files under `evidence/` are meant to be committed; everything else is local. Add this block to a project's `.gitignore`, after any `!.omp/` rule:
+
+```gitignore
+/.omp/team-config/*
+!/.omp/team-config/evidence/
+/.omp/team-config/evidence/**/*
+!/.omp/team-config/evidence/**/
+!/.omp/team-config/evidence/gate/**
+!/.omp/team-config/evidence/**/*trailer*
+```
+
+The default gate record location is `.omp/team-config/evidence/gate/<plan basename>.json`; any other tracked path inside the repository still works (for example `docs/evidence/<slug>/merge-gate.json`). Records carry the schema id `team-config.merge-gate/v3`. Records written earlier (`omo.merge-gate/v1`, `omo.merge-gate/v2`) are an archive: they stay readable but back no new merge claim, so re-run review-work for open work.
+
+### Upgrading from the `.omo` layout
+
+1. Finish or close every open gate before deploying: the ledger and gate-delta state move to the new paths, and a gate left open in the old layout loses its state.
+2. Restart every omp session after deploying: a running session keeps the old merge-gate hook in memory (and keeps enforcing the old record id).
+3. Install into every profile or custom agent directory: `scripts/deploy-local.sh` covers only the default one (`~/.omp/agent`).
+4. If your `config.yml` sets `plan.autosaveDir` to an `.omo` path, remove it after the deploy notice names it; plans then land in `.omp/plans`.
+5. Nothing defaults to `.omo` any more: plans autosave to `.omp/plans`, and the ledger and gate deltas live under `.omp/team-config/`. The old `.omo` ledger and deltas are not read, and an old `omo.merge-gate` record is read only to refuse it. A plan you pass by path still works wherever it lies; move plans and evidence you want found in the default places.
+
 ## Personal settings
 
 - Personal instructions (role, stack, language): `AGENTS.local.md` in the agent dir (default

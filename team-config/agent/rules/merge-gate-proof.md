@@ -35,7 +35,7 @@ Only passed, overridden and legitimately skipped lines allow a merge request. If
 ## What "ran in full" means
 
 - integration-review: whole diff read, every failure mode named with an instance or "no instance found", simplification pass, plan scope walk, the reviewer dispatched with the skill's verbatim brief, a stored report, one cleanup commit for applied fixes, and a delta round after fixes. A reviewer asked "is this good?" is not the skill.
-- review-work: plan frozen first (F2 `[x]`, then `plan_sha256`), each reviewer dispatched with the skill's verbatim brief, its `REVIEW-TRAILER-v1` stored unedited at a tracked path, the `omo.merge-gate/v2` record written and staged, the validator exiting 0, re-run after the record commit.
+- review-work: plan frozen first (F2 `[x]`, then `plan_sha256`), each reviewer dispatched with the skill's verbatim brief, its `REVIEW-TRAILER-v1` stored unedited at a tracked path, the `team-config.merge-gate/v3` record written and staged (default path `.omp/team-config/evidence/gate/<plan-basename>.json`, any tracked path works), the validator exiting 0, re-run after the record commit.
 - For an OpenSpec change folder the plan is the folder: `plan_sha256` is the digest of the bundle `GC snapshot` writes as the wave's plan copy, and the record's `mandatory_class` and `whole_diff` equal `gate.md`.
 
 Order: integration-review, fixes, review-work. Code committed after review-work's `reviewed_sha` voids it; code committed after integration-review's last reviewed SHA needs a delta round over `<last reviewed>...<head>`.

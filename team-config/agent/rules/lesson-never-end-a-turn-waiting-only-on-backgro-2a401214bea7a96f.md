@@ -1,8 +1,7 @@
 ---
 description: When resuming after waiting on background tasks, check for hung child sessions
 globs:
-  - "**/.omo/plans/**"
-  - "**/.omo/drafts/**"
+  - "**/.omp/plans/**"
 ---
 
 # Lesson: When resuming after waiting on background tasks, check for hung child sessions

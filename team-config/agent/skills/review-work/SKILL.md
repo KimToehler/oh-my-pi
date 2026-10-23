@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally oracle) with verbatim briefs, stored trailers, and an omo.merge-gate/v2 record validated by validate-gate-record.mjs. Use before calling work done, before a PR handoff or merge, or when the user asks to review completed work."
+description: "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally oracle) with verbatim briefs, stored trailers, and a team-config.merge-gate/v3 record validated by validate-gate-record.mjs. Use before calling work done, before a PR handoff or merge, or when the user asks to review completed work."
 ---
 
 Validator: `$SKILL_DIR/scripts/validate-gate-record.mjs`, where `SKILL_DIR=~/.omp/agent/skills/review-work`. Always pass `--repo <repo root>` (Phase 0.6 `--plan-only`, Phase 5 full run).
@@ -11,9 +11,9 @@ omp rules for this skill:
 
 - Dispatch with the `task` tool; one item per reviewer (`agent: "auditor"` / `agent: "oracle"`). Several items in one `tasks[]` run in parallel. Never use generic `task` workers as reviewers.
 - `auditor` and `oracle` have no shell. Put the diff, changed-file list, and QA matrix into the brief itself.
-- Store each reviewer's trailer verbatim at a tracked path whose file name contains `trailer` (e.g. `.omo/evidence/<plan basename>/f2/trailer-implementation-audit.txt`; `.omo/evidence/` is otherwise git-ignored, only `*trailer*` and `evidence/gate/` stay addable), compute `trailer_sha256` with `shasum -a 256`, never retype it.
+- Store each reviewer's trailer verbatim at a tracked path whose file name contains `trailer` (e.g. `.omp/team-config/evidence/<plan basename>/f2/trailer-implementation-audit.txt`; under `.omp/team-config/` only `evidence/gate/**` and `*trailer*` files below `evidence/` stay addable, the rest is git-ignored), compute `trailer_sha256` with `shasum -a 256`, never retype it.
 - `implementation_models`: the models that wrote the diff, from the session (main model and any `task` subagent's model badge), e.g. `onara/cc/claude-opus-5-5`, `onara/cc/claude-sonnet-5-5`. `model_id` comes from the reviewer's own trailer.
-- Record path: `.omo/evidence/gate/<plan-basename>.json` or the repo's convention (`docs/evidence/<slug>/merge-gate.json` in onara). The record and every trailer must be staged before validating.
+- Record path: `.omp/team-config/evidence/gate/<plan-basename>.json` or the repo's convention (`docs/evidence/<slug>/merge-gate.json` in onara). The record and every trailer must be staged before validating.
 
 # Review Work - Gate Review Orchestrator
 
@@ -348,13 +348,13 @@ Re-classify `mandatory_class` against the **final diff**, not against the plan. 
 
 **Write and validate the gate record here, as the last step before merging.** Phase 5 defines the record. Write the record and the reviewer trailers, **stage them**, then run the validator: it requires the artifacts to be in the index, because a file nobody added vanishes from every other checkout and takes the evidence with it.
 
-Committing that evidence afterwards does not invalidate the record. The reviewed target is the **code**: commits on top of `reviewed_sha` are tolerated while they touch only the record, the trailers it cites, and the plan - the files whose existence storing the record causes, each of which the validator also reads and requires to be tracked. Anything else among them blocks, which is the point. Without that rule the gate would demand durable evidence and then reject the record for having been stored, and the cheap way out would be to leave the evidence untracked.
+Committing that evidence afterwards does not invalidate the record. The reviewed target is the **code**: commits on top of `reviewed_sha` are tolerated while they touch only the record, the trailers it cites, the plan, and the bound whole-diff report when it qualifies (a new `.md` file inside the record's directory whose first line is `INTEGRATION-REVIEW-REPORT-v1` and that did not exist at `reviewed_sha`) - the files whose existence storing the record causes, each of which the validator also reads and requires to be tracked. Anything else among them blocks, which is the point. Without that rule the gate would demand durable evidence and then reject the record for having been stored, and the cheap way out would be to leave the evidence untracked.
 
 `qa[].artifact` is **not** exempt, deliberately. Write your QA artifacts before validating. A QA row that points at the file its QA exercised is ordinary, and honouring it would let one free-form path silently exempt reviewed source from the binding.
 
 **A path is exempt only because the validator authenticated its bytes, never because the record named it.** The exemption set is a by-product of that authentication: the record is admitted from the `--record` path you passed, the plan and each trailer are admitted when their recorded digest matches. A path the validator did not verify cannot be exempted, so adding a new path field to the record cannot widen what counts as reviewed. `plan_sha256` covers the plan and `verdicts[].trailer_sha256` covers each trailer artifact - compute both with `shasum -a 256 <file>`. Reading a trailer constrains only the region between the markers, so without the digest one file could carry a genuine reviewer reply beside reviewed source, and the path exemption would cover the source half: an authorization rule could be rewritten after the review with the gate still passing. A digest mismatch means the review is stale, so re-review.
 
-The plan is bound by **content**, not just by path: `plan_sha256` is the digest of the exact bytes the reviewers were given. The plan is a review input and it is mutable, and each adversarial criterion is checked against the plan as it stands - so without the digest, deleting an invariant after the review would relicense a criterion the reviewer had copied as its own work. Where the plan is git-ignored, as `.omo/plans/` commonly is, that edit needs no commit at all and nothing in git would show it. Compute it with `shasum -a 256 <plan>`. If the plan legitimately changes, the review is stale: re-review against the plan as it now stands.
+The plan is bound by **content**, not just by path: `plan_sha256` is the digest of the exact bytes the reviewers were given. The plan is a review input and it is mutable, and each adversarial criterion is checked against the plan as it stands - so without the digest, deleting an invariant after the review would relicense a criterion the reviewer had copied as its own work. Where the plan is git-ignored, as `.omp/plans/` commonly is, that edit needs no commit at all and nothing in git would show it. Compute it with `shasum -a 256 <plan>`. If the plan legitimately changes, the review is stale: re-review against the plan as it now stands.
 
 The plan must already be in its final state, including its own merge-gate checkbox (final verification wave F2) marked `[x]`, at the moment reviewers are dispatched and this digest is taken - no plan edit may follow. `plan_sha256` binds whatever bytes existed at hash time, so hashing before that mark would seal an unfrozen plan and let the gate's own required output invalidate its own binding.
 
@@ -393,13 +393,13 @@ Mandatory class: <none or class>
 
 ## Fix waves: delta review and convergence (F2)
 
-Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts/gate-convergence.mjs --repo <repo root> --plan <plan path>`, with the plan path from Phase 0.6. A wave is Phase 1 plus, when it passes, Phases 2-3, all on the snapshot taken in step 1. `.omo/gate-deltas/` holds review artifacts; never commit it.
+Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts/gate-convergence.mjs --repo <repo root> --plan <plan path>`, with the plan path from Phase 0.6. A wave is Phase 1 plus, when it passes, Phases 2-3, all on the snapshot taken in step 1. `.omp/team-config/gate-deltas/` holds review artifacts; never commit it.
 
 1. Before Phase 1:
    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one); it records the plan's Risk tier, which binds the gate: a later plan edit to `product` needs `GC retier --by <user> --reason <text>` (internal-tooling to product only; a gate never moves to internal-tooling), and every other command refuses until then. Every wave recorded before a retier is stale, because its reviewers read the internal-tooling plan: `retier` names them, `decide` refuses freeze on one, and Phase 4 needs a new wave in each started lane. A lane already decided freeze or replan closes the gate, so `retier` refuses; gate the work as product under a new plan file;
    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
    - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3. Keep the `PLAN <path>` line too: it is the immutable plan input for this wave. Populate Phase 2's `{PLAN}`, `{CRITERIA WITH FIVE FIELDS}`, accepted residual risks and out-of-scope fields from that copy, never from the source plan; `GC wave` verifies both the copy and source before recording. A wave's snapshot is write-once and named per plan, lane and wave: re-running `snapshot` on the same commit and plan bytes only re-prints it, and anything else (other plan bytes, another commit, a copy without its JSON) is refused, because reviewers may hold the old copy. Restart the wave: delete the snapshot and its plan copy, snapshot again, and re-dispatch every reviewer of that wave.
-2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code and the plan edits a fix or freeze needs. A commit with neither a delta review nor an exemption (step 5) blocks the next wave.
+2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omp/team-config/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record, the `*trailer*` files and the F3 integration-review report are staged, in Phase 5; until then the F3 report stays unstaged, because a staged report makes `GC snapshot` refuse. Between waves commit only fix code and the plan edits a fix or freeze needs. A commit with neither a delta review nor an exemption (step 5) blocks the next wave.
 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
    - one `--blocker QA<n>` per failing QA row;
@@ -418,7 +418,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
 4. Each fix is first an `N.` row under `## TODOs`. A fix that adds a subsystem (process, proxy, store, staging tree, daemon, endpoint) is not a row: stop and plan it separately. Implement and commit. Verify in proportion: after each fix, the changed module's own tests plus RED for each new test; the full suite once per fix round, after its last code commit and before the next snapshot. A commit exempted in step 5 needs no tests.
 5. Review each contiguous commit range once, naming every row it implements:
    Exempt instead, at your judgement, a commit that changes no behaviour and no review input: a final-verification checkbox, a comment, prose that no reviewer brief or criterion reads. Run `GC exempt --sha <commit> --reason <what it changes>`; the reason is in the ledger, so a wrong exemption stays visible. Like a delta verdict, an exemption decides the commit for the whole gate, F2 and F3 alike. Plan edits to criteria, residual risks, scope or `## TODOs` rows are review inputs: review them with their fix. A commit with a REJECT cannot be exempted. When in doubt, review.
-   a. `GC patch --base <base> --head <head> --out .omo/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.
+   a. `GC patch --base <base> --head <head> --out .omp/team-config/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.
    b. Dispatch one `task` item: `agent: "plan-reviewer"`, `solutionSpace: "Review of a fix delta; defects unknown"`, `task:` the delta brief below.
    c. Write the reviewer's structured result verbatim (copy the delivered payload or `read agent://<id>`, never retype it) to `verdict.json` in that directory, then run `GC delta --lane F2 --dir <dir> --row <id> [--row <id>…]`.
    d. REJECT: amend with new commits, then review the whole range `<base>..<new head>` in a fresh `task` (never `write agent://`). A range holding only the amendment leaves the rejected commits open. `delta` exit 3 (second REJECT on these commits): `ask` the user: amend again, accept (`GC accept --lane F2 --dir <dir> --by <user> --reason <text>`), or re-plan.
@@ -439,14 +439,14 @@ The diff is one patch file per commit, in commit order, each with its commit hea
 
 ## Phase 5: Gate record
 
-Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step before merging, write the JSON gate record to `.omo/evidence/gate/<plan-basename>.json`, where `<plan-basename>` is the plan filename without `.md`. Before reusing a lane's coverage after a continuation or compaction, re-read the record and require the exact invocation and SHA pair; chat history or an unstamped report is not coverage.
+Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step before merging, write the JSON gate record to `.omp/team-config/evidence/gate/<plan-basename>.json`, where `<plan-basename>` is the plan filename without `.md`. Before reusing a lane's coverage after a continuation or compaction, re-read the record and require the exact invocation and SHA pair; chat history or an unstamped report is not coverage.
 
-**The record and every trailer artifact must be tracked by git, not merely un-ignored.** The validator checks the index: a path that is un-ignored but was never added still disappears for the next reader, so it blocks. Stage the artifacts before validating. The ignore file keeps `.omo/evidence/gate/**` and `.omo/evidence/**/*trailer*` addable; if your project ignores more of `.omo/`, un-ignore those or place the record somewhere tracked and use that path consistently. Record schema is `omo.merge-gate/v2`:
+**The record and every trailer artifact must be tracked by git, not merely un-ignored.** The validator checks the index: a path that is un-ignored but was never added still disappears for the next reader, so it blocks. Stage the artifacts before validating. The ignore file keeps `.omp/team-config/evidence/gate/**` and `.omp/team-config/evidence/**/*trailer*` addable (the ignore block is in the team-config README); if your project ignores more of `.omp/`, un-ignore those or place the record somewhere tracked and use that path consistently. When `whole_diff.run` is `true`, the F3 integration-review report is staged and committed with the record and its trailers (it stays unstaged from F3 until this phase): it must be a `.md` file whose first line is exactly `INTEGRATION-REVIEW-REPORT-v1`, inside the record's directory (default `.omp/team-config/evidence/gate/<plan-basename>/f3-integration-review-report.md`), and it is bound by `whole_diff.report_sha256` (`shasum -a 256`, never retyped). Record schema is `team-config.merge-gate/v3`:
 
 ```json
 {
-  "schema": "omo.merge-gate/v2",
-  "plan": ".omo/plans/<plan>.md",
+  "schema": "team-config.merge-gate/v3",
+  "plan": ".omp/plans/<plan>.md",
   "plan_sha256": "<sha256 of the exact plan bytes the reviewers were given>",
   "reviewed_sha": "<full 40-hex current HEAD>",
   "diff_base": "<full 40-hex merge-base>",
@@ -455,7 +455,7 @@ Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step be
   "mandatory_class": "none",
   "implementation_models": ["<model that authored or rewrote this diff>"],
   "qa": [{ "name": "<QA scope>", "passed": true, "artifact": "<non-empty artifact path>" }],
-  "whole_diff": { "run": false, "reason": "<reason when not run>" },
+  "whole_diff": { "run": true, "report": "<tracked path to the F3 integration-review report>", "report_sha256": "<sha256 of that report's bytes>" },
   "resolution": [{ "invocation": "implementation-audit", "agent": "auditor", "model": "<exact resolved model ID, or unresolved>", "independence": "cross-provider" }],
   "verdicts": [{ "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "<tracked path to the reviewer's verbatim trailer>", "trailer_sha256": "<sha256 of that artifact's bytes>", "note": "<artifact or finding pointer>" }],
   "blockers": [{ "id": "B1", "severity": "high", "location": "path:line", "coverage": "path::test name", "fix_sha": "<full 40-hex fix SHA>" }],
@@ -464,7 +464,9 @@ Write reviewer-readable Markdown to plan's `Evidence:` path. As the last step be
 }
 ```
 
-`v1` records are rejected. They predate the trailer contract, so no honest retrofit exists: re-run the review rather than editing an old record. `implementation_models` names the models that materially authored or rewrote the reviewed diff, and the validator derives each `independence` label from it.
+`whole_diff` takes one of two shapes: `{ "run": true, "report": "<path>", "report_sha256": "<hex>" }` when F3 ran, or `{ "run": false, "reason": "<the plan's Whole-diff review reason>" }` when it was not needed. The report is pinned like a trailer (tracked, digest equal).
+
+`v1` and `v2` records (any other `schema` value) are rejected, wherever they lie. They predate the trailer contract, so no honest retrofit exists: re-run the review rather than editing an old record. `implementation_models` names the models that materially authored or rewrote the reviewed diff, and the validator derives each `independence` label from it.
 
 `reviewers_run` is an empty array when no reviewer runs. `mandatory_class` must be exactly one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, or `concurrency-state`; absence or any other value blocks the gate. `qa` must contain at least one row, every row must set `passed` to `true`, and every row must name a non-empty `artifact`. Omit `override` for a normal pass. An override must have non-empty `by` and `reason`, may accompany `FAIL` verdicts only (an `INCONCLUSIVE` invocation is re-run, never overridden), and must not accompany a full set of `PASS` verdicts. Blocker `coverage` is `path::test name` or `not-testable:<reason>`.
 
@@ -474,12 +476,12 @@ Every invocation in `reviewers_run` needs its **own** `trailer_artifact`, and th
 
 Markers are matched as whole lines, so a reviewer may quote `REVIEW-TRAILER-v1` or `END-REVIEW-TRAILER` inside its findings as `file:line` evidence without making its own reply unstorable. An artifact must carry exactly one such block: a second one blocks, because appending a block is otherwise enough to override the verdict the reviewer actually wrote while its real answer sits verbatim in the same file.
 
-The validator reads files; it cannot witness the dispatch. A wholly fabricated trailer therefore passes. That is the deliberate boundary: an omitted brief section used to leave no trace at all, and now producing a passing record requires authoring a reviewer reply that never happened, per invocation, under your own name. Validate record manually from repository root as the last step before merge:
+The validator reads files; it cannot witness the dispatch. A wholly fabricated trailer therefore passes. That is the deliberate boundary: an omitted brief section used to leave no trace at all, and now producing a passing record requires authoring a reviewer reply that never happened, per invocation, under your own name. Validate record manually from repository root as the last step before merge. The validator compares every tracked artifact (trailers, F3 report) with the staged bytes: before the record commit it requires each to equal its index blob, and after the commit (record equal to its `HEAD` blob) each must equal its `HEAD` blob in both working tree and index. A file edited after `git add` fails on its path field, so re-stage after any edit and run the validator twice, once before the record commit and once after it:
 
 ```bash
 node $SKILL_DIR/scripts/validate-gate-record.mjs \
   --repo <repo root> \
-  --record .omo/evidence/gate/<plan-basename>.json \
+  --record .omp/team-config/evidence/gate/<plan-basename>.json \
   --plan <plan-path>
 ```
 

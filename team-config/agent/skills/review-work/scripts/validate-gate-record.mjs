@@ -5,6 +5,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
+import { RECORD_SCHEMA } from "./gate-layout.mjs"
 import { abortRuleDefects, CRITERIA_HEADER_PATTERN, criteriaShapeDefect, mergeGateSection, planContent, readRiskTier, scanMarkdown, topLevelField } from "./plan-contract.mjs"
 import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
 
@@ -237,16 +238,18 @@ function tryRealpath(target) {
 // The record is the one artifact that cannot self-bind - a digest of the record stored inside the
 // record proves nothing - so it is admitted from the trusted `--record` path with no digest.
 // `requireTracked` is false for the plan alone. The plan is a review INPUT that commonly lives on an
-// ignored path - `.omo/plans/` is ignored in this very repository - and it is bound by content, so
+// ignored path - `.omp/plans/` is ignored in many repositories - and it is bound by content, so
 // its durability comes from `plan_sha256` rather than from an index entry. The record and the
 // trailers are review OUTPUT that a later reviewer must be able to open, so they must be tracked.
 // `pathField` names the field that supplied the path and `digestField` the one that pinned it, so a
 // path problem and a digest mismatch stay distinguishable to the operator reading stderr.
+// `admit` is the one extra gate on pinning: a verified artifact is pinned only when it returns true for
+// the artifact's bytes. Only the whole-diff report passes one, because it alone has a free-form path.
 //
 // A folder plan is bound by the digest of the bundle rebuilt from the one snapshot `main` took, and
 // every snapshot file is admitted to the exemption. The single `pin` call below serves both shapes,
 // so this function stays the only admission path.
-function verifyAndPinArtifact(context, absolutePath, pathField, digestField, expectedDigest, { requireTracked = true, folder = null } = {}) {
+function verifyAndPinArtifact(context, absolutePath, pathField, digestField, expectedDigest, { requireTracked = true, folder = null, admit = null } = {}) {
   const field = digestField
   let bytes = null
   let digest
@@ -255,7 +258,7 @@ function verifyAndPinArtifact(context, absolutePath, pathField, digestField, exp
     digest = folder.digest
     targets = [...folder.snapshot.keys()].map((file) => path.join(absolutePath, file))
   } else {
-    if (requireTracked) assertTracked(context.repo, absolutePath, pathField)
+    if (requireTracked) assertTracked(context, absolutePath, pathField)
     else assertInsideRepo(context.repo, absolutePath, pathField)
     bytes = readBytes(absolutePath, pathField)
     digest = createHash("sha256").update(bytes).digest("hex")
@@ -266,8 +269,10 @@ function verifyAndPinArtifact(context, absolutePath, pathField, digestField, exp
   if (expectedDigest !== digest) {
     block(field, `records ${expectedDigest} but the artifact now hashes to ${digest}; it changed after the review, so re-review against it as it now stands`)
   }
-  for (const target of targets) {
-    pin(context, target)
+  if (admit === null || admit(bytes)) {
+    for (const target of targets) {
+      pin(context, target)
+    }
   }
   return { digest, text: bytes === null ? "" : bytes.toString("utf8") }
 }
@@ -279,7 +284,7 @@ function verifyAndPinArtifact(context, absolutePath, pathField, digestField, exp
 // verifier - any later caller could pass a record-authored path with `null` and widen the exemption
 // while every structural guard stayed green. Here the escape hatch has exactly one call site.
 function pinRecordPath(context, recordPath) {
-  assertTracked(context.repo, recordPath, "record")
+  assertTracked(context, recordPath, "record")
   readBytes(recordPath, "record")
   pin(context, recordPath)
 }
@@ -315,7 +320,34 @@ function assertInsideRepo(repo, file, field) {
   return relative
 }
 
-function assertTracked(repo, file, field) {
+// The record's own state picks the reference every tracked artifact is compared with, because the
+// gate runs twice: while the record is still being written, and again once it is committed.
+// - Record's working-tree bytes equal its raw HEAD blob: it is committed. Every artifact must equal
+//   its HEAD blob in the working tree AND in the index, so a staged change hidden by a working tree
+//   restored to HEAD fails as well. What is validated is then what the commit stores.
+// - Otherwise the record is being written: every artifact's working tree must equal its index blob,
+//   so a file staged as A and edited to B cannot validate as B while the commit stores A.
+// All comparisons are on raw bytes. `git diff` normalizes line endings under `core.autocrlf` and
+// text filters, so a CRLF working file and an LF blob compare equal there while the commit stores
+// bytes other than the ones that were hashed.
+function blobBytes(repo, spec, field) {
+  const blob = spawnSync("git", ["-C", repo, "cat-file", "blob", spec], { maxBuffer: MAX_ARTIFACT_BYTES * 2 })
+  if (blob.error) block(field, `cannot read ${spec}: ${blob.error.message}`)
+  if (blob.status !== 0) return null
+  return blob.stdout
+}
+
+function recordIsCommitted(context) {
+  if (context.recordCommitted === undefined) {
+    const relative = path.relative(context.repo, context.recordPath).split(path.sep).join("/")
+    const head = blobBytes(context.repo, `HEAD:${relative}`, "record")
+    context.recordCommitted = head !== null && head.equals(readBytes(context.recordPath, "record"))
+  }
+  return context.recordCommitted
+}
+
+function assertTracked(context, file, field) {
+  const repo = context.repo
   const relative = assertInsideRepo(repo, file, field)
   const ignored = spawnSync("git", ["-C", repo, "check-ignore", "-q", "--no-index", "--", relative], { encoding: "utf8" })
   if (ignored.error) block(field, `cannot check ${relative}: ${ignored.error.message}`)
@@ -325,6 +357,32 @@ function assertTracked(repo, file, field) {
   if (tracked.status !== 0) {
     block(field, `${relative} is not tracked by git; stage it so the record survives for the next reviewer`)
   }
+  const working = readBytes(file, field)
+  const staged = blobBytes(repo, `:${relative}`, field)
+  if (recordIsCommitted(context)) {
+    const head = blobBytes(repo, `HEAD:${relative}`, field)
+    if (head === null || !working.equals(head)) {
+      block(field, `${relative} differs from its HEAD blob in the working tree while the record is committed; validate the bytes the commit stores`)
+    }
+    if (staged === null || !staged.equals(head)) {
+      block(field, `${relative} differs from its HEAD blob in the index while the record is committed; a staged change must not hide behind a restored working tree`)
+    }
+  } else if (staged === null || !working.equals(staged)) {
+    block(field, `${relative} differs from its staged blob; stage the bytes that were validated, since the commit stores the index`)
+  }
+}
+
+const REPORT_MARKER = "INTEGRATION-REVIEW-REPORT-v1"
+
+// The only way the whole-diff report enters the exemption; see the exemption comment below.
+function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
+  const relative = path.relative(context.repo, absolutePath).split(path.sep).join("/")
+  if (!relative.endsWith(".md")) return false
+  if (bytes.toString("utf8").split("\n", 1)[0] !== REPORT_MARKER) return false
+  const insideRecordDir = path.relative(path.dirname(context.recordPath), absolutePath)
+  if (insideRecordDir === ".." || insideRecordDir.startsWith(`..${path.sep}`) || path.isAbsolute(insideRecordDir)) return false
+  const existed = spawnSync("git", ["-C", context.repo, "cat-file", "-e", `${reviewedSha}:${relative}`], { encoding: "utf8" })
+  return existed.status !== 0
 }
 
 // The gate demands two things that collide head-on: the evidence must be durable in the repository,
@@ -334,7 +392,12 @@ function assertTracked(repo, file, field) {
 // The reviewed target is therefore the CODE: HEAD counts as unchanged while every commit on top of
 // `reviewed_sha` touches evidence paths only. A single source file in those commits fails it.
 // The exemption covers ONLY files whose existence is caused by storing the record: the record, the
-// reviewer trailers it cites, and the plan.
+// reviewer trailers it cites, the plan, and the whole-diff report under the conditions below.
+// The report is the one artifact whose path is free-form AND whose bytes are not a parsed format, so
+// a path-only rule would let the record name any new file in a post-review commit and exempt it. It
+// is pinned only when `reportMayBePinned` holds: `.md` path, first line `INTEGRATION-REVIEW-REPORT-v1`,
+// absent from the `reviewed_sha` tree, and inside the record's directory. A report that fails any
+// condition is still bound by its digest but not pinned, so a commit touching it voids the record.
 // Being read is NOT what constrains them: reading a trailer constrains only the region between the
 // markers, so one file could hold a genuine trailer and arbitrary reviewed source, and the path
 // exemption would cover the source half too - an authorization rule could be rewritten after the
@@ -349,8 +412,8 @@ function commitsTouchOnlyEvidence(repo, reviewedSha, head, context) {
   const evidencePaths = context.pinned
   // `-z` is the whole mechanism, and it does three things the default output cannot. git's
   // human-readable form C-quotes and octal-escapes any non-ASCII path and any path containing a
-  // quote or backslash, so `.omo/evidence/trailer-überprüfung.txt` arrives as
-  // `".omo/evidence/trailer-\303\274berpr\303\274fung.txt"` and never matches the pinned string;
+  // quote or backslash, so `.omp/team-config/evidence/trailer-überprüfung.txt` arrives as
+  // `".omp/team-config/evidence/trailer-\303\274berpr\303\274fung.txt"` and never matches the pinned string;
   // it separates on LF, which cannot represent a filename containing one; and splitting on LF
   // invites a `.trim()` that corrupts names with leading or trailing spaces. `-z` emits raw bytes
   // separated by NUL, so none of the three arise.
@@ -358,7 +421,9 @@ function commitsTouchOnlyEvidence(repo, reviewedSha, head, context) {
   // human-readable form, so under `-z` the output is byte-identical with and without it. Two
   // mechanisms for one hazard cannot both have a behavioural control - the second is satisfiable by
   // a source literal, which is the guard style this branch keeps finding holes in.
-  const names = spawnSync("git", ["-C", repo, "diff", "--name-only", "-z", `${reviewedSha}..${head}`], { encoding: "utf8" })
+  // `--no-renames`: with rename detection git names only a rename's destination, so a reviewed file
+  // moved onto a pinned path (the admitted report) would hide its deletion. Both endpoints must be pinned.
+  const names = spawnSync("git", ["-C", repo, "diff", "--no-renames", "--name-only", "-z", `${reviewedSha}..${head}`], { encoding: "utf8" })
   if (names.status !== 0) return false
   const changed = names.stdout.split("\0").filter(Boolean)
   if (changed.length === 0) return false
@@ -631,10 +696,9 @@ function checkFolderClassification(record, gate) {
 }
 
 function validateRecord(record, context) {
-  if (record.schema === "omo.merge-gate/v1") {
-    block("schema", "omo.merge-gate/v1 is superseded: v2 requires implementation_models and a reviewer trailer artifact per verdict; re-run the review rather than editing the old record")
-  }
-  if (record.schema !== "omo.merge-gate/v2") block("schema", "must equal omo.merge-gate/v2")
+  // One accepted id, defined in gate-layout.mjs. Every other value, a retired id included, gets the
+  // same finding: a record under an old id was written for a different gate contract, so it is re-run, never edited.
+  if (record.schema !== RECORD_SCHEMA) block("schema", `must equal ${RECORD_SCHEMA}; a record under any other id is not accepted, so re-run review-work to write a new one`)
   const sha = /^[0-9a-f]{40}$/i
   if (!sha.test(record.reviewed_sha)) block("reviewed_sha", "must be a full 40-hex SHA")
   if (!sha.test(record.diff_base)) block("diff_base", "must be a full 40-hex SHA")
@@ -647,7 +711,7 @@ function validateRecord(record, context) {
   // adversarial criterion against the CURRENT plan text. Binding the path alone let an edit after
   // the review delete the invariant a criterion had copied, turning it into an apparently
   // independent one without touching the reviewer's trailer. Path exemption cannot catch that, and
-  // where the plan is git-ignored - as `.omo/plans/` commonly is - no commit is needed at all.
+  // where the plan is git-ignored - as `.omp/plans/` commonly is - no commit is needed at all.
   // So the plan is bound by CONTENT: the digest of the exact bytes the reviewer was given.
   verifyAndPinArtifact(context, context.planPath, "plan", "plan_sha256", record.plan_sha256, { requireTracked: false, folder: context.folder })
   if (typeof record.decision_reason !== "string" || record.decision_reason.trim() === "") {
@@ -673,6 +737,16 @@ function validateRecord(record, context) {
   if (typeof record.whole_diff.run !== "boolean") block("whole_diff.run", "must be a boolean")
   if (record.whole_diff.run === false && (typeof record.whole_diff.reason !== "string" || record.whole_diff.reason.trim() === "")) {
     block("whole_diff.reason", "required when whole_diff.run is false")
+  }
+  // The integration-review report is authenticated like a trailer: tracked, and bound by digest.
+  // Its pin is conditional (`reportMayBePinned`), so a path alone never exempts a file.
+  if (record.whole_diff.run === true) {
+    if (typeof record.whole_diff.report !== "string" || record.whole_diff.report.trim() === "") {
+      block("whole_diff.report", "required when whole_diff.run is true: the tracked integration-review report")
+    }
+    verifyAndPinArtifact(context, path.resolve(context.repo, record.whole_diff.report), "whole_diff.report", "whole_diff.report_sha256", record.whole_diff.report_sha256, {
+      admit: (bytes) => reportMayBePinned(context, record.reviewed_sha, path.resolve(context.repo, record.whole_diff.report), bytes),
+    })
   }
 
   const qa = requireArray(record, "qa")
@@ -901,6 +975,7 @@ function main() {
     folder,
     pinned: new Set(),
     repo,
+    recordPath,
     riskTier: riskTier(section),
   }
   // PHASE 2 begins here. The plan and every trailer are pinned by `validateRecord` against their

@@ -9,6 +9,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSyn
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
+import { GATE_DELTAS_DIR, LEDGER_PATH } from "./gate-layout.mjs"
 import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 
 class GateError extends Error {}
@@ -53,7 +54,7 @@ const subject = (repo, sha) => git(repo, ["log", "-1", "--format=%s", sha])
 const short = (sha) => sha.slice(0, 12)
 
 function ledgerPath(repo) {
-  return path.join(repo, ".omo", "ulw-execute", "ledger.jsonl")
+  return path.join(repo, LEDGER_PATH)
 }
 
 function append(repo, event) {
@@ -333,7 +334,7 @@ const commands = {
     const reasons = readyReasons(ctx.repo, state, lane, head)
     if (reasons.length > 0) fail(`not ready: ${reasons.join("; ")}`)
     const wave = laneWaves(state.events, lane).length + 1
-    const dir = path.join(ctx.repo, ".omo", "gate-deltas")
+    const dir = path.join(ctx.repo, GATE_DELTAS_DIR)
     // The ledger numbers waves per plan, so the files carry the plan key too: another plan gated in
     // this checkout starts its own wave 1 instead of meeting this plan's write-once snapshot.
     const prefix = `${lane}-${sha256(ctx.key).slice(0, 12)}-wave-${wave}`

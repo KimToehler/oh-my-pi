@@ -14,7 +14,7 @@
 
 ## Planning Through omp Plan Mode
 
-When planning is needed, `designpowers` supplies design-specific context and lets omp plan mode own the plan artifact (`.omo/plans/<slug>.md`, reviewed by `plan-reviewer`). Do not write a separate design plan. The plan should receive:
+When planning is needed, `designpowers` supplies design-specific context and lets omp plan mode own the plan artifact (`.omp/plans/<slug>.md`, reviewed by `plan-reviewer`). Do not write a separate design plan. The plan should receive:
 
 - product or page goal;
 - primary tasks and user journeys;
@@ -27,7 +27,7 @@ When planning is needed, `designpowers` supplies design-specific context and let
 
 ## Execution Through omp `task` Workers
 
-When a plan is approved or selected, the main agent remains the orchestrator and dispatches `task` workers. `designpowers` only enriches worker briefs with design context from `.omo/frontend-design/state.md` and the selected plan. Worker briefs should carry:
+When a plan is approved or selected, the main agent remains the orchestrator and dispatches `task` workers. `designpowers` only enriches worker briefs with design context from `.omp/team-config/frontend-design/state.md` and the selected plan. Worker briefs should carry:
 
 - the exact plan checkbox and files in scope;
 - design-state constraints that affect the task;
@@ -66,7 +66,7 @@ Use `review-work` as the final gate for significant implementation work. The rev
 
 - original goal and design constraints;
 - changed files and diff;
-- `.omo/frontend-design/state.md` path when used;
+- `.omp/team-config/frontend-design/state.md` path when used;
 - frontend design/perfection verification outputs;
 - `visual-qa` artifact paths;
 - persona walkthrough results;

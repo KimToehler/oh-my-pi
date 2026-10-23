@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url"
 // exit code, the tokens orchestrators parse (DECISION:, READY, NOT READY, ASK:, RECORDED,
 // BASELINE, SNAPSHOT), and the ledger lines the script appends.
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "gate-convergence.mjs")
-const PLAN = ".omo/plans/demo.md"
+const PLAN = ".omp/plans/demo.md"
 
 function sandbox(t) {
   const repo = mkdtempSync(path.join(tmpdir(), "gate-conv-"))
@@ -21,9 +21,9 @@ function sandbox(t) {
   git("config", "user.email", "gate@test")
   git("config", "user.name", "Gate Test")
   mkdirSync(path.join(repo, "src"), { recursive: true })
-  mkdirSync(path.join(repo, ".omo", "plans"), { recursive: true })
-  // The plan, the ledger and the delta artifacts live under .omo/, which the real repos ignore.
-  writeFileSync(path.join(repo, ".git", "info", "exclude"), ".omo/\n")
+  mkdirSync(path.join(repo, ".omp", "plans"), { recursive: true })
+  // The plan, the ledger and the delta artifacts live under .omp/, which the real repos ignore.
+  writeFileSync(path.join(repo, ".git", "info", "exclude"), ".omp/\n")
   writeFileSync(path.join(repo, PLAN), "# demo\n")
   writeFileSync(path.join(repo, "src", "a.ts"), "line one\nline two\nline three\n")
   git("add", "src/a.ts")
@@ -41,7 +41,7 @@ function sandbox(t) {
     return { status: result.status, stdout: result.stdout, stderr: result.stderr }
   }
   const gc = (...args) => run(args[0], "--plan", PLAN, ...args.slice(1))
-  const ledgerPath = path.join(repo, ".omo", "ulw-execute", "ledger.jsonl")
+  const ledgerPath = path.join(repo, ".omp", "team-config", "ledger.jsonl")
   const ledger = () => (existsSync(ledgerPath) ? readFileSync(ledgerPath, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [])
   const head = () => git("rev-parse", "HEAD")
   // One recorded wave: snapshot, then wave on that snapshot.
@@ -54,7 +54,7 @@ function sandbox(t) {
   let deltaCount = 0
   const delta = (lane, base, headSha, verdict, rows = ["R1"]) => {
     deltaCount += 1
-    const out = `.omo/gate-deltas/${lane}-${rows[0]}-${deltaCount}`
+    const out = `.omp/team-config/gate-deltas/${lane}-${rows[0]}-${deltaCount}`
     const patch = run("patch", "--base", base, "--head", headSha, "--out", out)
     assert.equal(patch.status, 0, patch.stderr)
     const body = verdict === "OKAY" ? { verdict: "OKAY", summary: "ok" } : { verdict: "REJECT", summary: "no", blockers: [{ area: "x", defect: "d", evidence: "e", change: "c" }] }
@@ -198,7 +198,7 @@ test("#given no recorded REJECT for a range #when accept runs #then it is refuse
   s.gc("baseline", "--sha", "HEAD")
   const base = s.head()
   const fix = s.commit("src/a.ts", "x\n", "fix R1")
-  const out = ".omo/gate-deltas/unreviewed"
+  const out = ".omp/team-config/gate-deltas/unreviewed"
   assert.equal(s.run("patch", "--base", base, "--head", fix, "--out", out).status, 0)
   writeFileSync(path.join(s.repo, out, "verdict.json"), JSON.stringify({ verdict: "REJECT", summary: "no", blockers: [{ area: "a", defect: "d", evidence: "e", change: "c" }] }))
   const before = s.ledger().length
@@ -318,7 +318,7 @@ test("#given commits to review #when patch writes artifacts #then each commit ge
   s.git("rm", "-q", "src/b.ts")
   s.commit(deep, "deep\n", "delete b, add deep file")
   const head = s.head()
-  const out = ".omo/gate-deltas/artifacts"
+  const out = ".omp/team-config/gate-deltas/artifacts"
   const result = s.run("patch", "--base", base, "--head", head, "--out", out)
   assert.equal(result.status, 0, result.stderr)
   const dir = path.join(s.repo, out)
@@ -331,7 +331,7 @@ test("#given commits to review #when patch writes artifacts #then each commit ge
   const tampered = s.gc("delta", "--lane", "F2", "--dir", out, "--row", "R1")
   assert.equal(tampered.status, 1)
   assert.match(tampered.stderr, /changed since dispatch/)
-  const clean = ".omo/gate-deltas/clean"
+  const clean = ".omp/team-config/gate-deltas/clean"
   assert.equal(s.run("patch", "--base", base, "--head", head, "--out", clean).status, 0)
   const missing = s.gc("delta", "--lane", "F2", "--dir", clean, "--row", "R1")
   assert.equal(missing.status, 1)
@@ -596,7 +596,7 @@ test("#given one plan's retained wave-1 snapshot #when a second plan in the same
   const first = s.gc("snapshot", "--lane", "F2")
   const [firstFile, , firstPlanLine] = first.stdout.split("\n")
   const firstJson = readFileSync(firstFile, "utf8")
-  const OTHER = ".omo/plans/other.md"
+  const OTHER = ".omp/plans/other.md"
   writeFileSync(path.join(s.repo, OTHER), "# other plan\n")
   const other = (...args) => s.run(args[0], "--plan", OTHER, ...args.slice(1))
   assert.equal(other("baseline", "--sha", "HEAD").status, 0)
@@ -779,4 +779,42 @@ test("#given a file plan #when baseline runs #then its ledger key is unchanged",
   const s = sandbox(t)
   assert.equal(s.gc("baseline", "--sha", "HEAD").status, 0)
   assert.deepEqual(s.ledger().map((e) => e.plan), [PLAN])
+})
+
+test("ledger location: the first baseline creates .omp/team-config/ledger.jsonl", (t) => {
+  const s = sandbox(t)
+  const result = s.gc("baseline", "--sha", "HEAD")
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(first(result.stdout), /^BASELINE [0-9a-f]{12} recorded$/)
+  assert.ok(existsSync(path.join(s.repo, ".omp", "team-config", "ledger.jsonl")))
+})
+
+test("ledger location: an old .omo/ulw-execute ledger is neither read nor modified", (t) => {
+  const s = sandbox(t)
+  const a = s.head()
+  const oldFile = path.join(s.repo, ".omo", "ulw-execute", "ledger.jsonl")
+  mkdirSync(path.dirname(oldFile), { recursive: true })
+  writeFileSync(oldFile, `${JSON.stringify({ event: "gate_baseline", plan: PLAN, sha: a })}\n`)
+  const oldBytes = readFileSync(oldFile)
+  const b = s.commit("src/a.ts", "line one\nline two\nchanged\n", "second")
+  const result = s.gc("baseline", "--sha", "HEAD")
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(first(result.stdout), `BASELINE ${b.slice(0, 12)} recorded`)
+  assert.deepEqual(readFileSync(oldFile), oldBytes)
+})
+
+test("delta location: snapshot output and plan copy land in .omp/team-config/gate-deltas, leaving .omo/gate-deltas alone", (t) => {
+  const s = sandbox(t)
+  const legacy = path.join(s.repo, ".omo", "gate-deltas")
+  mkdirSync(legacy, { recursive: true })
+  writeFileSync(path.join(legacy, "keep.json"), "{}\n")
+  const before = readdirSync(legacy).map((name) => [name, statSync(path.join(legacy, name)).mtimeMs])
+  s.gc("baseline", "--sha", "HEAD")
+  const snap = s.gc("snapshot", "--lane", "F2")
+  assert.equal(snap.status, 0, snap.stderr)
+  const dir = path.join(s.repo, ".omp", "team-config", "gate-deltas") + path.sep
+  const lines = snap.stdout.split("\n")
+  assert.ok(lines[0].startsWith(dir), lines[0])
+  assert.ok(lines[2].replace(/^PLAN /, "").startsWith(dir), lines[2])
+  assert.deepEqual(readdirSync(legacy).map((name) => [name, statSync(path.join(legacy, name)).mtimeMs]), before)
 })

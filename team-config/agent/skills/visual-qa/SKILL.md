@@ -67,13 +67,13 @@ For reference-fidelity work, repeat the capture and diff for every referenced vi
    glyphs. Pattern: real pty -> raw ANSI stream -> xterm.js page -> PNG + text.
    - Record the raw stream from a real pty with `bash` (`pty: true`), e.g. `script -q <dir>/terminal-ansi.txt <tui-command>` on macOS (Linux: `script -qc "<tui-command>" <file>`). Send inputs (arrow keys, Enter) through the pty, then quit the app. If the repo ships its own pty/xterm harness, use it instead.
    - Render: serve a small HTML page that loads xterm.js (`bun add xterm` in a scratch dir, or a pinned CDN build), sets `cols`/`rows` to the terminal size, and `term.write()`s the capture. Open it with the omp `browser` (`await Bun.write("<dir>/terminal.png", Bun.file(await tab.screenshot({ silent: true })))`) and write the plain text of the xterm buffer (`term.buffer.active` lines) to `terminal.txt`.
-   - Keep in `.omo/evidence/<slug>/tui-web-terminal/`: `terminal.png` (the true-color artifact), `terminal.txt`, `terminal-ansi.txt` (raw stream), and `metadata.json` (command, cols, rows, inputs, timestamp). Remove the scratch server and pty processes when done.
+   - Keep in `.omp/team-config/evidence/<slug>/tui-web-terminal/`: `terminal.png` (the true-color artifact), `terminal.txt`, `terminal-ansi.txt` (raw stream), and `metadata.json` (command, cols, rows, inputs, timestamp). Remove the scratch server and pty processes when done.
    - `read` `terminal.png` to confirm it composited correctly before dispatching reviewers.
 
 2. Run the width check on the produced text and keep the JSON:
 
 ```
-node "$SKILL_DIR/scripts/visual-qa.mjs" tui-check .omo/evidence/<slug>/tui-web-terminal/terminal.txt --cols <N>
+node "$SKILL_DIR/scripts/visual-qa.mjs" tui-check .omp/team-config/evidence/<slug>/tui-web-terminal/terminal.txt --cols <N>
 ```
 
 Key fields: `maxWidth`, `overflowLines[]`, `borderMisaligned`, `wideCharColumns[]`, `hasAnsi`.

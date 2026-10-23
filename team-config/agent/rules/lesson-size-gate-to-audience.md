@@ -2,7 +2,6 @@
 description: Size the threat model and merge gate to who runs the tool and what it can damage; personal tools opt out, dev/CI/proof tooling that reaches no protected asset declares Risk tier: internal-tooling
 globs:
   - "**/plan.md"
-  - "**/.omo/plans/**/*.md"
   - "**/.omp/plans/**/*.md"
 ---
 
