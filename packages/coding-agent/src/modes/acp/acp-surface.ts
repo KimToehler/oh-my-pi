@@ -212,10 +212,8 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	admitPrompt(record: ManagedSessionRecord, request: W["promptRequest"]): Promise<W["promptResponse"]>;
 	/** `work` begins. v1: installs the prompt-scoped subscription; v2: emits `running`. */
 	onForegroundStart(record: ManagedSessionRecord, work: ForegroundWork): void;
-	/** `work.pendingInteractions` went 0 → 1. v1: nothing; v2: re-evaluates the aggregate state. */
-	onForegroundBlocked(record: ManagedSessionRecord, work: ForegroundWork): void;
-	/** `work.pendingInteractions` went 1 → 0. v1: nothing; v2: re-evaluates the aggregate state. */
-	onForegroundResumed(record: ManagedSessionRecord, work: ForegroundWork): void;
+	/** `work.pendingInteractions` changed (one interaction opened or closed). v1: nothing; v2: re-evaluates the aggregate state. */
+	onInteractionChanged(record: ManagedSessionRecord, work: ForegroundWork): void;
 	/** `work` ended at the quiescence point, by failure, or by cancel. v1: settles the prompt; v2: `idle` with the stop reason. */
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void;
 	/** Gate read by `AgentSession`: may an agent-initiated turn start now? v1: an open prompt exists; v2: cancel latch clear. */

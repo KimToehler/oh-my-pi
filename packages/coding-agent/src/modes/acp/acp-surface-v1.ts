@@ -213,9 +213,7 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 
 	readonly holdsForegroundForBackgroundWork = true;
 
-	onForegroundBlocked(): void {}
-
-	onForegroundResumed(): void {}
+	onInteractionChanged(): void {}
 
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void {
 		const promptTurn = record.promptTurn;

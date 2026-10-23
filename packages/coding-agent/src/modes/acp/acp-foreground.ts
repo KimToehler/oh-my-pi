@@ -229,20 +229,22 @@ export type InteractionTracker = <T>(run: () => Promise<T>) => Promise<T>;
 
 /**
  * Count one open client interaction against `work` while `run` is pending.
- * `blocked` fires on the 0→1 transition, `resumed` on 1→0.
+ * `changed` fires on every open and every close, so the aggregate state follows the count, not only its zero boundaries.
  */
 export async function trackInteraction<T>(
 	work: ForegroundWork | undefined,
-	hooks: { blocked: (work: ForegroundWork) => void; resumed: (work: ForegroundWork) => void },
+	changed: (work: ForegroundWork) => void,
 	run: () => Promise<T>,
 ): Promise<T> {
 	if (!work) return await run();
-	// `run` starts first so the client's request is on the wire before `blocked` announces it.
+	// `run` starts first so the client's request is on the wire before `changed` announces it.
 	const pending = run();
-	if (++work.pendingInteractions === 1) hooks.blocked(work);
+	work.pendingInteractions++;
+	changed(work);
 	try {
 		return await pending;
 	} finally {
-		if (--work.pendingInteractions === 0) hooks.resumed(work);
+		work.pendingInteractions--;
+		changed(work);
 	}
 }

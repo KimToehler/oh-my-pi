@@ -326,11 +326,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		this.#emitState(record, { state: "running" });
 	}
 
-	onForegroundBlocked(record: ManagedSessionRecord, work: ForegroundWork): void {
-		this.#reevaluateState(record, work);
-	}
-
-	onForegroundResumed(record: ManagedSessionRecord, work: ForegroundWork): void {
+	onInteractionChanged(record: ManagedSessionRecord, work: ForegroundWork): void {
 		this.#reevaluateState(record, work);
 	}
 

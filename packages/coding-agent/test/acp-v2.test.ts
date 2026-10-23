@@ -757,6 +757,90 @@ describe("requires_action (plan 6)", () => {
 		expect(after[0]).toMatchObject({ state: "running" });
 		expect(after.at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 	});
+
+	it("reevaluates on every interaction change when two tools wait on separate permissions", async () => {
+		// Guards: the aggregate state only follows the 0→1 and 1→0 interaction boundaries, so answering one of two
+		// pending permissions leaves `requires_action` visible while that tool progresses.
+		const requests: { answer: PromiseWithResolvers<unknown>; params: unknown }[] = [];
+		const onRequest = async (method: string, params: unknown): Promise<unknown> => {
+			if (method !== "session/request_permission") throw new Error(`unexpected agent request ${method}`);
+			const answer = Promise.withResolvers<unknown>();
+			requests.push({ answer, params });
+			await answer.promise;
+			return { outcome: allow(params) };
+		};
+		const bashGate = Promise.withResolvers<void>();
+		const bash = fakeBashTool();
+		const gatedExecute = bash.execute.bind(bash);
+		bash.execute = async (...args) => {
+			await bashGate.promise;
+			return await gatedExecute(...args);
+		};
+		const slowGate = Promise.withResolvers<void>();
+		const slowStarted = Promise.withResolvers<void>();
+		const slow: AgentTool = {
+			name: "slow",
+			label: "slow",
+			description: "Slow tool",
+			parameters: type({}),
+			async execute() {
+				slowStarted.resolve();
+				await slowGate.promise;
+				return { content: [{ type: "text" as const, text: "done" }] };
+			},
+		};
+		const script: MockResponse = {
+			content: [
+				{ type: "toolCall", id: "call-a", name: "bash", arguments: { command: "echo a" } },
+				{ type: "toolCall", id: "call-b", name: "bash", arguments: { command: "echo b" } },
+				{ type: "toolCall", id: "call-c", name: "slow", arguments: {} },
+			],
+		};
+		const { h, client, sessionId } = await startReal({ tools: [bash, slow], script: { 0: script } }, onRequest);
+		await sendPrompt(client, sessionId, "run three");
+		await slowStarted.promise;
+		await client.waitFor(() => requests.length === 2, "both permission requests");
+		await eventLoopTurns(20);
+		// C still runs: two open permissions do not make the aggregate wait on the client.
+		expect(stateNames(client, sessionId)).not.toContain("requires_action");
+
+		/** Resumes the session and returns the snapshot `state_update` that precedes the resume response. */
+		const snapshotNow = async () => {
+			const base = client.frames.length;
+			const resumed = await client.request("session/resume", { sessionId, cwd: h.cwd });
+			resultOf(resumed);
+			return client.states(sessionId).filter(state => state.index >= base && state.index < resumed.index);
+		};
+
+		slowGate.resolve();
+		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
+		expect((await snapshotNow()).at(-1)).toMatchObject({ state: "requires_action" });
+
+		// A is answered and executes (held by the gate) while B still waits: the aggregate progresses again.
+		const countBefore = client.states(sessionId).length;
+		requests[0]!.answer.resolve(undefined);
+		await client.waitFor(
+			c =>
+				c
+					.states(sessionId)
+					.slice(countBefore)
+					.some(s => s.state === "running"),
+			"running",
+		);
+		await eventLoopTurns(20);
+		expect(
+			client
+				.states(sessionId)
+				.slice(countBefore)
+				.map(s => s.state),
+		).not.toContain("requires_action");
+		expect((await snapshotNow()).at(-1)).toMatchObject({ state: "running" });
+
+		requests[1]!.answer.resolve(undefined);
+		bashGate.resolve();
+		await waitForIdle(client, sessionId);
+		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
+	});
 });
 
 // ---------------------------------------------------------------------------

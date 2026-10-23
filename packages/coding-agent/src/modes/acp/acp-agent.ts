@@ -1580,10 +1580,7 @@ export class AcpAgent implements Agent {
 				(toolCall, options, signal) =>
 					trackInteraction(
 						this.#surface.activeWork(record),
-						{
-							blocked: work => this.#surface.onForegroundBlocked(record, work),
-							resumed: work => this.#surface.onForegroundResumed(record, work),
-						},
+						work => this.#surface.onInteractionChanged(record, work),
 						() => this.#surface.permissionRequest(record, session.sessionId, toolCall, options, signal),
 					),
 			),
@@ -2678,10 +2675,7 @@ export class AcpAgent implements Agent {
 			run =>
 				trackInteraction(
 					this.#surface.activeWork(record),
-					{
-						blocked: work => this.#surface.onForegroundBlocked(record, work),
-						resumed: work => this.#surface.onForegroundResumed(record, work),
-					},
+					work => this.#surface.onInteractionChanged(record, work),
 					run,
 				),
 		);
