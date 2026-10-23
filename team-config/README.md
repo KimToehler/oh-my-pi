@@ -168,10 +168,12 @@ artifact changed after the review (`stale`; ticking tasks does not count). Re-ru
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
 
-When a task names a worktree for the change, `/opsx-apply` implements only in a session started inside it. Started
-anywhere else, it creates a missing worktree (once the change folder is committed), ticks nothing and asks you to run
-`cd <worktree> && omp` and `/opsx-apply <change>` there, because a running session cannot change the checkout its
-relative paths and task ticks resolve against.
+When a task names a worktree for the change, `/opsx-apply` implements only while the session runs inside it. Anywhere
+else, it creates a missing worktree (once the change folder is committed), ticks nothing and asks you to type
+`/move <worktree>` and then `/opsx-apply <change>`, because relative paths and task ticks resolve against the session's
+directory. `/move` works in the terminal UI and over ACP (IntelliJ) and keeps the chat; an ACP client that reloads the
+chat reopens it in its project directory, so run `/move` again after a reload. Do not use `/wt` here: it creates its
+own worktree outside `.worktrees/` with a generated branch.
 
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
 comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
