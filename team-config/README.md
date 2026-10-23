@@ -159,7 +159,8 @@ rounds, and records the verdict with the digest of the folder it reviewed. OpenS
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/<change>
 ```
 
-It fails when `review.md` is missing or malformed, when the verdict is `REJECT` without an override, and when any
+It fails when `review.md` is missing or malformed (including a missing `## Blockers` section, or one that says `none`
+for a `REJECT`), when the verdict is `REJECT` without an override, and when any
 artifact changed after the review (`stale`; ticking tasks does not count). Re-run the review after editing an artifact:
 `openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
