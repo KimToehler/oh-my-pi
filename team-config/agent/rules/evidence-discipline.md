@@ -7,7 +7,7 @@ globs:
   - "**/*IT.kt"
   - "**/*_test.py"
   - "**/*.test.rs"
-  - "**/.omo/evidence/**"
+  - "**/.omp/team-config/evidence/**"
   - "**/docs/evidence/**"
   - "**/*-audit.ts"
   - "**/scripts/validate-*.mjs"

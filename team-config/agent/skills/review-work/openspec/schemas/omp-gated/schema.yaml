@@ -264,9 +264,11 @@ artifacts:
         optional `## Workflow follow-up` section at the end of tasks.md. These
         bullets are reference information outside tracked task progress.
       - End with the template's Final verification group and its Workflow follow-up. F3 (only
-        when gate.md says Whole-diff review `needed`) stores its report at a tracked path; under
-        `.omo/evidence/` only `gate/**` and files named `*trailer*` are tracked, so the template
-        uses `.omo/evidence/gate/<change>/`. F2 is never a checkbox: the gate record binds every
+        when gate.md says Whole-diff review `needed`) stores its report at a tracked path: under
+        `.omp/team-config/evidence/` only `gate/**` and files named `*trailer*` are tracked, so the
+        template uses `.omp/team-config/evidence/gate/<change>/f3-integration-review-report.md`.
+        The report opens with the line `INTEGRATION-REVIEW-REPORT-v1` and may be committed with
+        the gate record after F2. F2 is never a checkbox: the gate record binds every
         file of this folder by `plan_sha256`, tasks.md included, so ticking F2 after its record
         validates would void the record.
       - Each task MUST state how to verify completion (a test, command,

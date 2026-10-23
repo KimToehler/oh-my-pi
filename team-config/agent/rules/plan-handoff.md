@@ -1,9 +1,7 @@
 ---
 description: Plan handoff and status reporting - settle approach-deciding gates before handoff, state artifact status, offer the high-accuracy review, lead with unmet goals and pending gates, verify blockers and agent activity before reporting them
 globs:
-  - "**/.omo/plans/**/*.md"
-  - "**/.omo/drafts/**/*.md"
-  - "**/.omo/handover-*.md"
+  - "**/.omp/plans/**/*.md"
   - "**/openspec/changes/**/*.md"
 ---
 

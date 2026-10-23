@@ -37,7 +37,7 @@ accepts `description`, `globs`, `alwaysApply`, `condition`, `scope`, `agents`,
 ## THE RULE
 
 - **Applies everywhere** → `~/.omp/agent/rules/lesson-<slug>.md` **with rootless globs**
-  (`**/*Test.kt`, `**/*.spec.ts`, `**/.omo/plans/**/*.md`).
+  (`**/*Test.kt`, `**/*.spec.ts`, `**/.omp/plans/**/*.md`).
 - **Applies to one repo** → `<repo>/.agents/rules/lesson-<slug>.md` with that repo's real paths.
 
 Judge by the rule's *content*, not its origin. "Prove a QA probe red before trusting it"

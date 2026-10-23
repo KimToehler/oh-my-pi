@@ -2,7 +2,7 @@
 description: Answer only about the worktree the user named
 globs:
   - "**/.worktrees/**"
-  - "**/.omo/plans/**"
+  - "**/.omp/plans/**"
 ---
 
 # Lesson: Answer only about the worktree the user named

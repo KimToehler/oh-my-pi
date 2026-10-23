@@ -14,7 +14,7 @@ time, after reviewers were paid for, so get it right at plan time.
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
 - [ ] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
 
 ## Merge gate
 - Author's risk assessment: <what could break, and how badly>

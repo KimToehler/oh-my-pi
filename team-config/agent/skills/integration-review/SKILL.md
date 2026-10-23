@@ -51,7 +51,7 @@ git diff --name-only <base>...HEAD > /tmp/integration-review-<slug>.files
 - `<base>` = the divergence point with the repository's integration branch (`dev` here; `main` in many repos), or the branch point if work was rebased. For features stacked on another feature, it's the parent branch.
 - For uncommitted work, use `git diff <base>` (two-dot, picks up staged and unstaged changes) for the patch file. When a plan exists, commit the work first; F3 of a plan reviews committed state only.
 - If the diff is large (>3000 lines), still keep it whole. The reviewer may chunk its *findings*, but it must see the whole change.
-- Locate the plan if one exists: `.omo/plans/<slug>.md`. If the plan is gitignored and absent from the reviewer's working tree, use the path the reviewer can actually read.
+- Locate the plan if one exists: `.omp/plans/<slug>.md`. If the plan is gitignored and absent from the reviewer's working tree, use the path the reviewer can actually read.
 - Write the seam list: each lane or slice, and the cross-slice contracts it touched (shared types, helpers, config keys, i18n keys, docs). The reviewer was not in the conversation, so this is its map of where the seams are.
 
 ### Step 2 - Dispatch ONE reviewer with the verbatim brief (caller)
@@ -134,7 +134,7 @@ Rules for the dispatch:
 - Never tell the user to "open the PR first so the reviewer can run". The point is to catch issues before the PR exists.
 - If the dispatch lands in PR mode anyway (a stale PR existed), reject the output and re-dispatch with the same brief.
 - For diffs over ~3000 lines, the review still happens whole-diff in one pass. Do not fall back to PR mode because of size.
-- Save the report to a file and keep its path. The review-work implementation-audit brief takes it as the `{F3 REPORT PATH}` input, together with the class list.
+- Save the report to a file and keep its path. Write `INTEGRATION-REVIEW-REPORT-v1` as the first line of the file, above the reviewer's text, and save it as `.md` inside the gate record's directory; by default `.omp/team-config/evidence/gate/<slug>/f3-integration-review-report.md`. review-work binds it in the gate record (`whole_diff.report`, `whole_diff.report_sha256`) and commits it with the record and its trailers. The review-work implementation-audit brief takes it as the `{F3 REPORT PATH}` input, together with the class list.
 
 ### Step 3 - Delta rounds
 
@@ -171,7 +171,7 @@ If verification fails after the cleanup commit, the cleanup itself broke somethi
 
 ## Skill priority
 
-When invoked from an omp plan's final verification wave (F3), this skill **inherits** the plan at `.omo/plans/<slug>.md` as authoritative context. When invoked standalone:
+When invoked from an omp plan's final verification wave (F3), this skill **inherits** the plan at `.omp/plans/<slug>.md` as authoritative context. When invoked standalone:
 - If a plan exists, use it as a constraint.
 - If no plan exists (manual review of unplanned work), the seven failure modes still apply. Leave out the "Out of Scope / Verification" walks in the brief.
 
