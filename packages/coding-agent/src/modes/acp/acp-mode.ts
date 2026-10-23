@@ -4,6 +4,8 @@ import { getLogsDir, postmortem } from "@oh-my-pi/pi-utils";
 import { AgentSideConnection, ndJsonStream, type Stream } from "@oh-my-pi/pi-utils/acp";
 import type { ExtensionUIContext } from "../../extensibility/extensions/types";
 import type { AgentSession } from "../../session/agent-session";
+import { settings } from "../../config/settings";
+import { cfgAcpProtocolV2 } from "../settings";
 import { AcpAgent } from "./acp-agent";
 
 /** Session and deferred tool UI hook created for an ACP client workspace. */
@@ -34,7 +36,11 @@ export function createAcpConnection(
 	return new AgentSideConnection(connection => {
 		const agent = new AcpAgent(connection, createSession, initialSession);
 		onAgent?.(agent);
-		return { v1: agent, maxVersion: options?.maxVersion ?? (() => 1) };
+		return {
+			v1: agent,
+			v2: agent.v2Handler,
+			maxVersion: options?.maxVersion ?? (() => (cfgAcpProtocolV2.get(settings) ? 2 : 1)),
+		};
 	}, transport);
 }
 

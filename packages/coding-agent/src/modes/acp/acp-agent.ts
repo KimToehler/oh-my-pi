@@ -4,6 +4,7 @@ import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
 import { getBlobsDir, logger, type postmortem, untilAborted } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
+	type AgentV2,
 	type AgentSideConnection,
 	type AuthenticateRequest,
 	type AuthenticateResponse,
@@ -39,6 +40,7 @@ import {
 	type SetSessionConfigOptionResponse,
 	type SetSessionModeRequest,
 	type SetSessionModeResponse,
+	type v2,
 } from "@oh-my-pi/pi-utils/acp";
 import { disableProvider, enableProvider } from "../../capability";
 import { Settings } from "../../config/settings";
@@ -109,17 +111,20 @@ import {
 	resolveStopReason,
 	trackInteraction,
 } from "./acp-foreground";
+import { convertConfigOptionsToV2 } from "./acp-event-mapper-v2";
 import {
 	type AcpEmitSource,
 	type AcpSurface,
 	type AcpSurfaceHost,
 	type AcpWireV1,
+	type AcpWireV2,
 	type AgentImageContent,
 	INTELLIJ_CLIENT_PLATFORM,
 	type ManagedSessionRecord,
 	type PromptLifecycleError,
 } from "./acp-surface";
 import { AcpSurfaceV1 } from "./acp-surface-v1";
+import { AcpSurfaceV2 } from "./acp-surface-v2";
 import {
 	ACP_DEFAULT_MODE_ID,
 	ACP_GOAL_MODE_ID,
@@ -190,6 +195,16 @@ type CreateAcpSession = (
 	cwd: string,
 	options?: { interactivePrompts?: boolean },
 ) => Promise<AgentSession | AcpSessionHandle>;
+
+/** v2 optional `env`/`headers` become the v1 spelling's required arrays. */
+function toV1McpServers(servers: v2.McpServer[] | undefined): McpServer[] {
+	return (servers ?? []).map((server): McpServer => {
+		if ("url" in server) {
+			return { type: "http", name: server.name, url: server.url, headers: server.headers ?? [] };
+		}
+		return { name: server.name, command: server.command, args: server.args ?? [], env: server.env ?? [] };
+	});
+}
 
 function normalizeCreatedAcpSession(created: AgentSession | AcpSessionHandle): {
 	session: AgentSession;
@@ -581,8 +596,11 @@ export class AcpAgent implements Agent {
 	#cancelCleanupTimeoutMs = ACP_CANCEL_CLEANUP_TIMEOUT_MS;
 	#blobs = new BlobStore(getBlobsDir());
 	#host: AcpSurfaceHost;
-	/** Per-connection protocol surface; v1 until `initialize` selects one. */
-	#surface: AcpSurface<AcpWireV1>;
+	/** Per-connection protocol surface for the core's version-agnostic paths; v1 until `initialize` selects one. */
+	#surface: AcpSurface;
+	#surfaceV1: AcpSurface<AcpWireV1>;
+	#surfaceV2: AcpSurface<AcpWireV2>;
+	#v2ClientCapabilities: v2.ClientCapabilities | undefined;
 
 	/** The one send funnel for core-built v1 notifications; the surface sends or converts them. */
 	#emit(notification: SessionNotification, source?: AcpEmitSource): Promise<void> {
@@ -609,7 +627,9 @@ export class AcpAgent implements Agent {
 			buildConfigOptions: record => this.#buildConfigOptions(record),
 			buildModeState: record => this.#buildModeState(record),
 		};
-		this.#surface = new AcpSurfaceV1(this.#host);
+		this.#surfaceV1 = new AcpSurfaceV1(this.#host);
+		this.#surfaceV2 = new AcpSurfaceV2(this.#host);
+		this.#surface = this.#surfaceV1;
 	}
 
 	setCancelCleanupTimeoutForTesting(timeoutMs: number): void {
@@ -622,15 +642,15 @@ export class AcpAgent implements Agent {
 		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		this.#clientPinsConfigOptions = isIntelliJClient;
 		// Only v1 is negotiable until the v2 surface exists; the surface is chosen here.
-		this.#surface = new AcpSurfaceV1(this.#host);
-		return this.#surface.initializeResponse(params);
+		this.#surface = this.#surfaceV1;
+		return this.#surfaceV1.initializeResponse(params);
 	}
 
 	async authenticate(params: AuthenticateRequest): Promise<AuthenticateResponse> {
 		// ACP spec: `methodId` must be one of the methods advertised by `initialize`.
 		// Reject anything else so malformed clients fail fast rather than appearing
 		// authenticated and surfacing a downstream model failure later.
-		const validMethods = this.#surface.authMethods(this.#clientCapabilities).map(method => method.id);
+		const validMethods = this.#surfaceV1.validAuthMethodIds(this.#clientCapabilities);
 		if (!validMethods.includes(params.methodId)) {
 			throw new Error(`Unknown ACP auth method: ${params.methodId}`);
 		}
@@ -642,7 +662,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#createNewSessionRecord(params.cwd, params.mcpServers);
 		const response: NewSessionResponse = {
 			sessionId: record.session.sessionId,
-			...(await this.#surface.sessionSetupResponse(record, "new")),
+			...(await this.#surfaceV1.sessionSetupResponse(record, "new")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -652,7 +672,7 @@ export class AcpAgent implements Agent {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#loadManagedSession(params.sessionId, params.cwd, params.mcpServers);
 		await this.#surface.replay(record);
-		const response: LoadSessionResponse = await this.#surface.sessionSetupResponse(record, "load");
+		const response: LoadSessionResponse = await this.#surfaceV1.sessionSetupResponse(record, "load");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -677,7 +697,7 @@ export class AcpAgent implements Agent {
 	async resumeSession(params: ResumeSessionRequest): Promise<ResumeSessionResponse> {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#resumeManagedSession(params.sessionId, params.cwd, params.mcpServers ?? []);
-		const response: ResumeSessionResponse = await this.#surface.sessionSetupResponse(record, "resume");
+		const response: ResumeSessionResponse = await this.#surfaceV1.sessionSetupResponse(record, "resume");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -687,7 +707,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#forkManagedSession(params);
 		const response: ForkSessionResponse = {
 			sessionId: record.session.sessionId,
-			...(await this.#surface.sessionSetupResponse(record, "fork")),
+			...(await this.#surfaceV1.sessionSetupResponse(record, "fork")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -700,6 +720,65 @@ export class AcpAgent implements Agent {
 		}
 		await this.#closeManagedSession(params.sessionId, record);
 		return {};
+	}
+
+	/**
+	 * Protocol v2 handler over the same core. `initialize` selects the v2 surface. v2 installs no fs/terminal
+	 * client capability (permission only), so `#clientCapabilities` stays unset; `_session/steering` is not routed.
+	 */
+	get v2Handler(): AgentV2 {
+		return {
+			initialize: params => {
+				this.#registerConnectionCleanup();
+				this.#clientCapabilities = undefined;
+				this.#v2ClientCapabilities = params.capabilities;
+				this.#clientPinsConfigOptions = false;
+				this.#surface = this.#surfaceV2;
+				return this.#surfaceV2.initializeResponse(params);
+			},
+			login: params => {
+				if (!this.#surfaceV2.validAuthMethodIds(this.#v2ClientCapabilities).includes(params.methodId)) {
+					throw RequestError.invalidParams(undefined, `Unknown ACP auth method: ${params.methodId}`);
+				}
+				return {};
+			},
+			// Credentials are shared with every omp surface; logout must not touch them.
+			logout: () => ({ _meta: { omp: { credentialsRetained: true } } }),
+			newSession: async params => {
+				this.#assertAbsoluteCwd(params.cwd);
+				const record = await this.#createNewSessionRecord(params.cwd, toV1McpServers(params.mcpServers));
+				const setup = await this.#surfaceV2.sessionSetupResponse(record, "new");
+				this.#scheduleBootstrapUpdates(record.session.sessionId);
+				return { sessionId: record.session.sessionId, ...setup };
+			},
+			listSessions: params => this.listSessions({ cwd: params.cwd, cursor: params.cursor }),
+			resumeSession: async params => {
+				this.#assertAbsoluteCwd(params.cwd);
+				const record = await this.#resumeManagedSession(
+					params.sessionId,
+					params.cwd,
+					toV1McpServers(params.mcpServers),
+				);
+				const setup = await this.#surfaceV2.sessionSetupResponse(record, "resume");
+				this.#scheduleBootstrapUpdates(record.session.sessionId);
+				return setup;
+			},
+			closeSession: params => this.closeSession(params),
+			setSessionConfigOption: async params => {
+				const response = await this.setSessionConfigOption({
+					sessionId: params.sessionId,
+					configId: params.configId,
+					value: params.value,
+				});
+				return { configOptions: convertConfigOptionsToV2(response.configOptions) };
+			},
+			prompt: params => this.#surfaceV2.admitPrompt(this.#getSessionRecord(params.sessionId), params),
+			cancel: params => this.cancel(params),
+			extMethod: (method, params) => {
+				if (method === ACP_STEERING_METHOD) throw RequestError.methodNotFound(method);
+				return this.extMethod(method, params);
+			},
+		};
 	}
 
 	async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
@@ -743,7 +822,7 @@ export class AcpAgent implements Agent {
 
 	async prompt(params: PromptRequest): Promise<PromptResponse> {
 		const record = this.#getSessionRecord(params.sessionId);
-		return await this.#surface.admitPrompt(record, params);
+		return await this.#surfaceV1.admitPrompt(record, params);
 	}
 
 	#throwIfRecordClosed(record: ManagedSessionRecord): void {
