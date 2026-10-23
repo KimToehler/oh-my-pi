@@ -407,3 +407,75 @@ describe("validate-openspec-change", () => {
 		expect(result.stderr).toContain("Whole-diff review: placeholder text is forbidden");
 	});
 });
+
+describe("validate-openspec-change gate.md under the Risk tier", () => {
+	const GATE = (fields: Record<string, string | null>) =>
+		`# Gate\n\n${Object.entries(fields)
+			.filter(([, value]) => value !== null)
+			.map(([label, value]) => `- **${label}**: ${value}`)
+			.join("\n")}\n`;
+	const VALID = {
+		"Mandatory class": "none",
+		"Risk tier": "product",
+		"Author's risk assessment": "a wrong update overwrites a record, so the update path is covered by requirements",
+		"Whole-diff review": "not needed (one module)",
+		"Accepted residual risks": "none (all specified paths are covered)",
+		"Out of scope for blocking": "none (the change is self-contained)",
+	};
+	async function withGate(fields: Record<string, string | null>): Promise<string> {
+		const root = await fixture();
+		await Bun.write(path.join(root, "gate.md"), GATE(fields));
+		return root;
+	}
+
+	it("accepts a Risk tier gate.md with a bare none class", async () => {
+		expect(run(await withGate(VALID))).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+	it("accepts internal-tooling with class none", async () => {
+		expect(run(await withGate({ ...VALID, "Risk tier": "internal-tooling" })).exitCode).toBe(0);
+	});
+	it("accepts a mandatory class under the product tier", async () => {
+		expect(run(await withGate({ ...VALID, "Mandatory class": "wire-contract-api" })).exitCode).toBe(0);
+	});
+	it("rejects a Review tier bullet with an error naming Risk tier", async () => {
+		const result = run(await withGate({ ...VALID, "Review tier": "standard" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toMatch(/Review tier[^\n]*Risk tier/);
+	});
+	it("rejects internal-tooling with a mandatory class", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": "internal-tooling", "Mandatory class": "wire-contract-api" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier");
+	});
+	it("rejects a Risk tier other than product or internal-tooling", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": "personal" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier");
+	});
+	it("rejects a missing Risk tier", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": null }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier:");
+	});
+	it("rejects a missing Author's risk assessment", async () => {
+		const result = run(await withGate({ ...VALID, "Author's risk assessment": null }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Author's risk assessment:");
+	});
+	for (const [name, value] of [
+		["a placeholder", "<what could break>"],
+		["TBD", "TBD"],
+		["no substance", "-"],
+	]) {
+		it(`rejects ${name} as the Author's risk assessment`, async () => {
+			const result = run(await withGate({ ...VALID, "Author's risk assessment": value }));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("Author's risk assessment:");
+		});
+	}
+	it("accepts a bare none for the abort fields only with a reason", async () => {
+		const bare = run(await withGate({ ...VALID, "Accepted residual risks": "none" }));
+		expect(bare.exitCode).toBe(1);
+		expect(bare.stderr).toContain("Accepted residual risks:");
+	});
+});
