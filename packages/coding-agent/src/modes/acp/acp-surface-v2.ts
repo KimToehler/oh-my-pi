@@ -553,12 +553,20 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	}
 
 	/**
-	 * Every `session/update` of a registered record goes through the record's ordered path, so content never
-	 * overtakes a queued `user_message` or state transition. Resolves once the frame has been sent.
+	 * Every `session/update` goes through its record's ordered path, so content never overtakes a queued
+	 * `user_message` or state transition. Resolves once the frame has been sent. A session that is neither
+	 * registered nor closing gets nothing: a producer that resumes after its session's close response would
+	 * otherwise send after it.
 	 */
 	sendMapped(notification: v2.SessionNotification): Promise<void> {
 		const record = this.#host.recordFor(notification.sessionId);
-		if (!record) return this.#sendRaw(notification);
+		if (!record) {
+			logger.debug("ACP v2 update for an unknown or closed session dropped", {
+				sessionId: notification.sessionId,
+				sessionUpdate: notification.update.sessionUpdate,
+			});
+			return Promise.resolve();
+		}
 		const sent = Promise.withResolvers<void>();
 		this.#enqueue(record, () => {
 			sent.resolve(this.#sendOrdered(record, notification));
@@ -573,19 +581,14 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		await this.#lastWrites.get(record);
 	}
 
-	/** The send of an enqueued step: the write is recorded so {@link drain} can wait for it. */
+	/** The wire send of an enqueued step; the write is recorded so {@link drain} can wait for it. */
 	#sendOrdered(record: ManagedSessionRecord, notification: v2.SessionNotification): Promise<void> {
-		const write = this.#sendRaw(notification);
+		const write = this.#host.connection.v2.sessionUpdate(notification);
 		this.#lastWrites.set(
 			record,
 			write.catch(() => {}),
 		);
 		return write;
-	}
-
-	/** The unordered wire send; only enqueued steps (through {@link #sendOrdered}) and records that are not registered may call it. */
-	#sendRaw(notification: v2.SessionNotification): Promise<void> {
-		return this.#host.connection.v2.sessionUpdate(notification);
 	}
 }
 

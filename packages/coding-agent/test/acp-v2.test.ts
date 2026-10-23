@@ -23,6 +23,7 @@ import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import * as skillsModule from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import * as availableCommandsModule from "@oh-my-pi/pi-coding-agent/slash-commands/available-commands";
 import { singleShotOutcome } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-foreground";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
@@ -1012,6 +1013,50 @@ describe("cancel and errors (plan 5)", () => {
 		for (const response of responses) {
 			expect(sessionFrames.filter(frame => frame.index > response.index)).toEqual([]);
 		}
+	});
+
+	it("sends nothing for a closed session when a bootstrap producer resumes after the close", async () => {
+		// Guards: the bootstrap `available_commands_update`, still in slash-command discovery when the client closed
+		// the session, went out unordered after both close responses.
+		const { client, sessionId } = await startReal();
+		const original = availableCommandsModule.buildAvailableSlashCommands;
+		const building = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const built = Promise.withResolvers<void>();
+		const spy = vi
+			.spyOn(availableCommandsModule, "buildAvailableSlashCommands")
+			.mockImplementation(async (...args) => {
+				building.resolve();
+				await release.promise;
+				try {
+					return await original(...args);
+				} finally {
+					built.resolve();
+				}
+			});
+		teardown.unshift(async () => {
+			release.resolve();
+			spy.mockRestore();
+		});
+		await building.promise;
+		const responses = await Promise.all([
+			client.request("session/close", { sessionId }),
+			client.request("session/close", { sessionId }),
+		]);
+		for (const response of responses) resultOf(response);
+		release.resolve();
+		await built.promise;
+		await eventLoopTurns(30);
+
+		const after = client.frames.flatMap((frame, index) =>
+			frame.method === "session/update" &&
+			isRecord(frame.params) &&
+			frame.params.sessionId === sessionId &&
+			responses.some(response => index > response.index)
+				? [isRecord(frame.params.update) ? kindOf(frame.params.update) : ""]
+				: [],
+		);
+		expect(after).toEqual([]);
 	});
 
 	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {
