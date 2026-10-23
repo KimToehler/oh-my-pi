@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -482,7 +482,7 @@ function planOnly(text) {
   }
 }
 
-function fullMode(text) {
+function fullMode(text, mutate = () => {}) {
   const directory = mkdtempSync(path.join(sandboxRepo, ".omo", "gate-plan-abort-"))
   try {
     const planPath = path.join(directory, "plan.md")
@@ -490,6 +490,7 @@ function fullMode(text) {
     const record = validRecord()
     record.plan = path.relative(sandboxRepo, planPath)
     record.plan_sha256 = planDigest(planPath)
+    mutate(record)
     return run(record, { plan: planPath })
   } finally {
     rmSync(directory, { recursive: true, force: true })
@@ -510,6 +511,8 @@ const acceptedPlans = [
   // A list-indented fence inside an outer fence must not close the outer one: the onara
   // AGENTS_MD_SLIM_PLAN quotes "  ```python ... ```" inside "```markdown", then opts out.
   ["an opt-out after an outer fence quoting an indented fence", `# Plan\n\n${fence}markdown\n- example:\n\n  ${fence}python\n  x = 1\n  ${fence}\n${fence}\n\n- Merge gate: not applicable (docs-only)\n`],
+  ["an internal-tooling tier with Mandatory class none", gatedPlan({ after: "- Risk tier: internal-tooling\n" })],
+  ["a bold product tier", gatedPlan({ after: "- **Risk tier:** product\n" })],
 ]
 
 for (const [name, text] of acceptedPlans) {
@@ -546,6 +549,15 @@ const blockedPlans = [
   ["an opt-out with a slash suffix", "# Plan\n- Merge gate: not applicable/xyz\n", /Merge gate: section is required/],
   ["an opt-out together with feature criteria", gatedPlan({ after: "- Merge gate: not applicable (contradiction)\n" }), /opt-out.*criteria|criteria.*opt-out/i],
   ["a Merge gate heading only inside a fence", `# Plan\n${fence}\n## Merge gate\n${criteriaBlock}${fence}\n`, /Merge gate: section is required/],
+  ["a personal tier", gatedPlan({ after: "- Risk tier: personal\n" }), /plan Risk tier: personal plans run no merge gate.*not applicable/],
+  ["an unknown tier", gatedPlan({ after: "- Risk tier: internal\n" }), /plan Risk tier: must be exactly product or internal-tooling/],
+  ["the template tier line", gatedPlan({ after: "- Risk tier: <product | internal-tooling>\n" }), /plan Risk tier: must be exactly/],
+  ["a tier with an inline reason", gatedPlan({ after: "- Risk tier: internal-tooling (or product)\n" }), /plan Risk tier: must be exactly/],
+  ["a duplicate tier", gatedPlan({ after: "- Risk tier: product\n- Risk tier: product\n" }), /plan Risk tier: duplicate/],
+  ["internal-tooling with a mandatory class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: auth-secrets-pii"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling with none plus a parenthesised class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: none (auth-secrets-pii)"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling with none plus a listed class", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none", "- Mandatory class: none, concurrency-state"), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
+  ["internal-tooling without a Mandatory class bullet", gatedPlan({ after: "- Risk tier: internal-tooling\n" }).replace("- Mandatory class: none\n", ""), /plan Risk tier: internal-tooling requires exactly one Mandatory class/],
 ]
 
 for (const [name, text, expected] of blockedPlans) {
@@ -555,6 +567,25 @@ for (const [name, text, expected] of blockedPlans) {
     assert.equal(result.stdout, "blocked\n")
     assert.match(result.stderr, expected)
     assert.doesNotMatch(result.stderr, /\n\s+at /)
+  })
+}
+
+const IT = gatedPlan({ after: "- Risk tier: internal-tooling\n" })
+
+test("#given an internal-tooling plan #when full mode validates the pass record #then it exits zero", () => {
+  const result = fullMode(IT)
+  assert.equal(result.status, 0, result.stderr)
+})
+
+for (const [name, mutate, field] of [
+  ["a mandatory class", (r) => { r.mandatory_class = "auth-secrets-pii" }, "mandatory_class"],
+  ["no reviewer", (r) => { r.reviewers_run = [] }, "reviewers_run"],
+  ["a second reviewer", (r) => { r.reviewers_run = ["implementation-audit", "strategic-risk-review"] }, "reviewers_run"],
+]) {
+  test(`#given an internal-tooling plan and a record outside its reviewer contract #when full mode runs #then the named field blocks (${name})`, () => {
+    const result = fullMode(IT, mutate)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, new RegExp(`^${field}: the plan declares Risk tier internal-tooling`))
   })
 }
 
@@ -1684,3 +1715,571 @@ test("#given an exempt artifact whose invalid-UTF-8 bytes change after the revie
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+// ---------------------------------------------------------------------------------------------
+// Folder plans: an OpenSpec change folder is the plan. Fixtures are real change folders built from
+// the shipped schema templates with every placeholder filled, committed into a scratch repository.
+// The expected digest is computed here, independently of the validator, from the bundle format the
+// skill documents: a manifest of `<sha256>  <path>` lines sorted by path bytes, then each file's
+// bytes under a `===== <path> =====` line, one `\n` after every file.
+// ---------------------------------------------------------------------------------------------
+const templateRoot = path.join(scriptsDir, "..", "openspec", "schemas", "omp-gated", "templates")
+const checker = path.join(scriptsDir, "validate-openspec-change.mjs")
+const FOLDER = "openspec/changes/demo"
+const template = (name) => readFileSync(path.join(templateRoot, name), "utf8")
+
+function fillTemplate(text, replacements) {
+  let out = text
+  for (const [pattern, value] of replacements) {
+    assert.match(out, pattern, `template placeholder not found: ${pattern}`)
+    out = out.replace(pattern, () => value)
+  }
+  return out
+}
+
+function specText(name = "Safe update", requirement = "The system SHALL update one record.", { negativeControl = true } = {}) {
+  const filled = fillTemplate(template("spec.md"), [
+    [/<!-- New capabilities only[^]*?-->/, "Safe single-record updates for the fixture capability, so concurrent edits stop overwriting each other."],
+    [/### Requirement: <!-- requirement name -->\n<!-- requirement text -->/, `### Requirement: ${name}\n${requirement}`],
+    [/#### Scenario: <!-- scenario name -->\n- \*\*WHEN\*\* <!-- condition -->\n- \*\*THEN\*\* <!-- expected outcome -->/, "#### Scenario: Successful update\n- **WHEN** a valid record is submitted\n- **THEN** the record is updated"],
+    [/- \*\*WHEN\*\* <!-- plausible broken input or state -->\n- \*\*THEN\*\* <!-- outcome that MUST fail -->/, "- **WHEN** an invalid record is submitted\n- **THEN** the update MUST fail"],
+  ])
+  return negativeControl ? filled : filled.slice(0, filled.indexOf("#### Scenario: Negative control"))
+}
+
+const renameOnlySpec = "# Spec Delta\n\n## RENAMED Requirements\n\n- FROM: `### Requirement: Old update`\n- TO: `### Requirement: Safe update`\n"
+
+const gateCriteria = `- Feature-specific criteria:
+  - Invariant: a pure tooling change keeps the pinned command output byte-identical
+    Positive witness: the command prints the same bytes before and after the change
+    Negative control: a changed byte in the command output MUST fail the comparison
+    Observable: the diff of the two outputs
+    Boundary: the command invoked as a process
+`
+
+// The gate.md fixture starts from the shipped template and sets each field by label, so a field the
+// template does not carry (yet) is added rather than failing the fixture for a reason the case under
+// test did not name.
+function setGateField(text, label, value) {
+  const line = new RegExp(`^- \\*\\*${label}\\*\\*:.*$`, "m")
+  if (line.test(text)) return text.replace(line, () => `- **${label}**: ${value}`)
+  return text.replace(/^# Gate\n\n?/, (head) => `${head}- **${label}**: ${value}\n`)
+}
+
+const CONCRETE = {
+  Invariant: "the generated artifact keeps its documented shape",
+  "Positive witness": "the artifact is byte-identical to the documented sample",
+  "Negative control": "a changed byte in the artifact MUST fail the comparison",
+  Observable: "the diff of the artifact and the sample",
+  Boundary: "the generator invoked as a process",
+}
+
+// The shipped template ends with an HTML comment holding a criteria example for changes without
+// requirements. `uncomment` removes the comment markers; `fill` also replaces every `<...>` value.
+function exampleComment(text) {
+  const match = /<!--([\s\S]*?)-->\s*$/.exec(text)
+  assert.ok(match && /Feature-specific criteria/.test(match[1]), "templates/gate.md must end with a commented `- Feature-specific criteria:` example")
+  return match
+}
+
+function useExample(text, mode) {
+  if (mode === "commented") {
+    exampleComment(text)
+    return text
+  }
+  const match = exampleComment(text)
+  let body = match[1].trim()
+  if (mode === "filled") {
+    body = body.split("\n").map((line) => line.replace(/^(\s*(?:- )?)(Invariant|Positive witness|Negative control|Observable|Boundary):\s*<[^>]*>.*$/, (_, lead, label) => `${lead}${label}: ${CONCRETE[label]}`)).join("\n")
+    assert.ok(!/<[^>]+>/.test(body), `the example must be fillable by label alone: ${body}`)
+  } else {
+    assert.match(body, /<[^>]+>/, "the example must carry placeholders for the author to fill")
+  }
+  return text.replace(match[0], () => `${body}\n`)
+}
+
+function gateText({ cls, tier, whole, assessment, extra, example }) {
+  let text = template("gate.md")
+  for (const [label, value] of [
+    ["Mandatory class", cls],
+    ["Risk tier", tier],
+    ["Author's risk assessment", assessment],
+    ["Whole-diff review", whole],
+    ["Accepted residual risks", "none (reviewer verdicts vary between runs)"],
+    ["Out of scope for blocking", "none (the change is self-contained)"],
+  ]) text = setGateField(text, label, value)
+  if (example !== undefined) text = useExample(text, example)
+  return `${text.trimEnd()}\n${extra}`
+}
+
+function writeFolder(folder, { cls, tier, whole, assessment, specs, skipSpecs, gateExtra, example }) {
+  mkdirSync(folder, { recursive: true })
+  const write = (rel, text) => {
+    mkdirSync(path.dirname(path.join(folder, rel)), { recursive: true })
+    writeFileSync(path.join(folder, rel), text)
+  }
+  let tasks = 0
+  write("proposal.md", fillTemplate(template("proposal.md"), [
+    [/<!-- Explain the motivation[^]*?-->/, "Records can only be replaced whole, so concurrent edits overwrite each other."],
+    [/<!-- Describe what will change[^]*?-->/, "- Add a safe single-record update."],
+    [/- `<capability-path>`: <brief[^\n]*\n/, "- `feature`: safe record updates\n"],
+    [/- `<existing-capability-path>`:[^\n]*\n/, ""],
+    [/<!-- Affected code[^]*?-->/, "The update endpoint and its tests."],
+  ]))
+  write("design.md", template("design.md").replace(/<!--[^]*?-->/g, "Fixture text for the design section."))
+  write("tasks.md", template("tasks.md").replace(/<!-- Task Group Name -->/g, "Update").replace(/<!-- Task description --> Verify: `<deterministic command>`/g, () => {
+    tasks += 1
+    return `Implement step ${tasks}. Verify: \`bun test step-${tasks}.test.ts\``
+  }))
+  write("gate.md", gateText({ cls, tier, whole, assessment, extra: gateExtra, example }))
+  write(".openspec.yaml", skipSpecs ? "schema: omp-gated\nskip_specs: true\n" : "schema: omp-gated\n")
+  for (const [rel, text] of Object.entries(specs)) write(`specs/${rel}`, text)
+}
+
+function folderFiles(root, prefix = "") {
+  const out = []
+  for (const entry of readdirSync(path.join(root, prefix), { withFileTypes: true })) {
+    const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`
+    if (entry.isDirectory()) out.push(...folderFiles(root, rel))
+    else if (entry.isFile()) out.push(rel)
+  }
+  return out
+}
+
+function bundleBytes(root) {
+  const files = folderFiles(root).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)))
+  const contents = files.map((rel) => readFileSync(path.join(root, rel)))
+  const manifest = files.map((rel, index) => `${createHash("sha256").update(contents[index]).digest("hex")}  ${rel}\n`).join("")
+  const sections = files.map((rel, index) => Buffer.concat([Buffer.from(`===== ${rel} =====\n`), contents[index], Buffer.from("\n")]))
+  return Buffer.concat([Buffer.from(manifest), ...sections])
+}
+
+const bundleDigest = (root) => createHash("sha256").update(bundleBytes(root)).digest("hex")
+
+const folderDefaults = {
+  cls: "none",
+  tier: "product",
+  whole: "not needed (one module)",
+  assessment: "a stale digest lets an edited spec pass review unnoticed, so the folder bytes are pinned",
+  specs: { "feature/spec.md": specText() },
+  skipSpecs: false,
+  gateExtra: "",
+}
+
+function folderScenario(options = {}) {
+  const settings = { ...folderDefaults, ...options }
+  const { cls, tier, whole, commitFolder = true, auditTrailer = buildTrailer(), riskTrailer = buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4" }) } = settings
+  const repository = scratchRepo()
+  const { directory, git } = repository
+  const folder = path.join(directory, FOLDER)
+  writeFolder(folder, settings)
+  const evidence = path.join(directory, "evidence")
+  mkdirSync(evidence)
+  writeFileSync(path.join(evidence, "qa.txt"), "qa ok\n")
+  git("add", "--", "evidence/qa.txt", ...(commitFolder ? [FOLDER] : []))
+  git("commit", "-q", "--allow-empty", "-m", "qa log and change folder")
+  const invocations = settings.invocations ?? (tier === "internal-tooling" || cls === "none" ? ["implementation-audit"] : ["implementation-audit", "strategic-risk-review"])
+  const bodies = { "implementation-audit": auditTrailer, "strategic-risk-review": riskTrailer }
+  const record = structuredClone(pass)
+  Object.assign(record, {
+    plan: FOLDER,
+    plan_sha256: bundleDigest(folder),
+    reviewed_sha: git("rev-parse", "HEAD"),
+    diff_base: git("rev-parse", "HEAD~1"),
+    mandatory_class: cls,
+    whole_diff: whole === "needed" ? { run: true, reason: null } : { run: false, reason: "one module" },
+    qa: [{ name: "validator tests", passed: true, artifact: "evidence/qa.txt" }],
+    reviewers_run: invocations,
+    resolution: invocations.map((invocation) => ({ invocation, agent: invocation === "implementation-audit" ? "auditor" : "oracle", model: "onara/cc/claude-opus-5", independence: "same-model" })),
+    verdicts: invocations.map((invocation) => {
+      const file = path.join(evidence, `${invocation}.txt`)
+      writeFileSync(file, bodies[invocation])
+      return { invocation, verdict: "PASS", trailer_artifact: path.relative(directory, file), trailer_sha256: planDigest(file) }
+    }),
+  })
+  const recordPath = path.join(evidence, "merge-gate.json")
+  const scenario = {
+    repository,
+    folder,
+    record,
+    recordPath,
+    evidence,
+    save() {
+      writeFileSync(recordPath, JSON.stringify(record, null, 2))
+      git("add", "--intent-to-add", "--", ...folderFiles(evidence).filter((rel) => rel !== "qa.txt").map((rel) => path.join("evidence", rel)))
+    },
+    validate(extra = []) {
+      return spawnSync(process.execPath, [validator, "--record", recordPath, "--plan", folder, "--repo", directory, ...extra], { encoding: "utf8" })
+    },
+  }
+  scenario.save()
+  return scenario
+}
+
+function withScenario(options, body) {
+  const scenario = folderScenario(options)
+  try {
+    return body(scenario)
+  } finally {
+    rmSync(scenario.repository.directory, { recursive: true, force: true })
+  }
+}
+
+// An uncommitted folder in a scratch repository, for the checks that need no record.
+function withFolder(options, body) {
+  const repository = scratchRepo()
+  const folder = path.join(repository.directory, FOLDER)
+  writeFolder(folder, { ...folderDefaults, ...options })
+  try {
+    return body({ repository, folder })
+  } finally {
+    rmSync(repository.directory, { recursive: true, force: true })
+  }
+}
+
+const planOnlyFolder = ({ repository, folder }) => spawnSync(process.execPath, [validator, "--plan-only", "--plan", folder, "--repo", repository.directory], { encoding: "utf8" })
+const checkFolder = ({ folder }) => spawnSync(process.execPath, [checker, folder], { encoding: "utf8" })
+
+function expectFolderBlocked(result, pattern) {
+  assert.equal(result.status, 1, `expected a block, got exit ${result.status}: ${result.stdout}${result.stderr}`)
+  assert.equal(result.stdout, "blocked\n")
+  assert.match(result.stderr, pattern)
+  assert.doesNotMatch(result.stderr, /\n\s+at /)
+}
+
+function expectFolderPassed(result) {
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, "passed\n")
+}
+
+// A mutation case first proves the untouched folder passes, so a block afterwards is the
+// mutation's doing and not a fixture defect, and the pattern names the field the block must carry.
+function expectMutationBlocked(options, mutate, pattern) {
+  withScenario(options, (s) => {
+    expectFolderPassed(s.validate())
+    mutate(s)
+    expectFolderBlocked(s.validate(), pattern)
+  })
+}
+
+test("#given an untouched OpenSpec change folder #when its record is validated #then it passes", () => {
+  withScenario({}, (s) => expectFolderPassed(s.validate()))
+})
+
+for (const [name, mutate] of [
+  ["a spec line edited", (s) => writeFileSync(path.join(s.folder, "specs/feature/spec.md"), readFileSync(path.join(s.folder, "specs/feature/spec.md"), "utf8").replace("update one record", "update one record atomically"))],
+  ["a file added", (s) => writeFileSync(path.join(s.folder, "notes.md"), "late note\n")],
+  ["a file deleted", (s) => rmSync(path.join(s.folder, "design.md"))],
+]) {
+  test(`#given ${name} after the review #when validated #then plan_sha256 blocks`, () => {
+    expectMutationBlocked({}, mutate, /plan_sha256/)
+  })
+}
+
+for (const [name, entry, mutate] of [
+  ["a symlinked file", "alias.md", (s) => symlinkSync("proposal.md", path.join(s.folder, "alias.md"))],
+  ["a symlinked subdirectory", "linked-specs", (s) => symlinkSync("specs", path.join(s.folder, "linked-specs"))],
+  ["a FIFO", "pipe.md", (s) => execFileSync("mkfifo", [path.join(s.folder, "pipe.md")])],
+]) {
+  test(`#given ${name} in the folder #when validated #then the plan blocks naming the entry`, () => {
+    expectMutationBlocked({}, mutate, new RegExp(`plan: .*${entry}`))
+  })
+}
+
+test("#given a file above the 1 MiB artifact limit in the folder #when validated #then the plan blocks naming it", () => {
+  expectMutationBlocked({}, (s) => writeFileSync(path.join(s.folder, "big.md"), "x".repeat(1024 * 1024 + 1)), /plan: .*big\.md.*1048576/)
+})
+
+test("#given a spec without its Negative control #when its digest matches #then the OpenSpec diagnostic blocks, not plan_sha256", () => {
+  withScenario({ specs: { "feature/spec.md": specText("Safe update", "The system SHALL update one record.", { negativeControl: false }) } }, (s) => {
+    const result = s.validate()
+    expectFolderBlocked(result, /exactly one Scenario: Negative control is required/)
+    assert.doesNotMatch(result.stderr, /plan_sha256/, "the digest matches, so the block must come from the OpenSpec check")
+  })
+})
+
+// The per-entry hooks of `snapshotFolder` are the seam for the races the validator must survive.
+test("#given a file replaced by a symlink after the listing #when the snapshot opens it #then it throws naming the entry with ELOOP", async () => {
+  const { snapshotFolder } = await import("./folder-plan.mjs")
+  withScenario({}, (s) => {
+    const spec = path.join(s.folder, "specs/feature/spec.md")
+    assert.throws(
+      () => snapshotFolder(s.folder, {
+        beforeOpen(rel) {
+          if (rel !== "specs/feature/spec.md") return
+          rmSync(spec)
+          symlinkSync(path.join(s.folder, "proposal.md"), spec)
+        },
+      }),
+      /specs\/feature\/spec\.md[^]*ELOOP/,
+    )
+  })
+})
+
+test("#given a file replaced by a FIFO after the listing #when the snapshot opens it #then it throws without hanging", async () => {
+  const { snapshotFolder } = await import("./folder-plan.mjs")
+  withScenario({}, (s) => {
+    const spec = path.join(s.folder, "specs/feature/spec.md")
+    assert.throws(
+      () => snapshotFolder(s.folder, {
+        beforeOpen(rel) {
+          if (rel !== "specs/feature/spec.md") return
+          rmSync(spec)
+          execFileSync("mkfifo", [spec])
+        },
+      }),
+      /specs\/feature\/spec\.md[^]*not a regular file/,
+    )
+  })
+})
+
+test("#given bytes changed after a file was read #when checks, criteria, bundle and digest are built #then all reflect the first read", async () => {
+  const { snapshotFolder, buildBundle } = await import("./folder-plan.mjs")
+  const { validateOpenSpecFiles } = await import("./validate-openspec-change.mjs")
+  withScenario({ skipSpecs: true, specs: {}, gateExtra: gateCriteria }, (s) => {
+    const copy = `${s.folder}-first-read`
+    execFileSync("cp", ["-R", s.folder, copy])
+    const gate = path.join(s.folder, "gate.md")
+    const snapshot = snapshotFolder(s.folder, {
+      afterRead(rel) {
+        if (rel === "gate.md") writeFileSync(gate, readFileSync(gate, "utf8").replace(gateCriteria, ""))
+      },
+    })
+    assert.notEqual(validateOpenSpecFiles(new Map([...snapshot, ["gate.md", readFileSync(gate)]])).length, 0, "the rewritten gate.md lacks the criteria the first read carried, so this case would not discriminate")
+    assert.deepEqual(validateOpenSpecFiles(snapshot), [], "the checks and the criteria must read the first read's bytes")
+    assert.equal(createHash("sha256").update(buildBundle(snapshot)).digest("hex"), bundleDigest(copy), "the digest must pin the first read")
+    assert.equal(snapshot.get("gate.md").toString("utf8"), readFileSync(path.join(copy, "gate.md"), "utf8"))
+  })
+})
+
+test("#given only the record committed after the review #when validated #then it still passes", () => {
+  withScenario({}, (s) => {
+    const { git } = s.repository
+    expectFolderPassed(s.validate())
+    git("add", "-A")
+    git("commit", "-q", "-m", "gate evidence")
+    expectFolderPassed(s.validate())
+  })
+})
+
+test("#given the folder first committed with the record after the review, bytes unchanged #when validated #then it passes", () => {
+  withScenario({ commitFolder: false }, (s) => {
+    const { git } = s.repository
+    expectFolderPassed(s.validate())
+    git("add", "-A")
+    git("commit", "-q", "-m", "change folder and gate evidence")
+    expectFolderPassed(s.validate())
+  })
+})
+
+test("#given a source commit alongside the folder files after the review #when validated #then reviewed_sha blocks", () => {
+  withScenario({ commitFolder: false }, (s) => {
+    const { git, directory } = s.repository
+    writeFileSync(path.join(directory, "source.txt"), "unreviewed change\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "folder, evidence and unreviewed source")
+    expectFolderBlocked(s.validate(), /reviewed_sha/)
+  })
+})
+
+test("#given a folder file edited together with source after the review #when validated #then it blocks", () => {
+  withScenario({}, (s) => {
+    const { git, directory } = s.repository
+    expectFolderPassed(s.validate())
+    writeFileSync(path.join(s.folder, "design.md"), "edited after the review\n")
+    writeFileSync(path.join(directory, "source.txt"), "unreviewed change\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "folder file and source")
+    expectFolderBlocked(s.validate(), /plan_sha256|reviewed_sha/)
+  })
+})
+
+for (const [name, options, mutate, field] of [
+  ["mandatory_class none against a wire-contract-api gate.md", { cls: "wire-contract-api" }, (r) => { r.mandatory_class = "none" }, /mandatory_class/],
+  ["mandatory_class auth-secrets-pii against a none gate.md", {}, (r) => { r.mandatory_class = "auth-secrets-pii" }, /mandatory_class/],
+  ["whole_diff not run against a needed gate.md", { whole: "needed" }, (r) => { r.whole_diff = { run: false, reason: "skipped" } }, /whole_diff/],
+  ["whole_diff run against a not-needed gate.md", {}, (r) => { r.whole_diff = { run: true, reason: null } }, /whole_diff/],
+  ["a whole_diff reason other than gate.md's", {}, (r) => { r.whole_diff = { run: false, reason: "no reviewer needed" } }, /whole_diff/],
+]) {
+  test(`#given a record with ${name} #when validated #then the classification blocks`, () => {
+    withScenario(options, (s) => {
+      expectFolderPassed(s.validate())
+      mutate(s.record)
+      s.save()
+      expectFolderBlocked(s.validate(), field)
+    })
+  })
+}
+
+test("#given a gate.md with Whole-diff review needed and a matching record #when validated #then it passes", () => {
+  withScenario({ whole: "needed" }, (s) => expectFolderPassed(s.validate()))
+})
+
+function addRiskInvocation(s) {
+  const both = twoInvocationRecord()
+  s.record.reviewers_run = both.reviewers_run
+  s.record.resolution = both.resolution
+  const risk = path.join(s.evidence, "strategic-risk-review.txt")
+  writeFileSync(risk, buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4" }))
+  s.record.verdicts = [s.record.verdicts[0], { invocation: "strategic-risk-review", verdict: "PASS", trailer_artifact: path.relative(s.repository.directory, risk), trailer_sha256: planDigest(risk) }]
+  s.save()
+}
+
+test("#given an internal-tooling gate.md with one implementation-audit #when validated #then it passes", () => {
+  withScenario({ tier: "internal-tooling" }, (s) => expectFolderPassed(s.validate()))
+})
+
+test("#given an internal-tooling gate.md with two invocations #when validated #then reviewers_run blocks", () => {
+  withScenario({ tier: "internal-tooling" }, (s) => {
+    expectFolderPassed(s.validate())
+    addRiskInvocation(s)
+    expectFolderBlocked(s.validate(), /reviewers_run/)
+  })
+})
+
+test("#given an internal-tooling gate.md with a mandatory class #when validated #then Risk tier blocks", () => {
+  withScenario({ tier: "internal-tooling", cls: "wire-contract-api" }, (s) => {
+    expectFolderBlocked(s.validate(), /Risk tier/)
+  })
+})
+
+test("#given a product gate.md with wire-contract-api and both invocations #when validated #then it passes", () => {
+  withScenario({ cls: "wire-contract-api" }, (s) => expectFolderPassed(s.validate()))
+})
+
+test("#given a product gate.md with wire-contract-api and one invocation #when validated #then reviewers_run blocks", () => {
+  withScenario({ cls: "wire-contract-api" }, (s) => {
+    expectFolderPassed(s.validate())
+    s.record.reviewers_run = ["implementation-audit"]
+    s.record.resolution = s.record.resolution.slice(0, 1)
+    s.record.verdicts = s.record.verdicts.slice(0, 1)
+    s.save()
+    expectFolderBlocked(s.validate(), /reviewers_run/)
+  })
+})
+
+test("#given a product gate.md with class none and one invocation #when validated #then it passes", () => {
+  withScenario({ tier: "product", cls: "none" }, (s) => expectFolderPassed(s.validate()))
+})
+
+test("#given a gate.md still carrying a Review tier bullet #when validated #then Risk tier blocks", () => {
+  withScenario({}, (s) => {
+    expectFolderPassed(s.validate())
+    const gate = path.join(s.folder, "gate.md")
+    writeFileSync(gate, `${readFileSync(gate, "utf8").trimEnd()}\n- **Review tier**: standard\n`)
+    expectFolderBlocked(s.validate(), /Review tier[^]*Risk tier/)
+  })
+})
+
+test("#given a requirement in specs/cap/other.md beside a rename-only spec #when validated #then it counts as a criterion", () => {
+  withScenario({ specs: { "feature/spec.md": renameOnlySpec, "cap/other.md": specText("Other update", "The system SHALL update another record.") } }, (s) => expectFolderPassed(s.validate()))
+})
+
+const skipFolder = { skipSpecs: true, specs: {} }
+const renameFolder = { specs: { "feature/spec.md": renameOnlySpec } }
+
+for (const [name, base] of [["skip_specs", skipFolder], ["rename-only", renameFolder]]) {
+  test(`#given a ${name} folder with a valid gate.md criteria block #when validated #then it passes`, () => {
+    withScenario({ ...base, gateExtra: gateCriteria }, (s) => expectFolderPassed(s.validate()))
+  })
+
+  test(`#given a ${name} folder without gate.md criteria #when validated #then the criteria block`, () => {
+    withScenario({ ...base, gateExtra: gateCriteria }, (s) => {
+      expectFolderPassed(s.validate())
+      writeFileSync(path.join(s.folder, "gate.md"), readFileSync(path.join(s.folder, "gate.md"), "utf8").replace(gateCriteria, ""))
+      expectFolderBlocked(s.validate(), /Feature-specific criteria/)
+    })
+  })
+}
+
+for (const [name, field, value] of [
+  ["an empty Invariant", "Invariant", ""],
+  ["a placeholder Negative control", "Negative control", "<what must fail>"],
+  ["a TBD Observable", "Observable", "TBD"],
+  ["a deferral Observable", "Observable", "todo later"],
+]) {
+  test(`#given a skip_specs folder whose gate.md has ${name} #when validated #then the criteria block naming the field`, () => {
+    const broken = gateCriteria.replace(new RegExp(`(${field}:).*`), `$1 ${value}`.trimEnd())
+    assert.notEqual(broken, gateCriteria)
+    withScenario({ ...skipFolder, gateExtra: gateCriteria }, (s) => {
+      expectFolderPassed(s.validate())
+      writeFileSync(path.join(s.folder, "gate.md"), readFileSync(path.join(s.folder, "gate.md"), "utf8").replace(gateCriteria, broken))
+      expectFolderBlocked(s.validate(), new RegExp(`criteria[^\\n]*${field}`))
+    })
+  })
+}
+
+test("#given --plan-only on a valid folder #when validated #then it passes", () => {
+  withFolder({}, (f) => expectFolderPassed(planOnlyFolder(f)))
+})
+
+test("#given --plan-only on a folder with an unfilled gate.md #when validated #then it blocks on the placeholder", () => {
+  withFolder({}, (f) => {
+    expectFolderPassed(planOnlyFolder(f))
+    writeFileSync(path.join(f.folder, "gate.md"), template("gate.md"))
+    expectFolderBlocked(planOnlyFolder(f), /placeholder/)
+  })
+})
+
+test("#given a directory without gate.md as the plan #when validated #then it is an unreadable file plan", () => {
+  withFolder({}, (f) => {
+    rmSync(path.join(f.folder, "gate.md"))
+    expectFolderBlocked(planOnlyFolder(f), /^plan: cannot read /)
+  })
+})
+
+test("#given a reviewer criterion copied from a spec requirement #when validated #then adversarial_criteria blocks", () => {
+  const copied = "The system SHALL update one record."
+  withScenario({ auditTrailer: buildTrailer({ criteria: [{ invariant: copied, positive_witness: "a record is updated", negative_control: "an invalid record is rejected", observable: "the response status", boundary: "the update endpoint" }] }) }, (s) => {
+    expectFolderBlocked(s.validate(), /adversarial_criteria/)
+  })
+})
+
+test("#given a reviewer criterion that is original #when validated against a folder plan #then it passes", () => {
+  withScenario({}, (s) => expectFolderPassed(s.validate()))
+})
+
+test("#given a fresh clone of a repo holding the folder, the record and the trailer #when validated #then it passes", () => {
+  withScenario({}, (s) => {
+    const { git, directory } = s.repository
+    git("add", "-A")
+    git("commit", "-q", "-m", "gate evidence")
+    const clone = mkdtempSync(path.join(tmpdir(), "omo-gate-clone-"))
+    try {
+      execFileSync("git", ["clone", "-q", directory, clone], { encoding: "utf8" })
+      const result = spawnSync(process.execPath, [validator, "--record", path.join(clone, "evidence/merge-gate.json"), "--plan", path.join(clone, FOLDER), "--repo", clone], { encoding: "utf8" })
+      expectFolderPassed(result)
+    } finally {
+      rmSync(clone, { recursive: true, force: true })
+    }
+  })
+})
+
+// A change without requirements is authored from the shipped template: its commented criteria
+// example is uncommented and filled. The OpenSpec checker and the gate's --plan-only must agree.
+for (const [kind, base] of [["skip_specs", skipFolder], ["rename-only", renameFolder]]) {
+  test(`#given a ${kind} folder with the template's criteria example uncommented and filled #when checked #then the checker and --plan-only pass`, () => {
+    withFolder({ ...base, example: "filled" }, (f) => {
+      expectFolderPassed(checkFolder(f))
+      expectFolderPassed(planOnlyFolder(f))
+    })
+  })
+
+  test(`#given a ${kind} folder with the template's criteria example left commented #when checked #then the checker and --plan-only block naming the criteria`, () => {
+    withFolder({ ...base, example: "commented" }, (f) => {
+      const checked = checkFolder(f)
+      assert.equal(checked.status, 1, checked.stdout)
+      assert.match(checked.stderr, /criteria/i)
+      expectFolderBlocked(planOnlyFolder(f), /criteria/i)
+    })
+  })
+
+  test(`#given a ${kind} folder with the template's criteria example uncommented but unfilled #when checked #then the checker and --plan-only block naming the criteria`, () => {
+    withFolder({ ...base, example: "placeholders" }, (f) => {
+      const checked = checkFolder(f)
+      assert.equal(checked.status, 1, checked.stdout)
+      assert.match(checked.stderr, /criteria/i)
+      expectFolderBlocked(planOnlyFolder(f), /criteria/i)
+    })
+  })
+}

@@ -1,0 +1,11 @@
+classifier sha256=b85f659cc495bda7e82703272723bff8d72f16f913dae7ab09b6359b49a7365c
+model      MODEL REJECT process5=yes blockers=1
+loss       INFRA dependency loss recorded
+noend      INFRA missing END
+deadproxy  INFRA proxy died before the CLI finished
+nonzero    INFRA cli exit 124
+empty      INFRA empty output
+trunc      INFRA output is not one JSON value
+drift      INFRA runtime identity changed during the trial
+copymis    INFRA trial agent copy differs from the frozen template map
+noconnect  INFRA no router CONNECT through the trial proxy

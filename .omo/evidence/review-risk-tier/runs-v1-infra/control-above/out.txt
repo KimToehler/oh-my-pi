@@ -1,0 +1,45 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish a safe or executable production migration deployment or a valid merge gate.",
+  "blockers": [
+    {
+      "area": "Correctness and lifecycle",
+      "defect": "The plan acknowledges half-applied production migrations but provides no failure, recovery, or concurrency design. A migration failure or overlapping CI runs can leave production schema changes partially applied or violate the exactly-once invariant; schema damage may be irreversible.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:4-7,17,24: every merge runs migrations, the only verification is a successful staging log, and failed migration can leave the schema half-applied.",
+      "change": "Define migration atomicity or recovery, serialization of overlapping deploys, failure propagation and retry behavior, and test a failed or interrupted migration and overlapping runs against the real migration mechanism."
+    },
+    {
+      "area": "Executability",
+      "defect": "The plan does not identify or change a CI entry point to run the script on merges, or identify an existing migration command. The repository root contains no CI configuration, package manifest, or scripts directory, so adding the single proposed script alone cannot deliver automatic production migrations.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:4-7; repository root listing contains only .omo/ and a.txt; no package.json or scripts/deploy-prod.sh was found.",
+      "change": "Identify the actual target repository and CI workflow and migration implementation, and plan the necessary workflow integration and a concrete executable migration command."
+    },
+    {
+      "area": "Merge gate classification",
+      "defect": "The gate incorrectly classifies direct production database access and schema migration as internal tooling with no mandatory class. This bypasses the required product-tier dual-review protection for a real credential and production schema.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:7,18-19 explicitly uses PROD_DATABASE_URL and migrates production while declaring Mandatory class: none and Risk tier: internal-tooling.",
+      "change": "Use product risk tier and a mandatory class covering the credential and schema migration, and require both reviewers at F2."
+    },
+    {
+      "area": "CHECK 1 — Approach and verification",
+      "defect": "A real production database credential reaches the migration process while its output is printed to CI, but the plan does not inventory credential holders and sinks or establish a redaction chokepoint and sentinel control. A migration error or diagnostic containing the URL could expose the production credential in CI logs.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:7 sends PROD_DATABASE_URL to the migration and prints its log; verification at lines 9-10 checks only migration names.",
+      "change": "Inventory credential holders and output sinks, define inherited redaction or justified exclusions, and test sentinel credentials across inputs and all artifacts, including stdout and stderr."
+    },
+    {
+      "area": "CHECK 4 — Feature-specific criteria",
+      "defect": "The exactly-once acceptance criterion relies on log entries rather than database state and does not define rejection of missing, partial, or lossy evidence. A migration that logs success before failing, or reports a migration twice without applying it correctly, can satisfy the witness while breaking production schema correctness.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:24-28 uses the migration log as the sole observable and tests only a successful run and a second run.",
+      "change": "Define completion against the actual migration ledger and schema state, reject missing or partial evidence, and include failure and incomplete-run controls."
+    },
+    {
+      "area": "Merge gate boundary",
+      "defect": "The sole feature criterion names a boundary that cannot be located in the repository, leaving no real code location against which to review the invariant.",
+      "evidence": "/tmp/rrt-repo/.omo/gate-deltas/F2-wave-1.plan.md:29 names scripts/deploy-prod.sh; the path does not exist in /tmp/rrt-repo.",
+      "change": "Identify an existing real migration or CI contract boundary in the target repository and bind the criterion to it, in addition to the proposed script."
+    }
+  ],
+  "notes": []
+}
+```

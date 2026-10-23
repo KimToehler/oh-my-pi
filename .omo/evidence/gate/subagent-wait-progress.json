@@ -1,0 +1,28 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/subagent-wait-progress.md",
+  "plan_sha256": "d5a4683e7b0646d2efa9adb1b599d3617391cadfa122a62fab3c44e5b00888b0",
+  "reviewed_sha": "5edcaf236d64a178ce62fcabfdfac82ec1ea9663",
+  "diff_base": "2c435dc6bdc2d2a4f23b92d112fa9ff5bb94e4ed",
+  "reviewers_run": ["implementation-audit"],
+  "decision_reason": "Model-facing rendering change in two renderers plus optional snapshot fields; no mandatory class, so one implementation audit; wave 1 FAIL (B1 progress-record identity) fixed in 5edcaf236d with delta review OKAY, wave 2 PASS",
+  "mandatory_class": "none",
+  "implementation_models": ["onara/cc/claude-opus-5-5"],
+  "qa": [
+    { "name": "wait lists a running subagent with progress suffix (real CLI)", "passed": true, "artifact": ".omo/evidence/subagent-wait-progress/wave-2/qa.txt" },
+    { "name": "proc:// listing and proc://<id> show progress; settled task and async bash rows unchanged (real CLI)", "passed": true, "artifact": ".omo/evidence/subagent-wait-progress/wave-2/qa.txt" },
+    { "name": "RED of new tests on unchanged source", "passed": true, "artifact": ".omo/evidence/subagent-wait-progress/red.txt" },
+    { "name": "RED of B1 collision and sub-cent tests on pre-fix source", "passed": true, "artifact": ".omo/evidence/subagent-wait-progress/fix-b1-red.txt" },
+    { "name": "GREEN focused suites on fork head", "passed": true, "artifact": ".omo/evidence/subagent-wait-progress/merge-tests.txt" }
+  ],
+  "whole_diff": { "run": false, "reason": "not needed (one suffix helper in job-control.ts used by the wait/cancel renderer and the proc:// renderer, plus optional JobSnapshot fields; two packages, one layer)" },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": ".omo/evidence/subagent-wait-progress/f2/trailer-implementation-audit.txt", "trailer_sha256": "76281c716d22c949e3c070ade888018e9618483e3bea6d963daee751221ad0f4", "note": "wave 2 PASS on 5edcaf236d; wave 1 FAIL trailer at .omo/evidence/subagent-wait-progress/f2/trailer-implementation-audit-wave-1.txt" }
+  ],
+  "blockers": [
+    { "id": "B1", "severity": "high", "location": "packages/coding-agent/src/async/job-control.ts:185", "coverage": "packages/coding-agent/test/tools/wait-structured.test.ts::#given a batch job whose job id collided #when wait renders #then its row shows its own agent's progress, not the batch's first record", "fix_sha": "5edcaf236d64a178ce62fcabfdfac82ec1ea9663" }
+  ]
+}

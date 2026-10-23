@@ -1,0 +1,85 @@
+commit a2b1e022e70ae00a1f4607e35682c50991e9a130
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:28:11 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:28:11 2026 +0200
+
+    test(review-work): durable tracked smoke evidence (RED)
+
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+index accfff33e1..e9ae3f5bd2 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+@@ -1793,6 +1793,7 @@ function folderScenario(options = {}) {
+     riskTrailer = buildTrailer({ invocation: "strategic-risk-review", sections_covered: "1,2,3,4" }),
+     qaName = "smoke: update flow",
+     smokeBody = "update ok\nexit=0\n",
++    smokePlacement = "committed",
+   } = options
+   const repository = scratchRepo()
+   const { directory, git } = repository
+@@ -1803,8 +1804,12 @@ function folderScenario(options = {}) {
+   const evidence = path.join(directory, "evidence")
+   mkdirSync(evidence)
+   writeFileSync(path.join(evidence, "smoke.txt"), smokeBody)
+-  git("add", "--", "evidence/smoke.txt", ...(commitFolder ? [FOLDER] : []))
+-  git("commit", "-q", "-m", "smoke log and change folder")
++  if (smokePlacement === "ignored") {
++    writeFileSync(path.join(directory, ".gitignore"), "evidence/smoke.txt\n")
++    git("add", "--", ".gitignore")
++  }
++  git("add", "--", ...(smokePlacement === "committed" ? ["evidence/smoke.txt"] : []), ...(commitFolder ? [FOLDER] : []))
++  git("commit", "-q", "--allow-empty", "-m", "smoke log and change folder")
+   const full = tier === "full"
+   const invocations = full ? ["implementation-audit", "strategic-risk-review"] : ["implementation-audit"]
+   const bodies = { "implementation-audit": auditTrailer, "strategic-risk-review": riskTrailer }
+@@ -2108,3 +2113,49 @@ test("#given a reviewer criterion copied from a spec requirement #when validated
+     expectFolderBlocked(s.validate(), /adversarial_criteria/)
+   })
+ })
++
++// F3 B1: the smoke log is evidence a later checkout must be able to open, so it is verified like a
++// trailer: tracked, not ignored, read once, and pinned so a commit adding it after `reviewed_sha`
++// keeps the record valid.
++for (const placement of ["untracked", "ignored"]) {
++  test(`#given a ${placement} smoke artifact #when validated #then qa.0.artifact blocks`, () => {
++    withScenario({ smokePlacement: placement }, (s) => {
++      expectFolderBlocked(s.validate(), /qa\.0\.artifact/)
++    })
++  })
++}
++
++test("#given a smoke artifact first committed with the record after the review #when validated #then it still passes", () => {
++  withScenario({ smokePlacement: "untracked" }, (s) => {
++    const { git } = s.repository
++    git("add", "--intent-to-add", "--", "evidence/smoke.txt")
++    expectFolderPassed(s.validate())
++    git("add", "-A")
++    git("commit", "-q", "-m", "gate evidence with smoke log")
++    expectFolderPassed(s.validate())
++  })
++})
++
++test("#given a fresh clone of a repo holding the record, trailer and smoke log #when validated #then it passes", () => {
++  withScenario({ smokePlacement: "untracked" }, (s) => {
++    const { git, directory } = s.repository
++    git("add", "-A")
++    git("commit", "-q", "-m", "gate evidence with smoke log")
++    const clone = mkdtempSync(path.join(tmpdir(), "omo-gate-clone-"))
++    try {
++      execFileSync("git", ["clone", "-q", directory, clone], { encoding: "utf8" })
++      const result = spawnSync(process.execPath, [validator, "--record", path.join(clone, "evidence/merge-gate.json"), "--plan", path.join(clone, FOLDER), "--repo", clone], { encoding: "utf8" })
++      expectFolderPassed(result)
++    } finally {
++      rmSync(clone, { recursive: true, force: true })
++    }
++  })
++})
++
++test("#given a not-needed Whole-diff reason that differs from the record's #when validated #then whole_diff.reason blocks", () => {
++  withScenario({}, (s) => {
++    s.record.whole_diff = { run: false, reason: "a different justification" }
++    s.save()
++    expectFolderBlocked(s.validate(), /whole_diff\.reason/)
++  })
++})

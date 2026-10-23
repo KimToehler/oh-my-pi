@@ -1,0 +1,1 @@
+audit criterion (older ref keeps its own deploy check): scripts/deploy-local.sh:63-65 runs `$WT/scripts/ensure-openspec-cli.ts` only when the deployed ref has it ([ -f "$WT/..." ]), from cd "$WT"; holds.

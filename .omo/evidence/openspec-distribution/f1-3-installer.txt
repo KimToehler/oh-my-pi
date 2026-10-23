@@ -1,0 +1,55 @@
+=== fresh
+installed omp-gated workflow in /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.Tff9zOnR21; review and commit:
+  ?? openspec/config.yaml
+  ?? openspec/schemas/omp-gated/schema.yaml
+  ?? openspec/schemas/omp-gated/templates/design.md
+  ?? openspec/schemas/omp-gated/templates/gate.md
+  ?? openspec/schemas/omp-gated/templates/proposal.md
+  ?? openspec/schemas/omp-gated/templates/spec.md
+  ?? openspec/schemas/omp-gated/templates/tasks.md
+install exit=0
+?? openspec/config.yaml
+?? openspec/schemas/omp-gated/schema.yaml
+?? openspec/schemas/omp-gated/templates/design.md
+?? openspec/schemas/omp-gated/templates/gate.md
+?? openspec/schemas/omp-gated/templates/proposal.md
+?? openspec/schemas/omp-gated/templates/spec.md
+?? openspec/schemas/omp-gated/templates/tasks.md
+- Creating change 'probe' with schema 'spec-driven'...
+Schema: omp-gated
+=== old README shape
+installed omp-gated workflow in /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.kFmgam04cc; review and commit:
+  ?? openspec/schemas/omp-gated/schema.yaml
+  ?? openspec/schemas/omp-gated/templates/design.md
+  ?? openspec/schemas/omp-gated/templates/gate.md
+  ?? openspec/schemas/omp-gated/templates/proposal.md
+  ?? openspec/schemas/omp-gated/templates/spec.md
+  ?? openspec/schemas/omp-gated/templates/tasks.md
+notice: openspec/config.yaml names scripts/validate-openspec-change.mjs; point it at ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs
+notice: scripts/validate-openspec-change.mjs is a per-project copy; the validator ships with the team config, remove it (git rm scripts/validate-openspec-change.mjs)
+notice: openspec/changes/old-change/gate.md has Review tier, which the gate now refuses; replace it with "- **Risk tier**: product" or internal-tooling and add "- **Author's risk assessment**"
+notice: .omp/commands/opsx-propose.md duplicates the deployed /opsx command; remove it (git rm .omp/commands/opsx-propose.md)
+install exit=0
+8e7b67d90f10ea2d103211b85ea9ab518cecf4afb69fa01a3538246ad4b3fe5e  scripts/validate-openspec-change.mjs
+d9b9de556855ae3f7f7addab01823f222d22aa1f24aaec4febaeef9d198bf663  openspec/config.yaml
+f110993f1667bd97a98d1f7144aaa344eeb2188160d0cf70db4fc3cbaca29634  openspec/changes/old-change/gate.md
+73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac  .omp/commands/opsx-propose.md
+flagged files BYTE-IDENTICAL
+=== negative control: current-shape project, rerun gives no notice
+refused, nothing changed: these workflow paths hold changes git cannot restore; commit or move them yourself, then rerun:
+  ?? openspec/config.yaml
+  ?? openspec/schemas/omp-gated/schema.yaml
+  ?? openspec/schemas/omp-gated/templates/design.md
+  ?? openspec/schemas/omp-gated/templates/gate.md
+  ?? openspec/schemas/omp-gated/templates/proposal.md
+  ?? openspec/schemas/omp-gated/templates/spec.md
+  ?? openspec/schemas/omp-gated/templates/tasks.md
+0
+=== probe change metadata (/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.Tff9zOnR21)
+schema: omp-gated
+created: 2026-10-23
+=== negative control rerun on committed current-shape project
+omp-gated workflow in /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.Tff9zOnR21 is already current
+install exit=0
+0
+0

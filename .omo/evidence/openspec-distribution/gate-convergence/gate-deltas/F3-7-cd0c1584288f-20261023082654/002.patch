@@ -1,0 +1,72 @@
+commit cd0c1584288f8bf45aaa3e213809a665956cf24c
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Fri Oct 23 10:26:43 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Fri Oct 23 10:26:43 2026 +0200
+
+    fix(team-config): installer ignores negated git-ignore matches
+
+diff --git a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
+index 0bf4ed2c68..cc86ebbc9a 100755
+--- a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
++++ b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
+@@ -100,15 +100,19 @@ function preflight(target, source) {
+   if (created.length > 0) {
+     const ignored = git(root, "check-ignore", "-v", "--no-index", "--", ...created)
+     if (ignored.status === 0) {
+-      const lines = ignored.stdout.split("\n").filter(Boolean).map((line) => {
++      // `-v` also prints a path whose last matching pattern is a negation (`!pat`): that path is NOT ignored.
++      const lines = ignored.stdout.split("\n").filter(Boolean).flatMap((line) => {
+         const [rule, file] = line.split("\t")
+-        return `  ${file}  (${rule})`
++        const pattern = /^.*?:\d+:(.*)$/.exec(rule)?.[1] ?? rule
++        return pattern.startsWith("!") ? [] : [`  ${file}  (${rule})`]
+       })
+-      throw new Refusal(
+-        `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
+-      )
++      if (lines.length > 0) {
++        throw new Refusal(
++          `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
++        )
++      }
+     }
+-    if (ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
++    if (ignored.status !== 0 && ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
+   }
+ 
+   const configStat = lstat(path.join(root, CONFIG))
+diff --git a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
+index 50c3b7938d..839402125e 100644
+--- a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
++++ b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
+@@ -125,6 +125,12 @@ describe("install", () => {
+ 		expect(which.stdout).toContain("Source: project");
+ 	});
+ 
++	test("a negated ignore match does not count: everything re-included installs", () => {
++		const root = project({ ".gitignore": "*.md\n*.yaml\n!openspec/**\n" });
++		const r = installWorkflow(root);
++		expect(r.code).toBe(0);
++	});
++
+ 	test("update over a committed local edit and an extra file: replaced wholesale, the old bytes stay in HEAD, the config is untouched", () => {
+ 		const config = "schema: omp-gated\n\nrules:\n  specs:\n    - our own rule\n";
+ 		const root = project({ ...committedSchema(), [`${SCHEMA}/templates/extra.md`]: "ours\n", [CONFIG]: config });
+@@ -154,6 +160,16 @@ describe("install", () => {
+ 
+ describe("refusals leave the project byte-identical", () => {
+ 
++	test("a negation re-including only the config still refuses for the schema file, naming only that file", () => {
++		const root = project({ ".gitignore": "*.yaml\n!openspec/config.yaml\n" });
++		const before = tree(root);
++		const r = installWorkflow(root);
++		expect(r.code).toBe(1);
++		expect(text(r)).toContain(`${SCHEMA}/schema.yaml`);
++		expect(text(r)).not.toContain(CONFIG);
++		expect(tree(root)).toEqual(before);
++	});
++
+ 	test("a committed .gitignore rule that would ignore the config to be created", () => {
+ 		const root = project({ ".gitignore": "openspec/config.yaml\n" });
+ 		const before = tree(root);

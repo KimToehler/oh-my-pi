@@ -1,0 +1,31 @@
+PASS pre-deployed-marker-is-commit 3c51382ace38bc4d2a30b3ad2f5c984d05d0aa38
+INFO pre omp sha256=62b88249249d73e18021527eef276468f6f324b07dde060ddc01aac0d88e3ead
+PASS pre-reviewer-runtime-source-identical-deployed-vs-base
+INFO pre manifest sha256=93bd0197dbc7e9ebd4901c52dbdfb5aaecfa09838dbd08d52bae4e6609c4a1e0 entries=433 branch_head=eb2dce61209a5668b8cdb36afe8739930a12f417
+PASS pre-A-manifest-entries-match-branch []
+PASS pre-A-vs-C-differs-only-in-process-rule 1 diff line(s)
+INFO pre rule branch=df271a0699689df241ade680800c606a47e3c960bcaa2ca0919d985547316ea5 control=d0145c6254df0c1ee7b01fbbaedaa2fa717d8de47a6d56735f852e17b48b7886
+INFO pre config.yml sha256=13e4b632cc386b6d6b77547d62dd7662ba903159d68b993ee44b6849a464ba10
+INFO pre models.yml sha256=b2ce5344cee953784b47076c2ad41f8bbcde7b2cbc828aaeef75fe1a63f14542
+PASS pre-empty-cwd-empty
+INFO pre natives /tmp/rrt-natives/18.12.5/pi_natives.darwin-arm64.node mode=0o755 sha256=f75ee59032fd34be19510cf840f4f2ad1c3d462dfc2627b671f35792ed885595
+PASS pre-no-external-PROCESS5 []
+INFO pre helper rrt-proxy.mjs sha256=24bcb7b1d539189dd7fc2a02bfe7af497dac3f919dea5be8a53c367feaa9c2ee
+INFO pre helper rrt-run.mjs sha256=a8b6933e3dfcd41d08bbd3986b2ae10046ac22d95c6740d6c09ac3f91662c8a5
+INFO pre helper rrt-classify.mjs sha256=207b4debf524f3c4371abe8d8f2203fb13e718c779b5752a762808857f72075a
+PASS post-deployed-marker-is-commit 3c51382ace38bc4d2a30b3ad2f5c984d05d0aa38
+INFO post omp sha256=62b88249249d73e18021527eef276468f6f324b07dde060ddc01aac0d88e3ead
+PASS post-reviewer-runtime-source-identical-deployed-vs-base
+INFO post manifest sha256=93bd0197dbc7e9ebd4901c52dbdfb5aaecfa09838dbd08d52bae4e6609c4a1e0 entries=433 branch_head=eb2dce61209a5668b8cdb36afe8739930a12f417
+PASS post-A-manifest-entries-match-branch []
+PASS post-A-vs-C-differs-only-in-process-rule 1 diff line(s)
+INFO post rule branch=df271a0699689df241ade680800c606a47e3c960bcaa2ca0919d985547316ea5 control=d0145c6254df0c1ee7b01fbbaedaa2fa717d8de47a6d56735f852e17b48b7886
+INFO post config.yml sha256=13e4b632cc386b6d6b77547d62dd7662ba903159d68b993ee44b6849a464ba10
+INFO post models.yml sha256=b2ce5344cee953784b47076c2ad41f8bbcde7b2cbc828aaeef75fe1a63f14542
+PASS post-empty-cwd-empty
+INFO post natives /tmp/rrt-natives/18.12.5/pi_natives.darwin-arm64.node mode=0o755 sha256=f75ee59032fd34be19510cf840f4f2ad1c3d462dfc2627b671f35792ed885595
+PASS post-no-external-PROCESS5 []
+INFO post helper rrt-proxy.mjs sha256=24bcb7b1d539189dd7fc2a02bfe7af497dac3f919dea5be8a53c367feaa9c2ee
+INFO post helper rrt-run.mjs sha256=a8b6933e3dfcd41d08bbd3986b2ae10046ac22d95c6740d6c09ac3f91662c8a5
+INFO post helper rrt-classify.mjs sha256=207b4debf524f3c4371abe8d8f2203fb13e718c779b5752a762808857f72075a
+PASS post-identities-equal-pre

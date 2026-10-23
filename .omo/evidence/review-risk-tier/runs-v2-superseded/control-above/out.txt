@@ -1,0 +1,43 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish an executable production deployment path or a merge gate appropriate to its production database and credential access.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The proposed script has neither a defined migration implementation nor a CI integration. On a merge to main, there is no specified job that invokes it, and the stated migration command has no identified implementation in this workspace.",
+      "evidence": "The plan says to add only `scripts/deploy-prod.sh` and run `bun run migrate` on every merge. The workspace root contains only `.omo/` and `a.txt`; a search found no package.json, migration files, deployment files, or references to `bun run migrate` or `PROD_DATABASE_URL`.",
+      "change": "Identify or provide the actual migration package and its working directory, and specify the CI workflow, trigger, secret injection, and script invocation needed to execute it on merges."
+    },
+    {
+      "area": "CHECK 1 — production credential and migration log",
+      "defect": "The plan uses a real production credential and prints migration output without identifying its holders and sinks or preventing credential disclosure. A migration process that includes its connection URL in diagnostic output would send the secret to CI logs, creating an exposure requiring credential rotation.",
+      "evidence": "Approach 1 says the script reads `PROD_DATABASE_URL` and 'prints the migration log to the CI job output'; there is no holder/sink inventory, inherited redaction chokepoint, or sentinel-based negative control.",
+      "change": "Inventory the secret's holders and all output sinks, establish a shared redaction or exclusion mechanism for the relevant output, and test with a sentinel across inputs and artifacts."
+    },
+    {
+      "area": "Merge gate classification",
+      "defect": "The gate incorrectly classifies production database migrations and a real CI credential as internal tooling with no mandatory class. This would allow a reduced review wave despite access to protected production state and credentials.",
+      "evidence": "The plan specifies `PROD_DATABASE_URL` and migrations against the production database, but declares `Mandatory class: none` and `Risk tier: internal-tooling`.",
+      "change": "Use the product risk tier and classify the credential and schema-migration exposure so both required reviewers run; make the risk assessment reflect both production schema and credential risks."
+    },
+    {
+      "area": "Merge gate boundary",
+      "defect": "The feature criterion names a boundary that does not exist in the current workspace, so the required real code location cannot be verified.",
+      "evidence": "The criterion names `Boundary: scripts/deploy-prod.sh`; the plan proposes creating that file, and the workspace root has no `scripts/` directory.",
+      "change": "Identify an existing real code boundary for the criterion, or establish the actual implementation boundary before submitting the gate plan."
+    },
+    {
+      "area": "PROCESS 1 — feature-specific negative control",
+      "defect": "The stated negative control is expected idempotent behavior, not an input or state that the criterion must reject. The criterion therefore does not discriminate a broken migration implementation from a correct one.",
+      "evidence": "The invariant is 'the script applies every pending migration exactly once', while the negative control is 'a second run applies nothing'. A script that applies nothing on both runs satisfies that negative control.",
+      "change": "Specify a realistic broken outcome that must fail, such as a pending migration omitted or applied twice, and how the observable proves the failure."
+    },
+    {
+      "area": "Verification — production failure behavior",
+      "defect": "The plan acknowledges partially applied production migrations but does not define what the job does on failure or how recovery is verified. A failed migration in an ordinary deployment can leave production in a partially migrated state while the plan provides no acceptance test for that case; reversibility depends on the migration.",
+      "evidence": "The risk assessment says 'a failed migration leaves the schema half-applied'; verification only checks that a staging log lists applied migrations.",
+      "change": "Define and test failure propagation and a concrete recovery or rollback procedure appropriate to the actual migration system, including a failure after at least one migration has run."
+    }
+  ],
+  "notes": []
+}

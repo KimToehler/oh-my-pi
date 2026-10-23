@@ -1,0 +1,32 @@
+REPO /tmp/rrt-repo.D5u2
+BASELINE 7d2e05405833 recorded
+/tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 7d2e05405833
+PLAN /tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-1.plan.md
+plan mode=444 sha=7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f json="plan_sha256":"7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f"
+DECISION: CONTINUE
+WAVE F2 1 total=3 fix_induced=0 unlocated=3
+exit 0
+/tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-2.snapshot.json
+SNAPSHOT F2 wave 2 7d2e05405833
+PLAN /tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-2.plan.md
+plan mode=444 sha=7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f json="plan_sha256":"7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f"
+DECISION: CONTINUE
+WAVE F2 2 total=2 fix_induced=0 unlocated=2
+exit 0
+/tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-3.snapshot.json
+SNAPSHOT F2 wave 3 7d2e05405833
+PLAN /tmp/rrt-repo.D5u2/.omo/gate-deltas/F2-wave-3.plan.md
+plan mode=444 sha=7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f json="plan_sha256":"7899cc7f38cba1eafe46f1ca2c8881a1a5edcbbb0a8ac57537f00f5051de743f"
+DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers
+WAVE F2 3 total=1 fix_induced=0 unlocated=1
+exit 3
+gate-convergence: internal-tooling allows 2 fix rounds per lane: choose freeze or replan, or re-tier the plan to product (retier) to continue
+exit 1
+gate-convergence: plan Risk tier is product but this gate runs as internal-tooling; record the change with retier --by <user> --reason <text>
+exit 1
+RECORDED risk_tier_change internal-tooling -> product
+exit 0
+RECORDED convergence_decision lane=F2 wave=3 choice=continue
+exit 0
+1

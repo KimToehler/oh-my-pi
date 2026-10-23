@@ -10,7 +10,7 @@ Do not include `Co-Authored-By` lines in commit messages.
 
 ### 1. Plan Mode Default
 
-- Enter the harness's plan mode for ANY non-trivial task (3+ steps or architectural decisions), unless the pattern is already documented in the project's persistent rules with a proven approach
+- Plan ANY non-trivial task (3+ steps or architectural decisions) before building, unless the pattern is already documented in the project's persistent rules with a proven approach. A behaviour change in a repository with `openspec/` goes through the `openspec` skill; otherwise ask the user to switch to plan mode (`/plan`), which only the user can enter
 - For familiar patterns with documented rules/lessons: execute directly, verify at the end
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing
 - Use plan mode for verification steps, not just building

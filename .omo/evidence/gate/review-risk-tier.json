@@ -1,0 +1,94 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/review-risk-tier.md",
+  "plan_sha256": "7c0514fd2e4a11e5fb75028af164cdd822aa0ebe03567c3fd84b8b0f87e8affe",
+  "reviewed_sha": "14de786154a767d4d26d72aaf8c500f9d65031e7",
+  "diff_base": "c37104fa6ae6196bbb7ee41fd48cd149ba535259",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Team-config suite and focused convergence tests pass on the final code; the installed-reviewer combined witness passes on the final-head config; F3 wave 6 and F2 wave 3 (implementation audit and strategic risk review) found no blocker.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Team-config suite: 451 pass, 0 fail (last script change 280f0c8ed4)",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/wave-2/green.txt"
+    },
+    {
+      "name": "Convergence tests on reviewed head: 33 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/wave-2/gate-convergence-tests.txt"
+    },
+    {
+      "name": "Cap RED on real code, restored",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/head-18867ae/red-cap.txt"
+    },
+    {
+      "name": "Convergence smoke: cap, retier, exempt, write-once snapshot",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/head-18867ae/smoke-convergence.txt"
+    },
+    {
+      "name": "Plan-only smoke on the real validator",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/smoke-plan-only.txt"
+    },
+    {
+      "name": "Installed-reviewer combined witness on final-head config: pinned-copy PROCESS 5 REJECT, wave refusal",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/head-18867ae/v5/branch-above-classify.txt"
+    },
+    {
+      "name": "One-file control and below fixture: no PROCESS 5",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/runs/control-above/out.txt"
+    },
+    {
+      "name": "QA matrix",
+      "passed": true,
+      "artifact": ".omo/evidence/review-risk-tier/qa-matrix.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omo/evidence/review-risk-tier/f3/report-wave6.md"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/gate/review-risk-tier/implementation-audit-trailer.md",
+      "trailer_sha256": "2de22629df498a8a70ba09a3501dccdd4389b7ab07d4c0566c7827a24ff82d8a",
+      "note": "F2 wave 3 on 14de786154 after wave 2 blockers were fixed (row 8, QA row 15)."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/gate/review-risk-tier/strategic-risk-review-trailer.md",
+      "trailer_sha256": "bbbad2fe0b3a9266f0d1b3f47ac9bfaee730243d7715b8a32546f2e17112c612",
+      "note": "F2 wave 3; remaining weaknesses are the plan's accepted residual risks."
+    }
+  ],
+  "blockers": []
+}

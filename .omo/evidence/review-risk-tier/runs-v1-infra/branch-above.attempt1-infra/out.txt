@@ -1,0 +1,37 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish a safe, executable production migration or a valid merge gate.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The plan specifies a script but no CI integration that invokes it on merges to main. In ordinary use, merging would therefore not itself deploy the migration; the resulting schema mismatch can affect production and may require recovery.",
+      "evidence": "Context: “run from CI on every merge to main.” Approach only says to add `scripts/deploy-prod.sh`; it names no CI workflow, trigger, or invocation. The repository root contains no CI configuration or scripts directory.",
+      "change": "Specify the CI workflow, merge-to-main trigger, secret injection, and script invocation, with a concrete verification of that entry path."
+    },
+    {
+      "area": "PROCESS 5",
+      "defect": "The risk tier and mandatory class misclassify a change that uses a production credential and mutates a production database. This would apply a reduced internal-tooling gate to protected assets; a failed or partial migration can cause irreversible production damage.",
+      "evidence": "Approach: the script reads `PROD_DATABASE_URL` from the CI secret store and runs `bun run migrate` against the production database. Merge gate declares `Risk tier: internal-tooling` and `Mandatory class: none`.",
+      "change": "Classify this as product risk and require both reviewers for the credential and schema-migration exposure; describe the production failure and recovery boundaries."
+    },
+    {
+      "area": "CHECK 1",
+      "defect": "The production database credential has no holder-and-sink inventory or leakage control, even though migration output is printed to CI. A migration failure or diagnostic that includes the connection URL could expose a real credential in retained job logs; revoking the credential may be necessary.",
+      "evidence": "Approach reads `PROD_DATABASE_URL` and “prints the migration log to the CI job output.” The plan specifies no inventory of environment, process output, errors, or CI artifacts, and no sentinel-based negative control.",
+      "change": "Inventory credential holders and sinks by search, define a shared protection chokepoint or justified exclusions, and test sentinel-bearing inputs across all outputs and artifacts."
+    },
+    {
+      "area": "Merge gate boundary",
+      "defect": "The criterion names a boundary that cannot be located in the supplied repository, so the gate cannot presently be tied to a real code surface.",
+      "evidence": "The only `Boundary:` is `scripts/deploy-prod.sh`; the repository root has no `scripts/` directory, and the plan proposes creating the file.",
+      "change": "Identify an existing real code location for the criterion, or establish and locate the new boundary before the gate is evaluated."
+    },
+    {
+      "area": "Final verification wave",
+      "defect": "The plan does not require a SHA-bound validated gate record or a concrete real-surface QA procedure, leaving the production change without the required evidence that the reviewed bytes passed the gate.",
+      "evidence": "F1 says only “Manual QA on the real surface”; F2 says only “Merge gate: `review-work`.” Neither specifies evidence paths nor the validated SHA-bound record.",
+      "change": "Specify F1 scenarios and evidence paths on the post-review head, and require the SHA-bound `omo.merge-gate/v2` record and validator for F2."
+    }
+  ],
+  "notes": []
+}

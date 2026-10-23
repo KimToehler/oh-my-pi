@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "No evidenced blocking defect found.",
+  "blockers": [],
+  "notes": [
+    "Unverified: verbose git check-ignore can report negated matches; preflight treats every output line as ignored. Check mixed ignored and explicitly unignored paths."
+  ]
+}

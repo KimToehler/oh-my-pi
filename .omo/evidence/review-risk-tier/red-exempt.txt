@@ -1,0 +1,33 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+153 |   s.gc("baseline", "--sha", "HEAD")
+154 |   assert.equal(s.wave("F2", "--outcome", "qa=FAIL", "--blocker", "B1").status, 0)
+155 |   const tick = s.commit("docs/plan.md", "- [x] F2\n", "tick F2")
+156 |   assert.equal(s.gc("exempt", "--sha", tick).status, 1)
+157 |   const exempted = s.gc("exempt", "--sha", tick, "--reason", "checkbox only")
+158 |   assert.equal(exempted.status, 0, exempted.stderr)
+               ^
+AssertionError: gate-convergence: unknown command exempt
+
+
+1 !== 0
+
+ generatedMessage: false,
+     actual: 1,
+   expected: 0,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:158:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a commit after a wave #when the orchestrator exempts it with a reason #then ready passes, while a rejected commit cannot be exempted [243.58ms]
+
+ 0 pass
+ 30 filtered out
+ 1 fail
+Ran 1 test across 1 file. [271.00ms]

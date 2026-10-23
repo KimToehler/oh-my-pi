@@ -1,0 +1,16 @@
+head 9abb83c9c73d18fc23b7b282bf8154e8bdd821c3
+omp sha256=62b88249249d73e18021527eef276468f6f324b07dde060ddc01aac0d88e3ead deployed=3c51382ace38bc4d2a30b3ad2f5c984d05d0aa38
+UNCHANGED-since-8e9b1a1 team-config/agent/rules
+UNCHANGED-since-8e9b1a1 team-config/agent/agents
+UNCHANGED-since-8e9b1a1 team-config/agent/AGENTS.md
+UNCHANGED-since-8e9b1a1 packages
+UNCHANGED-since-8e9b1a1 .omo/evidence/review-risk-tier/fixtures
+install-exit=0
+installed gate-convergence = HEAD
+rule plan-review-process sha256=df271a0699689df241ade680800c606a47e3c960bcaa2ca0919d985547316ea5
+BASELINE 62af4d90f936 recorded
+/tmp/rrt5-repo/.omo/gate-deltas/F2-278a6c18596b-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 62af4d90f936
+PLAN /tmp/rrt5-repo/.omo/gate-deltas/F2-278a6c18596b-wave-1.plan.md
+copy-mode=444 copy=92671c2590c0247c307527221558cc7cb1b5290c56cff40e7394d5cb934a3a67 snap.plan_sha256=92671c2590c0247c307527221558cc7cb1b5290c56cff40e7394d5cb934a3a67
+source-after-mutation=ed2fd9cd0558046c80a129d3b75c52583c02847ef2894e35b27162b55e34206a

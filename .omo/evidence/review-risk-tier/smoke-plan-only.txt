@@ -1,0 +1,14 @@
+== class: auth-secrets-pii
+blocked
+plan Risk tier: internal-tooling requires exactly one Mandatory class bullet whose whole value is none; a mandatory class makes the plan product
+exit 1
+== class: none (auth-secrets-pii)
+blocked
+plan Risk tier: internal-tooling requires exactly one Mandatory class bullet whose whole value is none; a mandatory class makes the plan product
+exit 1
+== class: none
+passed
+exit 0
+== tier line deleted
+passed
+exit 0

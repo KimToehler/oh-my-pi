@@ -1,0 +1,8 @@
+XDG_CONFIG_HOME=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.58WCAnfxV8
+before (vars unset): true
+--- check
+OpenSpec 1.14.3; telemetry disabled in /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.58WCAnfxV8/openspec/config.json
+check exit=0
+after (vars unset): false
+--- negative control: another XDG_CONFIG_HOME is not covered (accepted residual risk)
+other config: true

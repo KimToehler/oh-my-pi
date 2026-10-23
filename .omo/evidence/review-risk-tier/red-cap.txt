@@ -1,0 +1,55 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+358 |     if (index < 2) {
+359 |       assert.equal(last.status, 0, last.stderr)
+360 |       assert.equal(first(last.stdout), "DECISION: CONTINUE")
+361 |     }
+362 |   }
+363 |   assert.equal(last.status, 3, last.stderr)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 3
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 3,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:363:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling plan with totals 3, 2, 1 #when the third wave records #then the fix-round cap stops it [613.62ms]
+364 |   assert.equal(first(last.stdout), "DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers")
+365 | })
+366 | 
+367 | test("#given an internal-tooling cap STOP #when decide runs #then continue is refused and freeze is recorded", (t) => {
+368 |   const s = sandbox(t)
+369 |   assert.equal(toolingStop(s).status, 3)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 3
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 3,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:369:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling cap STOP #when decide runs #then continue is refused and freeze is recorded [559.92ms]
+
+ 24 pass
+ 2 fail
+Ran 26 tests across 1 file. [13.75s]

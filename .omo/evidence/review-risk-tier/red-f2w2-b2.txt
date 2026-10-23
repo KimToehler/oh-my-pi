@@ -1,0 +1,32 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+421 |   const s = sandbox(t)
+422 |   assert.equal(toolingStop(s).status, 3)
+423 |   tierPlan(s, "product")
+424 |   const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+425 |   assert.equal(retier.status, 0, retier.stderr)
+426 |   assert.match(retier.stdout, /^STALE F2 wave 3: recorded before this retier/m)
+               ^
+AssertionError: The input did not match the regular expression /^STALE F2 wave 3: recorded before this retier/m. Input:
+
+'RECORDED risk_tier_change internal-tooling -> product\n'
+
+ generatedMessage: true,
+     actual: "RECORDED risk_tier_change internal-tooling -> product\n",
+   expected: /^STALE F2 wave 3: recorded before this retier/m,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:426:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling cap STOP #when the plan is re-tiered to product #then the stopped wave is stale: freeze is refused, continue is recorded [509.24ms]
+
+ 0 pass
+ 31 filtered out
+ 1 fail
+Ran 1 test across 1 file. [542.00ms]

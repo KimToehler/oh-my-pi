@@ -1,0 +1,84 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/openspec-gate.md",
+  "plan_sha256": "475ad16a99253a9bcab37a79b2edd52c3c63c3583290f946925ca391dd2f3078",
+  "reviewed_sha": "37dd1f1a84a70b464bb80dc76b9a7adce73ccb63",
+  "diff_base": "13b1616345d3c3c03cc6ba44a1cc9149282411be",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class wire-contract-api (gate record and gate.md formats are consumed by other projects' installed scripts): both reviewers.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1-1 internal-tooling folder: snapshot digest, real auditor record, spec-edit block, record-only commit",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/f1.md"
+    },
+    {
+      "name": "F1-2 product + wire-contract-api: one invocation blocked, both passed, reclassified record blocked",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/f1.md"
+    },
+    {
+      "name": "F1-3 --plan-only on folders incl. skip_specs fallback criteria",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/f1.md"
+    },
+    {
+      "name": "F1-4 Mechanical: 9 records identical under main and new validator",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/f1-4-mechanical.txt"
+    },
+    {
+      "name": "F1-5 real omp -p stop hook: folder record accepted, edited spec rejected",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/f1-5-hook-edited-spec-negative-control.jsonl"
+    },
+    {
+      "name": "bun run test:team-config on 37dd1f1a84: 529 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-gate-v2/team-config-tests.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/openspec-gate-v2/f2/implementation-audit-trailer.md",
+      "trailer_sha256": "31d25dcc89aea9cc2a791e734a34ce1c370ff8953b8b2d290619f427af8dc7f4",
+      "note": ".omo/evidence/openspec-gate-v2/f2/brief-audit.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/openspec-gate-v2/f2/strategic-risk-review-trailer.md",
+      "trailer_sha256": "e81ddd590a38da518e3ae6b2fd5c6d70c673698f4f562b831f8d6cf590b023a2",
+      "note": "second run; first INCONCLUSIVE (plan diff missing from brief): .omo/evidence/openspec-gate-v2/f2/strategic-risk-review-attempt1-inconclusive.md"
+    }
+  ],
+  "blockers": []
+}

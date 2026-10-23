@@ -1,0 +1,29 @@
+commit e50f501d7ee5b7063009ff0fd954d4293951e01e
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:26:38 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:26:38 2026 +0200
+
+    docs(plans): P4b F3 fix rows 5-6
+
+diff --git a/.omo/plans/openspec-gate.md b/.omo/plans/openspec-gate.md
+index c52d81e4a1..0fd7f28627 100644
+--- a/.omo/plans/openspec-gate.md
++++ b/.omo/plans/openspec-gate.md
+@@ -132,6 +132,16 @@ records that already block on 919b21f9d0, history rewrite.
+   delete sentences the tier makes wrong. `schema.yaml` gate instruction: `standard` drops the second reviewer, F3
+   follows `Whole-diff review`, and a change without requirements carries `Feature-specific criteria` in `gate.md`.
+   Verify: `bun run test:team-config`
++- [ ] 5. F3 B1 (nondurable smoke evidence): the standard-tier `smoke:` artifact is verified like a trailer
++  (`verifyAndPinArtifact` with `requireTracked: true`: tracked, not ignored, bytes read once, pinned so a commit adding
++  it after `reviewed_sha` stays exempt); the existing regular-file/non-empty/`exit=0` checks run on those bytes.
++  SKILL.md: smoke logs for folder plans go to `.omo/evidence/gate/<change>/smoke-<name>.txt` and are committed with
++  the record. RED first: an untracked or ignored smoke artifact → blocked; a fresh clone of a repo holding record,
++  trailer and smoke log → `passed`. Verify: `bun run test:team-config`
++- [ ] 6. F3 Should-fix: compare the `Whole-diff review` not-needed reason in `gate.md` with `record.whole_diff.reason`
++  (mismatch test); SKILL.md hash instructions marked file-plan-only and a folder record example with `review_tier`;
++  the standard tier's two-fix-round limit stated as an orchestrator rule (convergence does not count tiers).
++  Verify: `bun run test:team-config`
+ 
+ ## Final verification wave
+ - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason

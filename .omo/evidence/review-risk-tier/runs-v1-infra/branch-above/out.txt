@@ -1,0 +1,49 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan lacks an executable deployment path and a safe, verifiable production migration contract; it also misclassifies production access.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The plan does not specify how CI invokes the script, and its migration command has no identified implementation. Consequently, normal merges cannot be shown to deploy migrations.",
+      "evidence": "The plan adds only scripts/deploy-prod.sh and says it runs `bun run migrate`; the repository root contains only .omo and a.txt, with no package manifest or CI workflow found.",
+      "change": "Specify the actual CI workflow, merge trigger, secret injection, runtime setup, and an existing or implemented migration command."
+    },
+    {
+      "area": "Correctness and verification",
+      "defect": "Exactly-once migration execution is not established for failed or overlapping production runs. A sequential second staging run does not test either case; partial schema changes may require irreversible production recovery.",
+      "evidence": "The plan identifies a half-applied schema as a risk but only tests that a second run applies nothing. CI runs on every merge, and no serialization, migration transaction, recovery, or failure control is specified.",
+      "change": "Specify migration locking, transaction or recovery semantics and failure handling; test overlapping runs and interrupted or failed migrations against a representative database."
+    },
+    {
+      "area": "Security and privacy",
+      "defect": "The plan exposes a real production database credential to a command whose output is printed to CI, without establishing that logs and errors cannot disclose it. A migration failure could leak the credential to CI log readers.",
+      "evidence": "The approach reads PROD_DATABASE_URL, runs migrations, and prints the migration log; it specifies no redaction or constraints on command stdout and stderr.",
+      "change": "Define secret handling and log redaction for the actual migration runner and CI output; verify with a sentinel credential, including failure output."
+    },
+    {
+      "area": "CHECK 1",
+      "defect": "The production credential has no holder and sink inventory or comprehensive negative control.",
+      "evidence": "The approach names the CI secret and migration log but does not enumerate the environment, process output, errors, or other holders and sinks.",
+      "change": "Inventory holders and sinks, specify a shared protection chokepoint or exclusions, and scan artifacts and output for a planted sentinel."
+    },
+    {
+      "area": "CHECK 4",
+      "defect": "The exactly-once acceptance predicate does not define outcomes for missing, partial, or unreadable migration state; its negative control only covers a completed second run.",
+      "evidence": "The gate invariant requires every pending migration exactly once, while the sole negative control is 'a second run applies nothing'.",
+      "change": "Define how pending and applied state is determined, fail closed on missing and incomplete evidence, and test missing and partial state."
+    },
+    {
+      "area": "PROCESS 5",
+      "defect": "The plan labels production database migrations internal tooling despite reaching protected production data; it also declares no mandatory class despite accessing a real credential and changing schema.",
+      "evidence": "The approach uses PROD_DATABASE_URL to migrate the production database, while the gate declares `Risk tier: internal-tooling` and `Mandatory class: none`.",
+      "change": "Classify the gate as product, account for both credential and schema risks, and require both reviewers."
+    },
+    {
+      "area": "Merge gate boundary",
+      "defect": "The sole criterion names a code boundary that cannot be located in the repository, leaving its real contract surface unbound.",
+      "evidence": "The boundary is `scripts/deploy-prod.sh`, which the plan proposes adding and which does not exist in the supplied repository.",
+      "change": "Identify an existing real execution boundary or establish the implementation boundary before the gate is assessed."
+    }
+  ],
+  "notes": []
+}

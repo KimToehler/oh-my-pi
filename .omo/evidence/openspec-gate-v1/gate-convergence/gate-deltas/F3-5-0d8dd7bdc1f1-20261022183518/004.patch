@@ -1,0 +1,68 @@
+commit 19d1a842bd6f2e8b67968dbe339662e465ac1944
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:33:49 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:33:49 2026 +0200
+
+    test(review-work): smoke evidence stays under the reviewed-SHA binding (RED)
+
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+index 380a96cdf8..d4d54b1930 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+@@ -2126,22 +2126,23 @@ for (const placement of ["untracked", "ignored"]) {
+   })
+ }
+ 
+-test("#given a smoke artifact first committed with the record after the review #when validated #then it still passes", () => {
++// The smoke log is reviewed like every QA artifact: tracked and committed at or before
++// `reviewed_sha`. It is NOT pinned, so a commit touching it afterwards blocks on the binding.
++test("#given a smoke artifact first committed with the record after the review #when validated #then reviewed_sha blocks", () => {
+   withScenario({ smokePlacement: "untracked" }, (s) => {
+     const { git } = s.repository
+     git("add", "--intent-to-add", "--", "evidence/smoke.txt")
+-    expectFolderPassed(s.validate())
+     git("add", "-A")
+     git("commit", "-q", "-m", "gate evidence with smoke log")
+-    expectFolderPassed(s.validate())
++    expectFolderBlocked(s.validate(), /reviewed_sha/)
+   })
+ })
+ 
+-test("#given a fresh clone of a repo holding the record, trailer and smoke log #when validated #then it passes", () => {
+-  withScenario({ smokePlacement: "untracked" }, (s) => {
++test("#given a fresh clone of a repo holding the record, trailer and a smoke log committed before the review #when validated #then it passes", () => {
++  withScenario({}, (s) => {
+     const { git, directory } = s.repository
+     git("add", "-A")
+-    git("commit", "-q", "-m", "gate evidence with smoke log")
++    git("commit", "-q", "-m", "gate evidence")
+     const clone = mkdtempSync(path.join(tmpdir(), "omo-gate-clone-"))
+     try {
+       execFileSync("git", ["clone", "-q", directory, clone], { encoding: "utf8" })
+@@ -2153,6 +2154,25 @@ test("#given a fresh clone of a repo holding the record, trailer and smoke log #
+   })
+ })
+ 
++// A record-named path must not become a source-code exemption: naming a source file as the smoke
++// artifact, whatever its last line says, must leave a post-review change to it blocked.
++for (const [name, body, rows] of [
++  ["ending in exit=0", "changed after the review\nexit=0\n", (artifact) => [{ name: "smoke: forged", passed: true, artifact }]],
++  ["ending in exit=1 ahead of a valid row", "changed after the review\nexit=1\n", (artifact) => [{ name: "smoke: forged", passed: true, artifact }, { name: "smoke: real", passed: true, artifact: "evidence/smoke.txt" }]],
++]) {
++  test(`#given a source file modified after the review and named as a smoke artifact ${name} #when validated #then reviewed_sha blocks`, () => {
++    withScenario({}, (s) => {
++      const { git, directory } = s.repository
++      writeFileSync(path.join(directory, "source.txt"), body)
++      git("add", "source.txt")
++      git("commit", "-q", "-m", "source changed after the review")
++      s.record.qa = rows("source.txt")
++      s.save()
++      expectFolderBlocked(s.validate(), /reviewed_sha/)
++    })
++  })
++}
++
+ test("#given a not-needed Whole-diff reason that differs from the record's #when validated #then whole_diff.reason blocks", () => {
+   withScenario({}, (s) => {
+     s.record.whole_diff = { run: false, reason: "a different justification" }

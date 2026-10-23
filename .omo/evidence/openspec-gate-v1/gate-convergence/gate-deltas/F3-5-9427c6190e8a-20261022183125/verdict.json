@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "The delta makes smoke evidence durable, but its pinning creates a post-review source-code exemption, and the workflow documentation remains contradictory.",
+  "blockers": [
+    {
+      "area": "Correctness and reasoning",
+      "defect": "A smoke artifact can exempt arbitrary changed source from the reviewed-SHA binding, including an artifact that fails the smoke check.",
+      "evidence": "In validate-gate-record.mjs:844-847 the expected digest is computed from the current file itself, then verifyAndPinArtifact pins its path before checking the exit line. The verifier at lines 258-269 therefore authenticates no independently recorded content. A standard-tier record can name a changed tracked source file as a smoke artifact, add a final `exit=0`, and have that post-review source commit accepted as evidence. Even a smoke row ending in `exit=1` is pinned before the loop continues to a second valid row. This defeats the source-binding protection described at lines 333-345.",
+      "change": "Restrict exemption to genuinely new, dedicated smoke evidence paths and prevent existing reviewed source or failed candidate rows from entering the exemption. Add negative controls for a post-review source modification named as both a valid and an invalid smoke candidate."
+    },
+    {
+      "area": "Executability",
+      "defect": "The changed skill retains instructions that contradict the folder-plan smoke and hash workflow.",
+      "evidence": "SKILL.md:362 says `qa[].artifact` is not exempt, although the delta exempts smoke artifacts; the paragraph at line 366 still ends `Compute it with shasum -a 256 <plan>` after distinguishing folder plans, despite a folder requiring `--freeze-plan`. These directly contradict the new folder instructions at line 114 and the fix entry requiring hash instructions to be file-plan-only.",
+      "change": "Qualify the QA exemption statement for standard-tier smoke evidence and remove or qualify the remaining unconditional file hashing instruction."
+    },
+    {
+      "area": "CHECK 5",
+      "defect": "The delta provides no source-change-between-check-and-use control for the new smoke artifact reads.",
+      "evidence": "validate-gate-record.mjs:844-845 reads the artifact to compute a digest and then verifyAndPinArtifact reads it again; the added tests cover placement, commit, clone and reason mismatch, but not mutation between these reads.",
+      "change": "Add a deterministic control that changes the artifact between reads and requires rejection, or refactor to one verified byte snapshot and test that subsequent source mutation cannot alter the checked bytes."
+    }
+  ],
+  "notes": []
+}

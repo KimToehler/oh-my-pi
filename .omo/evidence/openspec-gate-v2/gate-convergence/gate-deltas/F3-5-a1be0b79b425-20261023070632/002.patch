@@ -1,0 +1,104 @@
+commit 8d38826f9429296ddd015fe6c499eca3f1dc273c
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Fri Oct 23 09:06:13 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Fri Oct 23 09:06:13 2026 +0200
+
+    fix(review-work): fallback criteria follow the counted requirements and hold all template fields
+    
+    F3 wave 1 should-fixes: hasRequirements comes from validateSpecs; Positive witness and Boundary (and Mechanical's check) are held to the content grammar; drop unused writeBundleFile; SKILL says where plan_sha256 is. bun run test:team-config: 529 pass, 0 fail.
+
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index bee5b25bb5..2f8e6fd7f5 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -358,7 +358,7 @@ The plan is bound by **content**, not just by path: `plan_sha256` is the digest
+ 
+ The plan must already be in its final state, including its own merge-gate checkbox (final verification wave F2) marked `[x]`, at the moment reviewers are dispatched and this digest is taken - no plan edit may follow. `plan_sha256` binds whatever bytes existed at hash time, so hashing before that mark would seal an unfrozen plan and let the gate's own required output invalidate its own binding.
+ 
+-**OpenSpec change folders.** A `--plan` that is a directory holding `gate.md` is a folder plan: Phase 0.6 runs `--plan-only --plan <change-dir>`, and the folder obeys the file-plan rules (Risk tier, Mandatory class, the one-auditor rule, the fix-round cap) with `gate.md` as the `## Merge gate` section. `validate-gate-record.mjs` and `GC` read the folder once, through a snapshot that opens each file `O_NOFOLLOW` and refuses symlinks, FIFOs and any file above 1 MiB. That one snapshot feeds the OpenSpec checks (`validate-openspec-change.mjs`'s rules), the criteria and the bundle: a manifest of `<sha256>  <path>` lines sorted by path, then each file under a `===== <path> =====` line. `plan_sha256` is the sha256 of the bundle, so it is not `shasum` of any one file; take it from the `GC snapshot` output, whose `PLAN <path>` copy is the bundle and is the plan the reviewers read. Any added, deleted or edited file in the folder fails `plan_sha256`. The review criteria are the `### Requirement:` blocks of the specs with their Negative control scenarios; a change with none (`skip_specs: true`, rename-only deltas) carries a `- Feature-specific criteria:` block in `gate.md` instead. The record's `mandatory_class` and `whole_diff` must equal `gate.md`.
++**OpenSpec change folders.** A `--plan` that is a directory holding `gate.md` is a folder plan: Phase 0.6 runs `--plan-only --plan <change-dir>`, and the folder obeys the file-plan rules (Risk tier, Mandatory class, the one-auditor rule, the fix-round cap) with `gate.md` as the `## Merge gate` section. `validate-gate-record.mjs` and `GC` read the folder once, through a snapshot that opens each file `O_NOFOLLOW` and refuses symlinks, FIFOs and any file above 1 MiB. That one snapshot feeds the OpenSpec checks (`validate-openspec-change.mjs`'s rules), the criteria and the bundle: a manifest of `<sha256>  <path>` lines sorted by path, then each file under a `===== <path> =====` line. `plan_sha256` is the sha256 of the bundle, so it is not `shasum` of any one file; take it from the `plan_sha256` field of the snapshot JSON (the first path `GC snapshot` prints) or hash the printed `PLAN <path>` copy, which is the bundle and the plan the reviewers read. Any added, deleted or edited file in the folder fails `plan_sha256`. The review criteria are the `### Requirement:` blocks of the specs with their Negative control scenarios; a change with none (`skip_specs: true`, rename-only deltas) carries a `- Feature-specific criteria:` block in `gate.md` instead. The record's `mandatory_class` and `whole_diff` must equal `gate.md`.
+ 
+ A commit touching reviewed code after the review still invalidates everything. Re-review the delta.
+ 
+diff --git a/team-config/agent/skills/review-work/scripts/folder-plan.mjs b/team-config/agent/skills/review-work/scripts/folder-plan.mjs
+index c0f27d3a2e..22e8c0d06c 100644
+--- a/team-config/agent/skills/review-work/scripts/folder-plan.mjs
++++ b/team-config/agent/skills/review-work/scripts/folder-plan.mjs
+@@ -2,7 +2,7 @@
+ // bundle whose sha256 is the folder's `plan_sha256`. Lives beside the validator rather than inside
+ // it because the validator's fs surface is pinned to three primitives; this module is the only
+ // place that opens folder entries.
+-import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
++import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync } from "node:fs"
+ import { createHash } from "node:crypto"
+ import path from "node:path"
+ 
+@@ -63,7 +63,3 @@ export function buildBundle(snapshot) {
+ export function bundleDigest(bundle) {
+   return sha256(bundle)
+ }
+-
+-export function writeBundleFile(file, bundle) {
+-  writeFileSync(file, bundle)
+-}
+diff --git a/team-config/agent/skills/review-work/scripts/plan-contract.mjs b/team-config/agent/skills/review-work/scripts/plan-contract.mjs
+index 8aed738cb7..7d4f431141 100644
+--- a/team-config/agent/skills/review-work/scripts/plan-contract.mjs
++++ b/team-config/agent/skills/review-work/scripts/plan-contract.mjs
+@@ -204,14 +204,16 @@ function criterionField(criterion, field) {
+ }
+ 
+ // Criteria carried by a plan that has no requirements to derive them from: the shape check, then
+-// `Invariant`, `Negative control` (behavioural only) and `Observable` held to the content grammar.
+-// Returns every defect as { field, detail }.
++// every field the authoring template asks for held to the content grammar (behavioural: all five;
++// Mechanical: the check itself, Invariant, Observable and Boundary). Returns every defect as { field, detail }.
+ export function substantiveCriteriaDefects(section, label = "plan Merge gate criteria") {
+   const shape = criteriaShapeDefect(section, label)
+   if (shape) return [shape]
+   const defects = []
+   for (const [index, criterion] of criterionBullets(section).entries()) {
+-    const fields = /^\s*(?:\*\*)?Mechanical\b/i.test(criterion[2]) ? ["Invariant", "Observable"] : ["Invariant", "Negative control", "Observable"]
++    const fields = /^\s*(?:\*\*)?Mechanical\b/i.test(criterion[2])
++      ? ["Mechanical", "Invariant", "Observable", "Boundary"]
++      : ["Invariant", "Positive witness", "Negative control", "Observable", "Boundary"]
+     for (const field of fields) {
+       const defect = valueDefect(criterionField(criterion[2], field) ?? "")
+       if (defect) defects.push({ field: `${label}.${index}.${field}`, detail: `${defect}; the criteria need concrete text when the change carries no requirements` })
+diff --git a/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs b/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs
+index 9cd4d0649c..ca71ab40ff 100755
+--- a/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs
+@@ -57,10 +57,12 @@ async function markdownFiles(root) {
+ 	return out.sort();
+ }
+ 
++// Returns whether the specs hold a requirement, counted by the same per-line parse that validates it, so the gate.md
++// criteria fallback applies exactly when no requirement supplies the review criteria.
+ function validateSpecs(files, texts, skipSpecs, errors) {
+ 	if (files.length === 0) {
+ 		if (!skipSpecs) errors.push("specs: at least one Markdown spec is required");
+-		return;
++		return false;
+ 	}
+ 	if (skipSpecs) errors.push("specs: skip_specs requires no Markdown specs");
+ 	let renameCount = 0;
+@@ -106,6 +108,7 @@ function validateSpecs(files, texts, skipSpecs, errors) {
+ 	}
+ 	if (requirementCount === 0 && renameCount === 0)
+ 		errors.push("specs: at least one Requirement or rename is required");
++	return requirementCount > 0;
+ }
+ 
+ // Mirrors OpenSpec 1.14.3 utils/task-progress.js TASK_LINE_PATTERN: any checkbox it counts as a tracked task must satisfy the team contract.
+@@ -312,8 +315,7 @@ export function validateOpenSpecFiles(snapshot) {
+ 	const specs = [...snapshot.keys()].filter(name => name.startsWith("specs/") && name.endsWith(".md")).sort();
+ 	const texts = new Map(specs.map(file => [file, text(file)]));
+ 	const skipSpecs = snapshot.has(".openspec.yaml") && parseSkipSpecs(text(".openspec.yaml"), errors);
+-	validateSpecs(specs, texts, skipSpecs, errors);
+-	const hasRequirements = [...texts.values()].some(spec => /^### Requirement:\s*\S/m.test(spec));
++	const hasRequirements = validateSpecs(specs, texts, skipSpecs, errors);
+ 	if (snapshot.has("tasks.md")) validateTasks(text("tasks.md"), errors);
+ 	if (snapshot.has("gate.md")) validateGate(text("gate.md"), hasRequirements, errors);
+ 	return errors;

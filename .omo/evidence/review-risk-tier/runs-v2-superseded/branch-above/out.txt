@@ -1,0 +1,51 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish a safe or executable production migration path, and misclassifies its merge-gate risk.",
+  "blockers": [
+    {
+      "area": "Correctness — interrupted migrations",
+      "defect": "The plan promises that every pending migration is applied exactly once but gives no recovery or atomicity design for a failed or interrupted migration. A CI interruption or migration failure can leave a partially applied schema; the next merge runs the script again without a specified way to distinguish completed from partially completed work. Production schema damage may not be reversible.",
+      "evidence": "The risk assessment says “a failed migration leaves the schema half-applied”; the approach only runs `bun run migrate`, while the negative control covers a successful second run, not a failed first run.",
+      "change": "Specify the migration runner's transaction and durable migration-state guarantees, failure handling and safe retry or recovery procedure; verify an interruption or failure followed by another deployment against staging."
+    },
+    {
+      "area": "Security — production credential exposure",
+      "defect": "The production database credential is read by the deployment process while migration output is printed to CI, but the plan does not establish what the runner or its errors can print or how credential exposure is prevented. A normal connection failure or diagnostic containing the URL could expose a real credential in CI logs; the resulting exposure cannot be undone merely by deleting the log.",
+      "evidence": "The approach reads `PROD_DATABASE_URL` and “prints the migration log to the CI job output”; it specifies no log handling or credential-exposure control.",
+      "change": "Trace the credential through the runner and its diagnostics, prevent it from reaching CI artifacts, and test failure output with a synthetic sentinel."
+    },
+    {
+      "area": "PROCESS 5 — risk tier and mandatory class",
+      "defect": "The plan classifies production database migration as internal tooling with no mandatory class, although it accesses a real credential and changes a production schema. This would use the wrong review depth for a change that can damage a protected asset.",
+      "evidence": "The approach uses `PROD_DATABASE_URL` and runs migrations against production; the merge gate says `Mandatory class: none` and `Risk tier: internal-tooling`.",
+      "change": "Use `Risk tier: product`, identify the applicable credential and schema-migration risks, and require both F2 reviewers."
+    },
+    {
+      "area": "CHECK 1 — credential holders and sinks",
+      "defect": "The plan lacks the required holder and sink inventory, inherited protection chokepoint, and sentinel control for the real production credential. A connection or migration diagnostic can reach CI output without a demonstrated protection, potentially exposing the credential.",
+      "evidence": "The approach reads `PROD_DATABASE_URL` and prints migration logs, but verification only checks that applied migrations are listed.",
+      "change": "Inventory credential holders and all sinks, including stdout and stderr, identify the shared redaction or exclusion mechanism, and add a sentinel test scanning all artifacts."
+    },
+    {
+      "area": "Executability — missing migration and CI integration",
+      "defect": "The plan does not identify an existing migration command or the CI configuration that will invoke the script. In the supplied repository there is no demonstrated `bun run migrate` implementation or CI workflow, so adding only the proposed script does not establish that migrations run on merge.",
+      "evidence": "The repository root contains only `.omo/` and `a.txt`; a repository search for `migrate` and `PROD_DATABASE_URL` found no matches. The plan names no CI workflow or package manifest.",
+      "change": "Identify or provide the actual migration runner and CI entry point, including how the production secret is supplied; verify the merge-triggered path rather than only invoking a script against staging."
+    },
+    {
+      "area": "Merge gate — boundary",
+      "defect": "The sole criterion names a new script that does not yet exist as its boundary, rather than a locatable real contract surface. The criterion cannot currently be tied to an existing code location.",
+      "evidence": "`Boundary: scripts/deploy-prod.sh`; no such file was found in the supplied repository.",
+      "change": "Identify a real existing handler or migration-runner location as the boundary, or establish the missing implementation context before freezing the gate."
+    },
+    {
+      "area": "CHECK 4 — migration completion predicate",
+      "defect": "The exactly-once acceptance criterion has no specified result for missing, partial, or unreadable migration state, and its test does not exercise a partial run. Ordinary job interruption can therefore be mistaken for completion or permit an unsafe retry.",
+      "evidence": "The criterion's only negative control is “a second run applies nothing”; the risk assessment explicitly acknowledges a half-applied schema.",
+      "change": "Define completion and fail-closed handling for absent, partial, and unreadable migration state, and add missing-state and interrupted-run controls."
+    }
+  ],
+  "notes": []
+}
+```

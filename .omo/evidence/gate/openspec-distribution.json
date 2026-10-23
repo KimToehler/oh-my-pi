@@ -1,0 +1,62 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/openspec-distribution.md",
+  "plan_sha256": "d885762633d48e766583c948e5d15cca3a9eebf915a716550502f534480c910a",
+  "reviewed_sha": "fb3b8beced9b06cd909bd975265fef2a7de901d9",
+  "diff_base": "3ebaf372a1943f1400bbac2fe6074e9618360b9e",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Risk tier internal-tooling, mandatory class none (deploy check, project installer, schema relocation; developer tooling only): one implementation-audit PASS on the frozen plan after F3 wave 2 PASS and 6 F1 rows on the real surface.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5",
+    "onara/cx/gpt-5.6-sol",
+    "onara/cc/claude-opus-5"
+  ],
+  "qa": [
+    {
+      "name": "1a deploy refuses mismatching OpenSpec CLI before build, binaries unchanged",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-distribution/f1-1-deploy-mismatch.log"
+    },
+    {
+      "name": "1b real deploy completes, deployed openspec tree equals canonical, symlink resolves",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-distribution/f1-1-deploy-real.log"
+    },
+    {
+      "name": "2 telemetry persisted off in the deploying XDG config via real CLI",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-distribution/f1-2-telemetry.txt"
+    },
+    {
+      "name": "3a-3c deployed installer: fresh install, old-shape notices byte-identical, rerun idempotent",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-distribution/f1-3-installer.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "reason": null
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "same-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/openspec-distribution/f2-wave-2-implementation-audit-trailer.md",
+      "trailer_sha256": "405c0be4f9da795a21e0448cabc60ee194e763829a39274f531b5e623e4d8e5b",
+      "note": ".omo/evidence/openspec-distribution/f1-qa-matrix.md; F3 .omo/evidence/openspec-distribution/f3-wave-2.md; notes (submodule layout, config-creation rollback injection) non-blocking"
+    }
+  ],
+  "blockers": []
+}

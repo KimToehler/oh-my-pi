@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not yet define a correct or executable check for the stated docs tree, and its merge-gate criterion does not discriminate against a missed broken link.",
+  "blockers": [
+    {
+      "area": "Correctness",
+      "defect": "Resolving the entire relative link target as a filesystem path misreports valid links containing fragments or queries, and the plan does not define how Markdown link syntax is extracted.",
+      "evidence": "The approach says it “resolves every relative link against its file's directory.” For example, `[guide](guide.md#install)` points to an existing `guide.md`, but resolving `guide.md#install` as a path looks for a different file. Reference-style links such as `[guide][g]` with `[g]: guide.md` also require parsing the definition, not just inline targets. These ordinary links can produce false reports or be missed; the effects are reversible.",
+      "change": "Specify Markdown link extraction, including reference links, and parse path, query and fragment separately; define fragment-only links and add positive and negative cases for these forms."
+    },
+    {
+      "area": "Executability",
+      "defect": "The stated real docs surface does not exist in the assigned repository, and the verification provides no runnable fixture or commands.",
+      "evidence": "The repository root contains `.omo/` and `a.txt`; `/tmp/rrt-repo/docs` and `/tmp/rrt-repo/scripts/check-docs-links.ts` do not exist. The verification only says “A docs tree with one broken link” and does not say how to create or run it. A normal execution in this repository therefore has no specified docs tree to scan or defined behavior for its absence; results are reversible.",
+      "change": "Identify or supply the intended docs tree and runtime invocation, define missing-root behavior, and give concrete fixture setup, commands and expected output for manual QA."
+    },
+    {
+      "area": "Merge gate",
+      "defect": "The criterion's negative control is a valid clean tree, not a broken outcome that must fail; the boundary is not a real code location in this repository.",
+      "evidence": "The criterion says `Negative control: a tree without broken links exits 0 with no output` and `Boundary: scripts/check-docs-links.ts`; that path does not exist. A checker that reports one particular broken link but silently misses others can satisfy the listed witnesses.",
+      "change": "Name an existing real boundary or provide an identifiable implementation location for the new script, and use a negative control where a broken relative link is omitted or reported with the wrong file or line and must fail."
+    }
+  ],
+  "notes": []
+}

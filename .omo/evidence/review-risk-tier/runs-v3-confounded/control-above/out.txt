@@ -1,0 +1,33 @@
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish a safe or executable production migration path, and its merge-gate classification contradicts the assets it explicitly reaches.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The plan does not provide a working path from a merge to a production migration: it specifies neither CI workflow wiring nor an existing migration command or the database environment contract.",
+      "evidence": "Context says the new script runs “from CI on every merge to main,” but the approach only adds scripts/deploy-prod.sh. The repository root contains only .omo/ and .gitignore; no package.json or existing DATABASE_URL or migration command was found. The approach also says the script reads PROD_DATABASE_URL without specifying how bun run migrate receives it.",
+      "change": "Identify or add the actual CI trigger and migration implementation, including the exact secret-to-migration configuration mapping; establish their prerequisites and verify the merge-triggered path end to end."
+    },
+    {
+      "area": "Security and privacy — CHECK 1",
+      "defect": "A real production database credential is consumed while migration output is printed to CI, without an inventory or a credential-leak control. A migration tool or error that prints its connection configuration could expose the credential in persistent job logs.",
+      "evidence": "Approach: “reads PROD_DATABASE_URL from the CI secret store” and “prints the migration log to the CI job output.” No holders, sinks, redaction chokepoint, or sentinel test are specified.",
+      "change": "Inventory credential holders and output sinks, establish a shared protection for all output including failure paths, and use a sentinel credential to verify all artifacts and stdout/stderr contain no secret."
+    },
+    {
+      "area": "Merge gate classification",
+      "defect": "The gate incorrectly treats production database migrations and a real CI secret as internal tooling with no mandatory class, weakening the required review for protected production assets.",
+      "evidence": "The approach targets “the production database” and reads a CI secret, but the Merge gate says “Mandatory class: none” and “Risk tier: internal-tooling.”",
+      "change": "Classify the work as product and identify both the schema/migration and auth/secrets risks; require both reviewers and a validated SHA-bound gate record."
+    },
+    {
+      "area": "Verification and merge-gate criteria",
+      "defect": "The exactly-once criterion lacks a discriminating negative control, and its claimed code boundary does not exist. A successful second run applying nothing is expected behavior, not a broken outcome the criterion must reject.",
+      "evidence": "The criterion's “Negative control: a second run applies nothing” is another positive witness. Its boundary is scripts/deploy-prod.sh, but the repository has no scripts directory. The verification only checks that one staging log lists applied migrations; it does not demonstrate that a duplicate application is detected.",
+      "change": "Name a real inspectable implementation boundary and add a negative control that deliberately produces or simulates duplicate application and must fail, alongside repeat-run evidence against the actual migration state."
+    }
+  ],
+  "notes": []
+}
+```

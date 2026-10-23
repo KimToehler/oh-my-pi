@@ -1,0 +1,17 @@
+
+==> Deploying feat/openspec-distribution (0ae40fa7a3b4ec809a11202329364f34224f4128)
+Preparing worktree (detached HEAD 0ae40fa7a3)
+Updating files:  84% (9162/10888)Updating files:  85% (9255/10888)Updating files:  86% (9364/10888)Updating files:  87% (9473/10888)Updating files:  88% (9582/10888)Updating files:  89% (9691/10888)Updating files:  90% (9800/10888)Updating files:  91% (9909/10888)Updating files:  92% (10017/10888)Updating files:  93% (10126/10888)Updating files:  94% (10235/10888)Updating files:  95% (10344/10888)Updating files:  96% (10453/10888)Updating files:  97% (10562/10888)Updating files:  98% (10671/10888)Updating files:  99% (10780/10888)Updating files: 100% (10888/10888)Updating files: 100% (10888/10888), done.
+HEAD is now at 0ae40fa7a3 style(scripts): oxfmt ensure-openspec-cli
+
+==> Checking OpenSpec CLI
+OpenSpec CLI is 1.14.2, the team pins 1.14.3. Install the pinned version:
+  npm install -g @fission-ai/openspec@1.14.3
+exit=1
+before:
+2724303315b35f8048cedd378bf9c3cc65391bbf5b6068938e93cec0e10938e0  /Users/tim/.local/bin/omp
+73b65c80bba3b3a207fec3000f0e11829d52d24567bf9b561d4a9de22c465a0f  /Users/tim/.local/bin/omp.deployed
+after:
+2724303315b35f8048cedd378bf9c3cc65391bbf5b6068938e93cec0e10938e0  /Users/tim/.local/bin/omp
+73b65c80bba3b3a207fec3000f0e11829d52d24567bf9b561d4a9de22c465a0f  /Users/tim/.local/bin/omp.deployed
+UNCHANGED

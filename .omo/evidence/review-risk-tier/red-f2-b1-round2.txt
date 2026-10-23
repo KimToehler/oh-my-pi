@@ -1,0 +1,86 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+487 |   const json = readFileSync(file, "utf8")
+488 |   const written = [statSync(copy).mtimeMs, statSync(file).mtimeMs]
+489 |   const again = s.gc("snapshot", "--lane", "F2")
+490 |   assert.equal(again.status, 0, again.stderr)
+491 |   assert.equal(again.stdout, first.stdout)
+492 |   assert.deepEqual([statSync(copy).mtimeMs, statSync(file).mtimeMs], written)
+               ^
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+
+  [
++   1792704155819.4595,
++   1792704155819.5244
+-   1792704155755.6616,
+-   1792704155755.7788
+  ]
+
+ generatedMessage: true,
+     actual: [ 1792704155819.4595, 1792704155819.5244 ],
+   expected: [ 1792704155755.6616, 1792704155755.7788 ],
+   operator: "deepStrictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:492:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an unrecorded wave snapshot #when snapshot reruns unchanged #then neither file is rewritten, and other plan bytes are refused until both files are deleted [215.64ms]
+514 |   const json = readFileSync(file, "utf8")
+515 |   s.git("commit", "-q", "--allow-empty", "-m", "empty")
+516 |   const delta = s.delta("F2", JSON.parse(json).sha, s.head(), "OKAY")
+517 |   assert.equal(delta.result.status, 0, delta.result.stderr)
+518 |   const refused = s.gc("snapshot", "--lane", "F2")
+519 |   assert.equal(refused.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:519:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an unrecorded wave snapshot #when a new commit with the same tree lands and snapshot reruns #then it is refused and the dispatched SHA stays [376.26ms]
+529 |   const copy = planLine.replace(/^PLAN /, "")
+530 |   const dispatched = readFileSync(copy)
+531 |   rmSync(file)
+532 |   appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after the JSON was lost\n")
+533 |   const refused = s.gc("snapshot", "--lane", "F2")
+534 |   assert.equal(refused.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:534:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given a plan copy without its snapshot JSON #when snapshot runs #then it is refused and the copy is not replaced [216.36ms]
+
+ 0 pass
+ 26 filtered out
+ 3 fail
+Ran 3 tests across 1 file. [841.00ms]

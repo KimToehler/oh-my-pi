@@ -1,0 +1,57 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/openspec-planning.md",
+  "plan_sha256": "95968a8f40b08a9b39b80cb115d1fcec39491cc77624b75c37ed2595d41b960c",
+  "reviewed_sha": "89b1e55084d8fc0730db4e670fce5f2ac6f1db26",
+  "diff_base": "2c435dc6bdc2d2a4f23b92d112fa9ff5bb94e4ed",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Risk tier internal-tooling: exactly one implementation-audit; wave 1 FAIL (B1 placeholder reviewer id) fixed in TODO 6 and delta-reviewed OKAY, wave 2 PASS",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 real omp sessions: default-mode routing, small change, no-OpenSpec project, plan-mode ask, stale review, planted defect, apply refusal",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-planning/f1-qa-matrix.md"
+    },
+    {
+      "name": "F2 wave 2: deployed --reviewed on real F1 records plus placeholder negative control",
+      "passed": true,
+      "artifact": ".omo/evidence/openspec-planning/wave-2/validator-rows.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "not needed (two mechanisms with no shared code path: the review artifact checked by one validator mode in one script, and routing prose in one skill plus one AGENTS.md bullet)"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/openspec-planning/f2/trailer-implementation-audit-wave2.txt",
+      "trailer_sha256": "9550378a0c85a36b6be5d0fe01812b980d047ddc629fb1206b18152df612fc50",
+      "note": "wave 2 PASS; wave 1 FAIL (B1 template placeholder accepted as Reviewer) fixed in 89b1e55084 and delta-reviewed OKAY; wave-1 trailer kept locally, not cited"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "medium",
+      "location": "team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs:379",
+      "coverage": "team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts::validate-openspec-change review record > refuses a malformed Reviewer: plan-reviewer, <subagent id>",
+      "fix_sha": "89b1e55084d8fc0730db4e670fce5f2ac6f1db26"
+    }
+  ]
+}

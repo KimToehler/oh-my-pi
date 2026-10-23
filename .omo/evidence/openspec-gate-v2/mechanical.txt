@@ -1,0 +1,36 @@
+== .omo/evidence/gate/ACP_GOAL_MODE_PLAN.json @ 404fef7847 plan=.omo/plans/ACP_GOAL_MODE_PLAN.md
+main : exit=1 blocked|verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled|
+v2   : exit=1 blocked|verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled|
+=> IDENTICAL
+== .omo/evidence/gate/acp-steer-builtin-commands.json @ 8b92724a5f plan=.omo/plans/acp-steer-builtin-commands.md
+main : exit=0 passed|
+v2   : exit=0 passed|
+=> IDENTICAL
+== .omo/evidence/gate/evo2-reviewer-checks.json @ 13d37c922c plan=.omo/plans/evo2-reviewer-checks.md
+main : exit=1 blocked|plan: cannot read /tmp/mech-ORxwNr/wt/.omo/plans/evo2-reviewer-checks.md: ENOENT: no such file or directory, open '/tmp/mech-ORxwNr/wt/.omo/plans/evo2-reviewer-checks.md'|
+v2   : exit=1 blocked|plan: cannot read /tmp/mech-ORxwNr/wt/.omo/plans/evo2-reviewer-checks.md: ENOENT: no such file or directory, open '/tmp/mech-ORxwNr/wt/.omo/plans/evo2-reviewer-checks.md'|
+=> IDENTICAL
+== .omo/evidence/gate/merge-gate-worktree-records.json @ ef1e202f2c plan=.omo/plans/merge-gate-worktree-records.md
+main : exit=0 passed|
+v2   : exit=0 passed|
+=> IDENTICAL
+== .omo/evidence/gate/omp-native-plan-review.json @ 619a4d7b14 plan=.omo/plans/omp-native-plan-review.md
+main : exit=1 blocked|plan: cannot read /tmp/mech-Lnzshw/wt/.omo/plans/omp-native-plan-review.md: ENOENT: no such file or directory, open '/tmp/mech-Lnzshw/wt/.omo/plans/omp-native-plan-review.md'|
+v2   : exit=1 blocked|plan: cannot read /tmp/mech-Lnzshw/wt/.omo/plans/omp-native-plan-review.md: ENOENT: no such file or directory, open '/tmp/mech-Lnzshw/wt/.omo/plans/omp-native-plan-review.md'|
+=> IDENTICAL
+== .omo/evidence/gate/openspec-team-rollout.json @ ae48337cd0 plan=.omo/plans/openspec-team-rollout.md
+main : exit=0 passed|
+v2   : exit=0 passed|
+=> IDENTICAL
+== .omo/evidence/gate/review-blocking-threshold.json @ 0a528056d0 plan=.omo/plans/review-blocking-threshold.md
+main : exit=0 passed|
+v2   : exit=0 passed|
+=> IDENTICAL
+== .omo/evidence/gate/review-risk-tier.json @ 103c440ea5 plan=.omo/plans/review-risk-tier.md
+main : exit=0 passed|
+v2   : exit=0 passed|
+=> IDENTICAL
+== .omo/evidence/gate/team-config.json @ 812855ee97 plan=.omo/plans/team-config.md
+main : exit=1 blocked|verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled|
+v2   : exit=1 blocked|verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled|
+=> IDENTICAL

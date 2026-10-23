@@ -1,0 +1,32 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+484 |   const dispatched = readFileSync(copy)
+485 |   const json = readFileSync(file, "utf8")
+486 |   assert.equal(s.gc("snapshot", "--lane", "F2").status, 0, "an identical re-snapshot stays allowed")
+487 |   appendFileSync(path.join(s.repo, PLAN), "\n- Accepted residual risks: edited after dispatch\n")
+488 |   const refused = s.gc("snapshot", "--lane", "F2")
+489 |   assert.equal(refused.status, 1)
+               ^
+AssertionError: Expected values to be strictly equal:
+
+0 !== 1
+
+ generatedMessage: true,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:489:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an unrecorded wave snapshot #when snapshot reruns on other plan bytes #then it refuses and keeps the dispatched copy until both files are deleted [439.62ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+Ran 1 test across 1 file. [619.00ms]

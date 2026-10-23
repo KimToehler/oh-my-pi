@@ -1,0 +1,33 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+546 |   const OTHER = ".omo/plans/other.md"
+547 |   writeFileSync(path.join(s.repo, OTHER), "# other plan\n")
+548 |   const other = (...args) => s.run(args[0], "--plan", OTHER, ...args.slice(1))
+549 |   assert.equal(other("baseline", "--sha", "HEAD").status, 0)
+550 |   const second = other("snapshot", "--lane", "F2")
+551 |   assert.equal(second.status, 0, second.stderr)
+               ^
+AssertionError: gate-convergence: F2 wave 1 already has a snapshot on other plan bytes or another commit, or an incomplete one; reviewers may hold the old copy. Delete .omo/gate-deltas/F2-wave-1.snapshot.json and .omo/gate-deltas/F2-wave-1.plan.md, then snapshot again and re-dispatch every reviewer of this wave
+
+
+1 !== 0
+
+ generatedMessage: false,
+     actual: 1,
+   expected: 0,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:551:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given one plan's retained wave-1 snapshot #when a second plan in the same checkout snapshots its wave 1 #then it gets its own files and the first plan's stay untouched [216.51ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+Ran 1 test across 1 file. [246.00ms]

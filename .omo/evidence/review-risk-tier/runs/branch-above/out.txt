@@ -1,0 +1,39 @@
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not establish an executable production migration path or adequately protect the production credential and database.",
+  "blockers": [
+    {
+      "area": "Correctness and executability",
+      "defect": "The planned script has no established migration command or CI integration. Creating a script alone does not cause it to run on merges, and the repository contains no package.json, scripts directory, or CI configuration establishing the stated command or secret injection. On an ordinary merge, the goal can fail without any migration running; the resulting deployment/schema mismatch could affect production and is not necessarily reversible.",
+      "evidence": "Context requires CI execution on every merge; Approach specifies `bun run migrate`. The repository root contains only `.omo/`, `README`, and `.gitignore`; `/tmp/rrt-repo/package.json` and `/tmp/rrt-repo/scripts` do not exist.",
+      "change": "Specify and implement the actual migration implementation, its database URL contract, and the CI workflow and secret injection that invoke it on main merges, or identify the existing external components and their concrete interfaces."
+    },
+    {
+      "area": "Correctness and verification",
+      "defect": "The plan acknowledges a half-applied schema but gives no recovery or execution strategy to preserve the exactly-once invariant after a failed or interrupted migration. A subsequent ordinary CI run could encounter partially applied changes; production schema damage may not be reversible. The proposed second-run control exercises a successful repeat, not a failed or interrupted run.",
+      "evidence": "Risk assessment: `a failed migration leaves the schema half-applied`; criterion: `the script applies every pending migration exactly once`; Verification only checks a staging log of applied migrations.",
+      "change": "Define the migration engine's transaction, durable tracking, failure and retry behavior, including how non-transactional changes are handled; exercise interruption and retry on staging and verify actual schema and migration state."
+    },
+    {
+      "area": "CHECK 1 — Approach and Verification",
+      "defect": "The production database credential is read by the planned CI job, but the plan has no holder/sink inventory or controls for credential exposure while printing migration output. A migration command or error that includes the connection URL could disclose a real credential in CI logs, enabling production database access; credential rotation and potential data damage may not be fully reversible.",
+      "evidence": "Approach: `reads PROD_DATABASE_URL from the CI secret store` and `prints the migration log to the CI job output`; no inventory, chokepoint, or sentinel control is specified.",
+      "change": "Inventory credential holders and all output sinks, define a centralized safe logging boundary or justify exclusions, and test sentinel credentials across inputs and resulting artifacts for zero exposure."
+    },
+    {
+      "area": "PROCESS 5 — Merge gate risk tier and mandatory class",
+      "defect": "The plan classifies production database migration as internal tooling with no mandatory class, although it directly reaches a real credential and production data and performs a schema migration. This under-scopes the review gate for changes that can damage protected assets.",
+      "evidence": "Approach explicitly uses `PROD_DATABASE_URL` and migrates the production database; Merge gate declares `Risk tier: internal-tooling` and `Mandatory class: none`.",
+      "change": "Classify the work as product, identify the applicable credential and schema-migration risks, and require both reviewers for the mandatory classes."
+    },
+    {
+      "area": "Merge gate — criterion boundary",
+      "defect": "The stated criterion boundary is not a locatable code location, so reviewers cannot assess the invariant at the required real contract surface.",
+      "evidence": "`Boundary: scripts/deploy-prod.sh`; that file and its parent directory do not exist in the repository.",
+      "change": "Identify an existing real migration or CI boundary where the invariant will be checked, or establish a concrete code boundary before requesting gate review."
+    }
+  ],
+  "notes": [
+    "The staging verification does not specify how the production-only `PROD_DATABASE_URL` is safely redirected to staging; resolve this while defining the execution contract."
+  ]
+}

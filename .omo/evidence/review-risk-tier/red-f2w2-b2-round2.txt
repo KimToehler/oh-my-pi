@@ -1,0 +1,32 @@
+bun test v1.4.3 (26aa4e1a9)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+440 |       const s = sandbox(t)
+441 |       assert.equal(toolingStop(s, lane).status, 3)
+442 |       assert.equal(s.gc("decide", "--lane", lane, "--choice", choice, "--by", "tim", "--reason", "t").status, 0, `${lane} ${choice}`)
+443 |       tierPlan(s, "product")
+444 |       const retier = s.gc("retier", "--by", "tim", "--reason", "t")
+445 |       assert.equal(retier.status, 1, `${lane} ${choice}`)
+                   ^
+AssertionError: F2 freeze
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/review-risk-tier/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:445:14
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) #given an internal-tooling lane decided freeze or replan, in either lane #when the plan is re-tiered to product #then retier is refused and nothing is written [453.05ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+Ran 1 test across 1 file. [480.00ms]

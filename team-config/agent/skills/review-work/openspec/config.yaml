@@ -1,0 +1,13 @@
+schema: omp-gated
+
+rules:
+  specs:
+    - Every requirement has exactly one Scenario named "Negative control" with a plausible broken input or state whose outcome MUST fail.
+  gate:
+    - Classify risk from realistic consequence and a real trust, process or release boundary.
+    - Use full review for auth/secrets/PII, schema/migration, externally supported wire/API, or concurrency/state-machine changes.
+
+operations:
+  apply:
+    guidance:
+      - Run `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.

@@ -1,0 +1,39 @@
+BASELINE 1fbf7a0eab69 recorded
+snapshot F2-278a6c18596b-wave-1.snapshot.json
+DECISION: CONTINUE
+WAVE F2 1 total=3 fix_induced=0 unlocated=3
+exit 0
+snapshot F2-278a6c18596b-wave-2.snapshot.json
+DECISION: CONTINUE
+WAVE F2 2 total=2 fix_induced=0 unlocated=2
+exit 0
+snapshot F2-278a6c18596b-wave-3.snapshot.json
+DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers
+WAVE F2 3 total=1 fix_induced=0 unlocated=1
+exit 3
+gate-convergence: internal-tooling allows 2 fix rounds per lane: choose freeze or replan, or re-tier the plan to product (retier) to continue
+exit 1
+gate-convergence: plan Risk tier is product but this gate runs as internal-tooling; record the change with retier --by <user> --reason <text>
+exit 1
+RECORDED risk_tier_change internal-tooling -> product
+exit 0
+RECORDED convergence_decision lane=F2 wave=3 choice=continue
+exit 0
+1
+== exempt
+NOT READY
+unreviewed fix commit 3778623cf69d comment only
+exit 1
+gate-convergence: exempt needs --reason
+exit 1
+RECORDED delta_exemption 3778623cf69d
+exit 0
+READY
+exit 0
+READY
+exit 0
+== snapshot rerun
+SNAPSHOT F2 wave 4 3778623cf69d
+identical-rerun-ok
+gate-convergence: F2 wave 4 already has a snapshot on other plan bytes or another commit, or an incomplete one; reviewers may hold the old copy. Delete .omo/gate-deltas/F2-278a6c18596b-wave-4.snapshot.json and .omo/gate-deltas/F2-278a6c18596b-wave-4.plan.md, then snapshot again and re-dispatch every reviewer of this wave
+exit 1

@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The final smoke-evidence implementation leaves one removed protection unreplaced and still consults the working tree despite the fix entry’s stated contract.",
+  "blockers": [
+    {
+      "area": "PROCESS 4 — ignored smoke artifacts",
+      "defect": "The delta removes the explicit rejection of ignored paths without replacing it or explaining why it is obsolete.",
+      "evidence": "Patch 008 removes `assertTracked(context.repo, absolute, field)`. At `team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:316-321`, that helper rejects ignored paths using `git check-ignore --no-index`; the replacement at lines 828-866 checks the committed blob but does not check ignore rules. A force-added smoke log on an ignored path can therefore pass, contrary to fix entries 5 and 7 and SKILL.md:114.",
+      "change": "Restore an explicit ignored-path check while retaining the reviewed-commit blob checks, and add a regression case for a force-added ignored smoke log."
+    },
+    {
+      "area": "PROCESS 4 — working-tree independence",
+      "defect": "Smoke validation still depends on the current working-tree path, contrary to fix entry 8.",
+      "evidence": "`requireSmokeRow` calls `assertInsideRepo` at `team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:834`; that helper resolves the current filesystem path and rejects an outside-repository symlink at lines 300-310. Thus a valid regular smoke blob at reviewed SHA and HEAD can be rejected solely because its working-tree file was replaced by a symlink outside the repository, although entry 8 says the working tree plays no part.",
+      "change": "Use lexical repository containment for the Git-object lookup, without resolving the working-tree artifact, and add a control replacing the working-tree path after committing a valid smoke blob."
+    }
+  ],
+  "notes": []
+}

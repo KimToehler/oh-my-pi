@@ -1,0 +1,28 @@
+commit 0fcb95976902625f4f8ccf31ca15df06eabe6a87
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:32:50 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:32:50 2026 +0200
+
+    docs(plans): P4b delta fix row 7
+
+diff --git a/.omo/plans/openspec-gate.md b/.omo/plans/openspec-gate.md
+index 45fdcc5218..ca54da6f4f 100644
+--- a/.omo/plans/openspec-gate.md
++++ b/.omo/plans/openspec-gate.md
+@@ -142,6 +142,15 @@ records that already block on 919b21f9d0, history rewrite.
+   (mismatch test); SKILL.md hash instructions marked file-plan-only and a folder record example with `review_tier`;
+   the standard tier's two-fix-round limit stated as an orchestrator rule (convergence does not count tiers).
+   Verify: `bun run test:team-config`
++- [ ] 7. Delta review REJECT on rows 5-6 (record-named smoke path entered the SHA exemption without an independent
++  digest; two reads; doc contradictions): the smoke artifact is NOT pinned. It must be tracked, not ignored, and
++  committed at or before `reviewed_sha` (F1 runs before F2, so the log is reviewed like every QA artifact); a commit
++  touching it after `reviewed_sha` blocks through the unchanged binding. Bytes are read once (`readBytes`) and the
++  regular-file, non-empty and `exit=0` checks run on them. SKILL.md: commit the smoke log before dispatching F2;
++  `qa[].artifact` stays non-exempt without exception; the remaining unconditional `shasum -a 256 <plan>` marked
++  file-plan-only. Tests: the "smoke log first committed with the record after the review → passes" case becomes
++  blocked; a source file modified after `reviewed_sha` and named as a smoke artifact (ending `exit=0`, and a second
++  case ending `exit=1` before a valid row) → blocked on the binding. Verify: `bun run test:team-config`
+ 
+ ## Final verification wave
+ - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason

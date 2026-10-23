@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The implementation delta addresses the negated-ignore defect without an evidenced blocking regression.",
+  "blockers": [],
+  "notes": [
+    "The supplied 001.patch contains only a commit header and “diff body omitted”; its documentation changes could not be independently reviewed from the supplied patch."
+  ]
+}
