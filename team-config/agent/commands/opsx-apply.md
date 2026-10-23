@@ -80,11 +80,11 @@ In both branches, never create the root as a side effect: do not run `openspec i
 4. **Run in the change's worktree**
 
    If a task names a worktree for this change (typically the first task, with a path such as
-   `.worktrees/<slug>` in its text or Verify command), implementation happens only in a session
-   started inside that worktree. The returned `sourcePath` and every relative path in edits and
-   Verify commands resolve against the checkout the session started in, and a running session cannot
-   change it. Working on from another checkout ticks the boxes in the wrong `tasks.md` and lands
-   relative edits there.
+   `.worktrees/<slug>` in its text or Verify command), implementation happens only while the
+   session's working directory is that worktree. The returned `sourcePath` and every relative path in
+   edits and Verify commands resolve against the session's working directory, and you cannot change
+   it yourself: only the user's `/move` does. Working on from another checkout ticks the boxes in the
+   wrong `tasks.md` and lands relative edits there.
 
    Compare the real path of `git rev-parse --show-toplevel` with the named worktree:
    - **Same path**: continue. The worktree task is ticked once its Verify passes here.
@@ -96,8 +96,11 @@ In both branches, never create the root as a side effect: do not run `openspec i
      `git worktree add <path> -b <branch> <base>`), then stop. Do not tick the worktree task here:
      its checkbox belongs to the worktree's `tasks.md`.
 
-   When you stop, tell the user to start the session inside the worktree and rerun this command:
-   `cd <worktree path> && omp`, then `/opsx-apply <name>`.
+   When you stop, tell the user to move this session into the worktree and rerun this command:
+   `/move <worktree path>`, then `/opsx-apply <name>`. `/move` works in the terminal UI and in ACP
+   clients such as IntelliJ, and keeps the conversation. An ACP client that reloads the chat reopens
+   it in its own project directory, so after a reload the user runs `/move` again. Do not suggest
+   `/wt`: it creates its own worktree and branch outside `.worktrees/`, not the one the task names.
 
    No task naming a worktree: skip this step.
 
