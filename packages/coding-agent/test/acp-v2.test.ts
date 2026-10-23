@@ -973,9 +973,10 @@ describe("cancel and errors (plan 5)", () => {
 		});
 	}
 
-	it("answers session/close only after the session's queued updates are written", async () => {
+	it("answers every session/close only after the session's queued updates are written", async () => {
 		// Guards: a close racing an inserted prompt's deferred `user_message` (its write held, as under client
-		// backpressure) answered first, and the echo and `idle(cancelled)` reached the client after the close response.
+		// backpressure) answered first, and the echo and `idle(cancelled)` reached the client after the close response;
+		// a second close of the same session found no registered record and answered at once.
 		const original = AgentSideConnectionV2.prototype.sessionUpdate;
 		const writeHeld = Promise.withResolvers<void>();
 		const releaseWrite = Promise.withResolvers<void>();
@@ -995,11 +996,11 @@ describe("cancel and errors (plan 5)", () => {
 		const { client, sessionId } = await startReal({ hold: [0] });
 		await sendPrompt(client, sessionId, "long task");
 		await writeHeld.promise;
-		const closed = client.request("session/close", { sessionId });
+		const closes = [client.request("session/close", { sessionId }), client.request("session/close", { sessionId })];
 		await eventLoopTurns(30);
 		releaseWrite.resolve();
-		const response = await closed;
-		resultOf(response);
+		const responses = await Promise.all(closes);
+		for (const response of responses) resultOf(response);
 		await eventLoopTurns(30);
 
 		const sessionFrames = client.frames.flatMap((frame, index) =>
@@ -1008,7 +1009,9 @@ describe("cancel and errors (plan 5)", () => {
 				: [],
 		);
 		expect(sessionFrames.map(frame => frame.kind)).toContain("user_message");
-		expect(sessionFrames.filter(frame => frame.index > response.index)).toEqual([]);
+		for (const response of responses) {
+			expect(sessionFrames.filter(frame => frame.index > response.index)).toEqual([]);
+		}
 	});
 
 	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {

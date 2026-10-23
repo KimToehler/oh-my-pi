@@ -588,8 +588,8 @@ export class AcpAgent implements Agent {
 	#initialSession: AgentSession | undefined;
 	#createSession: CreateAcpSession;
 	#sessions = new Map<string, ManagedSessionRecord>();
-	/** Records whose close is running: no longer registered, but their updates keep the surface's ordered path. */
-	#closing = new Map<string, ManagedSessionRecord>();
+	/** Closes still running: the record is no longer registered, but its updates keep the surface's ordered path. */
+	#closing = new Map<string, { record: ManagedSessionRecord; closed: Promise<void> }>();
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
@@ -624,7 +624,7 @@ export class AcpAgent implements Agent {
 			trackForegroundEvent: (record, event) => this.#trackPromptEvent(record, event),
 			runPromptOrCommand: (record, text, images, options) => this.#runPromptOrCommand(record, text, images, options),
 			awaitSteeredBuiltins: (record, work, deferToWaiter) => this.#awaitSteeredBuiltins(record, work, deferToWaiter),
-			recordFor: sessionId => this.#sessions.get(sessionId) ?? this.#closing.get(sessionId),
+			recordFor: sessionId => this.#sessions.get(sessionId) ?? this.#closing.get(sessionId)?.record,
 			buildAvailableCommands: record => this.#buildAvailableCommands(record.session),
 			waitForUpdateDeliveries: record => this.#waitForUpdateDeliveries(record),
 			beginCancelCleanup: (record, work) => this.#beginCancelCleanup(record, work),
@@ -721,10 +721,9 @@ export class AcpAgent implements Agent {
 
 	async closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
 		const record = this.#sessions.get(params.sessionId);
-		if (!record) {
-			return {};
-		}
-		await this.#closeManagedSession(params.sessionId, record);
+		if (record) await this.#closeManagedSession(params.sessionId, record);
+		// A repeated close answers once the running one is done, so its response cannot overtake the session's last updates.
+		else await this.#closing.get(params.sessionId)?.closed;
 		return {};
 	}
 
@@ -2962,16 +2961,24 @@ export class AcpAgent implements Agent {
 	}
 
 	async #closeManagedSession(sessionId: string, record: ManagedSessionRecord): Promise<void> {
+		const running = this.#closing.get(sessionId);
+		if (running?.record === record) {
+			await running.closed;
+			return;
+		}
 		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
 		this.#sessions.delete(sessionId);
-		this.#closing.set(sessionId, record);
+		const done = Promise.withResolvers<void>();
+		const entry = { record, closed: done.promise };
+		this.#closing.set(sessionId, entry);
 		try {
 			await this.#cancelPromptForClose(record);
 			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
 			await this.#surface.drain(record);
 			await this.#disposeSessionRecord(record);
 		} finally {
-			if (this.#closing.get(sessionId) === record) this.#closing.delete(sessionId);
+			if (this.#closing.get(sessionId) === entry) this.#closing.delete(sessionId);
+			done.resolve();
 		}
 	}
 
