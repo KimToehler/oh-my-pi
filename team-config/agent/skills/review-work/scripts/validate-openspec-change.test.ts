@@ -278,6 +278,29 @@ describe("validate-openspec-change", () => {
 		expect(run(root).exitCode).toBe(0);
 	});
 
+	it("requires gate.md criteria for a rename-only delta that also holds an empty requirement heading", async () => {
+		const root = await fixture();
+		await Bun.write(
+			path.join(root, "specs/feature/spec.md"),
+			"## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n\n### Requirement:\nstray text\n",
+		);
+		const result = run(root);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("gate.md criteria");
+	});
+
+	for (const field of ["Positive witness", "Boundary"]) {
+		it(`rejects gate.md criteria whose ${field} is a placeholder`, async () => {
+			const root = await skippedSpecsFixture(GENERATED_METADATA);
+			const gate = path.join(root, "gate.md");
+			const text = await Bun.file(gate).text();
+			await Bun.write(gate, text.replace(new RegExp(`(${field}:)[^\\n]*`), "$1 <to be written>"));
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`gate.md criteria.0.${field}`);
+		});
+	}
+
 	for (const operation of ["MODIFIED", "REMOVED"]) {
 		it(`accepts ${operation} requirements with negative controls`, async () => {
 			const root = await fixture();
