@@ -25,7 +25,11 @@ export type AcpSessionFactory = (
 	options?: { interactivePrompts?: boolean },
 ) => Promise<AgentSession | AcpSessionHandle>;
 
-/** Creates an ACP connection and exposes its agent when process-level teardown must own it. */
+/**
+ * Creates an ACP connection and exposes its agent when process-level teardown must own it.
+ * `maxVersion` defaults to 1: only the CLI host ({@link runAcpMode}) reads the `acp.protocolV2` opt-in,
+ * because embedders may build a connection before settings exist.
+ */
 export function createAcpConnection(
 	transport: Stream,
 	createSession: AcpSessionFactory,
@@ -39,7 +43,7 @@ export function createAcpConnection(
 		return {
 			v1: agent,
 			v2: agent.v2Handler,
-			maxVersion: options?.maxVersion ?? (() => (cfgAcpProtocolV2.get(settings) ? 2 : 1)),
+			maxVersion: options?.maxVersion ?? (() => 1),
 		};
 	}, transport);
 }
@@ -96,9 +100,15 @@ export async function runAcpMode(createSession: AcpSessionFactory, initialSessio
 	const input = stream.Writable.toWeb(isolateProtocolStdout());
 	const output = stream.Readable.toWeb(process.stdin);
 	const transport = ndJsonStream(input, output);
-	const connection = createAcpConnection(transport, createSession, initialSession, createdAgent => {
-		agent = createdAgent;
-	});
+	const connection = createAcpConnection(
+		transport,
+		createSession,
+		initialSession,
+		createdAgent => {
+			agent = createdAgent;
+		},
+		{ maxVersion: () => (cfgAcpProtocolV2.get(settings) ? 2 : 1) },
+	);
 	await connection.closed;
 	await postmortem.quit(0);
 }
