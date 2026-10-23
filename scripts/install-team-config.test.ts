@@ -703,4 +703,43 @@ describe("installTeamConfig", () => {
 			expect(leaked).toEqual([]);
 		});
 	}
+
+	describe("plan-directory notice", () => {
+		async function withUserConfig(content: string) {
+			const t = await setup({ "seed/config.yml": "team: 1\n" });
+			await Bun.write(t.agent("config.yml"), content);
+			return t;
+		}
+
+		test("plan-directory notice: names the file, key and value for a .omo plans dir and leaves bytes unchanged", async () => {
+			const content = "plan:\n  autosave: true\n  autosaveDir: .omo/plans\n";
+			const t = await withUserConfig(content);
+			const report = await t.install();
+			expect(report.notices).toHaveLength(1);
+			const [notice] = report.notices;
+			expect(notice).toContain(path.join(await fs.realpath(t.agentDir), "config.yml"));
+			expect(notice).toContain("plan.autosaveDir");
+			expect(notice).toContain(".omo/plans");
+			expect(notice).toContain(".omp/plans");
+			expect(await t.read(t.agent("config.yml"))).toBe(content);
+		});
+
+		test("plan-directory notice: none for docs/plans", async () => {
+			const t = await withUserConfig("plan:\n  autosaveDir: docs/plans\n");
+			expect((await t.install()).notices).toEqual([]);
+		});
+
+		test("plan-directory notice: none when the key is absent", async () => {
+			const t = await withUserConfig("plan:\n  autosave: true\n");
+			expect((await t.install()).notices).toEqual([]);
+		});
+
+		test("plan-directory notice: invalid YAML gives no notice, install completes, bytes unchanged", async () => {
+			const content = "plan: [unterminated\n  autosaveDir: .omo/plans\n";
+			const t = await withUserConfig(content);
+			const report = await t.install();
+			expect(report.notices).toEqual([]);
+			expect(await t.read(t.agent("config.yml"))).toBe(content);
+		});
+	});
 });

@@ -56,6 +56,8 @@ export interface InstallReport {
 	removed: string[];
 	backedUp: string[];
 	seeded: string[];
+	/** Informational messages for the CLI; never change any file. */
+	notices: string[];
 	/** Set only when this run backed something up. */
 	backupDir?: string;
 }
@@ -374,6 +376,22 @@ interface RemoveStep {
 	planned: DestState;
 }
 
+/**
+ * Notice for a user config.yml whose `plan.autosaveDir` still points into a `.omo` directory.
+ * Missing file or unparseable YAML yields no notice; the file is never written.
+ */
+async function planDirectoryNotice(configPath: string): Promise<string | undefined> {
+	let dir: unknown;
+	try {
+		const parsed = Bun.YAML.parse(await Bun.file(configPath).text()) as { plan?: { autosaveDir?: unknown } } | null;
+		dir = parsed?.plan?.autosaveDir;
+	} catch {
+		return undefined;
+	}
+	if (typeof dir !== "string" || !dir.split(/[\\/]/).includes(".omo")) return undefined;
+	return `${configPath}: plan.autosaveDir is "${dir}". Remove that key and plans default to .omp/plans.`;
+}
+
 /** Throw if `<agentDir>/backups` exists as anything but a real directory. */
 async function assertBackupsRoot(backupsRoot: string): Promise<void> {
 	let stat: Stats;
@@ -410,7 +428,7 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	const manifestBytes = await readManifestBytes(manifestPath);
 	const previous = parseManifest(manifestPath, manifestBytes);
 	const next: Manifest = { version: 2, files: newFiles() };
-	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [] };
+	const report: InstallReport = { added: [], updated: [], removed: [], backedUp: [], seeded: [], notices: [] };
 	const steps: Array<WriteStep | ChmodStep | RemoveStep> = [];
 	const seeds: Array<{ rel: string; planned: DestState }> = [];
 	// Manifest to persist if phase 2 aborts midway. Rule: the previous manifest, plus the new hash for every file whose
@@ -596,6 +614,10 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 		const message = err instanceof Error ? err.message : String(err);
 		throw new Error(`Team config files were applied but the manifest was not updated: ${message}`, { cause: err });
 	}
+
+	const configPath = path.join(agentDir, "config.yml");
+	const notice = await planDirectoryNotice(configPath);
+	if (notice) report.notices.push(notice);
 	return report;
 }
 
@@ -616,6 +638,7 @@ if (import.meta.main) {
 	list("seeded", report.seeded);
 	if (report.backupDir)
 		console.log(`  previous content of ${report.backedUp.length} file(s) saved in ${report.backupDir}`);
+	for (const notice of report.notices) console.log(`  notice: ${notice}`);
 	if (report.seeded.includes("models.yml")) {
 		console.log(`  next: put ONARA_ROUTER_KEY=<your key> into ${path.join(agentDir, ".env")}`);
 	}
