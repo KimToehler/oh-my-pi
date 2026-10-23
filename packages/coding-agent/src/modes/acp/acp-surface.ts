@@ -22,6 +22,8 @@ import type {
 	SessionModeState,
 	SessionNotification,
 	v2,
+	CreateElicitationResponse,
+	ElicitationPropertySchema,
 } from "@oh-my-pi/pi-utils/acp";
 import type { ExtensionUIContext } from "../../extensibility/extensions";
 import type { MCPManager } from "../../mcp/manager";
@@ -36,6 +38,17 @@ import type {
 import type { AcpEventMapperOptions } from "./acp-event-mapper";
 import type { AcpGoalActor } from "./acp-goal";
 import type { ForegroundOrigin, ForegroundWork, PromptTurnState } from "./acp-foreground";
+
+/** One form-mode elicitation: a property schema the client renders and answers. */
+export type FormElicitation = {
+	sessionId: string;
+	message: string;
+	properties: Record<string, ElicitationPropertySchema>;
+	required: string[] | undefined;
+};
+
+/** Sends a form elicitation over the connection's protocol version. */
+export type FormElicitationTransport = (request: FormElicitation) => Promise<CreateElicitationResponse>;
 
 export type AgentImageContent = {
 	type: "image";
@@ -196,6 +209,8 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	validAuthMethodIds(capabilities: W["clientCapabilities"]): string[];
 	/** A client cancel is about to abort `activeWork`. v2: latch the cancel and withdraw queued steers. */
 	beforeCancel(record: ManagedSessionRecord): void;
+	/** Asks the client a form elicitation for `request.sessionId`. v1: `elicitation/create` (unstable); v2: the v2-shaped request. */
+	elicitForm: FormElicitationTransport;
 	/**
 	 * Whether owner-scoped background jobs hold a foreground open. v1: yes, their wake turns stream into the open
 	 * prompt; v2: no, the foreground ends and a later wake is its own agent-initiated foreground.

@@ -41,12 +41,31 @@ import type {
 	AcpSurfaceHost,
 	AcpWireV2,
 	ForegroundEnd,
+	FormElicitation,
+	FormElicitationTransport,
 	ManagedSessionRecord,
 	SessionSetupKind,
 } from "./acp-surface";
 import { sessionEntryIdOf } from "../../session/session-entry-id";
 import { iterateSessionReplay } from "./acp-replay";
 import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
+
+/**
+ * v2 `oneOf` options carry only `const` and `title`; the shared builder also attaches a `description` that
+ * v1 clients render, so it is dropped here. Every other property field is already the v2 shape.
+ */
+function toV2Properties(properties: FormElicitation["properties"]): Record<string, v2.ElicitationPropertySchema> {
+	const mapped: Record<string, v2.ElicitationPropertySchema> = {};
+	for (const [key, property] of Object.entries(properties)) {
+		const oneOf = property.oneOf;
+		mapped[key] = (
+			Array.isArray(oneOf)
+				? { ...property, oneOf: oneOf.map(({ const: value, title }) => ({ const: value, title })) }
+				: property
+		) as v2.ElicitationPropertySchema;
+	}
+	return mapped;
+}
 
 export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	readonly version = 2;
@@ -381,6 +400,19 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		work.cancelRequested = true;
 		record.session.clearQueue({ forInterrupt: true });
 	}
+
+	/** `elicitation/create` in the v2 shape (session-scoped form); `accept` without content answers nothing. */
+	elicitForm: FormElicitationTransport = async ({ sessionId, message, properties, required }) => {
+		const response = await this.#host.connection.v2.createElicitation({
+			mode: "form",
+			sessionId,
+			message,
+			requestedSchema: { type: "object", properties: toV2Properties(properties), required },
+		});
+		return response.action === "accept"
+			? { action: "accept", content: response.content ?? {} }
+			: { action: response.action };
+	};
 
 	subscribe(record: ManagedSessionRecord): () => void {
 		return record.session.subscribe(event => {

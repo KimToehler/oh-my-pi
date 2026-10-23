@@ -120,11 +120,12 @@ import {
 	type AcpWireV1,
 	type AcpWireV2,
 	type AgentImageContent,
+	type FormElicitationTransport,
 	INTELLIJ_CLIENT_PLATFORM,
 	type ManagedSessionRecord,
 	type PromptLifecycleError,
 } from "./acp-surface";
-import { AcpSurfaceV1 } from "./acp-surface-v1";
+import { AcpSurfaceV1, sendV1FormElicitation } from "./acp-surface-v1";
 import { AcpSurfaceV2 } from "./acp-surface-v2";
 import {
 	ACP_DEFAULT_MODE_ID,
@@ -303,7 +304,7 @@ function buildAcpSpeechModelsCatalog(): Record<string, unknown> {
  * are dropped silently (no `logger.warn`) to keep operator logs clean.
  */
 async function elicitFormFromAcpClient(
-	connection: AgentSideConnection,
+	sendFormElicitation: FormElicitationTransport,
 	sessionId: string,
 	method: string,
 	message: string,
@@ -345,23 +346,12 @@ async function elicitFormFromAcpClient(
 		// loop alive on the happy path.
 		timeoutId.unref();
 	}
-	connection
-		.unstable_createElicitation({
-			mode: "form",
-			sessionId,
-			message,
-			requestedSchema: {
-				type: "object",
-				properties,
-				required,
-			},
-		})
-		.then(finish, error => {
-			// Caller may already have moved on via abort/timeout; suppress noise.
-			if (settled) return;
-			logger.warn("ACP elicitation failed", { sessionId, method, error });
-			finish(undefined);
-		});
+	sendFormElicitation({ sessionId, message, properties, required }).then(finish, error => {
+		// Caller may already have moved on via abort/timeout; suppress noise.
+		if (settled) return;
+		logger.warn("ACP elicitation failed", { sessionId, method, error });
+		finish(undefined);
+	});
 	const response = await promise;
 	if (!isAcceptedElicitation(response) || !response.content) {
 		return undefined;
@@ -370,7 +360,7 @@ async function elicitFormFromAcpClient(
 }
 
 async function elicitFromAcpClient(
-	connection: AgentSideConnection,
+	sendFormElicitation: FormElicitationTransport,
 	sessionId: string,
 	method: "select" | "confirm" | "input" | "editor",
 	message: string,
@@ -378,7 +368,7 @@ async function elicitFromAcpClient(
 	dialogOptions: ExtensionUIDialogOptions | undefined,
 ): Promise<ElicitationContentValue | undefined> {
 	const content = await elicitFormFromAcpClient(
-		connection,
+		sendFormElicitation,
 		sessionId,
 		method,
 		message,
@@ -395,6 +385,9 @@ function isAcceptedElicitation(
 ): response is Extract<CreateElicitationResponse, { action: "accept" }> {
 	return response?.action === "accept";
 }
+
+/** The capability slice the UI context reads; a v2 client's negotiated `elicitation.form` maps onto it. */
+const FORM_ELICITATION_CAPABILITIES: ClientCapabilities = { elicitation: { form: {} } };
 
 /**
  * Build an {@link ExtensionUIContext} that translates skill/extension UI
@@ -417,6 +410,7 @@ export function createAcpExtensionUiContext(
 	getSessionId: () => string,
 	clientCapabilities: ClientCapabilities | undefined,
 	track: InteractionTracker = run => run(),
+	sendFormElicitation: FormElicitationTransport = request => sendV1FormElicitation(connection, request),
 ): ExtensionUIContext {
 	const elicit = (...args: Parameters<typeof elicitFromAcpClient>) => track(() => elicitFromAcpClient(...args));
 	const supportsForm = clientCapabilities?.elicitation?.form != null;
@@ -425,7 +419,7 @@ export function createAcpExtensionUiContext(
 		select: async (title, options, dialogOptions) => {
 			if (!supportsForm) return undefined;
 			const value = await elicit(
-				connection,
+				sendFormElicitation,
 				getSessionId(),
 				"select",
 				title,
@@ -437,7 +431,7 @@ export function createAcpExtensionUiContext(
 		confirm: async (title, message, dialogOptions) => {
 			if (!supportsForm) return false;
 			const value = await elicit(
-				connection,
+				sendFormElicitation,
 				getSessionId(),
 				"confirm",
 				message.trim().length > 0 ? `${title}\n\n${message}` : title,
@@ -449,7 +443,7 @@ export function createAcpExtensionUiContext(
 		input: async (title, placeholder, dialogOptions) => {
 			if (!supportsForm) return undefined;
 			const value = await elicit(
-				connection,
+				sendFormElicitation,
 				getSessionId(),
 				"input",
 				title,
@@ -502,7 +496,7 @@ export function createAcpExtensionUiContext(
 			let timedOut = false;
 			const content = await track(() =>
 				elicitFormFromAcpClient(
-					connection,
+					sendFormElicitation,
 					getSessionId(),
 					"askDialog",
 					questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
@@ -565,7 +559,7 @@ export function createAcpExtensionUiContext(
 		editor: async (title, prefill, dialogOptions) => {
 			if (!supportsForm) return undefined;
 			const value = await elicit(
-				connection,
+				sendFormElicitation,
 				getSessionId(),
 				"editor",
 				title,
@@ -596,6 +590,8 @@ export class AcpAgent implements Agent {
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
+	/** The client negotiated `elicitation.form` (either protocol version); gates every interactive consumer. */
+	#supportsFormElicitation = false;
 	/** Client re-asserts its stored config choices on every prompt (JetBrains); see `AcpGoalActor.isStaleClientReassert`. */
 	#clientPinsConfigOptions = false;
 	#cancelCleanupTimeoutMs = ACP_CANCEL_CLEANUP_TIMEOUT_MS;
@@ -645,6 +641,7 @@ export class AcpAgent implements Agent {
 	async initialize(params: InitializeRequest): Promise<InitializeResponse> {
 		this.#registerConnectionCleanup();
 		this.#clientCapabilities = params.clientCapabilities;
+		this.#supportsFormElicitation = params.clientCapabilities?.elicitation?.form != null;
 		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		this.#clientPinsConfigOptions = isIntelliJClient;
 		// Only v1 is negotiable until the v2 surface exists; the surface is chosen here.
@@ -738,6 +735,7 @@ export class AcpAgent implements Agent {
 				this.#registerConnectionCleanup();
 				this.#clientCapabilities = undefined;
 				this.#v2ClientCapabilities = params.capabilities;
+				this.#supportsFormElicitation = params.capabilities?.elicitation?.form != null;
 				this.#clientPinsConfigOptions = false;
 				this.#surface = this.#surfaceV2;
 				return this.#surfaceV2.initializeResponse(params);
@@ -988,13 +986,19 @@ export class AcpAgent implements Agent {
 		const onSubmissionOutcome = options?.onSubmissionOutcome;
 		const skillResult = await this.#tryRunSkillCommand(record, text, onSubmissionOutcome);
 		if (skillResult || promptTurn?.work.cancelRequested) {
+			// A Stop before `session.prompt` registered an outcome: settle the admission as dropped.
+			if (!skillResult) onSubmissionOutcome?.({ kind: "dropped" });
 			return;
 		}
 
 		const builtin = resolveAcpBuiltinSlashCommand(text);
 		if (builtin) onSubmissionOutcome?.({ kind: "command" });
 		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
-		if (builtinResult === undefined || promptTurn?.work.cancelRequested) return;
+		if (builtinResult === undefined) return;
+		if (promptTurn?.work.cancelRequested) {
+			onSubmissionOutcome?.({ kind: "dropped" });
+			return;
+		}
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
@@ -1051,6 +1055,7 @@ export class AcpAgent implements Agent {
 			if (promptTurn && this.#turnOf(record) === promptTurn && !promptTurn.settled) {
 				this.#finishPrompt(record, { stopReason: "cancelled" });
 			}
+			onSubmissionOutcome?.({ kind: "dropped" });
 			return;
 		}
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
@@ -1147,6 +1152,8 @@ export class AcpAgent implements Agent {
 		if (!promptTurn || promptTurn.settled) {
 			return;
 		}
+		// Before the abort and before the foreground settles: v2 latches agent-initiated work off and withdraws queued steers.
+		this.#surface.beforeCancel(record);
 		const cleanup = this.#beginCancelCleanup(record, promptTurn.work);
 		try {
 			await cleanup;
@@ -1477,7 +1484,7 @@ export class AcpAgent implements Agent {
 	async #createNewSessionRecord(cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -1523,7 +1530,7 @@ export class AcpAgent implements Agent {
 		const sourcePath = await this.#resolveForkSourceSessionPath(params.sessionId);
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(params.cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -1550,7 +1557,7 @@ export class AcpAgent implements Agent {
 	): Promise<ManagedSessionRecord> {
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -2405,7 +2412,7 @@ export class AcpAgent implements Agent {
 		title: string,
 		planPath: string,
 	): Promise<{ approved: false } | { approved: true; executionModel?: ResolvedRoleModel }> {
-		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
+		const supportsForm = this.#supportsFormElicitation;
 		if (!supportsForm) return { approved: true };
 		try {
 			await this.#emit({
@@ -2443,7 +2450,7 @@ export class AcpAgent implements Agent {
 		// header and renders no markdown or HTML, so the path rides in the
 		// field description (shown as a short subtitle) instead.
 		const value = await elicitFromAcpClient(
-			this.#connection,
+			request => this.#surface.elicitForm(request),
 			session.sessionId,
 			"select",
 			`Approve plan "${title}" and start implementation?`,
@@ -2671,15 +2678,16 @@ export class AcpAgent implements Agent {
 		const uiContext = createAcpExtensionUiContext(
 			this.#connection,
 			() => record.session.sessionId,
-			this.#clientCapabilities,
+			this.#supportsFormElicitation ? FORM_ELICITATION_CAPABILITIES : undefined,
 			run =>
 				trackInteraction(
 					this.#surface.activeWork(record),
 					work => this.#surface.onInteractionChanged(record, work),
 					run,
 				),
+			request => this.#surface.elicitForm(request),
 		);
-		if (this.#clientCapabilities?.elicitation?.form != null) {
+		if (this.#supportsFormElicitation) {
 			record.setToolUIContext?.(uiContext, true);
 			record.session.setUsageFallbackConfirmer((confirmation, signal) => {
 				const reserve =

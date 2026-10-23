@@ -1177,6 +1177,8 @@ export interface V2WireHarness {
 	agentDir: string;
 	/** Sessions the default fake factory created (empty with a custom factory). */
 	sessions: FakeAgentSession[];
+	/** The agent behind the current connection. */
+	agent(): AcpAgent | undefined;
 	/** Tears the current connection down and opens a fresh one on the same roots and factory. */
 	reconnect(): Promise<RawAcpClient>;
 	close(): Promise<void>;
@@ -1206,6 +1208,7 @@ export async function createV2WireHarness(
 		cwd: cwdA,
 		agentDir: path.join(path.dirname(cwdA), "agent"),
 		sessions: fake?.sessions ?? [],
+		agent: () => connections.at(-1)?.agent(),
 		reconnect: async () => {
 			await closeCurrent();
 			return connect(false);

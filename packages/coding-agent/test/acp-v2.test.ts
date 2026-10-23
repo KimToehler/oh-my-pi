@@ -21,6 +21,7 @@ import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SubmissionOutcome } from "@oh-my-pi/pi-coding-agent/session/agent-session-types";
@@ -56,6 +57,8 @@ interface ModelCallGate {
 interface RigOptions {
 	/** Model calls (0-based, across the rig) that block until released or aborted. */
 	hold?: number[];
+	/** Held calls keep waiting through an abort (a provider stream that does not honour the signal). */
+	heldIgnoresAbort?: boolean;
 	/** Scripted responses by model call index; other calls reply `reply <n>`. */
 	script?: Record<number, MockResponse>;
 	tools?: AgentTool[];
@@ -66,6 +69,8 @@ interface RigOptions {
 	settings?: Record<string, unknown>;
 	/** Delays every `tool_execution_start` delivery to session subscribers until resolved. */
 	holdToolStarts?: PromiseWithResolvers<void>;
+	/** Receives the extension UI context the ACP layer installs for tools (it does so only for a form-capable client). */
+	toolUi?: { current?: ExtensionUIContext };
 }
 
 class RealSessionRig {
@@ -113,10 +118,14 @@ class RealSessionRig {
 				const n = this.#calls++;
 				this.gate(n).reached.resolve();
 				if (this.#held.has(n)) {
-					const aborted = Promise.withResolvers<void>();
-					streamOptions?.signal?.addEventListener("abort", () => aborted.resolve(), { once: true });
-					await Promise.race([this.gate(n).release.promise, aborted.promise]);
-					if (streamOptions?.signal?.aborted) return { throw: "aborted" };
+					if (options.heldIgnoresAbort) {
+						await this.gate(n).release.promise;
+					} else {
+						const aborted = Promise.withResolvers<void>();
+						streamOptions?.signal?.addEventListener("abort", () => aborted.resolve(), { once: true });
+						await Promise.race([this.gate(n).release.promise, aborted.promise]);
+						if (streamOptions?.signal?.aborted) return { throw: "aborted" };
+					}
 				}
 				return options.script?.[n] ?? { content: [`reply ${n}`] };
 			},
@@ -177,7 +186,14 @@ class RealSessionRig {
 				});
 		}
 		this.sessions.push(session);
-		return session;
+		if (!options.toolUi) return session;
+		const { toolUi } = options;
+		return {
+			session,
+			setToolUIContext: uiContext => {
+				toolUi.current = uiContext;
+			},
+		};
 	};
 
 	async dispose(): Promise<void> {
@@ -240,14 +256,18 @@ async function initialize(
 	return resultOf(await client.request("initialize", { protocolVersion: 2, info: INFO, capabilities }));
 }
 
-async function startReal(rigOptions: RigOptions = {}, onRequest?: RawAcpRequestHandler): Promise<Started> {
+async function startReal(
+	rigOptions: RigOptions = {},
+	onRequest?: RawAcpRequestHandler,
+	capabilities: Record<string, unknown> = {},
+): Promise<Started> {
 	const rig = new RealSessionRig(rigOptions);
 	const h = await createV2WireHarness({ factory: rig.factory, onRequest });
 	teardown.push(async () => {
 		await h.close();
 		await rig.dispose();
 	});
-	await initialize(h.client);
+	await initialize(h.client, capabilities);
 	const created = resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] }));
 	const sessionId = String(created.sessionId);
 	return { h, rig, client: h.client, sessionId, session: rig.sessionById(sessionId) };
@@ -625,20 +645,38 @@ describe("cancel and errors (plan 5)", () => {
 		});
 	});
 
-	it("emits no running for a wake that lands after a cancel", async () => {
-		// Guards: a stopped session restarts itself when a background job settles.
+	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {
+		// Guards: a stopped session restarts itself when a background job that was already running settles.
 		const manager = new AsyncJobManager({});
 		AsyncJobManager.setInstance(manager);
+		const jobGate = Promise.withResolvers<string>();
+		const startJob: AgentTool = {
+			name: "startjob",
+			label: "startjob",
+			description: "Starts an owner-scoped background job",
+			parameters: type({}),
+			async execute() {
+				manager.register("bash", "late job", async () => await jobGate.promise, {
+					id: "late-job",
+					ownerId: "AcpOwner",
+				});
+				return { content: [{ type: "text" as const, text: "started" }] };
+			},
+		};
+		// Call 0 starts the job; call 1 (the turn that follows) is held, so the job is running when Stop arrives.
 		const { rig, client, sessionId, session } = await startReal({
-			hold: [0],
+			hold: [1],
 			asyncJobManager: manager,
 			agentId: "AcpOwner",
+			tools: [startJob],
+			script: { 0: { content: [{ type: "toolCall", id: "call-job", name: "startjob", arguments: {} }] } },
 		});
-		const jobGate = Promise.withResolvers<string>();
-		manager.register("bash", "late job", async () => await jobGate.promise, { id: "late-job", ownerId: "AcpOwner" });
 		await sendPrompt(client, sessionId, "work");
+		await rig.gate(1).reached.promise;
 		await client.notify("session/cancel", { sessionId });
 		await waitForIdle(client, sessionId);
+		// The gate `AgentSession` reads before starting agent-initiated work is closed by the Stop itself.
+		expect(session.clientBridge?.allowAgentInitiatedTurns?.()).toBe(false);
 		const frames = client.frames.length;
 		const calls = rig.modelCalls;
 
@@ -647,6 +685,7 @@ describe("cancel and errors (plan 5)", () => {
 		await eventLoopTurns(30);
 		expect(rig.modelCalls).toBe(calls);
 		expect(client.frames.length).toBe(frames);
+		expect(client.states(sessionId).filter(state => state.state === "running")).toHaveLength(1);
 	});
 
 	it("keeps the prompt successful and ends with idle(error) carrying the message when the run fails after insertion", async () => {
@@ -660,6 +699,165 @@ describe("cancel and errors (plan 5)", () => {
 		expect(idle.stopReason).toBe("error");
 		expect(typeof idle.error?.message).toBe("string");
 		expect(idle.error?.message?.length).toBeGreaterThan(0);
+	});
+
+	it("settles a prompt whose Goal admission is held when Stop arrives, then admits the next prompt", async () => {
+		// Guards: a Stop before the outcome is registered leaves the request pending and its queue slot held forever.
+		const { client, sessionId, session } = await startReal();
+		resultOf(
+			await client.request("session/set_config_option", { sessionId, configId: "mode", type: "id", value: "goal" }),
+		);
+		// Hold the objective's Goal admission inside `createGoal`, before `session.prompt` can register an outcome.
+		const entered = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const runtime = session.goalRuntime;
+		const createGoal = runtime.createGoal.bind(runtime);
+		runtime.createGoal = async (...args: Parameters<typeof createGoal>) => {
+			entered.resolve();
+			await release.promise;
+			return await createGoal(...args);
+		};
+		teardown.push(async () => release.resolve());
+		const held = sendPrompt(client, sessionId, "Ship feature X");
+		await entered.promise;
+		await client.notify("session/cancel", { sessionId });
+		release.resolve();
+		expect(errorCode(await held)).toBe(-32800);
+		await waitForIdle(client, sessionId);
+		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
+		expect(userEntryIds(session)).toEqual([]);
+
+		const idleIndex = client.states(sessionId).at(-1)!.index;
+		const next = messageIdOf(await sendPrompt(client, sessionId, "after stop"));
+		await waitForIdle(client, sessionId, idleIndex);
+		expect(userEntryIds(session)).toContain(next);
+		expect(userMessages(client, sessionId).map(message => message.text)).not.toContain("Ship feature X");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Plan 2 at the adapter boundary: submission lifecycle guarantees with a held provider
+// ---------------------------------------------------------------------------
+
+describe("submission lifecycle at the adapter boundary (plan 2)", () => {
+	it("settles a steer lost with its delivery record at foreground end with one dropped, never inserting it", async () => {
+		// Guards: a steer in the agent's delivery record (in no queue) leaves its request pending and later persists.
+		const { rig, client, sessionId, session } = await startReal({ hold: [0] });
+		// The run dequeues the steer for its next model call and holds that call before the transcript records the steer.
+		const held = Promise.withResolvers<void>();
+		const releaseHeld = Promise.withResolvers<void>();
+		let hookCalls = 0;
+		const removeGate = session.agent.addBeforeModelCallHook(async () => {
+			if (hookCalls++ === 0) return;
+			held.resolve();
+			await releaseHeld.promise;
+		});
+		teardown.push(async () => releaseHeld.resolve());
+		const first = messageIdOf(await sendPrompt(client, sessionId, "first"));
+		await rig.gate(0).reached.promise;
+		const steer = sendPrompt(client, sessionId, "steer A");
+		await eventLoopTurns(10);
+		await session.sessionManager.flush();
+		const sessionFile = session.sessionManager.getSessionFile();
+		if (!sessionFile) throw new Error("Expected a file-backed session");
+		rig.gate(0).release.resolve();
+		await held.promise;
+		expect(session.agent.peekSteeringQueue()).toEqual([]);
+
+		// A switch disconnects the run from the transcript, so its emission of the steer is never recorded;
+		// the forced failure then rolls back to queues that never held the steer's record.
+		vi.spyOn(session.sessionManager, "setSessionFile").mockRejectedValueOnce(new Error("forced switch failure"));
+		const switching = session.switchSession(sessionFile);
+		releaseHeld.resolve();
+		await expect(switching).rejects.toThrow("forced switch failure");
+		removeGate();
+		await eventLoopTurns(20);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(0);
+
+		// Stop ends the foreground; only the closure there settles a steer that sits in no queue.
+		await client.notify("session/cancel", { sessionId });
+		expect(errorCode(await steer)).toBe(-32800);
+		await waitForIdle(client, sessionId);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "inserted")).toHaveLength(1);
+		await eventLoopTurns(20);
+		expect(userEntryIds(session)).toEqual([first]);
+		expect(userMessages(client, sessionId).map(message => message.text)).not.toContain("steer A");
+	});
+
+	it("drops a steer once when the cleanup timeout closes the session, and a late emission persists nothing and sends no frame", async () => {
+		// Guards: a run released after the session closed inserts the steer it still holds and writes to a closed client.
+		const { h, rig, client, sessionId, session } = await startReal({ hold: [0, 1], heldIgnoresAbort: true });
+		const appendSpy = vi.spyOn(session.sessionManager, "appendMessage");
+		h.agent()?.setCancelCleanupTimeoutForTesting(1);
+		// The abort never completes, so the cleanup barrier is still pending when its timeout fires.
+		const stuckAbort = Promise.withResolvers<void>();
+		const abort = session.abort.bind(session);
+		session.abort = async options => {
+			await stuckAbort.promise;
+			return await abort(options);
+		};
+		teardown.push(async () => stuckAbort.resolve());
+		messageIdOf(await sendPrompt(client, sessionId, "first"));
+		await client.waitFor(c => userMessages(c, sessionId).length === 1, "user_message echo of the first prompt");
+		await rig.gate(0).reached.promise;
+		const steer = sendPrompt(client, sessionId, "steer A");
+		await eventLoopTurns(10);
+		rig.gate(0).release.resolve();
+		await rig.gate(1).reached.promise;
+		// The run holds the steer in its delivery record while the provider stream ignores the abort.
+		expect(session.agent.peekSteeringQueue()).toEqual([]);
+
+		await client.notify("session/cancel", { sessionId });
+		expect(errorCode(await steer)).toBeDefined();
+		// The cleanup timeout elapses and the adapter closes (disposes) the session.
+		while (!session.isDisposed) await eventLoopTurns(1);
+		const framesAtClose = client.frames.length;
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
+
+		rig.gate(1).release.resolve();
+		await eventLoopTurns(40);
+		expect(client.frames.length).toBe(framesAtClose);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "inserted")).toHaveLength(1);
+		const appendedUserTexts = appendSpy.mock.calls
+			.map(([message]) => message)
+			.filter(message => message.role === "user")
+			.map(message => contentText(message.content));
+		expect(appendedUserTexts).toEqual(["first"]);
+	});
+
+	it("drops a held steer once when the connection closes under a running turn, and a late emission persists nothing", async () => {
+		// Guards: the tombstone is missing, so a run released after close inserts the steer the closure already dropped.
+		const { h, rig, client, sessionId, session } = await startReal({ hold: [0, 1], heldIgnoresAbort: true });
+		const appendSpy = vi.spyOn(session.sessionManager, "appendMessage");
+		messageIdOf(await sendPrompt(client, sessionId, "first"));
+		await client.waitFor(c => userMessages(c, sessionId).length === 1, "user_message echo of the first prompt");
+		await rig.gate(0).reached.promise;
+		const steer = sendPrompt(client, sessionId, "steer A");
+		await eventLoopTurns(10);
+		rig.gate(0).release.resolve();
+		await rig.gate(1).reached.promise;
+		// The run holds the steer in its delivery record while the provider stream ignores the abort.
+		expect(session.agent.peekSteeringQueue()).toEqual([]);
+
+		const closing = h.agent()?.dispose();
+		expect(errorCode(await steer)).toBeDefined();
+		while (!session.isDisposed) await eventLoopTurns(1);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
+		const framesAtClose = client.frames.length;
+
+		rig.gate(1).release.resolve();
+		await closing;
+		await eventLoopTurns(40);
+		expect(client.frames.length).toBe(framesAtClose);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
+		expect(rig.outcomes.filter(outcome => outcome.kind === "inserted")).toHaveLength(1);
+		const appendedUserTexts = appendSpy.mock.calls
+			.map(([message]) => message)
+			.filter(message => message.role === "user")
+			.map(message => contentText(message.content));
+		expect(appendedUserTexts).toEqual(["first"]);
 	});
 });
 
@@ -711,6 +909,58 @@ describe("requires_action (plan 6)", () => {
 		expect(after[0]).toMatchObject({ state: "running" });
 		expect(after.at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 		expect(bash.executeCalls).toBe(1);
+	});
+
+	it("sends a v2 elicitation/create for a tool question, reports requires_action while open, and returns the answer", async () => {
+		// Guards: a v2 client that negotiated elicitation.form never gets the question (UI disabled) or gets a v1-shaped one.
+		const toolUi: { current?: ExtensionUIContext } = {};
+		const answers: boolean[] = [];
+		const asker: AgentTool = {
+			name: "asker",
+			label: "asker",
+			description: "Asks the user to confirm",
+			parameters: type({}),
+			async execute() {
+				const confirmed = (await toolUi.current?.confirm("Proceed?", "This is irreversible.")) ?? "no ui";
+				answers.push(confirmed === true);
+				return { content: [{ type: "text" as const, text: String(confirmed) }] };
+			},
+		};
+		const answer = Promise.withResolvers<void>();
+		const requests: unknown[] = [];
+		const { client, sessionId } = await startReal(
+			{
+				tools: [asker],
+				toolUi,
+				script: { 0: { content: [{ type: "toolCall", id: "call-ask", name: "asker", arguments: {} }] } },
+			},
+			async (method, params) => {
+				if (method !== "elicitation/create") throw new Error(`unexpected agent request ${method}`);
+				requests.push(params);
+				await answer.promise;
+				return { action: "accept", content: { value: true } };
+			},
+			{ elicitation: { form: {} } },
+		);
+		await sendPrompt(client, sessionId, "ask me");
+		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
+		expect(requests).toHaveLength(1);
+		expect(requests[0]).toMatchObject({
+			mode: "form",
+			sessionId,
+			requestedSchema: { type: "object", properties: { value: { type: "boolean" } }, required: ["value"] },
+		});
+		expect(client.states(sessionId).at(-1)?.state).toBe("requires_action");
+
+		answer.resolve();
+		await waitForIdle(client, sessionId);
+		expect(answers).toEqual([true]);
+		expect(client.states(sessionId).map(state => state.state)).toEqual([
+			"running",
+			"requires_action",
+			"running",
+			"idle",
+		]);
 	});
 
 	it("snapshots requires_action when a session is resumed while its permission is pending", async () => {

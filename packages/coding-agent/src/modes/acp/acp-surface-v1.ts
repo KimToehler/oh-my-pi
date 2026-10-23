@@ -7,7 +7,9 @@
 import { AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { logger, VERSION } from "@oh-my-pi/pi-utils";
 import {
+	type AgentSideConnection,
 	type AuthMethod,
+	type CreateElicitationResponse,
 	type ClientCapabilities,
 	type InitializeRequest,
 	type InitializeResponse,
@@ -37,10 +39,25 @@ import {
 	type AcpSurfaceHost,
 	type AcpWireV1,
 	type ForegroundEnd,
+	type FormElicitation,
+	type FormElicitationTransport,
 	INTELLIJ_CLIENT_PLATFORM,
 	type ManagedSessionRecord,
 } from "./acp-surface";
 import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
+
+/** The v1 spelling of a form elicitation: `elicitation/create` with a `requestedSchema`. */
+export function sendV1FormElicitation(
+	connection: AgentSideConnection,
+	{ sessionId, message, properties, required }: FormElicitation,
+): Promise<CreateElicitationResponse> {
+	return connection.unstable_createElicitation({
+		mode: "form",
+		sessionId,
+		message,
+		requestedSchema: { type: "object", properties, required },
+	});
+}
 
 export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 	readonly version = 1;
@@ -269,6 +286,8 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 	}
 
 	beforeCancel(): void {}
+
+	elicitForm: FormElicitationTransport = request => sendV1FormElicitation(this.#host.connection, request);
 
 	inFlightWork(record: ManagedSessionRecord): ForegroundWork | undefined {
 		return this.activeWork(record);
