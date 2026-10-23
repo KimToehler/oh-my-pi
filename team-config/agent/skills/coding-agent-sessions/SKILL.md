@@ -1,13 +1,13 @@
 ---
 name: coding-agent-sessions
-description: "Finds, reads, and reconstructs coding-agent sessions across Codex, Claude, OpenCode, OMO/Senpi, and other local agent logs. Use when asked to find or search past sessions, transcripts, or subagent runs, or to recover what an earlier session did."
+description: "Finds, reads, and reconstructs coding-agent sessions across Codex, Claude, OpenCode, Senpi/pi, and other local agent logs. Use when asked to find or search past sessions, transcripts, or subagent runs, or to recover what an earlier session did."
 ---
 
 # Coding Agent Sessions
 
 Find local coding-agent sessions across agent products before answering from memory. Prefer the bundled finder for broad cross-platform search, then read the selected session or raw file when you need exact evidence.
 
-For omp-only recall (current project's sessions, recaps, typed prompts), omp's built-in `archive` object in `eval` is faster: `await archive.sessions(project="*")`, `await archive.search("…", project="*")`. Use the finder below for cross-agent search, subagent trees, or older OpenCode/omo/Claude/Codex history.
+For omp-only recall (current project's sessions, recaps, typed prompts), omp's built-in `archive` object in `eval` is faster: `await archive.sessions(project="*")`, `await archive.search("…", project="*")`. Use the finder below for cross-agent search, subagent trees, or older OpenCode/Claude/Codex history.
 
 ## PHASE 0 - PLATFORM ROUTER
 
@@ -17,9 +17,9 @@ For omp-only recall (current project's sessions, recaps, typed prompts), omp's b
    |---|---|
    | Codex / OpenAI Codex CLI | `references/codex.md` |
    | Claude Code / Claude Desktop histories | `references/claude.md` |
-   | OMO / Senpi / pi coding-agent logs | `references/senpi.md` |
+   | Senpi / pi coding-agent logs | `references/senpi.md` |
    | oh-my-pi (`omp`, `~/.omp`) and gajae-code (`gjc`, `~/.gjc`) logs | `references/senpi.md` |
-   | OpenCode / oh-my-openagent (formerly oh-my-opencode) storage | `references/opencode.md` |
+   | OpenCode storage | `references/opencode.md` |
    | OpenClaw, Droid, Amp, Gemini, Kimi, Qwen, Codebuff, Roo/Kilo/Cline, Kodu, Cursor CLI, Aider, Kiro, Goose, Hermes, Crush, Zed, Aside | `references/all-platforms.md` |
    | Unknown / "any session" / cross-agent search | `references/all-platforms.md` |
 
@@ -122,7 +122,7 @@ Use `references/codex.md` for Codex storage details.
 |---|---|
 | Missing Codex sessions | Set `CODEX_HOME` or pass `--root /path/to/.codex`. |
 | Missing oh-my-pi / gajae-code sessions | Those stores live in `~/.omp/agent/sessions` and `~/.gjc/agent/sessions`. For a custom `PI_CONFIG_DIR` / `PI_CODING_AGENT_DIR`, pass that agent dir with `--root`. |
-| Missing OMO / Senpi sessions | The `senpi` platform searches `~/.omo/agent/sessions`, `~/.senpi/agent/sessions`, and `~/.pi/agent/sessions` (plus matching profile roots). Pass a nonstandard agent directory with `--root`. |
+| Missing Senpi / pi sessions | The `senpi` platform searches `~/.senpi/agent/sessions` and `~/.pi/agent/sessions` (plus matching profile roots). Pass a nonstandard agent directory with `--root`. |
 | Missing OpenCode sessions | Pass the data dir that contains `messages/` and `parts/`, often `~/.opencode` or `~/.local/share/opencode`. |
 | Missing Claude sessions | Search `~/.claude/projects`, `~/.claude/transcripts`, and `~/.claude/pre-compact-session-histories`; use `--root` for nonstandard config dirs. |
 | Missing Aside sessions | The Aside browser agent stores per-user data under `~/.aside/u/<n>/` (`sessions/<date>_<id>/messages.jsonl` transcripts + a `state.db` index; `agents/*/sessions/` is just a hardlink mirror). Pass `--root` for a nonstandard `.aside` dir or an exported user dir. |

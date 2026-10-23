@@ -25,7 +25,7 @@ Intent: ${intent}
   - If not none, both reviewers run and the orchestrator has no discretion.
 - Whole-diff review: <needed | not needed + reason>   (needed when the change spans 3+ slices/modules/layers)
 - Accepted residual risks: reviewer verdicts vary between runs
-- Out of scope for blocking: the canonical oh-my-openagent validator
+- Out of scope for blocking: the upstream copy of this validator
 - Diff range: <base>...<head>
 - Feature-specific criteria - each behavioural one carries all five fields:
   - Invariant: <property that must hold>
@@ -56,7 +56,7 @@ const pass = JSON.parse(readFileSync(path.join(scriptsDir, "fixtures/pass.json")
 // un-ignores `.omp/team-config/evidence/` while leaving `.omp/` itself ignored, which gives both path cases.
 const trailerRoot = "skills/review-work/scripts/fixtures/trailers"
 const reportRoot = "skills/review-work/scripts/fixtures/reports"
-const sandboxRepo = mkdtempSync(path.join(tmpdir(), "omo-gate-sandbox-"))
+const sandboxRepo = mkdtempSync(path.join(tmpdir(), "gate-sandbox-"))
 execFileSync("git", ["init", "-q", "-b", "sandbox", sandboxRepo], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "config", "user.email", "gate@test"], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "config", "user.name", "Gate Test"], { encoding: "utf8" })
@@ -102,7 +102,7 @@ function unstage(file) {
 
 function run(record, options = {}) {
   const root = options.recordRoot ?? trackedRecordRoot
-  const directory = mkdtempSync(path.join(root, "omo-gate-test-"))
+  const directory = mkdtempSync(path.join(root, "gate-test-"))
   const recordPath = path.join(directory, "record.json")
   writeFileSync(recordPath, typeof record === "string" ? record : JSON.stringify(record))
   if (options.stageRecord !== false) stage(recordPath)
@@ -191,7 +191,7 @@ function buildTrailer(overrides = {}) {
 // six, which is why the same commit gave 136/136 in one and 103/136 in the other - and a `TMPDIR`
 // one level either way flipped each of them. Nothing about that was a real assertion.
 function withTrailer(record, body, options = {}) {
-  const directory = mkdtempSync(path.join(options.root ?? trackedRecordRoot, "omo-trailer-test-"))
+  const directory = mkdtempSync(path.join(options.root ?? trackedRecordRoot, "trailer-test-"))
   const file = path.join(directory, "trailer.txt")
   writeFileSync(file, body)
   if (options.stageTrailer !== false) stage(file)
@@ -382,7 +382,7 @@ test("#given unreadable plan #when validated #then plan blocks", () => {
 })
 
 test("#given plan without merge gate #when validated #then Merge gate blocks", () => {
-  const directory = mkdtempSync(path.join(tmpdir(), "omo-plan-test-"))
+  const directory = mkdtempSync(path.join(tmpdir(), "plan-test-"))
   try {
     const emptyPlan = path.join(directory, "plan.md")
     writeFileSync(emptyPlan, "# Plan\n")
@@ -479,7 +479,7 @@ test("#given --plan-only together with --record #when run #then it refuses the a
 // fields; full mode keeps its prior shape but reads the same fence- and comment-aware section.
 const criteriaBlock = "- Feature-specific criteria:\n  - Invariant: the gate refuses an incomplete plan\n    Positive witness: a complete plan exits zero\n    Negative control: a plan missing a field exits one\n    Observable: exit code\n    Boundary: validator process\n"
 
-function gatedPlan({ risks = "- Accepted residual risks: reviewer verdicts vary between runs", scope = "- Out of scope for blocking: the canonical oh-my-openagent validator", criteria = criteriaBlock, before = "", after = "" } = {}) {
+function gatedPlan({ risks = "- Accepted residual risks: reviewer verdicts vary between runs", scope = "- Out of scope for blocking: the upstream copy of this validator", criteria = criteriaBlock, before = "", after = "" } = {}) {
   return `# Plan\n${before}\n## Merge gate\n- Mandatory class: none\n${[risks, scope].filter(Boolean).join("\n")}\n${criteria}${after}`
 }
 
@@ -972,7 +972,7 @@ test("#given prose mentioning only the close marker #when validated #then exits 
 // These cases run against a scratch repository because they turn on real commits.
 
 function scratchRepo() {
-  const directory = mkdtempSync(path.join(tmpdir(), "omo-gate-repo-"))
+  const directory = mkdtempSync(path.join(tmpdir(), "gate-repo-"))
   const git = (...args) => execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
   git("init", "-q", "-b", "main")
   git("config", "user.email", "gate@test")
@@ -1232,7 +1232,7 @@ test("#given a trailer artifact that is a symlink pointing outside the repositor
     // check-ignore and ls-files both accept a tracked symlink, and path.resolve is lexical, so the
     // containment check passed while the trailer really lived outside any checkout.
     const artifacts = scratchArtifacts(repository)
-    const outside = mkdtempSync(path.join(tmpdir(), "omo-gate-outside-"))
+    const outside = mkdtempSync(path.join(tmpdir(), "gate-outside-"))
     const target = path.join(outside, "trailer.txt")
     writeFileSync(target, readFileSync(artifacts.trailerPath, "utf8"))
     rmSync(artifacts.trailerPath)
@@ -2267,7 +2267,7 @@ test("#given a fresh clone of a repo holding the folder, the record and the trai
     const { git, directory } = s.repository
     git("add", "-A")
     git("commit", "-q", "-m", "gate evidence")
-    const clone = mkdtempSync(path.join(tmpdir(), "omo-gate-clone-"))
+    const clone = mkdtempSync(path.join(tmpdir(), "gate-clone-"))
     try {
       execFileSync("git", ["clone", "-q", directory, clone], { encoding: "utf8" })
       const result = spawnSync(process.execPath, [validator, "--record", path.join(clone, "evidence/merge-gate.json"), "--plan", path.join(clone, FOLDER), "--repo", clone], { encoding: "utf8" })

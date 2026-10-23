@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-A Python package + CLI that finds, lists, searches, and reads local coding-agent session transcripts across ~25 platforms (Codex, Claude, OpenCode, OMO/Senpi/pi, oh-my-pi, and a long tail), normalizing them into one `Session` model. Own test suite and `pyrightconfig.json`.
+A Python package + CLI that finds, lists, searches, and reads local coding-agent session transcripts across ~25 platforms (Codex, Claude, OpenCode, Senpi/pi, oh-my-pi, and a long tail), normalizing them into one `Session` model. Own test suite and `pyrightconfig.json`.
 
 ## STRUCTURE
 

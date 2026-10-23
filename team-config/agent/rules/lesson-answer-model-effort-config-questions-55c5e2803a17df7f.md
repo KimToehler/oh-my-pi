@@ -8,7 +8,7 @@ globs:
 # Lesson: Answer model/effort config questions before tracing internals
 
 Recorded: 2026-09-26
-Lesson id: answer-omo-effort-model-config-questions-55c5e2803a17df7f
+Lesson id: answer-model-effort-config-questions-55c5e2803a17df7f
 Lesson hash: 55c5e2803a17df7f
 
 ## What went wrong

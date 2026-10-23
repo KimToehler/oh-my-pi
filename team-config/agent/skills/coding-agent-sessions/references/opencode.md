@@ -19,7 +19,7 @@ Only fall back to file joins when `opencode` is not installed, the command fails
 Child sessions spawned by the task tool / subagents are ordinary rows in the `session` table:
 
 - `session.parent_id` — parent session ID (`NULL` for main sessions). Tens of thousands of child rows are normal.
-- `session.agent` — subagent name (`explore`, `plan`, `librarian`, `Sisyphus-Junior`, ...).
+- `session.agent` — subagent name (`explore`, `plan`, `general`, ...).
 - Child titles often end with the convention `"... (@<agent> subagent)"`.
 
 ```bash
