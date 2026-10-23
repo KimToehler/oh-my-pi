@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+The reviewed schema, routing skill, validator, and supplied QA evidence cover the intended propose → review → apply path, including stale and rejected reviews. No blocking defect was substantiated.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+**Note:** `validate-openspec-change.mjs:359–399` validates the five record fields but does not check for the `## Blockers` section required by the record design. A record missing that section can pass if its fields otherwise pass. This is non-blocking under the supplied threshold: the demonstrated REJECT path retains the blockers, and applying a REJECT still requires an override.
+
+## 3. Security and privacy delta
+
+No changed line identified that touches a real credential, authentication or authorization path, third-party personal data, or access to a protected asset. The plan explicitly accepts that review-record transcription and apply enforcement are prompt-level controls.
+
+## 4. Verification adequacy
+
+Reviewed the validator cases, installed-schema integration test, QA matrix, and selected recorded REJECT and stale-review evidence. The supplied matrix reports passing wave-2 validator rows and a 590-test team-config run; I did not rerun checks in this read-only audit.
+
+**Note:** The tests always construct a `## Blockers` section and therefore do not expose the missing-section behavior above. This does not independently block the gate under the supplied threshold.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An unsuccessful independent review must not authorize source edits merely because the planning artifact file exists.
+  positive_witness: A rejected review with no user override leaves source files unchanged when apply is requested.
+  negative_control: An apply session edits source after OpenSpec reports the review artifact present but the validator reports REJECT without an override.
+  observable: Apply-session transcript and before-and-after source file hashes.
+  boundary: Deployed omp session following the OpenSpec apply workflow.
+END-REVIEW-TRAILER
