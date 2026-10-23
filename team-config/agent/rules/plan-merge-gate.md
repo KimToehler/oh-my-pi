@@ -79,3 +79,7 @@ direct-commit exception) skip both sections and carry this one line instead:
 `- Merge gate: not applicable (<reason>)`. It counts only as a top-level bullet outside code fences
 and HTML comments; quoting it inside a fence or nesting it under another bullet does not opt out.
 A plan MUST NOT carry both the opt-out and feature-specific criteria.
+
+## OpenSpec change folders
+
+An OpenSpec change folder is a plan when `--plan` names the directory: its `gate.md` is the `## Merge gate` section (`Risk tier`, `Mandatory class`, `Author's risk assessment`, `Whole-diff review`, the abort fields), its specs' `### Requirement:` blocks are the criteria (a change without requirements adds a `- Feature-specific criteria:` block to `gate.md`), and `plan_sha256` is the digest of the folder's bundle.
