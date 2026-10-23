@@ -249,7 +249,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 			setTimeout(tick.resolve, 0);
 			await tick.promise;
 			try {
-				await this.sendMapped({
+				await this.#sendRaw({
 					sessionId: params.sessionId,
 					update: buildV2UserMessage(messageId, params.prompt),
 				});
@@ -338,7 +338,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (state.state !== "idle" && record.lastEmittedState === state.state) return;
 		record.lastEmittedState = state.state;
 		this.#enqueue(record, () => {
-			this.sendMapped({
+			this.#sendRaw({
 				sessionId: record.session.sessionId,
 				update: { sessionUpdate: "state_update", ...state },
 			}).catch((error: unknown) => {
@@ -382,11 +382,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		}
 		const state = this.#settledState(record);
 		record.lastEmittedState = state.state;
-		const sent = Promise.withResolvers<void>();
-		this.#enqueue(record, () => {
-			sent.resolve(this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } }));
-		});
-		await sent.promise;
+		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
 	}
 
 	/**
@@ -541,7 +537,22 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (update) await this.sendMapped({ sessionId, update });
 	}
 
+	/**
+	 * Every `session/update` of a registered record goes through the record's ordered path, so content never
+	 * overtakes a queued `user_message` or state transition. Resolves once the frame has been sent.
+	 */
 	sendMapped(notification: v2.SessionNotification): Promise<void> {
+		const record = this.#host.recordFor(notification.sessionId);
+		if (!record) return this.#sendRaw(notification);
+		const sent = Promise.withResolvers<void>();
+		this.#enqueue(record, () => {
+			sent.resolve(this.#sendRaw(notification));
+		});
+		return sent.promise;
+	}
+
+	/** The unordered wire send; only enqueued steps (and records that are not registered) may call it. */
+	#sendRaw(notification: v2.SessionNotification): Promise<void> {
 		return this.#host.connection.v2.sessionUpdate(notification);
 	}
 }

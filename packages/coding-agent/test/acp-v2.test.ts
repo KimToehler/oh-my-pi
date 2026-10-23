@@ -563,6 +563,49 @@ describe("ordered state emission (F3 wave 3)", () => {
 		await waitForIdle(client, sessionId, -1, 2);
 		expect(stateNames(client, sessionId)).toEqual(["running", "idle", "running", "idle"]);
 	});
+
+	it("orders the successor's streamed content after the command's idle and its own running", async () => {
+		// Guards: content sent outside the ordered path overtakes the queued idle/running behind the echo timer.
+		const { rig, client, sessionId } = await startReal({
+			extensionCommand: "noop",
+			hold: [1],
+			tools: [fakeBashTool()],
+			script: {
+				0: {
+					content: [
+						"streamed",
+						{ type: "toolCall", id: "call-bash", name: "bash", arguments: { command: "echo hi" } },
+					],
+				},
+			},
+		});
+		resultOf(await sendPrompt(client, sessionId, "/noop"));
+		resultOf(await sendPrompt(client, sessionId, "work"));
+		await rig.gate(1).reached.promise;
+		await client.waitFor(
+			c => c.updates(sessionId).some(entry => kindOf(entry.update) === "usage_update"),
+			"usage_update of the first model call",
+		);
+		await eventLoopTurns(20);
+		const kinds = client
+			.updates(sessionId)
+			.map(entry =>
+				kindOf(entry.update) === "state_update" ? `state:${String(entry.update.state)}` : kindOf(entry.update),
+			);
+		expect(kinds).toEqual([
+			"state:running",
+			"user_message",
+			"state:idle",
+			"state:running",
+			"user_message",
+			"agent_message_chunk",
+			"tool_call_update",
+			"tool_call_update",
+			"usage_update",
+		]);
+		rig.gate(1).release.resolve();
+		await waitForIdle(client, sessionId, -1, 2);
+	});
 });
 
 describe("skill command stop (F3 wave 3)", () => {
