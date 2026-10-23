@@ -376,8 +376,8 @@ export function checkReview(snapshot) {
 	if (reviewedDigest !== undefined && !/^[0-9a-f]{64}$/.test(reviewedDigest))
 		errors.push(`${REVIEW_FILE} Reviewed digest: expected the 64-hex digest printed by --digest`);
 	const reviewer = values.get("Reviewer");
-	if (reviewer !== undefined && !/^plan-reviewer\s*,\s*\S/.test(reviewer))
-		errors.push(`${REVIEW_FILE} Reviewer: expected plan-reviewer and the subagent id (plan-reviewer, <id>)`);
+	if (reviewer !== undefined && !/^plan-reviewer\s*,\s*[A-Za-z0-9][\w.-]*$/.test(reviewer))
+		errors.push(`${REVIEW_FILE} Reviewer: expected plan-reviewer and the subagent id the task tool returned (plan-reviewer, <id>)`);
 	const round = values.get("Round");
 	if (round !== undefined && !/^[1-9]\d*$/.test(round))
 		errors.push(`${REVIEW_FILE} Round: expected a positive integer`);

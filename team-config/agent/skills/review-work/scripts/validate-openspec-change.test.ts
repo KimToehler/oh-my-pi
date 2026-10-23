@@ -623,9 +623,10 @@ The system SHALL export records in batches.
 		["Verdict", "PASS"],
 		["Reviewed digest", "abc123"],
 		["Reviewer", "me"],
+		["Reviewer", "plan-reviewer, <subagent id>"],
 		["Round", "0"],
 	] as const) {
-		it(`refuses a malformed ${field}`, async () => {
+		it(`refuses a malformed ${field}: ${value}`, async () => {
 			const result = run("--reviewed", await reviewed({ [field]: value }));
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain(`review.md ${field}:`);
