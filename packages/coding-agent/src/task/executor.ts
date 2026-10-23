@@ -1282,6 +1282,8 @@ interface RunMonitorArgs {
 	maxRuntimeMs: number;
 	/** Whether to periodically ask the agent for a completion estimate; see {@link isCompletionProbeEnabled}. */
 	completionProbe: boolean;
+	/** `false` = no `yield` tool: the run delivers by ending its turn with a report; see {@link SubagentRunMonitor.reportDelivered}. */
+	structured: boolean;
 	/** Fires each time a terminal `yield` is recorded for this run. */
 	onYieldAccepted?: () => void;
 }
@@ -1357,6 +1359,13 @@ interface SubagentRunMonitor {
 	answeringModels(): SingleResult["answeringModels"];
 	/** Whether any assistant message ended while this monitor was attached. */
 	sawAssistantMessage(): boolean;
+	/**
+	 * Whether the run has delivered its result: a terminal `yield`, or for an
+	 * unstructured run a last assistant message that ended (`stopReason:
+	 * "stop"`) on a report turn. A later assistant message that starts work
+	 * clears it, so a continuation re-arms the compaction budget.
+	 */
+	reportDelivered(): boolean;
 	/** Final raw output: end-of-run assistant text when available, else accumulated chunks. */
 	rawOutput(): string;
 	scheduleProgress(flush?: boolean): void;
@@ -1387,6 +1396,7 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 		softCompactionBudget,
 		maxRuntimeMs,
 		completionProbe,
+		structured,
 	} = args;
 	const startTime = Date.now();
 
@@ -1474,6 +1484,10 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	const answeringModelKeys = new Set<string>();
 	const answeringModels: NonNullable<SingleResult["answeringModels"]> = [];
 	let sawAssistantMessage = false;
+	// Unstructured delivery: the last assistant message ended (`stop`) on a
+	// report turn. Recomputed at every assistant `message_end`.
+	let unstructuredReportDelivered = false;
+	const reportDelivered = () => yieldCalled || unstructuredReportDelivered;
 	let activeSessionAbortPromise: Promise<void> | undefined;
 
 	const abortActiveSession = (): Promise<void> => {
@@ -1827,11 +1841,14 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	// Wrap-up notice behind an async boundary: a synchronously-throwing send
 	// must never take down event processing (which escalates to terminate).
 	// Callers build the notice at crossing time so it carries that count.
-	const steerBudgetNotice = (notice: string) => {
+	const steerBudgetNotice = (notice: string, stillWanted?: () => boolean) => {
 		const steerSession = activeSession;
 		if (!steerSession) return;
 		void Promise.resolve()
-			.then(() => steerSession.sendUserMessage(notice, { deliverAs: "steer", attribution: "agent" }))
+			.then(() => {
+				if (stillWanted && !stillWanted()) return;
+				return steerSession.sendUserMessage(notice, { deliverAs: "steer", attribution: "agent" });
+			})
 			.catch(err => {
 				logger.warn("Subagent budget steer failed", {
 					error: err instanceof Error ? err.message : String(err),
@@ -1873,14 +1890,17 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	 * stopped.
 	 */
 	const evaluateCompactionBudget = () => {
-		if (softCompactionBudget <= 0 || abortSent || yieldCalled) return;
+		// A delivered report has nothing left to wrap up: post-turn maintenance
+		// may still compact, but a notice would start another turn and a stop
+		// would force another prompt, either replacing the delivered result.
+		if (softCompactionBudget <= 0 || abortSent || reportDelivered()) return;
 		if (compactionCount > softCompactionBudget) {
 			requestBudgetStop("compactions");
 			return;
 		}
 		if (!softRequestBudgetNotice || compactionBudgetSteerSent || compactionCount < softCompactionBudget) return;
 		compactionBudgetSteerSent = true;
-		steerBudgetNotice(buildCompactionBudgetNotice(compactionCount, softCompactionBudget));
+		steerBudgetNotice(buildCompactionBudgetNotice(compactionCount, softCompactionBudget), () => !reportDelivered());
 	};
 
 	const processEvent = (event: AgentEvent) => {
@@ -2193,6 +2213,11 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 						else if (text.trim()) lastReportTurnText = text;
 						else if (completedServerWork) lastReportTurnText = undefined;
 					}
+					unstructuredReportDelivered =
+						!structured &&
+						isRecord(event.message) &&
+						event.message.stopReason === "stop" &&
+						lastReportTurnText !== undefined;
 					// A yield awaiting validation suppresses the budget check for
 					// its own turn (#5006). Defer it rather than drop it: every
 					// yield turn latches the pending flag, so dropping the check
@@ -2462,6 +2487,7 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 		lastAssistantSalvageText: () => lastAssistantSalvageText,
 		lastReportTurnText: () => lastReportTurnText,
 		answeringModels: () => (answeringModels.length > 0 ? [...answeringModels] : undefined),
+		reportDelivered,
 		sawAssistantMessage: () => sawAssistantMessage,
 		rawOutput: () => (finalOutputChunks.length > 0 ? finalOutputChunks.join("") : outputChunks.join("")),
 		scheduleProgress,
@@ -2652,18 +2678,11 @@ async function driveSessionToResult(
 				if (budgetStop) {
 					retryCount = MAX_YIELD_RETRIES - 1;
 					await monitor.waitForBudgetStop();
-					if (monitor.yieldCalled() || abortSignal.aborted) break;
 					// An unstructured run delivers by ending its turn with a report. A
-					// stop that fires after that turn (post-turn maintenance compacting
-					// once more) has nothing left to cut short; prompting again would
-					// spend a request and replace the delivered report.
-					if (
-						!structured &&
-						session.getLastAssistantMessage()?.stopReason === "stop" &&
-						monitor.lastReportTurnText() !== undefined
-					) {
-						break;
-					}
+					// stop that fires after that turn (the report turn itself crossing
+					// the request budget's 1.5x) has nothing left to cut short;
+					// prompting again would spend a request and replace the report.
+					if (monitor.reportDelivered() || abortSignal.aborted) break;
 				}
 				// Skip reminders when the model returned a terminal error (e.g.
 				// rate-limit cap hit, auth failure). Re-prompting would just
@@ -3431,6 +3450,7 @@ export function attachIrcWakeTurnMonitor(session: AgentSession, options: IrcWake
 			// A peer's message gets a short answer, too short to probe; the owner's message is an
 			// assignment the owner waits on.
 			completionProbe: ownerWoken && options.completionProbe === true,
+			structured: options.structured !== false,
 			signal: jobCancel.signal,
 			onProgress: progress => reportJobProgress?.(progress),
 			onToolResult: result => appendToolResult(tools, result),
@@ -3880,6 +3900,7 @@ export async function runSubagentFollowUpTurn(options: FollowUpTurnOptions): Pro
 		softCompactionBudget: 0,
 		maxRuntimeMs: options.maxRuntimeMs ?? 0,
 		completionProbe: options.completionProbe ?? false,
+		structured: options.structured !== false,
 	});
 
 	const startedPayload = {
@@ -4432,6 +4453,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 		softCompactionBudget,
 		maxRuntimeMs,
 		completionProbe,
+		structured,
 	});
 	const progress = monitor.progress;
 	let unsubscribe: (() => void) | null = null;

@@ -302,6 +302,41 @@ describe("runSubprocess soft request budget", () => {
 		expect(handle.disposeCalls()).toBe(0);
 	});
 
+	it("#given an unstructured run #when its report turn itself crosses the stop threshold #then the report stands without a forced wrap-up", async () => {
+		const id = "LastWordScout";
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) {
+				const message = assistantText("second report");
+				pushMessage(message);
+				emit({ type: "message_end", message } as unknown as AgentSessionEvent);
+				return;
+			}
+			// Budget 2 → stop threshold 3: two working turns, then the report turn is request 3.
+			for (let i = 1; i <= 2; i++) {
+				const message = {
+					role: "assistant" as const,
+					content: [
+						{ type: "toolCall" as const, id: `tool-read-${i}`, name: "read", arguments: { path: "a.ts" } },
+					],
+					stopReason: "toolUse" as const,
+				};
+				pushMessage(message);
+				emit({ type: "message_end", message } as unknown as AgentSessionEvent);
+			}
+			const report = assistantText("first report");
+			pushMessage(report);
+			emit({ type: "message_end", message: report } as unknown as AgentSessionEvent);
+		});
+		mockCreateAgentSession(handle.session);
+		registerRunning(id, handle.session);
+
+		const result = await runSubprocess({ ...baseOptions(id), structured: false });
+
+		expect(handle.prompts).toHaveLength(1);
+		expect(result.aborted).toBe(false);
+		expect(result.output).toBe("first report");
+	});
+
 	it("a budget hard-abort keeps the kept-alive agent adopted and messageable via irc", async () => {
 		const id = "StubbornScout";
 		const eventBus = new EventBus();
@@ -883,6 +918,7 @@ describe("runSubprocess soft compaction budget", () => {
 				noticesAfterFirstCompletion = compactionNotices(handle).length;
 				emitAssistant(emit, pushMessage, "exploring 3");
 				emit(snapcompactDone);
+				await Promise.resolve();
 				emitYield(emit, pushMessage, "full findings");
 			});
 			start(id, handle);
@@ -916,13 +952,15 @@ describe("runSubprocess soft compaction budget", () => {
 
 	it("#given an unstructured run with compaction budget 1 #when the compaction after its final report crosses the budget #then the delivered report stands without a forced wrap-up", async () => {
 		const id = "ObedientScout";
-		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+		const handle = createMockSession(async ({ promptIndex, emit, pushMessage }) => {
 			if (promptIndex !== 1) {
 				emitAssistant(emit, pushMessage, "second report");
 				return;
 			}
 			emitToolTurn(emit, pushMessage, 1);
 			emit(snapcompactDone);
+			// Let the notice land while the turn is still working.
+			await Promise.resolve();
 			// The agent obeys the notice and ends its turn with the report; post-turn
 			// maintenance then compacts once more, which crosses the budget.
 			emitAssistant(emit, pushMessage, "first report");
@@ -934,9 +972,54 @@ describe("runSubprocess soft compaction budget", () => {
 
 		expect(compactionNotices(handle)).toHaveLength(1);
 		expect(handle.prompts).toHaveLength(1);
+		// No stop after delivery: the session turn is never aborted.
+		expect(handle.abortCalls()).toBe(0);
 		expect(result.aborted).toBe(false);
 		expect(result.exitCode).toBe(0);
 		expect(result.output).toBe("first report");
+	});
+
+	it("#given an unstructured run with compaction budget 1 #when the compaction reaching the budget follows its final report #then no notice is sent and the report stands", async () => {
+		const id = "FinishedScout";
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) {
+				emitAssistant(emit, pushMessage, "second report");
+				return;
+			}
+			emitToolTurn(emit, pushMessage, 1);
+			emitAssistant(emit, pushMessage, "first report");
+			// Post-turn maintenance compacts after delivery; a notice queued now
+			// would start another turn for it and replace the report.
+			emit(snapcompactDone);
+		});
+		start(id, handle);
+
+		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+		await Bun.sleep(0);
+
+		expect(compactionNotices(handle)).toHaveLength(0);
+		expect(handle.prompts).toHaveLength(1);
+		expect(result.aborted).toBe(false);
+		expect(result.output).toBe("first report");
+	});
+
+	it("#given compaction budget 1 #when a terminal yield lands before the queued notice is sent #then the notice is dropped", async () => {
+		const id = "PromptScout";
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) return;
+			emitAssistant(emit, pushMessage, "exploring 1");
+			emit(snapcompactDone);
+			// Same tick: the notice is still behind its microtask boundary.
+			emitYield(emit, pushMessage, "full findings");
+		});
+		start(id, handle);
+
+		const result = await runSubprocess(compactionOptions(id, 1));
+		await Bun.sleep(0);
+
+		expect(compactionNotices(handle)).toHaveLength(0);
+		expect(handle.prompts).toHaveLength(1);
+		expect(JSON.parse(result.output)).toEqual({ report: "full findings" });
 	});
 
 	it("#given an unstructured run with compaction budget 1 #when the budget is crossed mid-turn #then a tool-less forced wrap-up returns the report", async () => {
