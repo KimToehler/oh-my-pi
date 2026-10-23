@@ -599,6 +599,7 @@ export class AcpAgent implements Agent {
 	/** Per-connection protocol surface for the core's version-agnostic paths; v1 until `initialize` selects one. */
 	#surface: AcpSurface;
 	#surfaceV1: AcpSurface<AcpWireV1>;
+	#foregroundTurns = new WeakMap<ForegroundWork, PromptTurnState>();
 	#surfaceV2: AcpSurface<AcpWireV2>;
 	#v2ClientCapabilities: v2.ClientCapabilities | undefined;
 
@@ -888,6 +889,30 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
+	 * The open prompt turn: v1's `promptTurn`, or for v2 a view of `record.foreground` that is
+	 * settled as soon as the foreground ended. One stable object per work, so identity checks hold.
+	 */
+	#turnOf(record: ManagedSessionRecord): PromptTurnState | undefined {
+		if (record.promptTurn) return record.promptTurn;
+		const work = record.foreground;
+		if (!work) return undefined;
+		let turn = this.#foregroundTurns.get(work);
+		if (!turn) {
+			turn = {
+				work,
+				get settled() {
+					return record.foreground !== work;
+				},
+				resolve: () => {},
+				reject: () => {},
+				promise: Promise.resolve({ stopReason: "end_turn" }),
+			};
+			this.#foregroundTurns.set(work, turn);
+		}
+		return turn;
+	}
+
+	/**
 	 * Text-mode slash-command runtime for a command running inside `turn` (the
 	 * prompt's own command or a steered one). Output after `turn` was cancelled
 	 * or finished is dropped: it would land as a stray chunk outside any reply.
@@ -951,7 +976,7 @@ export class AcpAgent implements Agent {
 		images: AgentImageContent[],
 		options?: { ownsForeground?: boolean; onSubmissionOutcome?: (outcome: SubmissionOutcome) => void },
 	): Promise<void> {
-		const promptTurn = record.promptTurn;
+		const promptTurn = this.#turnOf(record);
 		// A locally handled command must not end foreground work that is not its own.
 		const ownsForeground = options?.ownsForeground !== false;
 		const onSubmissionOutcome = options?.onSubmissionOutcome;
@@ -1017,7 +1042,7 @@ export class AcpAgent implements Agent {
 		// and only while this turn still owns the slot: the next queued prompt may hold it.
 		const confirmed = admission ? admission.confirm() : true;
 		if (!confirmed || promptTurn?.work.cancelRequested) {
-			if (promptTurn && record.promptTurn === promptTurn && !promptTurn.settled) {
+			if (promptTurn && this.#turnOf(record) === promptTurn && !promptTurn.settled) {
 				this.#finishPrompt(record, { stopReason: "cancelled" });
 			}
 			return;
@@ -1112,7 +1137,7 @@ export class AcpAgent implements Agent {
 
 	async cancel(params: { sessionId: string }): Promise<void> {
 		const record = this.#getSessionRecord(params.sessionId);
-		const promptTurn = record.promptTurn;
+		const promptTurn = this.#turnOf(record);
 		if (!promptTurn || promptTurn.settled) {
 			return;
 		}
@@ -1396,7 +1421,7 @@ export class AcpAgent implements Agent {
 		}
 		// The wait can outlast the prompt (cancelled, or otherwise ended): its
 		// command must not start then. `undefined` means it never ran.
-		if (!turn || turn.work.cancelRequested || turn.settled || record.promptTurn !== turn) return undefined;
+		if (!turn || turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn) return undefined;
 		// Built only now: the command waited out may have changed what the runtime
 		// snapshots (e.g. `/move` changes the session's cwd).
 		const runtime = this.#buildSlashCommandRuntime(record, turn);
@@ -1603,7 +1628,7 @@ export class AcpAgent implements Agent {
 			pendingSteers: 0,
 			goal: new AcpGoalActor(session, {
 				promptOpen: () => {
-					const turn = record.promptTurn;
+					const turn = this.#turnOf(record);
 					return turn !== undefined && !turn.settled && !turn.work.cancelRequested;
 				},
 				clientPinsConfig: () => this.#clientPinsConfigOptions,
