@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Once either budget has initiated a stop, later request or compaction events cannot change its kind, grace origin, or schedule a second final-report turn.
+  positive_witness: A request-budget stop is accepted first and a completed compaction subsequently crosses its budget during grace; the run receives one request-budget final-report turn and retains the original request-threshold grace deadline.
+  negative_control: The later compaction overwrites the stop kind or grace anchor, changes the abort reason or deadline, or causes a second forced final-report prompt.
+  observable: Session-abort count, synthetic prompt count and selected branch, request count at hard abort, and final abort reason.
+  boundary: The createSubagentRunMonitor requestBudgetStop state transition and its handoff to driveSessionToResult.
+END-REVIEW-TRAILER
