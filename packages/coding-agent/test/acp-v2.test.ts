@@ -64,6 +64,8 @@ interface RigOptions {
 	asyncJobManager?: AsyncJobManager;
 	agentId?: string;
 	settings?: Record<string, unknown>;
+	/** Delays every `tool_execution_start` delivery to session subscribers until resolved. */
+	holdToolStarts?: PromiseWithResolvers<void>;
 }
 
 class RealSessionRig {
@@ -164,6 +166,16 @@ class RealSessionRig {
 					promptOptions?.onSubmissionOutcome?.(outcome);
 				},
 			});
+		const { holdToolStarts } = options;
+		if (holdToolStarts) {
+			// Delay `tool_execution_start` delivery to subscribers (the ACP surface) until released.
+			const subscribe = session.subscribe.bind(session);
+			session.subscribe = listener =>
+				subscribe(event => {
+					if (event.type === "tool_execution_start") void holdToolStarts.promise.then(() => listener(event));
+					else listener(event);
+				});
+		}
 		this.sessions.push(session);
 		return session;
 	};
@@ -552,18 +564,36 @@ describe("agent-initiated work (plan 4)", () => {
 		// Guards: a v2 foreground stays `running` for as long as an owner-scoped background job is pending.
 		const manager = new AsyncJobManager({});
 		AsyncJobManager.setInstance(manager);
-		const { rig, client, sessionId } = await startReal({ asyncJobManager: manager, agentId: "AcpOwner" });
 		const jobGate = Promise.withResolvers<string>();
-		manager.register("bash", "slow job", async () => await jobGate.promise, { id: "slow-job", ownerId: "AcpOwner" });
+		// The job is started by a tool executing inside the prompt's turn, not before the prompt.
+		const startJob: AgentTool = {
+			name: "startjob",
+			label: "startjob",
+			description: "Starts an owner-scoped background job",
+			parameters: type({}),
+			async execute() {
+				manager.register("bash", "slow job", async () => await jobGate.promise, {
+					id: "slow-job",
+					ownerId: "AcpOwner",
+				});
+				return { content: [{ type: "text" as const, text: "started" }] };
+			},
+		};
+		const { rig, client, sessionId } = await startReal({
+			asyncJobManager: manager,
+			agentId: "AcpOwner",
+			tools: [startJob],
+			script: { 0: { content: [{ type: "toolCall", id: "call-job", name: "startjob", arguments: {} }] } },
+		});
 		await sendPrompt(client, sessionId, "start work");
 		await waitForIdle(client, sessionId);
 		const firstIdle = client.states(sessionId).at(-1)!;
 		expect(firstIdle).toMatchObject({ state: "idle", stopReason: "end_turn" });
-		expect(rig.modelCalls).toBe(1);
+		expect(rig.modelCalls).toBe(2);
 
 		jobGate.resolve("JOB RESULT");
 		await waitForIdle(client, sessionId, firstIdle.index);
-		expect(rig.modelCalls).toBe(2);
+		expect(rig.modelCalls).toBe(3);
 		const wake = client.states(sessionId).filter(state => state.index > firstIdle.index);
 		expect(wake.map(state => state.state)).toEqual(["running", "idle"]);
 		const chunks = agentChunkTexts(client, sessionId).filter(chunk => chunk.index > firstIdle.index);
@@ -841,6 +871,63 @@ describe("requires_action (plan 6)", () => {
 		await waitForIdle(client, sessionId);
 		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 	});
+
+	it("snapshots the settled state when resumed between an interaction opening and its settle callback", async () => {
+		// Guards: a resume in the settle window announces `requires_action` while the live stream still says `running`,
+		// exposing the transient blocked state the settle delay exists to hide (sibling starts not yet delivered).
+		const permission = pendingPermission(allow);
+		const slowGate = Promise.withResolvers<void>();
+		const slow: AgentTool = {
+			name: "slow",
+			label: "slow",
+			description: "Slow tool",
+			parameters: type({}),
+			async execute() {
+				await slowGate.promise;
+				return { content: [{ type: "text" as const, text: "done" }] };
+			},
+		};
+		const script: MockResponse = {
+			content: [
+				{ type: "toolCall", id: "call-bash", name: "bash", arguments: { command: "echo hi" } },
+				{ type: "toolCall", id: "call-slow", name: "slow", arguments: {} },
+			],
+		};
+		// Hold the settle callback and the sibling `tool_execution_start` deliveries so the window is deterministic.
+		const settleCallbacks: Array<() => void> = [];
+		const realSetTimeout = globalThis.setTimeout;
+		vi.spyOn(globalThis, "setTimeout").mockImplementation(((handler: () => void, ms?: number) => {
+			if (typeof handler === "function" && new Error().stack?.includes("#reevaluateState")) {
+				settleCallbacks.push(handler);
+				return realSetTimeout(() => {}, 0);
+			}
+			return realSetTimeout(handler, ms);
+		}) as unknown as typeof setTimeout);
+		const holdToolStarts = Promise.withResolvers<void>();
+		const { h, client, sessionId } = await startReal(
+			{ tools: [fakeBashTool(), slow], script: { 0: script }, holdToolStarts },
+			permission.onRequest,
+		);
+		await sendPrompt(client, sessionId, "run both");
+		await client.waitFor(() => permission.requests.length > 0, "permission request");
+		expect(settleCallbacks.length).toBeGreaterThan(0);
+
+		const base = client.frames.length;
+		const resumed = await client.request("session/resume", { sessionId, cwd: h.cwd });
+		resultOf(resumed);
+		const snapshot = client.states(sessionId).filter(state => state.index >= base && state.index < resumed.index);
+		expect(snapshot.at(-1)).toMatchObject({ state: "running" });
+
+		holdToolStarts.resolve();
+		await eventLoopTurns(20);
+		for (const callback of settleCallbacks) callback();
+		await eventLoopTurns(20);
+		expect(stateNames(client, sessionId)).not.toContain("requires_action");
+		permission.answer.resolve(undefined);
+		slowGate.resolve();
+		await waitForIdle(client, sessionId);
+		expect(stateNames(client, sessionId)).not.toContain("requires_action");
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -886,6 +973,10 @@ describe("identity across resume (plan 8)", () => {
 		const replayed = userMessages(reconnected, sessionId);
 		expect(replayed.map(message => message.messageId)).toEqual(ids);
 		expect(replayed.map(message => message.text)).toEqual(["same words", "same words"]);
+		// Guards: replay spells user messages as chunks while the live echo is one `user_message`.
+		const kinds = reconnected.updates(sessionId).map(entry => kindOf(entry.update));
+		expect(kinds.filter(kind => kind === "user_message")).toHaveLength(2);
+		expect(kinds).not.toContain("user_message_chunk");
 	});
 
 	it("sends only the state snapshot when resume has no cursor", async () => {

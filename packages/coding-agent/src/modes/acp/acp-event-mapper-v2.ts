@@ -127,6 +127,23 @@ export function convertV1UpdateToV2(
 	}
 }
 
+/** The v2 `user_message` update: live echo and resume replay share this shape. */
+export function buildV2UserMessage(messageId: string, content: v2.ContentBlock[]): v2.SessionUpdate {
+	return { sessionUpdate: "user_message", messageId, content };
+}
+
+/** Fold a replayed user message's v1 `user_message_chunk` updates into one v2 `user_message`. */
+export function buildV2UserMessageFromChunks(
+	messageId: string,
+	updates: SessionUpdate[],
+): v2.SessionUpdate | undefined {
+	const content: v2.ContentBlock[] = [];
+	for (const update of updates) {
+		if (update.sessionUpdate === "user_message_chunk") content.push(convertContentBlock(update.content));
+	}
+	return content.length > 0 ? buildV2UserMessage(messageId, content) : undefined;
+}
+
 /** Build the v2 `session/request_permission` request for a gated tool call. */
 export function buildV2PermissionRequest(
 	sessionId: string,

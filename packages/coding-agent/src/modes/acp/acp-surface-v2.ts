@@ -19,6 +19,8 @@ import type { AcpEventMapperOptions } from "./acp-event-mapper";
 import {
 	type AcpV2MapperOptions,
 	type AcpV2MessageRole,
+	buildV2UserMessage,
+	buildV2UserMessageFromChunks,
 	buildV2PermissionRequest,
 	convertConfigOptionsToV2,
 	convertV1UpdateToV2,
@@ -217,7 +219,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 			.then(() =>
 				this.sendMapped({
 					sessionId: params.sessionId,
-					update: { sessionUpdate: "user_message", messageId, content: params.prompt },
+					update: buildV2UserMessage(messageId, params.prompt),
 				}),
 			)
 			.catch((error: unknown) => {
@@ -310,6 +312,15 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 			for (const { message, notifications } of iterateSessionReplay(record.session, this.#host.blobs)) {
 				const messageId =
 					(message.role === "user" ? sessionEntryIdOf(message as AgentMessage) : undefined) ?? crypto.randomUUID();
+				if (message.role === "user") {
+					// One `user_message` per persisted user message, as the live echo sends it.
+					const update = buildV2UserMessageFromChunks(
+						messageId,
+						notifications.map(notification => notification.update),
+					);
+					if (update) await this.sendMapped({ sessionId, update });
+					continue;
+				}
 				const options: AcpV2MapperOptions = { cwd, messageIdFor: () => messageId };
 				for (const notification of notifications) {
 					const update = convertV1UpdateToV2(notification.update, options, { message });
@@ -317,9 +328,19 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 				}
 			}
 		}
-		const state = this.currentState(record);
+		const state = this.#settledState(record);
 		record.lastEmittedState = state.state;
 		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
+	}
+
+	/**
+	 * The state the live stream reports: while a `requires_action` is still inside its settle delay the stream
+	 * says `running`, so a resume snapshot must as well.
+	 */
+	#settledState(record: ManagedSessionRecord): v2.StateUpdate {
+		const state = this.currentState(record);
+		if (state.state === "requires_action" && this.#settleTimers.has(record)) return { state: "running" };
+		return state;
 	}
 
 	onForegroundStart(record: ManagedSessionRecord, _work: ForegroundWork): void {
