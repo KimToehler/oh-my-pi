@@ -88,9 +88,11 @@ records that already block on `main`, any change to file-plan behaviour.
 - OpenSpec checks: `validateOpenSpecFiles(snapshot)` (pure, exported; the CLI keeps reading from disk and calls it).
   Any diagnostic blocks with its text, in `--plan-only` and full mode.
 - Criteria: every `### Requirement:` in the checker's spec file set (every `.md` under `specs/`) is a criterion, its
-  Negative control scenario the negative control. When none exist (`skip_specs: true`, rename-only deltas), `gate.md`
-  must carry `- Feature-specific criteria:` that passes `validateCriteria`, with `Invariant`, `Negative control`
-  (behavioural) and `Observable` passing the `abortFieldDefect` content grammar without the `none` branch.
+  Negative control scenario the negative control. When none exist (`skip_specs: true`, rename-only deltas; counted by
+  the same per-line parse that validates requirements), `gate.md` must carry `- Feature-specific criteria:` that passes
+  `validateCriteria`, with every field the template asks for (behavioural: all five; Mechanical: the check,
+  `Invariant`, `Observable`, `Boundary`) passing the `abortFieldDefect` content grammar without the `none` branch
+  (F3 wave 1 should-fix, decided in the fix round).
   `planText` for the copied-criterion check is the bundle text.
 - Pinning: every snapshot file path is pinned (exempt from the SHA binding; any byte change fails `plan_sha256`).
 - `gate.md` format (checker, template, schema instruction): fields `Mandatory class` (exactly one class token),
