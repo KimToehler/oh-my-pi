@@ -1,13 +1,13 @@
 {
   "schema": "omo.merge-gate/v2",
   "plan": ".omo/plans/openspec-distribution.md",
-  "plan_sha256": "4afac0c5739bf6a7a008a3b456258374e4d68c61238cd5224ad668f9ed40974e",
-  "reviewed_sha": "5ed1dce2af907f7c6d9cabe6238072bffb16045b",
+  "plan_sha256": "d885762633d48e766583c948e5d15cca3a9eebf915a716550502f534480c910a",
+  "reviewed_sha": "fb3b8beced9b06cd909bd975265fef2a7de901d9",
   "diff_base": "3ebaf372a1943f1400bbac2fe6074e9618360b9e",
   "reviewers_run": [
     "implementation-audit"
   ],
-  "decision_reason": "Risk tier internal-tooling, mandatory class none (deploy check, project installer, schema relocation; developer tooling only): one implementation-audit PASS after F3 wave 2 PASS and 6 F1 rows on the real surface.",
+  "decision_reason": "Risk tier internal-tooling, mandatory class none (deploy check, project installer, schema relocation; developer tooling only): one implementation-audit PASS on the frozen plan after F3 wave 2 PASS and 6 F1 rows on the real surface.",
   "mandatory_class": "none",
   "implementation_models": [
     "onara/cc/claude-opus-5-5",
@@ -53,9 +53,9 @@
     {
       "invocation": "implementation-audit",
       "verdict": "PASS",
-      "trailer_artifact": ".omo/evidence/openspec-distribution/f2-wave-1-implementation-audit-trailer.md",
-      "trailer_sha256": "88abc3ff69aa7f785a6e79e3dd03a85396dd8884d4c868a0a525931b02f01bc5",
-      "note": ".omo/evidence/openspec-distribution/f1-qa-matrix.md; F3 .omo/evidence/openspec-distribution/f3-wave-2.md"
+      "trailer_artifact": ".omo/evidence/openspec-distribution/f2-wave-2-implementation-audit-trailer.md",
+      "trailer_sha256": "405c0be4f9da795a21e0448cabc60ee194e763829a39274f531b5e623e4d8e5b",
+      "note": ".omo/evidence/openspec-distribution/f1-qa-matrix.md; F3 .omo/evidence/openspec-distribution/f3-wave-2.md; notes (submodule layout, config-creation rollback injection) non-blocking"
     }
   ],
   "blockers": []
