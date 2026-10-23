@@ -4,7 +4,7 @@
 
 ### Added
 
-- ACP `responseWritten()` lets a request handler wait until its response frame (single or batched) has been written, and `inboundBatch()` exposes the method calls of the batch it belongs to
+- ACP `responseWritten()` lets a request handler wait until its response frame (single or batched) has been written, and `inBatch()` tells whether it answers a JSON-RPC batch entry
 
 ### Fixed
 

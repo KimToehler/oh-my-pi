@@ -142,14 +142,8 @@ type Pending = { resolve(value: unknown): void; reject(reason: unknown): void };
 /** Per-inbound-frame signal: resolved once the write carrying the frame's response has settled. */
 interface ResponseContext {
 	written: PromiseWithResolvers<void>;
-	/** Requests and notifications of the inbound JSON-RPC batch this frame is; empty for a single message. */
-	batch: readonly InboundBatchEntry[];
-}
-
-/** One method call of an inbound JSON-RPC batch. */
-export interface InboundBatchEntry {
-	method: string;
-	params: unknown;
+	/** True when the frame is a JSON-RPC batch, whose responses share one array write. */
+	inBatch: boolean;
 }
 
 const responseContext = new AsyncLocalStorage<ResponseContext>();
@@ -164,12 +158,11 @@ export function responseWritten(): Promise<void> {
 }
 
 /**
- * The method calls of the inbound JSON-RPC batch the current handler belongs to (every entry of the batch, itself
- * included), or an empty list for a single message or outside a handler. Lets a handler refuse a batch shape that
- * would deadlock on the shared batch response.
+ * Whether the handler currently running answers an entry of a JSON-RPC batch, whose responses are written together
+ * once every entry settled. False for a single message or outside a handler.
  */
-export function inboundBatch(): readonly InboundBatchEntry[] {
-	return responseContext.getStore()?.batch ?? [];
+export function inBatch(): boolean {
+	return responseContext.getStore()?.inBatch ?? false;
 }
 
 /** Bound on clean-EOF inbound drain so `closed` cannot hang if a handler never settles. */
@@ -267,7 +260,7 @@ export class RpcConnection {
 	}
 
 	async #handleFrame(frame: unknown): Promise<void> {
-		const context: ResponseContext = { written: Promise.withResolvers<void>(), batch: [] };
+		const context: ResponseContext = { written: Promise.withResolvers<void>(), inBatch: false };
 		try {
 			await responseContext.run(context, () => this.#answerFrame(frame, context));
 		} finally {
@@ -291,9 +284,7 @@ export class RpcConnection {
 		}
 		// Admit every entry before running any, so a drain timeout sees the whole batch as open.
 		const entries = frame.map(entry => this.#admit(entry, context));
-		context.batch = entries.flatMap(entry =>
-			"method" in entry ? [{ method: entry.method, params: entry.params }] : [],
-		);
+		context.inBatch = true;
 		const responses = await Promise.all(entries.map(entry => this.#answer(entry)));
 		const answered = responses.filter(response => response !== undefined);
 		if (answered.length > 0) await this.#write(answered);

@@ -8,7 +8,7 @@
 import { type AgentMessage, AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { logger, VERSION } from "@oh-my-pi/pi-utils";
 import {
-	inboundBatch,
+	inBatch,
 	PROTOCOL_VERSION_V2,
 	RequestError,
 	responseWritten,
@@ -251,9 +251,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 
 	/**
 	 * Emit the `user_message` once the response frame carrying the prompt's `messageId` is written; later frames of
-	 * the record wait for it behind the per-record order. No frame bypasses that order: a handler of the same batch
-	 * that awaited an ordered send would wait on the batch response that waits for it, which is why
-	 * {@link rejectResumeBesidePrompt} refuses that batch shape up front.
+	 * the record wait for it behind the per-record order. Only single requests reach here ({@link rejectBatchedPrompt}), so the wait never
+	 * depends on another request's settling.
 	 */
 	#echoAfterResponse(record: ManagedSessionRecord, params: v2.PromptRequest, messageId: string): void {
 		const written = responseWritten();
@@ -569,23 +568,10 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 }
 
 /**
- * `session/resume` replays through the ordered path and awaits it, while a same-session prompt in the same JSON-RPC
- * batch holds that path until the batch response is written, and the batch response waits for both. The shape is
- * decided from the batch content alone (never from timing) and refused before any work or frame.
+ * A v2 prompt's `user_message` echo waits for the response frame carrying its `messageId`; inside a JSON-RPC batch
+ * that frame is only written after every other entry settled, which couples the prompt's ordering to unrelated
+ * requests. The prompt is refused before admission: nothing is queued, no foreground starts, no frame is sent.
  */
-export function rejectResumeBesidePrompt(sessionId: string): void {
-	const prompted = inboundBatch().some(
-		entry =>
-			entry.method === "session/prompt" &&
-			typeof entry.params === "object" &&
-			entry.params !== null &&
-			"sessionId" in entry.params &&
-			entry.params.sessionId === sessionId,
-	);
-	if (prompted) {
-		throw RequestError.invalidRequest(
-			{ sessionId },
-			"session/resume cannot share a batch with a session/prompt for the same session",
-		);
-	}
+export function rejectBatchedPrompt(): void {
+	if (inBatch()) throw RequestError.invalidRequest(undefined, "session/prompt must be sent as a single request");
 }

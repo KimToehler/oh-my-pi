@@ -462,108 +462,49 @@ describe("prompt acknowledgement (plan 2)", () => {
 		expect(rig.outcomes).toHaveLength(1);
 	});
 
-	it("holds the user_message echo and every later frame until the batch response carrying the messageId is written", async () => {
-		// Guards: the echo is released by a timer tick, or a later state/content frame overtakes it, so a client sees
-		// updates for a prompt whose messageId it does not have yet.
-		const rig = new RealSessionRig({ hold: [0] });
-		const hold = Promise.withResolvers<void>();
-		let created = 0;
-		const factory: AcpSessionFactory = async (cwd, options) => {
-			if (++created === 2) await hold.promise;
-			return rig.factory(cwd, options);
-		};
-		const h = await createV2WireHarness({ factory });
-		teardown.push(async () => {
-			hold.resolve();
-			await h.close();
-			await rig.dispose();
-		});
-		await initialize(h.client);
-		const sessionId = String(
-			resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] })).sessionId,
-		);
-		const batch = h.client.batch([
+	it("rejects a prompt inside a JSON-RPC batch before admission and answers the other entries", async () => {
+		// Guards: a batched prompt is admitted (foreground, `running`, persisted entry), so its echo waits on a batch
+		// response that depends on unrelated requests.
+		const { h, rig, client, sessionId, session } = await startReal();
+		const [promptResponse, otherResponse] = await client.batch([
 			{ method: "session/prompt", params: { sessionId, prompt: [{ type: "text", text: "hello" }] } },
 			{ method: "session/new", params: { cwd: h.cwd, mcpServers: [] } },
 		]);
-		await rig.gate(0).reached.promise;
-		// Finish the turn while the batch is still open: its idle state and content are later frames.
-		rig.gate(0).release.resolve();
+		expect(errorCode(promptResponse!)).toBe(-32600);
+		expect(typeof resultOf(otherResponse!).sessionId).toBe("string");
 		await Bun.sleep(50);
-		// The only permitted pre-response frame is the initial `running`, ordered ahead of the echo.
-		const early = h.client.updates(sessionId).map(entry => entry.update);
-		expect(early).toEqual([{ sessionUpdate: "state_update", state: "running" }]);
-		hold.resolve();
-		const [promptResponse] = await batch;
-		const messageId = messageIdOf(promptResponse!);
-		await waitForIdle(h.client, sessionId);
-		const all = h.client.updates(sessionId);
-		const echoed = userMessages(h.client, sessionId);
-		expect(echoed).toHaveLength(1);
-		expect(echoed[0]).toMatchObject({ messageId, text: "hello" });
-		expect(echoed[0]!.index).toBeGreaterThanOrEqual(promptResponse!.index);
-		for (const entry of all.filter(entry => entry.index > promptResponse!.index)) {
-			expect(entry.index).toBeGreaterThanOrEqual(echoed[0]!.index);
-		}
-		expect(h.client.states(sessionId).at(-1)?.state).toBe("idle");
+		// Bootstrap updates (commands, config) may follow `session/new`; no turn frame may.
+		const kinds = client.updates(sessionId).map(entry => kindOf(entry.update));
+		expect(kinds.filter(kind => ["state_update", "user_message", "agent_message_chunk"].includes(kind))).toEqual([]);
+		expect(userEntryIds(session)).toEqual([]);
+		expect(rig.outcomes).toEqual([]);
+		expect(rig.modelCalls).toBe(0);
+		// The session still takes a single prompt afterwards.
+		const single = await sendPrompt(client, sessionId, "again");
+		expect(messageIdOf(single)).toBeTruthy();
+		await waitForIdle(client, sessionId);
 	});
 
-	for (const order of ["prompt-first", "resume-first"] as const) {
-		it(`rejects a same-session resume in the batch of a prompt (${order}) and keeps the order intact`, async () => {
-			// Guards: resume replay queued behind the echo barrier, which waits for the batch response that waits for resume
-			// (deadlock), or a bypass that sends replay frames before the prompt response.
-			const rig = new RealSessionRig();
-			const h = await createV2WireHarness({ factory: rig.factory });
-			const resumeGate = Promise.withResolvers<void>();
-			teardown.push(async () => {
-				resumeGate.resolve();
-				await h.close();
-				await rig.dispose();
-			});
-			await initialize(h.client);
-			const sessionId = String(
-				resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] })).sessionId,
-			);
-			// Hold any resume past its pre-replay work, so a regression deadlocks deterministically instead of racing.
-			const session = rig.sessionById(sessionId);
-			const refresh = session.refreshMCPTools.bind(session);
-			session.refreshMCPTools = async tools => {
-				await resumeGate.promise;
-				return refresh(tools);
-			};
-			const promptEntry = {
-				method: "session/prompt",
-				params: { sessionId, prompt: [{ type: "text", text: "hello" }] },
-			};
-			const resumeEntry = {
-				method: "session/resume",
-				params: { sessionId, cwd: h.cwd, replayFrom: { type: "start" } },
-			};
-			const timeout = Bun.sleep(5000).then(() => {
-				throw new Error("batch of prompt + resume never answered");
-			});
-			const batch = h.client.batch(
-				order === "prompt-first" ? [promptEntry, resumeEntry] : [resumeEntry, promptEntry],
-			);
-			while (rig.outcomes.length === 0) await eventLoopTurns(1);
-			await eventLoopTurns(5);
-			resumeGate.resolve();
-			const responses = await Promise.race([batch, timeout]);
-			const [promptResponse, resumeResponse] =
-				order === "prompt-first" ? [responses[0]!, responses[1]!] : [responses[1]!, responses[0]!];
-			const messageId = messageIdOf(promptResponse);
-			expect(errorCode(resumeResponse)).toBe(-32600);
-			await waitForIdle(h.client, sessionId);
-			// No replay frame precedes the batch response: only the prompt's initial `running`.
-			const before = h.client.updates(sessionId).filter(entry => entry.index < promptResponse.index);
-			expect(before.map(entry => entry.update)).toEqual([{ sessionUpdate: "state_update", state: "running" }]);
-			const echoed = userMessages(h.client, sessionId);
-			expect(echoed).toHaveLength(1);
-			expect(echoed[0]).toMatchObject({ messageId, text: "hello" });
-			expect(echoed[0]!.index).toBeGreaterThanOrEqual(promptResponse.index);
-			expect(h.client.states(sessionId).at(-1)?.state).toBe("idle");
-		});
-	}
+	it("sends a single prompt's user_message and every later update after its response frame", async () => {
+		// Guards: the echo (or a later state/content frame) overtakes the response frame carrying the messageId.
+		const { rig, client, sessionId } = await startReal({ hold: [0] });
+		const response = await sendPrompt(client, sessionId, "hello");
+		const messageId = messageIdOf(response);
+		await rig.gate(0).reached.promise;
+		rig.gate(0).release.resolve();
+		await waitForIdle(client, sessionId);
+		const updates = client.updates(sessionId);
+		// Before the response: only the initial `running`, which the foreground announces ahead of the echo.
+		expect(updates.filter(entry => entry.index < response.index).map(entry => entry.update)).toEqual([
+			{ sessionUpdate: "state_update", state: "running" },
+		]);
+		const echoed = userMessages(client, sessionId);
+		expect(echoed).toHaveLength(1);
+		expect(echoed[0]).toMatchObject({ messageId, text: "hello" });
+		const after = updates.filter(entry => entry.index > response.index);
+		expect(after[0]!.update.sessionUpdate).toBe("user_message");
+		expect(client.states(sessionId).at(-1)?.state).toBe("idle");
+	});
 
 	it("maps a usage-preflight denial to a JSON-RPC error and does not block the next prompt", async () => {
 		// Guards: a denied prompt is acknowledged (client shows a message that never exists) or wedges the session.

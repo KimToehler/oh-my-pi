@@ -127,7 +127,7 @@ import {
 	type PromptLifecycleError,
 } from "./acp-surface";
 import { AcpSurfaceV1, sendV1FormElicitation } from "./acp-surface-v1";
-import { AcpSurfaceV2, rejectResumeBesidePrompt } from "./acp-surface-v2";
+import { AcpSurfaceV2, rejectBatchedPrompt } from "./acp-surface-v2";
 import {
 	ACP_DEFAULT_MODE_ID,
 	ACP_GOAL_MODE_ID,
@@ -758,7 +758,6 @@ export class AcpAgent implements Agent {
 			},
 			listSessions: params => this.listSessions({ cwd: params.cwd, cursor: params.cursor }),
 			resumeSession: async params => {
-				rejectResumeBesidePrompt(params.sessionId);
 				this.#assertAbsoluteCwd(params.cwd);
 				const record = await this.#resumeManagedSession(
 					params.sessionId,
@@ -779,7 +778,10 @@ export class AcpAgent implements Agent {
 				});
 				return { configOptions: convertConfigOptionsToV2(response.configOptions) };
 			},
-			prompt: params => this.#surfaceV2.admitPrompt(this.#getSessionRecord(params.sessionId), params),
+			prompt: params => {
+				rejectBatchedPrompt();
+				return this.#surfaceV2.admitPrompt(this.#getSessionRecord(params.sessionId), params);
+			},
 			cancel: params => this.cancel(params),
 			extMethod: (method, params) => {
 				if (method === ACP_STEERING_METHOD) throw RequestError.methodNotFound(method);
