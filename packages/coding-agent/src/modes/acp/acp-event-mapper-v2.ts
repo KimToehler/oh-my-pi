@@ -6,6 +6,7 @@
  */
 import * as path from "node:path";
 import type {
+	AvailableCommand,
 	ContentBlock,
 	SessionConfigOption,
 	SessionUpdate,
@@ -100,11 +101,7 @@ export function convertV1UpdateToV2(
 		case "available_commands_update":
 			return {
 				sessionUpdate: "available_commands_update",
-				availableCommands: update.availableCommands.map(command => ({
-					name: command.name,
-					description: command.description,
-					...(command.input ? { input: { type: "text" as const, hint: command.input.hint } } : {}),
-				})),
+				availableCommands: convertAvailableCommandsToV2(update.availableCommands),
 			};
 		case "config_option_update":
 			return {
@@ -283,6 +280,15 @@ function convertContentBlock(block: ContentBlock): v2.ContentBlock {
 /** Convert v1 config options to their v2 spelling (session setup and `session/set_config_option` responses). */
 export function convertConfigOptionsToV2(options: SessionConfigOption[]): v2.SessionConfigOption[] {
 	return options.map(convertConfigOption);
+}
+
+/** Convert v1 slash commands to their v2 spelling (`available_commands_update` and the session setup response). */
+export function convertAvailableCommandsToV2(commands: AvailableCommand[]): v2.AvailableCommand[] {
+	return commands.map(command => ({
+		name: command.name,
+		description: command.description,
+		...(command.input ? { input: { type: "text" as const, hint: command.input.hint } } : {}),
+	}));
 }
 
 function convertConfigOption(

@@ -29,6 +29,7 @@ import {
 	buildV2UserMessage,
 	buildV2UserMessageFromChunks,
 	buildV2PermissionRequest,
+	convertAvailableCommandsToV2,
 	convertConfigOptionsToV2,
 	convertV1UpdateToV2,
 	interpretV2PermissionOutcome,
@@ -137,11 +138,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		const commands = await this.#host.buildAvailableCommands(record);
 		return {
 			configOptions: convertConfigOptionsToV2(this.#host.buildConfigOptions(record)),
-			availableCommands: commands.map(command => ({
-				name: command.name,
-				description: command.description,
-				...(command.input ? { input: { type: "text" as const, hint: command.input.hint } } : {}),
-			})),
+			availableCommands: convertAvailableCommandsToV2(commands),
 		};
 	}
 
