@@ -166,10 +166,14 @@ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs opensp
 
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
 comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
-scenario for every requirement block, exact gate classification, and a numbered task with exactly one `Verify:` command for
+scenario for every requirement block, the `gate.md` fields (exactly one `Mandatory class` token, `Risk tier` `product` or
+`internal-tooling` with the same rules as a plan's, `Author's risk assessment`, `Whole-diff review` and both abort
+fields), and a numbered task with exactly one `Verify:` command for
 every tracked checkbox (any marker OpenSpec counts, e.g. `[~]`). A change with no behavioural delta must declare
 `skip_specs: true` in `.openspec.yaml` and then has no
-Markdown specs. Once `skip_specs` appears there, the whole file must be flat top-level `key: value` lines with plain values and
+Markdown specs; a change without requirements (`skip_specs`, rename-only) must carry a `- Feature-specific criteria:`
+block in `gate.md` (the template ends with a commented example), because the gate takes its review criteria from the
+requirements otherwise. Once `skip_specs` appears there, the whole file must be flat top-level `key: value` lines with plain values and
 no repeated key, and `skip_specs` must be exactly `true` or `false`; anything else is rejected. A rename-only delta needs no
 scenarios. OpenSpec's own strict validator does not enforce project rules from
 `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment equivalent of the persisted

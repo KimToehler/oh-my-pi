@@ -69,8 +69,9 @@ The system SHALL update one record.
 		path.join(root, "gate.md"),
 		`# Gate
 
-- **Mandatory class**: none (local reversible behaviour)
-- **Review tier**: standard
+- **Mandatory class**: none
+- **Risk tier**: product
+- **Author's risk assessment**: a wrong update overwrites a record, so the update path is covered by requirements
 - **Whole-diff review**: not needed (one module)
 - **Accepted residual risks**: none (all specified paths are covered)
 - **Out of scope for blocking**: none (the change is self-contained)
@@ -81,6 +82,20 @@ The system SHALL update one record.
 		"# Tasks\n\n- [ ] 1.1 Implement safe update. Verify: `bun test test/update.test.ts`\n",
 	);
 	return root;
+}
+
+// A change without requirements carries its review criteria in gate.md.
+const GATE_CRITERIA = `
+- Feature-specific criteria:
+  - Invariant: a pure tooling change keeps the pinned command output byte-identical
+    Positive witness: the command prints the same bytes before and after the change
+    Negative control: a changed byte in the command output MUST fail the comparison
+    Observable: the diff of the two outputs
+    Boundary: the command invoked as a process
+`;
+
+async function withGateCriteria(root: string): Promise<void> {
+	await fs.appendFile(path.join(root, "gate.md"), GATE_CRITERIA);
 }
 
 function run(root: string): { exitCode: number; stdout: string; stderr: string } {
@@ -157,7 +172,8 @@ describe("validate-openspec-change", () => {
 
 	for (const field of [
 		"Mandatory class",
-		"Review tier",
+		"Risk tier",
+		"Author's risk assessment",
 		"Whole-diff review",
 		"Accepted residual risks",
 		"Out of scope for blocking",
@@ -182,6 +198,7 @@ describe("validate-openspec-change", () => {
 		const root = await fixture();
 		await fs.rm(path.join(root, "specs"), { recursive: true });
 		await Bun.write(path.join(root, ".openspec.yaml"), metadata);
+		await withGateCriteria(root);
 		return root;
 	}
 
@@ -257,8 +274,32 @@ describe("validate-openspec-change", () => {
 			path.join(root, "specs/feature/spec.md"),
 			"## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n",
 		);
+		await withGateCriteria(root);
 		expect(run(root).exitCode).toBe(0);
 	});
+
+	it("requires gate.md criteria for a rename-only delta that also holds an empty requirement heading", async () => {
+		const root = await fixture();
+		await Bun.write(
+			path.join(root, "specs/feature/spec.md"),
+			"## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n\n### Requirement:\nstray text\n",
+		);
+		const result = run(root);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("gate.md criteria");
+	});
+
+	for (const field of ["Positive witness", "Boundary"]) {
+		it(`rejects gate.md criteria whose ${field} is a placeholder`, async () => {
+			const root = await skippedSpecsFixture(GENERATED_METADATA);
+			const gate = path.join(root, "gate.md");
+			const text = await Bun.file(gate).text();
+			await Bun.write(gate, text.replace(new RegExp(`(${field}:)[^\\n]*`), "$1 <to be written>"));
+			const result = run(root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`gate.md criteria.0.${field}`);
+		});
+	}
 
 	for (const operation of ["MODIFIED", "REMOVED"]) {
 		it(`accepts ${operation} requirements with negative controls`, async () => {
@@ -392,7 +433,7 @@ describe("validate-openspec-change", () => {
 	it("rejects an unknown mandatory class", async () => {
 		const root = await fixture();
 		const gate = path.join(root, "gate.md");
-		await Bun.write(gate, (await Bun.file(gate).text()).replace("none (local reversible behaviour)", "filesystem"));
+		await Bun.write(gate, (await Bun.file(gate).text()).replace("**: none\n", "**: filesystem\n"));
 		const result = run(root);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("Mandatory class: unsupported value filesystem");
@@ -405,5 +446,77 @@ describe("validate-openspec-change", () => {
 		const result = run(root);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("Whole-diff review: placeholder text is forbidden");
+	});
+});
+
+describe("validate-openspec-change gate.md under the Risk tier", () => {
+	const GATE = (fields: Record<string, string | null>) =>
+		`# Gate\n\n${Object.entries(fields)
+			.filter(([, value]) => value !== null)
+			.map(([label, value]) => `- **${label}**: ${value}`)
+			.join("\n")}\n`;
+	const VALID = {
+		"Mandatory class": "none",
+		"Risk tier": "product",
+		"Author's risk assessment": "a wrong update overwrites a record, so the update path is covered by requirements",
+		"Whole-diff review": "not needed (one module)",
+		"Accepted residual risks": "none (all specified paths are covered)",
+		"Out of scope for blocking": "none (the change is self-contained)",
+	};
+	async function withGate(fields: Record<string, string | null>): Promise<string> {
+		const root = await fixture();
+		await Bun.write(path.join(root, "gate.md"), GATE(fields));
+		return root;
+	}
+
+	it("accepts a Risk tier gate.md with a bare none class", async () => {
+		expect(run(await withGate(VALID))).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+	it("accepts internal-tooling with class none", async () => {
+		expect(run(await withGate({ ...VALID, "Risk tier": "internal-tooling" })).exitCode).toBe(0);
+	});
+	it("accepts a mandatory class under the product tier", async () => {
+		expect(run(await withGate({ ...VALID, "Mandatory class": "wire-contract-api" })).exitCode).toBe(0);
+	});
+	it("rejects a Review tier bullet with an error naming Risk tier", async () => {
+		const result = run(await withGate({ ...VALID, "Review tier": "standard" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toMatch(/Review tier[^\n]*Risk tier/);
+	});
+	it("rejects internal-tooling with a mandatory class", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": "internal-tooling", "Mandatory class": "wire-contract-api" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier");
+	});
+	it("rejects a Risk tier other than product or internal-tooling", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": "personal" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier");
+	});
+	it("rejects a missing Risk tier", async () => {
+		const result = run(await withGate({ ...VALID, "Risk tier": null }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Risk tier:");
+	});
+	it("rejects a missing Author's risk assessment", async () => {
+		const result = run(await withGate({ ...VALID, "Author's risk assessment": null }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Author's risk assessment:");
+	});
+	for (const [name, value] of [
+		["a placeholder", "<what could break>"],
+		["TBD", "TBD"],
+		["no substance", "-"],
+	]) {
+		it(`rejects ${name} as the Author's risk assessment`, async () => {
+			const result = run(await withGate({ ...VALID, "Author's risk assessment": value }));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("Author's risk assessment:");
+		});
+	}
+	it("accepts a bare none for the abort fields only with a reason", async () => {
+		const bare = run(await withGate({ ...VALID, "Accepted residual risks": "none" }));
+		expect(bare.exitCode).toBe(1);
+		expect(bare.stderr).toContain("Accepted residual risks:");
 	});
 });

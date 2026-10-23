@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -630,4 +630,153 @@ test("#given a personal tier #when baseline runs #then it is refused", (t) => {
   const result = s.gc("baseline", "--sha", "HEAD")
   assert.equal(result.status, 1)
   assert.match(result.stderr, /plan Risk tier: personal plans run no merge gate/)
+})
+
+// A change folder is a plan: `gate.md` marks it, the plan bytes are a bundle of every file in the
+// folder, the ledger key is the repo-relative folder path and the Risk tier comes from `gate.md`.
+// The folder stays untracked, so a later edit is seen as a plan change and not as a tracked change.
+const FOLDER = "openspec/changes/demo"
+const gateMd = (tier, cls = "none") => `# Gate\n\n- **Mandatory class**: ${cls}\n- **Risk tier**: ${tier}\n- **Whole-diff review**: not needed (one module)\n`
+
+function changeFolder(s, { tier = "product", files = {} } = {}) {
+  const folder = path.join(s.repo, FOLDER)
+  mkdirSync(path.join(folder, "specs", "feature"), { recursive: true })
+  writeFileSync(path.join(folder, "gate.md"), gateMd(tier))
+  writeFileSync(path.join(folder, "proposal.md"), "# Proposal\n")
+  writeFileSync(path.join(folder, "specs", "feature", "spec.md"), "# Spec\n")
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(folder, rel)), { recursive: true })
+    writeFileSync(path.join(folder, rel), text)
+  }
+  return folder
+}
+
+// The documented bundle, computed here independently of the script: a manifest of
+// `<sha256>  <path>` lines sorted by path bytes, then each file under `===== <path> =====`.
+function expectedBundle(folder) {
+  const files = []
+  const walk = (dir, prefix) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), rel)
+      else files.push(rel)
+    }
+  }
+  walk(folder, "")
+  files.sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)))
+  const contents = files.map((rel) => readFileSync(path.join(folder, rel)))
+  const manifest = files.map((rel, i) => `${createHash("sha256").update(contents[i]).digest("hex")}  ${rel}\n`).join("")
+  return Buffer.concat([Buffer.from(manifest), ...files.map((rel, i) => Buffer.concat([Buffer.from(`===== ${rel} =====\n`), contents[i], Buffer.from("\n")]))])
+}
+
+const folderGc = (s, command, ...args) => s.run(command, "--plan", FOLDER, ...args)
+
+test("#given a change folder as the plan #when baseline, ready, snapshot, wave run #then they work, the plan copy is the bundle and the ledger carries the folder key", (t) => {
+  const s = sandbox(t)
+  const folder = changeFolder(s)
+  assert.match(first(folderGc(s, "baseline", "--sha", "HEAD").stdout), /^BASELINE [0-9a-f]{12} recorded$/)
+  assert.equal(folderGc(s, "ready", "--lane", "F2").stdout.trim(), "READY")
+  const snap = folderGc(s, "snapshot", "--lane", "F2")
+  assert.equal(snap.status, 0, snap.stderr)
+  const copyPath = /^PLAN (.+)$/m.exec(snap.stdout)[1]
+  const bundle = expectedBundle(folder)
+  assert.ok(readFileSync(copyPath).equals(bundle), "the plan copy must be the bundle bytes")
+  assert.equal(statSync(copyPath).mode & 0o222, 0, "the plan copy must be read-only")
+  const record = JSON.parse(readFileSync(first(snap.stdout), "utf8"))
+  assert.equal(record.plan_sha256, createHash("sha256").update(bundle).digest("hex"))
+  const result = folderGc(s, "wave", "--lane", "F2", "--snapshot", first(snap.stdout), "--outcome", "qa=PASS")
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(first(result.stdout), "DECISION: PASS")
+  assert.deepEqual([...new Set(s.ledger().map((e) => e.plan))], [FOLDER])
+  assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "product")
+})
+
+test("#given an absolute change folder path #when baseline runs #then the ledger key is still repo-relative", (t) => {
+  const s = sandbox(t)
+  changeFolder(s)
+  assert.equal(s.run("baseline", "--plan", path.join(s.repo, FOLDER), "--sha", "HEAD").status, 0)
+  assert.deepEqual(s.ledger().map((e) => e.plan), [FOLDER])
+})
+
+test("#given an internal-tooling gate.md #when three waves record #then the fix-round cap applies to the folder", (t) => {
+  const s = sandbox(t)
+  changeFolder(s, { tier: "internal-tooling" })
+  assert.equal(folderGc(s, "baseline", "--sha", "HEAD").status, 0)
+  assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "internal-tooling")
+  let last
+  for (const [index, count] of [3, 2, 1].entries()) {
+    const snap = folderGc(s, "snapshot", "--lane", "F2")
+    assert.equal(snap.status, 0, snap.stderr)
+    last = folderGc(s, "wave", "--lane", "F2", "--snapshot", first(snap.stdout), "--outcome", "qa=FAIL", ...blockers(`W${index}B`, count))
+  }
+  assert.equal(last.status, 3, last.stderr)
+  assert.equal(first(last.stdout), "DECISION: STOP internal-tooling allows 2 fix rounds; wave 3 still has 1 blockers")
+})
+
+test("#given a product gate.md and another file quoting an internal-tooling Merge gate #when baseline runs #then the tier comes from gate.md alone", (t) => {
+  const s = sandbox(t)
+  changeFolder(s, { files: { "notes.md": "## Merge gate\n- Mandatory class: none\n- Risk tier: internal-tooling\n" } })
+  assert.equal(folderGc(s, "baseline", "--sha", "HEAD").status, 0)
+  assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "product")
+})
+
+test("#given a gate.md whose Risk tier lines sit in an HTML comment #when baseline runs #then only the visible line counts", (t) => {
+  const s = sandbox(t)
+  const folder = changeFolder(s)
+  writeFileSync(path.join(folder, "gate.md"), `${gateMd("product")}<!--\n- **Risk tier**: internal-tooling\n-->\n`)
+  assert.equal(folderGc(s, "baseline", "--sha", "HEAD").status, 0)
+  assert.equal(s.ledger().find((e) => e.event === "gate_baseline").risk_tier, "product")
+})
+
+test("#given a gate.md with an invalid Risk tier #when a command runs #then it fails naming the Risk tier", (t) => {
+  const s = sandbox(t)
+  const folder = changeFolder(s)
+  writeFileSync(path.join(folder, "gate.md"), gateMd("sometimes"))
+  const result = folderGc(s, "baseline", "--sha", "HEAD")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /plan Risk tier: must be exactly product or internal-tooling/)
+})
+
+for (const [name, mutate] of [
+  ["a spec line edited", (folder) => writeFileSync(path.join(folder, "specs/feature/spec.md"), "# Spec\nedited\n")],
+  ["a file added", (folder) => writeFileSync(path.join(folder, "notes.md"), "late\n")],
+  ["a file deleted", (folder) => rmSync(path.join(folder, "proposal.md"))],
+]) {
+  test(`#given ${name} after the snapshot #when wave runs #then it refuses on the plan bytes`, (t) => {
+    const s = sandbox(t)
+    const folder = changeFolder(s)
+    folderGc(s, "baseline", "--sha", "HEAD")
+    const snap = folderGc(s, "snapshot", "--lane", "F2")
+    assert.equal(snap.status, 0, snap.stderr)
+    mutate(folder)
+    const result = folderGc(s, "wave", "--lane", "F2", "--snapshot", first(snap.stdout), "--outcome", "qa=PASS")
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /plan bytes differ from the snapshot/)
+    assert.deepEqual(s.ledger().filter((e) => e.event === "gate_wave"), [])
+  })
+}
+
+test("#given a folder with a symlink #when baseline runs #then it fails naming the entry", (t) => {
+  const s = sandbox(t)
+  const folder = changeFolder(s)
+  symlinkSync("proposal.md", path.join(folder, "alias.md"))
+  const result = folderGc(s, "baseline", "--sha", "HEAD")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /alias\.md/)
+  assert.deepEqual(s.ledger(), [])
+})
+
+test("#given a directory without gate.md #when it is the plan #then the command fails as an unreadable plan", (t) => {
+  const s = sandbox(t)
+  mkdirSync(path.join(s.repo, "openspec", "changes", "bare"), { recursive: true })
+  const result = s.run("baseline", "--plan", "openspec/changes/bare", "--sha", "HEAD")
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /plan openspec\/changes\/bare is not readable/)
+  assert.deepEqual(s.ledger(), [])
+})
+
+test("#given a file plan #when baseline runs #then its ledger key is unchanged", (t) => {
+  const s = sandbox(t)
+  assert.equal(s.gc("baseline", "--sha", "HEAD").status, 0)
+  assert.deepEqual(s.ledger().map((e) => e.plan), [PLAN])
 })

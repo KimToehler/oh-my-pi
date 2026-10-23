@@ -8,6 +8,7 @@ import { createHash } from "node:crypto"
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
+import { buildBundle, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
 import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 
 class GateError extends Error {}
@@ -641,13 +642,25 @@ function main() {
   if (command !== "patch") {
     if (!isString(values.plan)) fail("--plan is required")
     const resolved = path.resolve(repo, values.plan)
+    // A plan is a readable file, or a change folder (a directory holding gate.md). For a folder the
+    // plan bytes are the bundle of one snapshot and the Risk tier is read from its gate.md, which is
+    // the folder's merge-gate section. The ledger key stays the repo-relative path either way.
+    let tierSection
     try {
-      planBytes = readFileSync(resolved)
-    } catch {
+      if (statSync(resolved).isDirectory()) {
+        statSync(path.join(resolved, "gate.md"))
+        const snapshot = snapshotFolder(resolved)
+        planBytes = buildBundle(snapshot)
+        tierSection = planContent(scanMarkdown(snapshot.get("gate.md").toString("utf8")))
+      } else {
+        planBytes = readFileSync(resolved)
+      }
+    } catch (error) {
+      if (error instanceof FolderPlanError) fail(`plan ${values.plan}: ${error.message}`)
       fail(`plan ${values.plan} is not readable`)
     }
     planSha256 = sha256(planBytes)
-    const parsed = readRiskTier(mergeGateSection(planContent(scanMarkdown(planBytes.toString("utf8")))))
+    const parsed = readRiskTier(tierSection ?? mergeGateSection(planContent(scanMarkdown(planBytes.toString("utf8")))))
     if (parsed.error) fail(`plan Risk tier: ${parsed.error}`)
     planTier = parsed.tier
     const relative = path.relative(repo, resolved)
