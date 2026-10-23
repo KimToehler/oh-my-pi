@@ -141,7 +141,8 @@ these files:
 Run `/opsx-propose <change>` for behaviour-changing work. In default mode you can also just ask the agent to plan the
 feature: the `openspec` skill routes a behaviour change in a repository with an OpenSpec root to `/opsx-propose` (the
 agent reads and follows the command file), keeps small changes in plan mode, and never creates `openspec/` where there is
-none. Plan mode cannot write `openspec/changes/`; there the agent asks you to leave plan mode and run `/opsx-propose`.
+none. Plan mode cannot write `openspec/changes/`; there the agent asks which planning path you want (OpenSpec via
+`/opsx-propose` outside plan mode, recommended, or a session plan).
 Before applying, both validators must pass:
 
 ```sh

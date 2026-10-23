@@ -25,7 +25,7 @@ You cannot run slash commands. To take an OpenSpec path, read `~/.omp/agent/comm
 
 ## In plan mode
 
-Plan mode can write only `local://` files, so it cannot create `openspec/changes/`. If plan mode is active and the request is a behaviour change in a repository with an OpenSpec root, write no plan: tell the user to leave plan mode and run `/opsx-propose <request>`. Small changes stay in plan mode.
+Plan mode can write only `local://` files, so it cannot create `openspec/changes/`. If plan mode is active and the request is a behaviour change in a repository with an OpenSpec root, write no plan yet: end the turn with `ask`, one question "which planning path", options OpenSpec change (recommended; the user runs `/opsx-propose <request>` outside plan mode) and session plan in plan mode. This is a choice between planning paths, not a request to approve or exit; batch any design questions the change needs into the same `ask`. On "session plan", plan as usual. Small changes stay in plan mode without asking.
 
 ## When unsure
 
