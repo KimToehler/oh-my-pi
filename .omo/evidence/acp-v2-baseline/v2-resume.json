@@ -1,0 +1,1581 @@
+{
+ "scenario": "v2-resume",
+ "model": "onara/cc/claude-haiku-5-5",
+ "pass": true,
+ "checks": [
+  {
+   "check": "initialize protocolVersion",
+   "ok": true,
+   "detail": 2
+  },
+  {
+   "check": "replayed user ids equal live ids",
+   "ok": true,
+   "detail": {
+    "replayIds": [
+     "54ae6a22",
+     "c951b6dd"
+    ],
+    "userIds": [
+     "54ae6a22",
+     "c951b6dd"
+    ]
+   }
+  },
+  {
+   "check": "state snapshot before resume response",
+   "ok": true,
+   "detail": [
+    {
+     "i": 7,
+     "state": "idle"
+    }
+   ]
+  },
+  {
+   "check": "no cursor: no replay, only snapshot",
+   "ok": true,
+   "detail": {
+    "noCursorUsers": 0,
+    "noCursorStates": [
+     {
+      "i": 3,
+      "state": "idle"
+     }
+    ]
+   }
+  },
+  {
+   "check": "unknown cursor → -32602",
+   "ok": true,
+   "detail": {
+    "code": -32602,
+    "message": "Invalid params: Unsupported replayFrom cursor"
+   }
+  },
+  {
+   "check": "no fs/terminal client calls and no schema issues",
+   "ok": true,
+   "detail": []
+  }
+ ],
+ "frames": [
+  {
+   "i": 0,
+   "t": 0,
+   "dir": "→agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+     "protocolVersion": 2,
+     "clientCapabilities": {},
+     "info": {
+      "name": "qa",
+      "version": "1"
+     }
+    }
+   }
+  },
+  {
+   "i": 1,
+   "t": 572,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+     "protocolVersion": 2,
+     "info": {
+      "name": "omp",
+      "title": "omp",
+      "version": "18.12.5"
+     },
+     "authMethods": [
+      {
+       "type": "agent",
+       "methodId": "agent",
+       "name": "Use existing local credentials",
+       "description": "Authenticate via the provider keys/OAuth state already configured under ~/.omp."
+      }
+     ],
+     "capabilities": {
+      "session": {
+       "prompt": {
+        "image": {},
+        "embeddedContext": {}
+       },
+       "mcp": {
+        "stdio": {},
+        "http": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 2,
+   "t": 572,
+   "dir": "→agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "session/resume",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project",
+     "replayFrom": {
+      "type": "start"
+     }
+    }
+   }
+  },
+  {
+   "i": 3,
+   "t": 746,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "user_message",
+      "messageId": "54ae6a22",
+      "content": [
+       {
+        "type": "text",
+        "text": "Reply with a short poem about rivers, four lines."
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "i": 4,
+   "t": 746,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "messageId": "6d7e2e76-c047-4822-bab1-bab46430e1a6",
+      "content": {
+       "type": "text",
+       "text": "Rivers carve their patient way,\nThrough stone and soil, day by day.\nThey hum to fields, they bend to hills,\nAnd carry the sea what the mountains spill."
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 5,
+   "t": 746,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "user_message",
+      "messageId": "c951b6dd",
+      "content": [
+       {
+        "type": "text",
+        "text": "Now one line only: say ok."
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "i": 6,
+   "t": 747,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "messageId": "93dfd2ee-5994-45ab-8f9f-10aa1e050fa4",
+      "content": {
+       "type": "text",
+       "text": "ok"
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 7,
+   "t": 747,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "state_update",
+      "state": "idle"
+     }
+    }
+   }
+  },
+  {
+   "i": 8,
+   "t": 749,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+     "configOptions": [
+      {
+       "configId": "mode",
+       "name": "Mode",
+       "category": "mode",
+       "type": "select",
+       "currentValue": "default",
+       "options": [
+        {
+         "value": "default",
+         "name": "Default",
+         "description": "Standard ACP headless mode"
+        },
+        {
+         "value": "plan",
+         "name": "Plan",
+         "description": "Read-only planning mode that drafts a plan to a markdown file before any code changes"
+        },
+        {
+         "value": "goal",
+         "name": "Goal",
+         "description": "Your next message becomes a persistent objective the agent keeps working on until it is done"
+        }
+       ]
+      },
+      {
+       "configId": "model",
+       "name": "Model",
+       "category": "model",
+       "type": "select",
+       "currentValue": "onara/cc/claude-haiku-5-5",
+       "options": [
+        {
+         "value": "onara/cc/claude-opus-5-5",
+         "name": "Opus 5.5 (onara)",
+         "description": "onara/cc/claude-opus-5-5"
+        },
+        {
+         "value": "onara/cc/claude-opus-5",
+         "name": "Opus 5 (onara)",
+         "description": "onara/cc/claude-opus-5"
+        },
+        {
+         "value": "onara/cc/claude-sonnet-5-5",
+         "name": "Sonnet 5.5 (onara)",
+         "description": "onara/cc/claude-sonnet-5-5"
+        },
+        {
+         "value": "onara/cc/claude-sonnet-5",
+         "name": "Sonnet 5 (onara)",
+         "description": "onara/cc/claude-sonnet-5"
+        },
+        {
+         "value": "onara/cc/claude-haiku-5-5",
+         "name": "Haiku 5.5 (onara)",
+         "description": "onara/cc/claude-haiku-5-5"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-sol",
+         "name": "GPT-5.6 Sol (onara)",
+         "description": "onara/cx/gpt-5.6-sol"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-terra",
+         "name": "GPT-5.6 Terra (onara)",
+         "description": "onara/cx/gpt-5.6-terra"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-luna",
+         "name": "GPT-5.6 Luna (onara)",
+         "description": "onara/cx/gpt-5.6-luna"
+        },
+        {
+         "value": "onara-bifrost/bifrost/glm-5.3",
+         "name": "GLM-5.3 (onara)",
+         "description": "onara-bifrost/bifrost/glm-5.3"
+        }
+       ]
+      },
+      {
+       "configId": "thinking",
+       "name": "Thinking",
+       "category": "thought_level",
+       "type": "select",
+       "currentValue": "high",
+       "options": [
+        {
+         "value": "off",
+         "name": "Off"
+        },
+        {
+         "value": "auto",
+         "name": "Auto",
+         "description": "Auto-detect per prompt"
+        },
+        {
+         "value": "minimal",
+         "name": "minimal"
+        },
+        {
+         "value": "low",
+         "name": "low"
+        },
+        {
+         "value": "medium",
+         "name": "medium"
+        },
+        {
+         "value": "high",
+         "name": "high"
+        },
+        {
+         "value": "xhigh",
+         "name": "xhigh"
+        }
+       ]
+      }
+     ],
+     "availableCommands": [
+      {
+       "name": "security",
+       "description": "Plan, run, inspect, import, and compare OMP-native security scans",
+       "input": {
+        "type": "text",
+        "hint": "<plan|scan|status|cancel|scans|show|import|export|validate|compare|disposition>"
+       }
+      },
+      {
+       "name": "model",
+       "description": "Show current model selection"
+      },
+      {
+       "name": "switch",
+       "description": "Switch model for this session only",
+       "input": {
+        "type": "text",
+        "hint": "[model]"
+       }
+      },
+      {
+       "name": "fast",
+       "description": "Toggle fast mode",
+       "input": {
+        "type": "text",
+        "hint": "[on|ultra|off|status]"
+       }
+      },
+      {
+       "name": "slow",
+       "description": "Toggle slow mode",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "skillful",
+       "description": "Toggle skill listing",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "extended-context",
+       "description": "Toggle extended context",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "computer",
+       "description": "Toggle computer use",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "ratchet",
+       "description": "Build (or reuse) an eval for an LLM flow, then hillclimb it unattended",
+       "input": {
+        "type": "text",
+        "hint": "[flow and goal]"
+       }
+      },
+      {
+       "name": "prewalk",
+       "description": "Arm, restart, or cancel prewalk",
+       "input": {
+        "type": "text",
+        "hint": "[restart|off]"
+       }
+      },
+      {
+       "name": "modelpreset",
+       "description": "Manage model presets",
+       "input": {
+        "type": "text",
+        "hint": "[list|save|switch|delete] [name]"
+       }
+      },
+      {
+       "name": "effort",
+       "description": "Set or show reasoning effort (thinking level, intelligence)",
+       "input": {
+        "type": "text",
+        "hint": "[level]"
+       }
+      },
+      {
+       "name": "advisor",
+       "description": "Toggle advisor",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status|dump [raw]|configure]"
+       }
+      },
+      {
+       "name": "export",
+       "description": "Export session to HTML file",
+       "input": {
+        "type": "text",
+        "hint": "[--themes] [path]"
+       }
+      },
+      {
+       "name": "trace",
+       "description": "Open this session's trace in the stats dashboard"
+      },
+      {
+       "name": "dump",
+       "description": "Return full transcript as plain text, with LLM request JSON path",
+       "input": {
+        "type": "text",
+        "hint": "[all|anon]"
+       }
+      },
+      {
+       "name": "share",
+       "description": "Share session via an encrypted link (share server or secret gist)"
+      },
+      {
+       "name": "browser",
+       "description": "Toggle browser eval-prelude headless vs visible mode",
+       "input": {
+        "type": "text",
+        "hint": "[headless|visible]"
+       }
+      },
+      {
+       "name": "todo",
+       "description": "Manage todos",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "session",
+       "description": "Show or configure the current session",
+       "input": {
+        "type": "text",
+        "hint": "[info|delete|pin [account]]"
+       }
+      },
+      {
+       "name": "jobs",
+       "description": "Show background jobs",
+       "input": {
+        "type": "text",
+        "hint": "[full|kill <id>|kill all]"
+       }
+      },
+      {
+       "name": "usage",
+       "description": "Show token usage",
+       "input": {
+        "type": "text",
+        "hint": "[show|reset [provider/credential-id|provider/active]]"
+       }
+      },
+      {
+       "name": "stats",
+       "description": "Launch the local stats dashboard",
+       "input": {
+        "type": "text",
+        "hint": "[--port <port>] [--host <host>]"
+       }
+      },
+      {
+       "name": "changelog",
+       "description": "Show changelog",
+       "input": {
+        "type": "text",
+        "hint": "[full|last [N]]"
+       }
+      },
+      {
+       "name": "tools",
+       "description": "Show available tools"
+      },
+      {
+       "name": "context",
+       "description": "Show context usage"
+      },
+      {
+       "name": "mcp",
+       "description": "Manage MCP servers",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "ssh",
+       "description": "Manage SSH connections",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "fresh",
+       "description": "Reset provider stream state without changing the local transcript"
+      },
+      {
+       "name": "compact",
+       "description": "Compact the conversation",
+       "input": {
+        "type": "text",
+        "hint": "[soft|remote|snapcompact] [focus]"
+       }
+      },
+      {
+       "name": "shake",
+       "description": "Shake heavy content out of the conversation context",
+       "input": {
+        "type": "text",
+        "hint": "[elide|images|thinking]"
+       }
+      },
+      {
+       "name": "handoff",
+       "description": "Summarize the session into a handoff document and compact in place",
+       "input": {
+        "type": "text",
+        "hint": "[focus instructions]"
+       }
+      },
+      {
+       "name": "pin",
+       "description": "Pin or unpin a session at the top of the resume list",
+       "input": {
+        "type": "text",
+        "hint": "[session id]"
+       }
+      },
+      {
+       "name": "retry",
+       "description": "Retry the last failed agent turn"
+      },
+      {
+       "name": "memory",
+       "description": "Manage memory",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "rename",
+       "description": "Rename the current session (omit title to generate)",
+       "input": {
+        "type": "text",
+        "hint": "[title]"
+       }
+      },
+      {
+       "name": "move",
+       "description": "Move the current session to a different directory",
+       "input": {
+        "type": "text",
+        "hint": "[<path>]"
+       }
+      },
+      {
+       "name": "wt",
+       "description": "Move this session into a new worktree, changes included",
+       "input": {
+        "type": "text",
+        "hint": "[<branch>]"
+       }
+      },
+      {
+       "name": "add-dir",
+       "description": "Add a workspace directory to this session",
+       "input": {
+        "type": "text",
+        "hint": "<path>"
+       }
+      },
+      {
+       "name": "remove-dir",
+       "description": "Remove a workspace directory from this session",
+       "input": {
+        "type": "text",
+        "hint": "<path>"
+       }
+      },
+      {
+       "name": "dirs",
+       "description": "List this session's workspace directories"
+      },
+      {
+       "name": "marketplace",
+       "description": "Manage plugins from marketplaces",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "plugins",
+       "description": "Manage plugins",
+       "input": {
+        "type": "text",
+        "hint": "[list|enable|disable]"
+       }
+      },
+      {
+       "name": "reload-plugins",
+       "description": "Reload all plugins"
+      },
+      {
+       "name": "force",
+       "description": "Force next turn to use a specific tool",
+       "input": {
+        "type": "text",
+        "hint": "<tool-name> [prompt]"
+       }
+      },
+      {
+       "name": "forget-approvals",
+       "description": "Forget every file and folder approval Ask and remember has recorded"
+      },
+      {
+       "name": "skill:angular-developer",
+       "description": "Generates Angular code and provides architectural guidance. Trigger when creating projects, components, or services, or for best practices on reactivity (signals, linkedSignal, resource), forms, dependency injection, routing, SSR, accessibility (ARIA), animations, styling (component styles, Tailwind CSS), testing, or CLI tooling.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:coding-agent-sessions",
+       "description": "Finds, reads, and reconstructs coding-agent sessions across Codex, Claude, OpenCode, OMO/Senpi, and other local agent logs. Use when asked to find or search past sessions, transcripts, or subagent runs, or to recover what an earlier session did.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:debugging",
+       "description": "Runs a hypothesis-driven debugging loop across any language or binary, escalating to orthogonal oracle angles and locking the fix with a failing test. Use for crashes, silent failures, hangs, wrong responses, memory leaks, async misbehavior, or reverse engineering.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:frontend",
+       "description": "Builds, styles, and polishes web UI and UX. Use for any frontend, page, component, styling, layout, animation, or visual-quality task, or when asked to make an interface look or feel a certain way.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:git-master",
+       "description": "Handles git work: atomic commits, rebase, squash, blame, bisect, reflog, and history questions. Use whenever a task needs a commit or a git-history investigation; skip for ordinary code edits.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:integration-review",
+       "description": "Use when reviewing a feature branch or merged work as a whole: checks for cross-slice consistency, duplication, abstraction gravity, dead code, doc drift, and architectural soundness. This is the whole-diff composition-review stage, catching cross-lane seam defects that no single lane's per-slice review can see. Invoke at the end of multi-slice work, before opening a PR, when inheriting unfamiliar code, or as the before-merge integration check. Triggers: 'review the whole branch', 'integration review', 'is this ready to ship', 'second-opinion read', or as the whole-diff gate before merge.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:openspec",
+       "description": "Use to plan, specify or implement a behaviour change in a repository that has openspec/. Picks /opsx-propose, /opsx-apply or plan mode; small changes and repositories without openspec/ stay in plan mode.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:programming",
+       "description": "Applies strict, modern language practice (typed errors, exhaustive match, TDD) for Python, Rust, TypeScript, and Go. Use for work on .py, .rs, .ts, or .go files.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:review-work",
+       "description": "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally oracle) with verbatim briefs, stored trailers, and an omo.merge-gate/v2 record validated by validate-gate-record.mjs. Use before calling work done, before a PR handoff or merge, or when the user asks to review completed work.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:rules-review",
+       "description": "Review, prune, merge, and re-scope the rule files the omo rules-injector injects (~/.omo/rules, <repo>/.omo/rules, lessons). Use when rules feel too many or noisy, after a burst of new lessons, when a rule fires in the wrong repo or never fires, or as a periodic (monthly) rules hygiene pass. Triggers - 'review rules', 'rules review', 'too many rules', 'clean up lessons', 'prune rules', 'rules hygiene', 'regeln reviewen', 'regeln aufräumen'.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:visual-qa",
+       "description": "Runs rigorous visual QA across web, terminal, and paginated surfaces with screenshot evidence and a verdict. Use for any UI build or change, or when asked whether a page, component, or TUI looks right.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:workspace-health",
+       "description": "Read-only audit of machine memory and dev-tool scope: which processes really hold RAM (incl. compressed/swapped pages RSS hides), runaway language servers and build daemons, TypeScript projects that sweep in gitignored bulk data, large ignored dirs IntelliJ still indexes, worktree piles. Use when RAM/swap is exhausted, the machine is sluggish, a language server or IDE balloons, or for a periodic workspace audit.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "autoresearch",
+       "description": "Toggle builtin autoresearch mode, or pass off / clear, or a goal message.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "green",
+       "description": "Generate a prompt to iterate on CI failures until the branch is green",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "review",
+       "description": "Launch interactive code review",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "annotate",
+       "description": "Annotate a diff or text from a file, prompt, latest reply, or session",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "opsx-apply",
+       "description": "Implement tasks from an OpenSpec change (Experimental)"
+      },
+      {
+       "name": "opsx-archive",
+       "description": "Archive a completed change in the experimental workflow"
+      },
+      {
+       "name": "opsx-explore",
+       "description": "Enter explore mode - think through ideas, investigate problems, clarify requirements"
+      },
+      {
+       "name": "opsx-propose",
+       "description": "Propose a new change - create it and generate all artifacts in one step"
+      },
+      {
+       "name": "opsx-sync",
+       "description": "Sync delta specs from a change to main specs"
+      },
+      {
+       "name": "opsx-update",
+       "description": "Update a change - revise existing planning artifacts and keep them coherent (Experimental)"
+      },
+      {
+       "name": "init",
+       "description": "Generate AGENTS.md for current codebase"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "i": 0,
+   "t": 0,
+   "dir": "→agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+     "protocolVersion": 2,
+     "clientCapabilities": {},
+     "info": {
+      "name": "qa",
+      "version": "1"
+     }
+    }
+   }
+  },
+  {
+   "i": 1,
+   "t": 561,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+     "protocolVersion": 2,
+     "info": {
+      "name": "omp",
+      "title": "omp",
+      "version": "18.12.5"
+     },
+     "authMethods": [
+      {
+       "type": "agent",
+       "methodId": "agent",
+       "name": "Use existing local credentials",
+       "description": "Authenticate via the provider keys/OAuth state already configured under ~/.omp."
+      }
+     ],
+     "capabilities": {
+      "session": {
+       "prompt": {
+        "image": {},
+        "embeddedContext": {}
+       },
+       "mcp": {
+        "stdio": {},
+        "http": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "i": 2,
+   "t": 561,
+   "dir": "→agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "session/resume",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project"
+    }
+   }
+  },
+  {
+   "i": 3,
+   "t": 730,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "update": {
+      "sessionUpdate": "state_update",
+      "state": "idle"
+     }
+    }
+   }
+  },
+  {
+   "i": 4,
+   "t": 732,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+     "configOptions": [
+      {
+       "configId": "mode",
+       "name": "Mode",
+       "category": "mode",
+       "type": "select",
+       "currentValue": "default",
+       "options": [
+        {
+         "value": "default",
+         "name": "Default",
+         "description": "Standard ACP headless mode"
+        },
+        {
+         "value": "plan",
+         "name": "Plan",
+         "description": "Read-only planning mode that drafts a plan to a markdown file before any code changes"
+        },
+        {
+         "value": "goal",
+         "name": "Goal",
+         "description": "Your next message becomes a persistent objective the agent keeps working on until it is done"
+        }
+       ]
+      },
+      {
+       "configId": "model",
+       "name": "Model",
+       "category": "model",
+       "type": "select",
+       "currentValue": "onara/cc/claude-haiku-5-5",
+       "options": [
+        {
+         "value": "onara/cc/claude-opus-5-5",
+         "name": "Opus 5.5 (onara)",
+         "description": "onara/cc/claude-opus-5-5"
+        },
+        {
+         "value": "onara/cc/claude-opus-5",
+         "name": "Opus 5 (onara)",
+         "description": "onara/cc/claude-opus-5"
+        },
+        {
+         "value": "onara/cc/claude-sonnet-5-5",
+         "name": "Sonnet 5.5 (onara)",
+         "description": "onara/cc/claude-sonnet-5-5"
+        },
+        {
+         "value": "onara/cc/claude-sonnet-5",
+         "name": "Sonnet 5 (onara)",
+         "description": "onara/cc/claude-sonnet-5"
+        },
+        {
+         "value": "onara/cc/claude-haiku-5-5",
+         "name": "Haiku 5.5 (onara)",
+         "description": "onara/cc/claude-haiku-5-5"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-sol",
+         "name": "GPT-5.6 Sol (onara)",
+         "description": "onara/cx/gpt-5.6-sol"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-terra",
+         "name": "GPT-5.6 Terra (onara)",
+         "description": "onara/cx/gpt-5.6-terra"
+        },
+        {
+         "value": "onara/cx/gpt-5.6-luna",
+         "name": "GPT-5.6 Luna (onara)",
+         "description": "onara/cx/gpt-5.6-luna"
+        },
+        {
+         "value": "onara-bifrost/bifrost/glm-5.3",
+         "name": "GLM-5.3 (onara)",
+         "description": "onara-bifrost/bifrost/glm-5.3"
+        }
+       ]
+      },
+      {
+       "configId": "thinking",
+       "name": "Thinking",
+       "category": "thought_level",
+       "type": "select",
+       "currentValue": "high",
+       "options": [
+        {
+         "value": "off",
+         "name": "Off"
+        },
+        {
+         "value": "auto",
+         "name": "Auto",
+         "description": "Auto-detect per prompt"
+        },
+        {
+         "value": "minimal",
+         "name": "minimal"
+        },
+        {
+         "value": "low",
+         "name": "low"
+        },
+        {
+         "value": "medium",
+         "name": "medium"
+        },
+        {
+         "value": "high",
+         "name": "high"
+        },
+        {
+         "value": "xhigh",
+         "name": "xhigh"
+        }
+       ]
+      }
+     ],
+     "availableCommands": [
+      {
+       "name": "security",
+       "description": "Plan, run, inspect, import, and compare OMP-native security scans",
+       "input": {
+        "type": "text",
+        "hint": "<plan|scan|status|cancel|scans|show|import|export|validate|compare|disposition>"
+       }
+      },
+      {
+       "name": "model",
+       "description": "Show current model selection"
+      },
+      {
+       "name": "switch",
+       "description": "Switch model for this session only",
+       "input": {
+        "type": "text",
+        "hint": "[model]"
+       }
+      },
+      {
+       "name": "fast",
+       "description": "Toggle fast mode",
+       "input": {
+        "type": "text",
+        "hint": "[on|ultra|off|status]"
+       }
+      },
+      {
+       "name": "slow",
+       "description": "Toggle slow mode",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "skillful",
+       "description": "Toggle skill listing",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "extended-context",
+       "description": "Toggle extended context",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "computer",
+       "description": "Toggle computer use",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status]"
+       }
+      },
+      {
+       "name": "ratchet",
+       "description": "Build (or reuse) an eval for an LLM flow, then hillclimb it unattended",
+       "input": {
+        "type": "text",
+        "hint": "[flow and goal]"
+       }
+      },
+      {
+       "name": "prewalk",
+       "description": "Arm, restart, or cancel prewalk",
+       "input": {
+        "type": "text",
+        "hint": "[restart|off]"
+       }
+      },
+      {
+       "name": "modelpreset",
+       "description": "Manage model presets",
+       "input": {
+        "type": "text",
+        "hint": "[list|save|switch|delete] [name]"
+       }
+      },
+      {
+       "name": "effort",
+       "description": "Set or show reasoning effort (thinking level, intelligence)",
+       "input": {
+        "type": "text",
+        "hint": "[level]"
+       }
+      },
+      {
+       "name": "advisor",
+       "description": "Toggle advisor",
+       "input": {
+        "type": "text",
+        "hint": "[on|off|status|dump [raw]|configure]"
+       }
+      },
+      {
+       "name": "export",
+       "description": "Export session to HTML file",
+       "input": {
+        "type": "text",
+        "hint": "[--themes] [path]"
+       }
+      },
+      {
+       "name": "trace",
+       "description": "Open this session's trace in the stats dashboard"
+      },
+      {
+       "name": "dump",
+       "description": "Return full transcript as plain text, with LLM request JSON path",
+       "input": {
+        "type": "text",
+        "hint": "[all|anon]"
+       }
+      },
+      {
+       "name": "share",
+       "description": "Share session via an encrypted link (share server or secret gist)"
+      },
+      {
+       "name": "browser",
+       "description": "Toggle browser eval-prelude headless vs visible mode",
+       "input": {
+        "type": "text",
+        "hint": "[headless|visible]"
+       }
+      },
+      {
+       "name": "todo",
+       "description": "Manage todos",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "session",
+       "description": "Show or configure the current session",
+       "input": {
+        "type": "text",
+        "hint": "[info|delete|pin [account]]"
+       }
+      },
+      {
+       "name": "jobs",
+       "description": "Show background jobs",
+       "input": {
+        "type": "text",
+        "hint": "[full|kill <id>|kill all]"
+       }
+      },
+      {
+       "name": "usage",
+       "description": "Show token usage",
+       "input": {
+        "type": "text",
+        "hint": "[show|reset [provider/credential-id|provider/active]]"
+       }
+      },
+      {
+       "name": "stats",
+       "description": "Launch the local stats dashboard",
+       "input": {
+        "type": "text",
+        "hint": "[--port <port>] [--host <host>]"
+       }
+      },
+      {
+       "name": "changelog",
+       "description": "Show changelog",
+       "input": {
+        "type": "text",
+        "hint": "[full|last [N]]"
+       }
+      },
+      {
+       "name": "tools",
+       "description": "Show available tools"
+      },
+      {
+       "name": "context",
+       "description": "Show context usage"
+      },
+      {
+       "name": "mcp",
+       "description": "Manage MCP servers",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "ssh",
+       "description": "Manage SSH connections",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "fresh",
+       "description": "Reset provider stream state without changing the local transcript"
+      },
+      {
+       "name": "compact",
+       "description": "Compact the conversation",
+       "input": {
+        "type": "text",
+        "hint": "[soft|remote|snapcompact] [focus]"
+       }
+      },
+      {
+       "name": "shake",
+       "description": "Shake heavy content out of the conversation context",
+       "input": {
+        "type": "text",
+        "hint": "[elide|images|thinking]"
+       }
+      },
+      {
+       "name": "handoff",
+       "description": "Summarize the session into a handoff document and compact in place",
+       "input": {
+        "type": "text",
+        "hint": "[focus instructions]"
+       }
+      },
+      {
+       "name": "pin",
+       "description": "Pin or unpin a session at the top of the resume list",
+       "input": {
+        "type": "text",
+        "hint": "[session id]"
+       }
+      },
+      {
+       "name": "retry",
+       "description": "Retry the last failed agent turn"
+      },
+      {
+       "name": "memory",
+       "description": "Manage memory",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "rename",
+       "description": "Rename the current session (omit title to generate)",
+       "input": {
+        "type": "text",
+        "hint": "[title]"
+       }
+      },
+      {
+       "name": "move",
+       "description": "Move the current session to a different directory",
+       "input": {
+        "type": "text",
+        "hint": "[<path>]"
+       }
+      },
+      {
+       "name": "wt",
+       "description": "Move this session into a new worktree, changes included",
+       "input": {
+        "type": "text",
+        "hint": "[<branch>]"
+       }
+      },
+      {
+       "name": "add-dir",
+       "description": "Add a workspace directory to this session",
+       "input": {
+        "type": "text",
+        "hint": "<path>"
+       }
+      },
+      {
+       "name": "remove-dir",
+       "description": "Remove a workspace directory from this session",
+       "input": {
+        "type": "text",
+        "hint": "<path>"
+       }
+      },
+      {
+       "name": "dirs",
+       "description": "List this session's workspace directories"
+      },
+      {
+       "name": "marketplace",
+       "description": "Manage plugins from marketplaces",
+       "input": {
+        "type": "text",
+        "hint": "<subcommand>"
+       }
+      },
+      {
+       "name": "plugins",
+       "description": "Manage plugins",
+       "input": {
+        "type": "text",
+        "hint": "[list|enable|disable]"
+       }
+      },
+      {
+       "name": "reload-plugins",
+       "description": "Reload all plugins"
+      },
+      {
+       "name": "force",
+       "description": "Force next turn to use a specific tool",
+       "input": {
+        "type": "text",
+        "hint": "<tool-name> [prompt]"
+       }
+      },
+      {
+       "name": "forget-approvals",
+       "description": "Forget every file and folder approval Ask and remember has recorded"
+      },
+      {
+       "name": "skill:angular-developer",
+       "description": "Generates Angular code and provides architectural guidance. Trigger when creating projects, components, or services, or for best practices on reactivity (signals, linkedSignal, resource), forms, dependency injection, routing, SSR, accessibility (ARIA), animations, styling (component styles, Tailwind CSS), testing, or CLI tooling.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:coding-agent-sessions",
+       "description": "Finds, reads, and reconstructs coding-agent sessions across Codex, Claude, OpenCode, OMO/Senpi, and other local agent logs. Use when asked to find or search past sessions, transcripts, or subagent runs, or to recover what an earlier session did.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:debugging",
+       "description": "Runs a hypothesis-driven debugging loop across any language or binary, escalating to orthogonal oracle angles and locking the fix with a failing test. Use for crashes, silent failures, hangs, wrong responses, memory leaks, async misbehavior, or reverse engineering.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:frontend",
+       "description": "Builds, styles, and polishes web UI and UX. Use for any frontend, page, component, styling, layout, animation, or visual-quality task, or when asked to make an interface look or feel a certain way.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:git-master",
+       "description": "Handles git work: atomic commits, rebase, squash, blame, bisect, reflog, and history questions. Use whenever a task needs a commit or a git-history investigation; skip for ordinary code edits.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:integration-review",
+       "description": "Use when reviewing a feature branch or merged work as a whole: checks for cross-slice consistency, duplication, abstraction gravity, dead code, doc drift, and architectural soundness. This is the whole-diff composition-review stage, catching cross-lane seam defects that no single lane's per-slice review can see. Invoke at the end of multi-slice work, before opening a PR, when inheriting unfamiliar code, or as the before-merge integration check. Triggers: 'review the whole branch', 'integration review', 'is this ready to ship', 'second-opinion read', or as the whole-diff gate before merge.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:openspec",
+       "description": "Use to plan, specify or implement a behaviour change in a repository that has openspec/. Picks /opsx-propose, /opsx-apply or plan mode; small changes and repositories without openspec/ stay in plan mode.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:programming",
+       "description": "Applies strict, modern language practice (typed errors, exhaustive match, TDD) for Python, Rust, TypeScript, and Go. Use for work on .py, .rs, .ts, or .go files.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:review-work",
+       "description": "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally oracle) with verbatim briefs, stored trailers, and an omo.merge-gate/v2 record validated by validate-gate-record.mjs. Use before calling work done, before a PR handoff or merge, or when the user asks to review completed work.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:rules-review",
+       "description": "Review, prune, merge, and re-scope the rule files the omo rules-injector injects (~/.omo/rules, <repo>/.omo/rules, lessons). Use when rules feel too many or noisy, after a burst of new lessons, when a rule fires in the wrong repo or never fires, or as a periodic (monthly) rules hygiene pass. Triggers - 'review rules', 'rules review', 'too many rules', 'clean up lessons', 'prune rules', 'rules hygiene', 'regeln reviewen', 'regeln aufräumen'.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:visual-qa",
+       "description": "Runs rigorous visual QA across web, terminal, and paginated surfaces with screenshot evidence and a verdict. Use for any UI build or change, or when asked whether a page, component, or TUI looks right.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "skill:workspace-health",
+       "description": "Read-only audit of machine memory and dev-tool scope: which processes really hold RAM (incl. compressed/swapped pages RSS hides), runaway language servers and build daemons, TypeScript projects that sweep in gitignored bulk data, large ignored dirs IntelliJ still indexes, worktree piles. Use when RAM/swap is exhausted, the machine is sluggish, a language server or IDE balloons, or for a periodic workspace audit.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "autoresearch",
+       "description": "Toggle builtin autoresearch mode, or pass off / clear, or a goal message.",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "green",
+       "description": "Generate a prompt to iterate on CI failures until the branch is green",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "review",
+       "description": "Launch interactive code review",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "annotate",
+       "description": "Annotate a diff or text from a file, prompt, latest reply, or session",
+       "input": {
+        "type": "text",
+        "hint": "arguments"
+       }
+      },
+      {
+       "name": "opsx-apply",
+       "description": "Implement tasks from an OpenSpec change (Experimental)"
+      },
+      {
+       "name": "opsx-archive",
+       "description": "Archive a completed change in the experimental workflow"
+      },
+      {
+       "name": "opsx-explore",
+       "description": "Enter explore mode - think through ideas, investigate problems, clarify requirements"
+      },
+      {
+       "name": "opsx-propose",
+       "description": "Propose a new change - create it and generate all artifacts in one step"
+      },
+      {
+       "name": "opsx-sync",
+       "description": "Sync delta specs from a change to main specs"
+      },
+      {
+       "name": "opsx-update",
+       "description": "Update a change - revise existing planning artifacts and keep them coherent (Experimental)"
+      },
+      {
+       "name": "init",
+       "description": "Generate AGENTS.md for current codebase"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "i": 5,
+   "t": 732,
+   "dir": "→agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "session/resume",
+    "params": {
+     "sessionId": "01a16a4e-6d9c-7573-83fc-78e72225c1ba",
+     "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project",
+     "replayFrom": {
+      "type": "_custom"
+     }
+    }
+   }
+  },
+  {
+   "i": 6,
+   "t": 734,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "error": {
+     "code": -32602,
+     "message": "Invalid params: Unsupported replayFrom cursor"
+    }
+   }
+  }
+ ]
+}

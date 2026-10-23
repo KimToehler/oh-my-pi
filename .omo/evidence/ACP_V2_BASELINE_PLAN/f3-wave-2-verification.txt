@@ -1,0 +1,29 @@
+HEAD 5d591150543aee918373b31cb647b02d8f8dc721
+
+## check coding-agent: rc=0 (after style commit 5d59115054; oxlint warning only in main's tan-memory-recall.test.ts)
+All matched files use the correct format.
+Finished in 67ms on 3433 files using 18 threads.
+$ oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types
+$ tsgo -p tsconfig.json --noEmit
+
+## check utils: rc=0
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 5ms on 235 files using 18 threads.
+$ oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types
+$ tsgo -p tsconfig.json --noEmit
+
+## bun test packages/coding-agent/test/acp-: 406 pass 0 fail
+
+
+## bun test packages/coding-agent/test/agent-session-: 1474 pass 1 fail
+(fail) AgentSession queued steer delivery > settles an interrupt non-terminally when a queued steer resumes the run [1024.09ms]
+
+## bun test packages/coding-agent/test/rpc: 238 pass 0 fail
+
+
+## bun test packages/utils/test/acp: 23 pass 0 fail
+
+
+## note: the one agent-session failure (queued steer delivery) also fails on merge-base 589fc63 (pre-existing, not on this branch)

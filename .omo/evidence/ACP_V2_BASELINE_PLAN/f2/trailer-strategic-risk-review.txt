@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1, 2, 3, 4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Session detachment is monotonic: once a record is sealed during close, no producer that started earlier can regain a wire route for that session.
+  positive_witness: A delayed bootstrap or foreground delivery either completes before the close response or is dropped, with no later session update.
+  negative_control: Removing closing-record routing, drain, or sealing MUST allow a delayed producer to emit a session update after the close response.
+  observable: Ordered wire-frame indices for the session, including the final session update and close response.
+  boundary: `AcpAgent.#closeManagedSession` and `AcpSurfaceV2.sendMapped`, `drain`, and `#sendOrdered`.
+END-REVIEW-TRAILER

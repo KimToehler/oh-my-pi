@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { MaybePromise } from "./protocol";
 import type { Stream } from "./stream";
 
@@ -138,6 +139,32 @@ function createStandardError(
 type Dispatcher = (method: string, params: unknown, notification: boolean) => MaybePromise<unknown>;
 type Pending = { resolve(value: unknown): void; reject(reason: unknown): void };
 
+/** Per-inbound-frame signal: resolved once the write carrying the frame's response has settled. */
+interface ResponseContext {
+	written: PromiseWithResolvers<void>;
+	/** True when the frame is a JSON-RPC batch, whose responses share one array write. */
+	inBatch: boolean;
+}
+
+const responseContext = new AsyncLocalStorage<ResponseContext>();
+
+/**
+ * Resolves once the response frame of the inbound request currently being handled (single request or the
+ * batch array carrying it, including error and drain-timeout answers) has been written to the stream. Call it
+ * synchronously from the handler; outside a request handler it resolves immediately.
+ */
+export function responseWritten(): Promise<void> {
+	return responseContext.getStore()?.written.promise ?? Promise.resolve();
+}
+
+/**
+ * Whether the handler currently running answers an entry of a JSON-RPC batch, whose responses are written together
+ * once every entry settled. False for a single message or outside a handler.
+ */
+export function inBatch(): boolean {
+	return responseContext.getStore()?.inBatch ?? false;
+}
+
 /** Bound on clean-EOF inbound drain so `closed` cannot hang if a handler never settles. */
 const INBOUND_DRAIN_TIMEOUT_MS = 30_000;
 
@@ -146,7 +173,7 @@ export class RpcConnection {
 	#nextId = 0;
 	#pending = new Map<JsonRpcId, Pending>();
 	#inbound = new Set<Promise<void>>();
-	#openInboundIds = new Set<JsonRpcId>();
+	#openInboundIds = new Map<JsonRpcId, ResponseContext>();
 	#writable: WritableStream<OutboundFrame>;
 	#writeTail: Promise<void> = Promise.resolve();
 	#abort = new AbortController();
@@ -233,12 +260,21 @@ export class RpcConnection {
 	}
 
 	async #handleFrame(frame: unknown): Promise<void> {
+		const context: ResponseContext = { written: Promise.withResolvers<void>(), inBatch: false };
+		try {
+			await responseContext.run(context, () => this.#answerFrame(frame, context));
+		} finally {
+			context.written.resolve();
+		}
+	}
+
+	async #answerFrame(frame: unknown, context: ResponseContext): Promise<void> {
 		if (frame === UNPARSEABLE_FRAME) {
 			await this.#write({ jsonrpc: "2.0", id: null, error: RequestError.parseError().toErrorResponse() });
 			return;
 		}
 		if (!Array.isArray(frame)) {
-			const response = await this.#answer(this.#admit(frame));
+			const response = await this.#answer(this.#admit(frame, context));
 			if (response) await this.#write(response);
 			return;
 		}
@@ -247,16 +283,18 @@ export class RpcConnection {
 			return;
 		}
 		// Admit every entry before running any, so a drain timeout sees the whole batch as open.
-		const entries = frame.map(entry => this.#admit(entry));
+		const entries = frame.map(entry => this.#admit(entry, context));
+		context.inBatch = true;
 		const responses = await Promise.all(entries.map(entry => this.#answer(entry)));
 		const answered = responses.filter(response => response !== undefined);
 		if (answered.length > 0) await this.#write(answered);
 	}
 
 	/** Validates one inbound value and registers its id when it is a request awaiting an answer. */
-	#admit(value: unknown): AnyMessage | InvalidFrame {
+	#admit(value: unknown, context: ResponseContext): AnyMessage | InvalidFrame {
 		const message = classifyFrame(value);
-		if (!("invalid" in message) && "method" in message && "id" in message) this.#openInboundIds.add(message.id);
+		if (!("invalid" in message) && "method" in message && "id" in message)
+			this.#openInboundIds.set(message.id, context);
 		return message;
 	}
 
@@ -273,7 +311,7 @@ export class RpcConnection {
 		if (timer !== undefined) clearTimeout(timer);
 		if (!timedOut) return;
 		const error = RequestError.internalError(undefined, "Inbound request drain timed out").toErrorResponse();
-		await Promise.allSettled([...this.#openInboundIds].map(id => this.#respond(id, { error })));
+		await Promise.allSettled([...this.#openInboundIds.keys()].map(id => this.#respond(id, { error })));
 	}
 
 	/** Builds the response for an open inbound request, unless the drain timeout already answered it. */
@@ -283,8 +321,14 @@ export class RpcConnection {
 	}
 
 	async #respond(id: JsonRpcId, body: { result: unknown } | { error: ErrorResponse }): Promise<void> {
+		const context = this.#openInboundIds.get(id);
 		const response = this.#claim(id, body);
-		if (response) await this.#write(response);
+		if (!response) return;
+		try {
+			await this.#write(response);
+		} finally {
+			context?.written.resolve();
+		}
 	}
 
 	/** Settles an inbound response or runs an inbound request/notification; returns the response to send. */

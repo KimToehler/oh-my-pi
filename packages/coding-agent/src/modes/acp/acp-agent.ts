@@ -1,13 +1,13 @@
 import * as path from "node:path";
-import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, logger, type postmortem, untilAborted, VERSION } from "@oh-my-pi/pi-utils";
+import { getBlobsDir, logger, type postmortem, untilAborted } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
+	type AgentV2,
 	type AgentSideConnection,
 	type AuthenticateRequest,
 	type AuthenticateResponse,
-	type AuthMethod,
 	type AvailableCommand,
 	type ClientCapabilities,
 	type CloseSessionRequest,
@@ -26,7 +26,6 @@ import {
 	type McpServer,
 	type NewSessionRequest,
 	type NewSessionResponse,
-	PROTOCOL_VERSION,
 	type PromptRequest,
 	type PromptResponse,
 	RequestError,
@@ -41,7 +40,7 @@ import {
 	type SetSessionConfigOptionResponse,
 	type SetSessionModeRequest,
 	type SetSessionModeResponse,
-	type Usage,
+	type v2,
 } from "@oh-my-pi/pi-utils/acp";
 import { disableProvider, enableProvider } from "../../capability";
 import { Settings } from "../../config/settings";
@@ -67,12 +66,12 @@ import {
 } from "../../plan-mode/approved-plan";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
 import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
+import type { SubmissionOutcome } from "../../session/agent-session-types";
 import { cfgCycleOrder } from "../../config/model-settings";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
 import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
 import { BlobStore, resolveImageDataSync } from "../../session/blob-store";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
-import type { UsageStatistics } from "../../session/session-entries";
 import type { SessionInfo as StoredSessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
 import {
@@ -100,8 +99,35 @@ import {
 	TTS_SPEED_MIN,
 	TTS_SPEED_OPTIONS,
 } from "../../tts/models";
-import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { createAcpClientBridge } from "./acp-client-bridge";
+import {
+	buildTurnUsage,
+	cloneUsageStatistics,
+	createForegroundWork,
+	type ForegroundWork,
+	isAcpSessionQuiescent,
+	isPromptTurnInFlight,
+	type PromptTurnState,
+	resolveStopReason,
+	singleShotOutcome,
+	trackInteraction,
+	type InteractionTracker,
+} from "./acp-foreground";
+import { convertConfigOptionsToV2 } from "./acp-event-mapper-v2";
+import {
+	type AcpEmitSource,
+	type AcpSurface,
+	type AcpSurfaceHost,
+	type AcpWireV1,
+	type AcpWireV2,
+	type AgentImageContent,
+	type FormElicitationTransport,
+	INTELLIJ_CLIENT_PLATFORM,
+	type ManagedSessionRecord,
+	type PromptLifecycleError,
+} from "./acp-surface";
+import { AcpSurfaceV1, sendV1FormElicitation } from "./acp-surface-v1";
+import { AcpSurfaceV2, rejectBatchedPrompt } from "./acp-surface-v2";
 import {
 	ACP_DEFAULT_MODE_ID,
 	ACP_GOAL_MODE_ID,
@@ -112,13 +138,7 @@ import {
 	type AcpGoalStop,
 	type AcpPromptAdmission,
 } from "./acp-goal";
-import {
-	buildToolCallStartUpdate,
-	extractAssistantMessageText,
-	mapAgentSessionEventToAcpSessionUpdates,
-	normalizeReplayToolArguments,
-} from "./acp-event-mapper";
-import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
+import { buildToolCallStartUpdate, extractAssistantMessageText } from "./acp-event-mapper";
 
 import { cfgDisabledExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
@@ -126,14 +146,6 @@ import { cfgPlanEnabled } from "../../plan-mode/settings";
 
 /** IntelliJ's ACP steering extension: inject user input into a running turn. */
 const ACP_STEERING_METHOD = "_session/steering";
-/**
- * `clientInfo._meta.platform` sent by JetBrains IDEs. After a `session/load`
- * replay they close the turn reserved for the pending prompt (missing
- * `lastRequestComplete` meta), then treat the agent as idle and fail the next
- * prompt client-side with "There is active prompt execution". `session/resume`
- * has no replay, so loadSession is not advertised to them.
- */
-const INTELLIJ_CLIENT_PLATFORM = "intellij";
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
 const PLAN_APPROVE_VALUE = "approve";
@@ -156,166 +168,11 @@ const SPEECH_MODELS_LIST_METHOD = "speech.models.list";
 export const ACP_BOOTSTRAP_RACE_GUARD_MS = 50;
 const ACP_CANCEL_CLEANUP_TIMEOUT_MS = 5_000;
 
-type AgentImageContent = {
-	type: "image";
-	data: string;
-	mimeType: string;
-};
-
-type PromptQueueState = {
-	promise: Promise<void>;
-	release: (() => void) | undefined;
-};
-type PromptLifecycleError = Error & { readonly code: "ACP_SESSION_CLOSED" };
-
-type PromptTurnState = {
-	abortController: AbortController;
-	cancelRequested: boolean;
-	settled: boolean;
-	/**
-	 * Delivery of streamed assistant `error` chunks this turn (the mapper
-	 * surfaces them as `agent_message_chunk`s). Resolves `true` once at least
-	 * one error chunk reached the client — the `agent_end` error fallback in
-	 * {@link AcpAgent##flushUnreportedTurnError} awaits it and stays silent on
-	 * success, so a fallback racing an in-flight delivery can neither duplicate
-	 * the error nor drop it when delivery fails.
-	 */
-	errorTextDelivery: Promise<boolean> | undefined;
-	/**
-	 * `abort()` is in-flight (or its bounded-timeout race). `undefined` while the turn is
-	 * running normally and after cleanup completes. The turn occupies `record.promptTurn`
-	 * for as long as either `!settled` or `cleanup` is set — that combined window is the
-	 * "turn in flight" predicate (`isPromptTurnInFlight`) every consumer gates on.
-	 */
-	cleanup: Promise<void> | undefined;
-	usageBaseline: UsageStatistics;
-	unsubscribe: (() => void) | undefined;
-	resolve: (value: PromptResponse) => void;
-	reject: (reason?: unknown) => void;
-	promise: Promise<PromptResponse>;
-	/** Latest `agent_end` of this prompt; a wake turn's end supersedes the first one for the stop reason. */
-	lastAgentEnd: Extract<AgentSessionEvent, { type: "agent_end" }> | undefined;
-	/**
-	 * The single wait for session quiescence, owned by the first `agent_end`
-	 * handler. Later `agent_end`s (background-job wake turns) see it set and
-	 * leave finishing the prompt to that handler.
-	 */
-	quiescenceWait: Promise<void> | undefined;
-	/**
-	 * Serializes builtin slash commands steered into this prompt (`/compact`,
-	 * `/model`, …): each starts after the previous one finished. Owned by the
-	 * prompt, so a command stuck in a cancelled prompt never blocks a later one.
-	 */
-	builtinSteerLane: Promise<void>;
-	/** Steered builtins admitted into this prompt that have not finished yet; holds the prompt open. */
-	pendingBuiltinSteers: number;
-	/**
-	 * Failure of the prompt's own command, kept when a steered builtin already
-	 * armed the quiescence waiter: that waiter rejects the prompt with it once
-	 * the work the steered command started has finished.
-	 */
-	deferredError: unknown;
-};
-
-/**
- * A turn is "in flight" from the moment `prompt()` reserves the slot until `settled` is
- * true AND any cancel cleanup has completed. Fork/queue/event gating all depend on this
- * combined window — a settled-but-still-aborting turn is not safe to fork from, queue
- * onto, or forward late events for.
- */
-function isPromptTurnInFlight(turn: PromptTurnState | undefined): turn is PromptTurnState {
-	return turn !== undefined && (!turn.settled || turn.cleanup !== undefined);
-}
-
-type ManagedSessionRecord = {
-	session: AgentSession;
-	setToolUIContext: ((uiContext: ExtensionUIContext, hasUI: boolean) => void) | undefined;
-	mcpManager: MCPManager | undefined;
-	// Ordered queue of MCP tool refreshes for this record. Rebuilt per
-	// `#configureMcpServers` call; drained on reconfigure so a stale in-flight
-	// refresh can never land after a newer configuration's tools.
-	mcpRefreshChain: Promise<void> | undefined;
-	promptTurn: PromptTurnState | undefined;
-	promptQueue: PromptQueueState;
-	liveMessageId: string | undefined;
-	liveMessageProgress: { textEmitted: boolean; thoughtEmitted: boolean } | undefined;
-	toolArgsById: Map<string, unknown>;
-	extensionsConfigured: boolean;
-	// Installed inside `#scheduleBootstrapUpdates` (post-race-guard); released
-	// in `#disposeSessionRecord`. Lives independent of any prompt turn.
-	lifetimeUnsubscribe: (() => void) | undefined;
-	closedError: PromptLifecycleError | undefined;
-	/**
-	 * In-flight prompt-event handlers and lifetime deliveries, keyed by a token
-	 * per handler so the finishing `agent_end` handler can wait on every other
-	 * handler without waiting on itself.
-	 */
-	promptEventHandlers: Map<symbol, Promise<void>>;
-	extensionUserMessageTasks: Set<Promise<void>>;
-	/** `_session/steering` calls still being admitted into the open prompt (image prep can await). */
-	pendingSteers: number;
-	/** Sole owner of goal and mode ownership state: generations, selection, reported mode, stale config. */
-	goal: AcpGoalActor;
-	/** Drops the goal observer subscribed before any prompt subscriber. */
-	goalUnsubscribe: (() => void) | undefined;
-	/**
-	 * Builtin slash-command handlers running in this session right now, with
-	 * the prompt each runs for and whether it was steered in. Handlers mutate
-	 * shared session state (compaction, model, settings) and may ignore their
-	 * prompt's abort; see #runBuiltin for who may start beside whom.
-	 */
-	runningBuiltins: Set<{ name: string; turn: PromptTurnState | undefined; steered: boolean; done: Promise<void> }>;
-};
-
-/**
- * True when nothing can still produce output for the open ACP prompt: no run is
- * live or admitted, no tracked post-prompt work (queued-message drain, idle
- * yield flush, retry, compaction continuation) is scheduled, no owner-scoped
- * background work can wake the session, and no steer or steered builtin
- * command is still being admitted or run.
- *
- * `queuedMessageCount` is deliberately not consulted: it also counts hidden
- * next-turn context (e.g. `/tan`'s dispatch breadcrumb) and interrupt-held
- * follow-ups, which only the user's next prompt consumes. Waiting on them
- * would never resolve; a queued message that will drain is already visible as
- * scheduled post-prompt work.
- */
-function isAcpSessionQuiescent(record: ManagedSessionRecord, promptTurn: PromptTurnState): boolean {
-	const session = record.session;
-	return (
-		record.pendingSteers === 0 &&
-		!record.goal.continuationPending &&
-		promptTurn.pendingBuiltinSteers === 0 &&
-		!session.isStreaming &&
-		!session.hasAdmittedSubmission &&
-		!session.hasPostPromptWork &&
-		!session.hasPendingAsyncWork()
-	);
-}
-
 async function nextMacrotask(): Promise<void> {
 	const { promise, resolve } = Promise.withResolvers<void>();
 	setImmediate(resolve);
 	await promise;
 }
-
-type ReplayableMessage = {
-	role: string;
-	content?: unknown;
-	errorMessage?: string;
-	toolCallId?: string;
-	toolName?: string;
-	details?: unknown;
-	isError?: boolean;
-};
-
-type ReplayableToolItem = {
-	type?: unknown;
-	id?: unknown;
-	name?: unknown;
-	arguments?: unknown;
-	input?: unknown;
-};
 
 type MCPConfigMap = {
 	[name: string]: MCPServerConfig;
@@ -341,6 +198,16 @@ type CreateAcpSession = (
 	cwd: string,
 	options?: { interactivePrompts?: boolean },
 ) => Promise<AgentSession | AcpSessionHandle>;
+
+/** v2 optional `env`/`headers` become the v1 spelling's required arrays. */
+function toV1McpServers(servers: v2.McpServer[] | undefined): McpServer[] {
+	return (servers ?? []).map((server): McpServer => {
+		if ("url" in server) {
+			return { type: "http", name: server.name, url: server.url, headers: server.headers ?? [] };
+		}
+		return { name: server.name, command: server.command, args: server.args ?? [], env: server.env ?? [] };
+	});
+}
 
 function normalizeCreatedAcpSession(created: AgentSession | AcpSessionHandle): {
 	session: AgentSession;
@@ -438,7 +305,7 @@ function buildAcpSpeechModelsCatalog(): Record<string, unknown> {
  * are dropped silently (no `logger.warn`) to keep operator logs clean.
  */
 async function elicitFormFromAcpClient(
-	connection: AgentSideConnection,
+	sendFormElicitation: FormElicitationTransport,
 	sessionId: string,
 	method: string,
 	message: string,
@@ -480,23 +347,12 @@ async function elicitFormFromAcpClient(
 		// loop alive on the happy path.
 		timeoutId.unref();
 	}
-	connection
-		.unstable_createElicitation({
-			mode: "form",
-			sessionId,
-			message,
-			requestedSchema: {
-				type: "object",
-				properties,
-				required,
-			},
-		})
-		.then(finish, error => {
-			// Caller may already have moved on via abort/timeout; suppress noise.
-			if (settled) return;
-			logger.warn("ACP elicitation failed", { sessionId, method, error });
-			finish(undefined);
-		});
+	sendFormElicitation({ sessionId, message, properties, required }).then(finish, error => {
+		// Caller may already have moved on via abort/timeout; suppress noise.
+		if (settled) return;
+		logger.warn("ACP elicitation failed", { sessionId, method, error });
+		finish(undefined);
+	});
 	const response = await promise;
 	if (!isAcceptedElicitation(response) || !response.content) {
 		return undefined;
@@ -505,7 +361,7 @@ async function elicitFormFromAcpClient(
 }
 
 async function elicitFromAcpClient(
-	connection: AgentSideConnection,
+	sendFormElicitation: FormElicitationTransport,
 	sessionId: string,
 	method: "select" | "confirm" | "input" | "editor",
 	message: string,
@@ -513,7 +369,7 @@ async function elicitFromAcpClient(
 	dialogOptions: ExtensionUIDialogOptions | undefined,
 ): Promise<ElicitationContentValue | undefined> {
 	const content = await elicitFormFromAcpClient(
-		connection,
+		sendFormElicitation,
 		sessionId,
 		method,
 		message,
@@ -530,6 +386,9 @@ function isAcceptedElicitation(
 ): response is Extract<CreateElicitationResponse, { action: "accept" }> {
 	return response?.action === "accept";
 }
+
+/** The capability slice the UI context reads; a v2 client's negotiated `elicitation.form` maps onto it. */
+const FORM_ELICITATION_CAPABILITIES: ClientCapabilities = { elicitation: { form: {} } };
 
 /**
  * Build an {@link ExtensionUIContext} that translates skill/extension UI
@@ -551,14 +410,17 @@ export function createAcpExtensionUiContext(
 	connection: AgentSideConnection,
 	getSessionId: () => string,
 	clientCapabilities: ClientCapabilities | undefined,
+	track: InteractionTracker = run => run(),
+	sendFormElicitation: FormElicitationTransport = request => sendV1FormElicitation(connection, request),
 ): ExtensionUIContext {
+	const elicit = (...args: Parameters<typeof elicitFromAcpClient>) => track(() => elicitFromAcpClient(...args));
 	const supportsForm = clientCapabilities?.elicitation?.form != null;
 	return {
 		supportsEditor: false,
 		select: async (title, options, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
-				connection,
+			const value = await elicit(
+				sendFormElicitation,
 				getSessionId(),
 				"select",
 				title,
@@ -569,8 +431,8 @@ export function createAcpExtensionUiContext(
 		},
 		confirm: async (title, message, dialogOptions) => {
 			if (!supportsForm) return false;
-			const value = await elicitFromAcpClient(
-				connection,
+			const value = await elicit(
+				sendFormElicitation,
 				getSessionId(),
 				"confirm",
 				message.trim().length > 0 ? `${title}\n\n${message}` : title,
@@ -581,8 +443,8 @@ export function createAcpExtensionUiContext(
 		},
 		input: async (title, placeholder, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
-				connection,
+			const value = await elicit(
+				sendFormElicitation,
 				getSessionId(),
 				"input",
 				title,
@@ -633,20 +495,22 @@ export function createAcpExtensionUiContext(
 			}
 
 			let timedOut = false;
-			const content = await elicitFormFromAcpClient(
-				connection,
-				getSessionId(),
-				"askDialog",
-				questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
-				properties,
-				undefined,
-				{
-					...dialogOptions,
-					onTimeout: () => {
-						timedOut = true;
-						dialogOptions?.onTimeout?.();
+			const content = await track(() =>
+				elicitFormFromAcpClient(
+					sendFormElicitation,
+					getSessionId(),
+					"askDialog",
+					questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
+					properties,
+					undefined,
+					{
+						...dialogOptions,
+						onTimeout: () => {
+							timedOut = true;
+							dialogOptions?.onTimeout?.();
+						},
 					},
-				},
+				),
 			);
 			if (timedOut) return timedOutAskDialogResult(questions);
 			if (!content) return undefined;
@@ -695,8 +559,8 @@ export function createAcpExtensionUiContext(
 		getEditorText: () => "",
 		editor: async (title, prefill, dialogOptions) => {
 			if (!supportsForm) return undefined;
-			const value = await elicitFromAcpClient(
-				connection,
+			const value = await elicit(
+				sendFormElicitation,
 				getSessionId(),
 				"editor",
 				title,
@@ -724,18 +588,53 @@ export class AcpAgent implements Agent {
 	#initialSession: AgentSession | undefined;
 	#createSession: CreateAcpSession;
 	#sessions = new Map<string, ManagedSessionRecord>();
+	/** Closes still running: the record is no longer registered, but its updates keep the surface's ordered path. */
+	#closing = new Map<string, { record: ManagedSessionRecord; closed: Promise<void> }>();
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
+	/** The client negotiated `elicitation.form` (either protocol version); gates every interactive consumer. */
+	#supportsFormElicitation = false;
 	/** Client re-asserts its stored config choices on every prompt (JetBrains); see `AcpGoalActor.isStaleClientReassert`. */
 	#clientPinsConfigOptions = false;
 	#cancelCleanupTimeoutMs = ACP_CANCEL_CLEANUP_TIMEOUT_MS;
 	#blobs = new BlobStore(getBlobsDir());
+	#host: AcpSurfaceHost;
+	/** Per-connection protocol surface for the core's version-agnostic paths; v1 until `initialize` selects one. */
+	#surface: AcpSurface;
+	#surfaceV1: AcpSurface<AcpWireV1>;
+	#foregroundTurns = new WeakMap<ForegroundWork, PromptTurnState>();
+	#surfaceV2: AcpSurface<AcpWireV2>;
+	#v2ClientCapabilities: v2.ClientCapabilities | undefined;
+
+	/** The one send funnel for core-built v1 notifications; the surface sends or converts them. */
+	#emit(notification: SessionNotification, source?: AcpEmitSource): Promise<void> {
+		return this.#surface.emit(notification.sessionId, notification, source);
+	}
 
 	constructor(connection: AgentSideConnection, createSession: CreateAcpSession, initialSession?: AgentSession) {
 		this.#connection = connection;
 		this.#initialSession = initialSession;
 		this.#createSession = createSession;
+		this.#host = {
+			connection,
+			blobs: this.#blobs,
+			throwIfRecordClosed: record => this.#throwIfRecordClosed(record),
+			convertPromptBlocks: blocks => this.#convertPromptBlocks(blocks),
+			trackForegroundEvent: (record, event) => this.#trackPromptEvent(record, event),
+			runPromptOrCommand: (record, text, images, options) => this.#runPromptOrCommand(record, text, images, options),
+			awaitSteeredBuiltins: (record, work, deferToWaiter) => this.#awaitSteeredBuiltins(record, work, deferToWaiter),
+			recordFor: sessionId => this.#sessions.get(sessionId) ?? this.#closing.get(sessionId)?.record,
+			buildAvailableCommands: record => this.#buildAvailableCommands(record.session),
+			waitForUpdateDeliveries: record => this.#waitForUpdateDeliveries(record),
+			beginCancelCleanup: (record, work) => this.#beginCancelCleanup(record, work),
+			closeSession: (sessionId, record) => this.#closeManagedSession(sessionId, record),
+			buildConfigOptions: record => this.#buildConfigOptions(record),
+			buildModeState: record => this.#buildModeState(record),
+		};
+		this.#surfaceV1 = new AcpSurfaceV1(this.#host);
+		this.#surfaceV2 = new AcpSurfaceV2(this.#host);
+		this.#surface = this.#surfaceV1;
 	}
 
 	setCancelCleanupTimeoutForTesting(timeoutMs: number): void {
@@ -745,61 +644,19 @@ export class AcpAgent implements Agent {
 	async initialize(params: InitializeRequest): Promise<InitializeResponse> {
 		this.#registerConnectionCleanup();
 		this.#clientCapabilities = params.clientCapabilities;
-		const authMethods: AuthMethod[] = [
-			{
-				id: "agent",
-				name: "Use existing local credentials",
-				description: "Authenticate via the provider keys/OAuth state already configured under ~/.omp.",
-			},
-		];
-		if (params.clientCapabilities?.auth?.terminal === true) {
-			authMethods.push({
-				type: "terminal",
-				id: "terminal",
-				name: "Set up omp in terminal",
-				description: "Launch the omp TUI to add provider keys and select models.",
-				args: [ACP_TERMINAL_AUTH_FLAG],
-			});
-		}
+		this.#supportsFormElicitation = params.clientCapabilities?.elicitation?.form != null;
 		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		this.#clientPinsConfigOptions = isIntelliJClient;
-		return {
-			protocolVersion: PROTOCOL_VERSION,
-			agentInfo: {
-				name: "omp",
-				title: "omp",
-				version: VERSION,
-			},
-			authMethods,
-			agentCapabilities: {
-				loadSession: !isIntelliJClient,
-				mcpCapabilities: {
-					http: true,
-					sse: true,
-				},
-				promptCapabilities: {
-					embeddedContext: true,
-					image: true,
-				},
-				sessionCapabilities: {
-					list: {},
-					fork: {},
-					resume: {},
-					close: {},
-				},
-			},
-			_meta: {
-				steering: { supported: true },
-			},
-		};
+		// The v1 `initialize` handler: it always selects the v1 surface.
+		this.#surface = this.#surfaceV1;
+		return this.#surfaceV1.initializeResponse(params);
 	}
 
 	async authenticate(params: AuthenticateRequest): Promise<AuthenticateResponse> {
 		// ACP spec: `methodId` must be one of the methods advertised by `initialize`.
 		// Reject anything else so malformed clients fail fast rather than appearing
 		// authenticated and surfacing a downstream model failure later.
-		const supportsTerminalAuth = this.#clientCapabilities?.auth?.terminal === true;
-		const validMethods = supportsTerminalAuth ? ["agent", "terminal"] : ["agent"];
+		const validMethods = this.#surfaceV1.validAuthMethodIds(this.#clientCapabilities);
 		if (!validMethods.includes(params.methodId)) {
 			throw new Error(`Unknown ACP auth method: ${params.methodId}`);
 		}
@@ -811,8 +668,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#createNewSessionRecord(params.cwd, params.mcpServers);
 		const response: NewSessionResponse = {
 			sessionId: record.session.sessionId,
-			configOptions: this.#buildConfigOptions(record),
-			modes: this.#buildModeState(record),
+			...(await this.#surfaceV1.sessionSetupResponse(record, "new")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -821,11 +677,8 @@ export class AcpAgent implements Agent {
 	async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#loadManagedSession(params.sessionId, params.cwd, params.mcpServers);
-		await this.#replaySessionHistory(record);
-		const response: LoadSessionResponse = {
-			configOptions: this.#buildConfigOptions(record),
-			modes: this.#buildModeState(record),
-		};
+		await this.#surface.replay(record);
+		const response: LoadSessionResponse = await this.#surfaceV1.sessionSetupResponse(record, "load");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -850,10 +703,7 @@ export class AcpAgent implements Agent {
 	async resumeSession(params: ResumeSessionRequest): Promise<ResumeSessionResponse> {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#resumeManagedSession(params.sessionId, params.cwd, params.mcpServers ?? []);
-		const response: ResumeSessionResponse = {
-			configOptions: this.#buildConfigOptions(record),
-			modes: this.#buildModeState(record),
-		};
+		const response: ResumeSessionResponse = await this.#surfaceV1.sessionSetupResponse(record, "resume");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -863,8 +713,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#forkManagedSession(params);
 		const response: ForkSessionResponse = {
 			sessionId: record.session.sessionId,
-			configOptions: this.#buildConfigOptions(record),
-			modes: this.#buildModeState(record),
+			...(await this.#surfaceV1.sessionSetupResponse(record, "fork")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -872,11 +721,74 @@ export class AcpAgent implements Agent {
 
 	async closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
 		const record = this.#sessions.get(params.sessionId);
-		if (!record) {
-			return {};
-		}
-		await this.#closeManagedSession(params.sessionId, record);
+		if (record) await this.#closeManagedSession(params.sessionId, record);
+		// A repeated close answers once the running one is done, so its response cannot overtake the session's last updates.
+		else await this.#closing.get(params.sessionId)?.closed;
 		return {};
+	}
+
+	/**
+	 * Protocol v2 handler over the same core. `initialize` selects the v2 surface. v2 installs no fs/terminal
+	 * client capability (permission only), so `#clientCapabilities` stays unset; `_session/steering` is not routed.
+	 */
+	get v2Handler(): AgentV2 {
+		return {
+			initialize: params => {
+				this.#registerConnectionCleanup();
+				this.#clientCapabilities = undefined;
+				this.#v2ClientCapabilities = params.capabilities;
+				this.#supportsFormElicitation = params.capabilities?.elicitation?.form != null;
+				this.#clientPinsConfigOptions = false;
+				this.#surface = this.#surfaceV2;
+				return this.#surfaceV2.initializeResponse(params);
+			},
+			login: params => {
+				if (!this.#surfaceV2.validAuthMethodIds(this.#v2ClientCapabilities).includes(params.methodId)) {
+					throw RequestError.invalidParams(undefined, `Unknown ACP auth method: ${params.methodId}`);
+				}
+				return {};
+			},
+			// Credentials are shared with every omp surface; logout must not touch them.
+			logout: () => ({ _meta: { omp: { credentialsRetained: true } } }),
+			newSession: async params => {
+				this.#assertAbsoluteCwd(params.cwd);
+				const record = await this.#createNewSessionRecord(params.cwd, toV1McpServers(params.mcpServers));
+				const setup = await this.#surfaceV2.sessionSetupResponse(record, "new");
+				this.#scheduleBootstrapUpdates(record.session.sessionId);
+				return { sessionId: record.session.sessionId, ...setup };
+			},
+			listSessions: params => this.listSessions({ cwd: params.cwd, cursor: params.cursor }),
+			resumeSession: async params => {
+				this.#assertAbsoluteCwd(params.cwd);
+				const record = await this.#resumeManagedSession(
+					params.sessionId,
+					params.cwd,
+					toV1McpServers(params.mcpServers),
+				);
+				await this.#surfaceV2.replay(record, params.replayFrom);
+				const setup = await this.#surfaceV2.sessionSetupResponse(record, "resume");
+				this.#scheduleBootstrapUpdates(record.session.sessionId);
+				return setup;
+			},
+			closeSession: params => this.closeSession(params),
+			setSessionConfigOption: async params => {
+				const response = await this.setSessionConfigOption({
+					sessionId: params.sessionId,
+					configId: params.configId,
+					value: params.value,
+				});
+				return { configOptions: convertConfigOptionsToV2(response.configOptions) };
+			},
+			prompt: params => {
+				rejectBatchedPrompt();
+				return this.#surfaceV2.admitPrompt(this.#getSessionRecord(params.sessionId), params);
+			},
+			cancel: params => this.cancel(params),
+			extMethod: (method, params) => {
+				if (method === ACP_STEERING_METHOD) throw RequestError.methodNotFound(method);
+				return this.extMethod(method, params);
+			},
+		};
 	}
 
 	async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
@@ -920,109 +832,7 @@ export class AcpAgent implements Agent {
 
 	async prompt(params: PromptRequest): Promise<PromptResponse> {
 		const record = this.#getSessionRecord(params.sessionId);
-		const activeTurn = record.promptTurn;
-		if (activeTurn && !activeTurn.settled && record.session.isStreaming) {
-			// New prompt arrived while the previous turn is still in-flight (e.g. the
-			// client sent a message immediately after pressing stop, before or without
-			// a preceding session/cancel notification). Implicitly cancel the running
-			// turn so the new prompt can queue behind the abort cleanup — identical to
-			// what cancel() does when called explicitly. #beginCancelCleanup is
-			// idempotent, so a concurrent session/cancel notification is harmless.
-			// Mirror cancel()'s timeout handling: if abort() hangs past the cleanup
-			// timeout, close the managed session instead of leaving it registered
-			// with a still-streaming AgentSession. The queued prompt below observes
-			// the same cleanup rejection and fails accordingly.
-			this.#beginCancelCleanup(record, activeTurn).catch(async (error: unknown) => {
-				logger.warn("ACP cancel cleanup timed out; closing session", {
-					sessionId: record.session.sessionId,
-					error,
-				});
-				await this.#closeManagedSession(params.sessionId, record);
-			});
-		}
-		return await this.#queuePrompt(record, async () => {
-			const previousTurn = record.promptTurn;
-			if (previousTurn) {
-				// Wait for any prompt that's still settling or whose cancel cleanup is
-				// still in flight. We deliberately swallow the prompt rejection (the
-				// owning caller already received it) but let cleanup rejections
-				// propagate — a timed-out cancel must fail this queued prompt instead
-				// of letting it run on a session that is about to be closed.
-				await previousTurn.promise.catch(() => undefined);
-				await previousTurn.cleanup;
-			}
-			// A cancelled prompt resolves (and is evicted) before its goal admission finishes; this
-			// prompt's own admission queues behind it on the actor's lane, so nothing waits here.
-			this.#throwIfRecordClosed(record);
-
-			const converted = this.#convertPromptBlocks(params.prompt);
-			const pendingPrompt = Promise.withResolvers<PromptResponse>();
-			record.promptTurn = {
-				abortController: new AbortController(),
-				cancelRequested: false,
-				settled: false,
-				errorTextDelivery: undefined,
-				cleanup: undefined,
-				usageBaseline: this.#cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
-				unsubscribe: undefined,
-				resolve: pendingPrompt.resolve,
-				reject: pendingPrompt.reject,
-				promise: pendingPrompt.promise,
-				lastAgentEnd: undefined,
-				quiescenceWait: undefined,
-				builtinSteerLane: Promise.resolve(),
-				pendingBuiltinSteers: 0,
-				deferredError: undefined,
-			};
-			// While this prompt is open, background-job wakes may start turns: they
-			// stream into this prompt instead of running unseen by the client.
-			record.session.setAcpPromptOpen(true);
-
-			record.promptTurn.unsubscribe = record.session.subscribe(event => {
-				this.#trackPromptEvent(record, event);
-			});
-
-			// A prompt landing on a busy session is queued as steer below; AgentBusyError
-			// can still escape builtin commands. Type it for the wire instead of letting
-			// transport.ts wrap it as a generic -32603 internal error.
-			const promptTurn = record.promptTurn;
-			this.#runPromptOrCommand(record, converted.text, converted.images).catch(async (error: unknown) => {
-				const failure =
-					error instanceof AgentBusyError
-						? RequestError.sessionBusy(error.message, {
-								reason: "session_busy",
-								hint: "steer|followUp|wait",
-							})
-						: error;
-				// Recorded first: a steered command may already have armed the
-				// quiescence waiter, which then finishes the prompt with this failure.
-				promptTurn.deferredError ??= failure;
-				if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
-				this.#finishPrompt(record, undefined, failure);
-			});
-
-			return await pendingPrompt.promise;
-		});
-	}
-
-	async #queuePrompt(record: ManagedSessionRecord, run: () => Promise<PromptResponse>): Promise<PromptResponse> {
-		const nextQueue = Promise.withResolvers<void>();
-		const releaseQueue = nextQueue.resolve;
-		const previousQueue = record.promptQueue;
-		record.promptQueue = {
-			promise: nextQueue.promise,
-			release: releaseQueue,
-		};
-		await previousQueue.promise;
-		this.#throwIfRecordClosed(record);
-		try {
-			return await run();
-		} finally {
-			releaseQueue();
-			if (record.promptQueue.release === releaseQueue) {
-				record.promptQueue.release = undefined;
-			}
-		}
+		return await this.#surfaceV1.admitPrompt(record, params);
 	}
 
 	#throwIfRecordClosed(record: ManagedSessionRecord): void {
@@ -1088,6 +898,30 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
+	 * The open prompt turn: v1's `promptTurn`, or for v2 a view of `record.foreground` that is
+	 * settled as soon as the foreground ended. One stable object per work, so identity checks hold.
+	 */
+	#turnOf(record: ManagedSessionRecord): PromptTurnState | undefined {
+		if (record.promptTurn) return record.promptTurn;
+		const work = record.foreground;
+		if (!work) return undefined;
+		let turn = this.#foregroundTurns.get(work);
+		if (!turn) {
+			turn = {
+				work,
+				get settled() {
+					return record.foreground !== work;
+				},
+				resolve: () => {},
+				reject: () => {},
+				promise: Promise.resolve({ stopReason: "end_turn" }),
+			};
+			this.#foregroundTurns.set(work, turn);
+		}
+		return turn;
+	}
+
+	/**
 	 * Text-mode slash-command runtime for a command running inside `turn` (the
 	 * prompt's own command or a steered one). Output after `turn` was cancelled
 	 * or finished is dropped: it would land as a stray chunk outside any reply.
@@ -1098,9 +932,9 @@ export class AcpAgent implements Agent {
 			sessionManager: record.session.sessionManager,
 			settings: record.session.settings,
 			cwd: record.session.sessionManager.getCwd(),
-			signal: turn?.abortController.signal,
+			signal: turn?.work.abortController.signal,
 			output: async output => {
-				if (turn?.settled || turn?.cancelRequested) return;
+				if (turn?.settled || turn?.work.cancelRequested) return;
 				await this.#emitCommandOutput(record, output);
 			},
 			refreshCommands: () => this.#emitAvailableCommandsUpdate(record),
@@ -1116,7 +950,7 @@ export class AcpAgent implements Agent {
 				await this.#waitForPromptEventHandlers(record);
 			},
 			notifyTitleChanged: async () => {
-				await this.#connection.sessionUpdate({
+				await this.#emit({
 					sessionId: record.session.sessionId,
 					update: {
 						sessionUpdate: "session_info_update",
@@ -1140,16 +974,34 @@ export class AcpAgent implements Agent {
 		};
 	}
 
-	async #runPromptOrCommand(record: ManagedSessionRecord, text: string, images: AgentImageContent[]): Promise<void> {
-		const promptTurn = record.promptTurn;
-		const skillResult = await this.#tryRunSkillCommand(record, text);
-		if (skillResult || promptTurn?.cancelRequested) {
+	/** Snapshot of the update handlers in flight now; later handlers are not waited on. */
+	async #waitForUpdateDeliveries(record: ManagedSessionRecord): Promise<void> {
+		await Promise.allSettled(Array.from(record.promptEventHandlers.values()));
+	}
+
+	async #runPromptOrCommand(
+		record: ManagedSessionRecord,
+		text: string,
+		images: AgentImageContent[],
+		options?: { ownsForeground?: boolean; onSubmissionOutcome?: (outcome: SubmissionOutcome) => void },
+	): Promise<void> {
+		const promptTurn = this.#turnOf(record);
+		// A locally handled command must not end foreground work that is not its own.
+		const ownsForeground = options?.ownsForeground !== false;
+		const onSubmissionOutcome = singleShotOutcome(options?.onSubmissionOutcome);
+		const skillResult = await this.#tryRunSkillCommand(record, text, onSubmissionOutcome);
+		if (skillResult || promptTurn?.work.cancelRequested) {
+			// A Stop before `session.prompt` registered an outcome: settle the admission as dropped.
+			if (!skillResult) onSubmissionOutcome?.({ kind: "dropped" });
 			return;
 		}
 
 		const builtin = resolveAcpBuiltinSlashCommand(text);
+		// A builtin answers as a command up front; a Stop while it runs ends the turn but never re-reports the submission.
+		if (builtin) onSubmissionOutcome?.({ kind: "command" });
 		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
-		if (builtinResult === undefined || promptTurn?.cancelRequested) return;
+		if (builtinResult === undefined) return;
+		if (promptTurn?.work.cancelRequested) return;
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
@@ -1165,7 +1017,8 @@ export class AcpAgent implements Agent {
 				if (!residualAgentInvoked) {
 					await this.#waitForExtensionUserMessages(record, residualBaseline);
 					await this.#waitForPromptEventHandlers(record);
-					if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+					if (!ownsForeground) return;
+					if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 					this.#finishPrompt(record, { stopReason: "end_turn" });
 				}
 				return;
@@ -1173,12 +1026,16 @@ export class AcpAgent implements Agent {
 			// Built-in commands (`/compact`, `/model`, …) never emit `agent_end`,
 			// so report the context they changed here.
 			await this.#emitUsageUpdate(record);
-			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+			if (!ownsForeground) return;
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 			this.#finishPrompt(record, {
 				stopReason: "end_turn",
-				usage: this.#buildTurnUsage(
-					promptTurn?.usageBaseline ??
-						this.#cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
+				usage: buildTurnUsage(
+					promptTurn?.work ??
+						createForegroundWork(
+							"prompt",
+							cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
+						),
 					record.session.sessionManager.getUsageStatistics(),
 				),
 			});
@@ -1197,17 +1054,22 @@ export class AcpAgent implements Agent {
 		// prompt finishes as a Stop's cancelled prompt does (a Stop already answered the client),
 		// and only while this turn still owns the slot: the next queued prompt may hold it.
 		const confirmed = admission ? admission.confirm() : true;
-		if (!confirmed || promptTurn?.cancelRequested) {
-			if (promptTurn && record.promptTurn === promptTurn && !promptTurn.settled) {
+		if (!confirmed || promptTurn?.work.cancelRequested || this.#isClosed(record)) {
+			if (promptTurn && this.#turnOf(record) === promptTurn && !promptTurn.settled) {
 				this.#finishPrompt(record, { stopReason: "cancelled" });
 			}
+			onSubmissionOutcome?.({ kind: "dropped" });
 			return;
 		}
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
 		// An autonomous turn (todo reminder, async-job wake) streams without an
 		// owning promptTurn. Steer into it instead of failing busy: the ACP turn then
 		// stays open until that turn and the queued-message drain settle.
-		const agentInvoked = await record.session.prompt(text, { images, streamingBehavior: "steer" });
+		const agentInvoked = await record.session.prompt(text, {
+			images,
+			streamingBehavior: "steer",
+			...(onSubmissionOutcome ? { onSubmissionOutcome } : {}),
+		});
 		// Extension and custom-TS commands are handled locally inside session.prompt().
 		// An ACP extension command can still call pi.sendUserMessage(), which starts
 		// an async nested prompt through the extension runtime. Keep the ACP turn
@@ -1216,7 +1078,8 @@ export class AcpAgent implements Agent {
 		if (!agentInvoked) {
 			await this.#waitForExtensionUserMessages(record, extensionPromptBaseline);
 			await this.#waitForPromptEventHandlers(record);
-			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+			if (!ownsForeground) return;
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 			this.#finishPrompt(record, { stopReason: "end_turn" });
 		}
 	}
@@ -1237,7 +1100,7 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
-	 * Wait until every builtin steered into `promptTurn` ran: the prompt owns
+	 * Wait until every builtin steered into `work` ran: the prompt owns
 	 * those commands and their output, so a locally handled prompt must not
 	 * finish under them. Returns whether the caller still finishes the prompt:
 	 * false once it settled or another prompt replaced it, and, with
@@ -1246,16 +1109,20 @@ export class AcpAgent implements Agent {
 	 */
 	async #awaitSteeredBuiltins(
 		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState | undefined,
+		work: ForegroundWork | undefined,
 		deferToWaiter: boolean,
 	): Promise<boolean> {
-		if (!promptTurn) return false;
-		while (promptTurn.pendingBuiltinSteers > 0) await promptTurn.builtinSteerLane;
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return false;
-		return !(deferToWaiter && promptTurn.quiescenceWait);
+		if (!work) return false;
+		while (work.pendingBuiltinSteers > 0) await work.builtinSteerLane;
+		if (this.#surface.activeWork(record) !== work) return false;
+		return !(deferToWaiter && work.quiescenceWait);
 	}
 
-	async #tryRunSkillCommand(record: ManagedSessionRecord, text: string): Promise<boolean> {
+	async #tryRunSkillCommand(
+		record: ManagedSessionRecord,
+		text: string,
+		onSubmissionOutcome: ((outcome: SubmissionOutcome) => void) | undefined,
+	): Promise<boolean> {
 		if (!record.session.skillsSettings?.enableSkillCommands) {
 			return false;
 		}
@@ -1267,7 +1134,12 @@ export class AcpAgent implements Agent {
 		if (!skill) {
 			return false;
 		}
+		onSubmissionOutcome?.({ kind: "command" });
+		const turn = this.#turnOf(record);
 		const built = await buildSkillPromptMessage(skill, parsed, "user");
+		// Stop (or a replacing prompt) during the skill read: the skill must not run afterwards.
+		if (this.#isClosed(record)) return true;
+		if (turn && (turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)) return true;
 		await record.session.promptCustomMessage(
 			{
 				customType: SKILL_PROMPT_MESSAGE_TYPE,
@@ -1283,11 +1155,13 @@ export class AcpAgent implements Agent {
 
 	async cancel(params: { sessionId: string }): Promise<void> {
 		const record = this.#getSessionRecord(params.sessionId);
-		const promptTurn = record.promptTurn;
+		const promptTurn = this.#turnOf(record);
 		if (!promptTurn || promptTurn.settled) {
 			return;
 		}
-		const cleanup = this.#beginCancelCleanup(record, promptTurn);
+		// Before the abort and before the foreground settles: v2 latches agent-initiated work off and withdraws queued steers.
+		this.#surface.beforeCancel(record);
+		const cleanup = this.#beginCancelCleanup(record, promptTurn.work);
 		try {
 			await cleanup;
 		} catch (error: unknown) {
@@ -1303,31 +1177,27 @@ export class AcpAgent implements Agent {
 	 * returned promise is the cleanup barrier — it resolves when `abort()` completes and
 	 * rejects when the timeout fires. Idempotent: a second call returns the same barrier.
 	 */
-	#beginCancelCleanup(record: ManagedSessionRecord, promptTurn: PromptTurnState): Promise<void> {
-		if (promptTurn.cleanup) {
-			return promptTurn.cleanup;
+	#beginCancelCleanup(record: ManagedSessionRecord, work: ForegroundWork): Promise<void> {
+		if (work.cleanup) {
+			return work.cleanup;
 		}
-		promptTurn.cancelRequested = true;
+		work.cancelRequested = true;
 		// Before the abort: the aborted run's own agent_end must not schedule a goal turn, and its
 		// late interrupted pause is bound to the transcript running now. The actor compensates any
 		// goal entry Stop overtook on its own lane; Stop answers the client without waiting for it.
 		const goalStop = record.goal.stop();
-		promptTurn.abortController.abort();
-		promptTurn.unsubscribe?.();
-		const cleanup = this.#runCancelCleanup(record, promptTurn, goalStop);
-		promptTurn.cleanup = cleanup;
+		work.abortController.abort();
+		work.unsubscribe?.();
+		const cleanup = this.#runCancelCleanup(record, work, goalStop);
+		work.cleanup = cleanup;
 		this.#finishPrompt(record, {
 			stopReason: "cancelled",
-			usage: this.#buildTurnUsage(promptTurn.usageBaseline, record.session.sessionManager.getUsageStatistics()),
+			usage: buildTurnUsage(work, record.session.sessionManager.getUsageStatistics()),
 		});
 		return cleanup;
 	}
 
-	async #runCancelCleanup(
-		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState,
-		goalStop: AcpGoalStop,
-	): Promise<void> {
+	async #runCancelCleanup(record: ManagedSessionRecord, work: ForegroundWork, goalStop: AcpGoalStop): Promise<void> {
 		let timer: NodeJS.Timeout | undefined;
 		// The interrupted pause stays bound to this abort until the abort itself settles, even when the
 		// cleanup timeout wins the race below and the session is being closed.
@@ -1347,8 +1217,9 @@ export class AcpAgent implements Agent {
 			if (timer) clearTimeout(timer);
 			// Order matters: clear `cleanup` before evicting the slot so the slot-eviction
 			// branch matches what `#finishPrompt` saw if it ran first.
-			promptTurn.cleanup = undefined;
-			if (promptTurn.settled && record.promptTurn === promptTurn) {
+			work.cleanup = undefined;
+			const promptTurn = record.promptTurn;
+			if (promptTurn?.work === work && promptTurn.settled) {
 				record.promptTurn = undefined;
 			}
 		}
@@ -1454,7 +1325,7 @@ export class AcpAgent implements Agent {
 		// while it waits on background work: inject so the client keeps its turn.
 		// Answering startedNewTurn there would race the open prompt (IntelliJ drops
 		// the adoption while its task is still active).
-		if (turn !== undefined && !turn.settled && !turn.cancelRequested) {
+		if (turn !== undefined && !turn.settled && !turn.work.cancelRequested) {
 			const { text, images } = this.#convertPromptBlocks(blocks);
 			const builtin = resolveAcpBuiltinSlashCommand(text);
 			if (builtin) {
@@ -1464,9 +1335,9 @@ export class AcpAgent implements Agent {
 				// between this request and the lane running the command. The prompt's
 				// lane keeps commands in arrival order and non-overlapping (a second
 				// `/compact` would fail "already in progress").
-				turn.pendingBuiltinSteers++;
-				const run = turn.builtinSteerLane.then(() => this.#runSteeredBuiltin(record, turn, builtin, images));
-				turn.builtinSteerLane = run.catch(() => undefined);
+				turn.work.pendingBuiltinSteers++;
+				const run = turn.work.builtinSteerLane.then(() => this.#runSteeredBuiltin(record, turn, builtin, images));
+				turn.work.builtinSteerLane = run.catch(() => undefined);
 				void run.catch((error: unknown) => {
 					logger.warn("ACP steered command failed", { sessionId, error });
 				});
@@ -1514,7 +1385,7 @@ export class AcpAgent implements Agent {
 			// after its prompt was cancelled or ended must not feed its text and
 			// attachments into a later prompt.
 			if ("prompt" in result) {
-				if (record.promptTurn === turn && !turn.settled && !turn.cancelRequested) {
+				if (record.promptTurn === turn && !turn.settled && !turn.work.cancelRequested) {
 					await record.session.steer(result.prompt, images);
 				} else {
 					logger.debug("ACP steered command residual dropped: its prompt ended", {
@@ -1526,18 +1397,18 @@ export class AcpAgent implements Agent {
 			await this.#emitUsageUpdate(record);
 		} catch (error) {
 			logger.warn("ACP steered command failed", { sessionId, command: builtin.parsed.name, error });
-			if (!turn.settled && !turn.cancelRequested) {
+			if (!turn.settled && !turn.work.cancelRequested) {
 				await this.#emitCommandOutput(
 					record,
 					`Command /${builtin.parsed.name} failed: ${errorMessage(error)}`,
 				).catch(() => undefined);
 			}
 		} finally {
-			turn.pendingBuiltinSteers--;
+			turn.work.pendingBuiltinSteers--;
 			// Armed from `finally` so a failing command or output delivery can never
 			// leave the prompt open.
-			if (record.promptTurn === turn && !turn.settled && !turn.cancelRequested) {
-				void this.#finishPromptWhenQuiescent(record, turn, Symbol("acp-steered-command")).catch(
+			if (record.promptTurn === turn && !turn.settled && !turn.work.cancelRequested) {
+				void this.#finishPromptWhenQuiescent(record, turn.work, Symbol("acp-steered-command")).catch(
 					(error: unknown) => {
 						logger.warn("ACP steered command settle failed", { sessionId, error });
 					},
@@ -1566,16 +1437,17 @@ export class AcpAgent implements Agent {
 		// Same-prompt handlers finish first (the prompt's steered lane already
 		// orders its own commands).
 		for (const running of record.runningBuiltins) {
-			if (running.turn === turn) await running.done;
+			if (running.work === turn?.work) await running.done;
 		}
 		// The wait can outlast the prompt (cancelled, or otherwise ended): its
 		// command must not start then. `undefined` means it never ran.
-		if (!turn || turn.cancelRequested || turn.settled || record.promptTurn !== turn) return undefined;
+		if (!turn || this.#isClosed(record) || turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)
+			return undefined;
 		// Built only now: the command waited out may have changed what the runtime
 		// snapshots (e.g. `/move` changes the session's cwd).
 		const runtime = this.#buildSlashCommandRuntime(record, turn);
 		for (const running of record.runningBuiltins) {
-			if (running.turn !== turn && (steered || running.steered)) {
+			if (running.work !== turn?.work && (steered || running.steered)) {
 				await runtime.output(
 					`Command /${builtin.parsed.name} not run: /${running.name} from an earlier reply is still running.`,
 				);
@@ -1583,7 +1455,7 @@ export class AcpAgent implements Agent {
 			}
 		}
 		const done = Promise.withResolvers<void>();
-		const lease = { name: builtin.parsed.name, turn, steered, done: done.promise };
+		const lease = { name: builtin.parsed.name, work: turn?.work, steered, done: done.promise };
 		record.runningBuiltins.add(lease);
 		try {
 			return await runAcpBuiltinSlashCommand(builtin, runtime);
@@ -1620,7 +1492,7 @@ export class AcpAgent implements Agent {
 	async #createNewSessionRecord(cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -1666,7 +1538,7 @@ export class AcpAgent implements Agent {
 		const sourcePath = await this.#resolveForkSourceSessionPath(params.sessionId);
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(params.cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -1693,7 +1565,7 @@ export class AcpAgent implements Agent {
 	): Promise<ManagedSessionRecord> {
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
 			await this.#createSession(path.resolve(cwd), {
-				interactivePrompts: this.#clientCapabilities?.elicitation?.form != null,
+				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
@@ -1714,7 +1586,20 @@ export class AcpAgent implements Agent {
 		setToolUIContext: ((uiContext: ExtensionUIContext, hasUI: boolean) => void) | undefined,
 	): Promise<ManagedSessionRecord> {
 		const record = this.#createManagedSessionRecord(session, setToolUIContext);
-		session.setClientBridge(createAcpClientBridge(this.#connection, session.sessionId, this.#clientCapabilities));
+		session.setClientBridge(
+			createAcpClientBridge(
+				this.#connection,
+				session.sessionId,
+				this.#clientCapabilities,
+				() => this.#surface.allowsAgentInitiatedWork(record),
+				(toolCall, options, signal) =>
+					trackInteraction(
+						this.#surface.activeWork(record),
+						work => this.#surface.onInteractionChanged(record, work),
+						() => this.#surface.permissionRequest(record, session.sessionId, toolCall, options, signal),
+					),
+			),
+		);
 		// Before any prompt subscriber: a continuation decided at agent_end is already
 		// pending when the open prompt checks whether the session is quiet.
 		record.goalUnsubscribe = session.subscribe(event => record.goal.observe(event));
@@ -1726,6 +1611,7 @@ export class AcpAgent implements Agent {
 			record.goal.adoptReportedMode();
 			await this.#configureExtensions(record);
 			await this.#configureMcpServers(record, mcpServers);
+			record.surfaceUnsubscribe = this.#surface.subscribe(record);
 			this.#sessions.set(session.sessionId, record);
 			return record;
 		} catch (error) {
@@ -1744,6 +1630,9 @@ export class AcpAgent implements Agent {
 			mcpManager: undefined,
 			mcpRefreshChain: undefined,
 			promptTurn: undefined,
+			foreground: undefined,
+			cancelLatched: false,
+			lastEmittedState: undefined,
 			promptQueue: { promise: Promise.resolve(), release: undefined },
 			liveMessageId: undefined,
 			liveMessageProgress: undefined,
@@ -1753,16 +1642,17 @@ export class AcpAgent implements Agent {
 			promptEventHandlers: new Map(),
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
+			surfaceUnsubscribe: undefined,
 			pendingSteers: 0,
 			goal: new AcpGoalActor(session, {
 				promptOpen: () => {
-					const turn = record.promptTurn;
-					return turn !== undefined && !turn.settled && !turn.cancelRequested;
+					const turn = this.#turnOf(record);
+					return turn !== undefined && !turn.settled && !turn.work.cancelRequested;
 				},
 				clientPinsConfig: () => this.#clientPinsConfigOptions,
 				selectValues: () => this.#selectConfigValues(record),
 				announce: async () => {
-					await this.#connection.sessionUpdate({
+					await this.#emit({
 						sessionId: record.session.sessionId,
 						update: this.#buildCurrentModeUpdate(record),
 					});
@@ -1872,8 +1762,11 @@ export class AcpAgent implements Agent {
 	}
 
 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
-		const promptTurn = record.promptTurn;
-		if (!promptTurn || promptTurn.settled || promptTurn.cancelRequested) {
+		let work = this.#surface.activeWork(record);
+		if (!work && event.type === "agent_start") {
+			work = this.#surface.beginForeground(record, "agent");
+		}
+		if (!work || work.cancelRequested) {
 			return;
 		}
 
@@ -1895,14 +1788,16 @@ export class AcpAgent implements Agent {
 			event.type === "message_update" &&
 			event.message.role === "assistant" &&
 			event.assistantMessageEvent.type === "error";
-		for (const notification of mapAgentSessionEventToAcpSessionUpdates(event, record.session.sessionId, {
+		for (const notification of this.#surface.mapUpdate(event, record.session.sessionId, {
 			getMessageId: message => this.#getLiveMessageId(record, message),
 			getMessageProgress: message => this.#getLiveMessageProgress(record, message),
 			getToolArgs: toolCallId => record.toolArgsById.get(toolCallId),
 			cwd: record.session.sessionManager.getCwd(),
 			resolveImageData: resolveImageDataForAcp,
 		})) {
-			const delivery = this.#connection.sessionUpdate(notification);
+			// A cancel or close between two notifications of one event ends `work`; v2 then drops the rest.
+			if (!this.#surface.acceptsUpdates(record, work)) break;
+			const delivery = this.#surface.sendMapped(notification);
 			if (streamedAssistantError) {
 				// Resolves true only once the error chunk actually reached the
 				// client — a failed delivery keeps the agent_end fallback armed.
@@ -1910,8 +1805,8 @@ export class AcpAgent implements Agent {
 					() => true,
 					() => false,
 				);
-				const prior = promptTurn.errorTextDelivery;
-				promptTurn.errorTextDelivery = prior ? Promise.all([prior, outcome]).then(([a, b]) => a || b) : outcome;
+				const prior = work.errorTextDelivery;
+				work.errorTextDelivery = prior ? Promise.all([prior, outcome]).then(([a, b]) => a || b) : outcome;
 			}
 			await delivery;
 		}
@@ -1925,9 +1820,9 @@ export class AcpAgent implements Agent {
 		this.#clearLiveAssistantMessageAfterEvent(record, event);
 
 		if (event.type === "agent_end") {
-			promptTurn.lastAgentEnd = event;
-			await this.#flushMissedFinalAssistantText(record, event);
-			await this.#flushUnreportedTurnError(record, event);
+			work.lastAgentEnd = event;
+			await this.#flushMissedFinalAssistantText(record, work, event);
+			await this.#flushUnreportedTurnError(record, work, event);
 			await this.#emitEndOfTurnUpdates(record);
 			// Live-message tracking is per assistant reply: reset after this reply's
 			// own fallback so a background-job wake reply gets a fresh message id.
@@ -1935,39 +1830,30 @@ export class AcpAgent implements Agent {
 			record.liveMessageProgress = undefined;
 			// A wake turn's agent_end: the first handler is already waiting and will
 			// finish the prompt once the session is quiet.
-			await this.#finishPromptWhenQuiescent(record, promptTurn, token);
+			await this.#finishPromptWhenQuiescent(record, work, token);
 		}
 	}
 
 	/**
-	 * Finish `promptTurn` once the session is quiescent. One waiter per prompt:
+	 * Finish `work` once the session is quiescent. One waiter per prompt:
 	 * the first caller (an `agent_end` handler or a steered command) owns it,
 	 * later callers return immediately and leave finishing to that waiter.
 	 */
-	async #finishPromptWhenQuiescent(
-		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState,
-		token: symbol,
-	): Promise<void> {
-		if (promptTurn.quiescenceWait) return;
-		promptTurn.quiescenceWait = this.#waitForAcpPromptIdle(record, promptTurn, token);
-		await promptTurn.quiescenceWait;
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
+	async #finishPromptWhenQuiescent(record: ManagedSessionRecord, work: ForegroundWork, token: symbol): Promise<void> {
+		if (work.quiescenceWait) return;
+		work.quiescenceWait = this.#waitForAcpPromptIdle(record, work, token);
+		await work.quiescenceWait;
+		if (this.#surface.activeWork(record) !== work) return;
 		// A goal completed or dropped during this prompt: report default mode inside the turn.
 		await record.goal.syncAgentModeChange();
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return;
-		if (promptTurn.deferredError !== undefined) {
-			this.#finishPrompt(record, undefined, promptTurn.deferredError);
+		if (this.#surface.activeWork(record) !== work) return;
+		if (work.deferredError !== undefined) {
+			this.#finishPrompt(record, undefined, work.deferredError);
 			return;
 		}
-		const lastAgentEnd = promptTurn.lastAgentEnd;
 		this.#finishPrompt(record, {
-			stopReason: lastAgentEnd
-				? this.#resolveStopReason(lastAgentEnd, promptTurn.cancelRequested)
-				: promptTurn.cancelRequested
-					? "cancelled"
-					: "end_turn",
-			usage: this.#buildTurnUsage(promptTurn.usageBaseline, record.session.sessionManager.getUsageStatistics()),
+			stopReason: resolveStopReason(work),
+			usage: buildTurnUsage(work, record.session.sessionManager.getUsageStatistics()),
 		});
 	}
 
@@ -1989,6 +1875,7 @@ export class AcpAgent implements Agent {
 	 */
 	async #flushMissedFinalAssistantText(
 		record: ManagedSessionRecord,
+		work: ForegroundWork,
 		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
 	): Promise<void> {
 		const progress = record.liveMessageProgress;
@@ -2005,8 +1892,9 @@ export class AcpAgent implements Agent {
 		if (text.length === 0) {
 			return;
 		}
+		if (!this.#surface.acceptsUpdates(record, work)) return;
 		progress.textEmitted = true;
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -2028,9 +1916,10 @@ export class AcpAgent implements Agent {
 	 */
 	async #flushUnreportedTurnError(
 		record: ManagedSessionRecord,
+		work: ForegroundWork,
 		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
 	): Promise<void> {
-		const streamedDelivery = record.promptTurn?.errorTextDelivery;
+		const streamedDelivery = work.errorTextDelivery;
 		if (streamedDelivery && (await streamedDelivery)) {
 			return;
 		}
@@ -2044,7 +1933,8 @@ export class AcpAgent implements Agent {
 		if (!errorMessage || isSilentAbort(lastAssistant)) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		if (!this.#surface.acceptsUpdates(record, work)) return;
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -2062,17 +1952,18 @@ export class AcpAgent implements Agent {
 	 * prompt-event handler must finish delivering, or a wake turn's `agent_end`
 	 * fallback could land after the caller unsubscribes.
 	 */
-	async #waitForAcpPromptIdle(
-		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState,
-		token: symbol,
-	): Promise<void> {
+	async #waitForAcpPromptIdle(record: ManagedSessionRecord, work: ForegroundWork, token: symbol): Promise<void> {
 		const session = record.session;
-		const signal = promptTurn.abortController.signal;
+		const signal = work.abortController.signal;
 		while (!signal.aborted) {
 			await session.waitForIdle();
 			if (signal.aborted) return;
-			if (!session.isStreaming && !session.hasAdmittedSubmission && session.hasPendingAsyncWork()) {
+			if (
+				this.#surface.holdsForegroundForBackgroundWork &&
+				!session.isStreaming &&
+				!session.hasAdmittedSubmission &&
+				session.hasPendingAsyncWork()
+			) {
 				try {
 					await untilAborted(signal, () => session.settleAsyncWork());
 				} catch (error) {
@@ -2081,7 +1972,7 @@ export class AcpAgent implements Agent {
 				}
 				continue;
 			}
-			if (!isAcpSessionQuiescent(record, promptTurn)) {
+			if (!isAcpSessionQuiescent(record, work, this.#surface.holdsForegroundForBackgroundWork)) {
 				await nextMacrotask();
 				continue;
 			}
@@ -2090,7 +1981,7 @@ export class AcpAgent implements Agent {
 			await nextMacrotask();
 			await this.#waitForOtherPromptEventHandlers(record, token);
 			if (signal.aborted) return;
-			if (isAcpSessionQuiescent(record, promptTurn)) return;
+			if (isAcpSessionQuiescent(record, work, this.#surface.holdsForegroundForBackgroundWork)) return;
 		}
 	}
 
@@ -2140,58 +2031,22 @@ export class AcpAgent implements Agent {
 	}
 
 	#finishPrompt(record: ManagedSessionRecord, response?: PromptResponse, error?: unknown): void {
-		const promptTurn = record.promptTurn;
-		if (!promptTurn || promptTurn.settled) {
+		const work = this.#surface.activeWork(record);
+		if (!work) {
 			return;
 		}
-		promptTurn.settled = true;
-		record.session.setAcpPromptOpen(false);
-		promptTurn.unsubscribe?.();
-		// Keep the slot occupied until cancel cleanup finishes — `#runCancelCleanup`
-		// evicts the slot in its finally block once both flags say it's safe.
-		if (!promptTurn.cleanup && record.promptTurn === promptTurn) {
-			record.promptTurn = undefined;
-		}
-		if (error !== undefined) {
-			promptTurn.reject(error);
-			return;
-		}
-		promptTurn.resolve(response ?? { stopReason: "end_turn" });
-	}
-
-	#resolveStopReason(
-		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
-		cancelRequested: boolean,
-	): PromptResponse["stopReason"] {
-		if (cancelRequested) {
-			return "cancelled";
-		}
-		const lastAssistant = [...event.messages]
-			.reverse()
-			.find((message): message is AssistantMessage => message.role === "assistant");
-		const reason = lastAssistant?.stopReason;
-		switch (reason) {
-			case "aborted":
-				return "cancelled";
-			case "length":
-				return "max_tokens";
-			case "error": {
-				const errorMessage = lastAssistant?.errorMessage ?? "";
-				if (/content[_ ]?filter|refus(al|ed)/i.test(errorMessage)) {
-					return "refusal";
-				}
-				return "end_turn";
-			}
-			default:
-				return "end_turn";
-		}
+		this.#surface.onForegroundEnd(
+			record,
+			work,
+			error !== undefined ? { error } : { response: response ?? { stopReason: "end_turn" } },
+		);
 	}
 
 	async #emitCommandOutput(record: ManagedSessionRecord, text: string): Promise<void> {
 		if (!text) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
@@ -2232,7 +2087,7 @@ export class AcpAgent implements Agent {
 					}
 					break;
 				case "resource_link":
-					textParts.push(block.title ?? block.name ?? block.uri);
+					textParts.push(`[${block.title ?? block.name}](${block.uri})`);
 					break;
 				case "audio":
 					textParts.push("[audio omitted]");
@@ -2246,7 +2101,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #pushConfigOptionUpdate(record: ManagedSessionRecord): Promise<void> {
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "config_option_update",
@@ -2441,7 +2296,7 @@ export class AcpAgent implements Agent {
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath);
+		const choice = await this.#requestAcpPlanApprovalChoice(record, session, resolvedTitle, planAbsolutePath);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
@@ -2566,14 +2421,15 @@ export class AcpAgent implements Agent {
 	 * cannot carry a `file://` link (IntelliJ only follows http/https/mailto).
 	 */
 	async #requestAcpPlanApprovalChoice(
+		record: ManagedSessionRecord,
 		session: AgentSession,
 		title: string,
 		planPath: string,
 	): Promise<{ approved: false } | { approved: true; executionModel?: ResolvedRoleModel }> {
-		const supportsForm = this.#clientCapabilities?.elicitation?.form != null;
+		const supportsForm = this.#supportsFormElicitation;
 		if (!supportsForm) return { approved: true };
 		try {
-			await this.#connection.sessionUpdate({
+			await this.#emit({
 				sessionId: session.sessionId,
 				update: buildToolCallStartUpdate({
 					toolCallId: crypto.randomUUID(),
@@ -2607,19 +2463,24 @@ export class AcpAgent implements Agent {
 		// Single plain-text line: IntelliJ flattens the message into a one-line
 		// header and renders no markdown or HTML, so the path rides in the
 		// field description (shown as a short subtitle) instead.
-		const value = await elicitFromAcpClient(
-			this.#connection,
-			session.sessionId,
-			"select",
-			`Approve plan "${title}" and start implementation?`,
-			{
-				type: "string",
-				title: "Implementation",
-				description: `Plan file: ${shortenPath(planPath)}`,
-				oneOf: options,
-				default: defaultValue,
-			},
-			undefined,
+		const value = await trackInteraction(
+			this.#surface.activeWork(record),
+			work => this.#surface.onInteractionChanged(record, work),
+			() =>
+				elicitFromAcpClient(
+					request => this.#surface.elicitForm(request),
+					session.sessionId,
+					"select",
+					`Approve plan "${title}" and start implementation?`,
+					{
+						type: "string",
+						title: "Implementation",
+						description: `Plan file: ${shortenPath(planPath)}`,
+						oneOf: options,
+						default: defaultValue,
+					},
+					undefined,
+				),
 		);
 		if (tiers.length === 0) {
 			return value === PLAN_APPROVE_VALUE ? { approved: true } : { approved: false };
@@ -2705,7 +2566,10 @@ export class AcpAgent implements Agent {
 					unsubscribeCommands();
 				};
 			}
-			void this.#emitBootstrapUpdates(sessionId, record);
+			// A client that disconnects mid-bootstrap rejects the sends; nothing is left to tell.
+			void this.#emitBootstrapUpdates(sessionId, record).catch(error => {
+				logger.warn("Failed to emit ACP bootstrap updates", { error: String(error) });
+			});
 		}, ACP_BOOTSTRAP_RACE_GUARD_MS);
 	}
 
@@ -2713,14 +2577,14 @@ export class AcpAgent implements Agent {
 		if (this.#sessions.get(sessionId) !== record) {
 			return;
 		}
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "available_commands_update",
 				availableCommands: await this.#buildAvailableCommands(record.session),
 			},
 		});
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "session_info_update",
@@ -2733,7 +2597,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #emitAvailableCommandsUpdate(record: ManagedSessionRecord): Promise<void> {
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "available_commands_update",
@@ -2764,7 +2628,7 @@ export class AcpAgent implements Agent {
 			return;
 		}
 		const usageStats = record.session.sessionManager.getUsageStatistics();
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId: record.session.sessionId,
 			update: {
 				sessionUpdate: "usage_update",
@@ -2780,7 +2644,7 @@ export class AcpAgent implements Agent {
 		const sessionId = record.session.sessionId;
 		await this.#emitUsageUpdate(record);
 
-		await this.#connection.sessionUpdate({
+		await this.#emit({
 			sessionId,
 			update: {
 				sessionUpdate: "session_info_update",
@@ -2788,47 +2652,6 @@ export class AcpAgent implements Agent {
 				updatedAt: new Date().toISOString(),
 			},
 		});
-	}
-
-	#cloneUsageStatistics(usage: UsageStatistics): UsageStatistics {
-		return {
-			input: usage.input,
-			output: usage.output,
-			cacheRead: usage.cacheRead,
-			cacheWrite: usage.cacheWrite,
-			totalTokens: usage.totalTokens,
-			orchestrationInput: usage.orchestrationInput,
-			orchestrationOutput: usage.orchestrationOutput,
-			orchestrationCacheRead: usage.orchestrationCacheRead,
-			premiumRequests: usage.premiumRequests,
-			cost: usage.cost,
-			subagentCost: usage.subagentCost,
-		};
-	}
-
-	#buildTurnUsage(previous: UsageStatistics, current: UsageStatistics): Usage | undefined {
-		const inputTokens = Math.max(0, current.input - previous.input);
-		const outputTokens = Math.max(0, current.output - previous.output);
-		const cachedReadTokens = Math.max(0, current.cacheRead - previous.cacheRead);
-		const cachedWriteTokens = Math.max(0, current.cacheWrite - previous.cacheWrite);
-		const totalTokens = Math.max(0, current.totalTokens - previous.totalTokens);
-
-		if (totalTokens === 0) {
-			return undefined;
-		}
-
-		const usage: Usage = {
-			inputTokens,
-			outputTokens,
-			totalTokens,
-		};
-		if (cachedReadTokens > 0) {
-			usage.cachedReadTokens = cachedReadTokens;
-		}
-		if (cachedWriteTokens > 0) {
-			usage.cachedWriteTokens = cachedWriteTokens;
-		}
-		return usage;
 	}
 
 	async #listStoredSessions(cwd?: string): Promise<StoredSessionInfo[]> {
@@ -2866,269 +2689,6 @@ export class AcpAgent implements Agent {
 		return parsed;
 	}
 
-	async #replaySessionHistory(record: ManagedSessionRecord): Promise<void> {
-		const cwd = record.session.sessionManager.getCwd();
-		const replayedToolCallIds = new Set<string>();
-		const replayedToolCallArgs = new Map<string, unknown>();
-		for (const message of record.session.sessionManager.buildSessionContext().messages as ReplayableMessage[]) {
-			for (const notification of this.#messageToReplayNotifications(
-				record.session.sessionId,
-				message,
-				cwd,
-				replayedToolCallIds,
-				replayedToolCallArgs,
-			)) {
-				await this.#connection.sessionUpdate(notification);
-			}
-		}
-	}
-
-	#messageToReplayNotifications(
-		sessionId: string,
-		message: ReplayableMessage,
-		cwd: string,
-		replayedToolCallIds: Set<string>,
-		replayedToolCallArgs: Map<string, unknown>,
-	): SessionNotification[] {
-		if (message.role === "assistant") {
-			return this.#replayAssistantMessage(sessionId, message, cwd, replayedToolCallIds, replayedToolCallArgs);
-		}
-		if (
-			message.role === "user" ||
-			message.role === "developer" ||
-			message.role === "custom" ||
-			message.role === "hookMessage"
-		) {
-			return this.#wrapReplayContent(
-				sessionId,
-				this.#extractReplayContent(message.content, undefined),
-				"user_message_chunk",
-				crypto.randomUUID(),
-			);
-		}
-		if (
-			message.role === "toolResult" &&
-			typeof message.toolCallId === "string" &&
-			typeof message.toolName === "string"
-		) {
-			return this.#replayToolResult(
-				sessionId,
-				cwd,
-				{
-					...message,
-					toolCallId: message.toolCallId,
-					toolName: message.toolName,
-				},
-				{
-					includeStart: !replayedToolCallIds.has(message.toolCallId),
-					toolArgs: replayedToolCallArgs.get(message.toolCallId),
-				},
-			);
-		}
-		if (
-			message.role === "bashExecution" ||
-			message.role === "pythonExecution" ||
-			message.role === "compactionSummary"
-		) {
-			return this.#wrapReplayContent(
-				sessionId,
-				this.#extractReplayContent(message.content, undefined),
-				"user_message_chunk",
-				crypto.randomUUID(),
-			);
-		}
-		return [];
-	}
-
-	#replayAssistantMessage(
-		sessionId: string,
-		message: ReplayableMessage,
-		cwd: string,
-		replayedToolCallIds: Set<string>,
-		replayedToolCallArgs: Map<string, unknown>,
-	): SessionNotification[] {
-		const notifications: SessionNotification[] = [];
-		const messageId = crypto.randomUUID();
-		if (Array.isArray(message.content)) {
-			for (const item of message.content) {
-				if (typeof item !== "object" || item === null || !("type" in item)) {
-					continue;
-				}
-				if (item.type === "text" && "text" in item && typeof item.text === "string" && item.text.length > 0) {
-					notifications.push({
-						sessionId,
-						update: {
-							sessionUpdate: "agent_message_chunk",
-							content: { type: "text", text: item.text },
-							messageId,
-						},
-					});
-					continue;
-				}
-				if (
-					item.type === "image" &&
-					"data" in item &&
-					typeof item.data === "string" &&
-					"mimeType" in item &&
-					typeof item.mimeType === "string"
-				) {
-					notifications.push({
-						sessionId,
-						update: {
-							sessionUpdate: "agent_message_chunk",
-							content: { type: "image", data: item.data, mimeType: item.mimeType },
-							messageId,
-						},
-					});
-					continue;
-				}
-				if (item.type === "thinking" && "thinking" in item && typeof item.thinking === "string") {
-					const thinking = canonicalizeMessage(item.thinking);
-					if (thinking.length === 0) continue;
-					notifications.push({
-						sessionId,
-						update: {
-							sessionUpdate: item.narration ? "agent_message_chunk" : "agent_thought_chunk",
-							content: { type: "text", text: thinking },
-							messageId,
-						},
-					});
-					continue;
-				}
-				const toolItem = item as ReplayableToolItem;
-				if (
-					(toolItem.type === "toolCall" || toolItem.type === "tool_use") &&
-					typeof toolItem.id === "string" &&
-					typeof toolItem.name === "string"
-				) {
-					const args = this.#buildReplayAssistantToolArgs(toolItem);
-					notifications.push(
-						...mapAgentSessionEventToAcpSessionUpdates(
-							{
-								type: "tool_execution_start",
-								toolCallId: toolItem.id,
-								toolName: toolItem.name,
-								args,
-							},
-							sessionId,
-							{ cwd },
-						),
-					);
-					replayedToolCallIds.add(toolItem.id);
-					replayedToolCallArgs.set(toolItem.id, args);
-				}
-			}
-		}
-		if (notifications.length === 0 && message.errorMessage && !isSilentAbort(message)) {
-			notifications.push({
-				sessionId,
-				update: {
-					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: message.errorMessage },
-					messageId,
-				},
-			});
-		}
-		return notifications;
-	}
-
-	#buildReplayAssistantToolArgs(item: ReplayableToolItem): unknown {
-		if ("arguments" in item) {
-			return normalizeReplayToolArguments(item.arguments).args;
-		}
-		if (item.type === "tool_use" && "input" in item) {
-			return item.input;
-		}
-		return {};
-	}
-
-	#replayToolResult(
-		sessionId: string,
-		cwd: string,
-		message: Required<Pick<ReplayableMessage, "toolCallId" | "toolName">> & ReplayableMessage,
-		options: { includeStart?: boolean; toolArgs?: unknown } = {},
-	): SessionNotification[] {
-		const args = this.#buildReplayToolArgs(message.details);
-		const startEvent: AgentSessionEvent = {
-			type: "tool_execution_start",
-			toolCallId: message.toolCallId,
-			toolName: message.toolName,
-			args,
-		};
-		const endEvent: AgentSessionEvent = {
-			type: "tool_execution_end",
-			toolCallId: message.toolCallId,
-			toolName: message.toolName,
-			isError: message.isError === true,
-			result: {
-				content: message.content,
-				details: message.details,
-				errorMessage: message.errorMessage,
-			},
-		};
-		const notifications = mapAgentSessionEventToAcpSessionUpdates(endEvent, sessionId, {
-			cwd,
-			getToolArgs: toolCallId => (toolCallId === message.toolCallId ? options.toolArgs : undefined),
-			resolveImageData: (data, _mimeType) => resolveImageDataSync(this.#blobs, data),
-		});
-		if (options.includeStart === false) {
-			return notifications;
-		}
-		return [...mapAgentSessionEventToAcpSessionUpdates(startEvent, sessionId, { cwd }), ...notifications];
-	}
-
-	#buildReplayToolArgs(details: unknown): { path?: string } {
-		if (typeof details !== "object" || details === null || !("path" in details)) {
-			return {};
-		}
-		const value = (details as { path?: unknown }).path;
-		return typeof value === "string" && value.length > 0 ? { path: value } : {};
-	}
-
-	#wrapReplayContent(
-		sessionId: string,
-		content: PromptRequest["prompt"],
-		kind: "agent_message_chunk" | "user_message_chunk",
-		messageId: string,
-	): SessionNotification[] {
-		return content.map(block => ({
-			sessionId,
-			update: {
-				sessionUpdate: kind,
-				content: block,
-				messageId,
-			},
-		}));
-	}
-
-	#extractReplayContent(content: unknown, errorMessage: string | undefined): PromptRequest["prompt"] {
-		const replay: PromptRequest["prompt"] = [];
-		if (Array.isArray(content)) {
-			for (const item of content) {
-				if (typeof item !== "object" || item === null || !("type" in item)) {
-					continue;
-				}
-				if (item.type === "text" && "text" in item && typeof item.text === "string" && item.text.length > 0) {
-					replay.push({ type: "text", text: item.text });
-					continue;
-				}
-				if (
-					item.type === "image" &&
-					"data" in item &&
-					"mimeType" in item &&
-					typeof item.data === "string" &&
-					typeof item.mimeType === "string"
-				) {
-					replay.push({ type: "image", data: item.data, mimeType: item.mimeType });
-				}
-			}
-		}
-		if (replay.length === 0 && errorMessage) {
-			replay.push({ type: "text", text: errorMessage });
-		}
-		return replay;
-	}
-
 	async #configureExtensions(record: ManagedSessionRecord): Promise<void> {
 		if (record.extensionsConfigured) {
 			return;
@@ -3137,9 +2697,16 @@ export class AcpAgent implements Agent {
 		const uiContext = createAcpExtensionUiContext(
 			this.#connection,
 			() => record.session.sessionId,
-			this.#clientCapabilities,
+			this.#supportsFormElicitation ? FORM_ELICITATION_CAPABILITIES : undefined,
+			run =>
+				trackInteraction(
+					this.#surface.activeWork(record),
+					work => this.#surface.onInteractionChanged(record, work),
+					run,
+				),
+			request => this.#surface.elicitForm(request),
 		);
-		if (this.#clientCapabilities?.elicitation?.form != null) {
+		if (this.#supportsFormElicitation) {
 			record.setToolUIContext?.(uiContext, true);
 			record.session.setUsageFallbackConfirmer((confirmation, signal) => {
 				const reserve =
@@ -3394,18 +2961,40 @@ export class AcpAgent implements Agent {
 	}
 
 	async #closeManagedSession(sessionId: string, record: ManagedSessionRecord): Promise<void> {
+		const running = this.#closing.get(sessionId);
+		if (running?.record === record) {
+			await running.closed;
+			return;
+		}
 		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
 		this.#sessions.delete(sessionId);
-		await this.#cancelPromptForClose(record);
-		await this.#disposeSessionRecord(record);
+		const done = Promise.withResolvers<void>();
+		const entry = { record, closed: done.promise };
+		this.#closing.set(sessionId, entry);
+		try {
+			await this.#cancelPromptForClose(record);
+			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
+			await this.#surface.drain(record);
+			await this.#disposeSessionRecord(record);
+		} finally {
+			if (this.#closing.get(sessionId) === entry) this.#closing.delete(sessionId);
+			done.resolve();
+		}
+	}
+
+	/** True once the session was closed or its agent disposed: late continuations must send and persist nothing. */
+	#isClosed(record: ManagedSessionRecord): boolean {
+		return record.closedError !== undefined;
 	}
 
 	async #cancelPromptForClose(record: ManagedSessionRecord): Promise<void> {
-		const promptTurn = record.promptTurn;
+		// The same view `cancel` uses: v2 work lives in `record.foreground`, not `record.promptTurn`.
+		const promptTurn = this.#turnOf(record);
 		if (!isPromptTurnInFlight(promptTurn)) {
 			return;
 		}
-		const cleanup = promptTurn.cleanup ?? this.#beginCancelCleanup(record, promptTurn);
+		this.#surface.beforeCancel(record);
+		const cleanup = promptTurn.work.cleanup ?? this.#beginCancelCleanup(record, promptTurn.work);
 		try {
 			await cleanup;
 		} catch (error) {
@@ -3415,6 +3004,8 @@ export class AcpAgent implements Agent {
 
 	async #disposeSessionRecord(record: ManagedSessionRecord, reason?: postmortem.Reason): Promise<void> {
 		record.lifetimeUnsubscribe?.();
+		record.surfaceUnsubscribe?.();
+		record.surfaceUnsubscribe = undefined;
 		record.goalUnsubscribe?.();
 		record.goal.dispose();
 		if (record.mcpManager) {

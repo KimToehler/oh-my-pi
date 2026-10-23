@@ -660,7 +660,7 @@ describe("AgentSession concurrent prompt guard", () => {
 		session = new AgentSession({ agent, sessionManager, settings, modelRegistry, extensionRunner });
 		session.setClientBridge({
 			capabilities: {},
-			deferAgentInitiatedTurns: true,
+			allowAgentInitiatedTurns: () => false,
 		});
 
 		await session.prompt("First message");
@@ -814,7 +814,7 @@ describe("AgentSession concurrent prompt guard", () => {
 		});
 		session.setClientBridge({
 			capabilities: {},
-			deferAgentInitiatedTurns: true,
+			allowAgentInitiatedTurns: () => false,
 		});
 
 		await session.prompt("First message");

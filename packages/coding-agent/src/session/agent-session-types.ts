@@ -412,6 +412,9 @@ export interface AgentSessionConfig {
 	autoTitle?: boolean;
 }
 
+/** Where a submission that passed `onSubmissionOutcome` ended up. */
+export type SubmissionOutcome = { kind: "inserted"; entryId: string } | { kind: "command" } | { kind: "dropped" };
+
 /** Options for AgentSession.prompt(). */
 export interface PromptOptions {
 	/** Whether to expand file-based prompt templates (default: true). */
@@ -456,6 +459,14 @@ export interface PromptOptions {
 	 * failed before admission still only settles through the returned promise.
 	 */
 	onPromptAdmitted?: () => void;
+	/**
+	 * Reports where this submission ended up, exactly once, possibly after
+	 * `prompt()` resolved (a queued steer reports at insertion or removal).
+	 * Supported only with `streamingBehavior` absent or `"steer"`; `"followUp"`
+	 * and `"aside"` make `prompt()` reject with `TypeError` before admission.
+	 * A `prompt()` that rejects reports through the rejection only.
+	 */
+	onSubmissionOutcome?: (outcome: SubmissionOutcome) => void;
 }
 
 /** Payload for {@link AgentSession.setPromptDropped}: a user prompt cancelled

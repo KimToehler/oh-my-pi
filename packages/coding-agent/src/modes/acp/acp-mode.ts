@@ -4,6 +4,8 @@ import { getLogsDir, postmortem } from "@oh-my-pi/pi-utils";
 import { AgentSideConnection, ndJsonStream, type Stream } from "@oh-my-pi/pi-utils/acp";
 import type { ExtensionUIContext } from "../../extensibility/extensions/types";
 import type { AgentSession } from "../../session/agent-session";
+import { settings } from "../../config/settings";
+import { cfgAcpProtocolV2 } from "../settings";
 import { AcpAgent } from "./acp-agent";
 
 /** Session and deferred tool UI hook created for an ACP client workspace. */
@@ -23,17 +25,26 @@ export type AcpSessionFactory = (
 	options?: { interactivePrompts?: boolean },
 ) => Promise<AgentSession | AcpSessionHandle>;
 
-/** Creates an ACP connection and exposes its agent when process-level teardown must own it. */
+/**
+ * Creates an ACP connection and exposes its agent when process-level teardown must own it.
+ * `maxVersion` defaults to 1: only the CLI host ({@link runAcpMode}) reads the `acp.protocolV2` opt-in,
+ * because embedders may build a connection before settings exist.
+ */
 export function createAcpConnection(
 	transport: Stream,
 	createSession: AcpSessionFactory,
 	initialSession?: AgentSession,
 	onAgent?: (agent: AcpAgent) => void,
+	options?: { maxVersion?: () => 1 | 2 },
 ): AgentSideConnection {
 	return new AgentSideConnection(connection => {
 		const agent = new AcpAgent(connection, createSession, initialSession);
 		onAgent?.(agent);
-		return agent;
+		return {
+			v1: agent,
+			v2: agent.v2Handler,
+			maxVersion: options?.maxVersion ?? (() => 1),
+		};
 	}, transport);
 }
 
@@ -89,9 +100,15 @@ export async function runAcpMode(createSession: AcpSessionFactory, initialSessio
 	const input = stream.Writable.toWeb(isolateProtocolStdout());
 	const output = stream.Readable.toWeb(process.stdin);
 	const transport = ndJsonStream(input, output);
-	const connection = createAcpConnection(transport, createSession, initialSession, createdAgent => {
-		agent = createdAgent;
-	});
+	const connection = createAcpConnection(
+		transport,
+		createSession,
+		initialSession,
+		createdAgent => {
+			agent = createdAgent;
+		},
+		{ maxVersion: () => (cfgAcpProtocolV2.get(settings) ? 2 : 1) },
+	);
 	await connection.closed;
 	await postmortem.quit(0);
 }

@@ -72,8 +72,8 @@ export interface ClientBridgeCreateTerminalParams {
 
 export interface ClientBridge {
 	readonly capabilities: ClientBridgeCapabilities;
-	/** ACP v1 clients cannot show server-initiated turns as busy after prompt response. */
-	readonly deferAgentInitiatedTurns?: boolean;
+	/** Absent or `true`: agent-initiated turns may start. `false` parks them (ACP v1 has no open prompt to stream into). */
+	readonly allowAgentInitiatedTurns?: () => boolean;
 	readTextFile?(params: { path: string; line?: number; limit?: number }): Promise<string>;
 	writeTextFile?(params: { path: string; content: string }): Promise<void>;
 	createTerminal?(params: ClientBridgeCreateTerminalParams): Promise<ClientBridgeTerminalHandle>;

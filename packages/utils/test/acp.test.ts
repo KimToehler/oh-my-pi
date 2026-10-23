@@ -1,12 +1,18 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, vi } from "bun:test";
 import {
 	AgentSideConnection,
 	type AnyMessage,
+	type Agent,
+	type AgentSurfaces,
+	type AgentV2,
 	type Client,
+	type OutboundFrame,
 	ClientSideConnection,
 	ndJsonStream,
 	RequestError,
+	inBatch,
 	RpcConnection,
+	responseWritten,
 	schema,
 } from "../src/acp";
 
@@ -134,6 +140,127 @@ describe("ACP JSON-RPC batches", () => {
 	});
 });
 
+/** Frame-level peer: records each outbound frame at the moment the sink accepts it. */
+function framePeer(dispatcher: (method: string, params: unknown, notification: boolean) => unknown) {
+	const sunk: unknown[] = [];
+	let inbound!: ReadableStreamDefaultController<unknown>;
+	const readable = new ReadableStream<unknown>({
+		start(controller) {
+			inbound = controller;
+		},
+	});
+	const writable = new WritableStream<OutboundFrame>({
+		write(frame) {
+			sunk.push(frame);
+		},
+	});
+	const connection = new RpcConnection({ readable, writable }, dispatcher);
+	return {
+		sunk,
+		connection,
+		send: (frame: unknown) => inbound.enqueue(frame),
+		end: () => inbound.close(),
+	};
+}
+
+describe("ACP inBatch", () => {
+	it("is true only for handlers answering a batch entry", async () => {
+		expect(inBatch()).toBe(false);
+		const seen: boolean[] = [];
+		const peer = framePeer(() => {
+			seen.push(inBatch());
+			return {};
+		});
+		peer.send({ jsonrpc: "2.0", id: 1, method: "single" });
+		peer.send([
+			{ jsonrpc: "2.0", id: 2, method: "a" },
+			{ jsonrpc: "2.0", method: "n" },
+		]);
+		peer.end();
+		await peer.connection.closed;
+		expect(seen).toEqual([false, true, true]);
+	});
+});
+
+describe("ACP responseWritten", () => {
+	it("resolves immediately outside a request handler", async () => {
+		await responseWritten();
+	});
+
+	it("resolves only after the single response frame is written", async () => {
+		const gate = Promise.withResolvers<void>();
+		const sunkWhenSignalled: number[] = [];
+		let signalled = false;
+		const peer = framePeer(async () => {
+			void responseWritten().then(() => {
+				signalled = true;
+				sunkWhenSignalled.push(peer.sunk.length);
+			});
+			await gate.promise;
+			return {};
+		});
+		peer.send({ jsonrpc: "2.0", id: 1, method: "a" });
+		await Bun.sleep(20);
+		expect(signalled).toBe(false);
+		gate.resolve();
+		peer.end();
+		await peer.connection.closed;
+		expect(peer.sunk).toHaveLength(1);
+		expect(sunkWhenSignalled).toEqual([1]);
+	});
+
+	it("resolves every batch entry's signal only after the batch array is written", async () => {
+		const gate = Promise.withResolvers<void>();
+		const sunkWhenSignalled: number[] = [];
+		let signalled = false;
+		const peer = framePeer(async method => {
+			if (method === "a") {
+				void responseWritten().then(() => {
+					signalled = true;
+					sunkWhenSignalled.push(peer.sunk.length);
+				});
+				return {};
+			}
+			await gate.promise;
+			return {};
+		});
+		peer.send([
+			{ jsonrpc: "2.0", id: 1, method: "a" },
+			{ jsonrpc: "2.0", id: 2, method: "b" },
+		]);
+		await Bun.sleep(20);
+		expect(signalled).toBe(false);
+		gate.resolve();
+		peer.end();
+		await peer.connection.closed;
+		expect(peer.sunk).toHaveLength(1);
+		expect(sunkWhenSignalled).toEqual([1]);
+	});
+
+	it("resolves when the drain timeout answers a handler that never settles", async () => {
+		vi.useFakeTimers();
+		try {
+			let signalled = false;
+			const peer = framePeer(() => {
+				void responseWritten().then(() => {
+					signalled = true;
+				});
+				return new Promise(() => {});
+			});
+			peer.send({ jsonrpc: "2.0", id: 1, method: "a" });
+			peer.end();
+			for (let turn = 0; turn < 50; turn++) await Promise.resolve();
+			expect(signalled).toBe(false);
+			vi.advanceTimersByTime(30_000);
+			await peer.connection.closed;
+			expect(signalled).toBe(true);
+			expect(peer.sunk).toEqual([{ jsonrpc: "2.0", id: 1, error: expect.objectContaining({ code: -32603 }) }]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe("ACP JSON-RPC transport", () => {
 	it("round-trips requests, notifications, and errors", async () => {
 		const pair = transportPair();
@@ -149,18 +276,21 @@ describe("ACP JSON-RPC transport", () => {
 		const clientConnection = new ClientSideConnection(() => client, pair.left);
 		const agentConnection = new AgentSideConnection(
 			connection => ({
-				initialize: params => ({ protocolVersion: params.protocolVersion }),
-				newSession: async () => ({ sessionId: "session-1" }),
-				prompt: async params => {
-					if (params.prompt.length === 0) throw RequestError.invalidParams({ field: "prompt" });
-					await connection.requestPermission({
-						sessionId: params.sessionId,
-						toolCall: { toolCallId: "tool-1" },
-						options: [],
-					});
-					return { stopReason: "end_turn" };
+				maxVersion: () => 1,
+				v1: {
+					initialize: params => ({ protocolVersion: params.protocolVersion }),
+					newSession: async () => ({ sessionId: "session-1" }),
+					prompt: async params => {
+						if (params.prompt.length === 0) throw RequestError.invalidParams({ field: "prompt" });
+						await connection.requestPermission({
+							sessionId: params.sessionId,
+							toolCall: { toolCallId: "tool-1" },
+							options: [],
+						});
+						return { stopReason: "end_turn" };
+					},
+					cancel: async () => {},
 				},
-				cancel: async () => {},
 			}),
 			pair.right,
 		);
@@ -324,5 +454,113 @@ describe("ACP runtime schemas", () => {
 				update: { sessionUpdate: "agent_message_chunk", content: { type: "text" } },
 			}).success,
 		).toBe(false);
+	});
+});
+
+describe("ACP versioned dispatch", () => {
+	/** Wires an {@link AgentSideConnection} to a raw client; records which surface handled each call. */
+	function versioned(options: { v2: boolean; maxVersion: 1 | 2 }) {
+		const calls: string[] = [];
+		const v1 = {
+			initialize: async () => {
+				calls.push("v1.initialize");
+				return { protocolVersion: 1 };
+			},
+			newSession: async () => {
+				calls.push("v1.newSession");
+				return { sessionId: "s1" };
+			},
+		} as unknown as Agent;
+		const v2 = {
+			initialize: async () => {
+				calls.push("v2.initialize");
+				return { protocolVersion: 2, info: { name: "a", version: "1" } };
+			},
+			logout: async () => {
+				calls.push("v2.logout");
+				return {};
+			},
+		} as unknown as AgentV2;
+		const { left, right } = transportPair();
+		new AgentSideConnection(
+			(): AgentSurfaces => ({ v1, v2: options.v2 ? v2 : undefined, maxVersion: () => options.maxVersion }),
+			left,
+		);
+		const client = new RpcConnection(right, () => {
+			throw RequestError.methodNotFound("client");
+		});
+		return { calls, client };
+	}
+	const info = { name: "c", version: "1" };
+
+	async function errorCode(promise: Promise<unknown>): Promise<number | undefined> {
+		try {
+			await promise;
+			return undefined;
+		} catch (error) {
+			return error instanceof RequestError ? error.code : undefined;
+		}
+	}
+
+	it("runs the v2 initialize when both sides support v2", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 2, info });
+		expect(result.protocolVersion).toBe(2);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("clamps a higher requested version down to 2", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 3, info });
+		expect(result.protocolVersion).toBe(2);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("selects v1 when maxVersion is 1 even if v2 is requested", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 1 });
+		const result = await client.request<{ protocolVersion: number }>("initialize", { protocolVersion: 2 });
+		expect(result.protocolVersion).toBe(1);
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("selects v1 when no v2 surface exists", async () => {
+		const { calls, client } = versioned({ v2: false, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2 });
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("rejects missing, non-integer and sub-1 protocolVersion with invalid params", async () => {
+		for (const params of [{}, { protocolVersion: 0 }, { protocolVersion: "2" }, { protocolVersion: 1.5 }]) {
+			const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+			expect(await errorCode(client.request("initialize", params))).toBe(-32602);
+			expect(calls).toEqual([]);
+		}
+	});
+
+	it("rejects a second initialize with invalid request", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2, info });
+		expect(await errorCode(client.request("initialize", { protocolVersion: 2, info }))).toBe(-32600);
+		expect(calls).toEqual(["v2.initialize"]);
+	});
+
+	it("routes v2-only methods to the v2 handler after v2 selection", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("initialize", { protocolVersion: 2, info });
+		await client.request("auth/logout", {});
+		expect(calls).toEqual(["v2.initialize", "v2.logout"]);
+	});
+
+	it("answers v2-only methods with method-not-found under v1", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 1 });
+		await client.request("initialize", { protocolVersion: 2 });
+		expect(await errorCode(client.request("auth/logout", {}))).toBe(-32601);
+		expect(calls).toEqual(["v1.initialize"]);
+	});
+
+	it("keeps dispatching to v1 for frames before initialize", async () => {
+		const { calls, client } = versioned({ v2: true, maxVersion: 2 });
+		await client.request("session/new", {});
+		expect(calls).toEqual(["v1.newSession"]);
 	});
 });

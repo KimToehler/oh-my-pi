@@ -5,10 +5,12 @@
 ### Breaking Changes
 
 - SDK: `PlanProposalHandler` now receives the resolved plan (`{ planFilePath, planContent, title }`) instead of the proposed title; `AgentSession.preparePlanForReview` was removed.
+- SDK: `ClientBridge.deferAgentInitiatedTurns` and `AgentSession.setAcpPromptOpen()` were replaced by one callback, `ClientBridge.allowAgentInitiatedTurns?: () => boolean`, asked whenever a turn the agent starts on its own (such as a background-job wake) would begin; return what you used to pass to `setAcpPromptOpen`.
 
 ### Added
 
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
+- ACP protocol v2 is available as an opt-in (`acp.protocolV2`): clients get explicit run-state updates, ids for the prompts saved in your transcript that stay stable across resume (agent replies and locally handled commands get fresh ids), and resume replay on request.
 - ACP clients such as JetBrains IDEs can pick a Goal mode: your next message becomes the objective, the agent keeps working on it turn after turn within that reply until the goal is complete, Stop pauses the goal, and your next message resumes it (`goal.continuationModes` now includes `"acp"` by default)
 - `wait` and `read proc://` now show a running subagent's run time, request count, cost, context fill and stage, so a subagent that is looping is visible without opening its transcript
 - Subagents that keep compacting are now stopped automatically: after `task.softCompactionBudget` compactions (default 3) they are asked to wrap up (when `task.softRequestBudgetNotice` is on), and one more compaction stops the run and asks for a final report
@@ -19,8 +21,10 @@
 
 ### Fixed
 
-- Fixed ACP clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message
-- Fixed ACP steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply
+- Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
+- Fixed ACP resource-link attachments not reaching the model.
+- Fixed ACP v1 clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message (ACP v2 clients see the job's result as its own run)
+- Fixed ACP v1 steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply
 - Fixed slash commands such as `/compact` sent as an ACP steering message mid-turn (JetBrains IDEs) reaching the model as plain text; they now run immediately, `/compact` resumes the interrupted work in the same reply, and several steered commands run in order
 - Fixed ACP clients such as JetBrains IDEs not labelling the recommended option of an `ask` question; it now shows "(Recommended)" like the TUI, including in multi-select questions
 - Fixed JetBrains IDEs over ACP switching plan mode and the pre-approval model back on with your next message after you approved a plan, because the mode dropdown stays on "Plan"; omp now ignores the IDE's re-sent choice until you pick a different mode or model

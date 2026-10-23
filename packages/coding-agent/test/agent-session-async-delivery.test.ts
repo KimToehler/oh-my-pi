@@ -1028,7 +1028,8 @@ describe("AgentSession owner-routed async delivery", () => {
 			agentId: "AcpOwner",
 			asyncJobManager: manager,
 		});
-		session.setClientBridge({ capabilities: {}, deferAgentInitiatedTurns: true });
+		let promptOpen = false;
+		session.setClientBridge({ capabilities: {}, allowAgentInitiatedTurns: () => promptOpen });
 		const callsMentioning = (text: string) =>
 			mock.calls.filter(call => JSON.stringify(call.context.messages).includes(text)).length;
 
@@ -1047,12 +1048,12 @@ describe("AgentSession owner-routed async delivery", () => {
 		expect(callsMentioning("PARKED RESULT")).toBe(1);
 
 		// ACP prompt open: the same wake runs as a turn that streams into that prompt.
-		session.setAcpPromptOpen(true);
+		promptOpen = true;
 		const callsBeforeWake = mock.calls.length;
 		manager.register("bash", "owned job", async () => "WAKE RESULT", { id: "wake-job", ownerId: "AcpOwner" });
 		await session.settleAsyncWork();
 		expect(mock.calls.length).toBe(callsBeforeWake + 1);
 		expect(callsMentioning("WAKE RESULT")).toBe(1);
-		session.setAcpPromptOpen(false);
+		promptOpen = false;
 	});
 });

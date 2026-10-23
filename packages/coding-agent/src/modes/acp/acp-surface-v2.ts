@@ -1,0 +1,624 @@
+/**
+ * ACP protocol v2 surface: negotiation, auth, session-setup shape and the v2 wire mapping, plus the run model.
+ * A prompt is acknowledged at insertion, not at foreground end; foreground work (client- or agent-originated)
+ * is framed by `state_update` (`running`, `requires_action`, `idle` with a stop reason) driven by a
+ * session-lifetime subscription. Owner-scoped background jobs do not hold a foreground open: their wake is
+ * a separate agent-initiated foreground. Cancel latches agent-initiated work off until the next insertion.
+ */
+import { type AgentMessage, AgentBusyError } from "@oh-my-pi/pi-agent-core";
+import { logger, VERSION } from "@oh-my-pi/pi-utils";
+import {
+	inBatch,
+	PROTOCOL_VERSION_V2,
+	RequestError,
+	responseWritten,
+	type SessionNotification,
+	type v2,
+} from "@oh-my-pi/pi-utils/acp";
+import type { AgentSessionEvent } from "../../session/agent-session";
+import type { SubmissionOutcome } from "../../session/agent-session-types";
+import type {
+	ClientBridgePermissionOption,
+	ClientBridgePermissionOutcome,
+	ClientBridgePermissionToolCall,
+} from "../../session/client-bridge";
+import type { AcpEventMapperOptions } from "./acp-event-mapper";
+import {
+	type AcpV2MapperOptions,
+	type AcpV2MessageRole,
+	buildV2UserMessage,
+	buildV2UserMessageFromChunks,
+	buildV2PermissionRequest,
+	convertAvailableCommandsToV2,
+	convertConfigOptionsToV2,
+	convertV1UpdateToV2,
+	interpretV2PermissionOutcome,
+	mapAgentSessionEventToAcpV2Updates,
+} from "./acp-event-mapper-v2";
+import {
+	cloneUsageStatistics,
+	createForegroundWork,
+	type ForegroundOrigin,
+	type ForegroundWork,
+	isBlockedOnInteraction,
+	resolveTurnFailure,
+} from "./acp-foreground";
+import type {
+	AcpEmitSource,
+	AcpSurface,
+	AcpSurfaceHost,
+	AcpWireV2,
+	ForegroundEnd,
+	FormElicitation,
+	FormElicitationTransport,
+	ManagedSessionRecord,
+	SessionSetupKind,
+} from "./acp-surface";
+import { sessionEntryIdOf } from "../../session/session-entry-id";
+import { iterateSessionReplay } from "./acp-replay";
+import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
+
+/**
+ * v2 `oneOf` options carry only `const` and `title`; the shared builder also attaches a `description` that
+ * v1 clients render, so it is dropped here. Every other property field is already the v2 shape.
+ */
+function toV2Properties(properties: FormElicitation["properties"]): Record<string, v2.ElicitationPropertySchema> {
+	const mapped: Record<string, v2.ElicitationPropertySchema> = {};
+	for (const [key, property] of Object.entries(properties)) {
+		const oneOf = property.oneOf;
+		mapped[key] = (
+			Array.isArray(oneOf)
+				? { ...property, oneOf: oneOf.map(({ const: value, title }) => ({ const: value, title })) }
+				: property
+		) as v2.ElicitationPropertySchema;
+	}
+	return mapped;
+}
+
+export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
+	readonly version = 2;
+	readonly holdsForegroundForBackgroundWork = false;
+	#host: AcpSurfaceHost;
+	/** Pending ordered emission per record (`user_message` echo, `state_update`, mapped content); see {@link #enqueue}. */
+	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Transport write of the last frame a record's ordered path handed over; writes complete in call order. */
+	#lastWrites = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Records a close has drained: their session sends nothing more; see {@link drain}. */
+	#sealed = new WeakSet<ManagedSessionRecord>();
+	/** Submissions of a record that have not yet reported an outcome; Stop drops them. */
+	#pendingSubmissions = new WeakMap<ManagedSessionRecord, Set<() => void>>();
+	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
+	#settleTimers = new Map<ManagedSessionRecord, NodeJS.Timeout>();
+
+	constructor(host: AcpSurfaceHost) {
+		this.#host = host;
+	}
+
+	authMethods(capabilities: v2.ClientCapabilities | undefined): v2.AuthMethod[] {
+		const authMethods: v2.AuthMethod[] = [
+			{
+				type: "agent",
+				methodId: "agent",
+				name: "Use existing local credentials",
+				description: "Authenticate via the provider keys/OAuth state already configured under ~/.omp.",
+			},
+		];
+		const terminal = capabilities?.auth?.terminal;
+		if (typeof terminal === "object" && terminal !== null) {
+			authMethods.push({
+				type: "terminal",
+				methodId: "terminal",
+				name: "Set up omp in terminal",
+				description: "Launch the omp TUI to add provider keys and select models.",
+				args: [ACP_TERMINAL_AUTH_FLAG],
+				env: [],
+			});
+		}
+		return authMethods;
+	}
+
+	validAuthMethodIds(capabilities: v2.ClientCapabilities | undefined): string[] {
+		return this.authMethods(capabilities).map(method => method.methodId);
+	}
+
+	initializeResponse(params: v2.InitializeRequest): v2.InitializeResponse {
+		return {
+			protocolVersion: PROTOCOL_VERSION_V2,
+			info: { name: "omp", title: "omp", version: VERSION },
+			authMethods: this.authMethods(params.capabilities),
+			capabilities: {
+				session: {
+					prompt: { image: {}, embeddedContext: {} },
+					mcp: { stdio: {}, http: {} },
+				},
+			},
+		};
+	}
+
+	async sessionSetupResponse(
+		record: ManagedSessionRecord,
+		_kind: SessionSetupKind,
+	): Promise<AcpWireV2["sessionSetup"]> {
+		const commands = await this.#host.buildAvailableCommands(record);
+		return {
+			configOptions: convertConfigOptionsToV2(this.#host.buildConfigOptions(record)),
+			availableCommands: convertAvailableCommandsToV2(commands),
+		};
+	}
+
+	async admitPrompt(record: ManagedSessionRecord, params: v2.PromptRequest): Promise<v2.PromptResponse> {
+		// Serialised only until the previous prompt's outcome (insertion or rejection), never its foreground end.
+		const slot = Promise.withResolvers<void>();
+		const previous = record.promptQueue.promise;
+		record.promptQueue = { promise: slot.promise, release: slot.resolve };
+		try {
+			await previous;
+			this.#host.throwIfRecordClosed(record);
+			return await this.#submit(record, params, slot.resolve);
+		} finally {
+			slot.resolve();
+		}
+	}
+
+	async #submit(
+		record: ManagedSessionRecord,
+		params: v2.PromptRequest,
+		releaseQueue: () => void,
+	): Promise<v2.PromptResponse> {
+		const converted = this.#host.convertPromptBlocks(
+			params.prompt as Parameters<AcpSurfaceHost["convertPromptBlocks"]>[0],
+		);
+		let ownWork: ForegroundWork | undefined;
+		if (!record.foreground) {
+			ownWork = createForegroundWork(
+				"prompt",
+				cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
+			);
+			record.foreground = ownWork;
+			this.onForegroundStart(record, ownWork);
+		}
+		const targetWork = record.foreground;
+		const outcome = Promise.withResolvers<SubmissionOutcome>();
+		let outcomeSeen = false;
+		const settle = (submission: SubmissionOutcome): void => {
+			if (outcomeSeen) return;
+			outcomeSeen = true;
+			this.#pendingSubmissions.get(record)?.delete(drop);
+			outcome.resolve(submission);
+		};
+		const drop = (): void => settle({ kind: "dropped" });
+		let pending = this.#pendingSubmissions.get(record);
+		if (!pending) {
+			pending = new Set();
+			this.#pendingSubmissions.set(record, pending);
+		}
+		pending.add(drop);
+		const run = this.#host.runPromptOrCommand(record, converted.text, converted.images, {
+			ownsForeground: ownWork !== undefined,
+			onSubmissionOutcome: settle,
+		});
+		run.then(
+			// A resolved run without an outcome is a steer still queued: insertion or the foreground end reports it.
+			() => {},
+			async (error: unknown) => {
+				const wire =
+					error instanceof AgentBusyError
+						? RequestError.sessionBusy(error.message, { reason: "session_busy", hint: "steer|followUp|wait" })
+						: error;
+				if (!outcomeSeen) {
+					outcomeSeen = true;
+					this.#pendingSubmissions.get(record)?.delete(drop);
+					outcome.reject(wire);
+					return;
+				}
+				// Response already sent: the failure ends the foreground this prompt owns.
+				if (ownWork) {
+					ownWork.deferredError ??= wire;
+					if (!(await this.#host.awaitSteeredBuiltins(record, ownWork, true))) return;
+					this.onForegroundEnd(record, ownWork, { error: wire });
+				} else {
+					logger.warn("ACP v2 steered prompt failed after insertion", { error: wire });
+				}
+			},
+		);
+
+		let submission: SubmissionOutcome;
+		try {
+			submission = await outcome.promise;
+		} catch (error) {
+			releaseQueue();
+			if (ownWork) this.onForegroundEnd(record, ownWork, { error });
+			throw error;
+		}
+		releaseQueue();
+		if (submission.kind === "dropped") {
+			const cancelled = targetWork?.cancelRequested === true;
+			const error = cancelled
+				? RequestError.requestCancelled()
+				: RequestError.internalError(undefined, "Prompt dropped before insertion");
+			if (ownWork && !cancelled) this.onForegroundEnd(record, ownWork, { error });
+			throw error;
+		}
+		let messageId: string;
+		if (submission.kind === "inserted") {
+			record.cancelLatched = false;
+			messageId = submission.entryId;
+		} else {
+			messageId = crypto.randomUUID();
+		}
+		this.#echoAfterResponse(record, params, messageId);
+		return { messageId };
+	}
+
+	/**
+	 * Emit the `user_message` once the response frame carrying the prompt's `messageId` is written; later frames of
+	 * the record wait for it behind the per-record order. Only single requests reach here ({@link rejectBatchedPrompt}), so the wait never
+	 * depends on another request's settling.
+	 */
+	#echoAfterResponse(record: ManagedSessionRecord, params: v2.PromptRequest, messageId: string): void {
+		const written = responseWritten();
+		this.#enqueue(record, async () => {
+			await written;
+			try {
+				await this.#sendOrdered(record, {
+					sessionId: params.sessionId,
+					update: buildV2UserMessage(messageId, params.prompt),
+				});
+			} catch (error) {
+				logger.warn("ACP v2 user_message delivery failed", { error });
+			}
+		});
+	}
+
+	/**
+	 * The one ordered emission path of a record: the deferred `user_message` echo and every `state_update` run in
+	 * enqueue order. A step runs synchronously while nothing is pending, so an idle record adds no latency.
+	 */
+	#enqueue(record: ManagedSessionRecord, step: () => void | Promise<void>): void {
+		const prev = this.#echoes.get(record);
+		let chain: Promise<void>;
+		if (prev) {
+			chain = prev.then(step);
+		} else {
+			const result = step();
+			if (!(result instanceof Promise)) return;
+			chain = result;
+		}
+		const tail: Promise<void> = chain
+			.catch((error: unknown) => {
+				logger.warn("ACP v2 ordered emission failed", { error });
+			})
+			.finally(() => {
+				if (this.#echoes.get(record) === tail) this.#echoes.delete(record);
+			});
+		this.#echoes.set(record, tail);
+	}
+
+	/** `idle` without foreground work; `requires_action` while the work waits only on the client; else `running`. */
+	currentState(record: ManagedSessionRecord): v2.StateUpdate {
+		const work = record.foreground;
+		if (!work) return { state: "idle" };
+		return { state: isBlockedOnInteraction(work) ? "requires_action" : "running" };
+	}
+
+	/**
+	 * The one path every state input (tool start/end, interaction open/close) re-evaluates through.
+	 * `requires_action` is announced only once it survives a macrotask: session events reach this surface
+	 * after the interaction they caused (a permission request opens before its own `tool_execution_start`
+	 * is delivered), so an immediate evaluation would flap for sibling tools that are about to start.
+	 */
+	#reevaluateState(record: ManagedSessionRecord, work: ForegroundWork): void {
+		if (record.foreground !== work) return;
+		const state = this.currentState(record);
+		if (state.state === "requires_action" && record.lastEmittedState !== "requires_action") {
+			if (this.#settleTimers.has(record)) return;
+			this.#settleTimers.set(
+				record,
+				setTimeout(() => {
+					this.#settleTimers.delete(record);
+					if (record.foreground === work) this.#emitState(record, this.currentState(record));
+				}, 0),
+			);
+			return;
+		}
+		this.#clearSettleTimer(record);
+		this.#emitState(record, state);
+	}
+
+	#clearSettleTimer(record: ManagedSessionRecord): void {
+		const timer = this.#settleTimers.get(record);
+		if (timer === undefined) return;
+		clearTimeout(timer);
+		this.#settleTimers.delete(record);
+	}
+
+	#trackToolLifecycle(record: ManagedSessionRecord, event: AgentSessionEvent): void {
+		if (event.type !== "tool_execution_start" && event.type !== "tool_execution_end") return;
+		const work = record.foreground;
+		if (!work) return;
+		if (event.type === "tool_execution_start") work.runningTools.add(event.toolCallId);
+		else work.runningTools.delete(event.toolCallId);
+		this.#reevaluateState(record, work);
+	}
+
+	/**
+	 * Dedup compares against the last state sent or queued; the frame itself goes out in enqueue order, so a
+	 * foreground's deferred `idle` never lands after its successor's `running`.
+	 */
+	#emitState(record: ManagedSessionRecord, state: v2.StateUpdate): void {
+		if (state.state !== "idle" && record.lastEmittedState === state.state) return;
+		record.lastEmittedState = state.state;
+		this.#enqueue(record, () => {
+			this.#sendOrdered(record, {
+				sessionId: record.session.sessionId,
+				update: { sessionUpdate: "state_update", ...state },
+			}).catch((error: unknown) => {
+				logger.warn("ACP v2 state_update delivery failed", { error });
+			});
+		});
+	}
+
+	/**
+	 * Resume replay: `replayFrom: {type:"start"}` streams the transcript through the v2 mapping (user messages keep
+	 * their persisted entry id, other roles get one fresh id per message); no cursor replays nothing. Either way the
+	 * `state_update` snapshot follows, bypassing dedup because snapshots are idempotent.
+	 */
+	async replay(record: ManagedSessionRecord, replayFrom?: unknown): Promise<void> {
+		const replayStart =
+			typeof replayFrom === "object" && replayFrom !== null && "type" in replayFrom && replayFrom.type === "start";
+		if (replayFrom !== undefined && replayFrom !== null && !replayStart) {
+			throw RequestError.invalidParams(undefined, "Unsupported replayFrom cursor");
+		}
+		const sessionId = record.session.sessionId;
+		if (replayStart) {
+			const cwd = record.session.sessionManager.getCwd();
+			for (const { message, notifications } of iterateSessionReplay(record.session, this.#host.blobs)) {
+				const messageId =
+					(message.role === "user" ? sessionEntryIdOf(message as AgentMessage) : undefined) ?? crypto.randomUUID();
+				if (message.role === "user") {
+					// One `user_message` per persisted user message, as the live echo sends it.
+					const update = buildV2UserMessageFromChunks(
+						messageId,
+						notifications.map(notification => notification.update),
+					);
+					if (update) await this.sendMapped({ sessionId, update });
+					continue;
+				}
+				const options: AcpV2MapperOptions = { cwd, messageIdFor: () => messageId };
+				for (const notification of notifications) {
+					const update = convertV1UpdateToV2(notification.update, options, { message });
+					if (update) await this.sendMapped({ sessionId, update });
+				}
+			}
+		}
+		const state = this.#settledState(record);
+		record.lastEmittedState = state.state;
+		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
+	}
+
+	/**
+	 * The state the live stream reports: while a `requires_action` is still inside its settle delay the stream
+	 * says `running`, so a resume snapshot must as well.
+	 */
+	#settledState(record: ManagedSessionRecord): v2.StateUpdate {
+		const state = this.currentState(record);
+		if (state.state === "requires_action" && this.#settleTimers.has(record)) return { state: "running" };
+		return state;
+	}
+
+	onForegroundStart(record: ManagedSessionRecord, _work: ForegroundWork): void {
+		this.#emitState(record, { state: "running" });
+	}
+
+	onInteractionChanged(record: ManagedSessionRecord, work: ForegroundWork): void {
+		this.#reevaluateState(record, work);
+	}
+
+	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void {
+		if (record.foreground !== work) return;
+		record.session.settlePendingSubmissions();
+		record.foreground = undefined;
+		this.#clearSettleTimer(record);
+		// A provider failure ends the run with an assistant `error` reply rather than a thrown error.
+		const turnFailure = "error" in end ? undefined : resolveTurnFailure(work);
+		const state: v2.StateUpdate =
+			"error" in end
+				? {
+						state: "idle",
+						stopReason: "error",
+						error: {
+							code: end.error instanceof RequestError ? end.error.code : -32603,
+							message: end.error instanceof Error ? end.error.message : String(end.error),
+						},
+					}
+				: turnFailure !== undefined
+					? { state: "idle", stopReason: "error", error: { code: -32603, message: turnFailure } }
+					: { state: "idle", stopReason: end.response.stopReason };
+		this.#emitState(record, state);
+	}
+
+	beforeCancel(record: ManagedSessionRecord): void {
+		const work = record.foreground;
+		if (!work) return;
+		record.cancelLatched = true;
+		work.cancelRequested = true;
+		record.session.clearQueue({ forInterrupt: true });
+		// A submission still before its outcome (skill preparation, Goal admission) is settled and released now,
+		// not when the held operation returns; its late continuation can neither insert nor report again.
+		for (const drop of this.#pendingSubmissions.get(record) ?? []) drop();
+	}
+
+	/** `elicitation/create` in the v2 shape (session-scoped form); `accept` without content answers nothing. */
+	elicitForm: FormElicitationTransport = async ({ sessionId, message, properties, required }) => {
+		const response = await this.#host.connection.v2.createElicitation({
+			mode: "form",
+			sessionId,
+			message,
+			requestedSchema: { type: "object", properties: toV2Properties(properties), required },
+		});
+		return response.action === "accept"
+			? { action: "accept", content: response.content ?? {} }
+			: { action: response.action };
+	};
+
+	subscribe(record: ManagedSessionRecord): () => void {
+		return record.session.subscribe(event => {
+			// First: the core may begin agent-originated work for this very event.
+			this.#host.trackForegroundEvent(record, event);
+			this.#trackToolLifecycle(record, event);
+		});
+	}
+
+	allowsAgentInitiatedWork(record: ManagedSessionRecord): boolean {
+		// A closed or disposed session starts nothing, including while its teardown still awaits.
+		return !record.cancelLatched && record.closedError === undefined;
+	}
+
+	acceptsUpdates(record: ManagedSessionRecord, work: ForegroundWork): boolean {
+		// `onForegroundEnd` clears the foreground in the same step that enqueues `idle`.
+		return record.foreground === work;
+	}
+
+	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined {
+		return record.foreground;
+	}
+
+	inFlightWork(record: ManagedSessionRecord): ForegroundWork | undefined {
+		return this.activeWork(record);
+	}
+
+	beginForeground(record: ManagedSessionRecord, origin: ForegroundOrigin): ForegroundWork | undefined {
+		if (!this.allowsAgentInitiatedWork(record)) return undefined;
+		const work = createForegroundWork(
+			origin,
+			cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
+		);
+		record.foreground = work;
+		this.onForegroundStart(record, work);
+		return work;
+	}
+
+	#mapperOptions(sessionId: string, options: AcpEventMapperOptions): AcpV2MapperOptions {
+		const record = this.#host.recordFor(sessionId);
+		return {
+			...options,
+			cwd: options.cwd ?? record?.session.sessionManager.getCwd() ?? "",
+			messageIdFor: (message, _role: AcpV2MessageRole) => this.#messageId(record, message, options),
+		};
+	}
+
+	#messageId(record: ManagedSessionRecord | undefined, message: unknown, options: AcpEventMapperOptions): string {
+		const known = options.getMessageId?.(message);
+		if (known !== undefined) return known;
+		if (!record) return crypto.randomUUID();
+		record.liveMessageId ??= crypto.randomUUID();
+		return record.liveMessageId;
+	}
+
+	mapUpdate(event: AgentSessionEvent, sessionId: string, options: AcpEventMapperOptions): v2.SessionNotification[] {
+		return mapAgentSessionEventToAcpV2Updates(event, this.#mapperOptions(sessionId, options)).map(update => ({
+			sessionId,
+			update,
+		}));
+	}
+
+	async permissionRequest(
+		_record: ManagedSessionRecord,
+		sessionId: string,
+		toolCall: ClientBridgePermissionToolCall,
+		options: ClientBridgePermissionOption[],
+		signal: AbortSignal | undefined,
+	): Promise<ClientBridgePermissionOutcome> {
+		if (signal?.aborted) return { outcome: "cancelled" };
+		const response = await this.#host.connection.v2.requestPermission(
+			buildV2PermissionRequest(sessionId, toolCall, options),
+		);
+		const outcome = interpretV2PermissionOutcome(
+			response,
+			options.map(option => option.optionId),
+		);
+		if (outcome.outcome === "selected") {
+			const matched = options.find(option => option.optionId === outcome.optionId);
+			if (matched) return { ...outcome, kind: matched.kind };
+		}
+		return outcome;
+	}
+
+	async emit(sessionId: string, notification: SessionNotification, source?: AcpEmitSource): Promise<void> {
+		const record = this.#host.recordFor(sessionId);
+		const update = convertV1UpdateToV2(
+			notification.update,
+			this.#mapperOptions(sessionId, { cwd: record?.session.sessionManager.getCwd() }),
+			source,
+		);
+		if (update) await this.sendMapped({ sessionId, update });
+	}
+
+	/**
+	 * Every `session/update` goes through its record's ordered path, so content never overtakes a queued
+	 * `user_message` or state transition. Resolves once the frame has been sent. A session that is neither
+	 * registered nor closing, or whose close has drained it, gets nothing: a producer that resumes late would
+	 * otherwise send after the close response.
+	 */
+	sendMapped(notification: v2.SessionNotification): Promise<void> {
+		const record = this.#host.recordFor(notification.sessionId);
+		if (!record) {
+			logger.debug("ACP v2 update for an unknown or closed session dropped", {
+				sessionId: notification.sessionId,
+				sessionUpdate: notification.update.sessionUpdate,
+			});
+			return Promise.resolve();
+		}
+		const sent = Promise.withResolvers<void>();
+		this.#enqueue(record, () => {
+			sent.resolve(this.#sendOrdered(record, notification));
+		});
+		return sent.promise;
+	}
+
+	async drain(record: ManagedSessionRecord): Promise<void> {
+		// Settle until no handler, step or write is pending, then seal in that same step, so a producer that
+		// resumes afterwards (bootstrap, command metadata) sends nothing while the close finishes.
+		for (;;) {
+			await this.#host.waitForUpdateDeliveries(record);
+			const tail = this.#echoes.get(record);
+			if (tail) {
+				await tail;
+				continue;
+			}
+			const last = this.#lastWrites.get(record);
+			await last;
+			if (!this.#echoes.has(record) && this.#lastWrites.get(record) === last) break;
+		}
+		this.#sealed.add(record);
+	}
+
+	/**
+	 * The one wire send of a record (enqueued steps only); the write is recorded so {@link drain} can wait for it.
+	 * A sealed record sends nothing.
+	 */
+	#sendOrdered(record: ManagedSessionRecord, notification: v2.SessionNotification): Promise<void> {
+		if (this.#sealed.has(record)) {
+			logger.debug("ACP v2 update for a closed session dropped", {
+				sessionId: notification.sessionId,
+				sessionUpdate: notification.update.sessionUpdate,
+			});
+			return Promise.resolve();
+		}
+		const write = this.#host.connection.v2.sessionUpdate(notification);
+		this.#lastWrites.set(
+			record,
+			write.catch(() => {}),
+		);
+		return write;
+	}
+}
+
+/**
+ * A v2 prompt's `user_message` echo waits for the response frame carrying its `messageId`; inside a JSON-RPC batch
+ * that frame is only written after every other entry settled, which couples the prompt's ordering to unrelated
+ * requests. The prompt is refused before admission: nothing is queued, no foreground starts, no frame is sent.
+ */
+export function rejectBatchedPrompt(): void {
+	if (inBatch()) throw RequestError.invalidRequest(undefined, "session/prompt must be sent as a single request");
+}

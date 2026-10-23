@@ -22,10 +22,20 @@ import type {
 	ClientBridgeTerminalHandle,
 } from "../../session/client-bridge";
 
+/** Asks the ACP client to permit a tool call; supplied per protocol version by the adapter's surface. */
+export type AcpPermissionRequester = (
+	toolCall: ClientBridgePermissionToolCall,
+	options: ClientBridgePermissionOption[],
+	signal: AbortSignal | undefined,
+) => Promise<ClientBridgePermissionOutcome>;
+
 export function createAcpClientBridge(
 	connection: AgentSideConnection,
 	sessionId: string,
 	clientCapabilities: ClientCapabilities | undefined,
+	allowAgentInitiatedTurns: () => boolean,
+	permission: AcpPermissionRequester = (toolCall, options, signal) =>
+		requestAcpPermission(connection, sessionId, toolCall, options, signal),
 ): ClientBridge {
 	const capabilities: ClientBridgeCapabilities = {
 		readTextFile: clientCapabilities?.fs?.readTextFile === true,
@@ -36,7 +46,7 @@ export function createAcpClientBridge(
 		requestPermission: true,
 	};
 
-	const bridge: ClientBridge = { capabilities, deferAgentInitiatedTurns: true };
+	const bridge: ClientBridge = { capabilities, allowAgentInitiatedTurns };
 
 	if (capabilities.readTextFile) {
 		bridge.readTextFile = async params => {
@@ -65,8 +75,7 @@ export function createAcpClientBridge(
 			createTerminalHandle(connection, sessionId, params);
 	}
 
-	bridge.requestPermission = (toolCall, options, signal) =>
-		requestPermission(connection, sessionId, toolCall, options, signal);
+	bridge.requestPermission = permission;
 
 	return bridge;
 }
@@ -111,7 +120,7 @@ function wrapTerminalHandle(handle: AcpTerminalHandle): ClientBridgeTerminalHand
 	};
 }
 
-async function requestPermission(
+export async function requestAcpPermission(
 	connection: AgentSideConnection,
 	sessionId: string,
 	toolCall: ClientBridgePermissionToolCall,
