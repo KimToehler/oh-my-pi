@@ -6,7 +6,7 @@
  * provider. Every v2 frame is validated against the vendored schema; the last test asserts the suite-wide
  * mapping conformance (plan Verification 7).
  *
- * "Plan N" below is the numbered item in `.omo/plans/ACP_V2_BASELINE_PLAN.md` Verification.
+ * "Plan N" below is the numbered item in `.omp/plans/ACP_V2_BASELINE_PLAN.md` Verification.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout, vi } from "bun:test";
 import * as fs from "node:fs";

@@ -64,17 +64,8 @@ changes/
 !/openspec/changes/
 __pycache__/
 
-# .omo policy: only plans, gate records (evidence/gate) and reviewer trailers (*trailer*) stay addable.
-# QA outputs, runs, gate-deltas, ledgers and drafts are local. Tracked files stay tracked.
-/.omo/*
-!/.omo/plans/
-!/.omo/evidence/
-/.omo/evidence/**/*
-!/.omo/evidence/**/
-!/.omo/evidence/gate/**
-!/.omo/evidence/**/*trailer*
-# historical trailer cited by gate/merge-gate-worktree-records.json
-!/.omo/evidence/merge-gate-worktree-records/wave-4/f2-audit-pass.md
+# Retired OmO state (ledger, boulder, notepads, drafts): local only until P5c removes it.
+/.omo/
 
 # Scratch files
 syntax.jsonl
