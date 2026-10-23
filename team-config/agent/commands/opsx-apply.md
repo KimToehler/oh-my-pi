@@ -77,7 +77,31 @@ In both branches, never create the root as a side effect: do not run `openspec i
    conflicts with those controlling inputs, do not follow it and explain why.
    These are prompt-level behavior contracts, not enforceable checks.
 
-4. **Read context files**
+4. **Run in the change's worktree**
+
+   If a task names a worktree for this change (typically the first task, with a path such as
+   `.worktrees/<slug>` in its text or Verify command), implementation happens only in a session
+   started inside that worktree. The returned `sourcePath` and every relative path in edits and
+   Verify commands resolve against the checkout the session started in, and a running session cannot
+   change it. Working on from another checkout ticks the boxes in the wrong `tasks.md` and lands
+   relative edits there.
+
+   Compare the real path of `git rev-parse --show-toplevel` with the named worktree:
+   - **Same path**: continue. The worktree task is ticked once its Verify passes here.
+   - **Worktree exists elsewhere**: stop before any edit or tick.
+   - **Worktree missing**: without a store, the change folder must be committed, or the new
+     worktree will not contain it: `git status --porcelain -- <changeRoot>` must print nothing and
+     `git ls-files -- <changeRoot>` must list its files. If not, stop and ask the user to commit it.
+     Otherwise create the worktree with the branch and base the task names (for example
+     `git worktree add <path> -b <branch> <base>`), then stop. Do not tick the worktree task here:
+     its checkbox belongs to the worktree's `tasks.md`.
+
+   When you stop, tell the user to start the session inside the worktree and rerun this command:
+   `cd <worktree path> && omp`, then `/opsx-apply <name>`.
+
+   No task naming a worktree: skip this step.
+
+5. **Read context files**
 
    Read every file path listed under `contextFiles` from the apply instructions output.
    The files depend on the schema being used:
@@ -87,7 +111,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    Do not copy `context` or `operationGuidance` verbatim into implementation
    files or planning artifacts unless the user separately asks for that content.
 
-5. **Show current progress**
+6. **Show current progress**
 
    Display:
    - Schema being used
@@ -95,7 +119,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    - Remaining tasks overview
    - Dynamic instruction from CLI
 
-6. **Implement tasks (loop until done or blocked)**
+7. **Implement tasks (loop until done or blocked)**
 
    For each pending task:
    - Show which task is being worked on
@@ -113,7 +137,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    - Error or blocker encountered → report and wait for guidance
    - User interrupts
 
-7. **On completion or pause, show status**
+8. **On completion or pause, show status**
 
    Display:
    - Tasks completed this session
