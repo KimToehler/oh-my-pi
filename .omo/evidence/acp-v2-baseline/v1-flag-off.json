@@ -16,13 +16,13 @@
    "check": "v1 prompt resolves at turn end (after all chunks)",
    "ok": true,
    "detail": {
-    "chunks": 17,
+    "chunks": 21,
     "resp": {
      "stopReason": "end_turn",
      "usage": {
       "inputTokens": 4,
-      "outputTokens": 52,
-      "totalTokens": 22129,
+      "outputTokens": 64,
+      "totalTokens": 22141,
       "cachedReadTokens": 22073
      }
     }
@@ -59,7 +59,7 @@
   },
   {
    "i": 1,
-   "t": 578,
+   "t": 567,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -105,7 +105,7 @@
   },
   {
    "i": 2,
-   "t": 578,
+   "t": 567,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -119,13 +119,13 @@
   },
   {
    "i": 3,
-   "t": 740,
+   "t": 730,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 2,
     "result": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "configOptions": [
       {
        "id": "mode",
@@ -269,14 +269,14 @@
   },
   {
    "i": 4,
-   "t": 740,
+   "t": 731,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 3,
     "method": "session/prompt",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "prompt": [
       {
        "type": "text",
@@ -288,13 +288,13 @@
   },
   {
    "i": 5,
-   "t": 795,
+   "t": 783,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "available_commands_update",
       "availableCommands": [
@@ -737,29 +737,29 @@
   },
   {
    "i": 6,
-   "t": 795,
+   "t": 783,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "session_info_update",
-      "updatedAt": "2026-10-23T14:18:53.207Z"
+      "updatedAt": "2026-10-23T16:52:08.775Z"
      }
     }
    }
   },
   {
    "i": 7,
-   "t": 803,
+   "t": 792,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "usage_update",
       "size": 200000,
@@ -770,380 +770,439 @@
   },
   {
    "i": 8,
-   "t": 1926,
+   "t": 1902,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "Rivers carve"
+       "text": "Rivers car"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 9,
-   "t": 2031,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": " their pat"
+       "text": "ve the st"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 10,
-   "t": 2031,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "ient"
+       "text": "one with"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 11,
-   "t": 2032,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": " way"
+       "text": " patient"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 12,
-   "t": 2032,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": ",\nthrough stone and sil"
+       "text": " h"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 13,
-   "t": 2032,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "t"
+       "text": "ands"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 14,
-   "t": 2032,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": ", by"
+       "text": ",\nThey"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 15,
-   "t": 2032,
+   "t": 2001,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": " night"
+       "text": " wander to"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 16,
-   "t": 2032,
+   "t": 2019,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": " and day."
+       "text": "ward the sea through"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 17,
-   "t": 2046,
+   "t": 2037,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "\nThey carry se"
+       "text": " sh"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 18,
-   "t": 2070,
+   "t": 2072,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "eds to"
+       "text": "if"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 19,
-   "t": 2104,
+   "t": 2076,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": " dist"
+       "text": "ting land,\nEach"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 20,
-   "t": 2111,
+   "t": 2095,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "ant sh"
+       "text": " b"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 21,
-   "t": 2218,
+   "t": 2256,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "ores"
+       "text": "end a mem"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 22,
-   "t": 2218,
+   "t": 2257,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": ",\nand whisper sec"
+       "text": "ory the"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 23,
-   "t": 2218,
+   "t": 2257,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "rets to the st"
+       "text": " water ke"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 24,
-   "t": 2218,
+   "t": 2257,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "agent_message_chunk",
       "content": {
        "type": "text",
-       "text": "ores."
+       "text": "eps,\nStill moving"
       },
-      "messageId": "2eb00dbd-74d8-4706-8d1a-8dfe2d72ea22"
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 25,
-   "t": 2236,
+   "t": 2257,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
-      "sessionUpdate": "usage_update",
-      "size": 200000,
-      "used": 22077,
-      "cost": {
-       "amount": 0.0024713,
-       "currency": "USD"
-      }
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": " while"
+      },
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
      }
     }
    }
   },
   {
    "i": 26,
-   "t": 2247,
+   "t": 2257,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": " the m"
+      },
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
+     }
+    }
+   }
+  },
+  {
+   "i": 27,
+   "t": 2257,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "ountain slow"
+      },
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
+     }
+    }
+   }
+  },
+  {
+   "i": 28,
+   "t": 2295,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
+     "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+       "type": "text",
+       "text": "ly sleeps."
+      },
+      "messageId": "3cf1729c-5c7e-45d3-a622-c06e55a198ce"
+     }
+    }
+   }
+  },
+  {
+   "i": 29,
+   "t": 2305,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
       "sessionUpdate": "usage_update",
       "size": 200000,
       "used": 22077,
       "cost": {
-       "amount": 0.0024713,
+       "amount": 0.0025313,
        "currency": "USD"
       }
      }
@@ -1151,24 +1210,45 @@
    }
   },
   {
-   "i": 27,
-   "t": 2247,
+   "i": 30,
+   "t": 2312,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16921-0197-74d7-a701-ec6dd6ddf143",
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
      "update": {
-      "sessionUpdate": "session_info_update",
-      "updatedAt": "2026-10-23T14:18:54.874Z"
+      "sessionUpdate": "usage_update",
+      "size": 200000,
+      "used": 22077,
+      "cost": {
+       "amount": 0.0025313,
+       "currency": "USD"
+      }
      }
     }
    }
   },
   {
-   "i": 28,
-   "t": 2248,
+   "i": 31,
+   "t": 2312,
+   "dir": "←agent",
+   "frame": {
+    "jsonrpc": "2.0",
+    "method": "session/update",
+    "params": {
+     "sessionId": "01a169ad-51c7-7767-b37b-2e402d33bf6b",
+     "update": {
+      "sessionUpdate": "session_info_update",
+      "updatedAt": "2026-10-23T16:52:10.519Z"
+     }
+    }
+   }
+  },
+  {
+   "i": 32,
+   "t": 2313,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -1177,8 +1257,8 @@
      "stopReason": "end_turn",
      "usage": {
       "inputTokens": 4,
-      "outputTokens": 52,
-      "totalTokens": 22129,
+      "outputTokens": 64,
+      "totalTokens": 22141,
       "cachedReadTokens": 22073
      }
     }

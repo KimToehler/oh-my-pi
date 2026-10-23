@@ -13,12 +13,12 @@
    "ok": true,
    "detail": {
     "replayIds": [
-     "99094cca",
-     "482a2349"
+     "612b87fd",
+     "5d651866"
     ],
     "userIds": [
-     "99094cca",
-     "482a2349"
+     "612b87fd",
+     "5d651866"
     ]
    }
   },
@@ -62,7 +62,7 @@
  "frames": [
   {
    "i": 0,
-   "t": 0,
+   "t": 1,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -80,7 +80,7 @@
   },
   {
    "i": 1,
-   "t": 564,
+   "t": 566,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -117,14 +117,14 @@
   },
   {
    "i": 2,
-   "t": 564,
+   "t": 566,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 2,
     "method": "session/resume",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project",
      "replayFrom": {
       "type": "start"
@@ -134,16 +134,16 @@
   },
   {
    "i": 3,
-   "t": 735,
+   "t": 736,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "user_message",
-      "messageId": "99094cca",
+      "messageId": "612b87fd",
       "content": [
        {
         "type": "text",
@@ -162,13 +162,13 @@
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "02deca6e-b489-4b7a-b952-e06ed87cd245",
+      "messageId": "40286708-81bd-419f-aa0b-41838f3ace0e",
       "content": {
        "type": "text",
-       "text": "Rivers carve the stone with patience,\nbending slow through valley and field.\nThey carry the sky's forgotten rain\ndown to the sea that never sleeps."
+       "text": "Rivers carve their patient way,\nthrough stone and soil, day by day.\nThey hum to seas they've never seen,\nand carry sky in every green."
       }
      }
     }
@@ -182,10 +182,10 @@
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "user_message",
-      "messageId": "482a2349",
+      "messageId": "5d651866",
       "content": [
        {
         "type": "text",
@@ -198,16 +198,16 @@
   },
   {
    "i": 6,
-   "t": 736,
+   "t": 737,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "agent_message_chunk",
-      "messageId": "00fe1f3c-b639-45d4-a9f4-ad3bb6b5fb37",
+      "messageId": "62e82a27-7058-4cbd-b3f0-93249730ff54",
       "content": {
        "type": "text",
        "text": "ok"
@@ -218,13 +218,13 @@
   },
   {
    "i": 7,
-   "t": 736,
+   "t": 737,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "state_update",
       "state": "idle"
@@ -867,7 +867,7 @@
   },
   {
    "i": 1,
-   "t": 559,
+   "t": 567,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -904,27 +904,27 @@
   },
   {
    "i": 2,
-   "t": 559,
+   "t": 567,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 2,
     "method": "session/resume",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project"
     }
    }
   },
   {
    "i": 3,
-   "t": 723,
+   "t": 738,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
     "method": "session/update",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "update": {
       "sessionUpdate": "state_update",
       "state": "idle"
@@ -934,7 +934,7 @@
   },
   {
    "i": 4,
-   "t": 725,
+   "t": 742,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
@@ -1549,14 +1549,14 @@
   },
   {
    "i": 5,
-   "t": 725,
+   "t": 742,
    "dir": "→agent",
    "frame": {
     "jsonrpc": "2.0",
     "id": 3,
     "method": "session/resume",
     "params": {
-     "sessionId": "01a16920-1781-76ff-81e7-f0e1850a8a31",
+     "sessionId": "01a169ac-a1ba-76ae-8d34-fde2dab02feb",
      "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/acp-v2-qa-project",
      "replayFrom": {
       "type": "_custom"
@@ -1566,7 +1566,7 @@
   },
   {
    "i": 6,
-   "t": 729,
+   "t": 743,
    "dir": "←agent",
    "frame": {
     "jsonrpc": "2.0",
