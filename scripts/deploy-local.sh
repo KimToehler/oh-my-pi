@@ -10,7 +10,7 @@
 #
 # Usage: scripts/deploy-local.sh [ref]   (run it directly, not via `nix develop -c`)
 #   OMP_BIN_DIR       install dir (default ~/.local/bin)
-#   OMP_SKIP_TEAM_CONFIG=1  install only the binary, leave ~/.omp/agent untouched
+#   OMP_SKIP_TEAM_CONFIG=1  install only the binary, leave ~/.omp/agent untouched (also skips the OpenSpec CLI check)
 #   CARGO_TARGET_DIR  defaults to the main checkout's target/ so Rust deps are reused
 #
 # The build runs in a dedicated detached worktree (.worktrees/omp-deploy), so
@@ -56,6 +56,13 @@ else
 		exit 1
 	fi
 	git -C "$WT" switch --detach --quiet "$COMMIT"
+fi
+
+# The team config ships OpenSpec commands generated for one CLI version; check it before any
+# build work, and persist the telemetry opt-out. Refs predating the check skip it.
+if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ] && [ -f "$WT/scripts/ensure-openspec-cli.ts" ]; then
+	log "Checking OpenSpec CLI"
+	(cd "$WT" && bun scripts/ensure-openspec-cli.ts)
 fi
 
 log "Installing dependencies"
