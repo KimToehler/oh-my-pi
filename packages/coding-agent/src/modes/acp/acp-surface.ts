@@ -8,12 +8,14 @@
  * A surface never reaches into `AcpAgent` privates: it receives the session
  * record and an {@link AcpSurfaceHost} of explicit core operations.
  */
-import type { AgentSideConnection } from "@oh-my-pi/pi-utils/acp";
 import type {
+	AgentSideConnection,
 	AuthMethod,
+	AvailableCommand,
 	ClientCapabilities,
 	InitializeRequest,
 	InitializeResponse,
+	MaybePromise,
 	PromptRequest,
 	PromptResponse,
 	SessionConfigOption,
@@ -24,6 +26,7 @@ import type {
 import type { ExtensionUIContext } from "../../extensibility/extensions";
 import type { MCPManager } from "../../mcp/manager";
 import type { AgentSession, AgentSessionEvent } from "../../session/agent-session";
+import type { SubmissionOutcome } from "../../session/agent-session-types";
 import type { BlobStore } from "../../session/blob-store";
 import type {
 	ClientBridgePermissionOption,
@@ -85,13 +88,15 @@ export type ManagedSessionRecord = {
 	goal: AcpGoalActor;
 	/** Drops the goal observer subscribed before any prompt subscriber. */
 	goalUnsubscribe: (() => void) | undefined;
+	/** Subscription the surface installed at registration (v2: session-lifetime foreground tracking); dropped at dispose. */
+	surfaceUnsubscribe: (() => void) | undefined;
 	/**
 	 * Builtin slash-command handlers running in this session right now, with
 	 * the prompt each runs for and whether it was steered in. Handlers mutate
 	 * shared session state (compaction, model, settings) and may ignore their
 	 * prompt's abort; see #runBuiltin for who may start beside whom.
 	 */
-	runningBuiltins: Set<{ name: string; turn: PromptTurnState | undefined; steered: boolean; done: Promise<void> }>;
+	runningBuiltins: Set<{ name: string; work: ForegroundWork | undefined; steered: boolean; done: Promise<void> }>;
 };
 
 /** Why a foreground ended: the response it resolves with, or the failure it rejects with. */
@@ -147,14 +152,30 @@ export interface AcpSurfaceHost {
 	convertPromptBlocks(blocks: PromptRequest["prompt"]): { text: string; images: AgentImageContent[] };
 	/** Hand a session event to the core's event pipeline (mapping, flush fallbacks, quiescence waiter). */
 	trackForegroundEvent(record: ManagedSessionRecord, event: AgentSessionEvent): void;
-	/** Run the prompt's own command or forward it to the session; resolves once the prompt is handed over. */
-	runPromptOrCommand(record: ManagedSessionRecord, text: string, images: AgentImageContent[]): Promise<void>;
-	/** Wait until every builtin steered into `turn` ran; see `AcpAgent##awaitSteeredBuiltins`. */
+	/**
+	 * Run the prompt's own command or forward it to the session; resolves once the prompt is handed over.
+	 * `ownsForeground` false: the prompt was steered into foreground work that is not its own, so a locally
+	 * handled prompt must not end that work. `onSubmissionOutcome` reports exactly one outcome (a skill or
+	 * ACP builtin reports `command` before it runs).
+	 */
+	runPromptOrCommand(
+		record: ManagedSessionRecord,
+		text: string,
+		images: AgentImageContent[],
+		options?: { ownsForeground?: boolean; onSubmissionOutcome?: (outcome: SubmissionOutcome) => void },
+	): Promise<void>;
+	/** Wait until every builtin steered into `work` ran; see `AcpAgent##awaitSteeredBuiltins`. */
 	awaitSteeredBuiltins(
 		record: ManagedSessionRecord,
-		turn: PromptTurnState | undefined,
+		work: ForegroundWork | undefined,
 		deferToWaiter: boolean,
 	): Promise<boolean>;
+	/** The session record for `sessionId`, if it is registered. */
+	recordFor(sessionId: string): ManagedSessionRecord | undefined;
+	/** Slash-command palette in the v1 spelling. */
+	buildAvailableCommands(record: ManagedSessionRecord): Promise<AvailableCommand[]>;
+	/** Resolves once the update handlers in flight right now have delivered. */
+	waitForUpdateDeliveries(record: ManagedSessionRecord): Promise<void>;
 	/** Idempotent cancel of `work`; the returned barrier is its cleanup. */
 	beginCancelCleanup(record: ManagedSessionRecord, work: ForegroundWork): Promise<void>;
 	closeSession(sessionId: string, record: ManagedSessionRecord): Promise<void>;
@@ -170,7 +191,15 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	/** Auth methods advertised for a client's capabilities; also the set `authenticate`/`auth/login` validate against. */
 	authMethods(capabilities: W["clientCapabilities"]): W["authMethod"][];
 	/** Version-shaped part of the new/load/resume/fork response (v2: no `modes`, plus `availableCommands`). */
-	sessionSetupResponse(record: ManagedSessionRecord, kind: SessionSetupKind): W["sessionSetup"];
+	sessionSetupResponse(record: ManagedSessionRecord, kind: SessionSetupKind): MaybePromise<W["sessionSetup"]>;
+	/** Ids `authenticate`/`auth/login` validate a method id against. */
+	validAuthMethodIds(capabilities: W["clientCapabilities"]): string[];
+	/** A client cancel is about to abort `activeWork`. v2: latch the cancel and withdraw queued steers. */
+	beforeCancel(record: ManagedSessionRecord): void;
+	/** The work a close or fork must wait out, if any. */
+	inFlightWork(record: ManagedSessionRecord): ForegroundWork | undefined;
+	/** Installs the subscription that lives as long as the record; returns its unsubscribe. */
+	subscribe(record: ManagedSessionRecord): (() => void) | undefined;
 	/**
 	 * Admits a client prompt: serialises it, creates its foreground work, and settles with the version's
 	 * response (v1: at foreground end; v2: at insertion, only serialised until the previous outcome).
@@ -197,7 +226,7 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 		signal: AbortSignal | undefined,
 	): Promise<ClientBridgePermissionOutcome>;
 	/** Replays the transcript to the client. v2: `replayFrom` cursor handling, then the resume `state_update`. */
-	replay(record: ManagedSessionRecord): Promise<void>;
+	replay(record: ManagedSessionRecord, replayFrom?: unknown): Promise<void>;
 	/**
 	 * The one funnel for core-built notifications. The core always builds the v1 shape; v1 sends it verbatim,
 	 * v2 converts it (`source.message` identifies the transcript message behind a chunk) and drops what has no v2 equivalent.

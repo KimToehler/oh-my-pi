@@ -64,6 +64,7 @@ import {
 } from "../../plan-mode/approved-plan";
 import { autosaveApprovedPlan } from "../../plan-mode/plan-autosave";
 import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../session/agent-session";
+import type { SubmissionOutcome } from "../../session/agent-session-types";
 import { cfgCycleOrder } from "../../config/model-settings";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
 import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
@@ -598,8 +599,11 @@ export class AcpAgent implements Agent {
 			throwIfRecordClosed: record => this.#throwIfRecordClosed(record),
 			convertPromptBlocks: blocks => this.#convertPromptBlocks(blocks),
 			trackForegroundEvent: (record, event) => this.#trackPromptEvent(record, event),
-			runPromptOrCommand: (record, text, images) => this.#runPromptOrCommand(record, text, images),
-			awaitSteeredBuiltins: (record, turn, deferToWaiter) => this.#awaitSteeredBuiltins(record, turn, deferToWaiter),
+			runPromptOrCommand: (record, text, images, options) => this.#runPromptOrCommand(record, text, images, options),
+			awaitSteeredBuiltins: (record, work, deferToWaiter) => this.#awaitSteeredBuiltins(record, work, deferToWaiter),
+			recordFor: sessionId => this.#sessions.get(sessionId),
+			buildAvailableCommands: record => this.#buildAvailableCommands(record.session),
+			waitForUpdateDeliveries: record => this.#waitForUpdateDeliveries(record),
 			beginCancelCleanup: (record, work) => this.#beginCancelCleanup(record, work),
 			closeSession: (sessionId, record) => this.#closeManagedSession(sessionId, record),
 			buildConfigOptions: record => this.#buildConfigOptions(record),
@@ -638,7 +642,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#createNewSessionRecord(params.cwd, params.mcpServers);
 		const response: NewSessionResponse = {
 			sessionId: record.session.sessionId,
-			...this.#surface.sessionSetupResponse(record, "new"),
+			...(await this.#surface.sessionSetupResponse(record, "new")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -648,7 +652,7 @@ export class AcpAgent implements Agent {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#loadManagedSession(params.sessionId, params.cwd, params.mcpServers);
 		await this.#surface.replay(record);
-		const response: LoadSessionResponse = this.#surface.sessionSetupResponse(record, "load");
+		const response: LoadSessionResponse = await this.#surface.sessionSetupResponse(record, "load");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -673,7 +677,7 @@ export class AcpAgent implements Agent {
 	async resumeSession(params: ResumeSessionRequest): Promise<ResumeSessionResponse> {
 		this.#assertAbsoluteCwd(params.cwd);
 		const record = await this.#resumeManagedSession(params.sessionId, params.cwd, params.mcpServers ?? []);
-		const response: ResumeSessionResponse = this.#surface.sessionSetupResponse(record, "resume");
+		const response: ResumeSessionResponse = await this.#surface.sessionSetupResponse(record, "resume");
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
 	}
@@ -683,7 +687,7 @@ export class AcpAgent implements Agent {
 		const record = await this.#forkManagedSession(params);
 		const response: ForkSessionResponse = {
 			sessionId: record.session.sessionId,
-			...this.#surface.sessionSetupResponse(record, "fork"),
+			...(await this.#surface.sessionSetupResponse(record, "fork")),
 		};
 		this.#scheduleBootstrapUpdates(record.session.sessionId);
 		return response;
@@ -857,14 +861,28 @@ export class AcpAgent implements Agent {
 		};
 	}
 
-	async #runPromptOrCommand(record: ManagedSessionRecord, text: string, images: AgentImageContent[]): Promise<void> {
+	/** Snapshot of the update handlers in flight now; later handlers are not waited on. */
+	async #waitForUpdateDeliveries(record: ManagedSessionRecord): Promise<void> {
+		await Promise.allSettled(Array.from(record.promptEventHandlers.values()));
+	}
+
+	async #runPromptOrCommand(
+		record: ManagedSessionRecord,
+		text: string,
+		images: AgentImageContent[],
+		options?: { ownsForeground?: boolean; onSubmissionOutcome?: (outcome: SubmissionOutcome) => void },
+	): Promise<void> {
 		const promptTurn = record.promptTurn;
-		const skillResult = await this.#tryRunSkillCommand(record, text);
+		// A locally handled command must not end foreground work that is not its own.
+		const ownsForeground = options?.ownsForeground !== false;
+		const onSubmissionOutcome = options?.onSubmissionOutcome;
+		const skillResult = await this.#tryRunSkillCommand(record, text, onSubmissionOutcome);
 		if (skillResult || promptTurn?.work.cancelRequested) {
 			return;
 		}
 
 		const builtin = resolveAcpBuiltinSlashCommand(text);
+		if (builtin) onSubmissionOutcome?.({ kind: "command" });
 		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
 		if (builtinResult === undefined || promptTurn?.work.cancelRequested) return;
 		if (builtinResult !== false) {
@@ -882,7 +900,8 @@ export class AcpAgent implements Agent {
 				if (!residualAgentInvoked) {
 					await this.#waitForExtensionUserMessages(record, residualBaseline);
 					await this.#waitForPromptEventHandlers(record);
-					if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+					if (!ownsForeground) return;
+					if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 					this.#finishPrompt(record, { stopReason: "end_turn" });
 				}
 				return;
@@ -890,7 +909,8 @@ export class AcpAgent implements Agent {
 			// Built-in commands (`/compact`, `/model`, …) never emit `agent_end`,
 			// so report the context they changed here.
 			await this.#emitUsageUpdate(record);
-			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+			if (!ownsForeground) return;
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 			this.#finishPrompt(record, {
 				stopReason: "end_turn",
 				usage: buildTurnUsage(
@@ -927,7 +947,11 @@ export class AcpAgent implements Agent {
 		// An autonomous turn (todo reminder, async-job wake) streams without an
 		// owning promptTurn. Steer into it instead of failing busy: the ACP turn then
 		// stays open until that turn and the queued-message drain settle.
-		const agentInvoked = await record.session.prompt(text, { images, streamingBehavior: "steer" });
+		const agentInvoked = await record.session.prompt(text, {
+			images,
+			streamingBehavior: "steer",
+			...(onSubmissionOutcome ? { onSubmissionOutcome } : {}),
+		});
 		// Extension and custom-TS commands are handled locally inside session.prompt().
 		// An ACP extension command can still call pi.sendUserMessage(), which starts
 		// an async nested prompt through the extension runtime. Keep the ACP turn
@@ -936,7 +960,8 @@ export class AcpAgent implements Agent {
 		if (!agentInvoked) {
 			await this.#waitForExtensionUserMessages(record, extensionPromptBaseline);
 			await this.#waitForPromptEventHandlers(record);
-			if (!(await this.#awaitSteeredBuiltins(record, promptTurn, true))) return;
+			if (!ownsForeground) return;
+			if (!(await this.#awaitSteeredBuiltins(record, promptTurn?.work, true))) return;
 			this.#finishPrompt(record, { stopReason: "end_turn" });
 		}
 	}
@@ -957,7 +982,7 @@ export class AcpAgent implements Agent {
 	}
 
 	/**
-	 * Wait until every builtin steered into `promptTurn` ran: the prompt owns
+	 * Wait until every builtin steered into `work` ran: the prompt owns
 	 * those commands and their output, so a locally handled prompt must not
 	 * finish under them. Returns whether the caller still finishes the prompt:
 	 * false once it settled or another prompt replaced it, and, with
@@ -966,16 +991,20 @@ export class AcpAgent implements Agent {
 	 */
 	async #awaitSteeredBuiltins(
 		record: ManagedSessionRecord,
-		promptTurn: PromptTurnState | undefined,
+		work: ForegroundWork | undefined,
 		deferToWaiter: boolean,
 	): Promise<boolean> {
-		if (!promptTurn) return false;
-		while (promptTurn.work.pendingBuiltinSteers > 0) await promptTurn.work.builtinSteerLane;
-		if (record.promptTurn !== promptTurn || promptTurn.settled) return false;
-		return !(deferToWaiter && promptTurn.work.quiescenceWait);
+		if (!work) return false;
+		while (work.pendingBuiltinSteers > 0) await work.builtinSteerLane;
+		if (this.#surface.activeWork(record) !== work) return false;
+		return !(deferToWaiter && work.quiescenceWait);
 	}
 
-	async #tryRunSkillCommand(record: ManagedSessionRecord, text: string): Promise<boolean> {
+	async #tryRunSkillCommand(
+		record: ManagedSessionRecord,
+		text: string,
+		onSubmissionOutcome: ((outcome: SubmissionOutcome) => void) | undefined,
+	): Promise<boolean> {
 		if (!record.session.skillsSettings?.enableSkillCommands) {
 			return false;
 		}
@@ -987,6 +1016,7 @@ export class AcpAgent implements Agent {
 		if (!skill) {
 			return false;
 		}
+		onSubmissionOutcome?.({ kind: "command" });
 		const built = await buildSkillPromptMessage(skill, parsed, "user");
 		await record.session.promptCustomMessage(
 			{
@@ -1283,7 +1313,7 @@ export class AcpAgent implements Agent {
 		// Same-prompt handlers finish first (the prompt's steered lane already
 		// orders its own commands).
 		for (const running of record.runningBuiltins) {
-			if (running.turn === turn) await running.done;
+			if (running.work === turn?.work) await running.done;
 		}
 		// The wait can outlast the prompt (cancelled, or otherwise ended): its
 		// command must not start then. `undefined` means it never ran.
@@ -1292,7 +1322,7 @@ export class AcpAgent implements Agent {
 		// snapshots (e.g. `/move` changes the session's cwd).
 		const runtime = this.#buildSlashCommandRuntime(record, turn);
 		for (const running of record.runningBuiltins) {
-			if (running.turn !== turn && (steered || running.steered)) {
+			if (running.work !== turn?.work && (steered || running.steered)) {
 				await runtime.output(
 					`Command /${builtin.parsed.name} not run: /${running.name} from an earlier reply is still running.`,
 				);
@@ -1300,7 +1330,7 @@ export class AcpAgent implements Agent {
 			}
 		}
 		const done = Promise.withResolvers<void>();
-		const lease = { name: builtin.parsed.name, turn, steered, done: done.promise };
+		const lease = { name: builtin.parsed.name, work: turn?.work, steered, done: done.promise };
 		record.runningBuiltins.add(lease);
 		try {
 			return await runAcpBuiltinSlashCommand(builtin, runtime);
@@ -1459,6 +1489,7 @@ export class AcpAgent implements Agent {
 			record.goal.adoptReportedMode();
 			await this.#configureExtensions(record);
 			await this.#configureMcpServers(record, mcpServers);
+			record.surfaceUnsubscribe = this.#surface.subscribe(record);
 			this.#sessions.set(session.sessionId, record);
 			return record;
 		} catch (error) {
@@ -1489,6 +1520,7 @@ export class AcpAgent implements Agent {
 			promptEventHandlers: new Map(),
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
+			surfaceUnsubscribe: undefined,
 			pendingSteers: 0,
 			goal: new AcpGoalActor(session, {
 				promptOpen: () => {
@@ -2802,6 +2834,8 @@ export class AcpAgent implements Agent {
 
 	async #disposeSessionRecord(record: ManagedSessionRecord, reason?: postmortem.Reason): Promise<void> {
 		record.lifetimeUnsubscribe?.();
+		record.surfaceUnsubscribe?.();
+		record.surfaceUnsubscribe = undefined;
 		record.goalUnsubscribe?.();
 		record.goal.dispose();
 		if (record.mcpManager) {

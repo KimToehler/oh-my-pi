@@ -176,7 +176,7 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 				// Recorded first: a steered command may already have armed the
 				// quiescence waiter, which then finishes the prompt with this failure.
 				work.deferredError ??= failure;
-				if (!(await this.#host.awaitSteeredBuiltins(record, promptTurn, true))) return;
+				if (!(await this.#host.awaitSteeredBuiltins(record, promptTurn.work, true))) return;
 				this.onForegroundEnd(record, work, { error: failure });
 			});
 
@@ -262,6 +262,20 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 
 	sendMapped(notification: SessionNotification): Promise<void> {
 		return this.#host.connection.sessionUpdate(notification);
+	}
+
+	validAuthMethodIds(capabilities: ClientCapabilities | undefined): string[] {
+		return this.authMethods(capabilities).map(method => method.id);
+	}
+
+	beforeCancel(): void {}
+
+	inFlightWork(record: ManagedSessionRecord): ForegroundWork | undefined {
+		return this.activeWork(record);
+	}
+
+	subscribe(): undefined {
+		return undefined;
 	}
 
 	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined {
