@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, vi } from "bun:test";
 import {
 	AgentSideConnection,
 	type AnyMessage,
@@ -6,6 +6,7 @@ import {
 	type AgentSurfaces,
 	type AgentV2,
 	type Client,
+	type OutboundFrame,
 	ClientSideConnection,
 	ndJsonStream,
 	RequestError,
@@ -138,6 +139,29 @@ describe("ACP JSON-RPC batches", () => {
 	});
 });
 
+/** Frame-level peer: records each outbound frame at the moment the sink accepts it. */
+function framePeer(dispatcher: (method: string, params: unknown, notification: boolean) => unknown) {
+	const sunk: unknown[] = [];
+	let inbound!: ReadableStreamDefaultController<unknown>;
+	const readable = new ReadableStream<unknown>({
+		start(controller) {
+			inbound = controller;
+		},
+	});
+	const writable = new WritableStream<OutboundFrame>({
+		write(frame) {
+			sunk.push(frame);
+		},
+	});
+	const connection = new RpcConnection({ readable, writable }, dispatcher);
+	return {
+		sunk,
+		connection,
+		send: (frame: unknown) => inbound.enqueue(frame),
+		end: () => inbound.close(),
+	};
+}
+
 describe("ACP responseWritten", () => {
 	it("resolves immediately outside a request handler", async () => {
 		await responseWritten();
@@ -145,46 +169,75 @@ describe("ACP responseWritten", () => {
 
 	it("resolves only after the single response frame is written", async () => {
 		const gate = Promise.withResolvers<void>();
-		const states: boolean[] = [];
-		let written = false;
-		const peer = wirePeer(async () => {
+		const sunkWhenSignalled: number[] = [];
+		let signalled = false;
+		const peer = framePeer(async () => {
 			void responseWritten().then(() => {
-				written = true;
+				signalled = true;
+				sunkWhenSignalled.push(peer.sunk.length);
 			});
 			await gate.promise;
-			states.push(written);
 			return {};
 		});
-		await peer.send('{"jsonrpc":"2.0","id":1,"method":"a"}');
+		peer.send({ jsonrpc: "2.0", id: 1, method: "a" });
 		await Bun.sleep(20);
-		expect(written).toBe(false);
+		expect(signalled).toBe(false);
 		gate.resolve();
-		const frames = await peer.finish();
-		expect(frames).toHaveLength(1);
-		expect(states).toEqual([false]);
-		expect(written).toBe(true);
+		peer.end();
+		await peer.connection.closed;
+		expect(peer.sunk).toHaveLength(1);
+		expect(sunkWhenSignalled).toEqual([1]);
 	});
 
-	it("resolves for every batch entry only after the batch array is written", async () => {
+	it("resolves every batch entry's signal only after the batch array is written", async () => {
 		const gate = Promise.withResolvers<void>();
-		let writtenA = false;
-		const peer = wirePeer(async method => {
+		const sunkWhenSignalled: number[] = [];
+		let signalled = false;
+		const peer = framePeer(async method => {
 			if (method === "a") {
 				void responseWritten().then(() => {
-					writtenA = true;
+					signalled = true;
+					sunkWhenSignalled.push(peer.sunk.length);
 				});
 				return {};
 			}
 			await gate.promise;
 			return {};
 		});
-		await peer.send('[{"jsonrpc":"2.0","id":1,"method":"a"},{"jsonrpc":"2.0","id":2,"method":"b"}]');
+		peer.send([
+			{ jsonrpc: "2.0", id: 1, method: "a" },
+			{ jsonrpc: "2.0", id: 2, method: "b" },
+		]);
 		await Bun.sleep(20);
-		expect(writtenA).toBe(false);
+		expect(signalled).toBe(false);
 		gate.resolve();
-		const frames = await peer.finish();
-		expect(frames).toHaveLength(1);
-		expect(writtenA).toBe(true);
+		peer.end();
+		await peer.connection.closed;
+		expect(peer.sunk).toHaveLength(1);
+		expect(sunkWhenSignalled).toEqual([1]);
+	});
+
+	it("resolves when the drain timeout answers a handler that never settles", async () => {
+		vi.useFakeTimers();
+		try {
+			let signalled = false;
+			const peer = framePeer(() => {
+				void responseWritten().then(() => {
+					signalled = true;
+				});
+				return new Promise(() => {});
+			});
+			peer.send({ jsonrpc: "2.0", id: 1, method: "a" });
+			peer.end();
+			for (let turn = 0; turn < 50; turn++) await Promise.resolve();
+			expect(signalled).toBe(false);
+			vi.advanceTimersByTime(30_000);
+			await peer.connection.closed;
+			expect(signalled).toBe(true);
+			expect(peer.sunk).toEqual([{ jsonrpc: "2.0", id: 1, error: expect.objectContaining({ code: -32603 }) }]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
