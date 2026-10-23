@@ -125,6 +125,54 @@ describe("install", () => {
 		expect(which.stdout).toContain("Source: project");
 	});
 
+	test("the installed schema blocks apply until review.md exists, and both validators accept the review record", () => {
+		const root = project();
+		expect(installWorkflow(root).code).toBe(0);
+		const openspec = (...args: string[]) => {
+			const result = spawnSync("openspec", args, {
+				cwd: root,
+				encoding: "utf8",
+				env: { ...process.env, DO_NOT_TRACK: "1", OPENSPEC_TELEMETRY: "0" },
+			});
+			expect(result.error).toBeUndefined();
+			return result;
+		};
+		expect(openspec("schema", "validate", "omp-gated").status).toBe(0);
+		expect(openspec("new", "change", "probe").status).toBe(0);
+		const change = path.join(root, "openspec/changes/probe");
+		write(change, {
+			"proposal.md":
+				"# Proposal\n\n## Why\n\nRecords are replaced whole.\n\n## What Changes\n\n- Add a safe update.\n\n## Capabilities\n\n### New Capabilities\n- `feature`: safe updates\n\n### Modified Capabilities\n\n## Impact\n\nThe update endpoint.\n",
+			"specs/feature/spec.md":
+				"# Spec Delta\n\n## ADDED Requirements\n\n### Requirement: Safe update\nThe system SHALL update one record.\n\n#### Scenario: Successful update\n- **WHEN** a valid record is submitted\n- **THEN** the record is updated\n\n#### Scenario: Negative control\n- **WHEN** an invalid record is submitted\n- **THEN** the update MUST fail\n",
+			"design.md": "# Design\n\nUpdate one row in a transaction.\n",
+			"gate.md":
+				"# Gate\n\n- **Mandatory class**: none\n- **Risk tier**: product\n- **Author's risk assessment**: a wrong update overwrites a record\n- **Whole-diff review**: not needed (one module)\n- **Accepted residual risks**: none (all paths covered)\n- **Out of scope for blocking**: none (self-contained)\n",
+			"tasks.md": "# Tasks\n\n## 1. Work\n\n- [ ] 1.1 Implement safe update. Verify: `bun test test/update.test.ts`\n",
+		});
+		const applyArgs = ["instructions", "apply", "--change", "probe", "--json"];
+		const blocked = JSON.parse(openspec(...applyArgs).stdout);
+		expect(blocked.state).toBe("blocked");
+		expect(blocked.missingArtifacts).toEqual(["review"]);
+
+		const validator = path.join(import.meta.dir, "validate-openspec-change.mjs");
+		const digest = spawnSync("node", [validator, "--digest", change], { encoding: "utf8" });
+		expect(digest.status).toBe(0);
+		const record = canonical("templates/review.md")
+			.replace(/<OKAY or REJECT[^>]*>/, "OKAY")
+			.replace(/<64-hex digest[^>]*>/, digest.stdout.trim())
+			.replace("<subagent id>", "Probe")
+			.replace(/<1 for the first dispatch>/, "1")
+			.replace(/<the reviewer's blockers[^>]*>/, "none");
+		write(change, { "review.md": record });
+		const ready = JSON.parse(openspec(...applyArgs).stdout);
+		expect(ready.state).toBe("ready");
+		expect(ready.instruction).toContain("--reviewed");
+		expect(openspec("validate", "probe", "--strict").status).toBe(0);
+		expect(spawnSync("node", [validator, change], { encoding: "utf8" }).stdout).toBe("passed\n");
+		expect(spawnSync("node", [validator, "--reviewed", change], { encoding: "utf8" }).status).toBe(0);
+	});
+
 	test("a negated ignore match does not count: everything re-included installs", () => {
 		const root = project({ ".gitignore": "*.md\n*.yaml\n!openspec/**\n" });
 		const r = installWorkflow(root);
