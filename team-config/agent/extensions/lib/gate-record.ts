@@ -3,7 +3,7 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import { isEnoent } from "@oh-my-pi/pi-utils";
 
-const RECORD_SCHEMA = "omo.merge-gate/v2";
+export const RECORD_SCHEMA = "team-config.merge-gate/v3";
 const REVIEWED_SHA_PATTERN = /^\s*reviewed_sha\s+([0-9a-f]{40})\b/gim;
 const RECORD_PATTERN =
 	/^\s*record\s+`?([^`\n]+?\.json)`?\s+·\s+validate-gate-record\.mjs exit 0 at [0-9a-f]{7,40}\b/gim;
@@ -31,11 +31,23 @@ export function gateBinding(text: string): GateBinding | undefined {
 	return { record: normalized, reviewedSha };
 }
 
-function recordAt(repo: string, binding: GateBinding): GateRecordRef | undefined {
+export interface BindingRecords {
+	/** Records carrying the current schema and the claimed reviewed_sha. */
+	readonly records: readonly GateRecordRef[];
+	/** Checkouts holding a file at the claimed path whose schema is not {@link RECORD_SCHEMA}. */
+	readonly retired: readonly string[];
+}
+
+type RecordLookup =
+	| { readonly kind: "none" }
+	| { readonly kind: "retired" }
+	| { readonly kind: "current"; readonly ref: GateRecordRef };
+
+function recordAt(repo: string, binding: GateBinding): RecordLookup {
 	const file = path.resolve(repo, binding.record);
 	const relative = path.relative(repo, file);
 	if (relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-		return undefined;
+		return { kind: "none" };
 	}
 	let content: string;
 	let value: unknown;
@@ -43,23 +55,22 @@ function recordAt(repo: string, binding: GateBinding): GateRecordRef | undefined
 		content = fs.readFileSync(file, "utf8");
 		value = JSON.parse(content);
 	} catch (error) {
-		if (error instanceof SyntaxError || isEnoent(error)) return undefined;
+		if (error instanceof SyntaxError || isEnoent(error)) return { kind: "none" };
 		throw error;
 	}
+	if (typeof value !== "object" || value === null || Array.isArray(value) || !("schema" in value)) {
+		return { kind: "none" };
+	}
+	if (value.schema !== RECORD_SCHEMA) return { kind: "retired" };
 	if (
-		typeof value !== "object" ||
-		value === null ||
-		Array.isArray(value) ||
-		!("schema" in value) ||
 		!("plan" in value) ||
 		!("reviewed_sha" in value) ||
-		value.schema !== RECORD_SCHEMA ||
 		typeof value.plan !== "string" ||
 		value.reviewed_sha !== binding.reviewedSha
 	) {
-		return undefined;
+		return { kind: "none" };
 	}
-	return { ...binding, content, plan: value.plan, repo };
+	return { kind: "current", ref: { ...binding, content, plan: value.plan, repo } };
 }
 
 async function worktreeRoots(pi: Pick<ExtensionAPI, "exec">, repo: string): Promise<readonly string[] | undefined> {
@@ -76,15 +87,17 @@ export async function recordsForBinding(
 	pi: Pick<ExtensionAPI, "exec">,
 	repo: string,
 	binding: GateBinding,
-): Promise<readonly GateRecordRef[] | undefined> {
+): Promise<BindingRecords | undefined> {
 	const roots = await worktreeRoots(pi, repo);
 	if (roots === undefined) return undefined;
 	const records: GateRecordRef[] = [];
+	const retired: string[] = [];
 	for (const root of roots) {
-		const record = recordAt(root, binding);
-		if (record !== undefined) records.push(record);
+		const found = recordAt(root, binding);
+		if (found.kind === "current") records.push(found.ref);
+		else if (found.kind === "retired") retired.push(root);
 	}
-	return records;
+	return { records, retired };
 }
 
 export async function recordIsSettled(

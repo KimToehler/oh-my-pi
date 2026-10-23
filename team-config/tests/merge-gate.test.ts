@@ -151,7 +151,9 @@ interface WorktreeGateFixture {
 	readonly worktree: string;
 }
 
-async function worktreeGateFixture(): Promise<WorktreeGateFixture> {
+async function worktreeGateFixture(
+	options: { readonly record?: string; readonly schema?: string } = {},
+): Promise<WorktreeGateFixture> {
 	await git(h.dir, "init", "-q", "-b", "main");
 	await git(h.dir, "config", "user.email", "gate@test");
 	await git(h.dir, "config", "user.name", "Gate Test");
@@ -167,11 +169,11 @@ async function worktreeGateFixture(): Promise<WorktreeGateFixture> {
 	await git(worktree, "add", "source.txt");
 	await git(worktree, "commit", "-q", "-m", "reviewed change");
 	const reviewedSha = await git(worktree, "rev-parse", "HEAD");
-	const record = ".omo/evidence/gate/worktree.json";
+	const record = options.record ?? ".omp/team-config/evidence/gate/worktree.json";
 	await Bun.write(
 		path.join(worktree, record),
 		JSON.stringify({
-			schema: "omo.merge-gate/v2",
+			schema: options.schema ?? "team-config.merge-gate/v3",
 			plan: "openspec/changes/worktree-gate",
 			reviewed_sha: reviewedSha,
 		}),
@@ -181,7 +183,7 @@ async function worktreeGateFixture(): Promise<WorktreeGateFixture> {
 	return { main, record, reviewedSha, worktree };
 }
 
-function gateProof(reviewedSha: string, record = ".omo/evidence/gate/worktree.json"): string {
+function gateProof(reviewedSha: string, record = ".omp/team-config/evidence/gate/worktree.json"): string {
 	return [
 		"Gate proof",
 		"- integration-review: not needed (one gate mechanism)",
@@ -553,7 +555,7 @@ describe("merge-gate-proof rule contract", () => {
 		`  range ${SHA}...${SHA} · report docs/r.md · Must-fix: 0 open / 0 fixed in ${SHA}`,
 		"- review-work: RAN",
 		`  reviewed_sha ${SHA} · plan_sha256 ${"b".repeat(64)}`,
-		`  record .omo/evidence/gate/r.json · validate-gate-record.mjs exit 0 at ${SHA}`,
+		`  record .omp/team-config/evidence/gate/r.json · validate-gate-record.mjs exit 0 at ${SHA}`,
 		`- code committed after reviewed_sha: none`,
 		"",
 		"Work is done.",
@@ -561,11 +563,11 @@ describe("merge-gate-proof rule contract", () => {
 
 	/** Exec stub: git answers like a repo at h.dir whose default branch does not contain the record's reviewed_sha. */
 	beforeEach(async () => {
-		const recordDir = path.join(h.dir, ".omo", "evidence", "gate");
+		const recordDir = path.join(h.dir, ".omp", "team-config", "evidence", "gate");
 		await fs.mkdir(recordDir, { recursive: true });
 		await Bun.write(
 			path.join(recordDir, "r.json"),
-			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omo/plans/x.md", reviewed_sha: SHA }),
+			JSON.stringify({ schema: "team-config.merge-gate/v3", plan: ".omp/plans/x.md", reviewed_sha: SHA }),
 		);
 		const ok = (stdout: string): ExecResult => ({ stdout, stderr: "", code: 0, killed: false });
 		(h.pi as unknown as { exec: unknown }).exec = async (command: string, args: string[]): Promise<ExecResult> => {
@@ -591,9 +593,9 @@ describe("merge-gate-proof rule contract", () => {
 					"--repo",
 					h.dir,
 					"--record",
-					".omo/evidence/gate/r.json",
+					".omp/team-config/evidence/gate/r.json",
 					"--plan",
-					".omo/plans/x.md",
+					".omp/plans/x.md",
 				],
 			},
 		]);
@@ -614,7 +616,7 @@ describe("merge-gate-proof rule contract", () => {
 		expect(recordRuns()).toHaveLength(1);
 		expect(result).toMatchObject({ decision: "block" });
 		const reason = JSON.stringify(result);
-		expect(reason).toContain("rejected .omo/evidence/gate/r.json");
+		expect(reason).toContain("rejected .omp/team-config/evidence/gate/r.json");
 		expect(reason).toContain("plan has no ## Merge gate section");
 	});
 
@@ -648,7 +650,7 @@ describe("worktree gate binding", () => {
 		const unrelatedSha = await git(fixture.main, "rev-parse", "HEAD");
 		await Bun.write(
 			path.join(fixture.main, fixture.record),
-			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omo/plans/unrelated.md", reviewed_sha: unrelatedSha }),
+			JSON.stringify({ schema: "team-config.merge-gate/v3", plan: ".omp/plans/unrelated.md", reviewed_sha: unrelatedSha }),
 		);
 		await git(fixture.main, "add", fixture.record);
 		await git(fixture.main, "commit", "-q", "-m", "unrelated gate record");
@@ -681,8 +683,8 @@ describe("worktree gate binding", () => {
 		await Bun.write(
 			path.join(fixture.main, fixture.record),
 			JSON.stringify({
-				schema: "omo.merge-gate/v2",
-				plan: ".omo/plans/conflict.md",
+				schema: "team-config.merge-gate/v3",
+				plan: ".omp/plans/conflict.md",
 				reviewed_sha: fixture.reviewedSha,
 			}),
 		);
@@ -705,8 +707,8 @@ describe("worktree gate binding", () => {
 		await Bun.write(
 			path.join(fixture.main, fixture.record),
 			JSON.stringify({
-				schema: "omo.merge-gate/v2",
-				plan: ".omo/plans/local.md",
+				schema: "team-config.merge-gate/v3",
+				plan: ".omp/plans/local.md",
 				reviewed_sha: fixture.reviewedSha,
 			}),
 		);
@@ -734,8 +736,8 @@ describe("worktree gate binding", () => {
 		await Bun.write(
 			path.join(fixture.main, fixture.record),
 			JSON.stringify({
-				schema: "omo.merge-gate/v2",
-				plan: ".omo/plans/unrelated.md",
+				schema: "team-config.merge-gate/v3",
+				plan: ".omp/plans/unrelated.md",
 				reviewed_sha: await git(fixture.main, "rev-parse", "HEAD"),
 			}),
 		);
@@ -829,6 +831,84 @@ describe("worktree gate binding", () => {
 
 		// Then
 		expect(moved).toBeTrue();
+		expect(result).toBeUndefined();
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	const settleOnDefault = async (fixture: WorktreeGateFixture) => {
+		const remoteMain = await git(fixture.main, "rev-parse", "HEAD");
+		await git(fixture.main, "update-ref", "refs/remotes/origin/main", remoteMain);
+		await git(fixture.main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+		await git(fixture.main, "merge", "--no-ff", "-q", "-m", "merge feature", "feature");
+	};
+
+	it("stop hook: retired record id refuses an unmerged v2 record in a linked worktree", async () => {
+		// Given
+		const fixture = await worktreeGateFixture({
+			schema: "omo.merge-gate/v2",
+			record: ".omp/team-config/evidence/gate/demo.json",
+		});
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("team-config.merge-gate/v3");
+		expect(JSON.stringify(result)).not.toContain("exists in this repository");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("stop hook: retired record id refuses a merged v2 record at the old .omo path", async () => {
+		// Given
+		const fixture = await worktreeGateFixture({
+			schema: "omo.merge-gate/v2",
+			record: ".omo/evidence/gate/demo.json",
+		});
+		await settleOnDefault(fixture);
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("team-config.merge-gate/v3");
+		expect(JSON.stringify(result)).not.toContain("exists in this repository");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("stop hook: retired record id refuses a merged v2 record moved unchanged to the new path", async () => {
+		// Given
+		const fixture = await worktreeGateFixture({
+			schema: "omo.merge-gate/v2",
+			record: ".omp/team-config/evidence/gate/demo.json",
+		});
+		await settleOnDefault(fixture);
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("team-config.merge-gate/v3");
+		expect(JSON.stringify(result)).not.toContain("exists in this repository");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
+	it("stop hook: a merged v3 record at the default path is allowed by the settled shortcut", async () => {
+		// Given
+		const fixture = await worktreeGateFixture({ record: ".omp/team-config/evidence/gate/demo.json" });
+		await settleOnDefault(fixture);
+		h.validator = INVALID;
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
 		expect(result).toBeUndefined();
 		expect(recordRuns()).toHaveLength(0);
 	});

@@ -4,7 +4,9 @@
  * On session stop, a merge/completion claim must name one full reviewed_sha and its record. The
  * extension resolves that exact pair across the repository's linked worktrees. Unmerged work runs
  * the validator in the checkout that owns the record; a tracked record already merged into the
- * local or pushed default branch is settled. Missing, ambiguous, or rejected bindings refuse stop.
+ * local or pushed default branch is settled. Only `team-config.merge-gate/v3` records count; a file at the
+ * claimed path with another record id is refused before the settled shortcut. Missing, ambiguous, or
+ * rejected bindings refuse stop.
  *
  * Deterministic and stateless: no idle nudges, no continuation counters. A refusal stays in
  * force until the claim is backed or withdrawn; the operator can always interrupt.
@@ -37,7 +39,7 @@ import type {
 	TurnEndEvent,
 } from "@oh-my-pi/pi-coding-agent";
 import { classifyCall, proposedPlan } from "./lib/plan-file";
-import { gateBinding, recordIsSettled, recordsForBinding } from "./lib/gate-record";
+import { gateBinding, RECORD_SCHEMA, recordIsSettled, recordsForBinding } from "./lib/gate-record";
 
 // The validator ships in the same agent dir as this extension (skills/review-work), so resolve it
 // from here: that stays correct under profiles and PI_CODING_AGENT_DIR, where ~/.omp/agent is wrong.
@@ -220,19 +222,28 @@ export default function mergeGate(pi: ExtensionAPI) {
 					"or state plainly that the gate has NOT run and do not ask for merge approval.",
 			};
 		}
-		const records = await recordsForBinding(pi, repo, binding);
-		if (records === undefined) {
+		const found = await recordsForBinding(pi, repo, binding);
+		if (found === undefined) {
 			return {
 				decision: "block",
 				reason:
 					"Merge gate: could not enumerate this repository's linked worktrees; refusing an incomplete record search.",
 			};
 		}
+		const { records, retired } = found;
+		if (records.length === 0 && retired.length > 0) {
+			return {
+				decision: "block",
+				reason:
+					`Merge gate: record ${binding.record} carries a retired record id; only ${RECORD_SCHEMA} records are accepted, ` +
+					"so it is neither settled nor validated. Re-run review-work to write a team-config.merge-gate/v3 record.",
+			};
+		}
 		if (records.length === 0) {
 			return {
 				decision: "block",
 				reason:
-					`Merge gate: no omo.merge-gate/v2 record ${binding.record} with reviewed_sha ${binding.reviewedSha} exists in this repository or its linked worktrees. ` +
+					`Merge gate: no ${RECORD_SCHEMA} record ${binding.record} with reviewed_sha ${binding.reviewedSha} exists in this repository or its linked worktrees. ` +
 					"Run review-work, or state plainly that the gate has NOT run and do not ask for merge approval.",
 			};
 		}
