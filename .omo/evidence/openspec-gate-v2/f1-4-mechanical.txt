@@ -1,0 +1,28 @@
+== .omo/evidence/gate/ACP_GOAL_MODE_PLAN.json @ 404fef7847 [SAME]
+main: blocked verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled exit=1 
+new:  blocked verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled exit=1 
+== .omo/evidence/gate/acp-steer-builtin-commands.json @ 8b92724a5f [SAME]
+main: passed exit=0 
+new:  passed exit=0 
+== .omo/evidence/gate/evo2-reviewer-checks.json @ 13d37c922c [SAME]
+main: blocked plan: cannot read /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.DCJDpHiOgC/w/.omo/plans/evo2-reviewer-checks.md: ENOENT: no such file or directory, open '/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tm
+new:  blocked plan: cannot read /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.DCJDpHiOgC/w/.omo/plans/evo2-reviewer-checks.md: ENOENT: no such file or directory, open '/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tm
+== .omo/evidence/gate/merge-gate-worktree-records.json @ ef1e202f2c [SAME]
+main: passed exit=0 
+new:  passed exit=0 
+== .omo/evidence/gate/omp-native-plan-review.json @ 619a4d7b14 [SAME]
+main: blocked plan: cannot read /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.HRyQ6PO0N5/w/.omo/plans/omp-native-plan-review.md: ENOENT: no such file or directory, open '/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/
+new:  blocked plan: cannot read /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.HRyQ6PO0N5/w/.omo/plans/omp-native-plan-review.md: ENOENT: no such file or directory, open '/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/
+== .omo/evidence/gate/openspec-team-rollout.json @ ae48337cd0 [SAME]
+main: passed exit=0 
+new:  passed exit=0 
+== .omo/evidence/gate/review-blocking-threshold.json @ 0a528056d0 [SAME]
+main: passed exit=0 
+new:  passed exit=0 
+== .omo/evidence/gate/review-risk-tier.json @ 103c440ea5 [SAME]
+main: passed exit=0 
+new:  passed exit=0 
+== .omo/evidence/gate/team-config.json @ 812855ee97 [SAME]
+main: blocked verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled exit=1 
+new:  blocked verdicts.1.trailer_artifact.blockers: a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled exit=1 
+head=a1be0b79b4 same=9 diff=0

@@ -1,0 +1,18 @@
+{
+  "base_sha": "e50f501d7ee5b7063009ff0fd954d4293951e01e",
+  "head_sha": "9427c6190e8a7406ff6679079a1dfcee719f64ae",
+  "commits": [
+    {
+      "sha": "a2b1e022e70ae00a1f4607e35682c50991e9a130",
+      "subject": "test(review-work): durable tracked smoke evidence (RED)",
+      "patch": "001.patch",
+      "sha256": "9143b3bb77cafaa305ce4be76f41d0128e339d1d1118406fc318abed20e81bfa"
+    },
+    {
+      "sha": "9427c6190e8a7406ff6679079a1dfcee719f64ae",
+      "subject": "refactor(review-work): integration cleanup",
+      "patch": "002.patch",
+      "sha256": "fa0a4cc7bad473a53472a0264cb038ea7ab0e8b305146d5b6c72e64cb7f9006a"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "base_sha": "029d30b28ec4717e0abc6db3fbdece6c7c0c7454",
+  "head_sha": "a1be0b79b425a8a43ba0fca0914048b72edf45f3",
+  "commits": [
+    {
+      "sha": "c8028775b9fed518e448fe4ab50c0ffaa96a0fce",
+      "subject": "test(review-work): fallback criteria follow the counted requirements and need all five fields (RED)",
+      "patch": "001.patch",
+      "sha256": "8d35d093ac6104d45ea43389dadfeb73096e4d6ed8e146dfb9f85a438d8333a5"
+    },
+    {
+      "sha": "8d38826f9429296ddd015fe6c499eca3f1dc273c",
+      "subject": "fix(review-work): fallback criteria follow the counted requirements and hold all template fields",
+      "patch": "002.patch",
+      "sha256": "646b63d059ec134987bbf69fe1b6143a5acf554bc4e002bbc07b9370894dd0ed"
+    },
+    {
+      "sha": "84ab6ea00bfdd669bedbdfba33e6d76930b6373e",
+      "subject": "docs(plans): P4b v2 fallback criteria contract after F3 wave 1",
+      "patch": "003.patch",
+      "sha256": "af93d87f908d8d44db68ab9aeb043492238a3a6861a43ad87cd365063fdd6350"
+    },
+    {
+      "sha": "a1be0b79b425a8a43ba0fca0914048b72edf45f3",
+      "subject": "docs(plans): P4b v2 row 5 (F3 wave 1 should-fixes)",
+      "patch": "004.patch",
+      "sha256": "6eaecda242a7d08d6003cc581042733955cc914bb25bbc4cdc29fc6dbc915074"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "base_sha": "e50f501d7ee5b7063009ff0fd954d4293951e01e",
+  "head_sha": "0d8dd7bdc1f11c9416d0ada911856361e4546daa",
+  "commits": [
+    {
+      "sha": "a2b1e022e70ae00a1f4607e35682c50991e9a130",
+      "subject": "test(review-work): durable tracked smoke evidence (RED)",
+      "patch": "001.patch",
+      "sha256": "9143b3bb77cafaa305ce4be76f41d0128e339d1d1118406fc318abed20e81bfa"
+    },
+    {
+      "sha": "9427c6190e8a7406ff6679079a1dfcee719f64ae",
+      "subject": "refactor(review-work): integration cleanup",
+      "patch": "002.patch",
+      "sha256": "fa0a4cc7bad473a53472a0264cb038ea7ab0e8b305146d5b6c72e64cb7f9006a"
+    },
+    {
+      "sha": "0fcb95976902625f4f8ccf31ca15df06eabe6a87",
+      "subject": "docs(plans): P4b delta fix row 7",
+      "patch": "003.patch",
+      "sha256": "fcfb1ba8fc05e308bc10352860fc495bb3a48dec192239610acf69b83f62e305"
+    },
+    {
+      "sha": "19d1a842bd6f2e8b67968dbe339662e465ac1944",
+      "subject": "test(review-work): smoke evidence stays under the reviewed-SHA binding (RED)",
+      "patch": "004.patch",
+      "sha256": "d56f6a86e4344f84958cabee891e37edd7c22d701fdf0251709c50977d0e9a21"
+    },
+    {
+      "sha": "0d8dd7bdc1f11c9416d0ada911856361e4546daa",
+      "subject": "fix(review-work): keep smoke evidence under the reviewed-SHA binding",
+      "patch": "005.patch",
+      "sha256": "257f09865ed4390d3dc24c7b6459e738b0f4cb160ed840aa2344903dc77bf595"
+    }
+  ]
+}

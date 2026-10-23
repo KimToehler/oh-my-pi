@@ -1,0 +1,59 @@
+**Bottom line:** The change holds up for its evidenced boundary: synchronous updates to a local `Map`, with no repository consumers outside `test/records.test.mjs` reported by the implementation audit. I found no blocker; the central strategic limitation is that `src/records.mjs:update` provides process-local optimistic concurrency, not a general atomic persistence operation.
+
+### 1. Architectural fit
+
+`update` performs its version comparison and `Map.set` synchronously, so calls within one JavaScript event loop cannot interleave between those operations. The versioned `{ value, version }` representation and exported `ConflictError` form a coherent clean cutover because the supplied audit found no existing consumers requiring migration.
+
+This architecture remains sound only while `store` is an in-memory, synchronously accessed object. The generic `get`/`set` interface could misleadingly suggest compatibility with durable or distributed stores, where the two operations would not constitute atomic compare-and-set.
+
+### 2. What the line-level view structurally misses
+
+The primary omission is the concurrency boundary: correctness comes from synchronous `Map` execution, not from a storage-level atomicity guarantee. It also leaves the version domain implicit; externally constructed state such as `{ version: "1" }` would pass a matching string version and then advance to `"11"` through JavaScript concatenation.
+
+Neither issue blocks this scratch change because the exercised state uses numeric versions, the implementation creates numeric version `1`, and no broader persistence adapter or protected asset is in scope.
+
+### 3. Most harmful production failure
+
+The worst production failure would be reusing `update` with shared durable storage and allowing two processes to read the same version before both writes succeed, producing a lost update despite callers believing they have optimistic concurrency protection. That failure is not addressed by the separate `get`/`set` design; a production backend would require its native conditional-write or transaction primitive.
+
+There is no realistic trigger in the supplied scope: the tests use real local `Map` instances, and the audit reports no production adapter or caller.
+
+### 4. Auditor finding attributable to unchanged behavior
+
+The missing-record recreation concern is largely inherited behavior rather than a regression: the previous `update` unconditionally inserted an absent ID as well. Supplying an expected version makes the absent-record contract worth defining before broader use, but deletion/recreation permissiveness itself was not introduced by this change.
+
+The store-format observation is a genuine behavioral cutover, while the competing-writer observation is a coverage limitation rather than a claim about changed behavior.
+
+- **Note N1:** The read/check/write sequence is not a datastore compare-and-set; it does not block because the evidenced boundary is a synchronous local `Map`, with no shared persistence consumer.
+- **Note N2:** Version values are not validated as finite integers; it does not block because all reachable state shown by the implementation and tests uses numeric versions and any malformed local state is reversible.
+- **Note N3:** Absent IDs retain upsert semantics from the prior implementation; it does not block because no deletion lifecycle or contrary absent-record contract is supplied.
+- **Note N4:** `ConflictError` has no structured current-version metadata for retry handling; it does not block because no caller or wire mapping requiring such metadata exists.
+
+### Action plan
+
+1. Accept the implementation as-is for the local `Map` scope.
+2. Keep the API documented and used as an in-process operation rather than a generic persistence concurrency primitive.
+3. Before any production-store reuse, define absent-ID and numeric-version contracts and replace `get`/`set` with backend-native atomic conditional mutation.
+
+**Effort:** Quick (<1h); no change is required for the reviewed scope.
+
+**Confidence:** Medium — the conclusion is grounded in the supplied diff, tests, QA evidence, and audit results, but full plan-file contents and the wider tree were not available for independent inspection under the review constraints.
+
+**Watch out for:**
+- Future callers assuming the generic `store` parameter implies cross-process atomicity.
+- Externally constructed records introducing non-numeric versions.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Once one update has consumed an existing record version, another update claiming that same version cannot overwrite its result.
+  positive_witness: The first update claiming version 1 stores its value at version 2, and a subsequent update also claiming version 1 throws ConflictError while preserving that state.
+  negative_control: Both updates claiming version 1 succeed, or rejection of the second update changes the stored value or version.
+  observable: One successful update, one ConflictError, and a final record containing only the first update's value at the incremented version.
+  boundary: The exported update function and the Map entry it mutates.
+END-REVIEW-TRAILER

@@ -1,0 +1,62 @@
+commit 742791db3eefdebfd9b82326756bc1f25d38d4fe
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:55:08 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:55:08 2026 +0200
+
+    test(review-work): smoke evidence is the blob at reviewed_sha (RED)
+
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+index d4d54b1930..bb09f2b1b5 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+@@ -2173,6 +2173,49 @@ for (const [name, body, rows] of [
+   })
+ }
+ 
++// The smoke check reads only the blob at `reviewed_sha`: the index, the working tree and the
++// exemption set play no part, so evidence a fresh clone would not hold cannot pass.
++for (const how of ["staged", "intent-to-add"]) {
++  test(`#given a smoke file only ${how} while reviewed_sha equals HEAD #when validated #then qa.0.artifact blocks`, () => {
++    withScenario({ smokePlacement: "untracked" }, (s) => {
++      s.repository.git("add", ...(how === "staged" ? [] : ["--intent-to-add"]), "--", "evidence/smoke.txt")
++      expectFolderBlocked(s.validate(), /qa\.0\.artifact/)
++    })
++  })
++}
++
++test("#given a committed smoke log ending exit=1 edited only in the working tree to end exit=0 #when validated #then qa blocks", () => {
++  withScenario({ smokeBody: "update failed\nexit=1\n" }, (s) => {
++    writeFileSync(path.join(s.evidence, "smoke.txt"), "update failed\nexit=0\n")
++    expectFolderBlocked(s.validate(), /qa/)
++  })
++})
++
++test("#given a trailer added after the review ending exit=0 and named as the smoke artifact #when validated #then qa.0.artifact blocks", () => {
++  withScenario({ auditTrailer: `${buildTrailer()}exit=0\n` }, (s) => {
++    s.repository.git("add", "-A")
++    s.repository.git("commit", "-q", "-m", "trailer committed after the review")
++    s.record.qa = [{ name: "smoke: alias", passed: true, artifact: s.record.verdicts[0].trailer_artifact }]
++    s.save()
++    expectFolderBlocked(s.validate(), /qa\.0\.artifact/)
++  })
++})
++
++test("#given a smoke path that is a symlink at reviewed_sha #when validated #then qa.0.artifact blocks", () => {
++  withScenario({ smokePlacement: "untracked" }, (s) => {
++    const { git, directory } = s.repository
++    rmSync(path.join(s.evidence, "smoke.txt"))
++    writeFileSync(path.join(directory, "target.txt"), "ok\nexit=0\n")
++    symlinkSync("../target.txt", path.join(s.evidence, "smoke.txt"))
++    git("add", "--", "evidence/smoke.txt", "target.txt")
++    git("commit", "-q", "-m", "smoke log is a symlink")
++    s.record.reviewed_sha = git("rev-parse", "HEAD")
++    s.record.diff_base = git("rev-parse", "HEAD~1")
++    s.save()
++    expectFolderBlocked(s.validate(), /qa\.0\.artifact/)
++  })
++})
++
+ test("#given a not-needed Whole-diff reason that differs from the record's #when validated #then whole_diff.reason blocks", () => {
+   withScenario({}, (s) => {
+     s.record.whole_diff = { run: false, reason: "a different justification" }

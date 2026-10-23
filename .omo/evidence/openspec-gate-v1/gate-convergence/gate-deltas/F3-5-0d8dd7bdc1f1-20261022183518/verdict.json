@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "The cumulative delta leaves two ways for smoke evidence to pass without being bound to the reviewed commit.",
+  "blockers": [
+    {
+      "area": "PROCESS 4 — smoke evidence durability",
+      "defect": "Tracking in the index does not establish that the checked smoke bytes were committed at or before reviewed_sha.",
+      "evidence": "TODO 7 requires the smoke artifact to be committed at or before reviewed_sha. In validate-gate-record.mjs:316-325, assertTracked only checks git ls-files; requireSmokeRow at :827-846 reads the working-tree file. At :1026 the SHA binding checks commits only when reviewed_sha differs from HEAD. Thus an intent-to-add or staged new smoke file, or an existing tracked smoke file modified only in the working tree, can supply exit=0 and pass while a fresh clone lacks those bytes.",
+      "change": "Verify the smoke artifact's checked bytes against the regular-file blob at reviewed_sha, rejecting absent or different bytes; add controls for intent-to-add, staged new evidence and modified working-tree evidence, plus fresh-clone validation."
+    },
+    {
+      "area": "PROCESS 4 — exemption alias",
+      "defect": "A smoke artifact can inherit an existing evidence-path exemption, contrary to the required non-exemption without exception.",
+      "evidence": "TODO 7 says qa[].artifact stays non-exempt without exception. requireSmokeRow at validate-gate-record.mjs:827-846 does not prohibit a smoke path from also being a trailer or another pinned path, and commitsTouchOnlyEvidence at :347-365 exempts every path in context.pinned. A valid trailer can have exit=0 as its last line outside its trailer markers, be added after reviewed_sha with its recorded trailer digest, and simultaneously be named as the smoke artifact; the post-review commit is then exempt.",
+      "change": "Enforce the reviewed_sha blob check independently of all path exemptions, including when the smoke path aliases a record, trailer or plan entry; add an alias regression control."
+    }
+  ],
+  "notes": []
+}

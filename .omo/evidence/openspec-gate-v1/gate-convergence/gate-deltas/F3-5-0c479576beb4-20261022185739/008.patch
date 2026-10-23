@@ -1,0 +1,106 @@
+commit 0c479576beb471a978d451bd6670d24d8c20b8b7
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:56:35 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:56:35 2026 +0200
+
+    fix(review-work): read smoke evidence from the reviewed commit
+
+diff --git a/.omo/plans/openspec-gate.md b/.omo/plans/openspec-gate.md
+index c24669ee4a..22941b10d3 100644
+--- a/.omo/plans/openspec-gate.md
++++ b/.omo/plans/openspec-gate.md
+@@ -151,7 +151,7 @@ records that already block on 919b21f9d0, history rewrite.
+   file-plan-only. Tests: the "smoke log first committed with the record after the review → passes" case becomes
+   blocked; a source file modified after `reviewed_sha` and named as a smoke artifact (ending `exit=0`, and a second
+   case ending `exit=1` before a valid row) → blocked on the binding. Verify: `bun run test:team-config`
+-- [ ] 8. Delta round 2 REJECT (index tracking is not commit binding; smoke path can alias a pinned trailer), owner
++- [x] 8. Delta round 2 REJECT (index tracking is not commit binding; smoke path can alias a pinned trailer), owner
+   chose amend (Tim, 2026-10-22): the smoke check reads only the blob at `reviewed_sha` (`git cat-file` on
+   `<reviewed_sha>:<path>`, one read, must be a regular-file blob, not a symlink or gitlink); working tree, index and
+   the exemption set play no part, and the smoke path must also be byte-identical at HEAD (`git diff --quiet
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index 1a34a44eda..ecac489a87 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -111,7 +111,7 @@ A `--plan` that is a directory holding `gate.md` is an OpenSpec change folder, a
+ 
+ - `--plan-only --plan <change-dir>` runs the OpenSpec checks and the criteria checks on one snapshot of the folder.
+ - **Freeze before dispatch.** Run `node $SKILL_DIR/scripts/validate-gate-record.mjs --repo <repo root> --freeze-plan <change-dir> --bundle <out>`; the bundle goes outside the folder. It snapshots the folder once, blocks on any OpenSpec or criteria diagnostic (writing nothing), writes the bundle and prints `plan_sha256`. That printed digest is the record's `plan_sha256`; do not run `shasum` on a folder. Give reviewers the bundle path as `{PLAN PATH}`: it is the plan they read. Any change to any file in the folder after the freeze fails `plan_sha256`, so freeze again and re-review.
+-- **Depth comes from `gate.md`, never from you.** The record's `mandatory_class`, `review_tier` and `whole_diff` must equal `gate.md` (`Mandatory class` first token, `Review tier`, `Whole-diff review`). `standard`: `reviewers_run` is exactly `["implementation-audit"]`, no `strategic-risk-review`, at most two fix rounds, and at least one `qa` row named `smoke: <what ran>` whose artifact is a tracked, non-ignored, non-empty regular file in the repo whose last non-empty line is `exit=0`. Write the smoke log to `.omo/evidence/gate/<change>/smoke-<name>.txt` (a path that stays addable) and commit it before dispatching F2, like every QA artifact: it is not pinned and not exempt, so it must be tracked and committed at or before `reviewed_sha`, and a commit touching it afterwards blocks on the SHA binding. A fresh clone can then re-validate. The two-fix-round limit is an orchestrator rule; `gate-convergence.mjs` does not count tiers. `full`: both invocations, even for class `none`. F3 (`integration-review`) runs exactly when `gate.md` says `Whole-diff review: needed`, in both tiers.
++- **Depth comes from `gate.md`, never from you.** The record's `mandatory_class`, `review_tier` and `whole_diff` must equal `gate.md` (`Mandatory class` first token, `Review tier`, `Whole-diff review`). `standard`: `reviewers_run` is exactly `["implementation-audit"]`, no `strategic-risk-review`, at most two fix rounds, and at least one `qa` row named `smoke: <what ran>` whose artifact is a tracked, non-ignored, non-empty regular file in the repo whose last non-empty line is `exit=0`. Write the smoke log to `.omo/evidence/gate/<change>/smoke-<name>.txt` (a path that stays addable) and commit it before dispatching F2, like every QA artifact: it is not pinned and not exempt, so it must be committed at or before `reviewed_sha`: the validator checks the blob at `reviewed_sha` (a regular file, not a symlink; staged, intent-to-add or working-tree edits count for nothing), and the path must be unchanged between `reviewed_sha` and HEAD, so any later commit touching it blocks. A fresh clone can then re-validate. The two-fix-round limit is an orchestrator rule; `gate-convergence.mjs` does not count tiers. `full`: both invocations, even for class `none`. F3 (`integration-review`) runs exactly when `gate.md` says `Whole-diff review: needed`, in both tiers.
+ - **Criteria.** Fill `{CRITERIA WITH FIVE FIELDS}` and `{PLAN INVARIANTS}` from the spec requirements in the bundle (each `### Requirement:` with its scenarios and its Negative control). When the change has no requirements (`skip_specs: true`, or rename-only deltas), `gate.md` carries a `- Feature-specific criteria:` block and the brief lists that instead; its Invariant, Negative control and Observable must be concrete text. Abort fields come from `gate.md`.
+ - **Convergence.** `GC` takes the change folder as `--plan`; its ledger key is the repo-relative folder path.
+ 
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+index a41057dd57..47f575a6fb 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+@@ -819,25 +819,46 @@ function checkFolderClassification(record, gate) {
+ }
+ 
+ // The smoke row is the standard tier's second leg: an orchestrator-typed name is not evidence, so
+-// the artifact must be a tracked, non-ignored, non-empty regular file inside the repo ending in
+-// `exit=0`, so a later checkout can open it. It is read once, and the checks run on those bytes.
+-// It is deliberately NOT pinned: like every `qa[].artifact` it stays under the reviewed-SHA binding,
+-// so it must be committed at or before `reviewed_sha`, and a commit touching it afterwards blocks.
+-// Pinning a record-named path would let any changed source file ride the exemption.
+-function requireSmokeRow(context, qa) {
++// the artifact must be a non-empty regular-file blob whose last non-empty line is `exit=0`.
++// The bytes checked are the blob AT `reviewed_sha`, read once with git: the working tree, the index
++// and the exemption set play no part, so evidence a fresh clone would not hold cannot pass, and a
++// smoke path aliasing a pinned record, trailer or plan path gains nothing. The path must also be
++// byte-identical at HEAD, so a commit touching it after the review blocks here even where the
++// SHA binding would have exempted it.
++function requireSmokeRow(context, reviewedSha, qa) {
+   const smoke = qa.map((row, index) => ({ row, index })).filter(({ row }) => typeof row.name === "string" && row.name.startsWith("smoke:"))
+   if (smoke.length === 0) block("qa", "review_tier standard requires a qa row named `smoke: <what ran>` whose artifact is the recorded run")
+   let defect
+   for (const { row, index } of smoke) {
+     const field = `qa.${index}.artifact`
+-    const absolute = path.resolve(context.repo, row.artifact)
+-    assertTracked(context.repo, absolute, field)
+-    const stats = statSync(absolute, { throwIfNoEntry: false })
+-    if (stats === undefined || !stats.isFile()) {
+-      defect = `${field}: ${row.artifact} is not a readable regular file`
++    const relative = assertInsideRepo(context.repo, path.resolve(context.repo, row.artifact), field).split(path.sep).join("/")
++    const spec = `${reviewedSha}:${relative}`
++    const entry = spawnSync("git", ["-C", context.repo, "ls-tree", "-z", reviewedSha, "--", relative], { encoding: "utf8" })
++    if (entry.status !== 0 || entry.stdout === "") {
++      defect = `${field}: ${row.artifact} does not exist at reviewed_sha ${reviewedSha}; commit the smoke log before the review`
+       continue
+     }
+-    const text = readBytes(absolute, field).toString("utf8")
++    if (!entry.stdout.startsWith("100644 blob ") && !entry.stdout.startsWith("100755 blob ")) {
++      defect = `${field}: ${row.artifact} is not a regular-file blob at reviewed_sha`
++      continue
++    }
++    const unchanged = spawnSync("git", ["-C", context.repo, "diff", "--quiet", reviewedSha, context.head, "--", relative], { encoding: "utf8" })
++    if (unchanged.status !== 0) {
++      defect = `${field}: ${row.artifact} changed between reviewed_sha and HEAD`
++      continue
++    }
++    const size = spawnSync("git", ["-C", context.repo, "cat-file", "-s", spec], { encoding: "utf8" })
++    if (size.status !== 0) {
++      defect = `${field}: cannot read ${spec}`
++      continue
++    }
++    if (Number(size.stdout) > MAX_ARTIFACT_BYTES) block(field, `is ${size.stdout.trim()} bytes, above the ${MAX_ARTIFACT_BYTES}-byte limit for a gate artifact`)
++    const blob = spawnSync("git", ["-C", context.repo, "cat-file", "blob", spec], { maxBuffer: MAX_ARTIFACT_BYTES + 1 })
++    if (blob.status !== 0) {
++      defect = `${field}: cannot read ${spec}`
++      continue
++    }
++    const text = blob.stdout.toString("utf8")
+     if (text.trim() === "") {
+       defect = `${field}: ${row.artifact} is empty`
+       continue
+@@ -942,7 +963,7 @@ function validateRecord(record, context) {
+     if (reviewers.length !== 1 || reviewers[0] !== "implementation-audit") {
+       block("reviewers_run", "review_tier standard requires exactly implementation-audit; the second reviewer belongs to the full tier")
+     }
+-    requireSmokeRow(context, qa)
++    requireSmokeRow(context, record.reviewed_sha, qa)
+   }
+ 
+   const resolutions = requireArray(record, "resolution")

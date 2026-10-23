@@ -1,0 +1,36 @@
+### 1. Goal and behavioural contract
+
+The implementation checks the supplied version before replacing an existing, truthy record. The tests exercise both specified scenarios with real `Map` instances.
+
+**Note — missing records:** `src/records.mjs:4–6` creates a record for any supplied version when the ID is absent. A stale writer could therefore recreate a record after deletion. This does not block: the scratch project exposes no deletion operation or caller demonstrating that lifecycle, and missing-record behaviour is not specified.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+**Note — existing store format:** The previous API stored values directly; the new API expects `{ value, version }` and returns that shape through the store. Existing populated maps or three-argument callers would need migration. This does not block because the repository search found no such consumers outside the changed tests.
+
+### 3. Security and privacy delta
+
+No security or privacy delta identified in the changed code. The scratch project operates on local test data, and the change does not touch credentials, authorization, third-party personal data, or protected assets.
+
+### 4. Verification adequacy
+
+`test/records.test.mjs:5–15` checks a successful update and a stale rejection, including the unchanged record. `.omo/evidence/f1/qa.txt` records two passing tests; this audit did not rerun them.
+
+**Note — competing writers:** The tests initialize the stale case directly rather than exercising two writers that read the same version and update in sequence. This does not block: the existing test still directly checks the specified stale-version outcome.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Two writers acting sequentially on the same initially read version cannot both succeed.
+  positive_witness: The first writer succeeds and the second receives ConflictError.
+  negative_control: Both writers succeed and the second overwrites the first writer's value.
+  observable: The two call outcomes and the final stored value and version.
+  boundary: The exported update function operating on a shared Map.
+END-REVIEW-TRAILER

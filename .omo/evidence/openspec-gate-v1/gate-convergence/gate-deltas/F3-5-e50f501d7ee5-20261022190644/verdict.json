@@ -1,0 +1,21 @@
+{
+  "verdict": "REJECT",
+  "summary": "The submitted commit range contains an earlier plan edit, not the claimed fixes for rows 5–8.",
+  "blockers": [
+    {
+      "area": "PROCESS 4 — fixes absent from delta",
+      "defect": "The submitted patch does not implement the named fixes or regression tests.",
+      "evidence": "The manifest lists only e50f501d7ee5b7063009ff0fd954d4293951e01e. Its complete patch changes only .omo/plans/openspec-gate.md, adding unchecked rows 5 and 6; it contains no validator, skill, or test changes, and no rows 7 or 8. The assigned fix entries require committed-blob smoke validation, reason comparison, documentation changes and regression controls.",
+      "change": "Supply the actual cumulative commit range and patches containing the implementations and tests for rows 5–8 for review."
+    },
+    {
+      "area": "PROCESS 4 — unsafe smoke exemption",
+      "defect": "The only smoke fix specified by the submitted patch admits a record-selected path into the post-review SHA exemption without an independent digest.",
+      "evidence": "Added row 5 says to use verifyAndPinArtifact and pin the smoke file so it may be committed after reviewed_sha. A changed source file ending in exit=0 can be named as the smoke artifact and exempted from the binding; row 7 of the supplied assignment explicitly identifies and reverses this design, but is absent from the patch.",
+      "change": "Replace the row 5 approach in the submitted delta with the reviewed_sha blob and HEAD equality design in row 8, including its negative controls."
+    }
+  ],
+  "notes": [
+    "The current workspace contains later plan and validator content; it is not part of the supplied commit patch and therefore cannot establish that the submitted delta implements those changes."
+  ]
+}

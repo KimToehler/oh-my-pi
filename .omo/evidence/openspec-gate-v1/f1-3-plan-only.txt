@@ -1,0 +1,7 @@
+F1 scenario 3 (installed validators, PI_CODING_AGENT_DIR scratch, real OpenSpec 1.14.3 change, head dda8ef30e0)
+openspec-check: exit=0 out=passed err=
+plan-only: exit=0 out=passed err=
+freeze: exit=0 out=34c95c9555be533bcdadcddcac3f6cac4df3ac12a4859a19fa840e7579b10b0e err=
+plan-only no-negative-control: exit=1 out=blocked err=plan OpenSpec change: Safe update: exactly one Scenario: Negative control is required
+plan-only symlink: exit=1 out=blocked err=plan: specs/feature/link.md: symlink is not allowed in a change folder
+openspec validate strict: exit=0 out=Change 'probe' is valid err=

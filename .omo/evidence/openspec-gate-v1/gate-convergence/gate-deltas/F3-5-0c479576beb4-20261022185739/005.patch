@@ -1,0 +1,91 @@
+commit 0d8dd7bdc1f11c9416d0ada911856361e4546daa
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Thu Oct 22 20:34:38 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Thu Oct 22 20:34:38 2026 +0200
+
+    fix(review-work): keep smoke evidence under the reviewed-SHA binding
+
+diff --git a/.omo/plans/openspec-gate.md b/.omo/plans/openspec-gate.md
+index ca54da6f4f..f1cd4f7b9a 100644
+--- a/.omo/plans/openspec-gate.md
++++ b/.omo/plans/openspec-gate.md
+@@ -142,7 +142,7 @@ records that already block on 919b21f9d0, history rewrite.
+   (mismatch test); SKILL.md hash instructions marked file-plan-only and a folder record example with `review_tier`;
+   the standard tier's two-fix-round limit stated as an orchestrator rule (convergence does not count tiers).
+   Verify: `bun run test:team-config`
+-- [ ] 7. Delta review REJECT on rows 5-6 (record-named smoke path entered the SHA exemption without an independent
++- [x] 7. Delta review REJECT on rows 5-6 (record-named smoke path entered the SHA exemption without an independent
+   digest; two reads; doc contradictions): the smoke artifact is NOT pinned. It must be tracked, not ignored, and
+   committed at or before `reviewed_sha` (F1 runs before F2, so the log is reviewed like every QA artifact); a commit
+   touching it after `reviewed_sha` blocks through the unchanged binding. Bytes are read once (`readBytes`) and the
+diff --git a/team-config/agent/skills/review-work/SKILL.md b/team-config/agent/skills/review-work/SKILL.md
+index 3b36ee5bc2..1a34a44eda 100644
+--- a/team-config/agent/skills/review-work/SKILL.md
++++ b/team-config/agent/skills/review-work/SKILL.md
+@@ -111,7 +111,7 @@ A `--plan` that is a directory holding `gate.md` is an OpenSpec change folder, a
+ 
+ - `--plan-only --plan <change-dir>` runs the OpenSpec checks and the criteria checks on one snapshot of the folder.
+ - **Freeze before dispatch.** Run `node $SKILL_DIR/scripts/validate-gate-record.mjs --repo <repo root> --freeze-plan <change-dir> --bundle <out>`; the bundle goes outside the folder. It snapshots the folder once, blocks on any OpenSpec or criteria diagnostic (writing nothing), writes the bundle and prints `plan_sha256`. That printed digest is the record's `plan_sha256`; do not run `shasum` on a folder. Give reviewers the bundle path as `{PLAN PATH}`: it is the plan they read. Any change to any file in the folder after the freeze fails `plan_sha256`, so freeze again and re-review.
+-- **Depth comes from `gate.md`, never from you.** The record's `mandatory_class`, `review_tier` and `whole_diff` must equal `gate.md` (`Mandatory class` first token, `Review tier`, `Whole-diff review`). `standard`: `reviewers_run` is exactly `["implementation-audit"]`, no `strategic-risk-review`, at most two fix rounds, and at least one `qa` row named `smoke: <what ran>` whose artifact is a tracked, non-ignored, non-empty regular file in the repo whose last non-empty line is `exit=0`. Write the smoke log to `.omo/evidence/gate/<change>/smoke-<name>.txt` (a path that stays addable) and commit it with the record: it is pinned like a trailer, so a commit adding it after `reviewed_sha` stays exempt, and a fresh clone can re-validate. The two-fix-round limit is an orchestrator rule; `gate-convergence.mjs` does not count tiers. `full`: both invocations, even for class `none`. F3 (`integration-review`) runs exactly when `gate.md` says `Whole-diff review: needed`, in both tiers.
++- **Depth comes from `gate.md`, never from you.** The record's `mandatory_class`, `review_tier` and `whole_diff` must equal `gate.md` (`Mandatory class` first token, `Review tier`, `Whole-diff review`). `standard`: `reviewers_run` is exactly `["implementation-audit"]`, no `strategic-risk-review`, at most two fix rounds, and at least one `qa` row named `smoke: <what ran>` whose artifact is a tracked, non-ignored, non-empty regular file in the repo whose last non-empty line is `exit=0`. Write the smoke log to `.omo/evidence/gate/<change>/smoke-<name>.txt` (a path that stays addable) and commit it before dispatching F2, like every QA artifact: it is not pinned and not exempt, so it must be tracked and committed at or before `reviewed_sha`, and a commit touching it afterwards blocks on the SHA binding. A fresh clone can then re-validate. The two-fix-round limit is an orchestrator rule; `gate-convergence.mjs` does not count tiers. `full`: both invocations, even for class `none`. F3 (`integration-review`) runs exactly when `gate.md` says `Whole-diff review: needed`, in both tiers.
+ - **Criteria.** Fill `{CRITERIA WITH FIVE FIELDS}` and `{PLAN INVARIANTS}` from the spec requirements in the bundle (each `### Requirement:` with its scenarios and its Negative control). When the change has no requirements (`skip_specs: true`, or rename-only deltas), `gate.md` carries a `- Feature-specific criteria:` block and the brief lists that instead; its Invariant, Negative control and Observable must be concrete text. Abort fields come from `gate.md`.
+ - **Convergence.** `GC` takes the change folder as `--plan`; its ledger key is the repo-relative folder path.
+ 
+@@ -360,11 +360,11 @@ Re-classify `mandatory_class` against the **final diff**, not against the plan.
+ 
+ Committing that evidence afterwards does not invalidate the record. The reviewed target is the **code**: commits on top of `reviewed_sha` are tolerated while they touch only the record, the trailers it cites, and the plan - the files whose existence storing the record causes, each of which the validator also reads and requires to be tracked. Anything else among them blocks, which is the point. Without that rule the gate would demand durable evidence and then reject the record for having been stored, and the cheap way out would be to leave the evidence untracked.
+ 
+-`qa[].artifact` is **not** exempt, deliberately. Write your QA artifacts before validating. A QA row that points at the file its QA exercised is ordinary, and honouring it would let one free-form path silently exempt reviewed source from the binding.
++`qa[].artifact` is **not** exempt, deliberately, without exception (the standard tier's tracked `smoke:` log included: commit it before `reviewed_sha`). Write your QA artifacts before validating. A QA row that points at the file its QA exercised is ordinary, and honouring it would let one free-form path silently exempt reviewed source from the binding.
+ 
+ **A path is exempt only because the validator authenticated its bytes, never because the record named it.** The exemption set is a by-product of that authentication: the record is admitted from the `--record` path you passed, the plan and each trailer are admitted when their recorded digest matches. A path the validator did not verify cannot be exempted, so adding a new path field to the record cannot widen what counts as reviewed. `plan_sha256` covers the plan and `verdicts[].trailer_sha256` covers each trailer artifact - compute both with `shasum -a 256 <file>` (a folder plan's `plan_sha256` is the `--freeze-plan` digest instead). Reading a trailer constrains only the region between the markers, so without the digest one file could carry a genuine reviewer reply beside reviewed source, and the path exemption would cover the source half: an authorization rule could be rewritten after the review with the gate still passing. A digest mismatch means the review is stale, so re-review.
+ 
+-The plan is bound by **content**, not just by path: for a file plan, `plan_sha256` is the digest of the exact bytes the reviewers were given (`shasum -a 256 <plan>`; for a folder plan use the `--freeze-plan` digest instead). The plan is a review input and it is mutable, and each adversarial criterion is checked against the plan as it stands - so without the digest, deleting an invariant after the review would relicense a criterion the reviewer had copied as its own work. Where the plan is git-ignored, as `.omo/plans/` commonly is, that edit needs no commit at all and nothing in git would show it. Compute it with `shasum -a 256 <plan>`. If the plan legitimately changes, the review is stale: re-review against the plan as it now stands.
++The plan is bound by **content**, not just by path: for a file plan, `plan_sha256` is the digest of the exact bytes the reviewers were given (`shasum -a 256 <plan>`; for a folder plan use the `--freeze-plan` digest instead). The plan is a review input and it is mutable, and each adversarial criterion is checked against the plan as it stands - so without the digest, deleting an invariant after the review would relicense a criterion the reviewer had copied as its own work. Where the plan is git-ignored, as `.omo/plans/` commonly is, that edit needs no commit at all and nothing in git would show it. For a file plan compute it with `shasum -a 256 <plan>`; a folder plan's digest is the one `--freeze-plan` printed. If the plan legitimately changes, the review is stale: re-review against the plan as it now stands.
+ 
+ For a folder plan "the plan" means every file in the change folder, and the digest is the one `--freeze-plan` printed. The plan must already be in its final state, including its own merge-gate checkbox (final verification wave F2) marked `[x]`, at the moment reviewers are dispatched and this digest is taken - no plan edit may follow. `plan_sha256` binds whatever bytes existed at hash time, so hashing before that mark would seal an unfrozen plan and let the gate's own required output invalidate its own binding.
+ 
+@@ -405,7 +405,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
+    - `GC baseline --sha HEAD` (prints the existing baseline when F3 already set one);
+    - `GC ready --lane F2`; `NOT READY` → resolve every listed reason and dispatch nothing;
+    - `GC snapshot --lane F2`; it refuses uncommitted tracked changes. Its first output line is the snapshot path; keep it for step 3.
+-2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Exception: a folder plan's `smoke:` log goes to `.omo/evidence/gate/<change>/smoke-<name>.txt` and is staged with the record in Phase 5, because the validator requires it tracked. Otherwise only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
++2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omo/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Exception: a folder plan's `smoke:` log goes to `.omo/evidence/gate/<change>/smoke-<name>.txt` and is committed before F2 is dispatched (not staged with the record), because the validator requires it tracked and under the reviewed-SHA binding. Otherwise only the record and the `*trailer*` files are staged, in Phase 5. Between waves commit only fix code. A commit without a delta review blocks the next wave.
+ 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
+    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
+    - one `--blocker QA<n>` per failing QA row;
+diff --git a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+index 786a12db2f..a41057dd57 100644
+--- a/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
++++ b/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs
+@@ -820,10 +820,10 @@ function checkFolderClassification(record, gate) {
+ 
+ // The smoke row is the standard tier's second leg: an orchestrator-typed name is not evidence, so
+ // the artifact must be a tracked, non-ignored, non-empty regular file inside the repo ending in
+-// `exit=0`. It is review output a later checkout must be able to open, so it is admitted by the
+-// same verifier as a trailer: tracked, read, pinned (a commit adding it after `reviewed_sha` stays
+-// exempt). The record carries no digest for it, so the digest is that of the bytes just read; the
+-// checks below run on the verifier's own bytes.
++// `exit=0`, so a later checkout can open it. It is read once, and the checks run on those bytes.
++// It is deliberately NOT pinned: like every `qa[].artifact` it stays under the reviewed-SHA binding,
++// so it must be committed at or before `reviewed_sha`, and a commit touching it afterwards blocks.
++// Pinning a record-named path would let any changed source file ride the exemption.
+ function requireSmokeRow(context, qa) {
+   const smoke = qa.map((row, index) => ({ row, index })).filter(({ row }) => typeof row.name === "string" && row.name.startsWith("smoke:"))
+   if (smoke.length === 0) block("qa", "review_tier standard requires a qa row named `smoke: <what ran>` whose artifact is the recorded run")
+@@ -837,12 +837,11 @@ function requireSmokeRow(context, qa) {
+       defect = `${field}: ${row.artifact} is not a readable regular file`
+       continue
+     }
+-    if (stats.size === 0) {
++    const text = readBytes(absolute, field).toString("utf8")
++    if (text.trim() === "") {
+       defect = `${field}: ${row.artifact} is empty`
+       continue
+     }
+-    const digest = createHash("sha256").update(readBytes(absolute, field)).digest("hex")
+-    const { text } = verifyAndPinArtifact(context, absolute, field, field, digest)
+     const lines = text.split("\n").map((line) => line.trim()).filter((line) => line !== "")
+     if (lines.at(-1) === "exit=0") return
+     defect = `${field}: the last non-empty line of ${row.artifact} must be exit=0`
