@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A pending yield that defers request-budget evaluation must not extend the request-budget hard-abort deadline.
+  positive_witness: With request budget 2 and a nonterminal yield whose sibling completions defer the stop until request count 5, an agent that continues without a terminal yield hard-aborts on the first subsequent budget check at or beyond count 8.
+  negative_control: Anchoring the grace deadline to the delayed stop count allows the same run to continue until count 10 and MUST fail.
+  observable: Recorded request count at the hard-abort event and the resulting abort reason.
+  boundary: Subagent run monitor event handling and request-budget hard-abort decision.
+END-REVIEW-TRAILER

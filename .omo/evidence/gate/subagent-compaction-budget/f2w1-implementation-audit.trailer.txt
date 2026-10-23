@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A completed unstructured report must not leave a newly generated budget steer queued to affect a later session turn.
+  positive_witness: A report is followed by threshold maintenance and no budget steer is queued or delivered on a later wake.
+  negative_control: Threshold maintenance queues a budget steer after the report and a later continuation or wake consumes it.
+  observable: The queued-message state and subsequent session events distinguish the two outcomes.
+  boundary: Subagent monitor and session steering queue.
+END-REVIEW-TRAILER

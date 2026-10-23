@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: FAIL
+blockers: B1,B2
+adversarial_criteria:
+- invariant: A newly added compaction guard must leave every request-only event trace on the request guard's prior transition schedule and result-selection path.
+  positive_witness: With no compaction events, a request-only run produces the same steering count, forced-wrap-up prompt, hard-abort request index, and selected report as the baseline implementation.
+  negative_control: A request-only report at the stop threshold skips its former forced wrap-up, or a deferred stop moves the hard-abort request beyond the baseline deadline.
+  observable: Prompt count and kind, returned report, abort callback request index, and abort reason for identical request-only traces.
+  boundary: The createSubagentRunMonitor budget state machine and driveSessionToResult forced-report ladder.
+END-REVIEW-TRAILER

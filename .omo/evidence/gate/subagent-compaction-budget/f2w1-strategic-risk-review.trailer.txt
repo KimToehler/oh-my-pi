@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: An asynchronously scheduled compaction-budget steer is invalidated when the run reaches an unstructured terminal-report boundary before that steer is enqueued or consumed.
+  positive_witness: An unstructured report ends with stop reason stop, post-turn maintenance reaches the notice threshold, no steering message or continuation is created, and the original report remains the result.
+  negative_control: The threshold handler leaves a steer queued after the report and AgentSession starts another prompt or replaces the returned report; this MUST fail.
+  observable: Steered-message count, prompt or continuation count, and the final run output after the steering microtask settles.
+  boundary: The task monitor's auto_compaction_end handling and asynchronous steering queue at the AgentSession continuation scheduler.
+END-REVIEW-TRAILER
