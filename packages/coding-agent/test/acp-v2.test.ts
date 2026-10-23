@@ -695,6 +695,45 @@ describe("skill command stop (F3 wave 3)", () => {
 			spy.mockRestore();
 		}
 	});
+
+	it("runs nothing and sends no frame after the close response when the session closes during the skill read", async () => {
+		// Guards: a v2 close never cancels in-flight work, so the released skill read persists a message on the closed session.
+		const { h, rig, client, sessionId, session } = await startReal({ skill: "reviewer" });
+		const original = skillsModule.buildSkillPromptMessage;
+		const reading = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const spy = vi.spyOn(skillsModule, "buildSkillPromptMessage").mockImplementation(async (...args) => {
+			reading.resolve();
+			await release.promise;
+			return original(...args);
+		});
+		const dispatched: Array<Promise<unknown>> = [];
+		const promptCustomMessage = session.promptCustomMessage.bind(session);
+		session.promptCustomMessage = (...args) => {
+			const result = promptCustomMessage(...args);
+			dispatched.push(result);
+			return result;
+		};
+		try {
+			const pending = sendPrompt(client, sessionId, "/skill:reviewer go");
+			await reading.promise;
+			await h.agent()!.closeSession({ sessionId });
+			const framesAtClose = client.frames.length;
+			release.resolve();
+			await pending;
+			await eventLoopTurns(30);
+			await Promise.all(dispatched);
+			await Promise.race([rig.gate(0).reached.promise, eventLoopTurns(200)]);
+			expect(dispatched).toEqual([]);
+			expect(rig.modelCalls).toBe(0);
+			expect(session.sessionManager.getEntries().filter(entry => entry.type === "custom_message")).toEqual([]);
+			expect(client.frames.slice(framesAtClose).filter(frame => JSON.stringify(frame).includes(sessionId))).toEqual(
+				[],
+			);
+		} finally {
+			spy.mockRestore();
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -912,6 +951,36 @@ describe("cancel and errors (plan 5)", () => {
 		await eventLoopTurns(40);
 		expect(userMessages(client, sessionId).map(message => message.text)).not.toContain("Ship feature X");
 		expect(userEntryIds(session)).toEqual([]);
+	});
+
+	it("answers a prompt whose Goal admission is held when the session closes, and persists nothing after the release", async () => {
+		// Guards: a v2 close never cancels the held admission, so the prompt stays unanswered or the objective is inserted later.
+		const { h, client, sessionId, session } = await startReal();
+		resultOf(
+			await client.request("session/set_config_option", { sessionId, configId: "mode", type: "id", value: "goal" }),
+		);
+		const entered = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const runtime = session.goalRuntime;
+		const createGoal = runtime.createGoal.bind(runtime);
+		let heldCalls = 0;
+		runtime.createGoal = async (...args: Parameters<typeof createGoal>) => {
+			if (heldCalls++ === 0) {
+				entered.resolve();
+				await release.promise;
+			}
+			return await createGoal(...args);
+		};
+		teardown.unshift(async () => release.resolve());
+		const held = sendPrompt(client, sessionId, "Ship feature X");
+		await entered.promise;
+		await h.agent()!.closeSession({ sessionId });
+		expect(errorCode(await held)).toBeDefined();
+		const framesAtClose = client.frames.length;
+		release.resolve();
+		await eventLoopTurns(40);
+		expect(userEntryIds(session)).toEqual([]);
+		expect(client.frames.slice(framesAtClose).filter(frame => JSON.stringify(frame).includes(sessionId))).toEqual([]);
 	});
 
 	it("reports a submission outcome at most once", () => {

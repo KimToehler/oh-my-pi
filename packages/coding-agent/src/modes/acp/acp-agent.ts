@@ -1053,7 +1053,7 @@ export class AcpAgent implements Agent {
 		// prompt finishes as a Stop's cancelled prompt does (a Stop already answered the client),
 		// and only while this turn still owns the slot: the next queued prompt may hold it.
 		const confirmed = admission ? admission.confirm() : true;
-		if (!confirmed || promptTurn?.work.cancelRequested) {
+		if (!confirmed || promptTurn?.work.cancelRequested || this.#isClosed(record)) {
 			if (promptTurn && this.#turnOf(record) === promptTurn && !promptTurn.settled) {
 				this.#finishPrompt(record, { stopReason: "cancelled" });
 			}
@@ -1137,6 +1137,7 @@ export class AcpAgent implements Agent {
 		const turn = this.#turnOf(record);
 		const built = await buildSkillPromptMessage(skill, parsed, "user");
 		// Stop (or a replacing prompt) during the skill read: the skill must not run afterwards.
+		if (this.#isClosed(record)) return true;
 		if (turn && (turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)) return true;
 		await record.session.promptCustomMessage(
 			{
@@ -1439,7 +1440,8 @@ export class AcpAgent implements Agent {
 		}
 		// The wait can outlast the prompt (cancelled, or otherwise ended): its
 		// command must not start then. `undefined` means it never ran.
-		if (!turn || turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn) return undefined;
+		if (!turn || this.#isClosed(record) || turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)
+			return undefined;
 		// Built only now: the command waited out may have changed what the runtime
 		// snapshots (e.g. `/move` changes the session's cwd).
 		const runtime = this.#buildSlashCommandRuntime(record, turn);
@@ -2959,11 +2961,18 @@ export class AcpAgent implements Agent {
 		await this.#disposeSessionRecord(record);
 	}
 
+	/** True once the session was closed or its agent disposed: late continuations must send and persist nothing. */
+	#isClosed(record: ManagedSessionRecord): boolean {
+		return record.closedError !== undefined;
+	}
+
 	async #cancelPromptForClose(record: ManagedSessionRecord): Promise<void> {
-		const promptTurn = record.promptTurn;
+		// The same view `cancel` uses: v2 work lives in `record.foreground`, not `record.promptTurn`.
+		const promptTurn = this.#turnOf(record);
 		if (!isPromptTurnInFlight(promptTurn)) {
 			return;
 		}
+		this.#surface.beforeCancel(record);
 		const cleanup = promptTurn.work.cleanup ?? this.#beginCancelCleanup(record, promptTurn.work);
 		try {
 			await cleanup;
