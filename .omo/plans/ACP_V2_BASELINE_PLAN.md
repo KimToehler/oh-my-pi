@@ -405,7 +405,7 @@ ACP v2 (schema `schema-v2.0.0-alpha.9`, 2026-10-16) fixes this at the protocol l
 
 - [x] F3. Whole-diff review: `integration-review` over `main...HEAD`; needed because the change spans utils dispatch, AgentSession insertion/gating, the ACP adapter and settings
 - [x] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 ## Merge gate
 
