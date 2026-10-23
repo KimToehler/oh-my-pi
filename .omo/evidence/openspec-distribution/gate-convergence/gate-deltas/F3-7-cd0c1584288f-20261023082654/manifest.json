@@ -1,0 +1,18 @@
+{
+  "base_sha": "a39b6598765a3925611ccd979456917537cd5abe",
+  "head_sha": "cd0c1584288f8bf45aaa3e213809a665956cf24c",
+  "commits": [
+    {
+      "sha": "baca276a5845d2614577772792d796379f889f78",
+      "subject": "docs(plans): P3b row 6 done, row 7 for negated ignore matches",
+      "patch": "001.patch",
+      "sha256": "d5fd18a6f34e33879537e9bc3fda8a721ef767145ae396ba60dcc02a6167456b"
+    },
+    {
+      "sha": "cd0c1584288f8bf45aaa3e213809a665956cf24c",
+      "subject": "fix(team-config): installer ignores negated git-ignore matches",
+      "patch": "002.patch",
+      "sha256": "3e4927badfc5e0b1368efc2f77c3ebda0359941f63cd06c68eb6ef37d466caa0"
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+commit a39b6598765a3925611ccd979456917537cd5abe
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Fri Oct 23 10:08:20 2026 +0200
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Fri Oct 23 10:08:20 2026 +0200
+
+    refactor(team-config): integration cleanup
+
+diff --git a/team-config/README.md b/team-config/README.md
+index 924538372e..7202d98856 100644
+--- a/team-config/README.md
++++ b/team-config/README.md
+@@ -102,7 +102,7 @@ It runs on the work-tree root (or the root given as its argument) and writes onl
+ 
+ Git is the backup. The installer refuses, changing nothing, unless
+ `git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated` is empty, so
+-every byte it replaces is in `HEAD`. It also refuses on a symlinked `openspec`, `openspec/schemas`, schema directory or
++every byte it replaces is in `HEAD`. It also refuses when a `.gitignore` rule would ignore a file it is about to create (it names the path and rule), on a symlinked `openspec`, `openspec/schemas`, schema directory or
+ config, and outside a git work tree. If the copy fails, it rolls back to `HEAD` before exiting and checks that the
+ status is clean again; if that rollback fails too, it says so and prints the remaining paths. It never suggests
+ deleting anything on a refusal: inspect the listed paths yourself.
+diff --git a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
+index f40db66f48..0bf4ed2c68 100755
+--- a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
++++ b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.mjs
+@@ -93,12 +93,29 @@ function preflight(target, source) {
+       `these workflow paths hold changes git cannot restore; commit or move them yourself, then rerun:\n${dirty.map((line) => `  ${line}`).join("\n")}`,
+     )
+   }
++  const created = [
++    ...(lstat(path.join(root, CONFIG)) ? [] : [CONFIG]),
++    ...files.map((rel) => `${SCHEMA}/${rel}`).filter((rel) => !lstat(path.join(root, rel))),
++  ]
++  if (created.length > 0) {
++    const ignored = git(root, "check-ignore", "-v", "--no-index", "--", ...created)
++    if (ignored.status === 0) {
++      const lines = ignored.stdout.split("\n").filter(Boolean).map((line) => {
++        const [rule, file] = line.split("\t")
++        return `  ${file}  (${rule})`
++      })
++      throw new Refusal(
++        `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
++      )
++    }
++    if (ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
++  }
+ 
+   const configStat = lstat(path.join(root, CONFIG))
+   if (configStat) {
+     if (!configStat.isFile()) throw new Refusal(`${CONFIG} is not a regular file`)
+     const schema = /^schema:[ \t]*(.*?)[ \t]*(?:#.*)?$/m.exec(fs.readFileSync(path.join(root, CONFIG), "utf8"))
+-    if (schema?.[1] !== "omp-gated") {
++    if (schema?.[1].replace(/^(["'])(.*)\1$/, "$2") !== "omp-gated") {
+       const found = schema ? `schema: ${schema[1]}` : "no top-level schema: line"
+       throw new Refusal(`${CONFIG} has ${found}; change it to "schema: omp-gated" (keep your rules), commit, then rerun`)
+     }
+diff --git a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
+index dcd75ae143..50c3b7938d 100644
+--- a/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
++++ b/team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts
+@@ -120,7 +120,9 @@ describe("install", () => {
+ 			encoding: "utf8",
+ 			env: { ...process.env, DO_NOT_TRACK: "1", OPENSPEC_TELEMETRY: "0" },
+ 		});
+-		if (which.error === undefined) expect(which.stdout).toContain("Source: project");
++		expect(which.error).toBeUndefined();
++		expect(which.status).toBe(0);
++		expect(which.stdout).toContain("Source: project");
+ 	});
+ 
+ 	test("update over a committed local edit and an extra file: replaced wholesale, the old bytes stay in HEAD, the config is untouched", () => {
+@@ -135,9 +137,43 @@ describe("install", () => {
+ 		expect(git(root, "show", `HEAD:${SCHEMA}/templates/gate.md`)).toContain("local edit");
+ 		expect(text(r)).toContain(`${SCHEMA}/templates/gate.md`);
+ 	});
++
++	for (const [label, line] of [
++		["double-quoted", 'schema: "omp-gated" # ours\n'],
++		["single-quoted", "schema: 'omp-gated'\n"],
++	] as const) {
++		test(`a ${label} omp-gated schema in the config is accepted and the config stays byte-identical`, () => {
++			const config = `${line}\nrules:\n  specs:\n    - ours\n`;
++			const root = project({ [CONFIG]: config });
++			const r = installWorkflow(root);
++			expect(r.code).toBe(0);
++			expect(fs.readFileSync(path.join(root, CONFIG), "utf8")).toBe(config);
++		});
++	}
+ });
+ 
+ describe("refusals leave the project byte-identical", () => {
++
++	test("a committed .gitignore rule that would ignore the config to be created", () => {
++		const root = project({ ".gitignore": "openspec/config.yaml\n" });
++		const before = tree(root);
++		const r = installWorkflow(root);
++		expect(r.code).toBe(1);
++		expect(text(r)).toContain(CONFIG);
++		expect(text(r)).toContain(".gitignore");
++		expect(tree(root)).toEqual(before);
++	});
++
++	test("a rule ignoring schema files that do not exist yet", () => {
++		const root = project({ ".gitignore": "*.md\n" });
++		const before = tree(root);
++		const r = installWorkflow(root);
++		expect(r.code).toBe(1);
++		expect(text(r)).toMatch(new RegExp(`${SCHEMA}/templates/[^\\s]+\\.md`));
++		expect(text(r)).toContain("*.md");
++		expect(tree(root)).toEqual(before);
++	});
++
+ 	test("a modified tracked file under the schema", () => {
+ 		const root = project(committedSchema());
+ 		write(root, { [`${SCHEMA}/schema.yaml`]: "edited\n" });

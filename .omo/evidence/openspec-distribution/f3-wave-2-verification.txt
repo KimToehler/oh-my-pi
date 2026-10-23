@@ -1,0 +1,14 @@
+oxlint exit=0
+Checking formatting...
+
+[38;2;244;191;117;1mscripts/ensure-openspec-cli.test.ts[0m (1ms)
+[38;2;244;191;117;1mscripts/ensure-openspec-cli.ts[0m (1ms)
+
+Format issues found in above 2 files. Run without `--check` to fix.
+Finished in 4ms on 2 files using 18 threads.
+oxfmt exit=1
+bash-n exit=0
+ 559 pass
+ 0 fail
+after 0ae40fa7a3 (oxfmt): bunx oxfmt --check scripts/ensure-openspec-cli.ts scripts/ensure-openspec-cli.test.ts -> ok; bun test scripts/ensure-openspec-cli.test.ts -> 4 pass 0 fail
+(suite count above is `bun run test:team-config`)

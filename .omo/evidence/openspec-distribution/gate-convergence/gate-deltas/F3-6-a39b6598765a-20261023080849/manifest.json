@@ -1,0 +1,18 @@
+{
+  "base_sha": "551a3f41d46ab81fbca0cb6ae1ac4b5bd2995143",
+  "head_sha": "a39b6598765a3925611ccd979456917537cd5abe",
+  "commits": [
+    {
+      "sha": "97dbd88a18339ec5e25186a594d9126cd83e5e4a",
+      "subject": "docs(plans): P3b row 6 takes the F3 wave 1 should-fixes",
+      "patch": "001.patch",
+      "sha256": "a4154922bc403eae1129c637381e33adb7a0536bd6450295555356e87ba449d0"
+    },
+    {
+      "sha": "a39b6598765a3925611ccd979456917537cd5abe",
+      "subject": "refactor(team-config): integration cleanup",
+      "patch": "002.patch",
+      "sha256": "1b893748e5165a55d0390c350b30c03649a62dfc65e69595751c35797464c24e"
+    }
+  ]
+}

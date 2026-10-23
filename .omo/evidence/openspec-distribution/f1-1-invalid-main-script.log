@@ -1,0 +1,62 @@
+
+==> Deploying feat/openspec-distribution (0ae40fa7a3b4ec809a11202329364f34224f4128)
+
+==> Installing dependencies
+bun install v1.4.3 (26aa4e1a9)
+Resolving dependencies
+Resolved, downloaded and extracted [2]
+
+$ bun run gen:tool-views
+$ bun --cwd=packages/collab-web run gen:tool-views
+$ bun scripts/build-tool-views.ts
+Generated ../coding-agent/src/export/html/tool-views.generated.js (578.5 KiB)
+
+Checked 415 installs across 584 packages (no changes) [135.00ms]
+
+==> Building native addon
+$ bun ../../scripts/bazel-natives.ts host --dest native
+local host build: using packages/natives/scripts/build-bindings.ts
+Building pi-natives bindings for darwin-arm64 (local)…
+    Finished `local` profile [optimized] target(s) in 0.72s
+Normalizing native addon filename: pi_natives.darwin-arm64.node → pi_natives.darwin-arm64.node
+Generated 146 explicit ESM exports in index.js, fixed 15 const enums in index.d.ts
+Bindings build complete.
+installed pi_natives.darwin-arm64.node → /Users/tim/git/oh-my-pi/.worktrees/omp-deploy/packages/natives/native/pi_natives.darwin-arm64.node
+
+==> Compiling omp binary
+$ bun scripts/build-binary.ts
+$ bun scripts/generate-client-bundle.ts --generate
+$ bun run build.ts
+Building dashboard client...
+Build complete
+Generated src/embedded-client.generated.txt
+$ bun scripts/build-tool-views.ts
+Generated ../coding-agent/src/export/html/tool-views.generated.js (578.5 KiB)
+/Users/tim/git/oh-my-pi/.worktrees/omp-deploy/packages/coding-agent/dist/omp: replacing existing signature
+$ bun scripts/generate-client-bundle.ts --reset
+Reset src/embedded-client.generated.txt
+
+==> Staging /Users/tim/.local/bin/omp.new
+
+==> Smoke testing /Users/tim/.local/bin/omp.new
+omp/18.12.5
+smoke-test: ok
+
+==> Syncing team config
+Team config → /Users/tim/.omp/agent
+  added (9): skills/review-work/openspec/config.yaml, skills/review-work/openspec/schemas/omp-gated/schema.yaml, skills/review-work/openspec/schemas/omp-gated/templates/design.md, skills/review-work/openspec/schemas/omp-gated/templates/gate.md, skills/review-work/openspec/schemas/omp-gated/templates/proposal.md, skills/review-work/openspec/schemas/omp-gated/templates/spec.md, skills/review-work/openspec/schemas/omp-gated/templates/tasks.md, skills/review-work/scripts/install-openspec-workflow.mjs, skills/review-work/scripts/install-openspec-workflow.test.ts
+  updated (3): skills/review-work/SKILL.md, skills/review-work/scripts/validate-gate-record.test.mjs, skills/review-work/scripts/validate-openspec-change.test.ts
+
+==> Installing to /Users/tim/.local/bin/omp
+
+==> Deployed 0ae40fa7a3b4ec809a11202329364f34224f4128 feat/openspec-distribution 2026-10-23T10:29:58+0200
+Add /Users/tim/.local/bin to your PATH to run omp.
+Restart running omp sessions (e.g. IntelliJ ACP) to pick up the new binary and config.
+exit=0
+before:
+2724303315b35f8048cedd378bf9c3cc65391bbf5b6068938e93cec0e10938e0  /Users/tim/.local/bin/omp
+4ed9a98d46cbdece684161f380d9b716b6fe1d2d56522c82da81caf4ebc141b4  /Users/tim/.local/bin/omp.deployed
+after:
+2724303315b35f8048cedd378bf9c3cc65391bbf5b6068938e93cec0e10938e0  /Users/tim/.local/bin/omp
+73b65c80bba3b3a207fec3000f0e11829d52d24567bf9b561d4a9de22c465a0f  /Users/tim/.local/bin/omp.deployed
+CHANGED
