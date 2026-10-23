@@ -469,7 +469,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	}
 
 	allowsAgentInitiatedWork(record: ManagedSessionRecord): boolean {
-		return !record.cancelLatched;
+		// A closed or disposed session starts nothing, including while its teardown still awaits.
+		return !record.cancelLatched && record.closedError === undefined;
 	}
 
 	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined {

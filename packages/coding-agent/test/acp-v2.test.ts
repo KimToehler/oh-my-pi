@@ -769,6 +769,40 @@ describe("agent-initiated work (plan 4)", () => {
 		expect(client.frames.slice(base).some(frame => "id" in frame && typeof frame.method === "string")).toBe(false);
 	});
 
+	it("starts no wake turn for a background job that completes while an idle session is closing", async () => {
+		// Guards: closing an idle v2 session latches nothing, so a job finishing during teardown starts a model call.
+		const manager = new AsyncJobManager({});
+		AsyncJobManager.setInstance(manager);
+		const { h, rig, client, sessionId, session } = await startReal({ asyncJobManager: manager, agentId: "AcpOwner" });
+		await sendPrompt(client, sessionId, "first");
+		await waitForIdle(client, sessionId);
+		const callsBefore = rig.modelCalls;
+		const jobGate = Promise.withResolvers<string>();
+		manager.register("bash", "slow job", async () => await jobGate.promise, { id: "late-job", ownerId: "AcpOwner" });
+		// Hold the session's teardown so the wake fires while the close is still awaiting.
+		const teardownHeld = Promise.withResolvers<void>();
+		const teardownEntered = Promise.withResolvers<void>();
+		const dispose = session.dispose.bind(session);
+		session.dispose = async options => {
+			teardownEntered.resolve();
+			await teardownHeld.promise;
+			return await dispose(options);
+		};
+		teardown.unshift(async () => teardownHeld.resolve());
+		const closing = h.agent()!.closeSession({ sessionId });
+		await teardownEntered.promise;
+		const framesAtClose = client.frames.length;
+		jobGate.resolve("LATE RESULT");
+		const settled = session.settleAsyncWork();
+		await Promise.race([settled, Bun.sleep(1500)]);
+		expect(rig.modelCalls).toBe(callsBefore);
+		expect(client.frames.slice(framesAtClose).filter(frame => JSON.stringify(frame).includes(sessionId))).toEqual([]);
+		teardownHeld.resolve();
+		await closing;
+		await settled;
+		expect(rig.modelCalls).toBe(callsBefore);
+	});
+
 	it("streams a Goal continuation after the prompt returned, bounded by one running/idle pair", async () => {
 		// Guards: continuation frames are lost (prompt-scoped subscription) or each continuation shows idle.
 		const { rig, client, sessionId } = await startReal();
