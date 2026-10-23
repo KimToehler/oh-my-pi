@@ -10,7 +10,7 @@
 
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
 - ACP clients such as JetBrains IDEs can pick a Goal mode: your next message becomes the objective, the agent keeps working on it turn after turn within that reply until the goal is complete, Stop pauses the goal, and your next message resumes it (`goal.continuationModes` now includes `"acp"` by default)
-- Subagents that keep compacting are now wrapped up automatically: after `task.softCompactionBudget` compactions (default 3) they get a wrap-up notice, and one more compaction stops them with a final report
+- Subagents that keep compacting are now stopped automatically: after `task.softCompactionBudget` compactions (default 3) they are asked to wrap up (when `task.softRequestBudgetNotice` is on), and one more compaction stops the run and asks for a final report
 
 ### Changed
 
