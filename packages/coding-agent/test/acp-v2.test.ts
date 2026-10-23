@@ -556,6 +556,7 @@ describe("ordered state emission (F3 wave 3)", () => {
 		resultOf(await sendPrompt(client, sessionId, "/noop"));
 		resultOf(await sendPrompt(client, sessionId, "work"));
 		await rig.gate(0).reached.promise;
+		await client.waitFor(c => c.states(sessionId).length >= 3, "running, idle, running state_updates");
 		await eventLoopTurns(20);
 		expect(stateNames(client, sessionId)).toEqual(["running", "idle", "running"]);
 		rig.gate(0).release.resolve();
