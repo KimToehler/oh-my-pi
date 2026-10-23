@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+Reviewed the full supplied diff and plan, including the wave-2 identity and sub-cent-cost fixes. The implementation selects progress by agent ID, adds the suffix only to running task rows, and leaves rows without usable progress unchanged.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocking finding. I traced progress from task registration and batch reporting through `snapshotJobs`, the wait renderer, and both `proc://` renderers. The existing ownership filtering and broker-tolerant path remain in place. The collision regression test distinguishes the job ID from the agent ID.
+
+## 3. Security and privacy delta
+
+No security delta identified under the brief’s definition. The changed rendering exposes progress already held in caller-visible jobs; it does not change job ownership filtering.
+
+## 4. Verification adequacy
+
+Reviewed the real-CLI QA transcript, original RED evidence, collision and sub-cent RED evidence, and the fork’s focused GREEN test artifact. The QA transcript demonstrates changing progress across polls and unchanged settled and bash rows.
+
+**Non-blocking note:** `merge-tests.txt` contains the focused 74-test result, but not the supplied matrix’s claimed `bun check` and broad-suite output. Those broader results remain author-supplied rather than independently corroborated by that artifact. I did not run checks.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: When a job ID is collision-suffixed, its progress must remain associated with its underlying agent rather than another agent in the same batch.
+  positive_witness: A Beta job registered as Beta-2 displays Beta's 42 requests and beta stage despite Alpha appearing first in the batch.
+  negative_control: Selecting the first batch record displays Alpha's 7 requests and alpha stage on Beta-2 and must fail.
+  observable: The Beta-2 row in the rendered wait result.
+  boundary: Async job progress snapshot selection and wait text rendering.
+END-REVIEW-TRAILER
