@@ -898,6 +898,26 @@ describe("worktree gate binding", () => {
 		expect(recordRuns()).toHaveLength(0);
 	});
 
+	it("stop hook: retired record id refuses a v2 record beside a matching v3 record in another worktree", async () => {
+		// Given: the feature worktree holds the v3 record; main holds a v2 record at the same cited path
+		const fixture = await worktreeGateFixture();
+		await Bun.write(
+			path.join(fixture.main, fixture.record),
+			JSON.stringify({ schema: "omo.merge-gate/v2", plan: ".omp/plans/local.md", reviewed_sha: fixture.reviewedSha }),
+		);
+		await git(fixture.main, "add", fixture.record);
+		await git(fixture.main, "commit", "-q", "-m", "historical v2 gate record");
+		useRealGit();
+
+		// When
+		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+
+		// Then
+		expect(result).toMatchObject({ decision: "block" });
+		expect(JSON.stringify(result)).toContain("team-config.merge-gate/v3");
+		expect(recordRuns()).toHaveLength(0);
+	});
+
 	it("stop hook: a merged v3 record at the default path is allowed by the settled shortcut", async () => {
 		// Given
 		const fixture = await worktreeGateFixture({ record: ".omp/team-config/evidence/gate/demo.json" });

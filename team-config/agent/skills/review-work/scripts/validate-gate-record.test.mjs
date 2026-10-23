@@ -2474,6 +2474,21 @@ test("whole-diff report: a post-review edit of a file that existed at reviewed_s
   }
 })
 
+test("whole-diff report: a file that existed at reviewed_sha moved into the record's directory as the report blocks on reviewed_sha", () => {
+  const repository = scratchRepo()
+  try {
+    mkdirSync(path.join(repository.directory, "docs"))
+    writeFileSync(path.join(repository.directory, "docs", "old.md"), reportBody)
+    commitAll(repository, "a marked file outside the evidence directory at the reviewed commit")
+    const artifacts = scratchArtifacts(repository)
+    // git pairs the deletion and the identical addition as one rename and names only the destination.
+    rmSync(path.join(repository.directory, "docs", "old.md"))
+    expectFinding(runWithReportAt(repository, artifacts, "evidence/moved.md", reportBody), "reviewed_sha")
+  } finally {
+    rmSync(repository.directory, { recursive: true, force: true })
+  }
+})
+
 test("committed bytes: a trailer staged and then edited before the record commit blocks on verdicts.0.trailer_artifact", () => {
   withScratch((repository, artifacts) => {
     writeFileSync(artifacts.trailerPath, `${readFileSync(artifacts.trailerPath, "utf8")}\nedited after staging\n`)

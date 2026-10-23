@@ -231,7 +231,9 @@ export default function mergeGate(pi: ExtensionAPI) {
 			};
 		}
 		const { records, retired } = found;
-		if (records.length === 0 && retired.length > 0) {
+		// Any checkout holding a retired id at the cited path refuses the claim before settlement or validation,
+		// even when another checkout holds a matching current record.
+		if (retired.length > 0) {
 			return {
 				decision: "block",
 				reason:

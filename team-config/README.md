@@ -92,7 +92,7 @@ The default gate record location is `.omp/team-config/evidence/gate/<plan basena
 2. Restart every omp session after deploying: a running session keeps the old merge-gate hook in memory (and keeps enforcing the old record id).
 3. Install into every profile or custom agent directory: `scripts/deploy-local.sh` covers only the default one (`~/.omp/agent`).
 4. If your `config.yml` sets `plan.autosaveDir` to an `.omo` path, remove it after the deploy notice names it; plans then land in `.omp/plans`.
-5. Old `.omo/plans` and `.omo/evidence` files are not read any more; move what you still need to the new locations.
+5. Nothing defaults to `.omo` any more: plans autosave to `.omp/plans`, and the ledger and gate deltas live under `.omp/team-config/`. The old `.omo` ledger and deltas are not read, and an old `omo.merge-gate` record is read only to refuse it. A plan you pass by path still works wherever it lies; move plans and evidence you want found in the default places.
 
 ## Personal settings
 

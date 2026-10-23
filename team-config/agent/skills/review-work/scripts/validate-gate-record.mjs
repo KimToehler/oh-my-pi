@@ -421,7 +421,9 @@ function commitsTouchOnlyEvidence(repo, reviewedSha, head, context) {
   // human-readable form, so under `-z` the output is byte-identical with and without it. Two
   // mechanisms for one hazard cannot both have a behavioural control - the second is satisfiable by
   // a source literal, which is the guard style this branch keeps finding holes in.
-  const names = spawnSync("git", ["-C", repo, "diff", "--name-only", "-z", `${reviewedSha}..${head}`], { encoding: "utf8" })
+  // `--no-renames`: with rename detection git names only a rename's destination, so a reviewed file
+  // moved onto a pinned path (the admitted report) would hide its deletion. Both endpoints must be pinned.
+  const names = spawnSync("git", ["-C", repo, "diff", "--no-renames", "--name-only", "-z", `${reviewedSha}..${head}`], { encoding: "utf8" })
   if (names.status !== 0) return false
   const changed = names.stdout.split("\0").filter(Boolean)
   if (changed.length === 0) return false
