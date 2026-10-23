@@ -168,31 +168,40 @@ export function buildTurnUsage(work: ForegroundWork | undefined, current: UsageS
 	return usage;
 }
 
+/** Provider error text that marks a content-filter refusal rather than a failure. */
+function isRefusal(message: AssistantMessage): boolean {
+	return /content[_ ]?filter|refus(al|ed)/i.test(message.errorMessage ?? "");
+}
+
+/**
+ * The provider failure that ended `work`, if its last reply failed with an error other than a
+ * refusal and no cancel was requested. v1 reports such a turn as `end_turn`; v2 reports
+ * `idle(error)` with this message.
+ */
+export function resolveTurnFailure(work: ForegroundWork): string | undefined {
+	if (work.cancelRequested) return undefined;
+	const lastAssistant = work.lastAgentEnd?.messages.findLast(
+		(message): message is AssistantMessage => message.role === "assistant",
+	);
+	if (lastAssistant?.stopReason !== "error" || isRefusal(lastAssistant)) return undefined;
+	return lastAssistant.errorMessage || "The model request failed";
+}
+
 /** Stop reason of `work`: its last `agent_end`, or `cancelled` once a cancel was requested. */
 export function resolveStopReason(work: ForegroundWork): PromptResponse["stopReason"] {
 	if (work.cancelRequested) {
 		return "cancelled";
 	}
-	const event = work.lastAgentEnd;
-	if (!event) {
-		return "end_turn";
-	}
-	const lastAssistant = [...event.messages]
-		.reverse()
-		.find((message): message is AssistantMessage => message.role === "assistant");
-	const reason = lastAssistant?.stopReason;
-	switch (reason) {
+	const lastAssistant = work.lastAgentEnd?.messages.findLast(
+		(message): message is AssistantMessage => message.role === "assistant",
+	);
+	switch (lastAssistant?.stopReason) {
 		case "aborted":
 			return "cancelled";
 		case "length":
 			return "max_tokens";
-		case "error": {
-			const errorMessage = lastAssistant?.errorMessage ?? "";
-			if (/content[_ ]?filter|refus(al|ed)/i.test(errorMessage)) {
-				return "refusal";
-			}
-			return "end_turn";
-		}
+		case "error":
+			return isRefusal(lastAssistant) ? "refusal" : "end_turn";
 		default:
 			return "end_turn";
 	}

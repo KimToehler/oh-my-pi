@@ -39,7 +39,8 @@ export type ToolKind =
 	| "switch_mode"
 	| "other";
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
-export type StopReason = "end_turn" | "max_tokens" | "max_turn_requests" | "refusal" | "cancelled";
+/** `error` is idle-only: the failure that ended foreground work, detailed by the idle update's `error`. */
+export type StopReason = "end_turn" | "max_tokens" | "max_turn_requests" | "refusal" | "cancelled" | "error";
 export type PermissionOptionKind = "allow_once" | "allow_always" | "reject_once" | "reject_always";
 export type PlanEntryPriority = "high" | "medium" | "low";
 export type PlanEntryStatus = "pending" | "in_progress" | "completed" | "cancelled";

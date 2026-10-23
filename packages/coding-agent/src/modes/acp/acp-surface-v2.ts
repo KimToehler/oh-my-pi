@@ -28,6 +28,7 @@ import {
 	createForegroundWork,
 	type ForegroundOrigin,
 	type ForegroundWork,
+	resolveTurnFailure,
 } from "./acp-foreground";
 import type {
 	AcpEmitSource,
@@ -255,16 +256,21 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (record.foreground !== work) return;
 		record.session.settlePendingSubmissions();
 		record.foreground = undefined;
+		// A provider failure ends the run with an assistant `error` reply rather than a thrown error.
+		const turnFailure = "error" in end ? undefined : resolveTurnFailure(work);
 		const state: v2.StateUpdate =
 			"error" in end
 				? {
 						state: "idle",
+						stopReason: "error",
 						error: {
 							code: end.error instanceof RequestError ? end.error.code : -32603,
 							message: end.error instanceof Error ? end.error.message : String(end.error),
 						},
 					}
-				: { state: "idle", stopReason: end.response.stopReason };
+				: turnFailure !== undefined
+					? { state: "idle", stopReason: "error", error: { code: -32603, message: turnFailure } }
+					: { state: "idle", stopReason: end.response.stopReason };
 		this.#afterEcho(record, () => this.#emitState(record, state));
 	}
 
