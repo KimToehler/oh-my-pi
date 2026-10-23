@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP resource-link attachments not reaching the model.
 - Fixed ACP clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message
 - Fixed ACP steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply

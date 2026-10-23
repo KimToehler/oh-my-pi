@@ -1131,7 +1131,10 @@ export class AcpAgent implements Agent {
 			return false;
 		}
 		onSubmissionOutcome?.({ kind: "command" });
+		const turn = this.#turnOf(record);
 		const built = await buildSkillPromptMessage(skill, parsed, "user");
+		// Stop (or a replacing prompt) during the skill read: the skill must not run afterwards.
+		if (turn && (turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)) return true;
 		await record.session.promptCustomMessage(
 			{
 				customType: SKILL_PROMPT_MESSAGE_TYPE,

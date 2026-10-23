@@ -242,30 +242,45 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		return { messageId };
 	}
 
-	/** Emit the `user_message` once the prompt response frame is queued on the wire; idle waits for it. */
+	/** Emit the `user_message` once the prompt response frame is queued on the wire; later frames wait for it. */
 	#echoAfterResponse(record: ManagedSessionRecord, params: v2.PromptRequest, messageId: string): void {
-		const tick = Promise.withResolvers<void>();
-		setTimeout(tick.resolve, 0);
-		const tail: Promise<void> = tick.promise
-			.then(() =>
-				this.sendMapped({
+		this.#enqueue(record, async () => {
+			const tick = Promise.withResolvers<void>();
+			setTimeout(tick.resolve, 0);
+			await tick.promise;
+			try {
+				await this.sendMapped({
 					sessionId: params.sessionId,
 					update: buildV2UserMessage(messageId, params.prompt),
-				}),
-			)
-			.catch((error: unknown) => {
+				});
+			} catch (error) {
 				logger.warn("ACP v2 user_message delivery failed", { error });
+			}
+		});
+	}
+
+	/**
+	 * The one ordered emission path of a record: the deferred `user_message` echo and every `state_update` run in
+	 * enqueue order. A step runs synchronously while nothing is pending, so an idle record adds no latency.
+	 */
+	#enqueue(record: ManagedSessionRecord, step: () => void | Promise<void>): void {
+		const prev = this.#echoes.get(record);
+		let chain: Promise<void>;
+		if (prev) {
+			chain = prev.then(step);
+		} else {
+			const result = step();
+			if (!(result instanceof Promise)) return;
+			chain = result;
+		}
+		const tail: Promise<void> = chain
+			.catch((error: unknown) => {
+				logger.warn("ACP v2 ordered emission failed", { error });
 			})
 			.finally(() => {
 				if (this.#echoes.get(record) === tail) this.#echoes.delete(record);
 			});
 		this.#echoes.set(record, tail);
-	}
-
-	#afterEcho(record: ManagedSessionRecord, send: () => void): void {
-		const pending = this.#echoes.get(record);
-		if (pending) void pending.then(send);
-		else send();
 	}
 
 	/** `idle` without foreground work; `requires_action` while the work waits only on the client; else `running`. */
@@ -315,14 +330,20 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		this.#reevaluateState(record, work);
 	}
 
+	/**
+	 * Dedup compares against the last state sent or queued; the frame itself goes out in enqueue order, so a
+	 * foreground's deferred `idle` never lands after its successor's `running`.
+	 */
 	#emitState(record: ManagedSessionRecord, state: v2.StateUpdate): void {
 		if (state.state !== "idle" && record.lastEmittedState === state.state) return;
 		record.lastEmittedState = state.state;
-		this.sendMapped({
-			sessionId: record.session.sessionId,
-			update: { sessionUpdate: "state_update", ...state },
-		}).catch((error: unknown) => {
-			logger.warn("ACP v2 state_update delivery failed", { error });
+		this.#enqueue(record, () => {
+			this.sendMapped({
+				sessionId: record.session.sessionId,
+				update: { sessionUpdate: "state_update", ...state },
+			}).catch((error: unknown) => {
+				logger.warn("ACP v2 state_update delivery failed", { error });
+			});
 		});
 	}
 
@@ -361,7 +382,11 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		}
 		const state = this.#settledState(record);
 		record.lastEmittedState = state.state;
-		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
+		const sent = Promise.withResolvers<void>();
+		this.#enqueue(record, () => {
+			sent.resolve(this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } }));
+		});
+		await sent.promise;
 	}
 
 	/**
@@ -402,7 +427,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 				: turnFailure !== undefined
 					? { state: "idle", stopReason: "error", error: { code: -32603, message: turnFailure } }
 					: { state: "idle", stopReason: end.response.stopReason };
-		this.#afterEcho(record, () => this.#emitState(record, state));
+		this.#emitState(record, state);
 	}
 
 	beforeCancel(record: ManagedSessionRecord): void {

@@ -22,6 +22,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import * as skillsModule from "@oh-my-pi/pi-coding-agent/extensibility/skills";
 import { singleShotOutcome } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-foreground";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
@@ -65,6 +66,8 @@ interface RigOptions {
 	tools?: AgentTool[];
 	/** Registers an extension command with this name; its handler does nothing. */
 	extensionCommand?: string;
+	/** Registers a `/skill:<name>` command backed by a real SKILL.md in the session cwd. */
+	skill?: string;
 	asyncJobManager?: AsyncJobManager;
 	agentId?: string;
 	settings?: Record<string, unknown>;
@@ -156,7 +159,28 @@ class RealSessionRig {
 			);
 			extensionRunner = new ExtensionRunner([extension], runtime, cwd, manager, modelRegistry);
 		}
+		const skillDir = options.skill ? path.join(cwd, "skills", options.skill) : undefined;
+		if (skillDir) {
+			fs.mkdirSync(skillDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(skillDir, "SKILL.md"),
+				`---\nname: ${options.skill}\ndescription: test skill\n---\nDo the review.\n`,
+			);
+		}
 		const session = new AgentSession({
+			skillsSettings: { enableSkillCommands: true },
+			skills:
+				options.skill && skillDir
+					? [
+							{
+								name: options.skill,
+								description: "test skill",
+								filePath: path.join(skillDir, "SKILL.md"),
+								baseDir: skillDir,
+								source: "project",
+							},
+						]
+					: [],
 			agent,
 			sessionManager: manager,
 			settings: Settings.isolated({ "compaction.enabled": false, "retry.enabled": false, ...options.settings }),
@@ -522,6 +546,66 @@ describe("overlapping prompts (plan 3)", () => {
 		rig.gate(1).release.resolve();
 		await waitForIdle(client, sessionId);
 		expect(stateNames(client, sessionId)).toEqual(["running", "idle"]);
+	});
+});
+
+describe("ordered state emission (F3 wave 3)", () => {
+	it("sends a locally handled command's idle before the next foreground's running", async () => {
+		// Guards: the command's deferred idle (behind its echo) lands after the successor's running, so the UI shows idle while the turn runs.
+		const { rig, client, sessionId } = await startReal({ extensionCommand: "noop", hold: [0] });
+		resultOf(await sendPrompt(client, sessionId, "/noop"));
+		resultOf(await sendPrompt(client, sessionId, "work"));
+		await rig.gate(0).reached.promise;
+		await eventLoopTurns(20);
+		expect(stateNames(client, sessionId)).toEqual(["running", "idle", "running"]);
+		rig.gate(0).release.resolve();
+		await waitForIdle(client, sessionId, -1, 2);
+		expect(stateNames(client, sessionId)).toEqual(["running", "idle", "running", "idle"]);
+	});
+});
+
+describe("skill command stop (F3 wave 3)", () => {
+	it("runs nothing and sends no frame after idle(cancelled) when Stop arrives during the skill read", async () => {
+		// Guards: a skill whose file read was in flight at Stop still calls the model and persists its message.
+		const { rig, client, sessionId, session } = await startReal({ skill: "reviewer" });
+		const original = skillsModule.buildSkillPromptMessage;
+		const reading = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const spy = vi.spyOn(skillsModule, "buildSkillPromptMessage").mockImplementation(async (...args) => {
+			reading.resolve();
+			await release.promise;
+			return original(...args);
+		});
+		const dispatched: Array<Promise<unknown>> = [];
+		const promptCustomMessage = session.promptCustomMessage.bind(session);
+		session.promptCustomMessage = (...args) => {
+			const result = promptCustomMessage(...args);
+			dispatched.push(result);
+			return result;
+		};
+		try {
+			const pending = sendPrompt(client, sessionId, "/skill:reviewer go");
+			await reading.promise;
+			await client.notify("session/cancel", { sessionId });
+			await waitForIdle(client, sessionId);
+			expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
+			release.resolve();
+			await pending;
+			// If the skill wrongly proceeds it reaches promptCustomMessage right after the read; await that dispatch.
+			await eventLoopTurns(30);
+			await Promise.all(dispatched);
+			await Promise.race([rig.gate(0).reached.promise, eventLoopTurns(200)]);
+			await session.waitForIdle();
+			expect(rig.modelCalls).toBe(0);
+			expect(session.sessionManager.getEntries().filter(entry => entry.type === "custom_message")).toEqual([]);
+			expect(client.updates(sessionId).at(-1)!.update).toMatchObject({
+				sessionUpdate: "state_update",
+				state: "idle",
+				stopReason: "cancelled",
+			});
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
 
