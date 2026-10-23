@@ -86,8 +86,8 @@ async function withGateCriteria(root: string): Promise<void> {
 	await fs.appendFile(path.join(root, "gate.md"), GATE_CRITERIA);
 }
 
-function run(root: string): { exitCode: number; stdout: string; stderr: string } {
-	const result = Bun.spawnSync(["node", SCRIPT, root]);
+function run(...args: string[]): { exitCode: number; stdout: string; stderr: string } {
+	const result = Bun.spawnSync(["node", SCRIPT, ...args]);
 	return {
 		exitCode: result.exitCode,
 		stdout: result.stdout.toString(),
@@ -507,4 +507,161 @@ describe("validate-openspec-change gate.md under the Risk tier", () => {
 		expect(bare.exitCode).toBe(1);
 		expect(bare.stderr).toContain("Accepted residual risks:");
 	});
+});
+
+describe("validate-openspec-change review record", () => {
+	const SPEC = `# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: Batch export
+The system SHALL export records in batches.
+
+#### Scenario: Export
+- **WHEN** an export is requested
+- **THEN** the records are written
+
+#### Scenario: Negative control
+- **WHEN** the target is not writable
+- **THEN** the export MUST fail
+`;
+	const REVIEW = (fields: Record<string, string | null>, extra = "") =>
+		`# Review\n\n${Object.entries(fields)
+			.filter(([, value]) => value !== null)
+			.map(([label, value]) => `- **${label}**: ${value}`)
+			.join("\n")}\n${extra}\n## Blockers\n\nnone\n`;
+
+	/** A complete change with design.md, .openspec.yaml and two tasks, so every artifact kind can be edited after review. */
+	async function changeFixture(): Promise<string> {
+		const root = await fixture();
+		await Bun.write(path.join(root, "design.md"), "# Design\n\nUpdate one row in a transaction.\n");
+		await Bun.write(path.join(root, ".openspec.yaml"), "schema: omp-gated\ncreated: 2026-10-22\n");
+		await fs.appendFile(path.join(root, "tasks.md"), "- [ ] 1.2 Document the update. Verify: `bun run docs:check`\n");
+		return root;
+	}
+
+	function digest(root: string): string {
+		const result = run("--digest", root);
+		expect(result.exitCode).toBe(0);
+		return result.stdout.trim();
+	}
+
+	async function reviewed(fields: Record<string, string | null> = {}, extra = ""): Promise<string> {
+		const root = await changeFixture();
+		const current = digest(root);
+		await Bun.write(
+			path.join(root, "review.md"),
+			REVIEW(
+				{
+					Verdict: "OKAY",
+					"Reviewed digest": current,
+					Reviewer: "plan-reviewer, OpenSpecReview",
+					Round: "1",
+					Override: "none",
+					...fields,
+				},
+				extra,
+			),
+		);
+		return root;
+	}
+
+	async function edit(file: string, from: string, to: string): Promise<void> {
+		const text = await Bun.file(file).text();
+		expect(text).toContain(from);
+		await Bun.write(file, text.replace(from, to));
+	}
+
+	it("prints a 64-hex digest for a valid change and nothing for an invalid one", async () => {
+		const root = await changeFixture();
+		expect(digest(root)).toMatch(/^[0-9a-f]{64}$/);
+		await fs.rm(path.join(root, "gate.md"));
+		const invalid = run("--digest", root);
+		expect(invalid.exitCode).toBe(1);
+		expect(invalid.stdout).toBe("");
+		expect(invalid.stderr).toContain("gate.md: required regular file is missing");
+	});
+
+	it("accepts an OKAY review of the current artifacts", async () => {
+		const result = run("--reviewed", await reviewed());
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).toBe("");
+	});
+
+	it("keeps an OKAY review valid after every task is ticked", async () => {
+		const root = await reviewed();
+		await edit(path.join(root, "tasks.md"), "- [ ] 1.1", "- [x] 1.1");
+		await edit(path.join(root, "tasks.md"), "- [ ] 1.2", "- [ X ] 1.2");
+		expect(run("--reviewed", root).exitCode).toBe(0);
+	});
+
+	it("leaves the plain mode independent of the review record", async () => {
+		const root = await reviewed({ Verdict: "REJECT" });
+		expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+	});
+
+	it("refuses a change without review.md", async () => {
+		const result = run("--reviewed", await changeFixture());
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md: required regular file is missing");
+	});
+
+	for (const field of ["Verdict", "Reviewed digest", "Reviewer", "Round", "Override"]) {
+		it(`refuses a review without ${field}`, async () => {
+			const result = run("--reviewed", await reviewed({ [field]: null }));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`review.md ${field}:`);
+		});
+		it(`refuses a review with ${field} twice`, async () => {
+			const result = run("--reviewed", await reviewed({}, `- **${field}**: again\n`));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`review.md ${field}:`);
+		});
+	}
+
+	for (const [field, value] of [
+		["Verdict", "PASS"],
+		["Reviewed digest", "abc123"],
+		["Reviewer", "me"],
+		["Round", "0"],
+	] as const) {
+		it(`refuses a malformed ${field}`, async () => {
+			const result = run("--reviewed", await reviewed({ [field]: value }));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(`review.md ${field}:`);
+		});
+	}
+
+	it("refuses a REJECT without a user override", async () => {
+		const result = run("--reviewed", await reviewed({ Verdict: "REJECT" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("REJECT");
+	});
+
+	it("accepts a REJECT the user overrode and prints the override", async () => {
+		const reason = "Tim accepts the missing load test for this internal tool";
+		const result = run("--reviewed", await reviewed({ Verdict: "REJECT", Override: reason }));
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain(reason);
+	});
+
+	for (const [name, change] of [
+		["proposal.md", (root: string) => edit(path.join(root, "proposal.md"), "single-record update", "batch update")],
+		["a spec", (root: string) => edit(path.join(root, "specs", "feature", "spec.md"), "one record", "two records")],
+		["design.md", (root: string) => edit(path.join(root, "design.md"), "one row", "two rows")],
+		["gate.md", (root: string) => edit(path.join(root, "gate.md"), "overwrites a record", "overwrites every record")],
+		[".openspec.yaml", (root: string) => edit(path.join(root, ".openspec.yaml"), "2026-10-22", "2026-10-23")],
+		["a task's text", (root: string) => edit(path.join(root, "tasks.md"), "Document the update", "Document the batch")],
+		["an added spec", (root: string) => Bun.write(path.join(root, "specs", "export", "spec.md"), SPEC)],
+		["a deleted design.md", (root: string) => fs.rm(path.join(root, "design.md"))],
+	] as const) {
+		it(`refuses a review made stale by a change to ${name}`, async () => {
+			const root = await reviewed();
+			await change(root);
+			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			const result = run("--reviewed", root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("stale");
+		});
+	}
 });
