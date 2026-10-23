@@ -1723,7 +1723,7 @@ test("#given an exempt artifact whose invalid-UTF-8 bytes change after the revie
 // skill documents: a manifest of `<sha256>  <path>` lines sorted by path bytes, then each file's
 // bytes under a `===== <path> =====` line, one `\n` after every file.
 // ---------------------------------------------------------------------------------------------
-const templateRoot = path.join(scriptsDir, "..", "..", "..", "..", "..", "openspec", "schemas", "omp-gated", "templates")
+const templateRoot = path.join(scriptsDir, "..", "openspec", "schemas", "omp-gated", "templates")
 const checker = path.join(scriptsDir, "validate-openspec-change.mjs")
 const FOLDER = "openspec/changes/demo"
 const template = (name) => readFileSync(path.join(templateRoot, name), "utf8")
