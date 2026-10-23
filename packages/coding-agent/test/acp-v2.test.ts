@@ -462,6 +462,44 @@ describe("prompt acknowledgement (plan 2)", () => {
 		expect(rig.outcomes).toHaveLength(1);
 	});
 
+	it("holds the user_message echo until the batch response carrying the prompt's messageId is written", async () => {
+		// Guards: the echo is released by a timer tick, so a batch whose other entry is still running echoes before the
+		// client has the batch response (and the messageId).
+		const rig = new RealSessionRig();
+		const hold = Promise.withResolvers<void>();
+		let created = 0;
+		const factory: AcpSessionFactory = async (cwd, options) => {
+			if (++created === 2) await hold.promise;
+			return rig.factory(cwd, options);
+		};
+		const h = await createV2WireHarness({ factory });
+		teardown.push(async () => {
+			hold.resolve();
+			await h.close();
+			await rig.dispose();
+		});
+		await initialize(h.client);
+		const sessionId = String(
+			resultOf(await h.client.request("session/new", { cwd: h.cwd, mcpServers: [] })).sessionId,
+		);
+		const batch = h.client.batch([
+			{ method: "session/prompt", params: { sessionId, prompt: [{ type: "text", text: "hello" }] } },
+			{ method: "session/new", params: { cwd: h.cwd, mcpServers: [] } },
+		]);
+		await h.client
+			.waitFor(c => c.updates(sessionId).length > 0, "any update for the prompted session", 300)
+			.catch(() => {});
+		await Bun.sleep(50);
+		expect(h.client.updates(sessionId).filter(entry => entry.update.sessionUpdate !== "state_update")).toEqual([]);
+		hold.resolve();
+		const [promptResponse] = await batch;
+		const messageId = messageIdOf(promptResponse!);
+		await h.client.waitFor(c => userMessages(c, sessionId).length === 1, "user_message echo");
+		const beforeBatch = h.client.updates(sessionId).filter(entry => entry.index < promptResponse!.index);
+		expect(beforeBatch.filter(entry => entry.update.sessionUpdate !== "state_update")).toEqual([]);
+		expect(userMessages(h.client, sessionId)[0]).toMatchObject({ messageId, text: "hello" });
+	});
+
 	it("maps a usage-preflight denial to a JSON-RPC error and does not block the next prompt", async () => {
 		// Guards: a denied prompt is acknowledged (client shows a message that never exists) or wedges the session.
 		const { rig, client, sessionId, session } = await startReal();

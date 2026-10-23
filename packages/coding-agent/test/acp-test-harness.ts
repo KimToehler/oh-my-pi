@@ -1039,6 +1039,19 @@ export class RawAcpClient {
 	}
 
 	#handle(value: unknown): void {
+		if (Array.isArray(value)) {
+			// A batch response is not a frame of `frames`; its `index` is the position the next frame will take.
+			const index = this.frames.length;
+			for (const entry of value) {
+				if (!isRawFrame(entry)) continue;
+				if (this.#validate) this.#validateFrame(entry);
+				const resolve = this.#pending.get(entry.id as number);
+				this.#pending.delete(entry.id as number);
+				resolve?.({ result: entry.result, error: entry.error as RawAcpResponse["error"], index });
+			}
+			for (const waiter of this.#waiters) waiter();
+			return;
+		}
 		if (!isRawFrame(value)) {
 			this.schemaIssues.push("non-object frame from agent");
 			return;
@@ -1105,6 +1118,19 @@ export class RawAcpClient {
 		this.#pending.set(id, resolve);
 		this.#write({ jsonrpc: "2.0", id, method, params }).catch(reject);
 		return promise;
+	}
+
+	/** Sends one JSON-RPC batch array; resolves with every entry's response, all sharing the batch frame's `index`. */
+	batch(entries: Array<{ method: string; params?: unknown }>): Promise<RawAcpResponse[]> {
+		const requests = entries.map(entry => {
+			const id = this.#nextId++;
+			this.#methodsById.set(id, entry.method);
+			const { promise, resolve } = Promise.withResolvers<RawAcpResponse>();
+			this.#pending.set(id, resolve);
+			return { promise, message: { jsonrpc: "2.0", id, method: entry.method, params: entry.params } };
+		});
+		const sent = this.#write(requests.map(request => request.message));
+		return sent.then(() => Promise.all(requests.map(request => request.promise)));
 	}
 
 	/** Sends a request and returns its result; rejects when the agent answers with an error. */

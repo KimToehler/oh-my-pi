@@ -7,7 +7,13 @@
  */
 import { type AgentMessage, AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { logger, VERSION } from "@oh-my-pi/pi-utils";
-import { PROTOCOL_VERSION_V2, RequestError, type SessionNotification, type v2 } from "@oh-my-pi/pi-utils/acp";
+import {
+	PROTOCOL_VERSION_V2,
+	RequestError,
+	responseWritten,
+	type SessionNotification,
+	type v2,
+} from "@oh-my-pi/pi-utils/acp";
 import type { AgentSessionEvent } from "../../session/agent-session";
 import type { SubmissionOutcome } from "../../session/agent-session-types";
 import type {
@@ -242,12 +248,11 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		return { messageId };
 	}
 
-	/** Emit the `user_message` once the prompt response frame is queued on the wire; later frames wait for it. */
+	/** Emit the `user_message` once the response frame carrying the prompt's `messageId` is written; later frames wait for it. */
 	#echoAfterResponse(record: ManagedSessionRecord, params: v2.PromptRequest, messageId: string): void {
+		const written = responseWritten();
 		this.#enqueue(record, async () => {
-			const tick = Promise.withResolvers<void>();
-			setTimeout(tick.resolve, 0);
-			await tick.promise;
+			await written;
 			try {
 				await this.#sendRaw({
 					sessionId: params.sessionId,

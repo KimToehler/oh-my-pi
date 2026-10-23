@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- ACP `responseWritten()` lets a request handler wait until its response frame (single or batched) has been written
+
 ### Fixed
 
 - ACP connections now accept JSON-RPC batch messages and answer malformed lines with a parse error instead of dropping the connection

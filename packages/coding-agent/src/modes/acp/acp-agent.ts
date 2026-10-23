@@ -645,7 +645,7 @@ export class AcpAgent implements Agent {
 		this.#supportsFormElicitation = params.clientCapabilities?.elicitation?.form != null;
 		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
 		this.#clientPinsConfigOptions = isIntelliJClient;
-		// Only v1 is negotiable until the v2 surface exists; the surface is chosen here.
+		// The v1 `initialize` handler: it always selects the v1 surface.
 		this.#surface = this.#surfaceV1;
 		return this.#surfaceV1.initializeResponse(params);
 	}

@@ -10,6 +10,7 @@ import {
 	ndJsonStream,
 	RequestError,
 	RpcConnection,
+	responseWritten,
 	schema,
 } from "../src/acp";
 
@@ -134,6 +135,56 @@ describe("ACP JSON-RPC batches", () => {
 			{ jsonrpc: "2.0", id: null, error: expect.objectContaining({ code: -32700 }) },
 			pong,
 		]);
+	});
+});
+
+describe("ACP responseWritten", () => {
+	it("resolves immediately outside a request handler", async () => {
+		await responseWritten();
+	});
+
+	it("resolves only after the single response frame is written", async () => {
+		const gate = Promise.withResolvers<void>();
+		const states: boolean[] = [];
+		let written = false;
+		const peer = wirePeer(async () => {
+			void responseWritten().then(() => {
+				written = true;
+			});
+			await gate.promise;
+			states.push(written);
+			return {};
+		});
+		await peer.send('{"jsonrpc":"2.0","id":1,"method":"a"}');
+		await Bun.sleep(20);
+		expect(written).toBe(false);
+		gate.resolve();
+		const frames = await peer.finish();
+		expect(frames).toHaveLength(1);
+		expect(states).toEqual([false]);
+		expect(written).toBe(true);
+	});
+
+	it("resolves for every batch entry only after the batch array is written", async () => {
+		const gate = Promise.withResolvers<void>();
+		let writtenA = false;
+		const peer = wirePeer(async method => {
+			if (method === "a") {
+				void responseWritten().then(() => {
+					writtenA = true;
+				});
+				return {};
+			}
+			await gate.promise;
+			return {};
+		});
+		await peer.send('[{"jsonrpc":"2.0","id":1,"method":"a"},{"jsonrpc":"2.0","id":2,"method":"b"}]');
+		await Bun.sleep(20);
+		expect(writtenA).toBe(false);
+		gate.resolve();
+		const frames = await peer.finish();
+		expect(frames).toHaveLength(1);
+		expect(writtenA).toBe(true);
 	});
 });
 
