@@ -152,9 +152,9 @@ records that already block on `main`, any change to file-plan behaviour.
   checker tests fail before the fix. Verify: `bun run test:team-config`
 
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
-- [ ] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
-- [ ] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
+- [x] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
+- [x] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
+- [x] F2. Merge gate: `review-work`, SHA-bound omo.merge-gate/v2 record validated
 
 F1 scenarios (scripts installed into a scratch agent dir with `PI_CODING_AGENT_DIR=<tmp> bun scripts/install-team-config.ts`,
 run from a scratch git project with a real OpenSpec 1.14.3 change):
