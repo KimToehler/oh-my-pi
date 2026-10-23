@@ -30,7 +30,10 @@ delivered `task-result`). A staged-but-uncommitted tree looks the same as finish
 tasks, not one per angle. Put the `file:line` inventory and only the relevant plan excerpt in the
 brief; ask for blockers with `file:line`, at most 5 notes, and one verdict line. A re-review
 after fixes is a new task with the delta and the open blockers, never a follow-up message to the
-old reviewer (`write agent://...`).
+old reviewer (`write agent://...`). A procedure that prescribes its own brief overrides this
+paragraph: review-work and integration-review dispatch their verbatim briefs, and the OpenSpec
+`omp-gated` review artifact dispatches its fixed brief for every round, with the two paths filled
+in and nothing added.
 
 **After every editing subagent:** check `git reflog <default-branch> -3` and `git worktree list`.
 Unexpected movement of the default branch is an incident to report.
