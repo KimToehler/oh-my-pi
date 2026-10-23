@@ -2653,6 +2653,17 @@ async function driveSessionToResult(
 					retryCount = MAX_YIELD_RETRIES - 1;
 					await monitor.waitForBudgetStop();
 					if (monitor.yieldCalled() || abortSignal.aborted) break;
+					// An unstructured run delivers by ending its turn with a report. A
+					// stop that fires after that turn (post-turn maintenance compacting
+					// once more) has nothing left to cut short; prompting again would
+					// spend a request and replace the delivered report.
+					if (
+						!structured &&
+						session.getLastAssistantMessage()?.stopReason === "stop" &&
+						monitor.lastReportTurnText() !== undefined
+					) {
+						break;
+					}
 				}
 				// Skip reminders when the model returned a terminal error (e.g.
 				// rate-limit cap hit, auth failure). Re-prompting would just

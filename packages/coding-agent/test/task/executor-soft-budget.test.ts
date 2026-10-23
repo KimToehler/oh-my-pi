@@ -900,6 +900,68 @@ describe("runSubprocess soft compaction budget", () => {
 		});
 	}
 
+	function emitToolTurn(
+		emit: (event: AgentSessionEvent) => void,
+		pushMessage: (message: unknown) => void,
+		index: number,
+	): void {
+		const message = {
+			role: "assistant" as const,
+			content: [{ type: "toolCall" as const, id: `tool-read-${index}`, name: "read", arguments: { path: "a.ts" } }],
+			stopReason: "toolUse" as const,
+		};
+		pushMessage(message);
+		emit({ type: "message_end", message } as unknown as AgentSessionEvent);
+	}
+
+	it("#given an unstructured run with compaction budget 1 #when the compaction after its final report crosses the budget #then the delivered report stands without a forced wrap-up", async () => {
+		const id = "ObedientScout";
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) {
+				emitAssistant(emit, pushMessage, "second report");
+				return;
+			}
+			emitToolTurn(emit, pushMessage, 1);
+			emit(snapcompactDone);
+			// The agent obeys the notice and ends its turn with the report; post-turn
+			// maintenance then compacts once more, which crosses the budget.
+			emitAssistant(emit, pushMessage, "first report");
+			emit(snapcompactDone);
+		});
+		start(id, handle);
+
+		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+
+		expect(compactionNotices(handle)).toHaveLength(1);
+		expect(handle.prompts).toHaveLength(1);
+		expect(result.aborted).toBe(false);
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toBe("first report");
+	});
+
+	it("#given an unstructured run with compaction budget 1 #when the budget is crossed mid-turn #then a tool-less forced wrap-up returns the report", async () => {
+		const id = "WanderingScout";
+		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
+			if (promptIndex !== 1) {
+				emitAssistant(emit, pushMessage, "partial report");
+				return;
+			}
+			emitToolTurn(emit, pushMessage, 1);
+			emit(snapcompactDone);
+			emitToolTurn(emit, pushMessage, 2);
+			emit(snapcompactDone);
+		});
+		start(id, handle);
+
+		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+
+		expect(handle.prompts).toHaveLength(2);
+		expect(handle.prompts[1]?.options?.toolChoice).toBe("none");
+		expect(handle.prompts[1]?.text).toContain("Compaction budget crossed");
+		expect(result.aborted).toBe(false);
+		expect(result.output).toBe("partial report");
+	});
+
 	it("#given compaction budget 0 #when five compactions end #then no notice and no stop", async () => {
 		const id = "UnguardedScout";
 		const handle = createMockSession(async ({ promptIndex, emit, pushMessage }) => {
