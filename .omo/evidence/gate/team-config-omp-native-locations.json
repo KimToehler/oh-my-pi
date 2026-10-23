@@ -1,0 +1,187 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": "openspec/changes/team-config-omp-native-locations",
+  "plan_sha256": "6d2689114848102b0b4fe9fc36cdcd6f434713e2a2ff29c0fe05f2a3cde633cb",
+  "reviewed_sha": "3542a419de05e8396ccb0d023f0a9d7b61f26fe7",
+  "diff_base": "35e10fce04acea8b23852ce4b26ae0fe5e7a517d",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "F2 wave 2 on 3542a419de05: implementation-audit PASS, QA 21/21 PASS; strategic-risk-review FAIL on one blocker that gate.md lists as an accepted residual risk, overridden by Tim; F2 wave 1 blockers fixed in rows 7.5-7.6, F3 waves 1-2 PASS",
+  "mandatory_class": "schema-migration",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "1. Install over a config.yml with plan.autosaveDir .omo/plans (F1 a)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/a-install.md"
+    },
+    {
+      "name": "2. Installed validator, v3 record at .omp/team-config/evidence/gate/ before and after the record commit (F1 b1)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "3. Same v3 record at docs/evidence/demo/merge-gate.json (F1 b2)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "4. v2 record refused (F1 b3, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "5. whole_diff report committed with the record on top of reviewed_sha (F1 b4)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "6. Post-review source edit named as whole_diff.report (F1 b5, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "7. Report staged as A, edited to B, record carries B (F1 b6, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/b-validator.md"
+    },
+    {
+      "name": "8. Real omp session, unmerged v3 record in a linked worktree (F1 c1)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/c-stop-hook.md"
+    },
+    {
+      "name": "9. Real omp session, merged v3 record (F1 c2)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/c-stop-hook.md"
+    },
+    {
+      "name": "10. Real omp session, v2 record moved unchanged to the gate dir and merged (F1 c3, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/c-stop-hook.md"
+    },
+    {
+      "name": "11. Real omp session, merged v2 record at .omo/evidence/gate/ (F1 c4)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/c-stop-hook.md"
+    },
+    {
+      "name": "12. Installed GC baseline/snapshot locations; old .omo ledger untouched (F1 d)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/f1/d-convergence.md"
+    },
+    {
+      "name": "13. Whole team-config suite on the reviewed head (regression)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/team-config-tests.txt"
+    },
+    {
+      "name": "14. Repository ignore policy (D6)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/ignore-policy.txt"
+    },
+    {
+      "name": "15. Shipped-guidance inventory with D7 allowlist",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/inventory.txt"
+    },
+    {
+      "name": "16. New OpenSpec change generated from the shipped schema carries the new F3 report path",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/schema-generation.txt"
+    },
+    {
+      "name": "17. Rule globs match .omp/plans and .omp/team-config/evidence",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/rule-globs.txt"
+    },
+    {
+      "name": "18. Seed config leaves plans at the omp default",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/seed.txt"
+    },
+    {
+      "name": "19. Stop hook: v2 record at the cited path in main beside a matching v3 record in the feature worktree (7.5, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/retired-beside-v3.txt"
+    },
+    {
+      "name": "20. Validator: file present at reviewed_sha moved unchanged onto the whole_diff.report path (7.6, negative control)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/report-rename.txt"
+    },
+    {
+      "name": "21. README upgrade note no longer claims all old .omo files are unread (7.7)",
+      "passed": true,
+      "artifact": ".omo/evidence/team-config-omp-native-locations/wave-2/readme-note.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omo/evidence/gate/team-config-omp-native-locations/f3-integration-review-report.md"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/gate/team-config-omp-native-locations/f2w2-implementation-audit-trailer.md",
+      "trailer_sha256": "e96f60d33b993b034788fdb617feaefd5c134204b9ad1fed5f4ccc0a81d59a63",
+      "note": "F2 wave 2 full reply; wave 1 FAIL reply at .omo/evidence/team-config-omp-native-locations/f2/wave-1-implementation-audit.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omo/evidence/gate/team-config-omp-native-locations/f2w2-strategic-risk-review-trailer.md",
+      "trailer_sha256": "c91728b641e78978c6220d75272f64c7d7205552af62c291159aa1c909d5c096",
+      "note": "F2 wave 2 full reply; B1 is gate.md's accepted residual risk (record-directory report exemption, D11)"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "F2W1-B1",
+      "severity": "high",
+      "location": "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:426",
+      "coverage": "team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs::whole-diff report: a file that existed at reviewed_sha moved into the record's directory as the report blocks on reviewed_sha",
+      "fix_sha": "3542a419de05e8396ccb0d023f0a9d7b61f26fe7"
+    },
+    {
+      "id": "F2W1-B2",
+      "severity": "high",
+      "location": "team-config/agent/extensions/merge-gate.ts:236",
+      "coverage": "team-config/tests/merge-gate.test.ts::worktree gate binding > stop hook: retired record id refuses a v2 record beside a matching v3 record in another worktree",
+      "fix_sha": "3542a419de05e8396ccb0d023f0a9d7b61f26fe7"
+    }
+  ],
+  "downgrades": [
+    {
+      "invocation": "strategic-risk-review",
+      "blocker": "B1",
+      "rule": "accepted-residual",
+      "reason": "gate.md Accepted residual risks: a record placed in a directory a loader reads can exempt one new marked .md there (Tim, 2026-10-23, D11)",
+      "disposition": "residual"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "strategic B1 is the accepted residual risk Tim decided for D11 on 2026-10-23; confirmed by Tim in this session after F2 wave 2"
+  }
+}
