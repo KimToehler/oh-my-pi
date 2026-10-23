@@ -183,7 +183,7 @@ export interface AcpSurfaceHost {
 		work: ForegroundWork | undefined,
 		deferToWaiter: boolean,
 	): Promise<boolean>;
-	/** The session record for `sessionId`, if it is registered. */
+	/** The session record for `sessionId` while it is registered, or while its close is still running. */
 	recordFor(sessionId: string): ManagedSessionRecord | undefined;
 	/** Slash-command palette in the v1 spelling. */
 	buildAvailableCommands(record: ManagedSessionRecord): Promise<AvailableCommand[]>;
@@ -258,6 +258,12 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	emit(sessionId: string, notification: SessionNotification, source?: AcpEmitSource): Promise<void>;
 	/** Sends a notification `mapUpdate` returned, already in this surface's wire type. */
 	sendMapped(notification: W["notification"]): Promise<void>;
+	/**
+	 * Resolves once every frame queued for `record` has been written; a close awaits it before answering. v1: at
+	 * once (its sends go straight to the transport, in call order); v2: the update handlers in flight, the record's
+	 * ordered emission tail, then the transport write of the last frame it handed over.
+	 */
+	drain(record: ManagedSessionRecord): Promise<void>;
 	/** The foreground work currently owning `record`'s turns, if any. v1: the unsettled prompt's work; v2: `record.foreground`. */
 	activeWork(record: ManagedSessionRecord): ForegroundWork | undefined;
 	/**

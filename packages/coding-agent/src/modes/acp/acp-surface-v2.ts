@@ -79,8 +79,10 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	readonly version = 2;
 	readonly holdsForegroundForBackgroundWork = false;
 	#host: AcpSurfaceHost;
-	/** Pending `user_message` echo per record: the idle frame waits behind it. */
+	/** Pending ordered emission per record (`user_message` echo, `state_update`, mapped content); see {@link #enqueue}. */
 	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Transport write of the last frame a record's ordered path handed over; writes complete in call order. */
+	#lastWrites = new WeakMap<ManagedSessionRecord, Promise<void>>();
 	/** Submissions of a record that have not yet reported an outcome; Stop drops them. */
 	#pendingSubmissions = new WeakMap<ManagedSessionRecord, Set<() => void>>();
 	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
@@ -256,7 +258,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		this.#enqueue(record, async () => {
 			await written;
 			try {
-				await this.#sendRaw({
+				await this.#sendOrdered(record, {
 					sessionId: params.sessionId,
 					update: buildV2UserMessage(messageId, params.prompt),
 				});
@@ -345,7 +347,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (state.state !== "idle" && record.lastEmittedState === state.state) return;
 		record.lastEmittedState = state.state;
 		this.#enqueue(record, () => {
-			this.#sendRaw({
+			this.#sendOrdered(record, {
 				sessionId: record.session.sessionId,
 				update: { sessionUpdate: "state_update", ...state },
 			}).catch((error: unknown) => {
@@ -559,12 +561,29 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (!record) return this.#sendRaw(notification);
 		const sent = Promise.withResolvers<void>();
 		this.#enqueue(record, () => {
-			sent.resolve(this.#sendRaw(notification));
+			sent.resolve(this.#sendOrdered(record, notification));
 		});
 		return sent.promise;
 	}
 
-	/** The unordered wire send; only enqueued steps (and records that are not registered) may call it. */
+	async drain(record: ManagedSessionRecord): Promise<void> {
+		await this.#host.waitForUpdateDeliveries(record);
+		// A step may enqueue behind the tail it ran in; wait until no step is pending.
+		for (let tail = this.#echoes.get(record); tail; tail = this.#echoes.get(record)) await tail;
+		await this.#lastWrites.get(record);
+	}
+
+	/** The send of an enqueued step: the write is recorded so {@link drain} can wait for it. */
+	#sendOrdered(record: ManagedSessionRecord, notification: v2.SessionNotification): Promise<void> {
+		const write = this.#sendRaw(notification);
+		this.#lastWrites.set(
+			record,
+			write.catch(() => {}),
+		);
+		return write;
+	}
+
+	/** The unordered wire send; only enqueued steps (through {@link #sendOrdered}) and records that are not registered may call it. */
 	#sendRaw(notification: v2.SessionNotification): Promise<void> {
 		return this.#host.connection.v2.sessionUpdate(notification);
 	}

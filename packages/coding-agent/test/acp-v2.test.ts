@@ -973,6 +973,44 @@ describe("cancel and errors (plan 5)", () => {
 		});
 	}
 
+	it("answers session/close only after the session's queued updates are written", async () => {
+		// Guards: a close racing an inserted prompt's deferred `user_message` (its write held, as under client
+		// backpressure) answered first, and the echo and `idle(cancelled)` reached the client after the close response.
+		const original = AgentSideConnectionV2.prototype.sessionUpdate;
+		const writeHeld = Promise.withResolvers<void>();
+		const releaseWrite = Promise.withResolvers<void>();
+		const spy = vi
+			.spyOn(AgentSideConnectionV2.prototype, "sessionUpdate")
+			.mockImplementation(async function (this: AgentSideConnectionV2, notification) {
+				if (notification.update.sessionUpdate === "user_message") {
+					writeHeld.resolve();
+					await releaseWrite.promise;
+				}
+				return await original.call(this, notification);
+			});
+		teardown.unshift(async () => {
+			releaseWrite.resolve();
+			spy.mockRestore();
+		});
+		const { client, sessionId } = await startReal({ hold: [0] });
+		await sendPrompt(client, sessionId, "long task");
+		await writeHeld.promise;
+		const closed = client.request("session/close", { sessionId });
+		await eventLoopTurns(30);
+		releaseWrite.resolve();
+		const response = await closed;
+		resultOf(response);
+		await eventLoopTurns(30);
+
+		const sessionFrames = client.frames.flatMap((frame, index) =>
+			frame.method === "session/update" && isRecord(frame.params) && frame.params.sessionId === sessionId
+				? [{ index, kind: isRecord(frame.params.update) ? kindOf(frame.params.update) : "" }]
+				: [],
+		);
+		expect(sessionFrames.map(frame => frame.kind)).toContain("user_message");
+		expect(sessionFrames.filter(frame => frame.index > response.index)).toEqual([]);
+	});
+
 	it("emits no running and no wake frames for a background job that completes after a cancel", async () => {
 		// Guards: a stopped session restarts itself when a background job that was already running settles.
 		const manager = new AsyncJobManager({});

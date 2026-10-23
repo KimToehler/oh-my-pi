@@ -285,6 +285,10 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 		return this.#host.connection.sessionUpdate(notification);
 	}
 
+	drain(): Promise<void> {
+		return Promise.resolve();
+	}
+
 	validAuthMethodIds(capabilities: ClientCapabilities | undefined): string[] {
 		return this.authMethods(capabilities).map(method => method.id);
 	}

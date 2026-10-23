@@ -588,6 +588,8 @@ export class AcpAgent implements Agent {
 	#initialSession: AgentSession | undefined;
 	#createSession: CreateAcpSession;
 	#sessions = new Map<string, ManagedSessionRecord>();
+	/** Records whose close is running: no longer registered, but their updates keep the surface's ordered path. */
+	#closing = new Map<string, ManagedSessionRecord>();
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
@@ -622,7 +624,7 @@ export class AcpAgent implements Agent {
 			trackForegroundEvent: (record, event) => this.#trackPromptEvent(record, event),
 			runPromptOrCommand: (record, text, images, options) => this.#runPromptOrCommand(record, text, images, options),
 			awaitSteeredBuiltins: (record, work, deferToWaiter) => this.#awaitSteeredBuiltins(record, work, deferToWaiter),
-			recordFor: sessionId => this.#sessions.get(sessionId),
+			recordFor: sessionId => this.#sessions.get(sessionId) ?? this.#closing.get(sessionId),
 			buildAvailableCommands: record => this.#buildAvailableCommands(record.session),
 			waitForUpdateDeliveries: record => this.#waitForUpdateDeliveries(record),
 			beginCancelCleanup: (record, work) => this.#beginCancelCleanup(record, work),
@@ -2962,8 +2964,15 @@ export class AcpAgent implements Agent {
 	async #closeManagedSession(sessionId: string, record: ManagedSessionRecord): Promise<void> {
 		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
 		this.#sessions.delete(sessionId);
-		await this.#cancelPromptForClose(record);
-		await this.#disposeSessionRecord(record);
+		this.#closing.set(sessionId, record);
+		try {
+			await this.#cancelPromptForClose(record);
+			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
+			await this.#surface.drain(record);
+			await this.#disposeSessionRecord(record);
+		} finally {
+			if (this.#closing.get(sessionId) === record) this.#closing.delete(sessionId);
+		}
 	}
 
 	/** True once the session was closed or its agent disposed: late continuations must send and persist nothing. */
