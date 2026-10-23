@@ -69,8 +69,9 @@ The system SHALL update one record.
 		path.join(root, "gate.md"),
 		`# Gate
 
-- **Mandatory class**: none (local reversible behaviour)
-- **Review tier**: standard
+- **Mandatory class**: none
+- **Risk tier**: product
+- **Author's risk assessment**: a wrong update overwrites a record, so the update path is covered by requirements
 - **Whole-diff review**: not needed (one module)
 - **Accepted residual risks**: none (all specified paths are covered)
 - **Out of scope for blocking**: none (the change is self-contained)
@@ -81,6 +82,20 @@ The system SHALL update one record.
 		"# Tasks\n\n- [ ] 1.1 Implement safe update. Verify: `bun test test/update.test.ts`\n",
 	);
 	return root;
+}
+
+// A change without requirements carries its review criteria in gate.md.
+const GATE_CRITERIA = `
+- Feature-specific criteria:
+  - Invariant: a pure tooling change keeps the pinned command output byte-identical
+    Positive witness: the command prints the same bytes before and after the change
+    Negative control: a changed byte in the command output MUST fail the comparison
+    Observable: the diff of the two outputs
+    Boundary: the command invoked as a process
+`;
+
+async function withGateCriteria(root: string): Promise<void> {
+	await fs.appendFile(path.join(root, "gate.md"), GATE_CRITERIA);
 }
 
 function run(root: string): { exitCode: number; stdout: string; stderr: string } {
@@ -157,7 +172,8 @@ describe("validate-openspec-change", () => {
 
 	for (const field of [
 		"Mandatory class",
-		"Review tier",
+		"Risk tier",
+		"Author's risk assessment",
 		"Whole-diff review",
 		"Accepted residual risks",
 		"Out of scope for blocking",
@@ -182,6 +198,7 @@ describe("validate-openspec-change", () => {
 		const root = await fixture();
 		await fs.rm(path.join(root, "specs"), { recursive: true });
 		await Bun.write(path.join(root, ".openspec.yaml"), metadata);
+		await withGateCriteria(root);
 		return root;
 	}
 
@@ -257,6 +274,7 @@ describe("validate-openspec-change", () => {
 			path.join(root, "specs/feature/spec.md"),
 			"## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n",
 		);
+		await withGateCriteria(root);
 		expect(run(root).exitCode).toBe(0);
 	});
 
@@ -392,7 +410,7 @@ describe("validate-openspec-change", () => {
 	it("rejects an unknown mandatory class", async () => {
 		const root = await fixture();
 		const gate = path.join(root, "gate.md");
-		await Bun.write(gate, (await Bun.file(gate).text()).replace("none (local reversible behaviour)", "filesystem"));
+		await Bun.write(gate, (await Bun.file(gate).text()).replace("**: none\n", "**: filesystem\n"));
 		const result = run(root);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("Mandatory class: unsupported value filesystem");

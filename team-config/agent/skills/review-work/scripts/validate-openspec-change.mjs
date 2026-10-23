@@ -2,10 +2,20 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+	abortRuleDefects,
+	planContent,
+	readRiskTier,
+	scanMarkdown,
+	substantiveCriteriaDefects,
+	topLevelField,
+	valueDefect,
+} from "./plan-contract.mjs";
 
 const GATE_FIELDS = [
 	"Mandatory class",
-	"Review tier",
+	"Risk tier",
+	"Author's risk assessment",
 	"Whole-diff review",
 	"Accepted residual risks",
 	"Out of scope for blocking",
@@ -17,7 +27,6 @@ const MANDATORY_CLASSES = new Set([
 	"wire-contract-api",
 	"concurrency-state",
 ]);
-const REVIEW_TIERS = new Set(["standard", "full"]);
 const PLACEHOLDER = /<[^>]+>|\b(?:TBD|TODO)\b/i;
 
 async function regularFile(file) {
@@ -124,41 +133,48 @@ function validateTasks(text, errors) {
 	}
 }
 
-function validateGate(text, errors) {
+/**
+ * Checks gate.md as the merge-gate section of the change, on content-only text (code fences and HTML comments are not
+ * gate content). The class, tier and abort-field rules are the gate validator's own, imported from plan-contract.mjs.
+ * `hasRequirements` says whether the specs carry review criteria; when they do not (skip_specs, rename-only deltas),
+ * gate.md must.
+ */
+function validateGate(text, hasRequirements, errors) {
+	const content = planContent(scanMarkdown(text));
 	const values = new Map();
-	const lines = text.split(/\r?\n/);
 	for (const field of GATE_FIELDS) {
-		const prefix = `- **${field.toLowerCase()}**:`;
-		const matches = lines
-			.filter(line => line.toLowerCase().startsWith(prefix))
-			.map(line => line.slice(prefix.length).trim());
-		if (matches.length !== 1 || !matches[0]) {
+		const found = topLevelField(content, field);
+		if (found.count !== 1 || !found.value) {
 			errors.push(`${field}: expected exactly one nonempty top-level bullet`);
 			continue;
 		}
-		const value = matches[0];
-		values.set(field, value);
-		if (PLACEHOLDER.test(value)) errors.push(`${field}: placeholder text is forbidden`);
+		values.set(field, found.value);
+		if (field !== "Author's risk assessment" && PLACEHOLDER.test(found.value))
+			errors.push(`${field}: placeholder text is forbidden`);
 	}
+	if (topLevelField(content, "Review tier").count > 0)
+		errors.push("Review tier: removed; the gate reads - **Risk tier**: product or internal-tooling");
 
 	const mandatory = values.get("Mandatory class");
-	const mandatoryName = mandatory?.split(/\s+/, 1)[0];
-	if (mandatory && !MANDATORY_CLASSES.has(mandatoryName))
-		errors.push(`Mandatory class: unsupported value ${mandatoryName}`);
-	if (mandatoryName === "none" && !/^none\s*\(.+\)$/.test(mandatory))
-		errors.push("Mandatory class: none requires a concrete parenthesized reason");
-
-	const tier = values.get("Review tier");
-	if (tier && !REVIEW_TIERS.has(tier)) errors.push(`Review tier: unsupported value ${tier}`);
-	if (mandatoryName && mandatoryName !== "none" && tier && tier !== "full")
-		errors.push(`Review tier: ${mandatoryName} requires full`);
+	if (mandatory && !MANDATORY_CLASSES.has(mandatory.replace(/`/g, ""))) {
+		errors.push(`Mandatory class: unsupported value ${mandatory}; use exactly one class, with no reason (it goes in Author's risk assessment)`);
+	}
+	if (values.has("Risk tier")) {
+		const parsed = readRiskTier(content);
+		if (parsed.error) errors.push(`Risk tier: ${parsed.error}`);
+	}
+	const assessment = values.get("Author's risk assessment");
+	const defect = assessment === undefined ? undefined : valueDefect(assessment);
+	if (defect) errors.push(`Author's risk assessment: ${defect}; say what could break and how badly`);
 
 	const wholeDiff = values.get("Whole-diff review");
 	if (wholeDiff && wholeDiff !== "needed" && !/^not needed\s*\(.+\)$/.test(wholeDiff))
 		errors.push("Whole-diff review: use needed or not needed (<concrete reason>)");
-	for (const field of ["Accepted residual risks", "Out of scope for blocking"]) {
-		const value = values.get(field);
-		if (value?.toLowerCase() === "none") errors.push(`${field}: none requires a concrete parenthesized reason`);
+	for (const message of abortRuleDefects(content)) {
+		if (!message.endsWith(": missing") && !message.endsWith(": duplicate")) errors.push(message);
+	}
+	if (!hasRequirements) {
+		for (const { field, detail } of substantiveCriteriaDefects(content, "gate.md criteria")) errors.push(`${field}: ${detail}`);
 	}
 }
 
@@ -282,24 +298,37 @@ function parseSkipSpecs(text, errors) {
 	return skipSpecs;
 }
 
-export async function validateOpenSpecChange(changeDir) {
+/**
+ * Pure checker over a snapshot: a Map of change-relative path (`/`-separated) to file bytes. It reads nothing from disk,
+ * so a caller that digests the same snapshot validates exactly the bytes it pins.
+ */
+export function validateOpenSpecFiles(snapshot) {
 	const errors = [];
-	const root = path.resolve(changeDir);
+	const text = name => snapshot.get(name)?.toString("utf8");
 	for (const file of ["proposal.md", "gate.md", "tasks.md"]) {
-		if (!(await regularFile(path.join(root, file)))) errors.push(`${file}: required regular file is missing`);
+		if (!snapshot.has(file)) errors.push(`${file}: required regular file is missing`);
 	}
-	if (await regularFile(path.join(root, "proposal.md")))
-		validateProposal(await fs.readFile(path.join(root, "proposal.md"), "utf8"), errors);
-	const specs = await markdownFiles(path.join(root, "specs"));
-	const texts = new Map(await Promise.all(specs.map(async file => [file, await fs.readFile(file, "utf8")])));
-	const metadata = path.join(root, ".openspec.yaml");
-	const skipSpecs = (await regularFile(metadata)) && parseSkipSpecs(await fs.readFile(metadata, "utf8"), errors);
+	if (snapshot.has("proposal.md")) validateProposal(text("proposal.md"), errors);
+	const specs = [...snapshot.keys()].filter(name => name.startsWith("specs/") && name.endsWith(".md")).sort();
+	const texts = new Map(specs.map(file => [file, text(file)]));
+	const skipSpecs = snapshot.has(".openspec.yaml") && parseSkipSpecs(text(".openspec.yaml"), errors);
 	validateSpecs(specs, texts, skipSpecs, errors);
-	if (await regularFile(path.join(root, "tasks.md")))
-		validateTasks(await fs.readFile(path.join(root, "tasks.md"), "utf8"), errors);
-	if (await regularFile(path.join(root, "gate.md")))
-		validateGate(await fs.readFile(path.join(root, "gate.md"), "utf8"), errors);
+	const hasRequirements = [...texts.values()].some(spec => /^### Requirement:\s*\S/m.test(spec));
+	if (snapshot.has("tasks.md")) validateTasks(text("tasks.md"), errors);
+	if (snapshot.has("gate.md")) validateGate(text("gate.md"), hasRequirements, errors);
 	return errors;
+}
+
+export async function validateOpenSpecChange(changeDir) {
+	const root = path.resolve(changeDir);
+	const snapshot = new Map();
+	for (const file of ["proposal.md", "gate.md", "tasks.md", ".openspec.yaml"]) {
+		if (await regularFile(path.join(root, file))) snapshot.set(file, await fs.readFile(path.join(root, file)));
+	}
+	for (const file of await markdownFiles(path.join(root, "specs"))) {
+		snapshot.set(path.relative(root, file).split(path.sep).join("/"), await fs.readFile(file));
+	}
+	return validateOpenSpecFiles(snapshot);
 }
 
 async function main() {

@@ -4,7 +4,9 @@ import { createHash } from "node:crypto"
 import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
-import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
+import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
+import { abortRuleDefects, CRITERIA_HEADER_PATTERN, criteriaShapeDefect, mergeGateSection, planContent, readRiskTier, scanMarkdown, topLevelField } from "./plan-contract.mjs"
+import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
 
 class GateError extends Error {}
 
@@ -240,20 +242,34 @@ function tryRealpath(target) {
 // trailers are review OUTPUT that a later reviewer must be able to open, so they must be tracked.
 // `pathField` names the field that supplied the path and `digestField` the one that pinned it, so a
 // path problem and a digest mismatch stay distinguishable to the operator reading stderr.
-function verifyAndPinArtifact(context, absolutePath, pathField, digestField, expectedDigest, { requireTracked = true } = {}) {
+//
+// A folder plan is bound by the digest of the bundle rebuilt from the one snapshot `main` took, and
+// every snapshot file is admitted to the exemption. The single `pin` call below serves both shapes,
+// so this function stays the only admission path.
+function verifyAndPinArtifact(context, absolutePath, pathField, digestField, expectedDigest, { requireTracked = true, folder = null } = {}) {
   const field = digestField
-  if (requireTracked) assertTracked(context.repo, absolutePath, pathField)
-  else assertInsideRepo(context.repo, absolutePath, pathField)
-  const bytes = readBytes(absolutePath, pathField)
-  const digest = createHash("sha256").update(bytes).digest("hex")
+  let bytes = null
+  let digest
+  let targets = [absolutePath]
+  if (folder) {
+    digest = folder.digest
+    targets = [...folder.snapshot.keys()].map((file) => path.join(absolutePath, file))
+  } else {
+    if (requireTracked) assertTracked(context.repo, absolutePath, pathField)
+    else assertInsideRepo(context.repo, absolutePath, pathField)
+    bytes = readBytes(absolutePath, pathField)
+    digest = createHash("sha256").update(bytes).digest("hex")
+  }
   if (typeof expectedDigest !== "string" || !/^[0-9a-f]{64}$/.test(expectedDigest)) {
     block(field, "must be the sha256 of the stored artifact bytes, so a later edit to that file cannot ride the path exemption")
   }
   if (expectedDigest !== digest) {
     block(field, `records ${expectedDigest} but the artifact now hashes to ${digest}; it changed after the review, so re-review against it as it now stands`)
   }
-  pin(context, absolutePath)
-  return { digest, text: bytes.toString("utf8") }
+  for (const target of targets) {
+    pin(context, target)
+  }
+  return { digest, text: bytes === null ? "" : bytes.toString("utf8") }
 }
 
 // The record is the one artifact that cannot self-bind: a digest of the record stored inside the
@@ -517,12 +533,8 @@ function reconcileBlockers(scalars, narrative, field) {
   return ids
 }
 
-const CRITERIA_HEADER_PATTERN = /^(\s*)-\s+(?:\*\*)?Feature-specific criteria\b[^\n]*(?:\*\*)?\s*:?\s*$/mi
 // The opt-out is one top-level bullet. A glued suffix (`not applicableXYZ`) is not a declaration.
 const OPT_OUT_PATTERN = /^-\s+(?:\*\*)?Merge gate(?:\*\*)?\s*:\s*(?:\*\*)?\s*not applicable(?=$|[\s(.,;:\u2013\u2014])/i
-const ABORT_FIELDS = ["Accepted residual risks", "Out of scope for blocking"]
-const DEFERRAL_MARKERS = new Set(["tbd", "tba", "tbc", "todo", "fixme", "xxx", "n/a", "na", "?", "-", "...", "\u2026"])
-const DEFERRAL_PREFIX = /^(?:tbd|tba|tbc|todo|fixme|xxx|n\/a)(?!\p{L})/u
 
 function riskTier(section) {
   const parsed = readRiskTier(section)
@@ -532,77 +544,12 @@ function riskTier(section) {
 
 function validateCriteria(section) {
   if (section === undefined) block("plan Merge gate", "section is required")
-  const headerMatch = section.match(CRITERIA_HEADER_PATTERN)
-  if (!headerMatch) {
-    block("plan Merge gate criteria", "Feature-specific criteria header is required: one `- Feature-specific criteria:` bullet with each criterion nested below it as `  - Invariant: ...` and its fields indented under that; flat `- Invariant I1:` bullets are not read as criteria")
-  }
-  const headerIndent = headerMatch[1].length
-  const criteriaSource = section.slice(headerMatch.index + headerMatch[0].length)
-  const bullets = [...criteriaSource.matchAll(/^(\s*)-\s+([\s\S]*?)(?=^\s*-\s+|$(?![\s\S]))/gm)]
-    .filter((match) => match[1].length > headerIndent && /^\s*(?:\*\*)?Invariant\s*:/mi.test(match[2]))
-  if (bullets.length === 0) block("plan Merge gate criteria", "header requires at least one criterion with Invariant")
-  for (const [index, match] of bullets.entries()) {
-    const criterion = match[2]
-    if (/^\s*(?:\*\*)?Mechanical\b/i.test(criterion)) continue
-    if (!/^\s*(?:\*\*)?Negative control\s*:/mi.test(criterion)) {
-      block(`plan Merge gate criteria.${index}.Negative control`, "behavioural criterion requires this field")
-    }
-  }
-}
-
-function isDeferral(text) {
-  const lowered = text.toLowerCase().replace(/[`*]/g, "").trim()
-  const bare = lowered.replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, "")
-  return DEFERRAL_MARKERS.has(lowered) || DEFERRAL_MARKERS.has(bare) || DEFERRAL_PREFIX.test(bare)
-}
-
-function withoutTemplates(text) {
-  let current = text
-  for (;;) {
-    const next = current.replace(/<\p{L}[^<>]*>/gu, "")
-    if (next === current) return current
-    current = next
-  }
-}
-
-// One verdict per value: undefined accepts, a string names the block reason. The grammar rejects
-// non-answers only; whether a named risk is real is the reviewer's PROCESS 1 check.
-function abortFieldDefect(value) {
-  if (value === "") return "empty"
-  const residue = withoutTemplates(value).trim()
-  if (/^[\s\p{P}\p{S}]*$/u.test(residue) && residue !== value.trim()) return "template placeholder"
-  if (isDeferral(residue)) return "deferral marker"
-  if (/^none(?!\p{L})/iu.test(residue.replace(/^[`*]+/, ""))) {
-    const open = residue.indexOf("(")
-    const close = residue.lastIndexOf(")")
-    const reason = open !== -1 && close > open ? withoutTemplates(residue.slice(open + 1, close)).trim() : ""
-    return /\p{L}{3,}/u.test(reason) && !isDeferral(reason) ? undefined : "none needs a reason"
-  }
-  return /\p{L}{3,}/u.test(residue) ? undefined : "no substance"
+  const defect = criteriaShapeDefect(section)
+  if (defect) block(defect.field, defect.detail)
 }
 
 function validateAbortRuleFields(section) {
-  const lines = section.split("\n")
-  const defects = []
-  for (const field of ABORT_FIELDS) {
-    const label = new RegExp(`^-\\s+(?:\\*\\*)?${field}(?:\\*\\*)?\\s*:(?:\\*\\*)?(.*)$`, "i")
-    const starts = lines.flatMap((line, index) => (label.test(line) ? [index] : []))
-    if (starts.length === 0) {
-      defects.push(`${field}: missing`)
-      continue
-    }
-    if (starts.length > 1) {
-      defects.push(`${field}: duplicate`)
-      continue
-    }
-    const parts = [label.exec(lines[starts[0]])[1]]
-    for (const line of lines.slice(starts[0] + 1)) {
-      if (/^\S/.test(line)) break
-      parts.push(line.replace(/^\s*(?:[-*+]|\d+[.)])\s+/, ""))
-    }
-    const defect = abortFieldDefect(parts.join(" ").replace(/\s+/g, " ").trim())
-    if (defect) defects.push(`${field}: ${defect}`)
-  }
+  const defects = abortRuleDefects(section)
   if (defects.length > 0) {
     block("plan Merge gate abort fields", `${defects.join("; ")}. Each is a top-level bullet in ## Merge gate with concrete text or none (<reason>)`)
   }
@@ -624,6 +571,65 @@ function validatePlanContract(planText) {
   riskTier(section)
 }
 
+// ---- Folder plans -------------------------------------------------------------------------------
+// An OpenSpec change folder is the plan. One snapshot feeds the OpenSpec checks (which include the
+// criteria), the classification and the bundle, so every check runs on exactly the bytes
+// `plan_sha256` pins. `gate.md` is the folder's merge-gate section.
+
+function isFolderPlan(planPath) {
+  try {
+    return statSync(planPath).isDirectory() && statSync(path.join(planPath, "gate.md"), { throwIfNoEntry: false }) !== undefined
+  } catch {
+    return false
+  }
+}
+
+function takeSnapshot(folderPath) {
+  try {
+    return snapshotFolder(folderPath)
+  } catch (error) {
+    if (error instanceof FolderPlanError) block("plan", error.message)
+    throw error
+  }
+}
+
+const gateField = (gateContent, field) => topLevelField(gateContent, field).value ?? ""
+
+function parseGateClassification(gateContent) {
+  const wholeDiff = gateField(gateContent, "Whole-diff review").replace(/[`*]/g, "").trim()
+  return {
+    mandatoryClass: gateField(gateContent, "Mandatory class").replace(/[`*]/g, "").trim().split(/\s+/, 1)[0],
+    wholeDiff: wholeDiff === "needed",
+    wholeDiffReason: /^not needed\s*\((.*)\)$/.exec(wholeDiff)?.[1].trim(),
+  }
+}
+
+// One snapshot of the live folder: the OpenSpec checks (fields, specs, criteria) block with their own
+// text, then the bundle and its digest are built from the same map. A file plan never reaches this.
+function loadFolderPlan(repo, planPath) {
+  assertInsideRepo(repo, planPath, "plan")
+  const snapshot = takeSnapshot(planPath)
+  const errors = validateOpenSpecFiles(snapshot)
+  if (errors.length > 0) block("plan OpenSpec change", errors.join("; "))
+  const gateContent = planContent(scanMarkdown(snapshot.get("gate.md").toString("utf8")))
+  const bundle = buildBundle(snapshot)
+  return { snapshot, gateContent, gate: parseGateClassification(gateContent), bundle, digest: bundleDigest(bundle) }
+}
+
+// The folder's classification is whatever gate.md says; a record can neither reclassify the change
+// nor swap the Whole-diff decision.
+function checkFolderClassification(record, gate) {
+  if (record.mandatory_class !== gate.mandatoryClass) {
+    block("mandatory_class", `record says ${record.mandatory_class} but gate.md says ${gate.mandatoryClass}; the class comes from gate.md`)
+  }
+  if (record.whole_diff.run !== gate.wholeDiff) {
+    block("whole_diff", `record says run ${record.whole_diff.run} but gate.md says Whole-diff review ${gate.wholeDiff ? "needed" : "not needed"}`)
+  }
+  if (!gate.wholeDiff && record.whole_diff.reason?.trim() !== gate.wholeDiffReason) {
+    block("whole_diff.reason", `record says "${record.whole_diff.reason}" but gate.md says "${gate.wholeDiffReason}"; the reason comes from gate.md`)
+  }
+}
+
 function validateRecord(record, context) {
   if (record.schema === "omo.merge-gate/v1") {
     block("schema", "omo.merge-gate/v1 is superseded: v2 requires implementation_models and a reviewer trailer artifact per verdict; re-run the review rather than editing the old record")
@@ -643,7 +649,7 @@ function validateRecord(record, context) {
   // independent one without touching the reviewer's trailer. Path exemption cannot catch that, and
   // where the plan is git-ignored - as `.omo/plans/` commonly is - no commit is needed at all.
   // So the plan is bound by CONTENT: the digest of the exact bytes the reviewer was given.
-  verifyAndPinArtifact(context, context.planPath, "plan", "plan_sha256", record.plan_sha256, { requireTracked: false })
+  verifyAndPinArtifact(context, context.planPath, "plan", "plan_sha256", record.plan_sha256, { requireTracked: false, folder: context.folder })
   if (typeof record.decision_reason !== "string" || record.decision_reason.trim() === "") {
     block("decision_reason", "must be a non-empty line")
   }
@@ -685,6 +691,7 @@ function validateRecord(record, context) {
   if (!mandatoryClasses.has(record.mandatory_class)) {
     block("mandatory_class", "must be none, auth-secrets-pii, schema-migration, wire-contract-api, or concurrency-state")
   }
+  if (context.folder) checkFolderClassification(record, context.folder.gate)
   if (context.riskTier === "internal-tooling" && record.mandatory_class !== "none") {
     block("mandatory_class", "the plan declares Risk tier internal-tooling, which requires none; a mandatory class makes the work product: set - Risk tier: product, run gate-convergence retier, and review again")
   }
@@ -876,19 +883,22 @@ function main() {
   // tracked check anchored to the repo let the guarantee and the parsed bytes be different files,
   // and it broke the documented invocation from any subdirectory.
   const planPath = path.resolve(repo, values.plan)
-  const planText = readText(planPath, "plan")
+  const folder = isFolderPlan(planPath) ? loadFolderPlan(repo, planPath) : null
+  const planText = folder ? folder.bundle.toString("utf8") : readText(planPath, "plan")
   if (values["plan-only"]) {
-    validatePlanContract(planText)
+    if (!folder) validatePlanContract(planText)
     return "passed"
   }
-  const section = mergeGateSection(planContent(scanMarkdown(planText)))
-  validateCriteria(section)
+  // A folder's merge-gate section is its gate.md; its criteria were checked with the folder.
+  const section = folder ? folder.gateContent : mergeGateSection(planContent(scanMarkdown(planText)))
+  if (!folder) validateCriteria(section)
   const recordPath = path.resolve(repo, values.record)
   const context = {
     head: execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     planRelative: path.relative(repo, planPath),
     planPath,
     planText,
+    folder,
     pinned: new Set(),
     repo,
     riskTier: riskTier(section),

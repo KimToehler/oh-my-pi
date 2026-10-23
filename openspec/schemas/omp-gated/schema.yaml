@@ -205,17 +205,25 @@ artifacts:
 
   - id: gate
     generates: gate.md
-    description: Risk classification and review tier for merge enforcement
+    description: Risk classification for merge enforcement
     template: gate.md
     instruction: |
       Classify the change; do not duplicate requirements or implementation tasks.
+      gate.md is the change's merge-gate section: the gate reads these bullets exactly as it reads a plan's.
 
       Keep every bullet exactly once and replace every placeholder:
-      - **Mandatory class**: one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, `concurrency-state`; classify from consequence and a real trust, process or release boundary. `wire-contract-api` means a supported contract consumed outside the changed package/process or independently released surface; an internal exported symbol alone is `none`. `none` MUST carry a concrete reason.
-      - **Review tier**: `full` for every mandatory class other than `none`; otherwise `standard` unless realistic damage reaches production data, real credentials, tenant isolation, money, audit history or irreversible state.
-      - **Whole-diff review**: `needed` when the change spans at least three independently testable modules/layers; otherwise `not needed` with a reason.
-      - **Accepted residual risks**: concrete risks, or `none` with a reason.
-      - **Out of scope for blocking**: concrete areas whose findings become follow-ups, or `none` with a reason.
+      - **Mandatory class**: exactly one of `none`, `auth-secrets-pii`, `schema-migration`, `wire-contract-api`, `concurrency-state`, with no reason; classify from consequence and a real trust, process or release boundary. `wire-contract-api` means a supported contract consumed outside the changed package/process or independently released surface; an internal exported symbol alone is `none`. A class other than `none` runs both reviewers.
+      - **Risk tier**: `product` (the default) or `internal-tooling`. `internal-tooling` is for dev, CI and proof tooling that reaches no protected asset (production data, real credentials, tenant isolation, money, audit history, irreversible state) and needs class `none`; it runs one reviewer and caps fix rounds. Never write `Review tier`.
+      - **Author's risk assessment**: what could break and how badly, and why the tier and class fit.
+      - **Whole-diff review**: `needed` when the change spans at least three independently testable modules/layers; otherwise `not needed (<reason>)`.
+      - **Accepted residual risks**: concrete risks, or `none (<reason>)`.
+      - **Out of scope for blocking**: concrete areas whose findings become follow-ups, or `none (<reason>)`.
+
+      Review criteria come from the `### Requirement:` blocks of the specs. When `.openspec.yaml` sets
+      `skip_specs: true` or the specs hold no `### Requirement:` (rename-only), uncomment the criteria
+      example at the end of the template and fill it: one `- Feature-specific criteria:` bullet with each
+      criterion nested below it (`  - Invariant:` with `Positive witness`, `Negative control`, `Observable`
+      and `Boundary` indented under it), all with concrete values.
 
       Never accept a risk that contradicts a requirement or its scenarios.
     requires:
