@@ -419,6 +419,39 @@ describe("runSubprocess request guards", () => {
 		expect(result.exitCode).toBe(0);
 	});
 
+	it("hard-aborts a deferred request-budget stop at the threshold's grace deadline", async () => {
+		// A pending yield defers the budget check while streamed steps push the
+		// count past 1.5x; the nonterminal yield then stops the run at request 5.
+		// The grace window still counts from the threshold (3), so the child that
+		// keeps working is hard-aborted at request 8, not 5 more after the stop.
+		const settings = Settings.isolated({
+			"task.maxRuntimeMs": 0,
+			"task.softRequestBudget": 2,
+			"task.softRequestBudgetNotice": false,
+		});
+		const handle = createFakeSession({
+			hang: true,
+			events: [
+				assistantMessageStart(),
+				yieldToolStart(),
+				readToolEnd("read-1"),
+				readToolEnd("read-2"),
+				readToolEnd("read-3"),
+				readToolEnd("read-4"),
+				incrementalYieldToolEnd("tool-yield"),
+				readToolEnd("read-5"),
+				readToolEnd("read-6"),
+				readToolEnd("read-7"),
+			],
+		});
+		mockCreateAgentSession(handle.session);
+
+		const result = await runSubprocess({ ...baseOptions, id: "subagent-deferred-stop", settings });
+
+		expect(result.abortReason).toContain("did not yield when force-stopped");
+		expect(result.requests).toBe(8);
+	});
+
 	it("does not count tools run after the response ended as extra requests", async () => {
 		const settings = Settings.isolated({ "task.maxRuntimeMs": 0 });
 		const handle = createFakeSession({

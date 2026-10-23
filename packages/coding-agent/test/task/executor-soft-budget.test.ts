@@ -302,41 +302,6 @@ describe("runSubprocess soft request budget", () => {
 		expect(handle.disposeCalls()).toBe(0);
 	});
 
-	it("#given an unstructured run #when its report turn itself crosses the stop threshold #then the report stands without a forced wrap-up", async () => {
-		const id = "LastWordScout";
-		const handle = createMockSession(({ promptIndex, emit, pushMessage }) => {
-			if (promptIndex !== 1) {
-				const message = assistantText("second report");
-				pushMessage(message);
-				emit({ type: "message_end", message } as unknown as AgentSessionEvent);
-				return;
-			}
-			// Budget 2 → stop threshold 3: two working turns, then the report turn is request 3.
-			for (let i = 1; i <= 2; i++) {
-				const message = {
-					role: "assistant" as const,
-					content: [
-						{ type: "toolCall" as const, id: `tool-read-${i}`, name: "read", arguments: { path: "a.ts" } },
-					],
-					stopReason: "toolUse" as const,
-				};
-				pushMessage(message);
-				emit({ type: "message_end", message } as unknown as AgentSessionEvent);
-			}
-			const report = assistantText("first report");
-			pushMessage(report);
-			emit({ type: "message_end", message: report } as unknown as AgentSessionEvent);
-		});
-		mockCreateAgentSession(handle.session);
-		registerRunning(id, handle.session);
-
-		const result = await runSubprocess({ ...baseOptions(id), structured: false });
-
-		expect(handle.prompts).toHaveLength(1);
-		expect(result.aborted).toBe(false);
-		expect(result.output).toBe("first report");
-	});
-
 	it("a budget hard-abort keeps the kept-alive agent adopted and messageable via irc", async () => {
 		const id = "StubbornScout";
 		const eventBus = new EventBus();

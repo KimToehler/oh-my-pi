@@ -1282,7 +1282,7 @@ interface RunMonitorArgs {
 	maxRuntimeMs: number;
 	/** Whether to periodically ask the agent for a completion estimate; see {@link isCompletionProbeEnabled}. */
 	completionProbe: boolean;
-	/** `false` = no `yield` tool: the run delivers by ending its turn with a report; see {@link SubagentRunMonitor.reportDelivered}. */
+	/** `false` = no `yield` tool: the run delivers by ending its turn with a report, which keeps the compaction budget from acting on it. */
 	structured: boolean;
 	/** Fires each time a terminal `yield` is recorded for this run. */
 	onYieldAccepted?: () => void;
@@ -1359,13 +1359,6 @@ interface SubagentRunMonitor {
 	answeringModels(): SingleResult["answeringModels"];
 	/** Whether any assistant message ended while this monitor was attached. */
 	sawAssistantMessage(): boolean;
-	/**
-	 * Whether the run has delivered its result: a terminal `yield`, or for an
-	 * unstructured run a last assistant message that ended (`stopReason:
-	 * "stop"`) on a report turn. A later assistant message that starts work
-	 * clears it, so a continuation re-arms the compaction budget.
-	 */
-	reportDelivered(): boolean;
 	/** Final raw output: end-of-run assistant text when available, else accumulated chunks. */
 	rawOutput(): string;
 	scheduleProgress(flush?: boolean): void;
@@ -1470,7 +1463,11 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	let compactionCount = 0;
 	let budgetLimitExceeded = false;
 	let budgetStopKind: BudgetStopKind | undefined;
-	/** `progress.requests` when the budget stop fired; the grace window counts from here. */
+	/**
+	 * Request count the grace window counts from: the request budget's 1.5x
+	 * threshold (a deferred check that stops the run late must not extend it),
+	 * or the count when a compaction stop fired.
+	 */
 	let budgetStopAtRequests = 0;
 	let budgetStopAbortPromise: Promise<void> | undefined;
 	let terminalError: string | undefined;
@@ -1485,7 +1482,8 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	const answeringModels: NonNullable<SingleResult["answeringModels"]> = [];
 	let sawAssistantMessage = false;
 	// Unstructured delivery: the last assistant message ended (`stop`) on a
-	// report turn. Recomputed at every assistant `message_end`.
+	// report turn. Recomputed at every assistant `message_end`, so a later
+	// turn that starts work clears it and re-arms the compaction budget.
 	let unstructuredReportDelivered = false;
 	const reportDelivered = () => yieldCalled || unstructuredReportDelivered;
 	let activeSessionAbortPromise: Promise<void> | undefined;
@@ -1554,7 +1552,7 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	const requestBudgetStop = (kind: BudgetStopKind) => {
 		if (budgetStopKind !== undefined || abortSent || resolved) return;
 		budgetStopKind = kind;
-		budgetStopAtRequests = progress.requests;
+		budgetStopAtRequests = kind === "requests" ? softRequestBudget * 1.5 : progress.requests;
 		const session = activeSession;
 		budgetStopAbortPromise = session
 			? session.abort().catch(error => {
@@ -2487,7 +2485,6 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 		lastAssistantSalvageText: () => lastAssistantSalvageText,
 		lastReportTurnText: () => lastReportTurnText,
 		answeringModels: () => (answeringModels.length > 0 ? [...answeringModels] : undefined),
-		reportDelivered,
 		sawAssistantMessage: () => sawAssistantMessage,
 		rawOutput: () => (finalOutputChunks.length > 0 ? finalOutputChunks.join("") : outputChunks.join("")),
 		scheduleProgress,
@@ -2678,11 +2675,7 @@ async function driveSessionToResult(
 				if (budgetStop) {
 					retryCount = MAX_YIELD_RETRIES - 1;
 					await monitor.waitForBudgetStop();
-					// An unstructured run delivers by ending its turn with a report. A
-					// stop that fires after that turn (the report turn itself crossing
-					// the request budget's 1.5x) has nothing left to cut short;
-					// prompting again would spend a request and replace the report.
-					if (monitor.reportDelivered() || abortSignal.aborted) break;
+					if (monitor.yieldCalled() || abortSignal.aborted) break;
 				}
 				// Skip reminders when the model returned a terminal error (e.g.
 				// rate-limit cap hit, auth failure). Re-prompting would just
