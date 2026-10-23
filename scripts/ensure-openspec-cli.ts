@@ -40,11 +40,13 @@ async function openspec(...args: string[]): Promise<string> {
 if (!Bun.which("openspec")) fail(`OpenSpec CLI not found on PATH. Install the pinned version:\n  ${install}`);
 
 const version = await openspec("--version");
-if (version !== pin) fail(`OpenSpec CLI is ${version}, the team pins ${pin}. Install the pinned version:\n  ${install}`);
+if (version !== pin)
+	fail(`OpenSpec CLI is ${version}, the team pins ${pin}. Install the pinned version:\n  ${install}`);
 
 await openspec("config", "set", "telemetry.enabled", "false");
 const persisted = await openspec("config", "get", "telemetry.enabled");
-if (persisted !== "false") fail(`openspec config get telemetry.enabled printed "${persisted}" after setting it to false`);
+if (persisted !== "false")
+	fail(`openspec config get telemetry.enabled printed "${persisted}" after setting it to false`);
 
 const configPath = await openspec("config", "path");
 console.log(`OpenSpec ${version}; telemetry disabled in ${configPath}`);

@@ -36,7 +36,9 @@ interface Run {
 
 const PROTECTED = (args: string) => `${args}|DNT=1|OT=0`;
 
-async function run(opts: { version?: string; withFake?: boolean; ignoreSet?: boolean; env?: Record<string, string> } = {}): Promise<Run> {
+async function run(
+	opts: { version?: string; withFake?: boolean; ignoreSet?: boolean; env?: Record<string, string> } = {},
+): Promise<Run> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ensure-openspec-"));
 	dirs.push(dir);
 	const bin = path.join(dir, "bin");
