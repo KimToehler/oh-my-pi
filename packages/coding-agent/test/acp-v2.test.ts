@@ -742,27 +742,6 @@ describe("cancel and errors (plan 5)", () => {
 		expect(userEntryIds(session)).toEqual([]);
 	});
 
-	it("answers a builtin that finishes after Stop once, as a command", async () => {
-		// Guards: a builtin finishing after Stop reports `dropped` after its `command` outcome.
-		const { client, sessionId, session } = await startReal();
-		const entered = Promise.withResolvers<void>();
-		const release = Promise.withResolvers<void>();
-		vi.spyOn(session, "compact").mockImplementation(async () => {
-			entered.resolve();
-			await release.promise;
-			throw new Error("held compaction ended");
-		});
-		teardown.unshift(async () => release.resolve());
-		const held = sendPrompt(client, sessionId, "/compact");
-		await entered.promise;
-		const messageId = messageIdOf(await held);
-		await client.notify("session/cancel", { sessionId });
-		release.resolve();
-		await waitForIdle(client, sessionId);
-		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
-		expect(typeof messageId).toBe("string");
-	});
-
 	it("reports a submission outcome at most once", () => {
 		// Guards: a builtin finishing after Stop invokes the submission callback twice (command, then dropped).
 		const seen: SubmissionOutcome[] = [];
