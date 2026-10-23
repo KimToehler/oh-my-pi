@@ -8,6 +8,7 @@
 import type { AssistantMessage } from "@oh-my-pi/pi-ai";
 import type { PromptResponse, Usage } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSession, AgentSessionEvent } from "../../session/agent-session";
+import type { SubmissionOutcome } from "../../session/agent-session-types";
 import type { UsageStatistics } from "../../session/session-entries";
 
 export type AgentEndEvent = Extract<AgentSessionEvent, { type: "agent_end" }>;
@@ -247,4 +248,17 @@ export async function trackInteraction<T>(
 		work.pendingInteractions--;
 		changed(work);
 	}
+}
+
+/** Wraps an outcome callback so a submission reports at most once; later reports (e.g. a builtin finishing after Stop) are dropped. */
+export function singleShotOutcome(
+	report: ((outcome: SubmissionOutcome) => void) | undefined,
+): ((outcome: SubmissionOutcome) => void) | undefined {
+	if (!report) return undefined;
+	let reported = false;
+	return outcome => {
+		if (reported) return;
+		reported = true;
+		report(outcome);
+	};
 }

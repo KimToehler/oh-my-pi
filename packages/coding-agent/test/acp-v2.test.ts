@@ -22,6 +22,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { singleShotOutcome } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-foreground";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SubmissionOutcome } from "@oh-my-pi/pi-coding-agent/session/agent-session-types";
@@ -701,9 +702,9 @@ describe("cancel and errors (plan 5)", () => {
 		expect(idle.error?.message?.length).toBeGreaterThan(0);
 	});
 
-	it("settles a prompt whose Goal admission is held when Stop arrives, then admits the next prompt", async () => {
-		// Guards: a Stop before the outcome is registered leaves the request pending and its queue slot held forever.
-		const { client, sessionId, session } = await startReal();
+	it("settles a prompt whose Goal admission is held when Stop arrives and admits the next prompt before the hold is released", async () => {
+		// Guards: Stop waits for the held admission to finish, so the request and the serialised prompt queue stay blocked.
+		const { client, sessionId, session } = await startReal({ extensionCommand: "noop" });
 		resultOf(
 			await client.request("session/set_config_option", { sessionId, configId: "mode", type: "id", value: "goal" }),
 		);
@@ -712,26 +713,64 @@ describe("cancel and errors (plan 5)", () => {
 		const release = Promise.withResolvers<void>();
 		const runtime = session.goalRuntime;
 		const createGoal = runtime.createGoal.bind(runtime);
+		let heldCalls = 0;
 		runtime.createGoal = async (...args: Parameters<typeof createGoal>) => {
-			entered.resolve();
-			await release.promise;
+			if (heldCalls++ === 0) {
+				entered.resolve();
+				await release.promise;
+			}
 			return await createGoal(...args);
 		};
-		teardown.push(async () => release.resolve());
+		teardown.unshift(async () => release.resolve());
 		const held = sendPrompt(client, sessionId, "Ship feature X");
 		await entered.promise;
 		await client.notify("session/cancel", { sessionId });
-		release.resolve();
+		// Stop settles the request while the admission is still held.
 		expect(errorCode(await held)).toBe(-32800);
 		await waitForIdle(client, sessionId);
 		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
-		expect(userEntryIds(session)).toEqual([]);
 
-		const idleIndex = client.states(sessionId).at(-1)!.index;
-		const next = messageIdOf(await sendPrompt(client, sessionId, "after stop"));
-		await waitForIdle(client, sessionId, idleIndex);
-		expect(userEntryIds(session)).toContain(next);
+		// The queue slot is free: the next prompt (an extension command, which needs no Goal admission) is
+		// answered while the first admission is still held.
+		const answered = messageIdOf(await sendPrompt(client, sessionId, "/noop"));
+		expect(answered.length).toBeGreaterThan(0);
+
+		// The late continuation neither inserts the cancelled objective nor reports a second outcome.
+		release.resolve();
+		await eventLoopTurns(40);
 		expect(userMessages(client, sessionId).map(message => message.text)).not.toContain("Ship feature X");
+		expect(userEntryIds(session)).toEqual([]);
+	});
+
+	it("answers a builtin that finishes after Stop once, as a command", async () => {
+		// Guards: a builtin finishing after Stop reports `dropped` after its `command` outcome.
+		const { client, sessionId, session } = await startReal();
+		const entered = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		vi.spyOn(session, "compact").mockImplementation(async () => {
+			entered.resolve();
+			await release.promise;
+			throw new Error("held compaction ended");
+		});
+		teardown.unshift(async () => release.resolve());
+		const held = sendPrompt(client, sessionId, "/compact");
+		await entered.promise;
+		const messageId = messageIdOf(await held);
+		await client.notify("session/cancel", { sessionId });
+		release.resolve();
+		await waitForIdle(client, sessionId);
+		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
+		expect(typeof messageId).toBe("string");
+	});
+
+	it("reports a submission outcome at most once", () => {
+		// Guards: a builtin finishing after Stop invokes the submission callback twice (command, then dropped).
+		const seen: SubmissionOutcome[] = [];
+		const report = singleShotOutcome(outcome => seen.push(outcome));
+		report?.({ kind: "command" });
+		report?.({ kind: "dropped" });
+		expect(seen).toEqual([{ kind: "command" }]);
+		expect(singleShotOutcome(undefined)).toBeUndefined();
 	});
 });
 
@@ -953,6 +992,9 @@ describe("requires_action (plan 6)", () => {
 			requestedSchema: { type: "object", properties: { value: { type: "boolean" } }, required: ["value"] },
 		});
 		expect(client.states(sessionId).at(-1)?.state).toBe("requires_action");
+		// The outbound request was validated against the alpha.9 request schema by the harness.
+		expect(client.agentRequests().some(frame => frame.method === "elicitation/create")).toBe(true);
+		expect(client.schemaIssues).toEqual([]);
 
 		answer.resolve();
 		await waitForIdle(client, sessionId);
@@ -963,6 +1005,48 @@ describe("requires_action (plan 6)", () => {
 			"running",
 			"idle",
 		]);
+	});
+
+	it("counts a plan-approval elicitation as an open interaction, live and on resume", async () => {
+		// Guards: the v2 plan approval waits on the client but the aggregate state stays `running`.
+		const approval = Promise.withResolvers<void>();
+		const { h, rig, client, sessionId, session } = await startReal(
+			{ hold: [0] },
+			async method => {
+				if (method !== "elicitation/create") throw new Error(`unexpected agent request ${method}`);
+				await approval.promise;
+				return { action: "cancel" };
+			},
+			{ elicitation: { form: {} } },
+		);
+		resultOf(
+			await client.request("session/set_config_option", { sessionId, configId: "mode", type: "id", value: "plan" }),
+		);
+		await sendPrompt(client, sessionId, "plan it");
+		await client.waitFor(() => rig.modelCalls === 1, "held model call");
+		const handler = session.peekPlanProposalHandler();
+		if (!handler) throw new Error("expected a plan proposal handler in plan mode");
+		const proposal = handler(
+			{ planFilePath: "local://words-counter-plan.md", planContent: "# Words counter", title: "words-counter" },
+			() => true,
+		);
+		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
+		const base = client.frames.length;
+		const resumed = await client.request("session/resume", { sessionId, cwd: h.cwd });
+		resultOf(resumed);
+		const snapshot = client.states(sessionId).filter(state => state.index >= base && state.index < resumed.index);
+		expect(snapshot.at(-1)).toMatchObject({ state: "requires_action" });
+
+		const pendingIndex = client.states(sessionId).at(-1)!.index;
+		approval.resolve();
+		await proposal;
+		await client.waitFor(
+			c => c.states(sessionId).some(s => s.index > pendingIndex && s.state === "running"),
+			"running after the answer",
+		);
+		expect(client.schemaIssues).toEqual([]);
+		rig.gate(0).release.resolve();
+		await waitForIdle(client, sessionId);
 	});
 
 	it("snapshots requires_action when a session is resumed while its permission is pending", async () => {

@@ -109,6 +109,7 @@ import {
 	isPromptTurnInFlight,
 	type PromptTurnState,
 	resolveStopReason,
+	singleShotOutcome,
 	trackInteraction,
 	type InteractionTracker,
 } from "./acp-foreground";
@@ -983,7 +984,7 @@ export class AcpAgent implements Agent {
 		const promptTurn = this.#turnOf(record);
 		// A locally handled command must not end foreground work that is not its own.
 		const ownsForeground = options?.ownsForeground !== false;
-		const onSubmissionOutcome = options?.onSubmissionOutcome;
+		const onSubmissionOutcome = singleShotOutcome(options?.onSubmissionOutcome);
 		const skillResult = await this.#tryRunSkillCommand(record, text, onSubmissionOutcome);
 		if (skillResult || promptTurn?.work.cancelRequested) {
 			// A Stop before `session.prompt` registered an outcome: settle the admission as dropped.
@@ -992,13 +993,11 @@ export class AcpAgent implements Agent {
 		}
 
 		const builtin = resolveAcpBuiltinSlashCommand(text);
+		// A builtin answers as a command up front; a Stop while it runs ends the turn but never re-reports the submission.
 		if (builtin) onSubmissionOutcome?.({ kind: "command" });
 		const builtinResult = builtin ? await this.#runBuiltin(record, promptTurn, builtin, false) : false;
 		if (builtinResult === undefined) return;
-		if (promptTurn?.work.cancelRequested) {
-			onSubmissionOutcome?.({ kind: "dropped" });
-			return;
-		}
+		if (promptTurn?.work.cancelRequested) return;
 		if (builtinResult !== false) {
 			if ("prompt" in builtinResult) {
 				const residualBaseline = new Set(record.extensionUserMessageTasks);
@@ -2283,7 +2282,7 @@ export class AcpAgent implements Agent {
 		}
 		const { planFilePath, planContent, title: resolvedTitle } = plan;
 		const planAbsolutePath = this.#resolveAcpPlanFilePath(session, planFilePath);
-		const choice = await this.#requestAcpPlanApprovalChoice(session, resolvedTitle, planAbsolutePath);
+		const choice = await this.#requestAcpPlanApprovalChoice(record, session, resolvedTitle, planAbsolutePath);
 		const details: PlanApprovalDetails = {
 			planFilePath,
 			title: resolvedTitle,
@@ -2408,6 +2407,7 @@ export class AcpAgent implements Agent {
 	 * cannot carry a `file://` link (IntelliJ only follows http/https/mailto).
 	 */
 	async #requestAcpPlanApprovalChoice(
+		record: ManagedSessionRecord,
 		session: AgentSession,
 		title: string,
 		planPath: string,
@@ -2449,19 +2449,24 @@ export class AcpAgent implements Agent {
 		// Single plain-text line: IntelliJ flattens the message into a one-line
 		// header and renders no markdown or HTML, so the path rides in the
 		// field description (shown as a short subtitle) instead.
-		const value = await elicitFromAcpClient(
-			request => this.#surface.elicitForm(request),
-			session.sessionId,
-			"select",
-			`Approve plan "${title}" and start implementation?`,
-			{
-				type: "string",
-				title: "Implementation",
-				description: `Plan file: ${shortenPath(planPath)}`,
-				oneOf: options,
-				default: defaultValue,
-			},
-			undefined,
+		const value = await trackInteraction(
+			this.#surface.activeWork(record),
+			work => this.#surface.onInteractionChanged(record, work),
+			() =>
+				elicitFromAcpClient(
+					request => this.#surface.elicitForm(request),
+					session.sessionId,
+					"select",
+					`Approve plan "${title}" and start implementation?`,
+					{
+						type: "string",
+						title: "Implementation",
+						description: `Plan file: ${shortenPath(planPath)}`,
+						oneOf: options,
+						default: defaultValue,
+					},
+					undefined,
+				),
 		);
 		if (tiers.length === 0) {
 			return value === PLAN_APPROVE_VALUE ? { approved: true } : { approved: false };

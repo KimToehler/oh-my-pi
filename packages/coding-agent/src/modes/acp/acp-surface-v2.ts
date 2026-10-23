@@ -73,6 +73,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	#host: AcpSurfaceHost;
 	/** Pending `user_message` echo per record: the idle frame waits behind it. */
 	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Submissions of a record that have not yet reported an outcome; Stop drops them. */
+	#pendingSubmissions = new WeakMap<ManagedSessionRecord, Set<() => void>>();
 	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
 	#settleTimers = new Map<ManagedSessionRecord, NodeJS.Timeout>();
 
@@ -170,13 +172,22 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		const targetWork = record.foreground;
 		const outcome = Promise.withResolvers<SubmissionOutcome>();
 		let outcomeSeen = false;
+		const settle = (submission: SubmissionOutcome): void => {
+			if (outcomeSeen) return;
+			outcomeSeen = true;
+			this.#pendingSubmissions.get(record)?.delete(drop);
+			outcome.resolve(submission);
+		};
+		const drop = (): void => settle({ kind: "dropped" });
+		let pending = this.#pendingSubmissions.get(record);
+		if (!pending) {
+			pending = new Set();
+			this.#pendingSubmissions.set(record, pending);
+		}
+		pending.add(drop);
 		const run = this.#host.runPromptOrCommand(record, converted.text, converted.images, {
 			ownsForeground: ownWork !== undefined,
-			onSubmissionOutcome: submission => {
-				if (outcomeSeen) return;
-				outcomeSeen = true;
-				outcome.resolve(submission);
-			},
+			onSubmissionOutcome: settle,
 		});
 		run.then(
 			// A resolved run without an outcome is a steer still queued: insertion or the foreground end reports it.
@@ -188,6 +199,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 						: error;
 				if (!outcomeSeen) {
 					outcomeSeen = true;
+					this.#pendingSubmissions.get(record)?.delete(drop);
 					outcome.reject(wire);
 					return;
 				}
@@ -399,6 +411,9 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		record.cancelLatched = true;
 		work.cancelRequested = true;
 		record.session.clearQueue({ forInterrupt: true });
+		// A submission still before its outcome (skill preparation, Goal admission) is settled and released now,
+		// not when the held operation returns; its late continuation can neither insert nor report again.
+		for (const drop of this.#pendingSubmissions.get(record) ?? []) drop();
 	}
 
 	/** `elicitation/create` in the v2 shape (session-scoped form); `accept` without content answers nothing. */
