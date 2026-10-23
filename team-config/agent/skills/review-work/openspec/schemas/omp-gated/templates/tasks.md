@@ -9,3 +9,14 @@
 
 - [ ] 2.1 <!-- Task description --> Verify: `<deterministic command>`
 - [ ] 2.2 <!-- Task description --> Verify: `<deterministic command>`
+
+## 3. Final verification
+
+<!-- Keep this group last and renumber it. Drop 3.1 when gate.md says Whole-diff review `not needed`. -->
+- [ ] 3.1 F3. Whole-diff review: `integration-review` over `<base>...HEAD` with this change folder as the plan; fixes delta-reviewed; report at the tracked path `.omo/evidence/gate/<change>/f3-integration-review.md`. Verify: `git ls-files --error-unmatch .omo/evidence/gate/<change>/f3-integration-review.md`
+- [ ] 3.2 F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit. Verify: `<command that checks every scenario's recorded result>`
+
+## Workflow follow-up
+
+- F2 merge gate (`review-work`), after 3.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
+- Merge only after the F2 record validates.

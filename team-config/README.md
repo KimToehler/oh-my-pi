@@ -151,9 +151,11 @@ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs opensp
 ```
 
 The last artifact `/opsx-propose` creates is `review.md`: the agent runs the bundled `plan-reviewer` (the `advisor`
-model, another family than the planner) over the whole change folder, fixes blockers in the artifacts for at most two
-rounds, and records the verdict with the digest of the folder it reviewed. OpenSpec reports apply as `blocked` while
-`review.md` is missing, and `/opsx-apply` runs this before the first source edit:
+model, another family than the planner) over the whole change folder with a fixed brief (the planner adds no focus),
+fixes blockers in the artifacts for at most two rounds, and records the verdict with the digest of the folder it
+reviewed. If the reviewer still rejects, the agent asks per blocker: fix it, accept it in `gate.md` as a residual risk
+or out-of-scope area in your words (the next round does not block on it), or stop. OpenSpec reports apply as `blocked`
+while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
 
 ```sh
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/<change>
