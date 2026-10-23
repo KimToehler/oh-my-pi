@@ -9,6 +9,7 @@
 ### Added
 
 - Plan mode can have each proposed plan reviewed by a model from a different family before approval (`plan.review.enabled`, off by default); a rejection goes back to the planner for up to two rounds and a review that cannot run never blocks.
+- ACP protocol v2 is available as an opt-in (`acp.protocolV2`): clients get explicit run-state updates, stable message ids across resume, and resume replay on request.
 - ACP clients such as JetBrains IDEs can pick a Goal mode: your next message becomes the objective, the agent keeps working on it turn after turn within that reply until the goal is complete, Stop pauses the goal, and your next message resumes it (`goal.continuationModes` now includes `"acp"` by default)
 
 ### Changed
@@ -17,6 +18,7 @@
 
 ### Fixed
 
+- Fixed ACP resource-link attachments not reaching the model.
 - Fixed ACP clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message
 - Fixed ACP steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply
 - Fixed slash commands such as `/compact` sent as an ACP steering message mid-turn (JetBrains IDEs) reaching the model as plain text; they now run immediately, `/compact` resumes the interrupted work in the same reply, and several steered commands run in order

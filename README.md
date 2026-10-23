@@ -557,6 +557,8 @@ $ omp --mode rpc --no-session
 
 The [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol) over JSON-RPC. When the editor advertises capabilities, tool I/O routes through it and writes are gated by `session/request_permission`.
 
+Set `acp.protocolV2` to opt in to ACP protocol v2: clients that speak it get explicit `state_update` frames (`running`, `requires_action`, `idle`), message ids that match your saved transcript, and `session/resume` replays history only when the client asks with `replayFrom: {"type": "start"}`. Clients that do not negotiate v2 keep the v1 behaviour.
+
 | omp tool     | ACP route                           |
 | ------------ | ----------------------------------- |
 | `bash`       | `terminal/create + terminal/output` |
