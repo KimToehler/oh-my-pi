@@ -322,27 +322,28 @@ function assertInsideRepo(repo, file, field) {
 
 // The record's own state picks the reference every tracked artifact is compared with, because the
 // gate runs twice: while the record is still being written, and again once it is committed.
-// - Record's working tree equals its HEAD blob: it is committed. Every artifact must equal its HEAD
-//   blob in the working tree AND in the index, so a staged change hidden by a working tree restored
-//   to HEAD fails as well. What is validated is then what the commit stores.
+// - Record's working-tree bytes equal its raw HEAD blob: it is committed. Every artifact must equal
+//   its HEAD blob in the working tree AND in the index, so a staged change hidden by a working tree
+//   restored to HEAD fails as well. What is validated is then what the commit stores.
 // - Otherwise the record is being written: every artifact's working tree must equal its index blob,
 //   so a file staged as A and edited to B cannot validate as B while the commit stores A.
-function recordIsCommitted(context) {
-  if (context.recordCommitted === undefined) {
-    const relative = path.relative(context.repo, context.recordPath)
-    const diff = spawnSync("git", ["-C", context.repo, "diff", "--quiet", "HEAD", "--", relative], { encoding: "utf8" })
-    if (diff.error) block("record", `cannot compare ${relative} with HEAD: ${diff.error.message}`)
-    if (diff.status !== 0 && diff.status !== 1) block("record", `git diff failed for ${relative}: ${diff.stderr.trim()}`)
-    context.recordCommitted = diff.status === 0
-  }
-  return context.recordCommitted
+// All comparisons are on raw bytes. `git diff` normalizes line endings under `core.autocrlf` and
+// text filters, so a CRLF working file and an LF blob compare equal there while the commit stores
+// bytes other than the ones that were hashed.
+function blobBytes(repo, spec, field) {
+  const blob = spawnSync("git", ["-C", repo, "cat-file", "blob", spec], { maxBuffer: MAX_ARTIFACT_BYTES * 2 })
+  if (blob.error) block(field, `cannot read ${spec}: ${blob.error.message}`)
+  if (blob.status !== 0) return null
+  return blob.stdout
 }
 
-function gitDiffQuiet(repo, args, relative, field) {
-  const diff = spawnSync("git", ["-C", repo, "diff", "--quiet", ...args, "--", relative], { encoding: "utf8" })
-  if (diff.error) block(field, `cannot compare ${relative}: ${diff.error.message}`)
-  if (diff.status !== 0 && diff.status !== 1) block(field, `git diff failed for ${relative}: ${diff.stderr.trim()}`)
-  return diff.status === 0
+function recordIsCommitted(context) {
+  if (context.recordCommitted === undefined) {
+    const relative = path.relative(context.repo, context.recordPath).split(path.sep).join("/")
+    const head = blobBytes(context.repo, `HEAD:${relative}`, "record")
+    context.recordCommitted = head !== null && head.equals(readBytes(context.recordPath, "record"))
+  }
+  return context.recordCommitted
 }
 
 function assertTracked(context, file, field) {
@@ -356,14 +357,17 @@ function assertTracked(context, file, field) {
   if (tracked.status !== 0) {
     block(field, `${relative} is not tracked by git; stage it so the record survives for the next reviewer`)
   }
+  const working = readBytes(file, field)
+  const staged = blobBytes(repo, `:${relative}`, field)
   if (recordIsCommitted(context)) {
-    if (!gitDiffQuiet(repo, ["HEAD"], relative, field)) {
+    const head = blobBytes(repo, `HEAD:${relative}`, field)
+    if (head === null || !working.equals(head)) {
       block(field, `${relative} differs from its HEAD blob in the working tree while the record is committed; validate the bytes the commit stores`)
     }
-    if (!gitDiffQuiet(repo, ["--cached"], relative, field)) {
+    if (staged === null || !staged.equals(head)) {
       block(field, `${relative} differs from its HEAD blob in the index while the record is committed; a staged change must not hide behind a restored working tree`)
     }
-  } else if (!gitDiffQuiet(repo, [], relative, field)) {
+  } else if (staged === null || !working.equals(staged)) {
     block(field, `${relative} differs from its staged blob; stage the bytes that were validated, since the commit stores the index`)
   }
 }

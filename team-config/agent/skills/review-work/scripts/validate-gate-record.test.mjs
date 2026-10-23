@@ -2512,6 +2512,19 @@ test("committed bytes: a committed trailer edited and staged, its working-tree f
   })
 })
 
+test("committed bytes: a CRLF trailer whose staged blob is LF, under core.autocrlf=true, blocks on verdicts.0.trailer_artifact", () => {
+  withScratch((repository, artifacts) => {
+    // git normalizes CRLF to LF when comparing under autocrlf, so `git diff` calls these equal while the
+    // commit stores the LF blob and the validated (CRLF) bytes never exist in the repository.
+    repository.git("config", "core.autocrlf", "true")
+    const lf = readFileSync(artifacts.trailerPath, "utf8")
+    assert.ok(!lf.includes("\r"), "fixture trailer must start as LF")
+    writeFileSync(artifacts.trailerPath, lf.replaceAll("\n", "\r\n"))
+    rewriteRecord(repository, artifacts, (r) => { r.verdicts[0].trailer_sha256 = planDigest(artifacts.trailerPath) })
+    expectFinding(runScratch(repository, artifacts), "verdicts.0.trailer_artifact")
+  })
+})
+
 test("committed bytes: a record edited after staging blocks on record", () => {
   withScratch((repository, artifacts) => {
     writeFileSync(artifacts.recordPath, `${readFileSync(artifacts.recordPath, "utf8")}\n`)

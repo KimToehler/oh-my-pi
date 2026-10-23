@@ -3,7 +3,6 @@ description: Size the threat model and merge gate to who runs the tool and what 
 globs:
   - "**/plan.md"
   - "**/.omp/plans/**/*.md"
-  - "**/.omp/plans/**/*.md"
 ---
 
 # Size the gate to the audience

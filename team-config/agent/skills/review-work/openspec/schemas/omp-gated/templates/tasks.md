@@ -13,7 +13,7 @@
 ## 3. Final verification
 
 <!-- Keep this group last and renumber it. Drop 3.1 when gate.md says Whole-diff review `not needed`. -->
-- [ ] 3.1 F3. Whole-diff review: `integration-review` over `<base>...HEAD` with this change folder as the plan; fixes delta-reviewed; report (first line `INTEGRATION-REVIEW-REPORT-v1`) at the tracked path `.omp/team-config/evidence/gate/<change>/f3-integration-review-report.md`. Verify: `git ls-files --error-unmatch .omp/team-config/evidence/gate/<change>/f3-integration-review-report.md`
+- [ ] 3.1 F3. Whole-diff review: `integration-review` over `<base>...HEAD` with this change folder as the plan; fixes delta-reviewed; report (first line `INTEGRATION-REVIEW-REPORT-v1`) written to `.omp/team-config/evidence/gate/<change>/f3-integration-review-report.md` and left unstaged (a staged report makes `GC snapshot` refuse); review-work Phase 5 stages it with the gate record and trailers. Verify: `test "$(head -n 1 .omp/team-config/evidence/gate/<change>/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`
 - [ ] 3.2 F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit. Verify: `<command that checks every scenario's recorded result>`
 
 ## Workflow follow-up
