@@ -103,7 +103,10 @@ class RealSessionRig {
 		const options = this.options;
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
+		// Reply as the session's own model so a resumed transcript records a restorable model, as in production.
 		const mock = createMockModel({
+			provider: model.provider,
+			id: model.id,
 			handler: async (_context, streamOptions?: SimpleStreamOptions) => {
 				const n = this.#calls++;
 				this.gate(n).reached.resolve();
@@ -561,7 +564,11 @@ describe("cancel and errors (plan 5)", () => {
 		expect(states.at(-1)).toMatchObject({ state: "idle", stopReason: "cancelled" });
 		await eventLoopTurns(20);
 		const lastUpdate = client.updates(sessionId).at(-1)!;
-		expect(lastUpdate.update).toMatchObject({ sessionUpdate: "state_update", state: "idle", stopReason: "cancelled" });
+		expect(lastUpdate.update).toMatchObject({
+			sessionUpdate: "state_update",
+			state: "idle",
+			stopReason: "cancelled",
+		});
 	});
 
 	it("emits no running for a wake that lands after a cancel", async () => {

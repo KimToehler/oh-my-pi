@@ -1554,11 +1554,7 @@ export class AcpAgent implements Agent {
 			}),
 		);
 		try {
-			// v2 has no UI to warn about a model fallback; the ACP session keeps its configured model.
-			const success = await session.switchSession(
-				sessionPath,
-				this.#surface.version === 2 ? { keepModel: true } : undefined,
-			);
+			const success = await session.switchSession(sessionPath);
 			if (!success) {
 				throw new Error(`ACP session load was cancelled: ${sessionId}`);
 			}
@@ -2542,7 +2538,10 @@ export class AcpAgent implements Agent {
 					unsubscribeCommands();
 				};
 			}
-			void this.#emitBootstrapUpdates(sessionId, record);
+			// A client that disconnects mid-bootstrap rejects the sends; nothing is left to tell.
+			void this.#emitBootstrapUpdates(sessionId, record).catch(error => {
+				logger.warn("Failed to emit ACP bootstrap updates", { error: String(error) });
+			});
 		}, ACP_BOOTSTRAP_RACE_GUARD_MS);
 	}
 
