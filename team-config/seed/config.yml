@@ -103,6 +103,13 @@ lsp:
 compaction:
   handoffSaveToDisk: true
   thresholdPercent: 80
+  # Token saving: every request resends the whole context, so a session that
+  # grows to 800k on a 1M-window model pays for 800k input tokens per turn.
+  # A token base per provider makes the 80% policy scale min(window, 375k):
+  # every model compacts at min(80% of its window, 300k).
+  modelThresholds:
+    "onara/*": 375000
+    "onara-bifrost/*": 375000
 extensionHandlers:
   toolCallTimeoutMs: 420000
 plan:
