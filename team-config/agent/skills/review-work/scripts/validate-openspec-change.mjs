@@ -2,6 +2,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs";
 import {
 	abortRuleDefects,
 	planContent,
@@ -333,20 +334,116 @@ export async function validateOpenSpecChange(changeDir) {
 	return validateOpenSpecFiles(snapshot);
 }
 
+const REVIEW_FILE = "review.md";
+// The checkbox of a line TASK_LINE counts as a tracked task, with everything before it kept.
+const TASK_BOX = /^(\s*(?:[-*+]|\d{1,9}[.)])\s*)\[(?:\s*[^\]\s]?\s*\]|\s+\])/;
+
+/**
+ * The digest a review is bound to: the change folder's bundle without the review record itself, with every tracked
+ * task's checkbox reset to `[ ]`. Ticking tasks during apply keeps the review valid; any other byte, file added or
+ * file removed invalidates it.
+ */
+export function reviewDigest(snapshot) {
+	const reviewed = new Map(snapshot);
+	reviewed.delete(REVIEW_FILE);
+	const tasks = reviewed.get("tasks.md");
+	if (tasks !== undefined) {
+		const lines = tasks.toString("utf8").split("\n");
+		const reset = lines.map(line => (TASK_LINE.test(line) ? line.replace(TASK_BOX, "$1[ ]") : line));
+		reviewed.set("tasks.md", Buffer.from(reset.join("\n")));
+	}
+	return bundleDigest(buildBundle(reviewed));
+}
+
+/** Checks review.md against the current digest; returns the defects and, when it passes, the line to print. */
+export function checkReview(snapshot) {
+	const errors = [];
+	if (!snapshot.has(REVIEW_FILE)) return { errors: [`${REVIEW_FILE}: required regular file is missing; run the review`] };
+	const content = planContent(scanMarkdown(snapshot.get(REVIEW_FILE).toString("utf8")));
+	const values = new Map();
+	for (const field of ["Verdict", "Reviewed digest", "Reviewer", "Round", "Override"]) {
+		const found = topLevelField(content, field);
+		if (found.count !== 1 || !found.value) {
+			errors.push(`${REVIEW_FILE} ${field}: expected exactly one nonempty top-level bullet`);
+			continue;
+		}
+		values.set(field, found.value.replace(/`/g, "").trim());
+	}
+	const verdict = values.get("Verdict");
+	if (verdict !== undefined && verdict !== "OKAY" && verdict !== "REJECT")
+		errors.push(`${REVIEW_FILE} Verdict: expected OKAY or REJECT, got ${verdict}`);
+	const reviewedDigest = values.get("Reviewed digest");
+	if (reviewedDigest !== undefined && !/^[0-9a-f]{64}$/.test(reviewedDigest))
+		errors.push(`${REVIEW_FILE} Reviewed digest: expected the 64-hex digest printed by --digest`);
+	const reviewer = values.get("Reviewer");
+	if (reviewer !== undefined && !/^plan-reviewer\s*,\s*[A-Za-z0-9][\w.-]*$/.test(reviewer))
+		errors.push(`${REVIEW_FILE} Reviewer: expected plan-reviewer and the subagent id the task tool returned (plan-reviewer, <id>)`);
+	const round = values.get("Round");
+	if (round !== undefined && !/^[1-9]\d*$/.test(round))
+		errors.push(`${REVIEW_FILE} Round: expected a positive integer`);
+	const override = values.get("Override");
+	const overridden = override !== undefined && override.toLowerCase() !== "none";
+	if (overridden && (valueDefect(override) || PLACEHOLDER.test(override)))
+		errors.push(`${REVIEW_FILE} Override: none, or the user's reason in their words`);
+	if (errors.length > 0) return { errors };
+
+	const current = reviewDigest(snapshot);
+	if (reviewedDigest !== current)
+		errors.push(
+			`${REVIEW_FILE}: stale: the change changed after review (reviewed ${reviewedDigest}, current ${current}); re-run the review`,
+		);
+	if (verdict === "REJECT" && !overridden)
+		errors.push(`${REVIEW_FILE} Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user`);
+	if (errors.length > 0) return { errors };
+	return {
+		errors,
+		summary: verdict === "REJECT" ? `reviewed: REJECT overridden by the user: ${override}` : `reviewed: OKAY in round ${round}`,
+	};
+}
+
+const USAGE = "usage: validate-openspec-change.mjs [--digest | --reviewed] <change-dir>";
+
 async function main() {
-	const changeDir = process.argv[2];
-	if (!changeDir || process.argv.length !== 3) {
-		console.error("usage: validate-openspec-change.mjs <change-dir>");
+	const args = process.argv.slice(2);
+	const mode = args[0] === "--digest" || args[0] === "--reviewed" ? args.shift() : undefined;
+	if (args.length !== 1 || args[0].startsWith("--")) {
+		console.error(USAGE);
 		process.exitCode = 2;
 		return;
 	}
-	const errors = await validateOpenSpecChange(changeDir);
-	if (errors.length > 0) {
-		for (const error of errors) console.error(error);
+	const [changeDir] = args;
+	if (mode === undefined) {
+		const errors = await validateOpenSpecChange(changeDir);
+		if (errors.length > 0) {
+			for (const error of errors) console.error(error);
+			process.exitCode = 1;
+			return;
+		}
+		console.log("passed");
+		return;
+	}
+	// One race-checked snapshot feeds the checks, the digest and the review record, so all three see the same bytes.
+	let snapshot;
+	try {
+		snapshot = snapshotFolder(path.resolve(changeDir));
+	} catch (error) {
+		if (!(error instanceof FolderPlanError) && error?.code !== "ENOENT" && error?.code !== "ENOTDIR") throw error;
+		console.error(error.message);
 		process.exitCode = 1;
 		return;
 	}
-	console.log("passed");
+	const errors = validateOpenSpecFiles(snapshot);
+	if (mode === "--digest") {
+		if (errors.length === 0) console.log(reviewDigest(snapshot));
+	} else if (errors.length === 0) {
+		const review = checkReview(snapshot);
+		errors.push(...review.errors);
+		if (review.summary) console.log(review.summary);
+	}
+	if (errors.length > 0) {
+		for (const error of errors) console.error(error);
+		process.exitCode = 1;
+	}
 }
 
 // Node resolves the entry module's URL to its real path; a symlinked argv[1] (e.g. a linked agent dir) must too.
