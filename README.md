@@ -555,11 +555,11 @@ $ omp --mode rpc --no-session
 
 `omp acp`
 
-The [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol) over JSON-RPC. When the editor advertises capabilities, tool I/O routes through it and writes are gated by `session/request_permission`.
+The [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol) over JSON-RPC. Under protocol v1, when the editor advertises capabilities, tool I/O routes through it (table below) and writes are gated by `session/request_permission`.
 
-Set `acp.protocolV2` to opt in to ACP protocol v2: clients that speak it get explicit `state_update` frames (`running`, `requires_action`, `idle`), message ids that match your saved transcript, and `session/resume` replays history only when the client asks with `replayFrom: {"type": "start"}`. Clients that do not negotiate v2 keep the v1 behaviour.
+Set `acp.protocolV2` to opt in to ACP protocol v2: clients that speak it get explicit `state_update` frames (`running`, `requires_action`, `idle`), message ids that match your saved transcript, and `session/resume` replays history only when the client asks with `replayFrom: {"type": "start"}`. Clients that do not negotiate v2 keep the v1 behaviour. Under v2, tool I/O stays local (no client `fs/*` or `terminal/*` calls), edits and commands still ask through `session/request_permission`, and `session/prompt` must be sent as a single request: a prompt inside a JSON-RPC batch gets `-32600`.
 
-| omp tool     | ACP route                           |
+| omp tool     | ACP route (v1)                      |
 | ------------ | ----------------------------------- |
 | `bash`       | `terminal/create + terminal/output` |
 | `read`       | `fs/read_text_file`                 |
