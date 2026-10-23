@@ -91,32 +91,32 @@ def test_pi_family_scanners_read_each_product_home_store(tmp_path: Path, monkeyp
     assert sessions["gajae-code"].first_user_message == "gajae-code prompt"
 
 
-def test_senpi_scanner_reads_omo_and_legacy_home_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_senpi_scanner_reads_senpi_and_pi_home_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
 
     _write_session(
-        tmp_path / ".omo" / "agent" / "sessions" / "-tmp-omo" / "2026-07-20T00-00-00-000Z_omo-current.jsonl",
-        "omo-current",
-        "/tmp/omo",
-        "omo current prompt",
+        tmp_path / ".senpi" / "agent" / "sessions" / "-tmp-senpi" / "2026-07-20T00-00-00-000Z_senpi-current.jsonl",
+        "senpi-current",
+        "/tmp/senpi",
+        "senpi current prompt",
     )
     _write_session(
-        tmp_path / ".senpi" / "agent" / "sessions" / "-tmp-senpi" / "2026-07-20T00-00-00-000Z_senpi-legacy.jsonl",
-        "senpi-legacy",
-        "/tmp/senpi",
-        "senpi legacy prompt",
+        tmp_path / ".pi" / "agent" / "sessions" / "-tmp-pi" / "2026-07-20T00-00-00-000Z_pi-upstream.jsonl",
+        "pi-upstream",
+        "/tmp/pi",
+        "pi upstream prompt",
     )
 
     sessions = {item.id: item for item in scanners.scan(frozenset({"senpi"}), (), 4)}
 
-    assert set(sessions) == {"omo-current", "senpi-legacy"}
-    assert sessions["omo-current"].platform == "senpi"
-    assert sessions["omo-current"].cwd == "/tmp/omo"
-    assert sessions["senpi-legacy"].first_user_message == "senpi legacy prompt"
+    assert set(sessions) == {"senpi-current", "pi-upstream"}
+    assert sessions["senpi-current"].platform == "senpi"
+    assert sessions["senpi-current"].cwd == "/tmp/senpi"
+    assert sessions["pi-upstream"].first_user_message == "pi upstream prompt"
 
 
-def test_senpi_scanner_deduplicates_overlapping_omo_and_legacy_sessions(
+def test_senpi_scanner_deduplicates_overlapping_senpi_and_pi_sessions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -124,25 +124,25 @@ def test_senpi_scanner_deduplicates_overlapping_omo_and_legacy_sessions(
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
 
     _write_session(
-        tmp_path / ".omo" / "agent" / "sessions" / "-tmp-overlap" / "2026-07-20T00-00-00-000Z_shared.jsonl",
-        "shared",
-        "/tmp/omo",
-        "omo linked prompt",
-        agent="sisyphus",
-    )
-    _write_session(
         tmp_path / ".senpi" / "agent" / "sessions" / "-tmp-overlap" / "2026-07-20T00-00-00-000Z_shared.jsonl",
         "shared",
         "/tmp/senpi",
-        "legacy prompt",
+        "senpi linked prompt",
+        agent="reviewer",
+    )
+    _write_session(
+        tmp_path / ".pi" / "agent" / "sessions" / "-tmp-overlap" / "2026-07-20T00-00-00-000Z_shared.jsonl",
+        "shared",
+        "/tmp/pi",
+        "pi prompt",
     )
 
     sessions = scanners.scan(frozenset({"senpi"}), (), 4)
 
     assert len(sessions) == 1
     assert sessions[0].id == "shared"
-    assert sessions[0].agent == "sisyphus"
-    assert sessions[0].cwd == "/tmp/omo"
+    assert sessions[0].agent == "reviewer"
+    assert sessions[0].cwd == "/tmp/senpi"
 
 
 def test_pi_family_scanners_cover_profile_and_xdg_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

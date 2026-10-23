@@ -64,7 +64,7 @@ changes/
 !/openspec/changes/
 __pycache__/
 
-# Retired OmO state (ledger, boulder, notepads, drafts): local only until P5c removes it.
+# State an external OpenCode plugin may write into any project it runs in; never tracked here.
 /.omo/
 
 # Scratch files
