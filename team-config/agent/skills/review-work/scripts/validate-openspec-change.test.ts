@@ -4,19 +4,7 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 
 const SCRIPT = path.join(import.meta.dir, "validate-openspec-change.mjs");
-const PROPOSAL_TEMPLATE = path.join(
-	import.meta.dir,
-	"..",
-	"..",
-	"..",
-	"..",
-	"..",
-	"openspec",
-	"schemas",
-	"omp-gated",
-	"templates",
-	"proposal.md",
-);
+const PROPOSAL_TEMPLATE = path.join(import.meta.dir, "..", "openspec", "schemas", "omp-gated", "templates", "proposal.md");
 const roots: string[] = [];
 
 async function fixture(): Promise<string> {

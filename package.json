@@ -85,7 +85,7 @@
 		"test": "bun scripts/ci-test-ts.ts local",
 		"test:ts": "bun scripts/ci-test-ts.ts local-ts",
 		"test:scripts": "bun test scripts",
-		"test:team-config": "bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts",
+		"test:team-config": "bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts scripts/ensure-openspec-cli.test.ts",
 		"test:rs": "bun scripts/run-rs-task.ts test:rs",
 		"check": "bun run --parallel check:ts check:rs",
 		"check:ts": "bun run check:tools && bun run --filter './packages/*' --sequential --if-present check:types",

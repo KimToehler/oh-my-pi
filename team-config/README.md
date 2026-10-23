@@ -7,8 +7,9 @@ directory into the omp agent dir (`~/.omp/agent`) from the same commit as the bi
 ## New machine
 
 Prerequisites: [bun](https://bun.sh), Node.js 20.19+, a Rust toolchain ([rustup](https://rustup.rs)),
-`git`, and OpenSpec 1.14.3 (`npm install -g @fission-ai/openspec@1.14.3`). On NixOS, `nix`
-replaces bun/rust; the deploy script re-enters the flake dev shell.
+`git`, and the OpenSpec CLI at the version pinned in `team-config/openspec-version`
+(`npm install -g @fission-ai/openspec@1.14.3`). On NixOS, `nix` replaces bun/rust; the deploy script re-enters the
+flake dev shell.
 
 ```sh
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
@@ -54,6 +55,12 @@ before it is replaced; the deploy output names the directory.
 
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
 
+Before building, the deploy checks the OpenSpec CLI (`scripts/ensure-openspec-cli.ts`): a missing CLI or a version
+other than `team-config/openspec-version` stops the deploy with the `npm install -g` line to run. On a match it persists
+`telemetry.enabled false` in the global OpenSpec config and prints that file's path. Every OpenSpec call the check makes
+runs with `DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0`. The opt-out covers the config of the environment that deploys; a
+shell with a different `XDG_CONFIG_HOME` reads another file. `OMP_SKIP_TEAM_CONFIG=1` skips the check too.
+
 ## Personal settings
 
 - Personal instructions (role, stack, language): `AGENTS.local.md` in the agent dir (default
@@ -70,77 +77,37 @@ before it is replaced; the deploy output names the directory.
 
 ## OpenSpec
 
-Deploy ships the six core OpenSpec commands to every omp session. Projects keep their OpenSpec
-config, schema, specs and changes in their own repository; the template in this repository is
-`openspec/schemas/omp-gated/`. This keeps planning artifacts harness-independent and reviewable.
+Deploy ships the six core OpenSpec commands to every omp session, plus the `omp-gated` schema, the team project config
+and the validator under `~/.omp/agent/skills/review-work/`. Projects keep their OpenSpec config, schema, specs and
+changes in their own repository. This keeps planning artifacts harness-independent and reviewable. The canonical
+schema is `team-config/agent/skills/review-work/openspec/schemas/omp-gated/`; this repository's own
+`openspec/schemas/omp-gated` is a symlink to it.
 
-Before first use, install the CLI yourself (deploy never installs it or any user-level schema):
+### Project setup and update
 
-```sh
-npm install -g @fission-ai/openspec@1.14.3
-openspec config set telemetry.enabled false
-openspec --version
-```
-
-### Project setup (manual)
-
-Run from the root of the target project's git repository. `<fork>` is your oh-my-pi checkout: set `FORK` to its path
-(the commands below use `"$FORK"` for `<fork>`). `openspec init` is not needed. Setup and update are the same steps;
-the copy replaces the schema directory and the validator wholesale, so the committed state is your backup.
-
-**Step 1.** Precondition: these paths must hold nothing git cannot restore. The command must print nothing. A line starting
-with ` M`, `A ` or similar is an uncommitted change: commit or stash it. `??` (untracked) or `!!` (ignored) is content git
-has never stored: move it out of the project, or commit it (`git add -f` for an ignored path), before you continue.
+Install the CLI first (see New machine); deploy checks it. Then, in the target project's git repository, after a deploy:
 
 ```sh
-git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated
+node ~/.omp/agent/skills/review-work/scripts/install-openspec-workflow.mjs
 ```
 
-**Step 2.** Copy the schema. The validator is not copied: it ships with team-config (`scripts/deploy-local.sh`) at `~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs`, so projects no longer carry their own copy. A project that copied it under the earlier setup deletes `scripts/validate-openspec-change.mjs` (`git rm`) and updates `openspec/config.yaml` to the deployed path. The old schema directory is removed first so `cp -R` does not nest it; local edits
-and extra files in it are replaced. The guard stops before deleting anything when `FORK` does not hold the schema or is this
-project itself (run it from the oh-my-pi checkout and there is nothing to copy).
+It runs on the work-tree root (or the root given as its argument) and writes only two paths:
 
-```sh
-FORK=/path/to/oh-my-pi   # <fork>
-if [ ! -f "$FORK/openspec/schemas/omp-gated/schema.yaml" ]; then
-  echo "FORK=$FORK is not an oh-my-pi checkout with the omp-gated schema; nothing was changed"
-elif [ "$(cd "$FORK" && pwd -P)" = "$(pwd -P)" ]; then
-  echo "FORK is this project; nothing to copy"
-else
-  mkdir -p openspec/schemas &&
-    rm -rf openspec/schemas/omp-gated &&
-    cp -R "$FORK"/openspec/schemas/omp-gated openspec/schemas/omp-gated &&
-    echo "copied schema from $FORK"
-fi
-```
+- `openspec/schemas/omp-gated/` is replaced wholesale with the deployed schema; local edits and extra files in it are
+  dropped.
+- `openspec/config.yaml` is created with the team content when it does not exist. An existing one is never rewritten:
+  with `schema: omp-gated` it is left alone; any other or missing `schema:` refuses, and you change that line yourself.
+  Merge the team `rules:` and `operations:` from `~/.omp/agent/skills/review-work/openspec/config.yaml` by hand if you
+  want them.
 
-**Step 3.** Config, by hand; there is no command for this step, so an existing `openspec/config.yaml` is never touched by a
-script.
+Git is the backup. The installer refuses, changing nothing, unless
+`git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated` is empty, so
+every byte it replaces is in `HEAD`. It also refuses when a `.gitignore` rule would ignore a file it is about to create (it names the path and rule), on a symlinked `openspec`, `openspec/schemas`, schema directory or
+config, and outside a git work tree. If the copy fails, it rolls back to `HEAD` before exiting and checks that the
+status is clean again; if that rollback fails too, it says so and prints the remaining paths. It never suggests
+deleting anything on a refusal: inspect the listed paths yourself.
 
-- If `openspec/config.yaml` does not exist, create it in your editor with exactly the content below.
-- If it exists, change only its `schema:` line to `schema: omp-gated` and merge the `rules:` and `operations:` blocks below
-  into it by hand, keeping your own entries.
-
-```yaml
-schema: omp-gated
-
-rules:
-  specs:
-    - Every requirement has exactly one Scenario named "Negative control" with a plausible broken input or state whose outcome MUST fail.
-  gate:
-    - Classify risk from realistic consequence and a real trust, process or release boundary.
-    - Use full review for auth/secrets/PII, schema/migration, externally supported wire/API, or concurrency/state-machine changes.
-
-operations:
-  apply:
-    guidance:
-      - Run `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact change.
-```
-
-**Step 4.** Review what the copy changed, re-apply anything you want to keep, then commit. On a first install the paths show
-up as new files. On an update the diff mixes the team's new version with the reversal of any local edits you had committed
-(lines you added appear as removed, files you added as deleted); the previous content of each path stays available with
-`git show HEAD:<path>` (for the schema directory: `git show HEAD:openspec/schemas/omp-gated/<file>`).
+Then review and commit:
 
 ```sh
 git status -- openspec/config.yaml openspec/schemas/omp-gated
@@ -149,13 +116,27 @@ git add openspec/config.yaml openspec/schemas/omp-gated
 git commit -m "chore: add omp-gated OpenSpec workflow"
 ```
 
-Check with `openspec new change probe`: it must print `Schema: omp-gated`. Remove the probe afterwards
+On an update the diff mixes the team's new version with the reversal of any local edits you had committed (lines you
+added appear as removed, files you added as deleted); `git show HEAD:openspec/schemas/omp-gated/<file>` returns the
+previous content. Check with `openspec new change probe`: it must print `Schema: omp-gated`. Remove the probe afterwards
 (`rm -r openspec/changes/probe`).
 
-If `openspec init` already ran, follow the same steps: its `openspec/config.yaml` exists, so in step 3 change its
-`schema: spec-driven` line to `schema: omp-gated` and add the `rules:` and `operations:` blocks if you want them.
-`openspec init --tools oh-my-pi` also writes project `.omp/commands/opsx-*`
-copies that duplicate the globally deployed commands; delete them (`rm -f .omp/commands/opsx-*.md`).
+`openspec init` is not needed. If it already ran, change its `schema: spec-driven` line to `schema: omp-gated`, commit,
+then run the installer.
+
+### Projects set up before the installer
+
+Projects set up by hand from an earlier version of this README may still carry a copy of the validator and open changes
+in the old gate format. After installing, the installer prints one `notice:` line per finding and changes none of
+these files:
+
+- `openspec/config.yaml` naming `scripts/validate-openspec-change.mjs`: point it at
+  `~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs`.
+- a project file `scripts/validate-openspec-change.mjs`: remove it (`git rm`).
+- an open change (not under `openspec/changes/archive/`) whose `gate.md` has `Review tier`: the gate refuses it; replace
+  it with `- **Risk tier**: product` (or `internal-tooling`) and add `- **Author's risk assessment**`.
+- project `.omp/commands/opsx-*.md`, written by `openspec init --tools oh-my-pi`: they duplicate the deployed commands;
+  remove them.
 
 Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
 
@@ -179,25 +160,28 @@ scenarios. OpenSpec's own strict validator does not enforce project rules from
 `openspec/config.yaml`. `DO_NOT_TRACK=1` or `OPENSPEC_TELEMETRY=0` is the environment equivalent of the persisted
 telemetry setting.
 
-### Regenerating the six `opsx-*` commands
+### Bumping OpenSpec
 
-`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are verbatim output of OpenSpec 1.14.3 and
-stay standalone so each deploys on its own. Compare them against a fresh generation after any OpenSpec bump:
+`team-config/openspec-version` is the single pin; the deploy check reads it.
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are verbatim output of that version and
+stay standalone so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then
+regenerate the commands with it and compare:
 
 ```sh
+v=$(cat team-config/openspec-version)
 tmp=$(mktemp -d) && git -C "$tmp" init -q
-DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.14.3 init "$tmp" --tools oh-my-pi --profile core --no-animation
+DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun "@fission-ai/openspec@$v" init "$tmp" --tools oh-my-pi --profile core --no-animation
 diff -r "$tmp/.omp/commands" team-config/agent/commands   # empty output = no drift
 ```
 
-To update, copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, bump the pinned version everywhere in this
-README, and rerun the diff. Never hand-edit these six files.
+Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/` and rerun the diff. Update the version in the
+New machine install line and in Provenance, install the new CLI, and redeploy. Never hand-edit the six command files.
 
 ## Changing the team config
 
 Edit files under `team-config/`, then run `bun run test:team-config`. It covers the merge-gate
-extension, and the gate validator. Rules carry no repo-private paths or
-evidence: this repository is public.
+extension, the gate validator, the OpenSpec checks, the project installer and the deploy's OpenSpec CLI check. Rules
+carry no repo-private paths or evidence: this repository is public.
 
 ## Provenance
 
