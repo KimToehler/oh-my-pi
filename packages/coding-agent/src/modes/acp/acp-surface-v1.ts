@@ -211,6 +211,8 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 		});
 	}
 
+	readonly holdsForegroundForBackgroundWork = true;
+
 	onForegroundBlocked(): void {}
 
 	onForegroundResumed(): void {}

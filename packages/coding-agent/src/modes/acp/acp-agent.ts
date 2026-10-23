@@ -1941,7 +1941,12 @@ export class AcpAgent implements Agent {
 		while (!signal.aborted) {
 			await session.waitForIdle();
 			if (signal.aborted) return;
-			if (!session.isStreaming && !session.hasAdmittedSubmission && session.hasPendingAsyncWork()) {
+			if (
+				this.#surface.holdsForegroundForBackgroundWork &&
+				!session.isStreaming &&
+				!session.hasAdmittedSubmission &&
+				session.hasPendingAsyncWork()
+			) {
 				try {
 					await untilAborted(signal, () => session.settleAsyncWork());
 				} catch (error) {
@@ -1950,7 +1955,7 @@ export class AcpAgent implements Agent {
 				}
 				continue;
 			}
-			if (!isAcpSessionQuiescent(record, work)) {
+			if (!isAcpSessionQuiescent(record, work, this.#surface.holdsForegroundForBackgroundWork)) {
 				await nextMacrotask();
 				continue;
 			}
@@ -1959,7 +1964,7 @@ export class AcpAgent implements Agent {
 			await nextMacrotask();
 			await this.#waitForOtherPromptEventHandlers(record, token);
 			if (signal.aborted) return;
-			if (isAcpSessionQuiescent(record, work)) return;
+			if (isAcpSessionQuiescent(record, work, this.#surface.holdsForegroundForBackgroundWork)) return;
 		}
 	}
 

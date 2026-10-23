@@ -547,6 +547,30 @@ describe("agent-initiated work (plan 4)", () => {
 		expect(stateNames(client, sessionId)).toEqual(["running", "idle"]);
 		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 	});
+
+	it("ends the foreground with idle(end_turn) while a background job runs, then frames the wake separately", async () => {
+		// Guards: a v2 foreground stays `running` for as long as an owner-scoped background job is pending.
+		const manager = new AsyncJobManager({});
+		AsyncJobManager.setInstance(manager);
+		const { rig, client, sessionId } = await startReal({ asyncJobManager: manager, agentId: "AcpOwner" });
+		const jobGate = Promise.withResolvers<string>();
+		manager.register("bash", "slow job", async () => await jobGate.promise, { id: "slow-job", ownerId: "AcpOwner" });
+		await sendPrompt(client, sessionId, "start work");
+		await waitForIdle(client, sessionId);
+		const firstIdle = client.states(sessionId).at(-1)!;
+		expect(firstIdle).toMatchObject({ state: "idle", stopReason: "end_turn" });
+		expect(rig.modelCalls).toBe(1);
+
+		jobGate.resolve("JOB RESULT");
+		await waitForIdle(client, sessionId, firstIdle.index);
+		expect(rig.modelCalls).toBe(2);
+		const wake = client.states(sessionId).filter(state => state.index > firstIdle.index);
+		expect(wake.map(state => state.state)).toEqual(["running", "idle"]);
+		const chunks = agentChunkTexts(client, sessionId).filter(chunk => chunk.index > firstIdle.index);
+		expect(chunks.length).toBeGreaterThan(0);
+		expect(chunks[0]!.index).toBeGreaterThan(wake[0]!.index);
+		expect(chunks.at(-1)!.index).toBeLessThan(wake[1]!.index);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -689,6 +713,49 @@ describe("requires_action (plan 6)", () => {
 		permission.answer.resolve(undefined);
 		await waitForIdle(client, sessionId);
 		expect(bash.executeCalls).toBe(0);
+	});
+
+	it("stays running while another tool still runs, then reports requires_action, then running once answered", async () => {
+		// Guards: an open permission flips the aggregate state although a sibling tool is still progressing.
+		const permission = pendingPermission(allow);
+		const bash = fakeBashTool();
+		const slowGate = Promise.withResolvers<void>();
+		const slowStarted = Promise.withResolvers<void>();
+		const slow: AgentTool = {
+			name: "slow",
+			label: "slow",
+			description: "Slow tool",
+			parameters: type({}),
+			async execute() {
+				slowStarted.resolve();
+				await slowGate.promise;
+				return { content: [{ type: "text" as const, text: "done" }] };
+			},
+		};
+		const script: MockResponse = {
+			content: [
+				{ type: "toolCall", id: "call-bash", name: "bash", arguments: { command: "echo hi" } },
+				{ type: "toolCall", id: "call-slow", name: "slow", arguments: {} },
+			],
+		};
+		const { client, sessionId } = await startReal(
+			{ tools: [bash, slow], script: { 0: script } },
+			permission.onRequest,
+		);
+		await sendPrompt(client, sessionId, "run both");
+		await slowStarted.promise;
+		await client.waitFor(() => permission.requests.length > 0, "permission request");
+		await eventLoopTurns(20);
+		expect(stateNames(client, sessionId)).not.toContain("requires_action");
+
+		slowGate.resolve();
+		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
+		const pendingIndex = client.states(sessionId).at(-1)!.index;
+		permission.answer.resolve(undefined);
+		await waitForIdle(client, sessionId);
+		const after = client.states(sessionId).filter(state => state.index > pendingIndex);
+		expect(after[0]).toMatchObject({ state: "running" });
+		expect(after.at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 	});
 });
 

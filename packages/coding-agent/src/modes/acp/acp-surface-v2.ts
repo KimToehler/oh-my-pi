@@ -1,11 +1,13 @@
 /**
- * ACP protocol v2 surface. This file owns negotiation, auth, session-setup shape and the v2 wire mapping.
- * Prompt admission, run states, cancel semantics and replay land in later slices; until then the methods
- * that need them either fail loudly (`admitPrompt`, `replay`) or are inert (`onForeground*`, `beforeCancel`).
+ * ACP protocol v2 surface: negotiation, auth, session-setup shape and the v2 wire mapping, plus the run model.
+ * A prompt is acknowledged at insertion, not at foreground end; foreground work (client- or agent-originated)
+ * is framed by `state_update` (`running`, `requires_action`, `idle` with a stop reason) driven by a
+ * session-lifetime subscription. Owner-scoped background jobs do not hold a foreground open: their wake is
+ * a separate agent-initiated foreground. Cancel latches agent-initiated work off until the next insertion.
  */
 import { type AgentMessage, AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { logger, VERSION } from "@oh-my-pi/pi-utils";
-import { RequestError, type SessionNotification, type v2 } from "@oh-my-pi/pi-utils/acp";
+import { PROTOCOL_VERSION_V2, RequestError, type SessionNotification, type v2 } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSessionEvent } from "../../session/agent-session";
 import type { SubmissionOutcome } from "../../session/agent-session-types";
 import type {
@@ -28,6 +30,7 @@ import {
 	createForegroundWork,
 	type ForegroundOrigin,
 	type ForegroundWork,
+	isBlockedOnInteraction,
 	resolveTurnFailure,
 } from "./acp-foreground";
 import type {
@@ -43,13 +46,14 @@ import { sessionEntryIdOf } from "../../session/session-entry-id";
 import { iterateSessionReplay } from "./acp-replay";
 import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
 
-export const ACP_V2_PROTOCOL_VERSION = 2;
-
 export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	readonly version = 2;
+	readonly holdsForegroundForBackgroundWork = false;
 	#host: AcpSurfaceHost;
 	/** Pending `user_message` echo per record: the idle frame waits behind it. */
 	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
+	#settleTimers = new Map<ManagedSessionRecord, NodeJS.Timeout>();
 
 	constructor(host: AcpSurfaceHost) {
 		this.#host = host;
@@ -84,7 +88,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 
 	initializeResponse(params: v2.InitializeRequest): v2.InitializeResponse {
 		return {
-			protocolVersion: ACP_V2_PROTOCOL_VERSION,
+			protocolVersion: PROTOCOL_VERSION_V2,
 			info: { name: "omp", title: "omp", version: VERSION },
 			authMethods: this.authMethods(params.capabilities),
 			capabilities: {
@@ -231,11 +235,51 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		else send();
 	}
 
-	/** `idle` without foreground work; `requires_action` while an interaction is open; else `running`. */
+	/** `idle` without foreground work; `requires_action` while the work waits only on the client; else `running`. */
 	currentState(record: ManagedSessionRecord): v2.StateUpdate {
 		const work = record.foreground;
 		if (!work) return { state: "idle" };
-		return { state: work.pendingInteractions > 0 ? "requires_action" : "running" };
+		return { state: isBlockedOnInteraction(work) ? "requires_action" : "running" };
+	}
+
+	/**
+	 * The one path every state input (tool start/end, interaction open/close) re-evaluates through.
+	 * `requires_action` is announced only once it survives a macrotask: session events reach this surface
+	 * after the interaction they caused (a permission request opens before its own `tool_execution_start`
+	 * is delivered), so an immediate evaluation would flap for sibling tools that are about to start.
+	 */
+	#reevaluateState(record: ManagedSessionRecord, work: ForegroundWork): void {
+		if (record.foreground !== work) return;
+		const state = this.currentState(record);
+		if (state.state === "requires_action" && record.lastEmittedState !== "requires_action") {
+			if (this.#settleTimers.has(record)) return;
+			this.#settleTimers.set(
+				record,
+				setTimeout(() => {
+					this.#settleTimers.delete(record);
+					if (record.foreground === work) this.#emitState(record, this.currentState(record));
+				}, 0),
+			);
+			return;
+		}
+		this.#clearSettleTimer(record);
+		this.#emitState(record, state);
+	}
+
+	#clearSettleTimer(record: ManagedSessionRecord): void {
+		const timer = this.#settleTimers.get(record);
+		if (timer === undefined) return;
+		clearTimeout(timer);
+		this.#settleTimers.delete(record);
+	}
+
+	#trackToolLifecycle(record: ManagedSessionRecord, event: AgentSessionEvent): void {
+		if (event.type !== "tool_execution_start" && event.type !== "tool_execution_end") return;
+		const work = record.foreground;
+		if (!work) return;
+		if (event.type === "tool_execution_start") work.runningTools.add(event.toolCallId);
+		else work.runningTools.delete(event.toolCallId);
+		this.#reevaluateState(record, work);
 	}
 
 	#emitState(record: ManagedSessionRecord, state: v2.StateUpdate): void {
@@ -283,17 +327,18 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	}
 
 	onForegroundBlocked(record: ManagedSessionRecord, work: ForegroundWork): void {
-		if (record.foreground === work) this.#emitState(record, { state: "requires_action" });
+		this.#reevaluateState(record, work);
 	}
 
 	onForegroundResumed(record: ManagedSessionRecord, work: ForegroundWork): void {
-		if (record.foreground === work) this.#emitState(record, { state: "running" });
+		this.#reevaluateState(record, work);
 	}
 
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void {
 		if (record.foreground !== work) return;
 		record.session.settlePendingSubmissions();
 		record.foreground = undefined;
+		this.#clearSettleTimer(record);
 		// A provider failure ends the run with an assistant `error` reply rather than a thrown error.
 		const turnFailure = "error" in end ? undefined : resolveTurnFailure(work);
 		const state: v2.StateUpdate =
@@ -322,7 +367,9 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 
 	subscribe(record: ManagedSessionRecord): () => void {
 		return record.session.subscribe(event => {
+			// First: the core may begin agent-originated work for this very event.
 			this.#host.trackForegroundEvent(record, event);
+			this.#trackToolLifecycle(record, event);
 		});
 	}
 

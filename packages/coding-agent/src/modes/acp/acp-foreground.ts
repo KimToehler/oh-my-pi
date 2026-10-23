@@ -59,6 +59,8 @@ export type ForegroundWork = {
 	deferredError: unknown;
 	/** Open client interactions (permission requests, elicitations) this work is blocked on. */
 	pendingInteractions: number;
+	/** Tool calls of this work between `tool_execution_start` and `tool_execution_end`; filled by surfaces that report aggregate state. */
+	runningTools: Set<string>;
 	/** Per-work event subscription (v1: prompt-scoped); the v2 session-lifetime subscription leaves it unset. */
 	unsubscribe: (() => void) | undefined;
 };
@@ -77,6 +79,7 @@ export function createForegroundWork(origin: ForegroundOrigin, usageBaseline: Us
 		pendingBuiltinSteers: 0,
 		deferredError: undefined,
 		pendingInteractions: 0,
+		runningTools: new Set(),
 		unsubscribe: undefined,
 	};
 }
@@ -123,7 +126,12 @@ export type AcpQuiescenceHost = {
  * would never resolve; a queued message that will drain is already visible as
  * scheduled post-prompt work.
  */
-export function isAcpSessionQuiescent(host: AcpQuiescenceHost, work: ForegroundWork): boolean {
+export function isAcpSessionQuiescent(
+	host: AcpQuiescenceHost,
+	work: ForegroundWork,
+	/** Whether owner-scoped background jobs still hold the work open (v1: yes; v2: they wake as separate work). */
+	includeBackgroundWork: boolean,
+): boolean {
 	const session = host.session;
 	return (
 		host.pendingSteers === 0 &&
@@ -132,7 +140,7 @@ export function isAcpSessionQuiescent(host: AcpQuiescenceHost, work: ForegroundW
 		!session.isStreaming &&
 		!session.hasAdmittedSubmission &&
 		!session.hasPostPromptWork &&
-		!session.hasPendingAsyncWork()
+		(!includeBackgroundWork || !session.hasPendingAsyncWork())
 	);
 }
 
@@ -205,6 +213,15 @@ export function resolveStopReason(work: ForegroundWork): PromptResponse["stopRea
 		default:
 			return "end_turn";
 	}
+}
+
+/**
+ * True when `work` waits on the client and nothing else progresses: an interaction is open and every running
+ * tool is blocked on one (or no tool runs). Interactions are counted per call, not per tool, so a tool holding
+ * two interactions at once can mask a sibling that is still running.
+ */
+export function isBlockedOnInteraction(work: ForegroundWork): boolean {
+	return work.pendingInteractions > 0 && work.pendingInteractions >= work.runningTools.size;
 }
 
 /** Runs one open client interaction (permission request, elicitation) and counts it against the current foreground work. */

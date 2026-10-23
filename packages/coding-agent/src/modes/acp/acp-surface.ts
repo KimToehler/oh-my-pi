@@ -196,6 +196,11 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	validAuthMethodIds(capabilities: W["clientCapabilities"]): string[];
 	/** A client cancel is about to abort `activeWork`. v2: latch the cancel and withdraw queued steers. */
 	beforeCancel(record: ManagedSessionRecord): void;
+	/**
+	 * Whether owner-scoped background jobs hold a foreground open. v1: yes, their wake turns stream into the open
+	 * prompt; v2: no, the foreground ends and a later wake is its own agent-initiated foreground.
+	 */
+	readonly holdsForegroundForBackgroundWork: boolean;
 	/** The work a close or fork must wait out, if any. */
 	inFlightWork(record: ManagedSessionRecord): ForegroundWork | undefined;
 	/** Installs the subscription that lives as long as the record; returns its unsubscribe. */
@@ -207,9 +212,9 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 	admitPrompt(record: ManagedSessionRecord, request: W["promptRequest"]): Promise<W["promptResponse"]>;
 	/** `work` begins. v1: installs the prompt-scoped subscription; v2: emits `running`. */
 	onForegroundStart(record: ManagedSessionRecord, work: ForegroundWork): void;
-	/** `work.pendingInteractions` went 0 → 1. v1: nothing; v2: `requires_action` when nothing else progresses. */
+	/** `work.pendingInteractions` went 0 → 1. v1: nothing; v2: re-evaluates the aggregate state. */
 	onForegroundBlocked(record: ManagedSessionRecord, work: ForegroundWork): void;
-	/** `work.pendingInteractions` went 1 → 0. v1: nothing; v2: `running` again. */
+	/** `work.pendingInteractions` went 1 → 0. v1: nothing; v2: re-evaluates the aggregate state. */
 	onForegroundResumed(record: ManagedSessionRecord, work: ForegroundWork): void;
 	/** `work` ended at the quiescence point, by failure, or by cancel. v1: settles the prompt; v2: `idle` with the stop reason. */
 	onForegroundEnd(record: ManagedSessionRecord, work: ForegroundWork, end: ForegroundEnd): void;
