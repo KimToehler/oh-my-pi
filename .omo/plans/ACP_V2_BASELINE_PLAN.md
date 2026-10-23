@@ -387,6 +387,7 @@ ACP v2 (schema `schema-v2.0.0-alpha.9`, 2026-10-16) fixes this at the protocol l
 - **`trackInteraction` starts the request before `blocked`.** The client's `session/request_permission` frame precedes the `requires_action` state it causes. Elicitations are counted as interactions too.
 - **`acp.protocolV2` is read only by `runAcpMode`.** `createAcpConnection` defaults `maxVersion` to 1 so embedders that build a connection before `Settings.init()` keep working (lazy-startup test).
 - **Bootstrap sends are caught.** `#emitBootstrapUpdates` ran unawaited without `.catch`; a client disconnecting during bootstrap raised an unhandled rejection (found as a flaky v2 test).
+- **Row 9 compares counts, not tool identities.** `isBlockedOnInteraction` is `pendingInteractions > 0 && pendingInteractions >= runningTools.size`: elicitations (`createAcpExtensionUiContext`) carry no tool call id, so interactions cannot be keyed to tools. A single tool holding two interactions at once would mask a still-running sibling; no current tool opens concurrent interactions. `requires_action` is announced only after it holds for one macrotask, because a permission request opens before its own tool's `tool_execution_start` reaches the surface; a permission answered within that macrotask never shows `requires_action`.
 
 ## Final verification wave
 
