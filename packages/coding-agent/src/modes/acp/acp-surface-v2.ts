@@ -79,6 +79,8 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	#host: AcpSurfaceHost;
 	/** Pending `user_message` echo per record: the idle frame waits behind it. */
 	#echoes = new WeakMap<ManagedSessionRecord, Promise<void>>();
+	/** Response barriers (per request context) the record's chain is currently blocked on or queued behind. */
+	#barriers = new WeakMap<ManagedSessionRecord, Set<Promise<void>>>();
 	/** Submissions of a record that have not yet reported an outcome; Stop drops them. */
 	#pendingSubmissions = new WeakMap<ManagedSessionRecord, Set<() => void>>();
 	/** Pending settle delay before announcing `requires_action`; see {@link #reevaluateState}. */
@@ -248,11 +250,24 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		return { messageId };
 	}
 
-	/** Emit the `user_message` once the response frame carrying the prompt's `messageId` is written; later frames wait for it. */
+	/**
+	 * Emit the `user_message` once the response frame carrying the prompt's `messageId` is written; later frames of
+	 * the record wait for it. The wait is a barrier owned by the request's response context, which every entry of one
+	 * JSON-RPC batch shares: a handler of that same context must never wait on it (the batch response waits for the
+	 * handler), so {@link replay} sends ahead of it instead of queueing (see {@link #sendAhead}).
+	 */
 	#echoAfterResponse(record: ManagedSessionRecord, params: v2.PromptRequest, messageId: string): void {
 		const written = responseWritten();
+		let barriers = this.#barriers.get(record);
+		if (!barriers) {
+			barriers = new Set();
+			this.#barriers.set(record, barriers);
+		}
+		barriers.add(written);
 		this.#enqueue(record, async () => {
 			await written;
+			barriers.delete(written);
+			if (barriers.size === 0 && this.#barriers.get(record) === barriers) this.#barriers.delete(record);
 			try {
 				await this.#sendRaw({
 					sessionId: params.sessionId,
@@ -262,6 +277,16 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 				logger.warn("ACP v2 user_message delivery failed", { error });
 			}
 		});
+	}
+
+	/**
+	 * Sends a frame for a handler that awaits it. When the record's chain is blocked on the response barrier of the
+	 * handler's own request context (same batch), queueing would deadlock, so the frame goes out ahead of the
+	 * barrier-blocked echo; otherwise it takes the ordered path.
+	 */
+	#sendAhead(record: ManagedSessionRecord, notification: v2.SessionNotification): Promise<void> {
+		if (this.#barriers.get(record)?.has(responseWritten())) return this.#sendRaw(notification);
+		return this.sendMapped(notification);
 	}
 
 	/**
@@ -356,6 +381,10 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 	 * Resume replay: `replayFrom: {type:"start"}` streams the transcript through the v2 mapping (user messages keep
 	 * their persisted entry id, other roles get one fresh id per message); no cursor replays nothing. Either way the
 	 * `state_update` snapshot follows, bypassing dedup because snapshots are idempotent.
+	 *
+	 * Order when the resume shares a JSON-RPC batch with a prompt whose echo is already queued: the replay frames and
+	 * the snapshot go out first (ahead of the barrier-blocked echo), then the batch response, then the echo (same
+	 * message id as the replayed user message, which is replace-semantics), then everything queued behind it.
 	 */
 	async replay(record: ManagedSessionRecord, replayFrom?: unknown): Promise<void> {
 		const replayStart =
@@ -375,19 +404,19 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 						messageId,
 						notifications.map(notification => notification.update),
 					);
-					if (update) await this.sendMapped({ sessionId, update });
+					if (update) await this.#sendAhead(record, { sessionId, update });
 					continue;
 				}
 				const options: AcpV2MapperOptions = { cwd, messageIdFor: () => messageId };
 				for (const notification of notifications) {
 					const update = convertV1UpdateToV2(notification.update, options, { message });
-					if (update) await this.sendMapped({ sessionId, update });
+					if (update) await this.#sendAhead(record, { sessionId, update });
 				}
 			}
 		}
 		const state = this.#settledState(record);
 		record.lastEmittedState = state.state;
-		await this.sendMapped({ sessionId, update: { sessionUpdate: "state_update", ...state } });
+		await this.#sendAhead(record, { sessionId, update: { sessionUpdate: "state_update", ...state } });
 	}
 
 	/**
