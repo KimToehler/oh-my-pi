@@ -138,12 +138,31 @@ these files:
 - project `.omp/commands/opsx-*.md`, written by `openspec init --tools oh-my-pi`: they duplicate the deployed commands;
   remove them.
 
-Run `/opsx-propose <change>` for behaviour-changing work. Before applying, both validators must pass:
+Run `/opsx-propose <change>` for behaviour-changing work. In default mode you can also just ask the agent to plan the
+feature: the `openspec` skill routes a behaviour change in a repository with an OpenSpec root to `/opsx-propose` (the
+agent reads and follows the command file), keeps small changes in plan mode, and never creates `openspec/` where there is
+none. Plan mode cannot write `openspec/changes/`; there the agent asks you to leave plan mode and run `/opsx-propose`.
+Before applying, both validators must pass:
 
 ```sh
 openspec validate <change> --strict
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
+
+The last artifact `/opsx-propose` creates is `review.md`: the agent runs the bundled `plan-reviewer` (the `advisor`
+model, another family than the planner) over the whole change folder, fixes blockers in the artifacts for at most two
+rounds, and records the verdict with the digest of the folder it reviewed. OpenSpec reports apply as `blocked` while
+`review.md` is missing, and `/opsx-apply` runs this before the first source edit:
+
+```sh
+node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/<change>
+```
+
+It fails when `review.md` is missing or malformed, when the verdict is `REJECT` without an override, and when any
+artifact changed after the review (`stale`; ticking tasks does not count). Re-run the review after editing an artifact:
+`openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
+writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
+checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
 
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
 comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
