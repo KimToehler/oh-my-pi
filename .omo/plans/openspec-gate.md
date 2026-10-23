@@ -145,6 +145,11 @@ records that already block on `main`, any change to file-plan behaviour.
   `templates/gate.md` for the new fields and the fallback criteria block; `team-config/README.md` only where it lists
   `gate.md` fields. Delete every
   `Review tier`, `standard`/`full` tier, `--freeze-plan` and folder-smoke sentence. Verify: `bun run test:team-config`
+- [x] 5. F3 wave 1 should-fixes (`.omo/evidence/openspec-gate-v2/f3-wave-1.md`): `hasRequirements` returned by
+  `validateSpecs` (a rename-only delta with an empty `### Requirement:` heading still needs `gate.md` criteria);
+  `substantiveCriteriaDefects` holds `Positive witness` and `Boundary` (Mechanical: the check and `Boundary`) to the
+  content grammar; remove unused `writeBundleFile`; `SKILL.md` names where `plan_sha256` is read. RED: the three new
+  checker tests fail before the fix. Verify: `bun run test:team-config`
 
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
