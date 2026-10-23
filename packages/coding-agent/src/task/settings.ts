@@ -440,6 +440,25 @@ export const cfgTaskAgentSoftRequestBudget = register({
 	validate: validateAgentSoftRequestBudget,
 });
 
+export const cfgTaskSoftCompactionBudget = register({
+	id: "task.softCompactionBudget",
+	type: "number",
+	default: 3,
+	ui: {
+		tab: "tasks",
+		group: "Subagents",
+		label: "Soft Subagent Compaction Budget",
+		description:
+			"Soft per-subagent compaction budget (automatic compactions per run). Reaching it injects a wrap-up steering notice (see task.softRequestBudgetNotice); one more compaction force-stops the run and asks the agent for a final report. 0 disables the guard.",
+		options: [
+			{ value: "0", label: "Disabled" },
+			{ value: "2", label: "2 compactions" },
+			{ value: "3", label: "3 compactions", description: "Default" },
+			{ value: "5", label: "5 compactions" },
+		],
+	},
+});
+
 export const cfgTaskSoftRequestBudgetNotice = register({
 	id: "task.softRequestBudgetNotice",
 	type: "boolean",

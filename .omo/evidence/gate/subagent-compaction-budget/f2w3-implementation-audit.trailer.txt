@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: When both budgets cross during one run, the first stop retains ownership of the stop sequence and cannot be relabeled or restarted by the later crossing.
+  positive_witness: A compaction stop followed by a request threshold crossing retains the compaction stop reason and its original grace anchor.
+  negative_control: The later request crossing replaces the stop kind or resets the grace anchor, causing a request-budget reason or extending the deadline.
+  observable: Session abort calls, forced prompt text, request count at hard abort, and final abort reason.
+  boundary: Subagent run monitor through the result driver.
+END-REVIEW-TRAILER

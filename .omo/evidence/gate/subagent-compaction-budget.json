@@ -1,0 +1,95 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/subagent-compaction-budget.md",
+  "plan_sha256": "6e1c926ad84615bce96abe5e0415393a811e5590b03e141f751a7f476d6ef15a",
+  "reviewed_sha": "7874761cdf7646518b49a4b329f7606352672e65",
+  "diff_base": "2c435dc6bdc2d2a4f23b92d112fa9ff5bb94e4ed",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "F2 wave 3 on 7874761cdf76: implementation-audit and strategic-risk-review PASS, QA 4/4 PASS on the final head; F2 waves 1-2 blockers fixed in rows 5-7, F3 waves 1-7 PASS",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "notice at the compaction budget (budget 1, notice on)",
+      "passed": true,
+      "artifact": ".omo/evidence/subagent-compaction-budget/wave-3/qa-run.txt"
+    },
+    {
+      "name": "forced stop after budget+1 compactions (notice off)",
+      "passed": true,
+      "artifact": ".omo/evidence/subagent-compaction-budget/wave-3/qa-stop.txt"
+    },
+    {
+      "name": "shake methodOrder: fallback counted once, no steer or forced prompt after a delivered report",
+      "passed": true,
+      "artifact": ".omo/evidence/subagent-compaction-budget/wave-3/qa-shake.txt"
+    },
+    {
+      "name": "budget 0 control: no notice, no stop",
+      "passed": true,
+      "artifact": ".omo/evidence/subagent-compaction-budget/wave-3/qa-control.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omo/evidence/gate/subagent-compaction-budget/f3-wave7-report.md"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/gate/subagent-compaction-budget/f2w3-implementation-audit.trailer.txt",
+      "trailer_sha256": "5a303a5d55a401ffcab314e57ec05b7613df0b393b481c5db8ac898e89df63be",
+      "note": ".omo/evidence/gate/subagent-compaction-budget/f2w3-implementation-audit.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/gate/subagent-compaction-budget/f2w3-strategic-risk-review.trailer.txt",
+      "trailer_sha256": "c5d5630edb19c62808c391e1e16dc62143360b149bf6ffbd0f08ffee9769f53e",
+      "note": ".omo/evidence/gate/subagent-compaction-budget/f2w3-strategic-risk-review.md"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "F2W1-B1",
+      "severity": "high",
+      "location": "packages/coding-agent/src/task/executor.ts:1890",
+      "coverage": "packages/coding-agent/test/task/executor-soft-budget.test.ts::runSubprocess soft compaction budget > #given an unstructured run with compaction budget 1 #when the compaction reaching the budget follows its final report #then no notice is sent and the report stands",
+      "fix_sha": "283ad9caa2519a49f1cbbb6a2648e0997380da78"
+    },
+    {
+      "id": "F2W2-B1",
+      "severity": "medium",
+      "location": "packages/coding-agent/src/task/executor.ts:1555",
+      "coverage": "packages/coding-agent/test/task/task-guards.test.ts::runSubprocess request guards > hard-aborts a deferred request-budget stop at the threshold's grace deadline",
+      "fix_sha": "a0c36fc30182c859488ec7a60f751277e1924cb6"
+    },
+    {
+      "id": "F2W2-B2",
+      "severity": "medium",
+      "location": "packages/coding-agent/src/task/executor.ts:runYieldLadder",
+      "coverage": "packages/coding-agent/test/task/executor-soft-budget.test.ts::runSubprocess soft compaction budget > #given an unstructured run with compaction budget 1 #when the compaction after its final report crosses the budget #then the delivered report stands without a forced wrap-up",
+      "fix_sha": "a0c36fc30182c859488ec7a60f751277e1924cb6"
+    }
+  ]
+}
