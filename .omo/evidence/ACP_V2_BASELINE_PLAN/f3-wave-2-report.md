@@ -1,0 +1,41 @@
+## Must-fix
+
+Blocker B1: **v2 cancellation never invokes its cancellation hook** — `packages/coding-agent/src/modes/acp/acp-agent.ts:1150-1186`, `acp-surface-v2.ts:377-382,393-406`. When a user cancels an active v2 foreground and an owner-scoped background job completes later, `#beginCancelCleanup` never calls `beforeCancel`, the sole setter of `cancelLatched`; agent-initiated work therefore remains permitted and can wake the session after Stop. The missing call also skips the planned interrupt queue withdrawal. The resulting resumed work is reversible, but it violates the cancellation merge-gate criterion. **Fix:** invoke the surface cancellation hook before aborting and before foreground settlement; cover a job that was already running when cancellation occurred.  
+**class:** Unwired protocol-specific cancellation hook. **sites:** `AcpSurface.beforeCancel`, both surface implementations, and `#beginCancelCleanup`; whole-tree search: `functions.grep` for `cancelLatched|allowsAgentInitiatedWork|beforeCancel\(` under `/Users/tim/git/oh-my-pi/.worktrees/acp-v2-surface`.
+
+Blocker B2: **Cancellation before submission registration can leave the prompt queue permanently blocked** — `packages/coding-agent/src/modes/acp/acp-agent.ts:989-991,1049-1054`, `acp-surface-v2.ts:151-190`. If Stop arrives while prompt preparation or Goal admission is awaiting completion, before `AgentSession.prompt` registers an outcome callback, the cancellation branches return without reporting an outcome. `#submit` continues awaiting `outcome.promise`, so that request never receives `requestCancelled` and its queue slot prevents later prompts from being admitted. The effect lasts for the session and is reversible by closing it, but violates the cancellation and submission-outcome criteria. **Fix:** settle the pending v2 admission on cancellation even before a session message exists, and release its queue slot; test cancellation while Goal admission is held.  
+**class:** Unsettled pre-registration prompt admission. **sites:** The two cancellation returns above and the pending outcome/queue in `acp-surface-v2.ts`; whole-tree search: `functions.grep` for `cancel.*admission|before insertion|cancel.*preflight|beforeCancel|cancelRequested` under `/Users/tim/git/oh-my-pi/.worktrees/acp-v2-surface/packages/coding-agent/src/modes/acp` and its `acp-v2.test.ts`.
+
+Blocker B3: **v2 clients cannot use advertised form elicitations** — `packages/coding-agent/src/modes/acp/acp-agent.ts:737-741,2669-2684`. When a v2 client advertises `capabilities.elicitation.form` and a tool or extension asks the user a question, v2 initialization clears `#clientCapabilities`, while extension setup checks only that v1 field. The form UI is consequently disabled and the interaction cannot reach the client, breaking the planned elicitation/foreground interaction behavior and existing interactive consumers under v2. The effect is reversible by using another surface or retrying after a fix. **Fix:** carry the v2 form capability into extension setup and send a v2-shaped `elicitation/create` through the v2 connection; exercise a real interactive tool with a v2-capable client.  
+**class:** Negotiated capability discarded at the consumer seam. **sites:** v2 initialization and `#configureExtensions` above, plus `createAcpExtensionUiContext`’s capability gate at `acp-agent.ts:415-422`; searches: `functions.grep` for `elicitation|ClientCapabilities` in `/Users/tim/git/oh-my-pi/.worktrees/acp-v2-surface/packages/utils/src/acp/v2/protocol.ts` and the vendored schema, and for `elicit\(|elicitFormFromAcpClient\(|track\(` in `acp-agent.ts`.
+
+## Should-fix
+
+- `packages/coding-agent/test/agent-session-submission-outcome.test.ts:282-325,352-370`: The delivery-record and late-emission tests explicitly invoke the session closure rather than exercising, respectively, adapter quiescence and cancel-timeout close. They do not prove the planned adapter boundary suppresses late persistence and wire frames; this is a verification gap rather than independently established runtime damage. **Fix:** add the two planned adapter-level scenarios with a held provider and assert outcomes, persistence, and outbound frames.  
+  **class:** Lifecycle guarantee tested below its owning boundary. **sites:** Those two tests; search: `functions.grep` for `parallel|background.*idle|background.*foreground|concurrent.*tool|settlePendingSubmissions|cancel.timeout` in the worktree’s `acp-v2.test.ts` and `agent-session-submission-outcome.test.ts`.
+
+- `packages/coding-agent/src/modes/acp/acp-foreground.ts:222-225`: Aggregate blocked state compares interaction and running-tool counts rather than associating interactions with tools. Two simultaneous interactions from one tool can mask a progressing sibling; the pinned plan records that no current tool does this, so this is not a blocker under the stated threshold. **Fix:** associate interactions with their originating tool if a consumer gains concurrent interactions, and retain a parallel-tool regression test.  
+  **single instance:** `isBlockedOnInteraction` is the shared predicate for live and resume state; search: `functions.grep` for `trackInteraction\(|onInteractionChanged|createElicitation\(` under `/Users/tim/git/oh-my-pi/.worktrees/acp-v2-surface/packages`.
+
+## Nit
+
+None identified.
+
+## Checked
+
+- **Prior blocker: background foreground wait:** The listed sites now condition both the `settleAsyncWork` wait and quiescence predicate on the surface’s `holdsForegroundForBackgroundWork`; v2 sets it false and v1 retains the wait. A real-session test starts a held job within the prompt and checks separate wake framing.
+- **Prior blocker: interaction aggregate state:** The listed sites now use the shared tool-count predicate for live transitions and snapshots, and tool lifecycle changes reevaluate it. The pinned plan explicitly records the remaining count-versus-identity limitation above.
+- **Duplication:** The prior duplicate protocol-version constant is removed; the v2 surface imports `PROTOCOL_VERSION_V2`. No additional instance established.
+- **Naming inconsistency:** Examined foreground/work, submission/outcome, and interaction/state terminology; no additional instance established.
+- **Uneven API surface:** The v2 form-capability consumer differs from v1 and is reported as B3.
+- **Mixed conventions:** Cancellation defines a surface hook but the shared cancellation path bypasses it; B1.
+- **Missing or premature abstractions:** The common interaction predicate is shared, with its documented identity limitation above; no further candidate established.
+- **Dead code:** `beforeCancel` is implemented but has no call site; B1. The search was not exhaustive for every new symbol.
+- **Doc drift:** The previous stale v2 surface header is corrected. No locale keys were identified in the changed-file list.
+- **Surprise scope and plan:** Compared the supplied changed-file list against the pinned plan’s named surfaces and tests; no excluded feature implementation was established in the inspected portions. This was not an exhaustive touched-symbol audit.
+- **Plan walks:** Read the pinned verification and out-of-scope sections. The recorded verification artifact reports the coding-agent and utils checks passing, ACP tests passing, RPC tests passing, and one agent-session test failure reported there as pre-existing; I did not independently run or verify those commands. F1 manual QA remains unchecked in the pinned plan. The two adapter-boundary gaps remain above; RED evidence for every checklist case was not established.
+- **Seams:** Inspected version dispatch, submission admission and cancellation, foreground quiescence and interaction state, v2 capability propagation, mapping, and the setting/docs descriptions. Findings are reported at the cancellation, admission, and elicitation seams; this was not a complete producer/consumer audit of every listed seam.
+- **Simplification pass:** The previous protocol-constant duplication is resolved; no additional cross-slice simplification established.
+- **Review limitation:** The supplied patch is 18,259 lines and tool output truncated the initial read. I cannot claim an end-to-end read of the entire diff or a complete verification-checklist audit.
+
+FAIL

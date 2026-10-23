@@ -1,0 +1,25 @@
+HEAD c4551ab5c364bcadeb5c1c37b8f44945e43a31a3
+
+## check coding-agent: rc=0
+Finished in 66ms on 3433 files using 18 threads.
+$ oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types
+$ tsgo -p tsconfig.json --noEmit
+
+## check utils: rc=0
+Finished in 6ms on 235 files using 18 threads.
+$ oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types
+$ tsgo -p tsconfig.json --noEmit
+
+## bun test packages/coding-agent/test/acp-: 413 pass 0 fail
+
+
+## bun test packages/coding-agent/test/agent-session-: 1474 pass 1 fail
+(fail) AgentSession queued steer delivery > settles an interrupt non-terminally when a queued steer resumes the run [1034.92ms]
+
+## bun test packages/coding-agent/test/rpc: 238 pass 0 fail
+
+
+## bun test packages/utils/test/acp: 23 pass 0 fail
+
+
+## note: the agent-session failure 'queued steer delivery > settles an interrupt non-terminally' also fails on merge-base 589fc63 (pre-existing)
