@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1, 2, 3, 4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: Once session close stops admitting record-scoped producers, no producer that was still before its first enqueue may publish a session frame beyond either close response.
+  positive_witness: A bootstrap or command-metadata build already in progress is cancelled, dropped, or drained, and every resulting session update precedes both concurrent close responses.
+  negative_control: Hold filesystem-backed command discovery after its initial record check, complete two close requests, then release discovery; an implementation that emits the delayed update after either response MUST fail.
+  observable: Raw NDJSON contains no session/update for the closed session at an index greater than either session/close response.
+  boundary: AcpAgent bootstrap and command-metadata producer admission through AcpSurfaceV2.drain and sendMapped
+END-REVIEW-TRAILER

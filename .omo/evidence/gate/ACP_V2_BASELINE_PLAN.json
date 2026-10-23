@@ -1,0 +1,124 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": ".omo/plans/ACP_V2_BASELINE_PLAN.md",
+  "plan_sha256": "4f48e3e27ff84cd2170a2c6c584fd4eb09f16a72d5ad52fef9bf89fff7d1027f",
+  "reviewed_sha": "6137d4a78802f9a9aeefecc1290e186b8e61d888",
+  "diff_base": "5ade020d9a4c4c8f94d7a2c40daa8bcd2925db00",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class wire-contract-api (ACP protocol v2 surface, exported AgentSideConnection/ClientBridge API); both invocations PASS in F2 wave 5 on 6137d4a788 after four fix waves (TODO 22-26); last code commit 432d0e1f29, 6137d4a788 changes only changelogs and the plan",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA 1: Scripted v2 client: messageId before turn end (a)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v2-ack.json"
+    },
+    {
+      "name": "QA 2: Scripted v2: background task subagent wakes after idle (b)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v2-wake-task.json"
+    },
+    {
+      "name": "QA 3: Scripted v2: async bash job wake after idle",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v2-wake.json"
+    },
+    {
+      "name": "QA 4: Scripted v2: cancel mid-stream (c)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v2-cancel.json"
+    },
+    {
+      "name": "QA 5: Scripted v2: resume (d)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v2-resume.json"
+    },
+    {
+      "name": "QA 6: Scripted, flag off (regression)",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/v1-flag-off.json"
+    },
+    {
+      "name": "QA 7: Air (IntelliJ 2026.2, air.acp.v2.enabled) edit prompt + longer streamed follow-up",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 8: Air: background subagent, turn ends at once",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 9: Air: Stop mid-stream, then a follow-up prompt",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 10: Air: resume an earlier v2 thread",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 11: Air: slash menu",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 12: Air: closing v2 sessions",
+      "passed": true,
+      "artifact": ".omo/evidence/acp-v2-baseline/air-v2.md"
+    },
+    {
+      "name": "QA 13: Automated suites at last code commit 432d0e1f29",
+      "passed": true,
+      "artifact": ".omo/evidence/ACP_V2_BASELINE_PLAN/f2-wave-1-fix-verification.txt"
+    },
+    {
+      "name": "QA matrix (F2 wave 5, head 6137d4a788)",
+      "passed": true,
+      "artifact": ".omo/evidence/ACP_V2_BASELINE_PLAN/f2/qa-matrix.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omo/evidence/ACP_V2_BASELINE_PLAN/f3-wave-7-report.md"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/ACP_V2_BASELINE_PLAN/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "f5a691d3bbfdb26f1953fca844d000842e8accc90f40993b44307b0efdffb7ba",
+      "note": "F2 wave 5 audit PASS (non-blocking: pre-initialize v1 dispatch); waves 1-4 trailers archived as wave-<n>-trailer-*.txt"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omo/evidence/ACP_V2_BASELINE_PLAN/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "da0ab7d8b84dcb1e5b2b73073ffe4de07510785e64b4bc3c3574a1f95965ed8a",
+      "note": "F2 wave 5 oracle PASS (notes N1-N3 non-blocking); wave 4 FAIL exported-api-breaking-cutover resolved by TODO 26 and residual risk 7"
+    }
+  ],
+  "blockers": []
+}

@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A host compiled against the previously exported AgentSideConnection constructor can upgrade this package and continue negotiating protocol v1 without changing its factory callback.
+  positive_witness: A factory returning an Agent directly type-checks, initializes successfully, and routes a subsequent session request to that Agent as v1.
+  negative_control: Treating the returned Agent as AgentSurfaces makes surfaces.v1 undefined and MUST fail the compatibility probe.
+  observable: The pre-change consumer fixture compiles and its raw initialize plus session round trip succeeds with protocolVersion 1.
+  boundary: The exported AgentSideConnection constructor in packages/utils/src/acp/connection.ts through packages/utils/src/acp.ts.
+END-REVIEW-TRAILER
