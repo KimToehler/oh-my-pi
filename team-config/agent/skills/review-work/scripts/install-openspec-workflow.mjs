@@ -100,15 +100,19 @@ function preflight(target, source) {
   if (created.length > 0) {
     const ignored = git(root, "check-ignore", "-v", "--no-index", "--", ...created)
     if (ignored.status === 0) {
-      const lines = ignored.stdout.split("\n").filter(Boolean).map((line) => {
+      // `-v` also prints a path whose last matching pattern is a negation (`!pat`): that path is NOT ignored.
+      const lines = ignored.stdout.split("\n").filter(Boolean).flatMap((line) => {
         const [rule, file] = line.split("\t")
-        return `  ${file}  (${rule})`
+        const pattern = /^.*?:\d+:(.*)$/.exec(rule)?.[1] ?? rule
+        return pattern.startsWith("!") ? [] : [`  ${file}  (${rule})`]
       })
-      throw new Refusal(
-        `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
-      )
+      if (lines.length > 0) {
+        throw new Refusal(
+          `git ignores files this install would create, so they could not be committed with plain git add; adjust the ignore rule yourself, then rerun:\n${lines.join("\n")}`,
+        )
+      }
     }
-    if (ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
+    if (ignored.status !== 0 && ignored.status !== 1) throw new Error(`git check-ignore failed: ${ignored.stderr.trim()}`)
   }
 
   const configStat = lstat(path.join(root, CONFIG))

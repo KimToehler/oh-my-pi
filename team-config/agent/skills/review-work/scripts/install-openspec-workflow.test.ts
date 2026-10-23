@@ -125,6 +125,12 @@ describe("install", () => {
 		expect(which.stdout).toContain("Source: project");
 	});
 
+	test("a negated ignore match does not count: everything re-included installs", () => {
+		const root = project({ ".gitignore": "*.md\n*.yaml\n!openspec/**\n" });
+		const r = installWorkflow(root);
+		expect(r.code).toBe(0);
+	});
+
 	test("update over a committed local edit and an extra file: replaced wholesale, the old bytes stay in HEAD, the config is untouched", () => {
 		const config = "schema: omp-gated\n\nrules:\n  specs:\n    - our own rule\n";
 		const root = project({ ...committedSchema(), [`${SCHEMA}/templates/extra.md`]: "ours\n", [CONFIG]: config });
@@ -153,6 +159,16 @@ describe("install", () => {
 });
 
 describe("refusals leave the project byte-identical", () => {
+
+	test("a negation re-including only the config still refuses for the schema file, naming only that file", () => {
+		const root = project({ ".gitignore": "*.yaml\n!openspec/config.yaml\n" });
+		const before = tree(root);
+		const r = installWorkflow(root);
+		expect(r.code).toBe(1);
+		expect(text(r)).toContain(`${SCHEMA}/schema.yaml`);
+		expect(text(r)).not.toContain(CONFIG);
+		expect(tree(root)).toEqual(before);
+	});
 
 	test("a committed .gitignore rule that would ignore the config to be created", () => {
 		const root = project({ ".gitignore": "openspec/config.yaml\n" });
