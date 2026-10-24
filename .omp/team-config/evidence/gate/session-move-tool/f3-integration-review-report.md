@@ -224,3 +224,51 @@ None.
 - **Simplification pass:** no additional cross-slice simplification candidate found.
 
 PASS
+# Wave 6 (delta round after merging main dfdededea0 and the ACP approval test; head d5f812b44903)
+
+# Integration review — delta round
+
+Reviewed the supplied local `main...HEAD` diff, changed-file inventory, pinned plan, prior F3 report, and all listed seams.
+
+## Must-fix
+
+None.
+
+## Should-fix
+
+None.
+
+## Nit
+
+None.
+
+## Checked
+
+- **Prior-report classes — closed at every listed site**
+  - `non-atomic pending-move admission`: closed. `AgentSession.reserveSessionMove()` synchronously claims the session slot before `SessionMoveTool.execute()` reaches an await; `commit` or `release` clears it (`packages/coding-agent/src/session/agent-session.ts:3256-3279`, `packages/coding-agent/src/tools/session-move.ts:229-285`).
+  - `inconsistent registry scope across two D6 checks`: closed. Tool admission and the relocation-time recheck both pass the session-scoped registry to `findRunningSessionWork` (`packages/coding-agent/src/tools/session-move.ts:229-234`, `packages/coding-agent/src/session/agent-session.ts:3330-3335`). Search: `functions.grep pattern="findRunningSessionWork\\(" path="packages/coding-agent"`.
+  - `detached fatal-session teardown`: closed at the previously reported RPC site: `disposeAndExit()` is awaited before the relocator can return (`packages/coding-agent/src/modes/rpc/rpc-mode.ts:1789-1795`). The corresponding ACP and slash-command fatal handlers also await disposal. Search: `functions.grep pattern="\\.fatal|fatal: true" path="packages/coding-agent/src"`.
+  - `resolved server-side session move misses the post-batch stop fence`: closed. The hook runs after normal executed batches, replayed tails, and Cursor bridge-resolved calls (`packages/agent/src/agent-loop.ts:1305-1313,1687-1690,1730-1737`). Search: `functions.grep pattern="kCursorExecResolved|shouldStopAfterBatch" path="packages/agent/src;packages/ai/src/providers/cursor.ts;packages/coding-agent/src"`.
+  - `scheduler-bypassed exclusive move admission`: closed. Direct eval and Cursor tool execution still reach the session-owned reservation before any awaited worktree operation; scheduler exclusivity remains an additional guard. Search: `functions.grep pattern="\\.execute\\(" path="packages/coding-agent/src"`.
+  - `new natural-language prompt assertions`: closed. Move-continuation tests select `customType === "session-move-result"` and assert structured details. The remaining `RULE_CANARY` assertion is a test-authored destination rules-file witness, not generated prompt prose. Search: `functions.grep pattern="RULE_CANARY|The session \\(was moved\\|move to\\)" path="packages/coding-agent/test;packages/agent/test"`.
+
+- **1. Duplication across slices/files:** no defect instance found. The synchronous `realpathOfPlannedPath` in `tools/session-move.ts` and asynchronous variant in `session/session-worktree.ts` are intentionally split at the synchronous approval-planning versus asynchronous worktree-creation boundary.
+- **2. Naming inconsistency:** no instance found. The nouns **session move**, **relocator**, and **`worktree.repoDir`** are consistent across types, implementation, ACP test coverage, prompts, docs, settings, and changelogs.
+- **3. Uneven API surface:** no instance found. TUI, ACP, and RPC normalize to `SessionRelocationResult`; the headless-only `fatal` extension remains internal to `HeadlessRelocationResult`. The additive RPC `cwd` field is optional in the server type, schema, generated TypeScript, Go, Python, and Rust bindings.
+- **4. Mixed conventions:** no instance found. TUI retains its BTW-wrapped command-controller path, while ACP and RPC consistently share the extracted headless relocation path; all use the same AgentSession reservation and continuation protocol.
+- **5. Missing abstractions / abstraction gravity:** no instance found. CLI/tool worktree creation shares `addRepoWorktree`; `/move`, `/wt`, ACP, and RPC share headless relocation; and D6 detection is centralized in `findRunningSessionWork`.
+- **6. Dead code:** no instance found. `shouldStopAfterBatch`, move reservations, host relocators, `session_move` registration, `worktree.repoDir`, `addRepoWorktree`, and RPC `cwd` all have production consumers. Searches included:
+  - `functions.grep pattern="reserveSessionMove\\(|hasPendingSessionMove\\(" path="packages/coding-agent"`
+  - `functions.grep pattern="addRepoWorktree\\(" path="."`
+  - `functions.grep pattern="cfgWorktreeRepoDir|resolveRepoWorktreeDir|worktree\\.repoDir" path="."`
+  - `functions.grep pattern="relocateHeadlessSession\\(|relocateForAgent\\(|setSessionRelocator\\(" path="packages/coding-agent"`
+- **7. Doc drift:** no instance found. The tool documentation, slash-command internals, RPC documentation, OpenSpec requirements, prompts, both changelogs, and generated RPC bindings agree on deferred relocation, approval tiers, and optional `cwd`.
+
+- **Surprise-scope walk:** changed production files fit the planned agent-loop hook, session lifecycle, worktree helper/settings/tool, TUI/ACP/RPC adapters, RPC wire surface, docs, and changelogs. The ACP-permission regression test is explicitly prescribed by task 12.1. No out-of-scope ACP cwd protocol, subagent relocation, `task.cwd`, print-mode support, or weaver/gate-policy work was introduced.
+- **Plan walk:** all implementation tasks through 11 are marked complete and map to corresponding diff surfaces. Task 12.1 remains unchecked in the pinned plan; its requested ACP permission regression is present at `packages/coding-agent/test/agent-session-acp-permission.test.ts:389-453`. This read-only review did not execute its prescribed commands or independently verify their recorded outcomes.
+- **Out-of-scope walk:** respected. `/move` and `/wt` retain their existing behavior via the shared relocation extraction; persistent LSP/MCP/eval rebinding remains excluded; no ACP protocol addition or subagent move capability was added.
+- **Verification walk:** the pinned plan marks tasks 7.1–7.3 complete and records F3/F1 evidence paths, but no checks were run in this review. The merged-main task 12.1 remains pending in plan status, as noted above.
+- **Seams:** checked the normal/replay/Cursor-resolved stop-hook boundaries; reservation and direct bridge execution; D6 registry propagation; worktree helper and repoDir validation; transition fence and hidden continuation; host declaration and tool registration; TUI/ACP/RPC relocators; ACP approval tier routing; and RPC `cwd` source/schema/generated-client contract.
+- **Simplification pass:** no additional cross-slice simplification candidate found.
+
+PASS
