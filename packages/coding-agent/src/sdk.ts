@@ -4803,6 +4803,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// Children borrow their parent's manager but never dispose it.
 			ownedAsyncJobManager: asyncJobManager,
 			asyncJobManager: scopedAsyncJobManager,
+			agentRegistry,
 			scopedModels: options.scopedModels,
 			inheritedSessionAgents: options.inheritedSessionAgents,
 			promptTemplates,

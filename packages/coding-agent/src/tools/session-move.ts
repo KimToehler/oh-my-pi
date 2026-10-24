@@ -89,6 +89,8 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 	readonly description: string;
 	readonly parameters = sessionMoveSchema;
 	readonly strict = true;
+	/** Admission, worktree creation and the pending-move claim must not interleave with a sibling call in the batch. */
+	readonly concurrency = "exclusive";
 	readonly loadMode = "discoverable";
 	readonly intent = (args: Partial<SessionMoveParams>) =>
 		args.path ? `moving session to ${args.path}` : "moving session";

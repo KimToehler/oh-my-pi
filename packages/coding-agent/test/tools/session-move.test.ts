@@ -12,6 +12,9 @@ import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { BUILTIN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 
 const GIT = ["-c", "user.name=Probe", "-c", "user.email=probe@example.invalid", "-c", "commit.gpgsign=false"];
@@ -516,6 +519,78 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 			).rejects.toThrow(/\/move/);
 			const existing = await tool.execute("existing", { path: repo }, undefined, undefined, context);
 			expect(existing.stopAfterBatch).toBe(true);
+		});
+
+		it("session_move: a second creating call in the same batch creates nothing", async () => {
+			const authStorage = await AuthStorage.create(path.join(root, "testauth.db"));
+			cleanup.push(() => authStorage.close());
+			authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
+			const created = await createAgentSession({
+				cwd: repo,
+				authStorage,
+				modelRegistry: new ModelRegistry(authStorage, path.join(root, "models.yml")),
+				agentDir: root,
+				sessionManager: SessionManager.create(repo, path.join(root, "sessions")),
+				settings: Settings.isolated({
+					"worktree.clone": false,
+					"compaction.enabled": false,
+					"retry.enabled": false,
+				}),
+				model: getBundledModel("anthropic", "claude-sonnet-4-5"),
+				disableExtensionDiscovery: true,
+				skills: [],
+				contextFiles: [],
+				workspaceTree: { rootPath: repo, rendered: ".\n", truncated: false, totalLines: 1, agentsMdFiles: [] },
+				promptTemplates: [],
+				slashCommands: [],
+				enableMCP: false,
+				enableLsp: false,
+				toolNames: ["session_move"],
+				sessionRelocation: true,
+			});
+			cleanup.push(() => created.session.dispose());
+			created.session.setSessionRelocator(async () => ({ ok: true }));
+			const firstTarget = path.join(repo, ".worktrees", "one");
+			const secondTarget = path.join(repo, ".worktrees", "two");
+			const mock = createMockModel({
+				responses: [
+					{
+						content: [
+							{
+								type: "toolCall",
+								id: "m1",
+								name: "session_move",
+								arguments: { path: firstTarget, branch: "one" },
+							},
+							{
+								type: "toolCall",
+								id: "m2",
+								name: "session_move",
+								arguments: { path: secondTarget, branch: "two" },
+							},
+						],
+					},
+					{ content: ["done"] },
+				] as MockResponse[],
+			});
+			created.session.agent.streamFn = mock.stream;
+
+			await created.session.prompt("move twice");
+			await created.session.waitForIdle();
+
+			expect(await exists(firstTarget)).toBe(true);
+			expect(await exists(secondTarget)).toBe(false);
+			const branchNames = (await branches()).split("\n").map(line => line.replace(/^[*+]?\s+/, ""));
+			expect(branchNames).toContain("one");
+			expect(branchNames).not.toContain("two");
+			const results = mock.calls
+				.at(-1)!
+				.context.messages.filter(message => message.role === "toolResult")
+				.map(message => ({ id: message.toolCallId, isError: message.isError }));
+			expect(results).toEqual([
+				{ id: "m1", isError: false },
+				{ id: "m2", isError: true },
+			]);
 		});
 	});
 });

@@ -1092,6 +1092,8 @@ export class AgentSession implements SettingsScope {
 	#openTurnObservation: TurnObservation | undefined;
 	// Agent identity (registry id) used for IRC routing and job ownership.
 	#agentId: string | undefined;
+	/** Registry the session was created with; undefined falls back to `AgentRegistry.global()`. */
+	#agentRegistry: AgentRegistry | undefined;
 	#agentKind: "main" | "sub" = "main";
 	#scoutAllowedBySpawnPolicy = true;
 	#providerSessionId: string | undefined;
@@ -2597,6 +2599,7 @@ export class AgentSession implements SettingsScope {
 		this.#streamingEditGuard = new StreamingEditGuard(streamGuardsHost);
 		this.#loopGuards = new LoopGuards(streamGuardsHost);
 		this.#agentId = config.agentId;
+		this.#agentRegistry = config.agentRegistry;
 		this.#agentKind = config.agentKind ?? "main";
 		// A subagent's streamed text reaches no output sink until the run settles
 		// (the parent sees only the yield), so a failed turn's partial prose is
@@ -3311,6 +3314,7 @@ export class AgentSession implements SettingsScope {
 				asyncJobManager: this.#asyncJobManager,
 				agentId: this.#agentId,
 				sessionFile: this.sessionManager.getSessionFile(),
+				registry: this.#agentRegistry,
 			});
 			const relocator = this.#sessionRelocator;
 			if (hasRunningSessionWork(work)) {

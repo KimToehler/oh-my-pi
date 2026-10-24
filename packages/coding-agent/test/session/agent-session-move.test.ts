@@ -84,6 +84,7 @@ describe("session move", () => {
 		relocate?: (target: string, fx: () => Fixture) => Promise<SessionRelocationResult>;
 		withJobManager?: boolean;
 		settings?: Record<string, unknown>;
+		agentRegistry?: AgentRegistry;
 	}): Fixture {
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("Expected bundled test model to exist");
@@ -123,6 +124,7 @@ describe("session move", () => {
 			modelRegistry,
 			agentId: AGENT_ID,
 			asyncJobManager: jobManager,
+			agentRegistry: options.agentRegistry,
 		});
 		const relocatorCalls: string[] = [];
 		const fx: Fixture = { session, mock, srcDir, dstDir, dstSessions, relocatorCalls, events };
@@ -348,6 +350,45 @@ describe("session move", () => {
 		const texts = moveResultTexts(fx.mock);
 		expect(texts).toHaveLength(1);
 		expect(texts[0]).toContain("MoveSub");
+	});
+
+	it("session move: the post-batch re-check sees subagents of a custom registry", async () => {
+		const customRegistry = new AgentRegistry();
+		const fx = setup({
+			name: "custom-registry",
+			agentRegistry: customRegistry,
+			responses: [{ content: [call("a1", "spawn_agent"), call("m1", "session_move")] }, { content: ["continued"] }],
+			tools: ({ getSession, srcDir, events }) => [
+				sessionMoveTool(getSession, () => path.join(path.dirname(srcDir), "dst"), events),
+				{
+					name: "spawn_agent",
+					label: "spawn_agent",
+					description: "spawn",
+					parameters: Type.Object({}),
+					async execute() {
+						const sessionFile = getSession().sessionManager.getSessionFile() as string;
+						const artifacts = sessionFile.slice(0, -".jsonl".length);
+						customRegistry.register({
+							id: "CustomSub",
+							displayName: "CustomSub",
+							kind: "sub",
+							session: null,
+							sessionFile: path.join(artifacts, "CustomSub.jsonl"),
+							status: "running",
+						});
+						return { content: [{ type: "text", text: "started" }] };
+					},
+				},
+			],
+		});
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+
+		expect(fx.relocatorCalls).toEqual([]);
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
+		const texts = moveResultTexts(fx.mock);
+		expect(texts).toHaveLength(1);
+		expect(texts[0]).toContain("CustomSub");
 	});
 
 	it("session move: running work helper counts only own jobs and subagents inside the artifacts directory", async () => {
