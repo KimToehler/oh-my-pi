@@ -1,0 +1,46 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/session-move-tool",
+  "plan_sha256": "6a50701e492ea4e501aea81be7b9490dd56057e27243e283cf82e94491d1af7d",
+  "reviewed_sha": "420c6cc4eaa8d201d9e854657ee6fb982b255e08",
+  "diff_base": "24d028086d48b80e5a380e5dc3d1309e8bc6d653",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Both F2 reviewers returned PASS with no blockers on the head whose F1 QA and F3 wave 5 also passed.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": ["onara/cc/claude-opus-5"],
+  "qa": [
+    { "name": "F1 (a) move into an existing worktree, continuation runs there", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/a-existing.md" },
+    { "name": "F1 (b) create a worktree on a new branch and move", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/b-create.md" },
+    { "name": "F1 (c) target outside the repository rejected, cwd unchanged", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/c-outside.md" },
+    { "name": "F1 (d) refused while a background bash job runs", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/d-background.md" },
+    { "name": "F1 (e) exactly one turn after the move under an active goal", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/e-goal.md" },
+    { "name": "F1 (f) ACP stdio move, continuation updates, no chunk before the command reload", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/f-acp.md" },
+    { "name": "F1 (g) resume lists the moved session in the target's session bucket", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/g-resume.md" }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/session-move-tool/f3-integration-review-report.md",
+    "report_sha256": "e554e44853d8f1642a540d55f4639fec53ee7df2746b64f79ae94d3a6a5537c0"
+  },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" },
+    { "invocation": "strategic-risk-review", "agent": "oracle", "model": "onara/cx/gpt-5.6-sol", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/session-move-tool/implementation-audit-trailer.md",
+      "trailer_sha256": "d002c4f523bfba0cb7f99829e2cef95201a83f756a3af0a1c46234380e0111d0",
+      "note": "No blockers; verification adequacy section cites the F1 artifacts and the package test runs. First invocation returned PASS with an unindented trailer; re-run verbatim rather than edited."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/session-move-tool/strategic-risk-review-trailer.md",
+      "trailer_sha256": "34c5b650bb87982cf3201709d03e3d614d886811074a762256c520468b54c028",
+      "note": "No blockers; two non-blocking notes (abort during worktree creation, ACP fatal disposal self-wait) recorded as hardening observations."
+    }
+  ],
+  "blockers": []
+}
