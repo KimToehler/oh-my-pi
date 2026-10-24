@@ -1790,7 +1790,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 			if (outcome.fatal) {
 				// Rollback could not re-align the session: it is unusable, so end it as `/move` does.
 				output({ type: "notice", level: "error", message: outcome.reason, source: "session-move" });
-				void disposeAndExit();
+				await disposeAndExit();
 			}
 			return { ok: false, reason: outcome.reason };
 		} finally {

@@ -558,7 +558,6 @@ function coerceToolResult(raw: unknown): { result: AgentToolResult<unknown>; mal
 	// Tools may flag the result contextually useless (zero matches, elapsed
 	// wait) so compaction can elide it once consumed. Errors are never useless.
 	const useless = Boolean(rawObj && "useless" in rawObj && rawObj.useless);
-	const stopAfterBatch = Boolean(rawObj && "stopAfterBatch" in rawObj && rawObj.stopAfterBatch);
 
 	if (!Array.isArray(rawContent)) {
 		return {
@@ -615,7 +614,6 @@ function coerceToolResult(raw: unknown): { result: AgentToolResult<unknown>; mal
 			providerMetadata,
 			...(isError ? { isError: true } : {}),
 			...(useless && !isError ? { useless: true } : {}),
-			...(stopAfterBatch && !isError ? { stopAfterBatch: true } : {}),
 		},
 		malformed: invalidBlocks > 0 || providerMetadataResult.malformed,
 	};
@@ -1315,7 +1313,7 @@ async function runLoopBody(
 		// Outer loop: continues when queued follow-up messages arrive after agent would stop
 		while (true) {
 			let hasMoreToolCalls = true;
-			let stopAfterBatch = false;
+			let batchStopped = false;
 
 			// Inner loop: process tool calls and steering messages
 			while (hasMoreToolCalls || pendingMessages.length > 0) {
@@ -1673,7 +1671,8 @@ async function runLoopBody(
 						[...liveAccepted, ...liveDeferred],
 					);
 					toolResults.push(...executionResult.toolResults);
-					stopAfterBatch = executionResult.stopAfterBatch;
+					// Every started call has settled and its result is recorded; ask the host once.
+					batchStopped = config.shouldStopAfterBatch?.() === true;
 
 					for (const result of toolResults) {
 						currentContext.messages.push(result);
@@ -1720,7 +1719,7 @@ async function runLoopBody(
 
 				// A tool batch may end the run without aborting it (e.g. session_move): siblings already
 				// settled; skip the next provider call and every queue drain so input waits for the next run.
-				if (stopAfterBatch) {
+				if (batchStopped) {
 					hasMoreToolCalls = false;
 				}
 
@@ -1779,9 +1778,9 @@ async function runLoopBody(
 				// still owns every message until this dequeue.
 				// Aborted: live-taken steering stays unrecorded, so the agent returns
 				// it to the queue for the continuation run.
-				// stopAfterBatch behaves like an abort for the queues only: nothing is drained or recorded,
+				// A batch stop behaves like an abort for the queues only: nothing is drained or recorded,
 				// so queued input (and live-taken, unrecorded steering) waits for the run after the stop.
-				const drainBlocked = signal?.aborted === true || stopAfterBatch;
+				const drainBlocked = signal?.aborted === true || batchStopped;
 				const live = drainBlocked ? [] : [...liveAccepted, ...liveDeferred];
 				const liveReachedModel = !drainBlocked && liveAccepted.length > 0;
 				if (liveReachedModel) {
@@ -1827,7 +1826,7 @@ async function runLoopBody(
 			// Re-poll steering too: a steer can land between the stop-boundary dequeue
 			// above and this yield point (e.g. queued while onBeforeYield ran). Without
 			// this poll it would strand in the queue until the next manual prompt.
-			const yieldDrainBlocked = signal?.aborted === true || stopAfterBatch;
+			const yieldDrainBlocked = signal?.aborted === true || batchStopped;
 			const lateSteering = yieldDrainBlocked ? [] : (await config.getSteeringMessages?.(signal)) || [];
 			const asideMessages = yieldDrainBlocked ? [] : resolveAsides(await config.getAsideMessages?.());
 			const followUpMessages = yieldDrainBlocked ? [] : (await config.getFollowUpMessages?.(signal)) || [];
@@ -3275,7 +3274,7 @@ async function executeToolCalls(
 	// Steering the provider took off the queue during the response that emitted
 	// this batch; it injects at this batch's boundary like queued steering.
 	liveSteering: readonly AgentMessage[],
-): Promise<{ toolResults: ToolResultMessage[]; additionalContext?: string; stopAfterBatch: boolean }> {
+): Promise<{ toolResults: ToolResultMessage[]; additionalContext?: string }> {
 	const tools = currentContext.tools;
 	const {
 		hasSteeringMessages,
@@ -3700,7 +3699,6 @@ async function executeToolCalls(
 							isError: after.isError ?? result.isError,
 							providerMetadata: after.providerMetadata ?? result.providerMetadata,
 							useless: after.useless ?? result.useless,
-							stopAfterBatch: result.stopAfterBatch,
 						});
 						result = coerced.result;
 						isError = coerced.malformed || (after.isError ?? isError);
@@ -3908,10 +3906,6 @@ async function executeToolCalls(
 	);
 	return {
 		toolResults: emittedToolResults,
-		// Non-error, executed results only; the flag lives on the raw result, never on the persisted message.
-		stopAfterBatch: records.some(
-			record => !record.skipped && !record.isError && record.result?.stopAfterBatch === true,
-		),
 		...(additionalContext !== undefined ? { additionalContext } : {}),
 	};
 }

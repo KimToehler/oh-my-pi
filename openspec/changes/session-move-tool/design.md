@@ -59,7 +59,7 @@ Current state the design builds on:
 
 ## Decisions
 
-### D1. Defer the move to the end of the tool batch with a stop-after-batch tool result
+### D1. Defer the move to the end of the tool batch with a session-owned stop-after-batch hook
 
 The existing terminal-tool path cannot be reused: AgentSession aborts the run with
 `TERMINAL_TOOL_RESULT_ABORT_REASON` as soon as the terminal result settles
@@ -67,16 +67,25 @@ The existing terminal-tool path cannot be reused: AgentSession aborts the run wi
 (`packages/agent/src/agent-loop.ts:3309-3312`), which check it (`tools/read.ts:591`, `2845`). A
 sibling `read` still scanning when `session_move` returns would be aborted.
 
-Instead `packages/agent` gets a non-aborting stop: `AgentToolResult` gains `stopAfterBatch?:
-boolean`. The loop never touches the run signal for it. After `executeToolCalls` has settled every
-started call and their results are recorded, the loop checks the batch (next to the
-`TERMINAL_TOOL_RESULT_ABORT_REASON` check, `agent-loop.ts:1711-1715`): if any non-error result
-carries the flag, `hasMoreToolCalls` becomes false, and the steering, aside and follow-up drains
-of that iteration and of the yield point (`agent-loop.ts:1787-1799`, `1819-1826`) are skipped so
-queued user input stays in its queues for the run after the relocation, exactly as the external
-abort path leaves them. `onTurnEnd` runs with the live signal, `agent_end` follows. A successful
-`session_move` returns `stopAfterBatch: true`; a failed one does not, so the model sees the error
-and continues in the same run.
+Instead `packages/agent` gets a non-aborting stop: the loop config gains a hook
+`shouldStopAfterBatch?: () => boolean`, settable through `Agent` like the other loop callbacks. The
+loop never touches the run signal for it. After `executeToolCalls` has settled every started call
+and their results are recorded, the loop calls the hook once (next to the
+`TERMINAL_TOOL_RESULT_ABORT_REASON` check, `agent-loop.ts:1711-1715`): if it returns `true`,
+`hasMoreToolCalls` becomes false, and the steering, aside and follow-up drains of that iteration
+and of the yield point (`agent-loop.ts:1787-1799`, `1819-1826`) are skipped so queued user input
+stays in its queues for the run after the relocation, exactly as the external abort path leaves
+them. `onTurnEnd` runs with the live signal, `agent_end` follows. AgentSession installs the hook and
+returns `true` while a move recorded through `requestSessionMove` is pending; a failed
+`session_move` records nothing, so the model sees the error and continues in the same run.
+
+The stop is session state, not a field on the tool result, because the result does not reach the
+loop unchanged: `session_move` is a discoverable tool, so the model calls it through
+`write xd://session_move`, and `XdProtocolHandler.write` and `WriteTool` build a new result for the
+`write` call; the eval tool bridge likewise returns the eval cell's result. A result field
+(`AgentToolResult.stopAfterBatch`, the first implementation) was dropped on that path, and manual QA
+on e01af842ff showed the old run making another model request after the move. The hook works for
+every call path, including future tool wrappers.
 
 Alternatives: (a) reuse the terminal yield abort: rejected, it aborts in-flight siblings (above);
 (b) relocate inside the tool call, like ACP plan approval: rejected, sibling calls in the batch
@@ -180,9 +189,11 @@ The helper keeps the non-empty-target refusal. `addWorktree` keeps option normal
 plus `-B` refusal, `commit ?? "HEAD"` resolved in the invoking checkout, the derived branch name),
 maps the options to a `checkout`, prints from the result and keeps its exit-code behaviour. The tool
 maps its own arguments: a missing branch → `new-branch` from `base` (default: `headSha` of the
-repository at `primaryRoot()`), `force: false`; an existing branch → `ref` without detach, and a
-given `base` is then an error (the call would silently ignore it otherwise). A non-zero hook exit is
-reported as an error and no move is scheduled; the worktree stays.
+repository at `primaryRoot()`), `force: false`; an explicit `base` is resolved once to its commit
+SHA in the primary repository and that SHA, not the ref name, is passed as `from`, so a ref moved by
+a concurrent fetch after admission cannot change the start commit; an existing branch → `ref` without
+detach, and a given `base` is then an error (the call would silently ignore it otherwise). A
+non-zero hook exit is reported as an error and no move is scheduled; the worktree stays.
 
 ### D6. Background-work check covers the session's own jobs and subagents
 
@@ -218,8 +229,8 @@ runs the `post-checkout` hook), `write` otherwise. An invalid target resolves to
 The tool, the AgentSession pending-move/relocator contract and the three host relocators cannot ship
 separately: without a relocator the tool is absent, and a relocator without the tool has no caller.
 The worktree helper extraction is the shared contract that keeps the tool from adding a second
-`git worktree add`. All parts live in `packages/coding-agent` except the `stopAfterBatch` tool
-result field and its loop handling (D1), which live in `packages/agent`; that field has no other
+`git worktree add`. All parts live in `packages/coding-agent` except the `shouldStopAfterBatch`
+loop hook and its loop handling (D1), which live in `packages/agent`; that hook has no other
 consumer and cannot ship usefully without the tool.
 
 ## Risks / Trade-offs

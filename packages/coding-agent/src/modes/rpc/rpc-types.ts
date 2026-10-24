@@ -810,7 +810,7 @@ export interface RpcHostToolUpdate {
 export interface RpcHostToolResult {
 	type: "host_tool_result";
 	id: string;
-	result: Omit<AgentToolResult<unknown>, "stopAfterBatch">;
+	result: AgentToolResult<unknown>;
 	isError?: boolean;
 }
 

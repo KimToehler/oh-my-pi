@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { $ } from "bun";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
@@ -15,6 +15,7 @@ import { BUILTIN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools
 import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import * as sessionWorktree from "@oh-my-pi/pi-coding-agent/session/session-worktree";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 
 const GIT = ["-c", "user.name=Probe", "-c", "user.email=probe@example.invalid", "-c", "commit.gpgsign=false"];
@@ -123,16 +124,14 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 		expect(await exists(path.join(repo, ".worktrees"))).toBe(false);
 		const result = await toolFor(repo).execute("call", { path: target, branch: "feat" });
 		expect(requests).toEqual([target]);
-		expect(result.stopAfterBatch).toBe(true);
 		expect(textOf(result)).toContain(target);
 		expect(await $`git -C ${target} rev-parse --abbrev-ref HEAD`.text()).toBe("feat\n");
 		expect(await $`git -C ${target} rev-parse HEAD`.text()).toBe(`${second}\n`);
 	});
 
 	it("session_move: a relative path resolves from the session cwd", async () => {
-		const result = await toolFor(repo).execute("call", { path: ".worktrees/rel", branch: "rel" });
+		await toolFor(repo).execute("call", { path: ".worktrees/rel", branch: "rel" });
 		expect(requests).toEqual([path.join(repo, ".worktrees", "rel")]);
-		expect(result.stopAfterBatch).toBe(true);
 	});
 
 	it("session_move: the default base is the primary checkout HEAD, not the session's HEAD", async () => {
@@ -148,6 +147,24 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 		const target = path.join(repo, ".worktrees", "based");
 		await toolFor(repo).execute("call", { path: target, branch: "based", base: first });
 		expect(requests).toEqual([target]);
+		expect(await $`git -C ${target} rev-parse HEAD`.text()).toBe(`${first}\n`);
+	});
+
+	it("session_move: an explicit base is pinned to the commit resolved at admission", async () => {
+		await git("branch", "moving", first);
+		const target = path.join(repo, ".worktrees", "pinned");
+		const original = sessionWorktree.addRepoWorktree;
+		const spy = vi.spyOn(sessionWorktree, "addRepoWorktree").mockImplementation(async options => {
+			// The ref moves between admission and worktree creation.
+			await git("branch", "-f", "moving", second);
+			return original(options);
+		});
+		try {
+			await toolFor(repo).execute("call", { path: target, branch: "pinned", base: "moving" });
+		} finally {
+			spy.mockRestore();
+		}
+		expect(await git("rev-parse", "refs/heads/pinned")).toBe(first);
 		expect(await $`git -C ${target} rev-parse HEAD`.text()).toBe(`${first}\n`);
 	});
 
@@ -182,8 +199,7 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 	it("session_move: the repository root and registered worktrees are accepted as they are", async () => {
 		const linked = path.join(root, "linked");
 		await git("worktree", "add", "-b", "linked", linked);
-		const result = await toolFor(linked).execute("call", { path: repo });
-		expect(result.stopAfterBatch).toBe(true);
+		await toolFor(linked).execute("call", { path: repo });
 		await toolFor(repo).execute("call", { path: linked });
 		expect(requests).toEqual([repo, linked]);
 	});
@@ -203,8 +219,7 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 		await fs.mkdir(path.join(repo, ".worktrees"));
 		const link = path.join(repo, ".worktrees", "link");
 		await fs.symlink(external, link);
-		const result = await toolFor(repo).execute("call", { path: link });
-		expect(result.stopAfterBatch).toBe(true);
+		await toolFor(repo).execute("call", { path: link });
 		expect(requests).toEqual([await fs.realpath(external)]);
 	});
 
@@ -351,8 +366,7 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 		await git("worktree", "add", "-b", "linked", linked);
 		let pending = false;
 		const tool = toolFor(repo, { pending: () => pending });
-		const ok = await tool.execute("one", { path: linked });
-		expect(ok.stopAfterBatch).toBe(true);
+		await tool.execute("one", { path: linked });
 		pending = true;
 		await expect(tool.execute("two", { path: repo })).rejects.toThrow(/already pending/);
 		expect(requests).toEqual([linked]);
@@ -446,11 +460,9 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 				status: "running",
 			});
 			const sessionA = path.join(root, "sessions", "A.jsonl");
-			const result = await toolFor(repo, { agentRegistry: registry, sessionFile: sessionA, agentId: "A" }).execute(
-				"call",
-				{ path: repo },
-			);
-			expect(result.stopAfterBatch).toBe(true);
+			await toolFor(repo, { agentRegistry: registry, sessionFile: sessionA, agentId: "A" }).execute("call", {
+				path: repo,
+			});
 			// Control: the same registry blocks B for the subagent under B's artifacts directory only.
 			await expect(
 				toolFor(repo, { agentRegistry: registry, sessionFile: sessionB, agentId: "B" }).execute("call", {
@@ -517,8 +529,7 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 			await expect(
 				tool.execute("invalid", { path: path.join(root, "elsewhere") }, undefined, undefined, context),
 			).rejects.toThrow(/\/move/);
-			const existing = await tool.execute("existing", { path: repo }, undefined, undefined, context);
-			expect(existing.stopAfterBatch).toBe(true);
+			await tool.execute("existing", { path: repo }, undefined, undefined, context);
 		});
 
 		it("session_move: a second creating call in the same batch creates nothing", async () => {

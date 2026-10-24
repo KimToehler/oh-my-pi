@@ -46,10 +46,10 @@ on its own.
 
 - `packages/coding-agent/src/tools/`: new `session_move` tool, its prompt in `src/prompts/tools/`,
   registry entry, approval decision per call.
-- `packages/agent`: `AgentToolResult.stopAfterBatch`, a non-aborting stop that ends the run after the
+- `packages/agent`: a `shouldStopAfterBatch` loop hook, a non-aborting stop that ends the run after the
   current tool batch has settled (loop handling and `CHANGELOG.md`).
 - `packages/coding-agent/src/session/agent-session.ts`: pending-move state, turn end after a
-  successful `session_move` through `stopAfterBatch`, host handler on `ToolSession` (pattern of
+  successful `session_move` through the `shouldStopAfterBatch` hook, host handler on `ToolSession` (pattern of
   `setPlanProposalHandler`).
 - Hosts: `modes/interactive-mode.ts` + `modes/controllers/command-controller.ts` (TUI relocation),
   `modes/acp/acp-agent.ts`, `modes/rpc/` (headless relocation shared with the `/move` builtin in

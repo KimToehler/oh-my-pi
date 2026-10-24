@@ -232,7 +232,6 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 				},
 			],
 			details,
-			stopAfterBatch: true,
 		};
 	}
 
@@ -268,7 +267,7 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 		} else {
 			let from: string | null | undefined;
 			if (params.base !== undefined) {
-				from = (await primaryRepo.resolveRef(params.base)) ? params.base : undefined;
+				from = await primaryRepo.resolveRef(params.base);
 				if (!from)
 					throw new ToolError(`\`base\` "${params.base}" does not resolve to a commit in this repository.`);
 			} else {

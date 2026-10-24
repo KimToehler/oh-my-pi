@@ -5770,9 +5770,13 @@ describe("agentLoop useless-flag propagation", () => {
 });
 
 describe("agentLoop stop after batch", () => {
-	async function runBatch(aResult: { isError?: boolean }) {
+	async function runBatch(stopHook: (flag: { raised: boolean }) => boolean) {
 		const schema = type({});
 		const releaseB = Promise.withResolvers<void>();
+		const flag = { raised: false };
+		let bSettled = false;
+		let hookCalls = 0;
+		let bSettledAtHook: boolean | undefined;
 		let bSignal: AbortSignal | undefined;
 		let bSignalAbortedAtEnd: boolean | undefined;
 		const steeringQueue: AgentMessage[] = [];
@@ -5787,7 +5791,8 @@ describe("agentLoop stop after batch", () => {
 				steeringQueue.push(createUserMessage("steer during batch"));
 				asideQueue.push(createUserMessage("aside during batch"));
 				followUpQueue.push(createUserMessage("follow-up during batch"));
-				return { content: [{ type: "text", text: "A done" }], details: {}, stopAfterBatch: true, ...aResult };
+				flag.raised = true;
+				return { content: [{ type: "text", text: "A done" }], details: {} };
 			},
 		};
 		const toolB: AgentTool<typeof schema> = {
@@ -5799,6 +5804,7 @@ describe("agentLoop stop after batch", () => {
 				bSignal = signal;
 				await releaseB.promise;
 				bSignalAbortedAtEnd = signal?.aborted;
+				bSettled = true;
 				return { content: [{ type: "text", text: "B normal output" }], details: {} };
 			},
 		};
@@ -5822,6 +5828,11 @@ describe("agentLoop stop after batch", () => {
 			getSteeringMessages: drain(steeringQueue),
 			getAsideMessages: drain(asideQueue),
 			getFollowUpMessages: drain(followUpQueue),
+			shouldStopAfterBatch: () => {
+				hookCalls++;
+				bSettledAtHook = bSettled;
+				return stopHook(flag);
+			},
 		};
 		const events: AgentEvent[] = [];
 		let turnEndSignalAborted: boolean | undefined;
@@ -5853,11 +5864,13 @@ describe("agentLoop stop after batch", () => {
 			steeringQueue,
 			asideQueue,
 			followUpQueue,
+			hookCalls,
+			bSettledAtHook,
 		};
 	}
 
 	it("stop after batch: siblings settle normally, nothing is drained and no second request is made", async () => {
-		const r = await runBatch({});
+		const r = await runBatch(flag => flag.raised);
 		const results = r.results;
 		expect(results.map(m => m.toolCallId).sort()).toEqual(["a-1", "b-1"]);
 		const b = results.find(m => m.toolCallId === "b-1");
@@ -5873,17 +5886,12 @@ describe("agentLoop stop after batch", () => {
 		expect(r.steeringQueue).toHaveLength(1);
 		expect(r.asideQueue).toHaveLength(1);
 		expect(r.followUpQueue).toHaveLength(1);
+		expect(r.hookCalls).toBe(1);
+		expect(r.bSettledAtHook).toBe(true);
 	});
 
-	it("stop after batch: the flag does not reach the persisted tool result message", async () => {
-		const r = await runBatch({});
-		const results = r.results;
-		expect(results).toHaveLength(2);
-		for (const m of results) expect("stopAfterBatch" in m).toBe(false);
-	});
-
-	it("stop after batch: an error result does not stop the run", async () => {
-		const r = await runBatch({ isError: true });
+	it("stop after batch: a hook returning false lets the run continue", async () => {
+		const r = await runBatch(() => false);
 		expect(r.mock.calls.length).toBeGreaterThanOrEqual(2);
 		expect(r.steeringQueue).toHaveLength(0);
 	});

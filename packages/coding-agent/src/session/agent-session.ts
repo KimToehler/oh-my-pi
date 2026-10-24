@@ -2562,6 +2562,9 @@ export class AgentSession implements SettingsScope {
 			cancel: toolCallId => this.#ttsr.cancelBridgedToolCall(toolCallId),
 		});
 		this.agent.setOnBeforeYield(() => this.#ttsr.settleJudgments());
+		// A recorded session move ends the run after the current tool batch, whichever call path
+		// (direct, `write xd://session_move`, eval bridge) executed the tool.
+		this.agent.setShouldStopAfterBatch(() => this.#pendingSessionMove !== undefined);
 		this.agent.setOnModelCallSystemPrompt(prompt => {
 			this.#tools.recordPrimaryModelCall(prompt);
 			this.#recordModelCallSystemPrompt(prompt);
@@ -6372,6 +6375,7 @@ export class AgentSession implements SettingsScope {
 		this.#irc.flushPending();
 		this.yieldQueue.clear();
 		this.agent.setAsideMessageProvider(undefined);
+		this.agent.setShouldStopAfterBatch(undefined);
 		this.agent.hasIrcInterrupts = undefined;
 		this.agent.hasBackgroundCompletions = undefined;
 		this.agent.hasQueuedAsides = undefined;

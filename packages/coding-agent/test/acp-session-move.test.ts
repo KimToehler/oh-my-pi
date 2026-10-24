@@ -67,7 +67,7 @@ async function startMoveRig(version: 1 | 2, script: Record<number, MockResponse>
 		parameters: Type.Object({}),
 		async execute() {
 			requested.push(current?.requestSessionMove({ path: targetPath }) ?? false);
-			return { content: [{ type: "text", text: "scheduled" }], stopAfterBatch: true };
+			return { content: [{ type: "text", text: "scheduled" }] };
 		},
 	};
 	let targetPath = "";

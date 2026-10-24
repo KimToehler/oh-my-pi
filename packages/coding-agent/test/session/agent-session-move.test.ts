@@ -4,8 +4,10 @@
  * exactly one hidden continuation turn follows.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { $ } from "bun";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
 import type { ToolCall } from "@oh-my-pi/pi-ai";
@@ -26,6 +28,7 @@ import {
 	type SessionRelocator,
 } from "@oh-my-pi/pi-coding-agent/session/session-move";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { Type } from "@sinclair/typebox";
 
@@ -149,7 +152,7 @@ describe("session move", () => {
 			async execute() {
 				getSession().requestSessionMove({ path: target() });
 				events.push("session_move-result");
-				return { content: [{ type: "text", text: "scheduled" }], stopAfterBatch: true };
+				return { content: [{ type: "text", text: "scheduled" }] };
 			},
 		};
 	}
@@ -510,5 +513,113 @@ describe("session move", () => {
 		expect(turnStarts).toEqual(["session-move-result@dst", "goal-continuation@dst"]);
 		expect(fx.mock.calls).toHaveLength(3);
 		expect(fx.relocatorCalls).toEqual([fx.dstDir]);
+	});
+});
+
+describe.skipIf(process.platform === "win32")("session move through xd", () => {
+	let root: string;
+	let authStorage: AuthStorage;
+	let created: AgentSession | undefined;
+
+	beforeEach(async () => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-move-xd-")));
+		authStorage = await AuthStorage.create(path.join(root, "testauth.db"));
+		authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
+	});
+
+	afterEach(async () => {
+		await created?.dispose();
+		created = undefined;
+		authStorage.close();
+		fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	it("session move: batch stop through write xd://session_move", async () => {
+		const repo = path.join(root, "repo");
+		const worktree = path.join(root, "linked");
+		const git = ["-c", "user.name=Probe", "-c", "user.email=probe@example.invalid", "-c", "commit.gpgsign=false"];
+		await $`git init -q ${repo}`.quiet();
+		fs.writeFileSync(path.join(repo, "a.txt"), "old cwd content");
+		await $`git -C ${repo} ${git} add a.txt`.quiet();
+		await $`git -C ${repo} ${git} commit -qm first`.quiet();
+		await $`git -C ${repo} worktree add -q -b linked ${worktree}`.quiet();
+		const release = Promise.withResolvers<void>();
+		let slowReadCwd = "";
+
+		const sessions = await createAgentSession({
+			cwd: repo,
+			authStorage,
+			modelRegistry: new ModelRegistry(authStorage, path.join(root, "models.yml")),
+			agentDir: root,
+			sessionManager: SessionManager.create(repo, path.join(root, "sessions")),
+			settings: Settings.isolated({
+				"worktree.clone": false,
+				"compaction.enabled": false,
+				"retry.enabled": false,
+				"todo.reminders": false,
+				"tools.xdev": true,
+				"tools.approvalMode": "yolo",
+			}),
+			model: getBundledModel("anthropic", "claude-sonnet-4-5"),
+			disableExtensionDiscovery: true,
+			skills: [],
+			contextFiles: [],
+			workspaceTree: { rootPath: repo, rendered: ".\n", truncated: false, totalLines: 1, agentsMdFiles: [] },
+			promptTemplates: [],
+			slashCommands: [],
+			enableMCP: false,
+			enableLsp: false,
+			toolNames: ["write", "session_move"],
+			customTools: [
+				{
+					name: "slow_read",
+					label: "slow_read",
+					description: "read",
+					parameters: Type.Object({ path: Type.String() }),
+					async execute() {
+						await release.promise;
+						slowReadCwd = created?.sessionManager.getCwd() ?? "";
+						return {
+							content: [
+								{ type: "text" as const, text: fs.readFileSync(path.join(slowReadCwd, "a.txt"), "utf8") },
+							],
+						};
+					},
+				},
+			],
+			sessionRelocation: true,
+		});
+		created = sessions.session;
+		const events: string[] = [];
+		created.setSessionRelocator(async target => {
+			events.push(`relocator:${target}`);
+			return { ok: true };
+		});
+		const mock = createMockModel({
+			responses: [
+				{
+					content: [
+						call("w1", "write", { path: "xd://session_move", content: JSON.stringify({ path: worktree }) }),
+						call("r1", "slow_read", { path: "a.txt" }),
+					],
+				},
+				{ content: ["continued"] },
+			],
+		});
+		created.agent.streamFn = (model, context, options) => {
+			events.push("provider-request");
+			return mock.stream(model, context, options);
+		};
+		const unsubscribe = created.subscribe(event => {
+			if (event.type === "tool_execution_end" && event.toolName === "write") release.resolve();
+		});
+		await created.prompt("go");
+		await created.waitForIdle();
+		unsubscribe();
+
+		// One request for the batch; the relocator runs before the continuation request, never a request in the old checkout.
+		expect(events).toEqual(["provider-request", `relocator:${worktree}`, "provider-request"]);
+		expect(slowReadCwd).toBe(repo);
+		expect(mock.calls).toHaveLength(2);
 	});
 });

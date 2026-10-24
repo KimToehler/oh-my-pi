@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added `stopAfterBatch` to `AgentToolResult`: a non-error result carrying it ends the run once the current tool batch has settled, without aborting sibling tools or draining queued steering, aside and follow-up messages
+- Added `AgentLoopConfig.shouldStopAfterBatch` / `Agent.setShouldStopAfterBatch`: asked once after every call of a tool batch has settled; returning `true` ends the run without aborting sibling tools or draining queued steering, aside and follow-up messages, whichever call path (direct, `write xd://<tool>`, eval bridge) ran the tools
 
 ### Fixed
 

@@ -106,7 +106,7 @@ describe("tui session move", () => {
 					parameters: Type.Object({}),
 					async execute() {
 						session?.requestSessionMove({ path: target });
-						return { content: [{ type: "text" as const, text: "scheduled" }], stopAfterBatch: true };
+						return { content: [{ type: "text" as const, text: "scheduled" }] };
 					},
 				},
 			],
@@ -276,5 +276,43 @@ describe("rpc session move", () => {
 		).toBe(true);
 		const messages = JSON.stringify(await client.getMessages());
 		expect(messages).toContain("continued after the move");
+	});
+
+	it("rpc session move: a fatal relocation starts no continuation", async () => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "omp-rpc-session-move-fatal-")));
+		const target = path.join(root, "moved-to");
+		fs.mkdirSync(target);
+		const requestLog = path.join(root, "requests.log");
+		fs.writeFileSync(requestLog, "");
+		client = new RpcClient({
+			command: [
+				process.execPath,
+				path.join(import.meta.dir, "..", "fixtures", "session-move-rpc-agent.ts"),
+				root,
+				target,
+				"fatal",
+				requestLog,
+			],
+			cwd: root,
+			env: { PI_CODING_AGENT_DIR: root, PI_NO_TITLE: "1" },
+		});
+		await client.start();
+		const events: Array<{ type: string; message?: { customType?: string } }> = [];
+		client.onEvent(event => events.push(event as (typeof events)[number]));
+		await client.prompt("move to the target");
+		// A subprocess exit is only observable through its log file; no in-process event or fake timer reaches it.
+		const deadline = Date.now() + 20_000;
+		let lines: string[] = [];
+		while (Date.now() < deadline) {
+			lines = fs.readFileSync(requestLog, "utf8").split("\n").filter(Boolean);
+			if (lines.includes("exit")) break;
+			await Bun.sleep(25);
+		}
+
+		// The process ends after exactly the one provider request of the batch; the failed move never starts a turn.
+		expect(lines).toEqual(["request", "exit"]);
+		expect(
+			events.some(event => event.type === "message_start" && event.message?.customType === "session-move-result"),
+		).toBe(false);
 	});
 });

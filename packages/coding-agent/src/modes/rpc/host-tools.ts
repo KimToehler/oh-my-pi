@@ -110,10 +110,7 @@ export class RpcHostToolBridge {
 			pending.reject(new Error(text || "Host tool execution failed"));
 			return true;
 		}
-		// `stopAfterBatch` is runtime-only (session tools); a host result must never end the run.
-		const result: AgentToolResult<unknown> = { ...frame.result };
-		delete result.stopAfterBatch;
-		pending.resolve(result);
+		pending.resolve(frame.result);
 		return true;
 	}
 

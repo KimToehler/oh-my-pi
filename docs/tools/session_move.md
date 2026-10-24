@@ -11,7 +11,7 @@
   - `packages/coding-agent/src/session/session-worktree.ts` — `addRepoWorktree`, shared with `omp worktree add` and the `bash` `git worktree add` rewrite.
   - `packages/coding-agent/src/session/headless-relocation.ts` — ACP and RPC relocation, shared with the `/move` and `/wt` builtins.
   - `packages/coding-agent/src/modes/controllers/command-controller.ts` — TUI relocation (`relocateForAgent`), shared with `/move`.
-  - `packages/agent/src/agent-loop.ts` — `stopAfterBatch` ends the run after the batch without aborting sibling calls.
+  - `packages/agent/src/agent-loop.ts` — the `shouldStopAfterBatch` hook (installed by AgentSession while a move is pending) ends the run after the batch without aborting sibling calls, for every call path including `write xd://session_move`.
 
 ## Registration / Visibility
 - Tool metadata: `strict = true`, `loadMode = "discoverable"`; `approval` is decided per call (see Approval).
@@ -43,7 +43,7 @@ Anything else is refused with an error that points to `/move`: a path outside th
 2. A second `session_move` while a move is pending is refused.
 3. Target validation (Allowed targets).
 4. Missing target: a branch name is required; the missing worktree-directory components are created, then `addRepoWorktree` adds the worktree the way `omp worktree add` does (`worktree.clone`, plain checkout for targets inside the source checkout, `post-checkout` hook). If adding the worktree fails, the directories the call created are removed again. When the hook exits non-zero the call fails with the hook output, the worktree stays, and no move is scheduled.
-5. `requestSessionMove` records the move and the result carries `stopAfterBatch: true`: the other calls of the same batch finish normally and still resolve against the old directory, then the run ends without another model request. Queued steering and follow-up messages stay queued.
+5. `requestSessionMove` records the move; once every call of the batch has settled, the agent loop asks AgentSession's `shouldStopAfterBatch` hook, which returns true while a move is pending: the other calls of the same batch finish normally and still resolve against the old directory, then the run ends without another model request. Queued steering and follow-up messages stay queued.
 6. At `agent_end` AgentSession opens the session-transition fence. As post-prompt work, once the session is idle, it checks running work again (a sibling `async` call may have started a job), calls the host relocator — the same path as `/move`, including settings flush, BTW gate, rollback, and plugin, command and rule reload — and closes the fence.
 7. One hidden `session-move-result` message starts exactly one continuation turn. It names the new directory, or the failure and its reason. On failure the cwd and the session file are unchanged.
 

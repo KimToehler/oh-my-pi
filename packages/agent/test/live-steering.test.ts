@@ -304,16 +304,18 @@ describe("agent loop live steering", () => {
 	});
 
 	it("stop after batch: live-taken steering is requeued", async () => {
-		// The steer was accepted live by the response that issued the batch; stopAfterBatch skips the
+		// The steer was accepted live by the response that issued the batch; the stop hook skips the
 		// drain that would record it, so the run's cleanup must hand it back to the steering queue.
 		const schema = type({});
+		let stopRequested = false;
 		const stopTool: AgentTool<typeof schema> = {
 			name: "stop_tool",
 			label: "Stop",
 			description: "Stops after the batch",
 			parameters: schema,
 			async execute() {
-				return { content: [{ type: "text", text: "stopping" }], details: {}, stopAfterBatch: true };
+				stopRequested = true;
+				return { content: [{ type: "text", text: "stopping" }], details: {} };
 			},
 		};
 		const mock = createMockModel({
@@ -336,6 +338,7 @@ describe("agent loop live steering", () => {
 				return mock.stream(model, context, options);
 			},
 		});
+		agent.setShouldStopAfterBatch(() => stopRequested);
 		const steer = createUserMessage("use tabs");
 		const running = agent.prompt("start");
 		agent.steer(steer);
