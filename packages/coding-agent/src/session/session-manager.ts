@@ -2428,7 +2428,14 @@ export class SessionManager {
 		return sessionFile;
 	}
 
-	/** Delete a session file and its artifact directory. ENOENT is treated as success. */
+	/**
+	 * Delete a session file and its artifact directory. ENOENT is treated as success.
+	 *
+	 * Deleting the current session file leaves this manager in-memory: later
+	 * entries are not persisted and nothing recreates the deleted path until
+	 * {@link newSession} or {@link setSessionFile} assigns another file. A failed
+	 * delete keeps the current file as the persistence target.
+	 */
 	async dropSession(sessionPath: string): Promise<void> {
 		await this.#drainAndCloseWriter();
 		try {
@@ -2436,6 +2443,18 @@ export class SessionManager {
 		} catch (err) {
 			if (!isEnoent(err)) throw err;
 		}
+		if (this.#sessionFile === undefined || path.resolve(sessionPath) !== path.resolve(this.#sessionFile)) return;
+		this.#sessionFile = undefined;
+		this.#fileIsCurrent = false;
+		this.#rewriteRequired = false;
+		this.#expectedDiskSize = null;
+		this.#forceFileCreation = false;
+		this.#draftOnlySessionCleanupArmed = false;
+		this.#pendingArtifactCopy = undefined;
+		this.#sessionClaim?.release?.();
+		this.#sessionClaim = undefined;
+		// An append that landed during the delete may have reopened the writer on the unlinked path.
+		await this.#drainAndCloseWriter();
 	}
 
 	/**
