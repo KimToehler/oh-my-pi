@@ -434,6 +434,56 @@ describe("session move", () => {
 		hold.resolve("done");
 	});
 
+	it("session move: a descendant registered before the move is still owned work for the next move", async () => {
+		const customRegistry = new AgentRegistry();
+		const fx = setup({
+			name: "rebase-descendant",
+			responses: [{ content: [call("s1", "spawn_agent"), call("m1", "session_move")] }, { content: ["continued"] }],
+			tools: ({ getSession, srcDir, events }) => [
+				sessionMoveTool(getSession, () => path.join(path.dirname(srcDir), "dst"), events),
+				{
+					name: "spawn_agent",
+					label: "spawn_agent",
+					description: "spawn",
+					parameters: Type.Object({}),
+					async execute() {
+						const sessionFile = getSession().sessionManager.getSessionFile() as string;
+						const artifacts = sessionFile.slice(0, -".jsonl".length);
+						// Idle, so it does not block this move; a peer wake can make it run again later.
+						customRegistry.register({
+							id: "RebaseSub",
+							displayName: "RebaseSub",
+							kind: "sub",
+							session: null,
+							sessionFile: path.join(artifacts, "RebaseSub.jsonl"),
+							status: "idle",
+						});
+						return { content: [{ type: "text", text: "started" }] };
+					},
+				},
+			],
+			agentRegistry: customRegistry,
+		});
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+		expect(fx.relocatorCalls).toEqual([fx.dstDir]);
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.dstDir);
+
+		// The move renamed the artifacts directory; a peer wakes the descendant afterwards.
+		expect(customRegistry.setStatus("RebaseSub", "running")).toBe(true);
+		const movedFile = fx.session.sessionManager.getSessionFile() as string;
+		expect(customRegistry.get("RebaseSub")?.sessionFile).toBe(
+			path.join(movedFile.slice(0, -".jsonl".length), "RebaseSub.jsonl"),
+		);
+		const work = findRunningSessionWork({
+			asyncJobManager: undefined,
+			agentId: AGENT_ID,
+			sessionFile: movedFile,
+			registry: customRegistry,
+		});
+		expect(work.agentIds).toEqual(["RebaseSub"]);
+	});
+
 	it("session move: relocation is skipped and cleared when the run is aborted before agent_end", async () => {
 		const gate = Promise.withResolvers<void>();
 		const started = Promise.withResolvers<void>();

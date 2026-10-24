@@ -53,6 +53,12 @@ export interface RunningSessionWorkScope {
 	registry?: AgentRegistry;
 }
 
+/** The artifacts directory of a session file: its path without the `.jsonl` suffix. */
+function artifactsDirOf(sessionFile: string | null | undefined): string | null {
+	if (!sessionFile) return null;
+	return path.resolve(sessionFile.endsWith(".jsonl") ? sessionFile.slice(0, -".jsonl".length) : sessionFile);
+}
+
 /**
  * Own running async jobs plus running registry subagents whose session file lies inside this
  * session's artifacts directory (design D6). A subagent ref without a session file never counts.
@@ -70,10 +76,8 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 		}
 	}
 	const agentIds: string[] = [];
-	if (scope.sessionFile) {
-		const artifactsDir = path.resolve(
-			scope.sessionFile.endsWith(".jsonl") ? scope.sessionFile.slice(0, -".jsonl".length) : scope.sessionFile,
-		);
+	const artifactsDir = artifactsDirOf(scope.sessionFile);
+	if (artifactsDir) {
 		const registry = scope.registry ?? AgentRegistry.global();
 		for (const ref of registry.list()) {
 			if (ref.kind !== "sub" || ref.status !== "running" || !ref.sessionFile) continue;
@@ -84,6 +88,32 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 		}
 	}
 	return { jobIds, agentIds };
+}
+
+/**
+ * Repoint the registry refs of descendants whose session file lived inside the moved artifacts
+ * directory (design D6). `SessionManager.moveTo` renames that directory, so a ref that kept the
+ * old path points at a file that is no longer there and, worse, escapes the ownership check of
+ * every later move: the session would relocate again while that descendant runs. Only the
+ * recorded path changes; nothing relocates a subagent's own working directory.
+ */
+export function rebaseDescendantSessionFiles(
+	oldSessionFile: string | null | undefined,
+	newSessionFile: string | null | undefined,
+	registry?: AgentRegistry,
+): string[] {
+	const oldDir = artifactsDirOf(oldSessionFile);
+	const newDir = artifactsDirOf(newSessionFile);
+	if (!oldDir || !newDir || oldDir === newDir) return [];
+	const target = registry ?? AgentRegistry.global();
+	const rebased: string[] = [];
+	for (const ref of target.list()) {
+		if (!ref.sessionFile) continue;
+		const relative = path.relative(oldDir, path.resolve(ref.sessionFile));
+		if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) continue;
+		if (target.rebaseSessionFile(ref.id, path.join(newDir, relative))) rebased.push(ref.id);
+	}
+	return rebased;
 }
 
 export function hasRunningSessionWork(work: RunningSessionWork): boolean {

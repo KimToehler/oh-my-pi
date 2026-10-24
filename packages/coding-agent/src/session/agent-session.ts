@@ -466,6 +466,7 @@ import {
 	findRunningSessionWork,
 	hasRunningSessionWork,
 	type PendingSessionMove,
+	rebaseDescendantSessionFiles,
 	type SessionMoveReservation,
 	type SessionRelocationResult,
 	type SessionRelocator,
@@ -11579,10 +11580,20 @@ export class AgentSession implements SettingsScope {
 		return leafId;
 	}
 
-	/** Move the active session and artifacts after enforcing mode transition invariants. */
+	/**
+	 * Move the active session and artifacts after enforcing mode transition invariants. The move
+	 * renames the artifacts directory, so descendant refs recorded under it are repointed: a ref
+	 * left at the old path would escape the running-work check of the next move (design D6).
+	 */
 	async moveSession(newCwd: string, targetSessionDir?: string): Promise<void> {
 		this.#assertVibeSessionTransitionAllowed("move the session");
+		const previousSessionFile = this.sessionManager.getSessionFile();
 		await this.sessionManager.moveTo(newCwd, targetSessionDir);
+		rebaseDescendantSessionFiles(
+			previousSessionFile,
+			this.sessionManager.getSessionFile(),
+			this.#agentRegistry ?? AgentRegistry.global(),
+		);
 	}
 
 	// =========================================================================

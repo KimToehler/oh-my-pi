@@ -358,6 +358,18 @@ export class AgentRegistry {
 		return true;
 	}
 
+	/**
+	 * Repoint a ref's persisted file after the root session relocated its artifacts directory.
+	 * The transcript is the same one, moved on disk, so identity and cost history stay as they are:
+	 * only the path changes. Returns whether a ref was repointed.
+	 */
+	rebaseSessionFile(id: string, sessionFile: string): boolean {
+		const ref = this.#refs.get(id);
+		if (!ref || ref.sessionFile === sessionFile) return false;
+		ref.sessionFile = sessionFile;
+		return true;
+	}
+
 	detachSession(id: string, expected?: AgentRefExpectation): boolean {
 		const ref = this.#refs.get(id);
 		if (!ref || !this.#matchesExpected(ref, expected)) return false;
