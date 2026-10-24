@@ -11589,7 +11589,7 @@ export class AgentSession implements SettingsScope {
 		this.#assertVibeSessionTransitionAllowed("move the session");
 		const previousSessionFile = this.sessionManager.getSessionFile();
 		await this.sessionManager.moveTo(newCwd, targetSessionDir);
-		rebaseDescendantSessionFiles(
+		await rebaseDescendantSessionFiles(
 			previousSessionFile,
 			this.sessionManager.getSessionFile(),
 			this.#agentRegistry ?? AgentRegistry.global(),

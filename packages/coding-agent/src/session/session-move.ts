@@ -1,4 +1,6 @@
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { isEnoent } from "@oh-my-pi/pi-utils";
 import type { AsyncJobManager } from "../async/job-manager";
 import { AgentRegistry } from "../registry/agent-registry";
 
@@ -91,17 +93,23 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 }
 
 /**
- * Repoint the registry refs of descendants whose session file lived inside the moved artifacts
+ * Repoint the registry refs of descendants whose session file moved with the session's artifacts
  * directory (design D6). `SessionManager.moveTo` renames that directory, so a ref that kept the
  * old path points at a file that is no longer there and, worse, escapes the ownership check of
  * every later move: the session would relocate again while that descendant runs. Only the
  * recorded path changes; nothing relocates a subagent's own working directory.
+ *
+ * A move into a bucket the session lived in before merges into the existing directory and leaves
+ * each colliding child at the source, so a ref is repointed only once its old file is gone:
+ * a file still sitting at the source belongs to the descendant that kept writing there, and
+ * pointing its ref at the destination copy would adopt a foreign transcript. Any error other
+ * than ENOENT leaves the ref alone, because the source cannot be ruled out.
  */
-export function rebaseDescendantSessionFiles(
+export async function rebaseDescendantSessionFiles(
 	oldSessionFile: string | null | undefined,
 	newSessionFile: string | null | undefined,
 	registry?: AgentRegistry,
-): string[] {
+): Promise<string[]> {
 	const oldDir = artifactsDirOf(oldSessionFile);
 	const newDir = artifactsDirOf(newSessionFile);
 	if (!oldDir || !newDir || oldDir === newDir) return [];
@@ -109,11 +117,22 @@ export function rebaseDescendantSessionFiles(
 	const rebased: string[] = [];
 	for (const ref of target.list()) {
 		if (!ref.sessionFile) continue;
-		const relative = path.relative(oldDir, path.resolve(ref.sessionFile));
+		const source = path.resolve(ref.sessionFile);
+		const relative = path.relative(oldDir, source);
 		if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) continue;
+		if (await stillOnDisk(source)) continue;
 		if (target.rebaseSessionFile(ref.id, path.join(newDir, relative))) rebased.push(ref.id);
 	}
 	return rebased;
+}
+
+async function stillOnDisk(file: string): Promise<boolean> {
+	try {
+		await fs.lstat(file);
+		return true;
+	} catch (err) {
+		return !isEnoent(err);
+	}
 }
 
 export function hasRunningSessionWork(work: RunningSessionWork): boolean {

@@ -484,6 +484,47 @@ describe("session move", () => {
 		expect(work.agentIds).toEqual(["RebaseSub"]);
 	});
 
+	it("session move: a descendant file left at the source by a merged artifacts directory keeps its path", async () => {
+		const customRegistry = new AgentRegistry();
+		const fx = setup({
+			name: "rebase-collision",
+			responses: [{ content: ["ok"] }],
+			tools: () => [],
+			agentRegistry: customRegistry,
+		});
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+		const srcSessions = path.join(path.dirname(fx.srcDir), "sessions-src");
+		const fileInSrc = fx.session.sessionManager.getSessionFile() as string;
+		const artifactsInSrc = fileInSrc.slice(0, -".jsonl".length);
+		const childInSrc = path.join(artifactsInSrc, "RebaseSub.jsonl");
+		fs.mkdirSync(artifactsInSrc, { recursive: true });
+		fs.writeFileSync(childInSrc, "first\n");
+		customRegistry.register({
+			id: "RebaseSub",
+			displayName: "RebaseSub",
+			kind: "sub",
+			session: null,
+			sessionFile: childInSrc,
+			status: "idle",
+		});
+
+		await fx.session.moveSession(fx.dstDir, fx.dstSessions);
+		const fileInDst = fx.session.sessionManager.getSessionFile() as string;
+		const childInDst = path.join(fileInDst.slice(0, -".jsonl".length), "RebaseSub.jsonl");
+		expect(customRegistry.get("RebaseSub")?.sessionFile).toBe(childInDst);
+
+		// A writer that captured the old path recreates the child while the session is away, so
+		// moving back merges the directories and leaves the colliding child at the source.
+		fs.mkdirSync(artifactsInSrc, { recursive: true });
+		fs.writeFileSync(childInSrc, "stale writer\n");
+		await fx.session.moveSession(fx.srcDir, srcSessions);
+
+		expect(fs.existsSync(childInDst)).toBe(true);
+		expect(customRegistry.get("RebaseSub")?.sessionFile).toBe(childInDst);
+		expect(fs.readFileSync(childInSrc, "utf8")).toBe("stale writer\n");
+	});
+
 	it("session move: relocation is skipped and cleared when the run is aborted before agent_end", async () => {
 		const gate = Promise.withResolvers<void>();
 		const started = Promise.withResolvers<void>();
