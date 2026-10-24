@@ -1,24 +1,27 @@
-Bottom line: No blocking strategic defect is substantiated in the supplied diff. The change replaces the divergent ACP gate with one policy authority, preserves fail-closed wire behavior, and carries denials and reduced filesystem authority through the relevant child-session boundaries.
+Bottom line: The change holds up strategically. It replaces ACP’s duplicate authorization mechanism with the existing shared gate, preserves fail-closed behavior across wire and concurrency boundaries, and propagates deliberately narrowed authority into subagents without leaving the old bypass in place.
 
-Action plan:
-1. **Architecture:** The design holds up. `ExtensionToolWrapper.execute` remains the authorization boundary, while `createAcpApprove` in `packages/coding-agent/src/modes/acp/acp-approval.ts` is only a host adapter. The removal of the proxy in `session-tools.ts` eliminates duplicated resolution, caches, and argument hand-offs rather than introducing another policy path.
-2. **Configuration lifecycle:** The fix in `Setting.hostDefault`, `Settings.rawValue`/`setHostDefault`, and `createAcpSessionFactory` correctly models ACP’s `write` fallback below configured layers and keeps it across cwd re-scoping. This addresses the previously identified precedence failure without making ACP configuration globally special.
-3. **What the line-level audit structurally misses:** The remaining review surface is temporal rather than local—concurrent permission requests, session identity changes while descendants remain alive, and parent disconnects. The disconnect case is explicitly accepted; the two other cases are notes below rather than blockers.
-4. **Highest-impact production failure:** The worst outcome would be executable work running after the user denied it because one path bypassed `ExtensionToolWrapper`. The cutover addresses that through wrapper-owned resolution, pre/post-rewrite denial checks in `wrapper.ts`, live inherited checks in `ExtensionRunner.approvalLedger`, explicit ACP gating of `eval`/`task`, and fail-closed v1/v2 option handling.
-5. **Auditor false positives:** None—the implementation audit reported no findings. Its observations about parent-disconnect behavior are accepted residual behavior, while the stale README concern from the whole-diff review is fixed in the supplied README change.
+Action plan / answers:
 
-Note N1: `ExtensionRunner.approvalLedger` consults the runner’s current `sessionId`, so a descendant attached to a runner that is reused across a session switch could observe the new session’s denial set instead of the spawning session’s set; this does not block because the supplied material does not establish such runner reuse on the ACP session path that can produce `reject_always`, but that lifecycle combination deserves a focused regression if it is supported.
+1. **Architecture:** Yes. `ExtensionToolWrapper.execute` in `packages/coding-agent/src/extensibility/extensions/wrapper.ts` remains the policy authority, while `createAcpApprove` in `packages/coding-agent/src/modes/acp/acp-approval.ts` is a host adapter that validates the exact offered option set. `Settings.setHostDefault` plus `createAcpSessionFactory` models the ACP default below configured layers, and `createSubagentClientBridge` narrows rather than copies client capabilities. Removing the proxy, cache, and `acpApprovedArgs` bypass leaves one authorization convention.
 
-Note N2: Two same-tool calls that opened permission requests concurrently are not rechecked against the denial ledger after one request records `reject_always`; this does not block because the other already-pending call still requires its own explicit allow response and the stated contract governs later calls, not requests already awaiting independent user decisions.
+2. **What the line-level view structurally misses:** The difficult residual surface is temporal ownership: simultaneous dialogs settling out of order, descendants surviving parent lifecycle changes, and permission responses racing steering or cancellation. The supplied change addresses the highest-risk instance through `AgentSession.watchApprovalSupersede`, request-local races in `createAcpApprove`, ref-counted steering snapshots, and the parallel-dialog regression in `packages/coding-agent/test/agent-session-acp-permission.test.ts`.
 
-Effort: Quick (<1h) to record the two lifecycle/concurrency notes; no fix wave is warranted by the supplied evidence.
+3. **Highest-impact production failure:** Executable work running after the user denied or superseded it would be the most damaging outcome. It is addressed by pre- and post-rewrite denial checks in `ExtensionToolWrapper.execute`, live inherited checks through `ExtensionRunner.approvalLedger`, propagation through `runSubprocess` and persisted revival, exact ACP option validation, distinct cancellation handling, and side-effect-negative QA for denial and steering.
 
-Confidence: high. The supplied diff, OpenSpec bundle, QA matrix, fix-wave evidence, and implementation-audit result cover the authorization, wire, configuration, destructive-edit, subagent, and revival boundaries relevant to the change.
+4. **Auditor false positives:** None. The implementation audit reported no defect to reclassify. The earlier whole-diff documentation finding was separate, concerned changed behavior rather than unchanged behavior, and is resolved by the supplied `README.md` update.
+
+Note N1: `ExtensionRunner.approvalLedger` resolves against the runner’s current session identity, so a descendant surviving a parent session switch deserves lifecycle coverage; this does not block because session-scoped decisions intentionally end on session change and the supplied contract does not require an old child to retain an ended session’s decisions.
+
+Note N2: Two already-pending same-subject requests can settle independently after one records `reject_always`; this does not block because each still requires its own explicit response and the contract applies the denial to later calls, not dialogs already open.
+
+Effort: Quick (<1h); no fix wave is warranted.
+
+Confidence: high. The supplied diff, OpenSpec bundle, real-surface QA, negative controls, fix-wave evidence, and focused concurrency regressions cover the consequential authorization and lifecycle boundaries.
 
 Watch out for:
-- Reusing one `ExtensionRunner` across a session boundary while an old descendant remains active.
-- Multiple simultaneous permission requests for the same subject and tier.
-- Future child-spawn mechanisms bypassing `runSubprocess` or direct persisted-revival setup.
+- Long-lived descendants crossing a parent `/new` or session switch.
+- Concurrent same-subject dialogs settling around a `reject_always` response.
+- Future spawn mechanisms that bypass `runSubprocess` or persisted-revival bridge and ledger installation.
 
 PASS
 
@@ -30,9 +33,9 @@ security_delta: yes
 verdict: PASS
 blockers: none
 adversarial_criteria:
-- invariant: Concurrent ACP permission responses remain bound to their own pending tool calls, and a reject-always response can never be interpreted as authorization for any call.
-  positive_witness: With two pending gated calls, allow_once for call A executes only A; reject_always for call B leaves B unexecuted and causes a subsequent same-subject, same-tier call to fail without another request.
-  negative_control: A response issued for call A being accepted for call B, or call B executing after its reject-always response, MUST fail.
-  observable: JSON-RPC request IDs and toolCallIds correlate each permission response with one tool-call update and execution-side-effect record; the subsequent call produces a denial without a permission request.
-  boundary: ACP v1/v2 permission-request correlation through createAcpApprove into ExtensionToolWrapper and ExtensionRunner session-denial state.
+- invariant: The first terminal event for an ACP permission interaction—selection, turn abort, or user-steer supersede—irrevocably owns that call; any later event for the withdrawn interaction cannot execute or reclassify it.
+  positive_witness: An allow response that settles first executes its call exactly once, while a user steer that settles first withdraws the dialog, reports the call as superseded, and produces no tool side effect even if the client later returns an allow response.
+  negative_control: A late allow response executing a tool after its permission interaction was superseded or changing the superseded result into success MUST fail.
+  observable: Ordered JSON-RPC request and cancellation frames, the final tool-call update, and an execution counter or filesystem side-effect record distinguish the winning terminal event.
+  boundary: createAcpApprove’s request race and its handoff to ExtensionToolWrapper.execute.
 END-REVIEW-TRAILER

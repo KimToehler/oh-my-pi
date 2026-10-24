@@ -1,33 +1,19 @@
+1. **Goal and behavioural contract**  
+   Reviewed the complete supplied brief: OpenSpec bundle, full `main...HEAD` diff, QA matrix/artifacts, F3 report, prior F2 findings/fixes, and relevant implementation paths. The cutover’s stated contract is represented: ACP delegates authorization to the shared wrapper resolver; unconfigured ACP defaults to `write`; destructive edits prompt per call outside `yolo`; session denials propagate through descendants; non-isolated children receive filesystem-only client bridging; ACP steering supersedes pending dialogs.
+
+2. **Correctness, regressions, architecture, wire contracts**  
+   No blocker substantiated. The wrapper retains the authoritative approval decision after extension input rewriting, ACP maps only offered option IDs, v2 cancellation remains distinct from rejection, and the host-default layer avoids masking cwd-specific configuration. The proxy gate, duplicated cache, and ACP-approved-argument bypass are removed rather than left as alternative authorization paths. The denial ledger and reduced bridge are propagated through direct, structured, vibe, warm-revive, and persisted-revive paths represented in the supplied tests.
+
+3. **Security and privacy delta**  
+   This is an authorization-path change, so `security_delta: yes`. No authorization bypass, real credential exposure, personal-data recipient, or new external recipient was substantiated from the changed code. The local QA fixture uses a loopback scripted provider and a dummy key only.
+
+4. **Verification adequacy**  
+   Reviewed stored real-surface F1 evidence covering exec approval, inherited `reject_always`, no-form clients, unsaved-buffer child reads, destructive edit rejection, and steering supersede; its main negative control fails the intended pre-change scenarios. Reviewed focused regression tests for approval resolution, ACP v1/v2 mapping, cancellation, host-default precedence, destructive edits, inheritance, bridges, and parallel-dialog steering. Stored verification reports document targeted checks and known unrelated/environmental suite failures. No commands were run during this read-only audit.
+
+5. **Final `PASS | FAIL | INCONCLUSIVE`**  
+   No realistic trigger was found that violates the supplied behavioural contract, merge-gate criteria, affected consumers, or protected assets.
+
 PASS
-
-1. **Goal and behavioural contract**
-   - Reviewed the ACP authorization cutover against the OpenSpec proposal, D1–D8 design decisions, three capability specs, merge-gate criteria, changed source/test paths, F3 report, and F1 real-surface artifact.
-   - The implementation centralizes ACP authorization in `ExtensionToolWrapper` through ACP’s `ExtensionUIContext.approve`, preserves TUI approval resolution, defaults unconfigured ACP sessions to `write`, records scoped session denials, chains those denials into descendants, and derives a file-only bridge for non-isolated children.
-   - The reviewed code aligns with the stated exclusions: no MCP tier change, no client terminal/dialog forwarding to subagents, and no “always reject” TUI choice.
-
-2. **Correctness, regressions, architecture, wire contracts**
-   - No blocker found.
-   - `modes/acp/acp-approval.ts` validates selected option IDs against the exact offered options before mapping them to wrapper answers, and uses the wrapper call identity for permission-request construction. This preserves fail-closed behavior for unknown selections.
-   - `extensibility/extensions/wrapper.ts`, `runner.ts`, and `tools/approval.ts` place session-denial lookup before prompting, retain the original approval resolver as the policy authority, and make inherited denial lookup live through `ApprovalDenialLedger`.
-   - `main.ts` applies `cfgToolsApprovalMode.hostDefault(nextSettings, "write")`; the configuration implementation gives configured runtime/overlay/project/global values priority while leaving host defaults unconfigured, matching the intended ACP-only fallback.
-   - `task/executor.ts` carries denial-ledger and reduced client-bridge state across ordinary execution; `task/persisted-revive.ts` covers persisted revival. The derived bridge retains only file read/write capabilities and omits client terminals, permission requests, and agent-initiated work.
-   - `edit/index.ts` supplies a per-call override for delete/move operations outside yolo. `acp-approval.ts` derives edit locations from parsed edit operations, including move targets.
-   - F3’s previously identified stale root README authorization wording is addressed by the changed README; no remaining issue from that F3 should-fix finding was substantiated in the reviewed material.
-   - Residual accepted behavior remains as documented: a child outliving its ACP parent can encounter bridge failure; writes fail and reads may fall back to disk.
-
-3. **Security and privacy delta**
-   - `security_delta: yes`. This changes an authorization path, so it is correctly classified under the plan’s `auth-secrets-pii` mandatory class.
-   - No authorization bypass was substantiated in the reviewed implementation. In particular, the removed ACP proxy/cache is not retained beside the shared wrapper gate, and descendant sessions consult the live parent denial chain before any local no-UI outcome could permit a denied tool.
-   - No real credential, provider token, personal data recipient, or new external network recipient was introduced by the reviewed implementation or its QA fixture.
-
-4. **Verification adequacy**
-   - Reviewed targeted regression coverage for ACP v1/v2 permission mapping, no-form clients, mode defaults, destructive edit behavior, session denial semantics, direct/structured/vibe/eval child inheritance, warm/persisted revival, and reduced child bridge behavior.
-   - The real ACP QA artifact `.omp/team-config/evidence/gate/acp-permission-parity/f1-qa.md` records PASS for scenarios a–e: exec approval, `reject_always` inheritance into a task child, no-form permission requests, unsaved-buffer reads by a child, and destructive-edit rejection.
-   - The reviewed F3 report records no must-fix issue and covers cross-slice removal of the proxy gate, v1/v2 wire mapping, approval and bridge inheritance, documentation, and plan scope.
-   - No commands were run in this audit, as required by the supplied read-only brief; evidence statements above are limited to inspected source, tests, and stored artifacts.
-
-5. **Final `PASS | FAIL | INCONCLUSIVE`**
-   - PASS. No realistic trigger was found that breaks the approval contract, the stated criteria, an affected consumer, or a protected asset.
 
 REVIEW-TRAILER-v1
 invocation: implementation-audit
@@ -37,9 +23,9 @@ security_delta: yes
 verdict: PASS
 blockers: none
 adversarial_criteria:
-- invariant: A derived subagent client bridge is capability-narrowing: inheriting parent file routing cannot retain terminal, permission-dialog, or agent-initiated-work authority.
-  positive_witness: A non-isolated ACP child reads or writes through the editor’s file RPC while its local shell executes without terminal/create or session/request_permission traffic.
-  negative_control: A child bridge exposing requestPermission, createTerminal, or agent-initiated turns MUST fail the criterion even if ordinary file reads succeed.
-  observable: Child bridge capability flags and recorded ACP request methods show fs/read_text_file or fs/write_text_file only, with no terminal/create or session/request_permission request.
-  boundary: createSubagentClientBridge and executor/persisted-revival client-bridge installation.
+- invariant: A permission response is valid only for the exact option vector generated for its own outstanding dialog; an option that is unavailable on a later dialog cannot authorize that later call.
+  positive_witness: An ordinary bash dialog may accept its offered session approval, while a subsequent destructive-edit dialog independently exposes only per-call choices.
+  negative_control: Replaying or supplying `allow_always` to a destructive-edit dialog that offered only `allow_once` and `reject_once` MUST fail without executing the edit.
+  observable: The ACP request’s option IDs, selected response, and resulting tool-call update show an unknown-option error and no file-operation side effect.
+  boundary: `createAcpApprove` request-scoped option construction and `answerForOption` validation before `ExtensionToolWrapper` executes the tool.
 END-REVIEW-TRAILER
