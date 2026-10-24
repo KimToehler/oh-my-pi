@@ -60,7 +60,7 @@ In lane F2, `gate-convergence.mjs wave` SHALL require one `--trailer <invocation
 - **THEN** recording MUST fail: exit 1 with a `verdict` finding and no `gate_wave` event; a recorded wave is a defect
 
 ### Requirement: Trailer repair before re-dispatch
-review-work SHALL send one fixed repair message to the same reviewer when a reply delivers its review and states one verdict but its trailer is missing or fails the trailer check, store the answer unedited as the trailer artifact, and dispatch a fresh reviewer only when the repaired trailer fails the check with the original verdict or the reviewer is unreachable or silent. `rules/merge-gate-proof.md` SHALL state this order; `rules/delegation.md` SHALL allow the message.
+review-work SHALL send one fixed repair message to the same reviewer when a reply delivers its review and states one verdict but its trailer is missing or fails the trailer check other than on a non-token verdict, store the answer unedited, and dispatch a fresh reviewer only when the repaired trailer fails the check with the original verdict or the reviewer is unreachable or silent. `rules/merge-gate-proof.md` SHALL state this order; `rules/delegation.md` SHALL allow the message.
 
 #### Scenario: Missing trailer on a PASS reply
 - **WHEN** an implementation-audit reply closes with `PASS` and carries no trailer block
@@ -73,6 +73,10 @@ review-work SHALL send one fixed repair message to the same reviewer when a repl
 #### Scenario: Bare verdict without a review
 - **WHEN** a reply is only `PASS`, or an acknowledgement, with no review content
 - **THEN** the guidance sends no repair message and takes the bounded fresh retry, then `INCONCLUSIVE`, as before this change
+
+#### Scenario: Trailer verdict that is not a verdict token
+- **WHEN** a reply's trailer carries `verdict: APPROVE`, or any value other than `PASS`, `FAIL` or `INCONCLUSIVE`
+- **THEN** the guidance sends no repair message and re-runs the invocation with the verbatim brief (one bounded retry, then `INCONCLUSIVE`), as Phase 2 prescribes
 
 #### Scenario: Reply without a verdict
 - **WHEN** a reply states no verdict token, or conflicting ones
