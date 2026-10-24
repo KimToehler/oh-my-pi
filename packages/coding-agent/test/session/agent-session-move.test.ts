@@ -525,6 +525,48 @@ describe("session move", () => {
 		expect(fs.readFileSync(childInSrc, "utf8")).toBe("stale writer\n");
 	});
 
+	it("session move: a host rollback after the move restores descendant ownership at the source", async () => {
+		const customRegistry = new AgentRegistry();
+		const fx = setup({
+			name: "rebase-rollback",
+			responses: [{ content: ["ok"] }],
+			tools: () => [],
+			agentRegistry: customRegistry,
+		});
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+		const fileInSrc = fx.session.sessionManager.getSessionFile() as string;
+		const childInSrc = path.join(fileInSrc.slice(0, -".jsonl".length), "RebaseSub.jsonl");
+		fs.mkdirSync(path.dirname(childInSrc), { recursive: true });
+		fs.writeFileSync(childInSrc, "child\n");
+		customRegistry.register({
+			id: "RebaseSub",
+			displayName: "RebaseSub",
+			kind: "sub",
+			session: null,
+			sessionFile: childInSrc,
+			status: "idle",
+		});
+
+		// The host step after `moveSession` fails, so the host rolls the move back the way
+		// the TUI and headless relocators do: `rollbackMove` with the pre-move snapshot.
+		const previousState = fx.session.sessionManager.captureState();
+		await fx.session.moveSession(fx.dstDir, fx.dstSessions);
+		await fx.session.sessionManager.rollbackMove(previousState);
+
+		expect(fx.session.sessionManager.getSessionFile()).toBe(fileInSrc);
+		expect(fs.readFileSync(childInSrc, "utf8")).toBe("child\n");
+		expect(customRegistry.get("RebaseSub")?.sessionFile).toBe(childInSrc);
+		expect(customRegistry.setStatus("RebaseSub", "running")).toBe(true);
+		const work = findRunningSessionWork({
+			asyncJobManager: undefined,
+			agentId: AGENT_ID,
+			sessionFile: fileInSrc,
+			registry: customRegistry,
+		});
+		expect(work.agentIds).toEqual(["RebaseSub"]);
+	});
+
 	it("session move: relocation is skipped and cleared when the run is aborted before agent_end", async () => {
 		const gate = Promise.withResolvers<void>();
 		const started = Promise.withResolvers<void>();

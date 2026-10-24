@@ -466,7 +466,6 @@ import {
 	findRunningSessionWork,
 	hasRunningSessionWork,
 	type PendingSessionMove,
-	rebaseDescendantSessionFiles,
 	type SessionMoveReservation,
 	type SessionRelocationResult,
 	type SessionRelocator,
@@ -2599,6 +2598,7 @@ export class AgentSession implements SettingsScope {
 		this.#loopGuards = new LoopGuards(streamGuardsHost);
 		this.#agentId = config.agentId;
 		this.#agentRegistry = config.agentRegistry;
+		this.sessionManager.useAgentRegistry(config.agentRegistry);
 		this.#agentKind = config.agentKind ?? "main";
 		// A subagent's streamed text reaches no output sink until the run settles
 		// (the parent sees only the yield), so a failed turn's partial prose is
@@ -11580,20 +11580,10 @@ export class AgentSession implements SettingsScope {
 		return leafId;
 	}
 
-	/**
-	 * Move the active session and artifacts after enforcing mode transition invariants. The move
-	 * renames the artifacts directory, so descendant refs recorded under it are repointed: a ref
-	 * left at the old path would escape the running-work check of the next move (design D6).
-	 */
+	/** Move the active session and artifacts after enforcing mode transition invariants. */
 	async moveSession(newCwd: string, targetSessionDir?: string): Promise<void> {
 		this.#assertVibeSessionTransitionAllowed("move the session");
-		const previousSessionFile = this.sessionManager.getSessionFile();
 		await this.sessionManager.moveTo(newCwd, targetSessionDir);
-		await rebaseDescendantSessionFiles(
-			previousSessionFile,
-			this.sessionManager.getSessionFile(),
-			this.#agentRegistry ?? AgentRegistry.global(),
-		);
 	}
 
 	// =========================================================================
