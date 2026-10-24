@@ -63,6 +63,16 @@ export type PromptQueueState = {
 
 export type PromptLifecycleError = Error & { readonly code: "ACP_SESSION_CLOSED" };
 
+/**
+ * Cancellation carrier for a client prompt accepted on the wire whose turn has
+ * not started yet: still queued behind another prompt, or inside the dispatch
+ * window before its turn slot exists. A client cancel marks every live carrier
+ * so a stop can never race past a prompt that is about to stream; the queued
+ * callback consumes the mark when the slot is created and resolves the wire
+ * response `cancelled` without starting the run.
+ */
+export type PromptDispatchCancellation = { cancelled: boolean };
+
 export type ManagedSessionRecord = {
 	session: AgentSession;
 	setToolUIContext: ((uiContext: ExtensionUIContext, hasUI: boolean) => void) | undefined;
@@ -71,6 +81,17 @@ export type ManagedSessionRecord = {
 	// `#configureMcpServers` call; drained on reconfigure so a stale in-flight
 	// refresh can never land after a newer configuration's tools.
 	mcpRefreshChain: Promise<void> | undefined;
+	// MCP startup failures recorded during `#registerPreparedSession` (before
+	// the newSession/loadSession response has told the client the session id).
+	// Drained by `#emitBootstrapUpdates` behind the bootstrap race guard so
+	// clients (Zed) cannot drop them as notifications for an unknown session.
+	// `oauthCapable` marks http/sse servers, the only ones `/mcp reauth` can repair.
+	pendingMcpStartupChunks: Array<{ name: string; message: string; oauthCapable: boolean }>;
+	// Cancellation carriers for client prompts accepted on the wire whose turn
+	// slot does not exist yet (queued behind another prompt or still inside the
+	// dispatch window). Marked by cancel(); consumed at slot creation so a stop
+	// never leaves a prompt streaming behind the client's back.
+	pendingPromptDispatches: Array<PromptDispatchCancellation>;
 	/** v1 pending-request half of the open prompt; `promptTurn.work` is the foreground work itself. */
 	promptTurn: PromptTurnState | undefined;
 	/** v2 foreground work (a prompt's or an autonomous turn's); v1 leaves it unset and uses `promptTurn.work`. */
@@ -248,6 +269,7 @@ export interface AcpSurface<W extends AcpWire = AcpWire> {
 		toolCall: ClientBridgePermissionToolCall,
 		options: ClientBridgePermissionOption[],
 		signal: AbortSignal | undefined,
+		steeringSignal?: AbortSignal,
 	): Promise<ClientBridgePermissionOutcome>;
 	/** Replays the transcript to the client. v2: `replayFrom` cursor handling, then the resume `state_update`. */
 	replay(record: ManagedSessionRecord, replayFrom?: unknown): Promise<void>;

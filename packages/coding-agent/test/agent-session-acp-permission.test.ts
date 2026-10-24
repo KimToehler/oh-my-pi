@@ -6,7 +6,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { AgentTool, AgentToolContext, ToolTier } from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentTool, type AgentToolContext, type ToolTier } from "@oh-my-pi/pi-agent-core";
+import { createMockModel, type MockModelOptions } from "@oh-my-pi/pi-ai/providers/mock";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -17,21 +19,23 @@ import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/ex
 import type { EvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval/preludes";
 import { invokeEvalPrelude } from "@oh-my-pi/pi-coding-agent/eval/preludes";
 import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
+import type { WatchApprovalSupersede } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-approval";
 import type { AcpPermissionRequester } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-client-bridge";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type {
 	ClientBridgePermissionOption,
 	ClientBridgePermissionOutcome,
 	ClientBridgePermissionToolCall,
 } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targets";
 import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
-import { getAgentDir, isRecord, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir, isRecord, setAgentDir, TempDir, withTimeout } from "@oh-my-pi/pi-utils";
 import type { RequestPermissionRequest } from "@oh-my-pi/pi-utils/acp";
 import { cleanupHarnessState, createHarness, type SetToolUIContextSpy } from "./acp-test-harness";
 
@@ -49,14 +53,16 @@ const pick = (optionId: string): ClientBridgePermissionOutcome => ({ outcome: "s
 interface PermissionRequest {
 	toolCall: ClientBridgePermissionToolCall;
 	options: ClientBridgePermissionOption[];
+	/** Aborts when a user steer supersedes the request: the client should withdraw its dialog. */
+	steeringSignal?: AbortSignal;
 }
 
 /** An ACP client answering permission requests from `answers` in order (then reject), recording each. */
 function acpClient(...answers: ClientAnswer[]) {
 	const requests: PermissionRequest[] = [];
 	const asked = Promise.withResolvers<void>();
-	const request: AcpPermissionRequester = async (toolCall, options) => {
-		requests.push({ toolCall, options });
+	const request: AcpPermissionRequester = async (toolCall, options, _signal, steeringSignal) => {
+		requests.push({ toolCall, options, steeringSignal });
 		asked.resolve();
 		const answer = answers.shift() ?? pick("reject_once");
 		if (answer === "hang") return Promise.withResolvers<never>().promise;
@@ -113,10 +119,16 @@ function toolSession(cwd: string, editMode = "apply_patch"): ToolSession {
 }
 
 /** Gives `runner` the ACP extension UI context of a client without form elicitation, as the ACP agent does. */
-function initializeAcpUi(runner: ExtensionRunner, cwd: string, request: AcpPermissionRequester): void {
+function initializeAcpUi(
+	runner: ExtensionRunner,
+	cwd: string,
+	request: AcpPermissionRequester,
+	watchSupersede?: WatchApprovalSupersede,
+): void {
 	const ui = createAcpExtensionUiContext({} as never, () => "acp-session", {}, undefined, undefined, {
 		request,
 		getCwd: () => cwd,
+		watchSupersede,
 	});
 	runner.initialize(
 		{
@@ -566,5 +578,329 @@ describe("acp ui context", () => {
 		).rejects.toThrow("Ask tool requires interactive mode");
 		expect(requests).toHaveLength(0);
 		await harness.agent.dispose();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Steering: a user steer supersedes an open permission request (ACP `_session/steering`)
+// ---------------------------------------------------------------------------
+
+let liveSession: AgentSession | undefined;
+afterEach(async () => {
+	await liveSession?.dispose();
+	liveSession = undefined;
+});
+
+/** A write-tier tool counting its runs: under `always-ask` every call asks first. */
+function countingTool(name: string): AgentTool & { runs: number } {
+	const tool = {
+		name,
+		label: name,
+		description: `${name} test tool`,
+		parameters: type({ "path?": "string" }),
+		approval: "write" as const,
+		runs: 0,
+		execute: async () => {
+			tool.runs++;
+			return { content: [{ type: "text" as const, text: "executed" }] };
+		},
+	};
+	return tool;
+}
+
+/**
+ * A session on a scripted model. With `client`, every tool passes the ACP approval gate whose
+ * `approve` watches this session for a superseding steer, as `acp-agent` wires it.
+ * `loopSteeringSignal` stands in for the loop's per-call steer signal (`ctx.toolCall.steeringSignal`),
+ * aborted on command the way the loop's any-source steering poll does.
+ */
+async function createSessionWithMockModel(
+	tools: AgentTool[],
+	responses: NonNullable<MockModelOptions["responses"]>,
+	options: {
+		client?: ReturnType<typeof acpClient>;
+		getApiKey?: () => Promise<string> | string;
+		loopSteeringSignal?: AbortSignal;
+	} = {},
+): Promise<AgentSession> {
+	const mock = createMockModel({ responses });
+	const cwd = workspace();
+	const sessionManager = SessionManager.inMemory(cwd);
+	const getApiKey = options.getApiKey ?? (() => "test-key");
+	const client = options.client;
+	let gated = tools;
+	if (client) {
+		const runner = new ExtensionRunner([], new ExtensionRuntime(), cwd, sessionManager, modelRegistry);
+		initializeAcpUi(runner, cwd, client.request, loop => liveSession!.watchApprovalSupersede(loop));
+		gated = tools.map(tool => new ExtensionToolWrapper(tool, runner) as AgentTool);
+	}
+	const loopSteeringSignal = options.loopSteeringSignal;
+	const agent = new Agent({
+		getApiKey,
+		...(loopSteeringSignal
+			? {
+					getToolContext: (() =>
+						({ toolCall: { steeringSignal: loopSteeringSignal, toolCalls: [], index: 0 } }) as never) as never,
+				}
+			: {}),
+		initialState: { model: mock.model, systemPrompt: ["Test"], tools: gated, messages: [] },
+		convertToLlm,
+		streamFn: mock.stream,
+	});
+	const session = new AgentSession({
+		agent,
+		sessionManager,
+		settings: Settings.isolated({ "compaction.enabled": false, "tools.approvalMode": "always-ask" }),
+		modelRegistry: { getApiKey } as never,
+		toolRegistry: new Map(gated.map(tool => [tool.name, tool])),
+	});
+	session.setClientBridge({ capabilities: {} });
+	liveSession = session;
+	return session;
+}
+
+const deleteCall = (id: string) => ({
+	content: [{ type: "toolCall" as const, id, name: "delete", arguments: { path: "/tmp/gone.ts" } }],
+});
+
+function userTextIndex(session: AgentSession, needle: string): number {
+	return session.agent.state.messages.findIndex(
+		message => message.role === "user" && JSON.stringify(message.content).includes(needle),
+	);
+}
+
+describe("acp steering", () => {
+	it("acp steering: a user steer supersedes an open permission request and withdraws the client's dialog", async () => {
+		const client = acpClient("hang");
+		const deleteTool = countingTool("delete");
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[deleteCall("call-delete-1"), { content: ["done after steer"] }],
+			{ client },
+		);
+		const promptDone = session.prompt("delete something");
+		await client.asked;
+
+		expect(await session.joinActiveTurn("wait — use the other parser instead")).toBe(true);
+		await promptDone;
+
+		expect(deleteTool.runs).toBe(0);
+		expect(client.requests).toHaveLength(1);
+		expect(client.requests[0]!.steeringSignal?.aborted).toBe(true);
+		const result = session.agent.state.messages.find(message => message.role === "toolResult");
+		expect(JSON.stringify(result)).toContain("Permission request superseded by user steering");
+		expect(userTextIndex(session, "use the other parser")).toBeGreaterThanOrEqual(0);
+	});
+
+	it("acp steering: an agent-authored steer leaves the request open until a user steer arrives", async () => {
+		const client = acpClient("hang");
+		const deleteTool = countingTool("delete");
+		const loopSteering = new AbortController();
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[deleteCall("call-delete-9"), { content: ["done after steer"] }],
+			{ client, loopSteeringSignal: loopSteering.signal },
+		);
+		const promptDone = session.prompt("delete something else");
+		await client.asked;
+
+		// The loop's steer signal aborts for any queued source, but no user steering arrived. The
+		// watch decides synchronously on the abort, so the client's dialog must still be live.
+		session.agent.steer({
+			role: "user",
+			content: [{ type: "text", text: "agent-authored aside while the dialog is open" }],
+			timestamp: Date.now(),
+		});
+		loopSteering.abort();
+		expect(client.requests[0]!.steeringSignal?.aborted).toBe(false);
+
+		expect(await session.joinActiveTurn("wait — the user changed their mind")).toBe(true);
+		await promptDone;
+		expect(deleteTool.runs).toBe(0);
+		expect(userTextIndex(session, "the user changed their mind")).toBeGreaterThanOrEqual(0);
+	});
+
+	it("acp steering: the superseding steer is delivered ahead of an older queued steer", async () => {
+		const client = acpClient("hang");
+		const deleteTool = countingTool("delete");
+		const turnStreamStarted = Promise.withResolvers<void>();
+		const releaseTurnStream = Promise.withResolvers<void>();
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[
+				async () => {
+					turnStreamStarted.resolve();
+					await releaseTurnStream.promise;
+					return deleteCall("call-delete-1");
+				},
+				{ content: ["answered superseding steer"] },
+				{ content: ["answered older steer"] },
+			],
+			{ client },
+		);
+		const promptDone = session.prompt("delete something");
+		await withTimeout(turnStreamStarted.promise, 5_000, "Held turn stream never started");
+		// Queued while the turn streams, before any dialog exists.
+		expect(await session.joinActiveTurn("older question about the batch")).toBe(true);
+		releaseTurnStream.resolve();
+		await client.asked;
+
+		expect(await session.joinActiveTurn("why this deletion?")).toBe(true);
+		await promptDone;
+		await session.waitForIdle();
+
+		expect(deleteTool.runs).toBe(0);
+		const supersedeIndex = userTextIndex(session, "why this deletion?");
+		expect(supersedeIndex).toBeGreaterThanOrEqual(0);
+		expect(userTextIndex(session, "older question about the batch")).toBeGreaterThan(supersedeIndex);
+	});
+
+	it("acp steering: the user steer is delivered ahead of an agent-authored steer queued in the same window", async () => {
+		const client = acpClient("hang");
+		const deleteTool = countingTool("delete");
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[deleteCall("call-delete-1"), { content: ["answered user steer"] }, { content: ["answered agent steer"] }],
+			{ client },
+		);
+		const promptDone = session.prompt("delete something");
+		await client.asked;
+
+		// Agent-authored: fires no steering arrival, so it must not ride the promotion.
+		session.agent.steer({
+			role: "user",
+			content: [{ type: "text", text: "agent-authored steer" }],
+			timestamp: Date.now(),
+		});
+		expect(await session.joinActiveTurn("user steer superseding the dialog")).toBe(true);
+		await promptDone;
+		await session.waitForIdle();
+
+		expect(deleteTool.runs).toBe(0);
+		const userSteerIndex = userTextIndex(session, "user steer superseding the dialog");
+		expect(userSteerIndex).toBeGreaterThanOrEqual(0);
+		expect(userTextIndex(session, "agent-authored steer")).toBeGreaterThan(userSteerIndex);
+	});
+
+	it("acp steering: two steers admitted in one dialog window are delivered first-arrival-first", async () => {
+		const client = acpClient("hang");
+		const deleteTool = countingTool("delete");
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[deleteCall("call-delete-1"), { content: ["answered first steer"] }, { content: ["answered second steer"] }],
+			{ client },
+		);
+		const promptDone = session.prompt("delete something");
+		await client.asked;
+
+		// No await between the calls: both enqueue before the watch's abort wake runs.
+		const first = session.joinActiveTurn("first steering question");
+		const second = session.joinActiveTurn("second steering question");
+		expect(await first).toBe(true);
+		expect(await second).toBe(true);
+		await promptDone;
+		await session.waitForIdle();
+
+		expect(deleteTool.runs).toBe(0);
+		expect(userTextIndex(session, "first steering question")).toBeLessThan(
+			userTextIndex(session, "second steering question"),
+		);
+	});
+
+	it("parks a steer that lands mid-dispatch until the owning prompt goes live, then injects it", async () => {
+		// Park-until-live: a steer arriving while the owning prompt is reserved but still
+		// dispatching (in flight, the agent not yet streaming) must neither be refused back to the
+		// host nor injected mid-dispatch; it parks, then admits when the run goes live.
+		const keyGate = Promise.withResolvers<void>();
+		const dispatched = Promise.withResolvers<void>();
+		let keyCalls = 0;
+		const gatedApiKey = (): Promise<string> | string => {
+			keyCalls++;
+			if (keyCalls === 1) {
+				dispatched.resolve();
+				return keyGate.promise.then(() => "test-key");
+			}
+			return "test-key";
+		};
+		const session = await createSessionWithMockModel(
+			[],
+			[{ content: ["first answer"] }, { content: ["steer answer"] }],
+			{ getApiKey: gatedApiKey },
+		);
+
+		const promptDone = session.prompt("first");
+		await dispatched.promise;
+		expect(session.isStreaming).toBe(true);
+		expect(session.agent.state.isStreaming).toBe(false);
+
+		const admitted = session.joinActiveTurn("steer the dispatching turn");
+		let settled = false;
+		void admitted.then(
+			() => {
+				settled = true;
+			},
+			() => {
+				settled = true;
+			},
+		);
+		// Negative control: no event marks "still parked", so give the admission a few turns to
+		// settle wrongly while the dispatch is held.
+		await Bun.sleep(40);
+		expect(settled).toBe(false);
+
+		keyGate.resolve();
+		expect(await admitted).toBe(true);
+		await promptDone;
+		await session.waitForIdle();
+
+		const messages = session.agent.state.messages;
+		const steerIndex = userTextIndex(session, "steer the dispatching turn");
+		const answerIndex = messages.findIndex(
+			message => message.role === "assistant" && JSON.stringify(message.content).includes("steer answer"),
+		);
+		expect(steerIndex).toBeGreaterThanOrEqual(0);
+		expect(answerIndex).toBeGreaterThan(steerIndex);
+	});
+
+	it("refuses a steer into an agent-initiated turn whose output has no client forwarder", async () => {
+		const turnStarted = Promise.withResolvers<void>();
+		const releaseTurn = Promise.withResolvers<void>();
+		const session = await createSessionWithMockModel(
+			[],
+			[
+				async () => {
+					turnStarted.resolve();
+					await releaseTurn.promise;
+					return { content: ["agent-initiated done"] };
+				},
+			],
+		);
+		const sent = session.sendCustomMessage(
+			{ customType: "background", content: "do work", display: false },
+			{ deliverAs: "nextTurn", triggerTurn: true },
+		);
+		await turnStarted.promise;
+		expect(session.agent.state.isStreaming).toBe(true);
+		expect(session.isStreaming).toBe(true);
+
+		expect(await session.joinActiveTurn("steer the agent-initiated turn")).toBe(false);
+		expect(session.getQueuedMessages().steering).toEqual([]);
+
+		releaseTurn.resolve();
+		await sent;
+		await session.waitForIdle();
+		expect(userTextIndex(session, "steer the agent-initiated turn")).toBe(-1);
+	});
+
+	it("parks a steer submitted before the owning prompt's dispatch preprocessing", async () => {
+		// The submission's synchronous prefix reserves the client claim before any dispatch
+		// preprocessing await, so a steer landing in that window parks and injects instead of
+		// being declined.
+		const session = await createSessionWithMockModel([], [{ content: ["ok"] }]);
+		const dispatched = session.prompt("hello there");
+		const steer = session.joinActiveTurn("steer the dispatching prompt");
+		expect(await steer).toBe(true);
+		expect(await dispatched).toBe(true);
+		await session.waitForIdle();
 	});
 });

@@ -104,3 +104,14 @@ A tool call whose permission request ends without a selected allow option SHALL 
 #### Scenario: Negative control
 - **WHEN** the client's `session/request_permission` call fails with a transport error
 - **THEN** the call running MUST fail: it is reported as failed and does not execute
+
+### Requirement: A user steer supersedes an open permission request
+A user steering message admitted into the running turn while a permission request is open SHALL end the request without running the call, when the loop's `interruptMode` allows interrupting the call: the call fails as superseded, a v1 client's dialog is withdrawn, and the steer is delivered ahead of older queued steers. Steering the agent queued itself SHALL NOT end the request.
+
+#### Scenario: User steer while the dialog is open
+- **WHEN** the client sends `_session/steering` while a permission request for a gated call is pending
+- **THEN** the call does not run, its result reads `Permission request superseded by user steering`, the requester's steer signal aborts, and the steer reaches the model before an older queued steer
+
+#### Scenario: Negative control
+- **WHEN** only an agent-authored steer is queued while the request is pending
+- **THEN** the request ending MUST fail: the dialog stays open and the call waits for the client's answer

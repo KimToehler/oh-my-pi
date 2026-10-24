@@ -711,7 +711,8 @@ function approvalGrantChoices(
  * the rest of the session; with `grants`, both offer the `always-ask-cached` grants the call can
  * record, and the prompt lists the folder a directory grant would cover. `call` names the tool
  * call for hosts that render it (ACP); `signal` (the turn's) reaches the dialog so an aborted turn
- * closes it. Anything but an explicit approval is `deny`.
+ * closes it, and `steeringSignal` (the call's loop steer signal) lets a host's dialog yield to a
+ * user steer. Anything but an explicit approval is `deny`.
  */
 export async function requestApproval(
 	ui: Pick<ExtensionUIContext, "select" | "approve">,
@@ -724,9 +725,10 @@ export async function requestApproval(
 		grants?: boolean;
 		call?: ExtensionApprovalCall;
 		signal?: AbortSignal;
+		steeringSignal?: AbortSignal;
 	} = {},
 ): Promise<ExtensionApprovalAnswer> {
-	const { reason, appendix = [], sessionSubject, call, signal } = options;
+	const { reason, appendix = [], sessionSubject, call, signal, steeringSignal } = options;
 	const header = approvalHeader(tool, reason);
 	const details = approvalDetails(tool, args);
 	const session = sessionSubject === undefined ? undefined : `Approve ${sessionSubject} for this session`;
@@ -753,7 +755,7 @@ export async function requestApproval(
 				...(grants.length > 0 ? { grants } : {}),
 				...(call ? { call } : {}),
 			},
-			signal ? { signal } : undefined,
+			signal || steeringSignal ? { signal, steeringSignal } : undefined,
 		);
 		if (answer === "once" || (answer === "session" && session)) return answer;
 		if (answer === "deny-session") return session ? answer : "deny";

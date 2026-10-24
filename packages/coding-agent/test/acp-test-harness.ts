@@ -2,7 +2,7 @@ import { expect, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Model } from "@oh-my-pi/pi-ai";
+import type { AuthStorage, Model } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
@@ -148,7 +148,13 @@ export class FakeAgentSession {
 	promptCalls: string[] = [];
 	/** Images forwarded with each `prompt()` call, index-aligned with `promptCalls`. */
 	promptImages: unknown[][] = [];
-	steerCalls: Array<{ text: string; images?: unknown[] }> = [];
+	steerCalls: Array<{ text: string; images: unknown[] }> = [];
+	followUpCalls: Array<{ text: string; images: unknown[] }> = [];
+	joinActiveTurnCalls: Array<{ text: string; images: unknown[]; queue: "steering" | "followUp" }> = [];
+	/** Extra refusal switch for the fake `joinActiveTurn`; `isStreaming` remains the busy gate. */
+	joinActiveTurnAdmitted = true;
+	/** Backs `modelRegistry.authStorage` for `/mcp reauth` credential round-trips. */
+	authStorage?: AuthStorage;
 	/** Resolved when `prompt()` starts streaming; lets a test await turn start. */
 	promptEntered = Promise.withResolvers<void>();
 	/** Awaited inside `prompt()` after streaming starts, so a test can hold a turn open. */
@@ -232,9 +238,10 @@ export class FakeAgentSession {
 		return this.sessionManager.getHeader()?.title ?? `Session ${this.sessionId}`;
 	}
 
-	get modelRegistry(): { getApiKey: (model: Model) => Promise<string> } {
+	get modelRegistry(): { getApiKey: (model: Model) => Promise<string>; authStorage?: AuthStorage } {
 		return {
 			getApiKey: async (_model: Model) => "test-key",
+			...(this.authStorage ? { authStorage: this.authStorage } : {}),
 		};
 	}
 
@@ -355,7 +362,7 @@ export class FakeAgentSession {
 	abortEntered = Promise.withResolvers<void>();
 	/** Awaited inside `abort()` before the runtime's abort accounting, so a test can hold an abort open. */
 	abortHold: Promise<void> | undefined;
-	async abort(options?: { goalStamp?: GoalOwnerStamp }): Promise<void> {
+	async abort(options?: { reason?: string; goalStamp?: GoalOwnerStamp }): Promise<void> {
 		this.abortCalls++;
 		this.isStreaming = false;
 		// As `AgentSession.abort`: ownership is reserved when the abort is requested (a Stop supplies its own
@@ -406,7 +413,32 @@ export class FakeAgentSession {
 	async refreshMCPTools(_tools: unknown[]): Promise<void> {}
 
 	async steer(text: string, images?: unknown[]): Promise<void> {
-		this.steerCalls.push({ text, images });
+		this.steerCalls.push({ text, images: images ?? [] });
+	}
+	async followUp(text: string, images?: unknown[]): Promise<void> {
+		this.followUpCalls.push({ text, images: images ?? [] });
+	}
+	async joinActiveTurn(
+		text: string,
+		images?: unknown[],
+		options?: { queue?: "steering" | "followUp" },
+	): Promise<boolean> {
+		const queue = options?.queue ?? "steering";
+		this.joinActiveTurnCalls.push({ text, images: images ?? [], queue });
+		const admitted = this.isStreaming && this.joinActiveTurnAdmitted;
+		if (!admitted) {
+			return false;
+		}
+		if (queue === "followUp") {
+			await this.followUp(text, images);
+		} else {
+			await this.steer(text, images);
+		}
+		return true;
+	}
+	/** The fake never admits a user steer into an open approval, so no dialog is superseded. */
+	watchApprovalSupersede(_loopSteeringSignal: AbortSignal | undefined): { signal: AbortSignal; dispose(): void } {
+		return { signal: new AbortController().signal, dispose: () => {} };
 	}
 
 	getContextUsage(): { tokens: number | null; contextWindow: number; percent: number } | undefined {
@@ -728,14 +760,20 @@ interface FakeSessionFactoryState {
 	) => Promise<{ session: AgentSession; setToolUIContext: SetToolUIContextSpy }>;
 }
 
-function createFakeSessionFactory(cwdA: string, extensionRunners: boolean | undefined): FakeSessionFactoryState {
+function createFakeSessionFactory(
+	cwdA: string,
+	extensionRunners: boolean | undefined,
+	authStorage?: AuthStorage,
+): FakeSessionFactoryState {
 	const sessions: FakeAgentSession[] = [];
 	const setToolUIContextSpies: SetToolUIContextSpy[] = [];
 	const sessionFactoryOptions: Array<{ interactivePrompts?: boolean } | undefined> = [];
 	const initialSession = new FakeAgentSession(cwdA);
+	if (authStorage) initialSession.authStorage = authStorage;
 	sessions.push(initialSession);
 	const factory = async (cwd: string, factoryOptions?: { interactivePrompts?: boolean }) => {
 		const session = new FakeAgentSession(cwd);
+		if (authStorage) session.authStorage = authStorage;
 		if (extensionRunners) {
 			session.extensionRunner = new ExtensionRunner(
 				[],
@@ -768,6 +806,8 @@ export async function createHarness(
 		protocolVersion?: number;
 		/** Answers v1 `session/request_permission` requests the agent sends. */
 		requestPermission?: (request: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
+		/** Exposed to each created session's `modelRegistry` for MCP credential round-trips. */
+		authStorage?: AuthStorage;
 	} = {},
 ): Promise<AgentHarness> {
 	const { cwdA, cwdB } = await prepareHarnessRoots();
@@ -785,6 +825,10 @@ export async function createHarness(
 			? async (req: CreateElicitationRequest) => options.elicitationHandler!(req)
 			: undefined,
 		requestPermission: options.requestPermission,
+		// The agent sends v1 permission requests through the cancellable form.
+		requestPermissionWithCancel: options.requestPermission
+			? (request: RequestPermissionRequest) => ({ promise: options.requestPermission!(request), cancel: () => {} })
+			: undefined,
 		signal: abortController.signal,
 		closed: Promise.withResolvers<void>().promise,
 	} as unknown as AgentSideConnection;
@@ -792,6 +836,7 @@ export async function createHarness(
 	const { sessions, setToolUIContextSpies, sessionFactoryOptions, initialSession, factory } = createFakeSessionFactory(
 		cwdA,
 		options.extensionRunners,
+		options.authStorage,
 	);
 
 	const agent = new AcpAgent(connection, factory, initialSession as unknown as AgentSession);

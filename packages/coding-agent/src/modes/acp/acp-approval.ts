@@ -12,6 +12,7 @@ import type {
 	ExtensionApprovalPrompt,
 	ExtensionUIDialogOptions,
 } from "../../extensibility/extensions/types";
+import type { ApprovalSupersedeWatch } from "../../session/agent-session-types";
 import type {
 	ClientBridgePermissionOption,
 	ClientBridgePermissionOutcome,
@@ -159,31 +160,51 @@ function permissionToolCall(prompt: ExtensionApprovalPrompt, cwd: string): Clien
 	};
 }
 
+/** Opens a supersede watch for one approval dialog; see `AgentSession.watchApprovalSupersede`. */
+export type WatchApprovalSupersede = (loopSteeringSignal: AbortSignal | undefined) => ApprovalSupersedeWatch;
+
 /**
  * `ExtensionUIContext.approve` for an ACP session: one `session/request_permission` per prompt,
  * independent of form elicitation. A `cancelled` outcome or an aborted turn is a cancellation, an
- * option the request never offered fails the call, and a transport error propagates.
+ * option the request never offered fails the call, and a transport error propagates. With
+ * `watchSupersede`, a user steer sent while the request is open supersedes it: the client's dialog
+ * is withdrawn (v1 `$/cancel_request`) and the call fails as superseded, so the steer reaches the
+ * agent at the next batch boundary instead of waiting behind the dialog.
  */
 export function createAcpApprove(
 	request: AcpPermissionRequester,
 	getCwd: () => string,
 	track: InteractionTracker,
+	watchSupersede?: WatchApprovalSupersede,
 ): (prompt: ExtensionApprovalPrompt, dialogOptions?: ExtensionUIDialogOptions) => Promise<ExtensionApprovalAnswer> {
 	return async (prompt, dialogOptions) => {
 		const signal = dialogOptions?.signal;
 		if (signal?.aborted) throw new ToolAbortError("Permission request cancelled");
 		const options = acpPermissionOptions(prompt);
 		const toolCall = permissionToolCall(prompt, getCwd());
-		const { promise: aborted, resolve: onAbort } = Promise.withResolvers<undefined>();
-		const abort = () => onAbort(undefined);
+		const watch = watchSupersede?.(dialogOptions?.steeringSignal);
+		const superseded = watch?.signal;
+		if (superseded?.aborted) {
+			watch!.dispose();
+			throw new ToolAbortError("Permission request superseded by user steering");
+		}
+		const { promise: interrupted, resolve: interrupt } = Promise.withResolvers<"aborted" | "superseded">();
+		const abort = () => interrupt("aborted");
+		const supersede = () => interrupt("superseded");
+		// Registered before the request so a supersede settles the race ahead of the request's own
+		// `cancelled` answer to the withdrawn dialog.
 		signal?.addEventListener("abort", abort, { once: true });
-		let outcome: ClientBridgePermissionOutcome | undefined;
+		superseded?.addEventListener("abort", supersede, { once: true });
+		let outcome: ClientBridgePermissionOutcome | "aborted" | "superseded";
 		try {
-			outcome = await track(() => Promise.race([request(toolCall, options, signal), aborted]));
+			outcome = await track(() => Promise.race([request(toolCall, options, signal, superseded), interrupted]));
 		} finally {
 			signal?.removeEventListener("abort", abort);
+			superseded?.removeEventListener("abort", supersede);
+			watch?.dispose();
 		}
-		if (outcome === undefined || signal?.aborted || outcome.outcome === "cancelled") {
+		if (outcome === "superseded") throw new ToolAbortError("Permission request superseded by user steering");
+		if (outcome === "aborted" || signal?.aborted || outcome.outcome === "cancelled") {
 			throw new ToolAbortError("Permission request cancelled");
 		}
 		const answer = answerForOption(options, outcome.optionId);

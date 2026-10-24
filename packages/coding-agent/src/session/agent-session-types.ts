@@ -493,6 +493,14 @@ export interface SteerOptions {
 	attribution?: MessageAttribution;
 }
 
+/** An open approval dialog's watch for a superseding user steer (see `AgentSession.watchApprovalSupersede`). */
+export interface ApprovalSupersedeWatch {
+	/** Aborts once a user steer supersedes the dialog; the steer is already promoted. */
+	readonly signal: AbortSignal;
+	/** Ends the watch; call it when the dialog settles, superseded or not. */
+	dispose(): void;
+}
+
 /** Options for AgentSession.sendUserMessage(). */
 export interface SendUserMessageOptions {
 	/** Queue behavior; omitted starts a turn when idle and steers while streaming. */

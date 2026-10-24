@@ -460,6 +460,7 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 					grants: cacheTargets,
 					call: { toolCallId, toolName: this.tool.name, args: resolvedArgs, tier: resolved.tier },
 					signal,
+					steeringSignal: context?.toolCall?.steeringSignal,
 				});
 				approved = answer !== "deny" && answer !== "deny-session";
 				if (answer === "session" && sessionScope) this.runner.grantSessionApproval(sessionScope.key);

@@ -200,6 +200,12 @@ export function timedOutAskDialogResult(questions: ExtensionAskDialogQuestion[])
  */
 export interface ExtensionUIDialogOptions {
 	signal?: AbortSignal;
+	/**
+	 * The pending tool call's loop-owned steer signal (`ctx.toolCall.steeringSignal`), passed to
+	 * `approve()` so a host can let a user steer supersede the dialog under the loop's
+	 * `interruptMode` policy. Unlike `signal` it never means the turn was cancelled.
+	 */
+	steeringSignal?: AbortSignal;
 	timeout?: number;
 	/** Invoked when the UI times out while waiting for a selection/input */
 	onTimeout?: () => void;
@@ -2231,6 +2237,8 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
+	/** Set once the extension calls `registerProvider`; providers feed startup model resolution. */
+	registersProviders?: boolean;
 }
 
 /**
