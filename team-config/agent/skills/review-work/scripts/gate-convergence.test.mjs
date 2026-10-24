@@ -61,7 +61,41 @@ function sandbox(t) {
     writeFileSync(path.join(repo, out, "verdict.json"), JSON.stringify(body))
     return { dir: out, result: gc("delta", "--lane", lane, "--dir", out, ...rows.flatMap((row) => ["--row", row])) }
   }
-  return { repo, git, commit, run, gc, ledger, ledgerPath, head, wave, delta }
+  // One stored reviewer reply under the git-ignored evidence tree; returns the `--trailer` args.
+  let trailerCount = 0
+  const trailer = (invocation, verdict, options = {}) => {
+    trailerCount += 1
+    const file = `.omp/team-config/evidence/demo/f2/trailer-${invocation}-${trailerCount}.txt`
+    mkdirSync(path.join(repo, path.dirname(file)), { recursive: true })
+    writeFileSync(path.join(repo, file), trailerBody({ invocation, verdict, ...options }))
+    return ["--trailer", `${invocation}=${file}`]
+  }
+  return { repo, git, commit, run, gc, ledger, ledgerPath, head, wave, delta, trailer }
+}
+
+// A reviewer reply in the REVIEW-TRAILER-v1 shape the record check reads. A FAIL reply carries one
+// `Blocker B1:` line, matching its `blockers: B1`.
+function trailerBody({ invocation = "implementation-audit", verdict = "PASS", invariant = "a wave records no reviewer outcome its trailer contradicts", criteriaKey = "adversarial_criteria" } = {}) {
+  const sections = invocation === "implementation-audit" ? "1,2,3,4,5" : "1,2,3,4"
+  return [
+    verdict === "FAIL" ? "Blocker B1: src/a.ts:1 drops the second line" : "No blocker found.",
+    "",
+    "REVIEW-TRAILER-v1",
+    `invocation: ${invocation}`,
+    `sections_covered: ${sections}`,
+    "model_id: openai/gpt-5.6-terra",
+    "security_delta: no",
+    `verdict: ${verdict}`,
+    `blockers: ${verdict === "FAIL" ? "B1" : "none"}`,
+    `${criteriaKey}:`,
+    `- invariant: ${invariant}`,
+    "  positive_witness: a PASS outcome with a PASS trailer is recorded",
+    "  negative_control: a PASS outcome with a FAIL trailer is refused",
+    "  observable: exit code and the ledger",
+    "  boundary: the gate-convergence process",
+    "END-REVIEW-TRAILER",
+    "",
+  ].join("\n")
 }
 
 const first = (stdout) => stdout.split("\n")[0]
@@ -84,11 +118,11 @@ test("#given no baseline #when a wave is recorded #then it is undecidable, and a
 test("#given a blocker whose second site a reviewed fix wrote #when the next wave records it #then fix-induced rose and it stops", (t) => {
   const s = sandbox(t)
   s.gc("baseline", "--sha", "HEAD")
-  assert.equal(s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", "--blocker", "B1=src/a.ts:1").status, 0)
+  assert.equal(s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...s.trailer("implementation-audit", "FAIL"), "--blocker", "B1=src/a.ts:1").status, 0)
   const base = s.head()
   const fix = s.commit("src/a.ts", "line one\nline TWO fixed\nline three\n", "fix R1")
   assert.equal(s.delta("F2", base, fix, "OKAY").result.status, 0)
-  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", "--blocker", "B2=src/a.ts:1,src/a.ts:2")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...s.trailer("implementation-audit", "FAIL"), "--blocker", "B2=src/a.ts:1,src/a.ts:2")
   assert.equal(result.status, 3, result.stderr)
   assert.equal(first(result.stdout), "DECISION: STOP fix-induced blockers rose from 0 to 1")
   const wave = s.ledger().filter((e) => e.event === "gate_wave").at(-1)
@@ -212,7 +246,7 @@ test("#given a STOP #when decide runs #then continue re-opens, freeze closes, an
   for (const [choice, ready] of [["continue", 0], ["freeze", 1]]) {
     const s = sandbox(t)
     s.gc("baseline", "--sha", "HEAD")
-    for (const [index, count] of [3, 2, 3].entries()) s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...blockers(`W${index}B`, count))
+    for (const [index, count] of [3, 2, 3].entries()) s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...s.trailer("implementation-audit", "FAIL"), ...blockers(`W${index}B`, count))
     const stopped = s.gc("ready", "--lane", "F2")
     assert.equal(stopped.status, 1)
     assert.match(stopped.stdout, /F2 wave 3 stopped: run decide first/)
@@ -361,7 +395,7 @@ const waveEvents = (s) => s.ledger().filter((e) => e.event === "gate_wave")
 function toolingStop(s, lane = "F2") {
   tierPlan(s, "internal-tooling")
   s.gc("baseline", "--sha", "HEAD")
-  const outcomes = lane === "F2" ? ["--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL"] : ["--outcome", "f3=FAIL"]
+  const outcomes = lane === "F2" ? ["--outcome", "qa=PASS", "--outcome", "implementation-audit=FAIL", ...s.trailer("implementation-audit", "FAIL")] : ["--outcome", "f3=FAIL"]
   let last
   for (const [index, count] of [3, 2, 1].entries()) {
     last = s.wave(lane, ...outcomes, ...blockers(`W${index}B`, count))
@@ -817,4 +851,105 @@ test("delta location: snapshot output and plan copy land in .omp/team-config/gat
   assert.ok(lines[0].startsWith(dir), lines[0])
   assert.ok(lines[2].replace(/^PLAN /, "").startsWith(dir), lines[2])
   assert.deepEqual(readdirSync(legacy).map((name) => [name, statSync(path.join(legacy, name)).mtimeMs]), before)
+})
+
+// A reviewer PASS or FAIL is recorded only with a trailer that passes the record check's trailer
+// rules against the wave's plan bytes, with that outcome as its verdict. Every refusal must leave
+// the ledger without a gate_wave event, so the same command can run again after a repair.
+test("wave trailer: a reviewer outcome with a passing trailer is recorded", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=PASS", ...s.trailer("implementation-audit", "PASS"))
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(first(result.stdout), "DECISION: PASS")
+  assert.deepEqual(waveEvents(s).map((e) => e.outcomes), [{ qa: "PASS", "implementation-audit": "PASS" }])
+})
+
+for (const [name, verdict] of [["PASS", "PASS"], ["FAIL", "FAIL"]]) {
+  test(`wave trailer: a reviewer ${name} without a trailer is refused`, (t) => {
+    const s = sandbox(t)
+    s.gc("baseline", "--sha", "HEAD")
+    const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", `implementation-audit=${verdict}`, ...(verdict === "FAIL" ? ["--blocker", "B1"] : []))
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /implementation-audit/)
+    assert.match(result.stderr, /--trailer/)
+    assert.deepEqual(waveEvents(s), [])
+  })
+}
+
+test("wave trailer: an inconclusive reviewer without a trailer is recorded with its blocker", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=INCONCLUSIVE")
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(waveEvents(s).at(-1).unlocated, ["implementation-audit-inconclusive"])
+})
+
+test("wave trailer: any --trailer in lane F3 is refused", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F3", "--outcome", "f3=PASS", ...s.trailer("implementation-audit", "PASS"))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /F3/)
+  assert.deepEqual(waveEvents(s), [])
+})
+
+test("wave trailer: a PASS outcome whose trailer says FAIL is refused with a verdict finding (negative control)", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=PASS", ...s.trailer("implementation-audit", "FAIL"))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /\.verdict: /)
+  assert.deepEqual(waveEvents(s), [])
+})
+
+test("wave trailer: a trailer naming an invocation without an outcome is refused", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", ...s.trailer("strategic-risk-review", "PASS"))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /strategic-risk-review/)
+  assert.deepEqual(waveEvents(s), [])
+})
+
+test("wave trailer: a duplicate --trailer is refused", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=PASS", ...s.trailer("implementation-audit", "PASS"), ...s.trailer("implementation-audit", "PASS"))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /duplicate/)
+  assert.deepEqual(waveEvents(s), [])
+})
+
+test("wave trailer: a valid trailer on an INCONCLUSIVE outcome is recorded", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=INCONCLUSIVE", ...s.trailer("implementation-audit", "INCONCLUSIVE"))
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(waveEvents(s).at(-1).unlocated, ["implementation-audit-inconclusive"])
+})
+
+for (const [name, options, finding] of [
+  ["malformed", { verdict: "INCONCLUSIVE", criteriaKey: "adversarial_criterion" }, /adversarial_criteria/],
+  ["mismatched-verdict", { verdict: "PASS" }, /\.verdict: /],
+]) {
+  test(`wave trailer: a ${name} trailer on an INCONCLUSIVE outcome is refused`, (t) => {
+    const s = sandbox(t)
+    s.gc("baseline", "--sha", "HEAD")
+    const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=INCONCLUSIVE", ...s.trailer("implementation-audit", options.verdict, options))
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, finding)
+    assert.deepEqual(waveEvents(s), [])
+  })
+}
+
+test("wave trailer: a criterion invariant copied from the gated plan is refused", (t) => {
+  const s = sandbox(t)
+  const invariant = "the copied invariant proves nothing the author had not already assumed"
+  appendFileSync(path.join(s.repo, PLAN), `\n- Invariant: ${invariant}\n`)
+  s.gc("baseline", "--sha", "HEAD")
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=PASS", ...s.trailer("implementation-audit", "PASS", { invariant }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /adversarial_criteria/)
+  assert.deepEqual(waveEvents(s), [])
 })

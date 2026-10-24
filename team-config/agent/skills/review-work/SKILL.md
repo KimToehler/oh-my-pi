@@ -3,7 +3,7 @@ name: review-work
 description: "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally oracle) with verbatim briefs, stored trailers, and a team-config.merge-gate/v3 record validated by validate-gate-record.mjs. Use before calling work done, before a PR handoff or merge, or when the user asks to review completed work."
 ---
 
-Validator: `$SKILL_DIR/scripts/validate-gate-record.mjs`, where `SKILL_DIR=~/.omp/agent/skills/review-work`. Always pass `--repo <repo root>` (Phase 0.6 `--plan-only`, Phase 5 full run).
+Validator: `$SKILL_DIR/scripts/validate-gate-record.mjs`, where `SKILL_DIR=~/.omp/agent/skills/review-work`. Always pass `--repo <repo root>` (Phase 0.6 `--plan-only`, Phase 2-3 `--trailer`, Phase 5 full run).
 
 Convergence: `$SKILL_DIR/scripts/gate-convergence.mjs` (see Fix waves).
 
@@ -185,6 +185,7 @@ Dispatch: `task` with one item: `agent: "auditor"`, `solutionSpace: "Review of a
 
 ```
 Local implementation audit. No PR lookup, remote fetch, file write, or sub-reviewer dispatch.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
 
 Inputs:
 - Goal, constraints, and behavioural contract: {GOAL, CONSTRAINTS, BACKGROUND}
@@ -241,6 +242,7 @@ Dispatch: `task` with one item: `agent: "oracle"`, `solutionSpace: "Strategic ri
 
 ```
 Read-only strategic risk review. Do not run commands, fetch network context, modify files, or spawn sub-reviewers.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
 
 Changed files:
 {CHANGED_FILES}
@@ -286,7 +288,9 @@ adversarial_criteria:
 END-REVIEW-TRAILER
 ```
 
-Store each reviewer's trailer verbatim at a tracked path (copy it from the delivered result or `read agent://<id>`; never retype it) and point the record's `trailer_artifact` at it. The validator reads its facts from that file, so a trailer you paraphrase, trim, or write yourself is a fabricated review record, not a formatting shortcut.
+Store each reviewer's trailer verbatim at a tracked path (copy it from the delivered result or `read agent://<id>`; never retype it) and point the record's `trailer_artifact` at it. The validator reads its facts from that file, so a trailer you paraphrase, trim, or write yourself is a fabricated review record, not a formatting shortcut. A trailer that is missing or fails the check below goes through Phase 3's **Trailer repair.**
+
+Check each stored trailer as soon as it arrives, before the wave is recorded: `node $SKILL_DIR/scripts/validate-gate-record.mjs --repo <repo root> --trailer <trailer file> --invocation <implementation-audit|strategic-risk-review> --verdict <PASS|FAIL|INCONCLUSIVE> --plan <plan path from Phase 0.6>`, with `--verdict` set to the reply's verdict normalised as below. It applies every trailer rule of the Phase 5 record check except the model binding to the record's resolution, reads the file without requiring it to be tracked, and prints `passed` (exit 0) or `blocked` (exit 1, the finding on stderr). `--trailer` cannot be combined with `--record` or `--plan-only`.
 
 Normalize verdicts before aggregation: reviewer `APPROVE` maps to `PASS`; `REJECT` maps to `FAIL`; anything else, including narrative without verdict token, maps to `INCONCLUSIVE` and blocks. A trailer whose `verdict` field carries `APPROVE` blocks outright - that token means the brief solicited the wrong vocabulary, so re-run the invocation with the verbatim brief instead of translating the answer.
 
@@ -322,7 +326,13 @@ Five fields are mandatory for semantic, policy, authorization, transformation, f
 
 Results arrive automatically; use `wait` only when blocked on them, and do independent root work meanwhile. Timeout, ack-only reply, empty result, missing deliverable, or explicit `BLOCKED:` is never `PASS`. Apply one bounded fresh-context retry; if unresolved, record `INCONCLUSIVE` with reason. Never fan out or use a long-lived reviewer carrying stale context.
 
-A rejecting invocation must name its blockers inline, each on its own `Blocker B<n>:` line citing the violated criterion or requirement plus an evidence pointer. A FAIL whose `Blocker B<n>:` lines and trailer `blockers:` field disagree is incomplete: re-dispatch it like a missing trailer; never edit the reply. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason. A reply carrying no trailer is the same case - without it, what the reviewer was asked cannot be established.
+A rejecting invocation must name its blockers inline, each on its own `Blocker B<n>:` line citing the violated criterion or requirement plus an evidence pointer. A FAIL whose `Blocker B<n>:` lines and trailer `blockers:` field disagree fails the trailer check: repair it as below; never edit the reply. A bare `FAIL` token without findings is not a verdict: treat it as inconclusive, apply one bounded respawn, then record `INCONCLUSIVE` with that reason.
+
+**Trailer repair.** A reply that delivers its review and states one verdict token but whose trailer is missing or fails the trailer check is repaired before any new dispatch: keep the reply as local evidence (`.omp/team-config/evidence/<plan basename>/wave-<n>/<invocation>-reply.md`, git-ignored), send the same reviewer exactly one `write agent://<id>` with the message below, `{CHECK FINDING}` replaced by the check's stderr line, store its answer exactly as delivered (`read agent://<id>`, never retyped, never joined to the first reply) as the `*trailer*` artifact, and run the trailer check on it with `--verdict` set to the first reply's verdict. Only when the repaired trailer fails the check, or the reviewer cannot be reached or does not answer, dispatch a fresh reviewer with the verbatim brief. The reply of the fresh reviewer gets the same single repair; if its trailer still fails, the invocation is INCONCLUSIVE for this wave and no further reviewer is dispatched. An empty or ack-only reply, a bare verdict without the review, or a missing deliverable is not repaired: it takes the bounded fresh-context retry above, then INCONCLUSIVE. A reply without a verdict token, or with conflicting ones, is `INCONCLUSIVE` and gets no repair. At most one repair message per reply.
+
+```
+TRAILER REPAIR. Your review is finished: do not review again, read nothing, and keep your verdict. Reply with only every `Blocker B<n>:` line of your previous reply, verbatim, then the REVIEW-TRAILER-v1 block exactly as the brief specifies it, field names unchanged, filled in for that review. Check finding: {CHECK FINDING}
+```
 
 Review evidence must be safe to share. Redact or mask secrets and sensitive user data before putting evidence into records, logs, or handoffs. Never include raw tokens, credentials, auth headers, cookies, API keys, env dumps, private logs, or PII; summarize with lengths, hashes, and short non-sensitive prefixes when identity is needed.
 
@@ -334,7 +344,7 @@ Store variable invocation results independently:
 | `implementation-audit` when run | resolved named agent | exact model ID | `cross-provider` / `same-provider` / `same-model` / `unprovable` | `PASS` / `FAIL` / `INCONCLUSIVE` | findings |
 | `strategic-risk-review` when run | resolved named agent | exact model ID | `cross-provider` / `same-provider` / `same-model` / `unprovable` | `PASS` / `FAIL` / `INCONCLUSIVE` | findings |
 
-A re-review after fixes is a new `task` call (never `write agent://<id>` to a reviewer that already returned a verdict) and starts fresh at Phase 0 and sees delta plus current evidence. Any commit touching reviewed code invalidates all verdicts; a commit that only stores this record's own evidence does not.
+A re-review after fixes is a new `task` call (never `write agent://<id>` to a reviewer that already returned a verdict; the one exception is the trailer repair above, which adds no input and asks for no judgement) and starts fresh at Phase 0 and sees delta plus current evidence. Any commit touching reviewed code invalidates all verdicts; a commit that only stores this record's own evidence does not.
 
 ## Phase 4: Deliver Verdict
 
@@ -402,6 +412,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
 2. Until the wave is recorded, change nothing tracked. QA artifacts go under `.omp/team-config/evidence/<plan basename>/wave-<n>/`; they are local and git-ignored (never staged), so the snapshot's clean-tree check is unaffected. Only the record, the `*trailer*` files and the F3 integration-review report are staged, in Phase 5; until then the F3 report stays unstaged, because a staged report makes `GC snapshot` refuse. Between waves commit only fix code and the plan edits a fix or freeze needs. A commit with neither a delta review nor an exemption (step 5) blocks the next wave.
 3. After the wave's verdicts, before any fix, run `GC wave --lane F2 --snapshot <path from step 1>` with:
    - `--outcome qa=PASS|FAIL`, plus `--outcome <invocation>=PASS|FAIL|INCONCLUSIVE` for each invocation that ran, normalised as in Phases 2-3;
+   - one `--trailer <invocation>=<trailer file>` for each reviewer outcome that is PASS or FAIL, and for an INCONCLUSIVE one whose reply has a trailer;
    - one `--blocker QA<n>` per failing QA row;
    - one `--blocker <class>=<site>,<site>…` per distinct reviewer blocker class, with sites from its `sites:` line;
    - `@fix` appended to an id (`QA2@fix`, `stale-cache@fix=src/a.ts:4`) when the row passed in the previous F2 wave, or when the finding names a fix row or fix commit as its cause.
