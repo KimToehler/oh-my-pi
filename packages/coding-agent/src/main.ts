@@ -543,8 +543,9 @@ export function createAcpSessionFactory(args: AcpSessionFactoryOptions): AcpSess
 	return async (cwd, factoryOptions) => {
 		const nextSettings = await args.settings.cloneForCwd(cwd);
 		// An unconfigured ACP session asks before exec-tier calls instead of running them under the
-		// schema default `yolo`; a configured mode (env, project, global, `--approval-mode`) wins.
-		if (!cfgToolsApprovalMode.isConfigured(nextSettings)) cfgToolsApprovalMode.override(nextSettings, "write");
+		// schema default `yolo`. This is a host default, not an override: env, global, project and
+		// `--approval-mode` win, and it stays below them when the session later re-scopes to another cwd.
+		cfgToolsApprovalMode.hostDefault(nextSettings, "write");
 		const nextSessionManager = SessionManager.create(cwd, args.sessionDir);
 		const agentId = `acp:${nextSessionManager.getSessionId()}`;
 		// `baseOptions.titleSystemPrompt` is resolved from the launch cwd; an ACP

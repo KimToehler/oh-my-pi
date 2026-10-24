@@ -300,4 +300,54 @@ describe("createAcpSessionFactory default approval mode", () => {
 		const settings = await Settings.loadIsolated({ cwd: tempDir.path(), agentDir });
 		expect(await sessionApprovalMode(settings, tempDir.path())).toBe(mode);
 	});
+
+	/** The settings the factory hands to the session for `cwd`. */
+	async function sessionSettings(settings: Settings, cwd: string): Promise<Settings> {
+		let captured: Settings | undefined;
+		const factory = createAcpSessionFactory({
+			baseOptions: { disableExtensionDiscovery: true } as CreateAgentSessionOptions,
+			settings,
+			sessionDir: tempDir.join("sessions"),
+			authStorage,
+			modelRegistry,
+			parsedArgs: { invalidFlagValues: [] },
+			rawArgs: [],
+			createSession: async options => {
+				captured = options.settings;
+				return { session: {} as AgentSession } as unknown as CreateAgentSessionResult;
+			},
+		});
+		await factory(cwd);
+		if (!captured) throw new Error("Expected the factory to create a session");
+		return captured;
+	}
+
+	it("acp default mode: a session re-scoped into an always-ask project follows it and falls back to write", async () => {
+		const launchDir = tempDir.join("launch");
+		const strictDir = tempDir.join("strict");
+		await Bun.write(path.join(strictDir, ".omp", "config.yml"), "tools:\n  approvalMode: always-ask\n");
+		fs.mkdirSync(launchDir, { recursive: true });
+		const settings = await Settings.loadIsolated({ cwd: launchDir, agentDir: tempDir.join("agent") });
+		const session = await sessionSettings(settings, launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("write");
+		await session.reloadForCwd(strictDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("always-ask");
+		await session.reloadForCwd(launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("write");
+	});
+
+	it("acp default mode: --approval-mode yolo stays yolo across re-scoping", async () => {
+		const launchDir = tempDir.join("launch");
+		const otherDir = tempDir.join("other");
+		fs.mkdirSync(launchDir, { recursive: true });
+		fs.mkdirSync(otherDir, { recursive: true });
+		const settings = await Settings.loadIsolated({ cwd: launchDir, agentDir: tempDir.join("agent") });
+		cfgToolsApprovalMode.override(settings, "yolo");
+		const session = await sessionSettings(settings, launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
+		await session.reloadForCwd(otherDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
+		await session.reloadForCwd(launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
+	});
 });
