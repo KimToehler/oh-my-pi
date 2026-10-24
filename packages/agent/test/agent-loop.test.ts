@@ -5895,6 +5895,88 @@ describe("agentLoop stop after batch", () => {
 		expect(r.mock.calls.length).toBeGreaterThanOrEqual(2);
 		expect(r.steeringQueue).toHaveLength(0);
 	});
+
+	async function runReplayedTail(stopHook: (flag: { raised: boolean }) => boolean) {
+		const schema = type({});
+		const flag = { raised: false };
+		let turnEndWillContinue: boolean | undefined;
+		const steeringQueue: AgentMessage[] = [createUserMessage("queued before the replay")];
+		const tool: AgentTool<typeof schema> = {
+			name: "tool_a",
+			label: "A",
+			description: "A",
+			parameters: schema,
+			async execute() {
+				flag.raised = true;
+				return { content: [{ type: "text", text: "A replayed" }], details: {} };
+			},
+		};
+		const tail: AssistantMessage = {
+			role: "assistant",
+			content: [{ type: "toolCall", id: "tail-1", name: "tool_a", arguments: {} }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
+			usage: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "toolUse",
+			timestamp: Date.now(),
+		};
+		const context: AgentContext = {
+			systemPrompt: [""],
+			messages: [createUserMessage("start over"), tail],
+			tools: [tool],
+		};
+		const mock = createMockModel({ responses: [{ content: ["must not be requested"] }] });
+		const config: AgentLoopConfig = {
+			model: mock.model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: async () => steeringQueue.splice(0),
+			shouldStopAfterBatch: () => stopHook(flag),
+			onTurnEnd: async (_messages, _signal, turnContext) => {
+				turnEndWillContinue = turnContext?.willContinue;
+			},
+		};
+		const events: AgentEvent[] = [];
+		const stream = agentLoopContinue(context, config, undefined, mock.stream);
+		for await (const event of stream) events.push(event);
+		const newMessages = await stream.result();
+		return { mock, events, newMessages, turnEndWillContinue, steeringQueue };
+	}
+
+	it("stop after batch: a replayed unpaired tool tail stops before the first model call", async () => {
+		const r = await runReplayedTail(flag => flag.raised);
+		expect(r.mock.calls).toHaveLength(0);
+		const results = r.newMessages.filter((m): m is ToolResultMessage => m.role === "toolResult");
+		expect(results.map(m => m.toolCallId)).toEqual(["tail-1"]);
+		expect(toolResultText(results[0]!)).toBe("A replayed");
+		expect(r.turnEndWillContinue).toBe(false);
+		expect(r.events.at(-1)?.type).toBe("agent_end");
+	});
+
+	it("stop after batch: steering queued before a replayed tail stays queued when the hook stops", async () => {
+		const r = await runReplayedTail(flag => flag.raised);
+		expect(r.steeringQueue).toHaveLength(1);
+		const emitted = r.events.flatMap(e => (e.type === "message_start" ? [e.message] : []));
+		expect(emitted.some(m => m.role === "user" && JSON.stringify(m).includes("queued before the replay"))).toBe(
+			false,
+		);
+	});
+
+	it("stop after batch: a replayed unpaired tool tail continues when the hook returns false", async () => {
+		const r = await runReplayedTail(() => false);
+		expect(r.mock.calls).toHaveLength(1);
+		expect(r.steeringQueue).toHaveLength(0);
+		// Steering is delivered after the replayed result, before the first model call.
+		const roles = r.mock.calls[0]?.context.messages.map(m => m.role);
+		expect(roles).toEqual(["user", "assistant", "toolResult", "user"]);
+	});
 });
 
 describe("agentLoopContinue with AgentMessage", () => {

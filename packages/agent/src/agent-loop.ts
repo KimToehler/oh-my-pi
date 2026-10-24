@@ -1239,15 +1239,20 @@ async function runLoopBody(
 			endAgentStream(stream, newMessages, telemetry, stepCounter.count);
 			return;
 		}
+		// A trailing assistant message with unpaired tool calls is replayed first (below). Its steering
+		// drain waits until the batch has settled, so a host stop leaves queued steering in its queue.
+		const resumeTail = unpairedToolCallTail(currentContext.messages);
 		// Check for steering messages at start (user may have typed while waiting).
 		// Skip when the run is already externally aborted — dequeuing would strand
 		// the messages in a run that is about to die.
-		try {
-			pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
-		} catch (error) {
-			stream.push({ type: "turn_start" });
-			emitInputMessages(stream, messagesToEmit);
-			throw error;
+		if (!resumeTail) {
+			try {
+				pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
+			} catch (error) {
+				stream.push({ type: "turn_start" });
+				emitInputMessages(stream, messagesToEmit);
+				throw error;
+			}
 		}
 		let harmonyRetryAttempt = 0;
 		let harmonyTruncateResumeCount = 0;
@@ -1271,7 +1276,6 @@ async function runLoopBody(
 		// steering stays parked until after the batch — injecting a message
 		// between the tool_use blocks and their results would break the
 		// provider's pairing invariant.
-		const resumeTail = unpairedToolCallTail(currentContext.messages);
 		if (resumeTail) {
 			stream.push({ type: "turn_start" });
 			emitInputMessages(stream, messagesToEmit);
@@ -1297,17 +1301,25 @@ async function runLoopBody(
 				stream,
 				executionResult.additionalContext,
 			);
+			// Every replayed call has settled: the host may end the run here, exactly like the main path.
+			const resumeBatchStopped = config.shouldStopAfterBatch?.() === true;
 			await emitTurnEnd(stream, currentContext, resumeTail, executionResult.toolResults, config, signal, {
-				willContinue: !isDeadlineExceeded(config.deadline),
+				willContinue: !resumeBatchStopped && !isDeadlineExceeded(config.deadline),
 				...(resumeContextMessage ? { additionalMessages: [resumeContextMessage] } : {}),
 			});
 			turnOpen = false;
+			if (resumeBatchStopped) {
+				endAgentStream(stream, newMessages, telemetry, stepCounter.count);
+				return;
+			}
 			// A tool hook may mark its completed result as terminal (e.g. subagent
 			// yield) — same stop-before-next-model-call rule as the main loop.
 			if (signal?.reason === TERMINAL_TOOL_RESULT_ABORT_REASON) {
 				endAgentStream(stream, newMessages, telemetry, stepCounter.count);
 				return;
 			}
+			// Steering parked behind the replayed batch is taken only now: a stop leaves it queued.
+			pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
 		}
 
 		// Outer loop: continues when queued follow-up messages arrive after agent would stop
