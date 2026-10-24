@@ -1,0 +1,50 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/acp-permission-parity",
+  "plan_sha256": "fbd09609e9a2fa9312b714c937bf5f55885d16cfa9be0c98bdb6b8912558178a",
+  "reviewed_sha": "80742eebabfce714d755ac3630a1f7bee7572c9b",
+  "diff_base": "2fbcd38ddea0e65323aca6b6185ad66b52b79967",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Mandatory class auth-secrets-pii (ACP tool authorization path rewritten), so both invocations run; wave 1 blockers fixed in 5106074b67 and c9c49c65ba, wave 2 both PASS.",
+  "mandatory_class": "auth-secrets-pii",
+  "implementation_models": ["onara/cc/claude-opus-5-5", "onara/cc/claude-sonnet-5-5"],
+  "qa": [
+    { "name": "F1 (a) ACP eval under unconfigured mode asks before running", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-qa.md" },
+    { "name": "F1 (b) reject_always for bash is inherited by a task child", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-frames.jsonl" },
+    { "name": "F1 (c) regression: client without form elicitation still gets the bash permission request", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-frames.jsonl" },
+    { "name": "F1 (d) non-isolated child reads the unsaved buffer through the ACP client", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-frames.jsonl" },
+    { "name": "F1 (e) destructive edit offers only once-options and reject keeps the file", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-frames.jsonl" },
+    { "name": "F1 negative control: same driver on main fails a, b, d, e", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f1-qa-main.md" },
+    { "name": "5.1 check:ts and touched suites", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f5.1-verification.md" },
+    { "name": "F2 fix wave 1: RED, row verifies, full suite, F1 re-run", "passed": true, "artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f6-fix-round-verification.md" }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/acp-permission-parity/f3-integration-review-report.md",
+    "report_sha256": "2559e557047b59e7ece0c1c2c2da75db112a4f8c7a88679cd63e18926b0a1264"
+  },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" },
+    { "invocation": "strategic-risk-review", "agent": "oracle", "model": "onara/cx/gpt-5.6-sol", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f2-implementation-audit-trailer.md",
+      "trailer_sha256": "70b04a586fe60376107201bff7264063dcacce54fb1b98f2d0d809e25808656b",
+      "note": "F2 wave 2 (snapshot 80742eebab); wave 1 B1 acp-v2-cancel-collapse fixed in 5106074b67"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-permission-parity/f2-strategic-risk-review-trailer.md",
+      "trailer_sha256": "8b8758c692fb9bf4214c646bdb3cff17f0b28fb3ce81bef11a6bbf072b8a2074",
+      "note": "F2 wave 2; wave 1 B1 acp-default-precedence-rescope fixed in c9c49c65ba; notes N1 (runner reuse across session switch) and N2 (concurrent same-tool requests) non-blocking"
+    }
+  ],
+  "blockers": [
+    { "id": "wave1-implementation-audit-B1", "severity": "high", "location": "packages/coding-agent/src/modes/acp/acp-event-mapper-v2.ts:175", "coverage": "packages/coding-agent/test/acp-v2.test.ts::reports a cancelled permission answer as a cancelled call, not a denial", "fix_sha": "5106074b67e5cac8d710212346a0a4d55d897a49" },
+    { "id": "wave1-strategic-risk-review-B1", "severity": "high", "location": "packages/coding-agent/src/main.ts:547", "coverage": "packages/coding-agent/test/acp-mcp-isolation.test.ts::acp default mode: a session re-scoped into an always-ask project follows it and falls back to write", "fix_sha": "c9c49c65ba69aa7388677e80229e3ce006009480" }
+  ]
+}
