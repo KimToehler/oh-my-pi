@@ -38,6 +38,8 @@ import type {
 	CreateElicitationRequest,
 	CreateElicitationResponse,
 	InitializeRequest,
+	RequestPermissionRequest,
+	RequestPermissionResponse,
 	SessionNotification,
 	Validator,
 } from "@oh-my-pi/pi-utils/acp";
@@ -764,6 +766,8 @@ export async function createHarness(
 		clientInfo?: InitializeRequest["clientInfo"];
 		/** Protocol version sent with `initialize`; defaults to 1. */
 		protocolVersion?: number;
+		/** Answers v1 `session/request_permission` requests the agent sends. */
+		requestPermission?: (request: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
 	} = {},
 ): Promise<AgentHarness> {
 	const { cwdA, cwdB } = await prepareHarnessRoots();
@@ -780,6 +784,7 @@ export async function createHarness(
 		unstable_createElicitation: options.elicitationHandler
 			? async (req: CreateElicitationRequest) => options.elicitationHandler!(req)
 			: undefined,
+		requestPermission: options.requestPermission,
 		signal: abortController.signal,
 		closed: Promise.withResolvers<void>().promise,
 	} as unknown as AgentSideConnection;

@@ -16,6 +16,7 @@ import type { Settings } from "../config/settings";
 import { normalizeToLF } from "../edit/normalize";
 import type {
 	ExtensionApprovalAnswer,
+	ExtensionApprovalCall,
 	ExtensionApprovalGrant,
 	ExtensionApprovalPrompt,
 	ExtensionUIContext,
@@ -464,7 +465,21 @@ export function sessionApprovalScope(
 ): { subject: string; key: string } | undefined {
 	if (resolved.policy !== "prompt" || resolved.source !== "mode") return undefined;
 	const subject = resolved.policyKey ?? toolName;
-	return { subject, key: `${subject}\0${resolved.tier}` };
+	return { subject, key: sessionGrantKey(subject, resolved.tier) };
+}
+
+/** The key a session approval or denial of `subject` at `tier` is stored under. */
+export function sessionGrantKey(subject: string, tier: ToolTier): string {
+	return `${subject}\0${tier}`;
+}
+
+/**
+ * Session-long rejections a tool gate consults before any prompt: a session's own "always reject"
+ * answers, then those of the session that spawned it, up to the root. Read live, so a denial
+ * recorded after a subagent started applies to its next call.
+ */
+export interface ApprovalDenialLedger {
+	isDenied(subject: string, tier: ToolTier): boolean;
 }
 
 /**
@@ -692,17 +707,26 @@ function approvalGrantChoices(
  * prompt and a compact one with the details summarized to a row, so the composer beneath it
  * keeps its room), else a select with the full prompt (RPC, ACP, extension hosts). `appendix`
  * lines follow the prompt on both. With a `sessionSubject`, both also offer to approve that
- * subject for the rest of the session; with `grants`, both offer the `always-ask-cached` grants
- * the call can record, and the prompt lists the folder a directory grant would cover. Anything
- * but an explicit approval is `deny`.
+ * subject for the rest of the session, and a dialog may answer `deny-session` to reject it for
+ * the rest of the session; with `grants`, both offer the `always-ask-cached` grants the call can
+ * record, and the prompt lists the folder a directory grant would cover. `call` names the tool
+ * call for hosts that render it (ACP); `signal` (the turn's) reaches the dialog so an aborted turn
+ * closes it. Anything but an explicit approval is `deny`.
  */
 export async function requestApproval(
 	ui: Pick<ExtensionUIContext, "select" | "approve">,
 	tool: ApprovalSubject,
 	args: unknown,
-	options: { reason?: string; appendix?: readonly string[]; sessionSubject?: string; grants?: boolean } = {},
+	options: {
+		reason?: string;
+		appendix?: readonly string[];
+		sessionSubject?: string;
+		grants?: boolean;
+		call?: ExtensionApprovalCall;
+		signal?: AbortSignal;
+	} = {},
 ): Promise<ExtensionApprovalAnswer> {
-	const { reason, appendix = [], sessionSubject } = options;
+	const { reason, appendix = [], sessionSubject, call, signal } = options;
 	const header = approvalHeader(tool, reason);
 	const details = approvalDetails(tool, args);
 	const session = sessionSubject === undefined ? undefined : `Approve ${sessionSubject} for this session`;
@@ -721,13 +745,18 @@ export async function requestApproval(
 			...(compactBlock ? [compactBlock] : []),
 			...appendix,
 		].join("\n");
-		const answer = await ui.approve({
-			full,
-			compact,
-			...(session ? { session } : {}),
-			...(grants.length > 0 ? { grants } : {}),
-		});
+		const answer = await ui.approve(
+			{
+				full,
+				compact,
+				...(session ? { session } : {}),
+				...(grants.length > 0 ? { grants } : {}),
+				...(call ? { call } : {}),
+			},
+			signal ? { signal } : undefined,
+		);
 		if (answer === "once" || (answer === "session" && session)) return answer;
+		if (answer === "deny-session") return session ? answer : "deny";
 		if (typeof answer === "object" && answer !== null && grants.some(grant => grant.scope === answer.grant)) {
 			return { grant: answer.grant, always: answer.always === true };
 		}

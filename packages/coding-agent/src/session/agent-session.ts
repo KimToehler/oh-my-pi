@@ -2466,7 +2466,6 @@ export class AgentSession implements SettingsScope {
 			waitForUser: dialog => this.waitForUser(dialog),
 		};
 		this.#tools = new SessionTools(sessionToolsHost, {
-			autoApprove: config.autoApprove,
 			toolRegistry: config.toolRegistry,
 			createVibeTools: config.createVibeTools,
 			createThinkTool: config.createThinkTool,
@@ -7528,7 +7527,6 @@ export class AgentSession implements SettingsScope {
 
 	setClientBridge(bridge: ClientBridge | undefined): void {
 		this.#clientBridge = bridge;
-		this.#tools.refreshAcpPermissionGates();
 	}
 
 	#clearCheckpointRuntimeState(): void {
@@ -7542,7 +7540,6 @@ export class AgentSession implements SettingsScope {
 	#clearSessionScopedToolState(): void {
 		this.agent.clearDeferredToolDirectives();
 		this.#toolChoiceQueue.clear();
-		this.#tools.clearAcpPermissionDecisions();
 		this.#tools.resetAnnouncedMounts();
 		// A `/new`, session switch, or tree navigation reuses tool-call ids, so a
 		// still-cached background-task snapshot from the old conversation must not

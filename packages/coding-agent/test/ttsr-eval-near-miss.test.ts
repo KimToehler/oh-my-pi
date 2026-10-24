@@ -122,7 +122,6 @@ describe("TTSR eval near-miss controls", () => {
 				["write", wrappedWrite],
 			]),
 			ttsrManager,
-			autoApprove: true,
 		});
 		sessionRef.current = session;
 

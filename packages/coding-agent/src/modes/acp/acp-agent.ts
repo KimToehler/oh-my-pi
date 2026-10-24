@@ -99,7 +99,8 @@ import {
 	TTS_SPEED_MIN,
 	TTS_SPEED_OPTIONS,
 } from "../../tts/models";
-import { createAcpClientBridge } from "./acp-client-bridge";
+import { createAcpApprove } from "./acp-approval";
+import { type AcpPermissionRequester, createAcpClientBridge } from "./acp-client-bridge";
 import {
 	buildTurnUsage,
 	cloneUsageStatistics,
@@ -404,7 +405,9 @@ const FORM_ELICITATION_CAPABILITIES: ClientCapabilities = { elicitation: { form:
  * The non-elicitation surface (custom components, theming, terminal
  * input) remains stubbed — ACP clients render those themselves or not
  * at all. Capability gating respects the client's `initialize`
- * advertisement.
+ * advertisement. With `permissions`, tool approvals go through
+ * `session/request_permission` (see {@link createAcpApprove}) for every
+ * client, with or without form elicitation.
  */
 export function createAcpExtensionUiContext(
 	connection: AgentSideConnection,
@@ -412,11 +415,13 @@ export function createAcpExtensionUiContext(
 	clientCapabilities: ClientCapabilities | undefined,
 	track: InteractionTracker = run => run(),
 	sendFormElicitation: FormElicitationTransport = request => sendV1FormElicitation(connection, request),
+	permissions?: { request: AcpPermissionRequester; getCwd: () => string },
 ): ExtensionUIContext {
 	const elicit = (...args: Parameters<typeof elicitFromAcpClient>) => track(() => elicitFromAcpClient(...args));
 	const supportsForm = clientCapabilities?.elicitation?.form != null;
 	return {
 		supportsEditor: false,
+		...(permissions ? { approve: createAcpApprove(permissions.request, permissions.getCwd, track) } : {}),
 		select: async (title, options, dialogOptions) => {
 			if (!supportsForm) return undefined;
 			const value = await elicit(
@@ -2705,9 +2710,17 @@ export class AcpAgent implements Agent {
 					run,
 				),
 			request => this.#surface.elicitForm(request),
+			{
+				request: (toolCall, options, signal) =>
+					this.#surface.permissionRequest(record, record.session.sessionId, toolCall, options, signal),
+				getCwd: () => record.session.sessionManager.getCwd(),
+			},
 		);
+		// Every client gets the tool UI context, so approvals reach `approve` (a permission request)
+		// without form elicitation; `hasUI` stays tied to form support for `ask`, PTY selection and
+		// the computer supervisor.
+		record.setToolUIContext?.(uiContext, this.#supportsFormElicitation);
 		if (this.#supportsFormElicitation) {
-			record.setToolUIContext?.(uiContext, true);
 			record.session.setUsageFallbackConfirmer((confirmation, signal) => {
 				const reserve =
 					confirmation.remainingPercent === undefined

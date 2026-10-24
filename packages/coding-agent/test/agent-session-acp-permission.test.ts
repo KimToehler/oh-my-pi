@@ -1,999 +1,570 @@
 /**
- * Tests for the ACP permission gate in AgentSession.
- *
- * Verifies that tools with a real ACP approval policy (bash/delete/move) are gated behind
- * `ClientBridge.requestPermission`, while regular file-editing tools keep the same no-approval
- * behavior they have in the TUI.
+ * ACP tool permissions: the approval gate (`ExtensionToolWrapper`) decides whether a call needs
+ * consent exactly as in the TUI, and the ACP UI context's `approve` turns each prompt into one
+ * `session/request_permission` whose selected option maps back to the gate's answer.
  */
-import { afterAll, afterEach, beforeAll, expect, it, spyOn } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import { createMockModel, type MockModelOptions } from "@oh-my-pi/pi-ai/providers/mock";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { AgentTool, AgentToolContext, ToolTier } from "@oh-my-pi/pi-agent-core";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
-import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { ExtensionRuntime } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { EvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval/preludes";
+import { invokeEvalPrelude } from "@oh-my-pi/pi-coding-agent/eval/preludes";
+import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
+import type { AcpPermissionRequester } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-client-bridge";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type {
-	ClientBridge,
+	ClientBridgePermissionOption,
 	ClientBridgePermissionOutcome,
 	ClientBridgePermissionToolCall,
 } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
-import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targets";
+import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
-import { computerTurnInFlight, registerComputerController } from "@oh-my-pi/pi-coding-agent/tools/computer/supervisor";
-import { dispatchXdevTool, resolveMountedXdevExecutable, type XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir, isRecord, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import type { RequestPermissionRequest } from "@oh-my-pi/pi-utils/acp";
+import { cleanupHarnessState, createHarness, type SetToolUIContextSpy } from "./acp-test-harness";
 
-// ---------------------------------------------------------------------------
-// Shared setup
-// ---------------------------------------------------------------------------
+const BASE_SETTINGS = {
+	"async.enabled": false,
+	"bash.autoBackground.enabled": false,
+	"bashInterceptor.enabled": false,
+} as const;
 
-let tempDir: TempDir;
-let session: AgentSession | undefined;
+/** One scripted client answer: an outcome, a transport failure, or no answer until the turn aborts. */
+type ClientAnswer = ClientBridgePermissionOutcome | Error | "hang";
 
-const boundaryCases: Array<[decision: "allow_always" | "reject_always", transition: "new" | "switch"]> = [
-	["allow_always", "new"],
-	["allow_always", "switch"],
-	["reject_always", "new"],
-	["reject_always", "switch"],
-];
-/** Fake tool that records execute calls. */
-function makeFakeTool(name: string): AgentTool & { executeCalls: number } {
-	const tool = {
-		name,
-		label: name,
-		description: `Fake ${name}`,
-		parameters: type({ "command?": "string" }),
-		executeCalls: 0,
-		async execute() {
-			tool.executeCalls++;
-			return { content: [{ type: "text" as const, text: "ok" }] };
-		},
-	};
-	return tool;
+const pick = (optionId: string): ClientBridgePermissionOutcome => ({ outcome: "selected", optionId });
+
+interface PermissionRequest {
+	toolCall: ClientBridgePermissionToolCall;
+	options: ClientBridgePermissionOption[];
 }
 
-function makeToolSession(bridge: ClientBridge): ToolSession {
+/** An ACP client answering permission requests from `answers` in order (then reject), recording each. */
+function acpClient(...answers: ClientAnswer[]) {
+	const requests: PermissionRequest[] = [];
+	const asked = Promise.withResolvers<void>();
+	const request: AcpPermissionRequester = async (toolCall, options) => {
+		requests.push({ toolCall, options });
+		asked.resolve();
+		const answer = answers.shift() ?? pick("reject_once");
+		if (answer === "hang") return Promise.withResolvers<never>().promise;
+		if (answer instanceof Error) throw answer;
+		return answer;
+	};
+	return { requests, request, asked: asked.promise };
+}
+
+const optionIds = (request: PermissionRequest | undefined) => request?.options.map(option => option.optionId);
+
+let root: TempDir;
+let authStorage: AuthStorage;
+let modelRegistry: ModelRegistry;
+let originalAgentDir: string;
+
+beforeAll(async () => {
+	root = TempDir.createSync("@pi-acp-permission-");
+	authStorage = await AuthStorage.create(path.join(root.path(), "auth.db"));
+	modelRegistry = new ModelRegistry(authStorage);
+});
+afterAll(() => {
+	authStorage.close();
+	root.removeSync();
+});
+beforeEach(() => {
+	// `always-ask-cached` grants persist under the agent dir; a fresh one per case keeps them apart.
+	originalAgentDir = getAgentDir();
+	setAgentDir(fs.mkdtempSync(path.join(root.path(), "agent-")));
+});
+afterEach(() => {
+	setAgentDir(originalAgentDir);
+	vi.restoreAllMocks();
+});
+
+function workspace(files: Record<string, string> = {}): string {
+	const cwd = fs.mkdtempSync(path.join(root.path(), "ws-"));
+	for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(cwd, name), content);
+	return cwd;
+}
+
+function toolSession(cwd: string, editMode = "apply_patch"): ToolSession {
 	return {
-		cwd: tempDir.path(),
+		cwd,
 		hasUI: false,
 		getSessionFile: () => null,
 		getSessionSpawns: () => "*",
 		enableLsp: false,
-		settings: Settings.isolated({ "edit.mode": "apply_patch" }),
+		settings: Settings.isolated({ ...BASE_SETTINGS, "edit.mode": editMode }),
 		getArtifactsDir: () => null,
 		getSessionId: () => null,
 		getPlanModeState: () => undefined,
-		getClientBridge: () => bridge,
 	} as unknown as ToolSession;
 }
 
-/** Build a minimal ClientBridge whose requestPermission resolves to the given outcome. */
-function makeBridge(outcome: ClientBridgePermissionOutcome): ClientBridge {
-	return {
-		capabilities: { requestPermission: true },
-		async requestPermission(_toolCall, _options, _signal) {
-			return outcome;
+/** Gives `runner` the ACP extension UI context of a client without form elicitation, as the ACP agent does. */
+function initializeAcpUi(runner: ExtensionRunner, cwd: string, request: AcpPermissionRequester): void {
+	const ui = createAcpExtensionUiContext({} as never, () => "acp-session", {}, undefined, undefined, {
+		request,
+		getCwd: () => cwd,
+	});
+	runner.initialize(
+		{
+			sendMessage: () => {},
+			sendUserMessage: () => {},
+			appendEntry: () => {},
+			setLabel: () => {},
+			getActiveTools: () => [],
+			getAllTools: () => [],
+			setActiveTools: async () => {},
+			getCommands: () => [],
+			setModel: async () => false,
+			getThinkingLevel: () => undefined,
+			setThinkingLevel: () => {},
+			getSessionName: () => undefined,
+			setSessionName: async () => {},
 		},
+		{
+			getModel: () => undefined,
+			isIdle: () => true,
+			abort: () => {},
+			hasPendingMessages: () => false,
+			shutdown: () => {},
+			getContextUsage: () => undefined,
+			compact: async () => {},
+			getSystemPrompt: () => [],
+		},
+		undefined,
+		ui,
+	);
+}
+
+function acpRunner(sessionManager: SessionManager, cwd: string, request: AcpPermissionRequester): ExtensionRunner {
+	const runner = new ExtensionRunner([], new ExtensionRuntime(), cwd, sessionManager, modelRegistry);
+	initializeAcpUi(runner, cwd, request);
+	return runner;
+}
+
+function toolContext(sessionManager: SessionManager, settings: Record<string, unknown>): AgentToolContext {
+	return {
+		sessionManager,
+		modelRegistry,
+		model: undefined,
+		isIdle: () => true,
+		hasQueuedMessages: () => false,
+		abort: () => {},
+		settings: Settings.isolated({ ...BASE_SETTINGS, ...settings }),
+	} as AgentToolContext;
+}
+
+/** The gate over `bash` (spied, so no shell runs unless `realBash`) and `edit` for one ACP session. */
+function acpGate(
+	client: ReturnType<typeof acpClient>,
+	options: { files?: Record<string, string>; editMode?: string; realBash?: boolean } = {},
+) {
+	const cwd = workspace(options.files);
+	const sessionManager = SessionManager.inMemory(cwd);
+	const runner = acpRunner(sessionManager, cwd, client.request);
+	const bashInner = new BashTool(toolSession(cwd));
+	const bashRuns = options.realBash
+		? vi.spyOn(bashInner, "execute")
+		: vi.spyOn(bashInner, "execute").mockImplementation(async () => ({ content: [] }));
+	return {
+		cwd,
+		sessionManager,
+		runner,
+		bash: new ExtensionToolWrapper(bashInner as AgentTool, runner),
+		bashRuns,
+		edit: new ExtensionToolWrapper(new EditTool(toolSession(cwd, options.editMode)) as AgentTool, runner),
+		mode: (approvalMode: string, extra: Record<string, unknown> = {}) =>
+			toolContext(sessionManager, { "tools.approvalMode": approvalMode, ...extra }),
 	};
 }
 
-async function createSession(
-	tools: AgentTool[],
-	bridge?: ClientBridge,
-	settingsOverrides: Record<string, unknown> = {},
-	options?: {
-		xdev?: XdevState;
-		builtInToolNames?: string[];
-		persist?: boolean;
-	},
-): Promise<AgentSession> {
-	const model = getBundledModel("anthropic", "claude-sonnet-4-5");
-	if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
-
-	const settings = Settings.isolated({ "compaction.enabled": false, ...settingsOverrides });
-	const sessionManager = options?.persist
-		? SessionManager.create(tempDir.path(), `${tempDir.path()}/sessions`)
-		: SessionManager.inMemory(tempDir.path());
-
-	const agent = new Agent({
-		getApiKey: () => "test-key",
-		initialState: {
-			model,
-			systemPrompt: ["Test"],
-			tools,
-			messages: [],
-		},
-		convertToLlm,
-		streamFn: () => new AssistantMessageEventStream(),
-	});
-
-	const toolRegistry = options?.xdev?.tools ?? new Map<string, AgentTool>();
-	for (const tool of tools) toolRegistry.set(tool.name, tool);
-	const sess = new AgentSession({
-		agent,
-		sessionManager,
-		settings,
-		modelRegistry: {} as never,
-		toolRegistry,
-		xdev: options?.xdev,
-		builtInToolNames: options?.builtInToolNames,
-	});
-
-	if (bridge) sess.setClientBridge(bridge);
-	return sess;
+/** A tool keying `args.path` like read does, so `always-ask-cached` offers grants for it. */
+function pathTool(name: string, tier: ToolTier, cwd: string, runs: () => void): AgentTool {
+	return {
+		name,
+		label: name,
+		description: `${name} test tool`,
+		parameters: {} as never,
+		approval: tier,
+		approvalCacheTargets: (args: unknown) =>
+			isRecord(args) && typeof args.path === "string" ? [approvalTargetKey(cwd, args.path)!] : undefined,
+		execute: async () => (runs(), { content: [{ type: "text" as const, text: "executed" }] }),
+	};
 }
 
-async function createSessionWithMockModel(
-	tools: AgentTool[],
-	bridge: ClientBridge,
-	responses: NonNullable<MockModelOptions["responses"]>,
-): Promise<AgentSession> {
-	const mock = createMockModel({ responses });
-	const settings = Settings.isolated({ "compaction.enabled": false });
-	const sessionManager = SessionManager.inMemory(tempDir.path());
-	const agent = new Agent({
-		getApiKey: () => "test-key",
-		initialState: {
-			model: mock.model,
-			systemPrompt: ["Test"],
-			tools,
-			messages: [],
-		},
-		convertToLlm,
-		streamFn: mock.stream,
+const patch = (...lines: string[]) => ({ input: ["*** Begin Patch", ...lines, "*** End Patch"].join("\n") });
+
+describe("acp approve", () => {
+	it("acp approve: a client without form elicitation gets one request and allow runs bash", async () => {
+		const client = acpClient(pick("allow_once"));
+		const { bash, mode } = acpGate(client, { realBash: true });
+		const result = await bash.execute("b1", { command: "echo acp-ran" }, undefined, undefined, mode("always-ask"));
+		expect(JSON.stringify(result.content)).toContain("acp-ran");
+		expect(client.requests).toHaveLength(1);
+		expect(client.requests[0]!.toolCall).toMatchObject({
+			toolCallId: "b1",
+			toolName: "bash",
+			kind: "execute",
+			status: "pending",
+			rawInput: { command: "echo acp-ran" },
+			content: [{ type: "content", content: { type: "text", text: "$ echo acp-ran" } }],
+		});
 	});
 
-	const sess = new AgentSession({
-		agent,
-		sessionManager,
-		settings,
-		modelRegistry: { getApiKey: () => "test-key" } as never,
-		toolRegistry: new Map(tools.map(t => [t.name, t])),
-	});
-	sess.setClientBridge(bridge);
-	return sess;
-}
-
-beforeAll(() => {
-	tempDir = TempDir.createSync("@pi-acp-permission-test-");
-});
-
-afterEach(async () => {
-	await session?.dispose();
-	session = undefined;
-});
-
-afterAll(async () => {
-	await tempDir.remove();
-});
-
-it("eval bridge dispatch uses the same ACP gate as a direct tool call", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([bashTool], bridge);
-
-	await session.setActiveToolsByName(["bash"]);
-	const bridgedBash = session.getToolForEvalBridge("bash");
-	await bridgedBash!.execute("call-bridge", { command: "echo hi" }, undefined, undefined as never, undefined as never);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(bashTool.executeCalls).toBe(1);
-});
-
-it("explicit yolo approval mode skips the ACP permission gate", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([bashTool], bridge, { "tools.approvalMode": "yolo" });
-
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	await wrappedBash!.execute("call-1", { command: "echo hi" }, undefined, undefined as never, undefined as never);
-
-	expect(permissionSpy).not.toHaveBeenCalled();
-	expect(bashTool.executeCalls).toBe(1);
-});
-
-it("explicit yolo still gates tools whose per-tool policy requires a prompt", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([bashTool], bridge, {
-		"tools.approvalMode": "yolo",
-		"tools.approval": { bash: "prompt" },
+	it("acp approve: always-ask sends exactly one request per call", async () => {
+		const client = acpClient(pick("allow_once"), pick("allow_once"));
+		const { bash, bashRuns, edit, cwd, mode } = acpGate(client, { files: { "a.txt": "old\n" } });
+		const always = mode("always-ask");
+		await bash.execute("one", { command: "echo one" }, undefined, undefined, always);
+		await edit.execute("two", patch("*** Update File: a.txt", "@@", "-old", "+new"), undefined, undefined, always);
+		expect(client.requests.map(request => request.toolCall.toolCallId)).toEqual(["one", "two"]);
+		expect(bashRuns).toHaveBeenCalledTimes(1);
+		expect(fs.readFileSync(path.join(cwd, "a.txt"), "utf8")).toBe("new\n");
 	});
 
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
+	it("acp approve: ordinary bash offers allow once, allow session, reject and always reject", async () => {
+		const client = acpClient(pick("reject_once"));
+		const { bash, bashRuns, mode } = acpGate(client);
+		await expect(bash.execute("o1", { command: "echo hi" }, undefined, undefined, mode("write"))).rejects.toThrow(
+			"Tool call denied by user: bash",
+		);
+		expect(client.requests[0]!.options.map(option => [option.optionId, option.kind])).toEqual([
+			["allow_once", "allow_once"],
+			["allow_always", "allow_always"],
+			["reject_once", "reject_once"],
+			["reject_always", "reject_always"],
+		]);
+		expect(bashRuns).not.toHaveBeenCalled();
+	});
 
-	await wrappedBash!.execute("call-1", { command: "echo hi" }, undefined, undefined as never, undefined as never);
+	it("acp approve: critical bash and a destructive edit offer only allow once and reject", async () => {
+		const client = acpClient(pick("reject_once"), pick("reject_once"));
+		const { bash, bashRuns, edit, cwd, mode } = acpGate(client, { files: { "doomed.txt": "keep\n" } });
+		const write = mode("write");
+		await expect(
+			bash.execute("c1", { command: "rm -f /tmp/never-run-critical" }, undefined, undefined, write),
+		).rejects.toThrow("denied by user");
+		await expect(
+			edit.execute("c2", patch("*** Delete File: doomed.txt"), undefined, undefined, write),
+		).rejects.toThrow("denied by user");
+		expect(client.requests.map(optionIds)).toEqual([
+			["allow_once", "reject_once"],
+			["allow_once", "reject_once"],
+		]);
+		expect(bashRuns).not.toHaveBeenCalled();
+		expect(fs.existsSync(path.join(cwd, "doomed.txt"))).toBe(true);
+	});
 
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(bashTool.executeCalls).toBe(1);
+	it("acp approve: allow session lets a second ordinary bash run without a request", async () => {
+		const client = acpClient(pick("allow_always"));
+		const { bash, bashRuns, mode } = acpGate(client);
+		const write = mode("write");
+		await bash.execute("s1", { command: "echo one" }, undefined, undefined, write);
+		await bash.execute("s2", { command: "echo two" }, undefined, undefined, write);
+		expect(client.requests).toHaveLength(1);
+		expect(bashRuns).toHaveBeenCalledTimes(2);
+	});
+
+	it("acp approve: always-ask-cached offers folder and file grants, and the chosen grant covers a later read", async () => {
+		const client = acpClient(pick("grant:folder"));
+		const { cwd, runner, sessionManager } = acpGate(client);
+		const runs = vi.fn();
+		const read = new ExtensionToolWrapper(pathTool("read", "read", cwd, runs), runner);
+		const cached = toolContext(sessionManager, { "tools.approvalMode": "always-ask-cached" });
+		await read.execute("r1", { path: "a.txt" }, undefined, undefined, cached);
+		await read.execute("r2", { path: "b.txt" }, undefined, undefined, cached);
+		expect(client.requests.map(optionIds)).toEqual([
+			["grant:folder", "grant:target", "grant:folder:always", "grant:target:always", "allow_once", "reject_once"],
+		]);
+		expect(client.requests[0]!.options.slice(0, 4).every(option => option.kind === "allow_always")).toBe(true);
+		expect(runs).toHaveBeenCalledTimes(2);
+	});
+
+	it("acp approve: always reject records a session denial", async () => {
+		const client = acpClient(pick("reject_always"));
+		const { bash, bashRuns, mode } = acpGate(client);
+		const write = mode("write");
+		await expect(bash.execute("d1", { command: "echo one" }, undefined, undefined, write)).rejects.toThrow(
+			"denied by user for this session: bash",
+		);
+		await expect(bash.execute("d2", { command: "echo two" }, undefined, undefined, write)).rejects.toThrow(
+			"denied by user for this session: bash",
+		);
+		expect(client.requests).toHaveLength(1);
+		expect(bashRuns).not.toHaveBeenCalled();
+	});
+
+	it("acp approve: an unknown option id fails the call", async () => {
+		const client = acpClient(pick("allow_forever"));
+		const { bash, bashRuns, mode } = acpGate(client);
+		await expect(bash.execute("u1", { command: "echo hi" }, undefined, undefined, mode("write"))).rejects.toThrow(
+			"unknown option ID: allow_forever",
+		);
+		expect(bashRuns).not.toHaveBeenCalled();
+	});
+
+	it("acp approve: a cancelled outcome and an aborted turn report cancellation without running", async () => {
+		const cancelled = acpClient({ outcome: "cancelled" });
+		const first = acpGate(cancelled);
+		await expect(
+			first.bash.execute("x1", { command: "echo hi" }, undefined, undefined, first.mode("write")),
+		).rejects.toThrow("Permission request cancelled");
+		expect(first.bashRuns).not.toHaveBeenCalled();
+
+		const hanging = acpClient("hang");
+		const second = acpGate(hanging);
+		const controller = new AbortController();
+		const run = second.bash.execute("x2", { command: "echo hi" }, controller.signal, undefined, second.mode("write"));
+		await hanging.asked;
+		controller.abort();
+		await expect(run).rejects.toThrow("Permission request cancelled");
+		expect(second.bashRuns).not.toHaveBeenCalled();
+	});
+
+	it("acp approve: a rejected permission request fails the call without running", async () => {
+		const client = acpClient(new Error("ACP connection closed"));
+		const { bash, bashRuns, mode } = acpGate(client);
+		await expect(bash.execute("e1", { command: "echo hi" }, undefined, undefined, mode("write"))).rejects.toThrow(
+			"ACP connection closed",
+		);
+		expect(bashRuns).not.toHaveBeenCalled();
+	});
+
+	it("acp approve: hashline edits and deletes send the absolute paths they touch", async () => {
+		const client = acpClient(pick("reject_once"), pick("reject_once"));
+		const { edit, cwd, mode } = acpGate(client, {
+			files: { "a.txt": "a\n", "b.txt": "b\n" },
+			editMode: "hashline",
+		});
+		const always = mode("always-ask");
+		await expect(
+			edit.execute("h1", { input: "[a.txt#ABCD]\nPUT 1.=1:\n+x" }, undefined, undefined, always),
+		).rejects.toThrow("denied by user");
+		await expect(edit.execute("h2", { input: "[b.txt#ABCD]\nREM" }, undefined, undefined, always)).rejects.toThrow(
+			"denied by user",
+		);
+		expect(client.requests.map(request => request.toolCall.locations)).toEqual([
+			[{ path: path.join(cwd, "a.txt") }],
+			[{ path: path.join(cwd, "b.txt") }],
+		]);
+		expect(fs.existsSync(path.join(cwd, "b.txt"))).toBe(true);
+	});
 });
 
 /**
- * Minimal runner for wrapping a tool exactly as an ACP session does: no
- * interactive UI (so the inner tier gate fails closed) and no event handlers.
+ * The real session tools (each wrapped by the gate at construction) with the ACP UI on the
+ * session's own runner, in the effective mode `write` an unconfigured ACP session gets.
  */
-function noUiRunner(): ExtensionRunner {
-	return {
-		hasHandlers: () => false,
-		consumeToolCallEmitted: () => false,
-		hasUI: () => false,
-		hasSessionApproval: () => false,
-		sessionId: "acp-permission-test",
-		runScoped<T>(fn: () => T): T {
-			return fn();
-		},
-	} as unknown as ExtensionRunner;
-}
+describe("acp parity", () => {
+	let cwd: string;
+	let session: AgentSession;
+	let client: ReturnType<typeof acpClient>;
 
-it("always-ask: an ACP grant satisfies the inner wrapper's explicit prompt policy", async () => {
-	// In a real ACP session every registry tool is wrapped by ExtensionToolWrapper,
-	// then again by the ACP permission gate. The client has answered the explicit
-	// prompt, so the inner wrapper must not request the unavailable interactive UI.
-	const bashTool = makeFakeTool("bash");
-	const wrapped = new ExtensionToolWrapper(bashTool, noUiRunner()) as unknown as AgentTool;
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	const approvalSettings: Record<string, unknown> = {
-		"tools.approvalMode": "always-ask",
-		"tools.approval": { bash: "prompt" },
-	};
-	session = await createSession([wrapped], bridge, approvalSettings);
-
-	await session.setActiveToolsByName(["bash"]);
-	const gatedBash = session.agent.state.tools.find(t => t.name === "bash");
-	const ctx = { settings: Settings.isolated(approvalSettings) } as never;
-
-	await gatedBash!.execute("call-1", { command: "echo hi" }, undefined, undefined as never, ctx);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(bashTool.executeCalls).toBe(1);
-});
-
-it("ACP bash uses pattern decisions and scopes persistent grants to noncritical commands", async () => {
-	const settingsOverrides = {
-		"tools.approvalMode": "always-ask",
-		"tools.approval": { bash: "prompt" },
-		"bash.patterns": [
-			{ match: "echo safe*", approval: "allow" },
-			{ match: "echo denied*", approval: "deny" },
-		],
-	};
-	const settings = Settings.isolated(settingsOverrides);
-	const requests: string[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall) {
-			const input = toolCall.rawInput;
-			if (!input || typeof input !== "object" || !("command" in input) || typeof input.command !== "string") {
-				throw new Error("Missing bash command");
-			}
-			const command = input.command;
-			requests.push(command);
-			return { outcome: "selected", optionId: "allow_always", kind: "allow_always" };
-		},
-	};
-	const bashTool = makeFakeTool("bash");
-	bashTool.approval = new BashTool({ ...makeToolSession(bridge), settings }).approval;
-	const wrapped = new ExtensionToolWrapper(bashTool, noUiRunner()) as unknown as AgentTool;
-	session = await createSession([wrapped], bridge, settingsOverrides);
-	await session.setActiveToolsByName(["bash"]);
-	const gatedBash = session.agent.state.tools.find(tool => tool.name === "bash");
-	if (!gatedBash) throw new Error("Missing bash tool");
-	const ctx = { settings } as never;
-	const run = (command: string) =>
-		gatedBash.execute(`call-${command}`, { command }, undefined, undefined as never, ctx);
-
-	await run("echo safe-read");
-	expect(requests).toEqual([]);
-	await expect(run("echo denied-write")).rejects.toThrow(/blocked by tool policy/);
-	expect(requests).toEqual([]);
-	await run("echo probe-1");
-	await run("echo probe-2");
-	// "Always allow" covers later ordinary commands, as before.
-	expect(requests).toEqual(["echo probe-1"]);
-	await run("rm -rf /");
-	await run("rm -rf /");
-	// Critical commands ask on every call, whatever was granted.
-	expect(requests).toEqual(["echo probe-1", "rm -rf /", "rm -rf /"]);
-	expect(bashTool.executeCalls).toBe(5);
-});
-
-it("always-ask: an ordinary edit without an ACP grant still faces the inner approval gate", async () => {
-	const editTool = makeFakeTool("edit");
-	editTool.approval = "write";
-	const wrapped = new ExtensionToolWrapper(editTool, noUiRunner()) as unknown as AgentTool;
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([wrapped], bridge, { "tools.approvalMode": "always-ask" });
-
-	await session.setActiveToolsByName(["edit"]);
-	const gatedEdit = session.agent.state.tools.find(t => t.name === "edit");
-	const ctx = { settings: Settings.isolated({ "tools.approvalMode": "always-ask" }) } as never;
-
-	await expect(
-		gatedEdit!.execute("call-edit", { path: "/tmp/foo.ts" }, undefined, undefined as never, ctx),
-	).rejects.toThrow(/requires approval but no interactive UI/);
-
-	expect(permissionSpy).not.toHaveBeenCalled();
-	expect(editTool.executeCalls).toBe(0);
-});
-
-it("delete and move tools request ACP permission before executing", async () => {
-	const deleteTool = makeFakeTool("delete");
-	const moveTool = makeFakeTool("move");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([deleteTool, moveTool], bridge);
-
-	await session.setActiveToolsByName(["delete", "move"]);
-	const wrappedDelete = session.agent.state.tools.find(t => t.name === "delete");
-	const wrappedMove = session.agent.state.tools.find(t => t.name === "move");
-
-	await wrappedDelete!.execute(
-		"call-delete",
-		{ path: "/tmp/gone.ts" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-	await wrappedMove!.execute(
-		"call-move",
-		{ oldPath: "/tmp/old.ts", newPath: "/tmp/new.ts" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ toolName, title, locations }) => ({ toolName, title, locations }))).toEqual([
-		{ toolName: "delete", title: "Delete /tmp/gone.ts", locations: [{ path: "/tmp/gone.ts" }] },
-		{
-			toolName: "move",
-			title: "Move /tmp/old.ts to /tmp/new.ts",
-			locations: [{ path: "/tmp/old.ts" }, { path: "/tmp/new.ts" }],
-		},
-	]);
-	expect(deleteTool.executeCalls).toBe(1);
-	expect(moveTool.executeCalls).toBe(1);
-});
-
-it("top-level fallback preserves ACP permission for mounted destructive tools", async () => {
-	const readTool = makeFakeTool("read");
-	const writeTool = makeFakeTool("write");
-	const deleteTool = makeFakeTool("delete");
-	deleteTool.loadMode = "discoverable";
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	const tools = new Map([readTool, writeTool].map(tool => [tool.name, tool]));
-	const xdev: XdevState = {
-		tools,
-		mountedNames: new Set(),
-		builtInNames: new Set(["read", "write"]),
-		isActive: name => name === "read" || name === "write",
-	};
-	session = await createSession([readTool, writeTool], bridge, {}, { xdev, builtInToolNames: ["read", "write"] });
-
-	await session.refreshRpcHostTools([deleteTool]);
-	expect(xdev.mountedNames.has("delete")).toBe(true);
-	expect(session.getActiveToolNames()).not.toContain("delete");
-	const fallbackTool = resolveMountedXdevExecutable(xdev, "delete");
-	await fallbackTool!.execute(
-		"call-mounted-delete",
-		{ path: "/tmp/gone.ts" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(deleteTool.executeCalls).toBe(1);
-});
-
-it("startup-mounted destructive tools gain the ACP permission gate when the bridge attaches", async () => {
-	const readTool = makeFakeTool("read");
-	const writeTool = makeFakeTool("write");
-	const deleteTool = makeFakeTool("delete");
-	deleteTool.loadMode = "discoverable";
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	const tools = new Map([readTool, writeTool, deleteTool].map(tool => [tool.name, tool]));
-	const xdev: XdevState = {
-		tools,
-		mountedNames: new Set(["delete"]),
-		builtInNames: new Set(["read", "write"]),
-		isActive: name => name === "read" || name === "write",
-	};
-	session = await createSession(
-		[readTool, writeTool, deleteTool],
-		bridge,
-		{},
-		{ xdev, builtInToolNames: ["read", "write"] },
-	);
-
-	await dispatchXdevTool(xdev, "delete", JSON.stringify({ path: "/tmp/gone.ts" }), "call-startup-delete");
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(deleteTool.executeCalls).toBe(1);
-});
-it("edit, write, and ast_edit do not request ACP permission", async () => {
-	const editTool = makeFakeTool("edit");
-	const writeTool = makeFakeTool("write");
-	const astEditTool = makeFakeTool("ast_edit");
-	const bridge = makeBridge({ outcome: "cancelled" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([editTool, writeTool, astEditTool], bridge);
-
-	await session.setActiveToolsByName(["edit", "write", "ast_edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-	const wrappedWrite = session.agent.state.tools.find(t => t.name === "write");
-	const wrappedAstEdit = session.agent.state.tools.find(t => t.name === "ast_edit");
-
-	await wrappedEdit!.execute("call-edit", { path: "/tmp/foo.ts" }, undefined, undefined as never, undefined as never);
-	await wrappedWrite!.execute(
-		"call-write",
-		{ path: "/tmp/foo.ts" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-	await wrappedAstEdit!.execute(
-		"call-ast",
-		{ paths: ["/tmp/foo.ts"] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(0);
-	expect(editTool.executeCalls).toBe(1);
-	expect(writeTool.executeCalls).toBe(1);
-	expect(astEditTool.executeCalls).toBe(1);
-});
-
-it("edit delete and move operations request ACP permission before executing", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-edit-delete",
-		{ path: "/tmp/gone.ts", edits: [{ op: "delete" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-	await wrappedEdit!.execute(
-		"call-edit-move",
-		{ path: "/tmp/old.ts", edits: [{ op: "update", rename: "/tmp/new.ts" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title, locations }) => ({ title, locations }))).toEqual([
-		{ title: "Delete /tmp/gone.ts", locations: [{ path: "/tmp/gone.ts" }] },
-		{ title: "Move /tmp/old.ts to /tmp/new.ts", locations: [{ path: "/tmp/old.ts" }, { path: "/tmp/new.ts" }] },
-	]);
-	expect(editTool.executeCalls).toBe(2);
-});
-
-it("edit delete operations take precedence over stale rename metadata", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-edit-delete-with-rename",
-		{ path: "/tmp/gone.ts", edits: [{ op: "delete", rename: "/tmp/stale.ts" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title, locations }) => ({ title, locations }))).toEqual([
-		{ title: "Delete /tmp/gone.ts", locations: [{ path: "/tmp/gone.ts" }] },
-	]);
-	expect(editTool.executeCalls).toBe(1);
-});
-
-it("apply_patch delete operations take precedence over earlier moves", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-apply-patch-delete-after-move",
-		{
-			input: [
-				"*** Begin Patch",
-				"*** Update File: /tmp/old.ts",
-				"*** Move to: /tmp/new.ts",
-				"@@",
-				"-old",
-				"+new",
-				"*** Delete File: /tmp/gone.ts",
-				"*** End Patch",
-			].join("\n"),
-		},
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title, locations }) => ({ title, locations }))).toEqual([
-		{ title: "Delete /tmp/gone.ts", locations: [{ path: "/tmp/gone.ts" }] },
-	]);
-	expect(editTool.executeCalls).toBe(1);
-});
-
-it("apply_patch custom-wire delete requests ACP permission through agent dispatch", async () => {
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	const editTool = new EditTool(makeToolSession(bridge));
-	session = await createSessionWithMockModel([editTool as AgentTool], bridge, [
-		{
-			content: [
-				{
-					type: "toolCall",
-					id: "call-custom-apply-patch",
-					name: "apply_patch",
-					arguments: {
-						input: ["*** Begin Patch", "*** Delete File: /tmp/gone.ts", "*** End Patch"].join("\n"),
-					},
-				},
-			],
-		},
-		{ content: ["done"] },
-	]);
-
-	await session.prompt("delete with custom apply_patch");
-
-	expect(requests.map(({ toolCallId, title, locations }) => ({ toolCallId, title, locations }))).toEqual([
-		{
-			toolCallId: "call-custom-apply-patch",
-			title: "Delete /tmp/gone.ts",
-			locations: [{ path: "/tmp/gone.ts" }],
-		},
-	]);
-});
-
-it("lets the computer display sleep while the ACP client asks the user for permission", async () => {
-	const bashTool = makeFakeTool("bash");
-	const releases: number[] = [];
-	let owner = "";
-	let asked: { turn: number | undefined; releases: number[] } | undefined;
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission() {
-			asked = { turn: computerTurnInFlight(owner), releases: [...releases] };
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSessionWithMockModel([bashTool], bridge, [
-		{ content: [{ type: "toolCall", id: "call-bash", name: "bash", arguments: { command: "echo hi" } }] },
-		{ content: ["done"] },
-	]);
-	owner = session.getEvalKernelOwnerId();
-	const unregister = registerComputerController(owner, {
-		async run() {
-			throw new Error("not used");
-		},
-		async capabilities() {
-			return undefined;
-		},
-		releaseDisplay(turn) {
-			releases.push(turn);
-		},
-		async close() {},
+	beforeAll(async () => {
+		cwd = workspace();
+		const created = await createAgentSession({
+			cwd,
+			agentDir: fs.mkdtempSync(path.join(root.path(), "parity-agent-")),
+			sessionManager: SessionManager.inMemory(cwd),
+			// `bash` reads `bash.patterns` from its session's settings, as in the TUI.
+			settings: Settings.isolated({
+				...BASE_SETTINGS,
+				"tools.approvalMode": "write",
+				"bash.patterns": [
+					{ match: "echo pattern-allowed", approval: "allow" },
+					{ match: "rm *", approval: "allow" },
+				],
+			}),
+			model: getBundledModel("openai", "gpt-4o-mini"),
+			disableExtensionDiscovery: true,
+			skills: [],
+			contextFiles: [],
+			workspaceTree: { rootPath: cwd, rendered: ".\n", truncated: false, totalLines: 1, agentsMdFiles: [] },
+			promptTemplates: [],
+			slashCommands: [],
+			enableMCP: false,
+			enableLsp: false,
+			toolNames: ["read", "bash", "write", "eval", "task"],
+		});
+		session = created.session;
+		initializeAcpUi(session.extensionRunner!, cwd, (...args) => client.request(...args));
+		await session.activateVibeTools(session.getActiveToolNames());
 	});
-	try {
-		await session.prompt("run it");
-	} finally {
-		unregister();
+	afterAll(async () => {
+		await session.dispose();
+	});
+	beforeEach(() => {
+		client = acpClient();
+	});
+
+	function tool(name: string): AgentTool {
+		const found = session.getToolByName(name);
+		if (!found) throw new Error(`Expected ${name} tool`);
+		return found;
 	}
 
-	expect(asked).toEqual({ turn: undefined, releases: [1] });
-	expect(bashTool.executeCalls).toBe(1);
-	expect(releases).toEqual([1, 2]);
-});
+	const write = (extra: Record<string, unknown> = {}) =>
+		toolContext(session.sessionManager, { "tools.approvalMode": "write", ...extra });
 
-it("patch-mode delete operations take precedence over earlier moves", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-patch-delete-after-move",
-		{
-			path: "/tmp/old.ts",
-			edits: [{ op: "update", rename: "/tmp/new.ts" }, { op: "delete" }],
-		},
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title, locations }) => ({ title, locations }))).toEqual([
-		{ title: "Delete /tmp/old.ts", locations: [{ path: "/tmp/old.ts" }] },
-	]);
-	expect(editTool.executeCalls).toBe(1);
-});
-
-it("always-allowing edit moves does not bypass patch-mode calls that also delete", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_always", kind: "allow_always" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-edit-move",
-		{ path: "/tmp/old.ts", edits: [{ op: "update", rename: "/tmp/new.ts" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-	await wrappedEdit!.execute(
-		"call-patch-delete-after-move",
-		{
-			path: "/tmp/another-old.ts",
-			edits: [{ op: "update", rename: "/tmp/another-new.ts" }, { op: "delete" }],
-		},
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title }) => title)).toEqual([
-		"Move /tmp/old.ts to /tmp/new.ts",
-		"Delete /tmp/another-old.ts",
-	]);
-	expect(editTool.executeCalls).toBe(2);
-});
-
-it("bash permission requests include execute metadata and command content", async () => {
-	const bashTool = makeFakeTool("bash");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_once", kind: "allow_once" };
-		},
-	};
-	session = await createSession([bashTool], bridge);
-
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	await wrappedBash!.execute(
-		"call-bash-rich",
-		{ command: "git status --short" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests).toHaveLength(1);
-	expect(requests[0]).toMatchObject({
-		toolCallId: "call-bash-rich",
-		toolName: "bash",
-		title: "git status --short",
-		kind: "execute",
-		status: "pending",
-		rawInput: { command: "git status --short" },
-		content: [{ type: "content", content: { type: "text", text: "$ git status --short" } }],
+	it.each([
+		["task", { agent: "task", task: "inspect the repo" }],
+		["eval", { language: "py", code: "print(1)" }],
+		["vibe_spawn", { cli: "fast", task: "inspect the repo" }],
+	] as const)("acp parity: %s raises a request before running", async (name, args) => {
+		await expect(tool(name).execute(`${name}-1`, args, undefined, undefined, write())).rejects.toThrow(
+			`Tool call denied by user: ${name}`,
+		);
+		expect(client.requests.map(request => [request.toolCall.toolCallId, request.toolCall.toolName])).toEqual([
+			[`${name}-1`, name],
+		]);
 	});
-	expect(bashTool.executeCalls).toBe(1);
-});
 
-it("ordinary edit calls still bypass ACP permission after rejecting edit moves forever", async () => {
-	const editTool = makeFakeTool("edit");
-	const bridge = makeBridge({ outcome: "selected", optionId: "reject_always", kind: "reject_always" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([editTool], bridge);
+	it("acp parity: write of a new file runs without a request", async () => {
+		await tool("write").execute("w1", { path: "fresh.txt", content: "hi\n" }, undefined, undefined, write());
+		expect(fs.readFileSync(path.join(cwd, "fresh.txt"), "utf8")).toBe("hi\n");
+		expect(client.requests).toHaveLength(0);
+	});
 
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await expect(
-		wrappedEdit!.execute(
-			"call-edit-move",
-			{ path: "/tmp/old.ts", edits: [{ op: "update", rename: "/tmp/new.ts" }] },
-			undefined,
-			undefined as never,
-			undefined as never,
-		),
-	).rejects.toThrow(/rejected by user/);
-	await wrappedEdit!.execute(
-		"call-edit-update",
-		{ path: "/tmp/foo.ts" },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(editTool.executeCalls).toBe(1);
-});
-
-it("edit create operations with rename metadata do not request ACP move permission", async () => {
-	const editTool = makeFakeTool("edit");
-	const bridge = makeBridge({ outcome: "cancelled" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-edit-create",
-		{ path: "/tmp/new.ts", edits: [{ op: "create", rename: "/tmp/ignored.ts", diff: "export {};" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(0);
-	expect(editTool.executeCalls).toBe(1);
-});
-
-it("always-allowing edit moves does not bypass later edit delete permission", async () => {
-	const editTool = makeFakeTool("edit");
-	const requests: ClientBridgePermissionToolCall[] = [];
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		async requestPermission(toolCall, _options, _signal) {
-			requests.push(toolCall);
-			return { outcome: "selected", optionId: "allow_always", kind: "allow_always" };
-		},
-	};
-	session = await createSession([editTool], bridge);
-
-	await session.setActiveToolsByName(["edit"]);
-	const wrappedEdit = session.agent.state.tools.find(t => t.name === "edit");
-
-	await wrappedEdit!.execute(
-		"call-edit-move",
-		{ path: "/tmp/old.ts", edits: [{ op: "update", rename: "/tmp/new.ts" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-	await wrappedEdit!.execute(
-		"call-edit-delete",
-		{ path: "/tmp/gone.ts", edits: [{ op: "delete" }] },
-		undefined,
-		undefined as never,
-		undefined as never,
-	);
-
-	expect(requests.map(({ title }) => title)).toEqual(["Move /tmp/old.ts to /tmp/new.ts", "Delete /tmp/gone.ts"]);
-	expect(editTool.executeCalls).toBe(2);
-});
-
-it("setClientBridge wraps tools that were already active", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([bashTool]);
-
-	session.setClientBridge(bridge);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	await wrappedBash!.execute("call-1", { command: "echo hi" }, undefined, undefined as never, undefined as never);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(1);
-	expect(bashTool.executeCalls).toBe(1);
-});
-
-it("aborting an open permission request rejects without executing the tool", async () => {
-	const bashTool = makeFakeTool("bash");
-	const pending = Promise.withResolvers<ClientBridgePermissionOutcome>();
-	const bridge: ClientBridge = {
-		capabilities: { requestPermission: true },
-		requestPermission: async () => pending.promise,
-	};
-	session = await createSession([bashTool], bridge);
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	const abortController = new AbortController();
-	const execution = wrappedBash!.execute(
-		"call-1",
-		{ command: "echo hi" },
-		abortController.signal,
-		undefined as never,
-		undefined as never,
-	);
-	abortController.abort();
-
-	await expect(execution).rejects.toThrow(/Permission request cancelled/);
-	expect(bashTool.executeCalls).toBe(0);
-	pending.resolve({ outcome: "cancelled" });
-});
-
-// ---------------------------------------------------------------------------
-// 2. Reject once: throws, underlying execute never called
-// ---------------------------------------------------------------------------
-
-it("reject_once: throws ToolError and never calls underlying execute", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "reject_once", kind: "reject_once" });
-	session = await createSession([bashTool], bridge);
-
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	await expect(
-		wrappedBash!.execute("call-1", { command: "echo hi" }, undefined, undefined as never, undefined as never),
-	).rejects.toThrow(/rejected by user/);
-
-	expect(bashTool.executeCalls).toBe(0);
-});
-
-it("unknown selected permission option ID fails closed without executing", async () => {
-	const bashTool = makeFakeTool("bash");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_typo" });
-	session = await createSession([bashTool], bridge);
-
-	await session.setActiveToolsByName(["bash"]);
-	const wrappedBash = session.agent.state.tools.find(t => t.name === "bash");
-
-	await expect(
-		wrappedBash!.execute("call-unknown", { command: "echo hi" }, undefined, undefined as never, undefined as never),
-	).rejects.toThrow(/unknown option ID/);
-	expect(bashTool.executeCalls).toBe(0);
-});
-
-it.each(boundaryCases)(
-	"%s permission decisions prompt again after a successful %s session boundary",
-	async (decision, transition) => {
-		const bashTool = makeFakeTool("bash");
-		const bridge = makeBridge({ outcome: "selected", optionId: decision, kind: decision });
-		const permissionSpy = spyOn(bridge, "requestPermission");
-		session = await createSession([bashTool], bridge, {}, { persist: true });
-
-		await session.setActiveToolsByName(["bash"]);
-		const wrappedBash = session.agent.state.tools.find(tool => tool.name === "bash");
-		if (!wrappedBash) throw new Error("Expected wrapped bash tool");
-
-		for (let callIndex = 0; callIndex < 2; callIndex++) {
-			if (callIndex === 1) {
-				if (transition === "new") {
-					expect(await session.newSession()).toBe(true);
-				} else {
-					const targetId = `permission-target-${Bun.nanoseconds()}`;
-					const targetPath = `${tempDir.path()}/${targetId}.jsonl`;
-					await Bun.write(
-						targetPath,
-						`${JSON.stringify({
-							type: "session",
-							version: 3,
-							id: targetId,
-							timestamp: new Date().toISOString(),
-							cwd: tempDir.path(),
-						})}\n`,
-					);
-					expect(await session.switchSession(targetPath)).toBe(true);
-				}
-			}
-
-			const execution = wrappedBash.execute(
-				`call-${callIndex}`,
-				{ command: "echo boundary" },
+	it("acp parity: tools.approval.write prompt raises a request", async () => {
+		await expect(
+			tool("write").execute(
+				"w2",
+				{ path: "guarded.txt", content: "hi\n" },
 				undefined,
-				undefined as never,
-				undefined as never,
-			);
-			if (decision === "reject_always") {
-				await expect(execution).rejects.toThrow(/rejected by user/);
-			} else {
-				await execution;
-			}
-		}
+				undefined,
+				write({ "tools.approval": { write: "prompt" } }),
+			),
+		).rejects.toThrow("Tool call denied by user: write");
+		expect(client.requests).toHaveLength(1);
+		expect(fs.existsSync(path.join(cwd, "guarded.txt"))).toBe(false);
+	});
 
-		expect(permissionSpy).toHaveBeenCalledTimes(2);
-		expect(bashTool.executeCalls).toBe(decision === "allow_always" ? 2 : 0);
-	},
-);
+	it("acp parity: a bash.patterns allow runs without a request", async () => {
+		const result = await tool("bash").execute(
+			"b1",
+			{ command: "echo pattern-allowed" },
+			undefined,
+			undefined,
+			write(),
+		);
+		expect(JSON.stringify(result.content)).toContain("pattern-allowed");
+		expect(client.requests).toHaveLength(0);
+	});
 
-// ---------------------------------------------------------------------------
-// 4. Read tool not gated: bridge never called even when bridge is set
-// ---------------------------------------------------------------------------
+	it("acp parity: tools.approval.bash deny blocks without a request", async () => {
+		await expect(
+			tool("bash").execute(
+				"b2",
+				{ command: "echo never" },
+				undefined,
+				undefined,
+				write({ "tools.approval": { bash: "deny" } }),
+			),
+		).rejects.toThrow("blocked by user policy");
+		expect(client.requests).toHaveLength(0);
+	});
 
-it("read tool: requestPermission is never called for non-gated tools", async () => {
-	const readTool = makeFakeTool("read");
-	const bridge = makeBridge({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
-	const permissionSpy = spyOn(bridge, "requestPermission");
-	session = await createSession([readTool], bridge);
-
-	await session.setActiveToolsByName(["read"]);
-	const wrappedRead = session.agent.state.tools.find(t => t.name === "read");
-
-	await wrappedRead!.execute("call-1", {}, undefined, undefined as never, undefined as never);
-
-	expect(permissionSpy).toHaveBeenCalledTimes(0);
-	expect(readTool.executeCalls).toBe(1);
+	it("acp parity: a critical bash command raises a request although a pattern allows it", async () => {
+		await expect(tool("bash").execute("b3", { command: "rm -rf /" }, undefined, undefined, write())).rejects.toThrow(
+			"Tool call denied by user: bash",
+		);
+		expect(client.requests.map(optionIds)).toEqual([["allow_once", "reject_once"]]);
+	});
 });
 
-it("setActiveToolsByName normalizes legacy tool names", async () => {
-	const grepTool = makeFakeTool("grep");
-	const globTool = makeFakeTool("glob");
-	session = await createSession([grepTool, globTool]);
+/** The tool UI context the ACP agent installs for a client without form elicitation, and what consumes it. */
+describe("acp ui context", () => {
+	afterEach(cleanupHarnessState);
 
-	await session.setActiveToolsByName(["Search", "glob", "grep"]);
+	async function acpToolUi(optionId: string) {
+		const requests: RequestPermissionRequest[] = [];
+		const harness = await createHarness({
+			clientCapabilities: {},
+			requestPermission: async request => {
+				requests.push(request);
+				return { outcome: { outcome: "selected", optionId } };
+			},
+		});
+		await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const install = harness.setToolUIContextSpies[0] as Mock<SetToolUIContextSpy>;
+		expect(install).toHaveBeenCalledTimes(1);
+		const [ui, hasUI] = install.mock.calls[0]!;
+		let runs = 0;
+		const prelude: EvalPreludeDefinition = {
+			name: "probe",
+			documentation: "",
+			javascript: "",
+			python: "",
+			exports: [],
+			approval: "exec",
+			invoke: async () => (runs++, { content: [] }),
+		};
+		const session = {
+			cwd: harness.cwdA,
+			settings: Settings.isolated({}),
+			getEvalPreludes: () => [prelude],
+		} as unknown as ToolSession;
+		const context = {
+			settings: Settings.isolated({ "tools.approvalMode": "write" }),
+			ui,
+			hasUI,
+			abort: () => {},
+		} as unknown as AgentToolContext;
+		return {
+			harness,
+			requests,
+			session,
+			context,
+			hasUI,
+			runs: () => runs,
+			callPrelude: () => invokeEvalPrelude("probe", { target: "x" }, { session, toolCallId: "prelude-1", context }),
+		};
+	}
 
-	expect(session.getActiveToolNames()).toEqual(["grep", "glob"]);
+	it("acp ui context: an eval prelude prompt sends one permission request and runs after allow", async () => {
+		const { harness, requests, hasUI, runs, callPrelude } = await acpToolUi("allow_once");
+		expect(hasUI).toBe(false);
+		await callPrelude();
+		expect(runs()).toBe(1);
+		expect(requests.map(request => request.options.map(option => option.kind))).toEqual([
+			["allow_once", "reject_once"],
+		]);
+		await harness.agent.dispose();
+	});
+
+	it("acp ui context: a reject answer fails the prelude call without running it", async () => {
+		const { harness, requests, runs, callPrelude } = await acpToolUi("reject_once");
+		await expect(callPrelude()).rejects.toThrow("Eval prelude call denied by user: probe");
+		expect(requests).toHaveLength(1);
+		expect(runs()).toBe(0);
+		await harness.agent.dispose();
+	});
+
+	it("acp ui context: ask still requires interactive mode", async () => {
+		const { harness, requests, session, context } = await acpToolUi("allow_once");
+		await expect(
+			new AskTool(session).execute(
+				"ask-1",
+				{ questions: [{ id: "q", question: "Pick one?", options: [{ label: "a" }, { label: "b" }] }] } as never,
+				undefined,
+				undefined,
+				context,
+			),
+		).rejects.toThrow("Ask tool requires interactive mode");
+		expect(requests).toHaveLength(0);
+		await harness.agent.dispose();
+	});
 });

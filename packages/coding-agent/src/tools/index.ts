@@ -50,6 +50,7 @@ import type { EventBus } from "../utils/event-bus";
 import { WebSearchTool } from "../web/search";
 import type { WorkspaceTree } from "../workspace-tree";
 import { AskTool } from "./ask";
+import type { ApprovalDenialLedger } from "./approval";
 import { AstEditTool } from "./ast-edit";
 import { AstGrepTool } from "./ast-grep";
 import { BashTool } from "./bash";
@@ -466,6 +467,8 @@ export interface ToolSession {
 	recordEvalSubagentUsage?: (output: number) => void;
 	/** Bridge to the connected client (e.g. ACP editor host). Tools should route fs/terminal/permission requests through this when available. */
 	getClientBridge?: () => ClientBridge | undefined;
+	/** This session's denial ledger (own "always reject" answers chained onto its ancestors'); subagents inherit it. */
+	getApprovalLedger?: () => ApprovalDenialLedger | undefined;
 	/** Get cached todo phases for this session. */
 	getTodoPhases?: () => TodoPhase[];
 	/** Replace cached todo phases for this session. */

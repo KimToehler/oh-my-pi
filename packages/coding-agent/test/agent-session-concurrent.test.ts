@@ -2207,7 +2207,6 @@ describe("AgentSession TTSR resume gate", () => {
 			modelRegistry: sharedModelRegistry,
 			ttsrManager,
 			extensionRunner,
-			autoApprove: true,
 		});
 
 		await session.prompt("Write the source file");
@@ -2291,7 +2290,6 @@ describe("AgentSession TTSR resume gate", () => {
 			modelRegistry: sharedModelRegistry,
 			ttsrManager,
 			extensionRunner,
-			autoApprove: true,
 		});
 
 		await session.prompt("Use the lsp device through write");

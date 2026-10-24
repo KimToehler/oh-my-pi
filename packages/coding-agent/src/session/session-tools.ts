@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Agent, AgentMessage, AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import type { Agent, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { resolveDelegationBias } from "@oh-my-pi/pi-catalog/compat/delegation";
-import { isRecord, logger, prompt, stringProperty, structuredCloneJSON, untilAborted } from "@oh-my-pi/pi-utils";
+import { isRecord, logger, prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import { reset as resetCapabilities } from "../capability";
 import type { EffectiveExtensionRoots } from "../capability/types";
 import { shouldInlineToolDescriptors } from "../config/inline-tool-descriptors-mode";
@@ -28,13 +28,9 @@ import sessionAgentNoticePrompt from "../prompts/system/session-agent-notice.md"
 import toolRosterNoticePrompt from "../prompts/system/tool-roster-notice.md" with { type: "text" };
 import xdevMountNoticePrompt from "../prompts/system/xdev-mount-notice.md" with { type: "text" };
 import { isMCPToolName, normalizeToolNames } from "../tools/builtin-names";
-import { denyError, resolveApproval, resolveApprovalFromContext } from "../tools/approval";
-import { getApprovalGrants } from "../tools/approval-cache";
 import { wrapToolWithMetaNotice } from "../tools/output-meta";
 import { isFilesystemSourcePath } from "../tools/path-utils";
 import { supportsExternalThinking } from "../tools/think";
-import { ToolAbortError } from "../tools/tool-errors";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import {
 	isMountableUnderXdev,
 	listXdevTools,
@@ -45,15 +41,8 @@ import {
 } from "../tools/xdev";
 import { type EditMode } from "@oh-my-pi/pi-tui/tools/edit";
 import { resolveEditMode } from "../utils/edit-mode";
-import {
-	extractPermissionLocations,
-	getPermissionIntent,
-	PERMISSION_OPTIONS,
-	PERMISSION_OPTIONS_BY_ID,
-	PERMISSION_REQUIRED_TOOLS,
-} from "./acp-permission-gate";
-import type { ClientBridge, ClientBridgePermissionOutcome } from "./client-bridge";
 import { toolReadsSkillUris } from "../system-prompt";
+import type { ClientBridge } from "./client-bridge";
 
 import type { CustomMessage } from "./messages";
 import type { SessionEntry } from "./session-entries";
@@ -62,7 +51,7 @@ import type { SessionManager } from "./session-manager";
 import { cfgDisabledExtensions, cfgSkills, type SkillsSettings } from "../extensibility/settings";
 import { cfgExternalThinking, cfgIncludeModelInPrompt, cfgInlineToolDescriptors, cfgSkillful } from "./settings";
 import { cfgStartupQuiet } from "../modes/settings";
-import { cfgToolsApproval, cfgToolsApprovalMode, cfgToolsXdevDocs, cfgToolsXdevInlineDevices } from "../tools/settings";
+import { cfgToolsXdevDocs, cfgToolsXdevInlineDevices } from "../tools/settings";
 
 /** Capabilities borrowed from the owning AgentSession. */
 export interface SessionToolsHost {
@@ -106,7 +95,6 @@ export interface SettingsGatedToolDelta {
 }
 
 interface SessionToolsOptions {
-	autoApprove?: boolean;
 	toolRegistry?: Map<string, AgentTool>;
 	createVibeTools?: () => AgentTool[];
 	/** Creates the private `think` scratchpad tool for runtime setting changes. */
@@ -305,7 +293,6 @@ interface XdevMountNoticeProjection {
 /** Owns tool registration, presentation, prompt rebuilding, skills, and permissions. */
 export class SessionTools {
 	readonly #host: SessionToolsHost;
-	#autoApprove: boolean;
 	#toolRegistry: Map<string, AgentTool>;
 	#createVibeTools: (() => AgentTool[]) | undefined;
 	#createThinkTool: SessionToolsOptions["createThinkTool"];
@@ -431,11 +418,9 @@ export class SessionTools {
 	 * prefix without the intended prompt refresh. The refresh lifecycle updates it.
 	 */
 	#promptSurface: PromptSurface;
-	#acpPermissionDecisions = new Map<string, "allow_always" | "reject_always">();
 
 	constructor(host: SessionToolsHost, options: SessionToolsOptions) {
 		this.#host = host;
-		this.#autoApprove = options.autoApprove === true;
 		this.#toolRegistry = options.toolRegistry ?? new Map();
 		this.#createVibeTools = options.createVibeTools;
 		this.#createThinkTool = options.createThinkTool;
@@ -465,7 +450,6 @@ export class SessionTools {
 		if (this.#xdev && this.#xdev.tools !== this.#toolRegistry) {
 			throw new Error("xd:// state must reference the canonical session tool map");
 		}
-		if (this.#xdev) this.#xdev.decorateExecution = tool => this.#wrapToolForAcpPermission(tool);
 		this.#setActiveToolNames = options.setActiveToolNames;
 		this.#baseSystemPrompt = options.baseSystemPrompt;
 		const restoredReply = this.#latestReply();
@@ -591,21 +575,6 @@ export class SessionTools {
 			sessionAgents: this.#host.sessionAgents(),
 		};
 	}
-	/** Drops cached per-session ACP `allow_always`/`reject_always` decisions. */
-	clearAcpPermissionDecisions(): void {
-		this.#acpPermissionDecisions.clear();
-	}
-
-	/** Drops cached ACP decisions and re-wraps active tools after the client changes. */
-	refreshAcpPermissionGates(): void {
-		this.#acpPermissionDecisions.clear();
-		const activeTools = this.getActiveToolNames()
-			.map(name => this.#toolRegistry.get(name))
-			.filter((tool): tool is AgentTool => tool !== undefined)
-			.map(tool => this.#wrapToolForAcpPermission(tool));
-		this.#host.agent.setTools(activeTools);
-	}
-
 	#getActiveNonMCPToolNames(): string[] {
 		return this.getEnabledToolNames().filter(name => !isMCPToolName(name) && this.#toolRegistry.has(name));
 	}
@@ -653,11 +622,10 @@ export class SessionTools {
 		return resolveMCPToolAlias(bareName, candidate => this.#toolRegistry.get(candidate));
 	}
 
-	/** Looks up an enabled tool through the same ACP permission gate as direct calls. */
+	/** Looks up an enabled tool for the eval bridge; it runs through the same approval gate as a direct call. */
 	getToolForEvalBridge(name: string): AgentTool | undefined {
 		if (!this.getEnabledToolNames().includes(name)) return undefined;
-		const tool = this.#toolRegistry.get(name);
-		return tool ? this.#wrapToolForAcpPermission(tool) : undefined;
+		return this.#toolRegistry.get(name);
 	}
 
 	/** Canonical allowlist advertised by and enforced for the eval bridge. */
@@ -878,151 +846,6 @@ export class SessionTools {
 		return this.getEnabledToolNames().filter(name => isMCPToolName(name) && this.#toolRegistry.has(name));
 	}
 
-	/**
-	 * Wrap a tool with a permission-gate proxy when an ACP client is connected.
-	 * Only wraps tools whose name is in PERMISSION_REQUIRED_TOOLS and only when
-	 * the bridge exposes `requestPermission`. No-ops for all other cases.
-	 *
-	 * Bash follows its own approval resolution, including pattern allows, denials,
-	 * and critical overrides. The schema's implicit yolo default retains ACP's
-	 * client permission gate for unmatched bash commands; explicitly selecting
-	 * yolo opts out. Other tools keep their existing ACP gate behavior.
-	 */
-	#wrapToolForAcpPermission<T extends AgentTool>(tool: T): T {
-		const bridge = this.#host.clientBridge();
-		// Match the capability+method gating pattern used by read/write/bash.
-		if (!bridge?.capabilities.requestPermission || !bridge.requestPermission) return tool;
-		if (PERMISSION_REQUIRED_TOOLS[tool.name] !== true) return tool;
-		// Default-config ACP sessions still ask for executable calls even though
-		// the schema defaults to yolo; explicit yolo is an intentional opt-in.
-		if (tool.name !== "bash" && this.#isExplicitAutoApproveMode()) {
-			const userPolicies: Record<string, unknown> = cfgToolsApproval.get(this.#host.settings);
-			const toolPolicy = userPolicies[tool.name];
-			if (!toolPolicy || toolPolicy === "allow") return tool;
-		}
-		return new Proxy(tool, {
-			get: (target, prop) => {
-				if (prop !== "execute") return target[prop as keyof T];
-				return async (
-					toolCallId: string,
-					args: unknown,
-					signal: AbortSignal | undefined,
-					onUpdate: never,
-					ctx: AgentToolContext | undefined,
-				) => {
-					let cacheable = true;
-					if (target.name === "bash") {
-						const explicitAutoApprove = this.#isExplicitAutoApproveMode();
-						const { approvalMode, userPolicies } = resolveApprovalFromContext({
-							autoApprove: this.#autoApprove,
-							settings: this.#host.settings,
-						});
-						const mode = approvalMode === "yolo" && !explicitAutoApprove ? "always-ask" : approvalMode;
-						const resolved = resolveApproval(
-							target,
-							args,
-							mode,
-							userPolicies,
-							getApprovalGrants(this.#host.settings.getAgentDir(), this.#host.sessionManager.getSessionId()),
-						);
-						if (resolved.policy === "deny") throw denyError(resolved, target.name);
-						if (resolved.policy === "allow") {
-							return await target.execute(toolCallId, args as never, signal, onUpdate, ctx as never);
-						}
-						// A prompt forced by a critical command or an explicit pattern
-						// remains per-call, even after the client selects Always allow.
-						cacheable = !resolved.override;
-					}
-					const permissionIntent = getPermissionIntent(target.name, args);
-					if (!permissionIntent) {
-						return await target.execute(toolCallId, args as never, signal, onUpdate, ctx as never);
-					}
-					// Preserve the exact arguments authorized by a selected or
-					// persisted ACP grant; inner handlers may mutate `args` in place.
-					const approvedCtx = (ctx ? { ...ctx, acpApprovedArgs: structuredCloneJSON(args) } : ctx) as never;
-					const command =
-						target.name === "bash" && args && typeof args === "object" && !Array.isArray(args)
-							? stringProperty(args, "command")
-							: undefined;
-					const commandContent = command
-						? [{ type: "content" as const, content: { type: "text" as const, text: `$ ${command}` } }]
-						: undefined;
-					// Short-circuit on persisted decisions.
-					const persisted = cacheable ? this.#acpPermissionDecisions.get(permissionIntent.cacheKey) : undefined;
-					if (persisted === "allow_always") {
-						return await target.execute(toolCallId, args as never, signal, onUpdate, approvedCtx);
-					}
-					if (persisted === "reject_always") {
-						throw new ToolError(`Tool call rejected by user (preference)`);
-					}
-					if (signal?.aborted) {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					type PermissionRaceResult =
-						| { kind: "permission"; outcome: ClientBridgePermissionOutcome }
-						| { kind: "aborted" };
-					const { promise: abortPromise, resolve: resolveAbort } = Promise.withResolvers<PermissionRaceResult>();
-					const onAbort = () => resolveAbort({ kind: "aborted" });
-					signal?.addEventListener("abort", onAbort, { once: true });
-					let raced: PermissionRaceResult;
-					try {
-						raced = await this.#host.waitForUser(() => {
-							const permissionPromise = bridge.requestPermission!(
-								{
-									toolCallId,
-									toolName: target.name,
-									title: permissionIntent.title,
-									...(target.name === "bash" ? { kind: "execute" } : {}),
-									status: "pending",
-									rawInput: args,
-									...(commandContent ? { content: commandContent } : {}),
-									locations: extractPermissionLocations(
-										args,
-										this.#host.sessionManager.getCwd(),
-										permissionIntent.paths,
-									),
-								},
-								PERMISSION_OPTIONS,
-								signal,
-							).then(outcome => ({ kind: "permission" as const, outcome }));
-							return Promise.race([permissionPromise, abortPromise]);
-						});
-					} finally {
-						signal?.removeEventListener("abort", onAbort);
-					}
-					if (raced.kind === "aborted" || signal?.aborted) {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					const outcome = raced.outcome;
-					if (outcome.outcome === "cancelled") {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					const selectedOption = PERMISSION_OPTIONS_BY_ID.get(outcome.optionId);
-					if (!selectedOption) {
-						throw new ToolError(`Tool permission response used unknown option ID: ${outcome.optionId}`);
-					}
-					if (cacheable && selectedOption.kind === "allow_always") {
-						this.#acpPermissionDecisions.set(permissionIntent.cacheKey, "allow_always");
-					} else if (cacheable && selectedOption.kind === "reject_always") {
-						this.#acpPermissionDecisions.set(permissionIntent.cacheKey, "reject_always");
-					}
-					if (selectedOption.kind === "reject_once" || selectedOption.kind === "reject_always") {
-						throw new ToolError(`Tool call rejected by user (${target.name})`);
-					}
-					return await target.execute(toolCallId, args as never, signal, onUpdate, approvedCtx);
-				};
-			},
-		}) as T;
-	}
-
-	#isExplicitAutoApproveMode(): boolean {
-		return (
-			this.#autoApprove ||
-			(cfgToolsApprovalMode.isConfigured(this.#host.settings) &&
-				cfgToolsApprovalMode.get(this.#host.settings) === "yolo")
-		);
-	}
-
 	/** Applies an enabled tool set and reconciles its `xd://` partition. */
 	applyActiveToolsByName(toolNames: string[], forcePromptRefresh = false, signal?: AbortSignal): Promise<void> {
 		return this.runToolRegistryMutation(
@@ -1083,7 +906,7 @@ export class SessionTools {
 		const validToolNames: string[] = [];
 		for (const { name, tool } of selectedTools) {
 			if (mountNames.has(name)) continue;
-			tools.push(this.#wrapToolForAcpPermission(tool));
+			tools.push(tool);
 			validToolNames.push(name);
 		}
 
@@ -1098,7 +921,7 @@ export class SessionTools {
 		if (transportNeeded && builtInWriteAvailable) {
 			const write = this.#toolRegistry.get("write");
 			if (write && !validToolNames.includes("write")) {
-				tools.push(this.#wrapToolForAcpPermission(write));
+				tools.push(write);
 				validToolNames.push("write");
 			}
 		} else if (
@@ -1994,7 +1817,6 @@ export class SessionTools {
 			const xdevChanged = delta.xdev !== this.#xdev;
 			if (xdevChanged) {
 				this.#xdev = delta.xdev;
-				if (delta.xdev) delta.xdev.decorateExecution = tool => this.#wrapToolForAcpPermission(tool);
 			}
 			if (!refreshPrompt && !xdevChanged && delta.added.length === 0 && delta.removed.length === 0) return;
 			await this.#applyActiveToolsByName([...enabled], true);

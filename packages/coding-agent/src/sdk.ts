@@ -168,6 +168,7 @@ import mcpXdevGuidanceTemplate from "./prompts/system/mcp-xdev-guidance.md" with
 import lateDiagnosticTemplate from "./prompts/tools/lsp-late-diagnostic.md" with { type: "text" };
 import { AgentLifecycleManager } from "./registry/agent-lifecycle";
 import { type AgentKind, type AgentRef, AgentRegistry, MAIN_AGENT_ID } from "./registry/agent-registry";
+import type { ClientBridge } from "./session/client-bridge";
 import {
 	buildSecretObfuscator,
 	deobfuscateSessionContext,
@@ -292,6 +293,7 @@ import {
 	warmupLspServers,
 	xdevEntries,
 } from "./tools";
+import type { ApprovalDenialLedger } from "./tools/approval";
 import { resolveYieldReportText } from "./tools/yield";
 import { createModelJobWidgetAuthor, type JobWidgetAuthor, JobWidgets, resolveToolCallIntent } from "./job-widgets";
 import { createBrowserPrelude } from "./tools/browser";
@@ -834,6 +836,10 @@ export interface CreateAgentSessionOptions {
 	expectedAgentRef?: AgentRef | null;
 	/** Parent task ID prefix for nested artifact naming (e.g., "Extensions") */
 	parentTaskPrefix?: string;
+	/** Denial ledger of the spawning session; its "always reject" answers apply to this session, read live. */
+	approvalLedgerParent?: ApprovalDenialLedger;
+	/** Client bridge installed on the session at creation (subagents get a reduced one, never the parent's). */
+	clientBridge?: ClientBridge;
 	/** Parent's async jobs and delivery sinks; child sessions never resolve a process-global manager. */
 	asyncJobManager?: AsyncJobManager;
 	/**
@@ -2439,6 +2445,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getTurnBudget: () => sessionManager.getTurnBudget(),
 			recordEvalSubagentUsage: output => sessionManager.recordEvalSubagentOutput(output),
 			getClientBridge: () => session?.clientBridge,
+			getApprovalLedger: () => session?.extensionRunner?.approvalLedger,
 			emitBeforeSubagentSpawn: (event, signal) =>
 				session?.extensionRunner?.emitBeforeSubagentSpawn(event, signal) ?? Promise.resolve(undefined),
 			queueDeferredDiagnostics: entry => session?.yieldQueue.enqueue(LSP_LATE_DIAGNOSTIC_MESSAGE_TYPE, entry),
@@ -3480,6 +3487,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// A dialog waits for the user, not the agent: the session lets the display sleep while one is open.
 		const trackUserWait: UserWaitTracker = dialog => (hasSession ? session.waitForUser(dialog) : dialog());
 		extensionRunner.setUserWaitTracker(trackUserWait);
+		extensionRunner.setApprovalLedgerParent(options.approvalLedgerParent);
 
 		credentialDisabledTarget = extensionRunner;
 		for (const event of startupCredentialDisabledEvents.splice(0)) {
@@ -4750,7 +4758,6 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			preparedExtensions: extensionsResult.preparedExtensions,
 			extensionPaths,
 			disableExtensionDiscovery: options.disableExtensionDiscovery,
-			autoApprove: options.autoApprove,
 			scoutAllowedBySpawnPolicy: isScoutSpawnable(undefined, options.spawns ?? "*"),
 			evalKernelOwnerId,
 			// Children borrow their parent's manager but never dispose it.
@@ -4862,6 +4869,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		});
 		hasSession = true;
 		credentialNoticeSession = session;
+		if (options.clientBridge) session.setClientBridge(options.clientBridge);
 		// Hashline snapshots are session-scoped: /new and switchSession fire the
 		// change callbacks, so clear the tool-side store there — stale tags would
 		// otherwise surface as "issued in this session" in mismatch diagnostics

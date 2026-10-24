@@ -241,7 +241,7 @@ export interface XdevState {
 	readonly isActive: (name: string) => boolean;
 	/** Canonical renderer for a dispatched device name; mirrors {@link resolveXdevTool}. */
 	readonly resolve?: (name: string) => Tool | undefined;
-	/** Optional execution-only decorator, such as the ACP permission gate. */
+	/** Optional execution-only decorator applied to a mounted device tool before it runs. */
 	decorateExecution?(tool: Tool): Tool;
 }
 

@@ -87,7 +87,9 @@ import {
 	resolveTaskEffortLevel,
 	type TaskEffort,
 } from "@oh-my-pi/pi-tui/thinking";
+import { type ClientBridge, createSubagentClientBridge } from "../session/client-bridge";
 import type { ContextFileEntry, ToolSession } from "../tools";
+import type { ApprovalDenialLedger } from "../tools/approval";
 import { resolveEvalBackends } from "../tools/eval-backends";
 import { isIrcEnabled } from "../irc/messaging";
 import { LIST_STATUS_ORDER } from "@oh-my-pi/pi-tui/tools/irc";
@@ -437,6 +439,10 @@ export function collectIrcPeerRoster(
 /** Options for subagent execution */
 export interface ExecutorOptions {
 	cwd: string;
+	/** Spawning session's denial ledger; the child (and its revives) inherits its "always reject" answers live. */
+	parentApprovalLedger?: ApprovalDenialLedger;
+	/** Spawning session's client bridge; a non-isolated child gets a reduced file-system-only derivative. */
+	parentClientBridge?: ClientBridge;
 	/** Additional workspace directories to seed on the subagent session (multi-root). */
 	additionalDirectories?: string[];
 	/** Exact provider credential resolver inherited from the parent session. */
@@ -4789,6 +4795,12 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 					parentHindsightSessionState: options.parentHindsightSessionState,
 					parentMnemopiSessionState: options.parentMnemopiSessionState,
 					parentTaskPrefix: id,
+					approvalLedgerParent: options.parentApprovalLedger,
+					// Isolated children run in their own workspace, which the client's file system does not show.
+					clientBridge:
+						worktree === undefined && options.parentClientBridge
+							? createSubagentClientBridge(options.parentClientBridge)
+							: undefined,
 					asyncJobManager: options.asyncJobManager,
 					parentAgentId: options.parentAgentId,
 					agentId: id,

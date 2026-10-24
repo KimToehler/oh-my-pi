@@ -423,15 +423,28 @@ export class EditTool implements AgentTool<TInput> {
 
 	/**
 	 * Strictest write decision ({@link strictestApproval}) over every path the payload writes:
-	 * section targets plus move/rename destinations. "write" while no target is known.
+	 * section targets plus move/rename destinations. "write" while no target is known. A payload
+	 * that deletes or moves a file is a tool-owned override: it asks per call in every mode but
+	 * yolo, ahead of a user `allow` policy; a target's own deny still wins.
 	 */
 	readonly approval = (args: unknown): ToolApprovalDecision => {
 		const { paths, fileOps } = this.#inspect(args);
 		const targets = [...paths];
 		for (const op of fileOps) if (op.kind === "move" && op.to !== undefined) targets.push(op.to);
-		if (targets.length === 0) return "write";
 		const router = InternalUrlRouter.instance();
-		return strictestApproval(targets.map(target => router.writeTier(target, undefined, this.session)));
+		const strictest =
+			targets.length === 0
+				? "write"
+				: strictestApproval(targets.map(target => router.writeTier(target, undefined, this.session)));
+		const destructive: string[] = [];
+		for (const op of fileOps) {
+			if (op.kind === "delete") destructive.push(`deletes ${op.path}`);
+			else if (op.kind === "move") destructive.push(op.to ? `moves ${op.path} → ${op.to}` : `moves ${op.path}`);
+		}
+		if (destructive.length === 0) return strictest;
+		if (typeof strictest !== "string" && strictest.policy === "deny") return strictest;
+		const tier = typeof strictest === "string" ? strictest : strictest.tier;
+		return { tier, override: true, reason: destructive.join(", ") };
 	};
 
 	readonly formatApprovalDetails = (args: unknown): string[] => {
