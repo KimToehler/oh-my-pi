@@ -8,6 +8,17 @@ export interface SessionMoveRequest {
 	path: string;
 }
 
+/**
+ * An atomic claim on the session's single move slot, taken before a `session_move` call does any work.
+ * Exactly one of `commit` / `release` takes effect; the other, and repeats, are no-ops.
+ */
+export interface SessionMoveReservation {
+	/** Record the move so the run stops after its batch. @returns false when no relocator is installed any more. */
+	commit(request: SessionMoveRequest): boolean;
+	/** Give the slot back (every failure path). */
+	release(): void;
+}
+
 /** A recorded, not yet executed move owned by AgentSession. */
 export interface PendingSessionMove extends SessionMoveRequest {
 	/** True once the post-prompt relocation task is scheduled; a later `agent_end` never schedules a second. */

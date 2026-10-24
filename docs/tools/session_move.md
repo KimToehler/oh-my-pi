@@ -6,7 +6,7 @@
 - Entry: `packages/coding-agent/src/tools/session-move.ts`
 - Model-facing prompt: `packages/coding-agent/src/prompts/tools/session-move.md`
 - Key collaborators:
-  - `packages/coding-agent/src/session/agent-session.ts` — records the pending move (`requestSessionMove`), opens the session-transition fence at `agent_end`, runs the host relocator as post-prompt work and sends the continuation.
+  - `packages/coding-agent/src/session/agent-session.ts` — owns the move slot (`reserveSessionMove` reservation, committed into the pending move), opens the session-transition fence at `agent_end`, runs the host relocator as post-prompt work and sends the continuation.
   - `packages/coding-agent/src/session/session-move.ts` — relocator types and the running-work check (`findRunningSessionWork`).
   - `packages/coding-agent/src/session/session-worktree.ts` — `addRepoWorktree`, shared with `omp worktree add` and the `bash` `git worktree add` rewrite.
   - `packages/coding-agent/src/session/headless-relocation.ts` — ACP and RPC relocation, shared with the `/move` and `/wt` builtins.
@@ -43,13 +43,14 @@ Anything else is refused with an error that points to `/move`: a path outside th
 2. A second `session_move` while a move is pending is refused.
 3. Target validation (Allowed targets).
 4. Missing target: a branch name is required; the missing worktree-directory components are created, then `addRepoWorktree` adds the worktree the way `omp worktree add` does (`worktree.clone`, plain checkout for targets inside the source checkout, `post-checkout` hook). If adding the worktree fails, the directories the call created are removed again. When the hook exits non-zero the call fails with the hook output, the worktree stays, and no move is scheduled.
-5. `requestSessionMove` records the move; once every call of the batch has settled, the agent loop asks AgentSession's `shouldStopAfterBatch` hook, which returns true while a move is pending: the other calls of the same batch finish normally and still resolve against the old directory, then the run ends without another model request. Queued steering and follow-up messages stay queued.
+5. The tool takes the session's move reservation before its first `await` (so direct callers such as the eval and Cursor bridges cannot admit two moves), commits it with the target and releases it on every failure; a committed move is the pending move. Once every call of the batch has settled, the agent loop asks AgentSession's `shouldStopAfterBatch` hook, which returns true while a move is pending: the other calls of the same batch finish normally and still resolve against the old directory, then the run ends without another model request. The hook is also asked once for a message whose calls Cursor's server-side bridge already executed. Queued steering and follow-up messages stay queued.
 6. At `agent_end` AgentSession opens the session-transition fence. As post-prompt work, once the session is idle, it checks running work again (a sibling `async` call may have started a job), calls the host relocator — the same path as `/move`, including settings flush, BTW gate, rollback, and plugin, command and rule reload — and closes the fence.
 7. One hidden `session-move-result` message starts exactly one continuation turn. It names the new directory, or the failure and its reason. On failure the cwd and the session file are unchanged.
 
 ## Approval
-- Approval tier write when the target exists (main checkout or registered worktree), and for invalid targets, which fail in `execute` without a prompt.
-- Approval tier exec when the call creates a worktree, because it runs the post-checkout hook of the repository. Under `tools.approvalMode: write` such a call asks first, or is denied without an interactive surface.
+- The tier is decided from the arguments, the settings and the repository location only, never from whether the target exists, so it cannot change between approval and execution.
+- Approval tier exec when the call can create a worktree, because creation runs the post-checkout hook of the repository: the resolved target lies directly inside the worktree directory (`worktree.repoDir` under the primary root), or `branch`/`base` is given (with a git repository and a valid worktree directory). Under `tools.approvalMode: write` such a call asks first, or is denied without an interactive surface. A move into an existing worktree under the worktree directory therefore also asks at exec tier.
+- Approval tier write otherwise: the main checkout, a registered worktree outside the worktree directory, and invalid or unresolvable targets, which fail in `execute` without a prompt.
 
 ## Side Effects
 - Session state: the session file and its artifacts move into the target's session bucket (as after `/move`); `omp --resume` in the target lists the session. Within one repository the main checkout's picker may still list it through the worktree aggregation, as after `/wt`.

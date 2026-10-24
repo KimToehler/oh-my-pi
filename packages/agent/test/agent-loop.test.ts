@@ -5977,6 +5977,68 @@ describe("agentLoop stop after batch", () => {
 		const roles = r.mock.calls[0]?.context.messages.map(m => m.role);
 		expect(roles).toEqual(["user", "assistant", "toolResult", "user"]);
 	});
+
+	async function runBridgeResolved(stopHook: () => boolean) {
+		const steeringQueue: AgentMessage[] = [];
+		let requests = 0;
+		const streamFn = () => {
+			const requestNumber = ++requests;
+			// Steering arrives while the first response streams.
+			if (requestNumber === 1) steeringQueue.push(createUserMessage("queued steering"));
+			const stream = new AssistantMessageEventStream();
+			queueMicrotask(() => {
+				const resolvedBlock = {
+					type: "toolCall" as const,
+					id: "cursor-exec-move",
+					name: "session_move",
+					arguments: {},
+					[kCursorExecResolved]: true as const,
+				};
+				const finalMessage: AssistantMessage = {
+					role: "assistant",
+					content: requestNumber === 1 ? [resolvedBlock] : [{ type: "text", text: "second request" }],
+					api: "cursor-agent",
+					provider: "cursor",
+					model: "cursor-composer-2.5",
+					usage: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						totalTokens: 0,
+						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+					},
+					stopReason: "stop",
+					timestamp: Date.now(),
+				};
+				stream.push({ type: "start", partial: finalMessage });
+				stream.push({ type: "done", reason: "stop", message: finalMessage });
+			});
+			return stream;
+		};
+		const context: AgentContext = { systemPrompt: [""], messages: [], tools: [] };
+		const config: AgentLoopConfig = {
+			model: createMockModel().model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: async () => steeringQueue.splice(0),
+			shouldStopAfterBatch: stopHook,
+		};
+		const stream = agentLoop([createUserMessage("move")], context, config, undefined, streamFn);
+		for await (const _event of stream);
+		return { requests, steeringQueue };
+	}
+
+	it("stop after batch: a bridge-resolved tool call stops the run", async () => {
+		const r = await runBridgeResolved(() => true);
+		expect(r.requests).toBe(1);
+		expect(r.steeringQueue).toHaveLength(1);
+	});
+
+	it("stop after batch: a bridge-resolved tool call continues when the hook returns false", async () => {
+		const r = await runBridgeResolved(() => false);
+		expect(r.requests).toBe(2);
+		expect(r.steeringQueue).toHaveLength(0);
+	});
 });
 
 describe("agentLoopContinue with AgentMessage", () => {

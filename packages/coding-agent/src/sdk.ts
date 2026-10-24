@@ -2518,7 +2518,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			peekPlanProposalHandler: () => session.peekPlanProposalHandler(),
 			setPlanProposalHandler: (handler, reserveOwnership) =>
 				session.setPlanProposalHandler(handler, reserveOwnership),
-			requestSessionMove: request => session.requestSessionMove(request),
+			reserveSessionMove: () => session.reserveSessionMove(),
 			hasPendingSessionMove: () => session.hasPendingSessionMove(),
 			submitPlanProposal: (title, call) => session.submitPlanProposal(title, call),
 			allocateOutputArtifact: async toolType => {
@@ -4714,7 +4714,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// The primary may carry a dormant xd:// write transport. Advisors use
 			// their own configured tool slate, so a selected write is always full.
 			deviceOnlyWrite: undefined,
-			requestSessionMove: undefined,
+			reserveSessionMove: undefined,
 			hasPendingSessionMove: undefined,
 			sessionRelocation: false,
 			pendingFullWriteDescription: undefined,

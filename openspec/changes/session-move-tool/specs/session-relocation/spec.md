@@ -115,15 +115,15 @@ The first turn after a successful move SHALL resolve relative tool paths against
 - **THEN** proceeding MUST fail the requirement: the call returns an error naming the running job or agent, no worktree or branch is created, and no move is scheduled
 
 ### Requirement: Approval follows what the call does
-A `session_move` call to an existing target SHALL require `write` approval; a call that creates a worktree SHALL require `exec` approval, because it runs the repository's `post-checkout` hook.
+A `session_move` call that can create a worktree SHALL require `exec` approval, because creation runs the repository's `post-checkout` hook. A call can create a worktree when its target lies directly inside the worktree directory, or when it passes `branch` or `base`. Every other call SHALL require `write` approval. The tier SHALL depend only on the arguments, the settings and the repository location, never on whether the target exists, so it cannot change between approval and execution.
 
 #### Scenario: Existing target under write mode
-- **WHEN** `tools.approvalMode` is `write` and the target is a registered worktree
+- **WHEN** `tools.approvalMode` is `write` and the target is the main checkout or a registered worktree outside the worktree directory, with no `branch` or `base`
 - **THEN** the call runs without an approval prompt
 
 #### Scenario: Negative control
-- **WHEN** `tools.approvalMode` is `write` and the target is a missing directory under the worktree directory
-- **THEN** creating the worktree without approval MUST fail the requirement: the call asks for approval (or is denied without an interactive surface), and an unprompted creation is a defect
+- **WHEN** `tools.approvalMode` is `write` and the target lies directly inside the worktree directory, either missing, or a registered worktree that is removed while the approval is pending
+- **THEN** creating the worktree without `exec` approval MUST fail the requirement: the call asks for approval (or is denied without an interactive surface), and a creation or `post-checkout` hook run under `write` approval is a defect
 
 ### Requirement: Only relocatable top-level sessions get the tool
 `session_move` SHALL be offered only to a top-level session with a persisted session file in the interactive TUI, ACP or RPC host. Subagents (including the advisor), sessions without a session file (`--no-session`) and hosts that cannot relocate (print mode, SDK sessions without a relocation handler) SHALL NOT have it in their tool set.

@@ -45,7 +45,7 @@ interface MoveRig {
 	source: string;
 	/** Model call count (0 = the prompt's call, 1 = the continuation). */
 	modelCalls(): number;
-	/** Whether `requestSessionMove` accepted the request (a relocator was installed). */
+	/** Whether the move reservation was committed (a relocator was installed). */
 	requested: boolean[];
 }
 
@@ -66,7 +66,7 @@ async function startMoveRig(version: 1 | 2, script: Record<number, MockResponse>
 		description: "move",
 		parameters: Type.Object({}),
 		async execute() {
-			requested.push(current?.requestSessionMove({ path: targetPath }) ?? false);
+			requested.push(current?.reserveSessionMove()?.commit({ path: targetPath }) ?? false);
 			return { content: [{ type: "text", text: "scheduled" }] };
 		},
 	};
@@ -190,9 +190,9 @@ describe("acp session move", () => {
 
 	it("acp session move: closing the session clears the relocator", async () => {
 		const rig = await startMoveRig(1, {});
-		expect(rig.session.requestSessionMove({ path: rig.target })).toBe(true);
+		expect(rig.session.reserveSessionMove()?.commit({ path: rig.target })).toBe(true);
 		const closed = await rig.client.request("session/close", { sessionId: rig.sessionId });
 		expect(closed.error).toBeUndefined();
-		expect(rig.session.requestSessionMove({ path: rig.target })).toBe(false);
+		expect(rig.session.reserveSessionMove()).toBeUndefined();
 	});
 });

@@ -75,7 +75,7 @@ import { MemoryRetainTool } from "./memory-retain";
 import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
 import type { PlanProposalCall, PlanProposalHandler, PlanProposalOwnershipReserver } from "./resolve";
-import type { SessionMoveRequest } from "../session/session-move";
+import type { SessionMoveReservation } from "../session/session-move";
 import { SecurityScanTool } from "./security-scan";
 import { SessionMoveTool } from "./session-move";
 import { supportsExternalThinking, ThinkTool } from "./think";
@@ -516,11 +516,11 @@ export interface ToolSession {
 	/** Register or clear the plan-proposal handler. Passing `null` clears it. */
 	setPlanProposalHandler?(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void;
 	/**
-	 * Record a validated `session_move` target; the session relocates after the current run ends.
-	 * @returns whether a relocator is installed (false: the move will not happen).
+	 * Atomically claim the session's move slot (synchronously, before any `await`).
+	 * @returns undefined while a move is pending or reserved, or when no relocator is installed.
 	 */
-	requestSessionMove?(request: SessionMoveRequest): boolean;
-	/** Whether a pending `session_move` is already recorded for this session's current run. */
+	reserveSessionMove?(): SessionMoveReservation | undefined;
+	/** Whether a `session_move` is pending or reserved for this session. */
 	hasPendingSessionMove?(): boolean;
 	/**
 	 * The host installs a session relocator before the first prompt (`CreateAgentSessionOptions.sessionRelocation`).

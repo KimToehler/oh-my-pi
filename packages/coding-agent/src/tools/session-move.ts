@@ -95,12 +95,24 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 	readonly intent = (args: Partial<SessionMoveParams>) =>
 		args.path ? `moving session to ${args.path}` : "moving session";
 
-	/** `exec` for a creatable missing target (runs the post-checkout hook), `write` otherwise; invalid targets fail in execute. */
+	/**
+	 * `exec` when the call can create a worktree (runs the post-checkout hook): `branch`/`base` is given, or the
+	 * target lies directly inside the worktree directory. `write` otherwise, and for anything unresolvable (it
+	 * fails in `execute`). Decided from arguments, settings and repository location only, never from whether the
+	 * target exists, so the tier cannot change between approval and execution.
+	 */
 	readonly approval = (args: unknown): ToolApprovalDecision => {
-		const rawPath = (args as Partial<SessionMoveParams> | undefined)?.path;
+		const params = args as Partial<SessionMoveParams> | undefined;
+		const rawPath = params?.path;
 		if (typeof rawPath !== "string" || rawPath.length === 0) return "write";
 		try {
-			return this.#plan(rawPath).kind === "create" ? "exec" : "write";
+			if (params?.branch !== undefined || params?.base !== undefined) {
+				// Creation needs a git repository and a usable worktree directory; otherwise `execute` rejects.
+				return vcs.git(this.session.cwd) && resolveRepoWorktreeDir(cfgWorktreeRepoDir.get(this.session.settings)).ok
+					? "exec"
+					: "write";
+			}
+			return this.#isDirectlyInWorktreeDir(rawPath) ? "exec" : "write";
 		} catch {
 			return "write";
 		}
@@ -113,9 +125,60 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 	}
 
 	static createIf(session: ToolSession): SessionMoveTool | null {
-		if (!session.requestSessionMove || session.sessionRelocation !== true) return null;
+		if (!session.reserveSessionMove || session.sessionRelocation !== true) return null;
 		if (!session.getSessionFile() || (session.taskDepth ?? 0) !== 0) return null;
 		return new SessionMoveTool(session);
+	}
+
+	/**
+	 * Walk the worktree directory below the primary root without following links. Reads only the directory
+	 * chain, never the target, so it backs both the approval tier and the plan.
+	 */
+	#locateWorktreeDir(
+		primary: string,
+		repoDirSetting: string,
+	): { ok: true; parent: string; missingDirs: string[] } | { ok: false; plan: TargetPlan } {
+		const resolvedDir = resolveRepoWorktreeDir(repoDirSetting);
+		if (!resolvedDir.ok) {
+			return {
+				ok: false,
+				plan: { kind: "invalid", error: `${resolvedDir.error}. session_move cannot create a worktree.` },
+			};
+		}
+		const missingDirs: string[] = [];
+		let current = primary;
+		for (const component of resolvedDir.dir.split("/")) {
+			current = path.join(current, component);
+			if (missingDirs.length > 0) {
+				missingDirs.push(current);
+				continue;
+			}
+			const stat = lstatOrUndefined(current);
+			if (!stat) {
+				missingDirs.push(current);
+			} else if (stat.isSymbolicLink() || !stat.isDirectory()) {
+				return {
+					ok: false,
+					plan: reject(
+						`${path.relative(primary, current)} is a ${stat.isSymbolicLink() ? "symlink" : "file"}, not a directory`,
+						repoDirSetting,
+					),
+				};
+			}
+		}
+		return { ok: true, parent: current, missingDirs };
+	}
+
+	/** Whether `rawPath` lies directly inside the worktree directory. Never reads the target itself. */
+	#isDirectlyInWorktreeDir(rawPath: string): boolean {
+		const repo = vcs.git(this.session.cwd);
+		if (!repo) return false;
+		const located = this.#locateWorktreeDir(
+			fs.realpathSync(repo.primaryRoot()),
+			cfgWorktreeRepoDir.get(this.session.settings),
+		);
+		if (!located.ok) return false;
+		return realpathOfPlannedPath(path.dirname(resolveToCwd(rawPath, this.session.cwd))) === located.parent;
 	}
 
 	#plan(rawPath: string): TargetPlan {
@@ -137,29 +200,9 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 				return reject(`"${rawPath}" is a broken link`, repoDirSetting);
 			}
 		}
-		const resolvedDir = resolveRepoWorktreeDir(repoDirSetting);
-		if (!resolvedDir.ok)
-			return { kind: "invalid", error: `${resolvedDir.error}. session_move cannot create a worktree.` };
-		const components = resolvedDir.dir.split("/");
-		const missingDirs: string[] = [];
-		let current = primary;
-		for (const component of components) {
-			current = path.join(current, component);
-			if (missingDirs.length > 0) {
-				missingDirs.push(current);
-				continue;
-			}
-			const stat = lstatOrUndefined(current);
-			if (!stat) {
-				missingDirs.push(current);
-			} else if (stat.isSymbolicLink() || !stat.isDirectory()) {
-				return reject(
-					`${path.relative(primary, current)} is a ${stat.isSymbolicLink() ? "symlink" : "file"}, not a directory`,
-					repoDirSetting,
-				);
-			}
-		}
-		const worktreeParent = current;
+		const located = this.#locateWorktreeDir(primary, repoDirSetting);
+		if (!located.ok) return located.plan;
+		const { parent: worktreeParent, missingDirs } = located;
 		if (realpathOfPlannedPath(path.dirname(resolved)) !== worktreeParent) {
 			return reject(
 				`"${rawPath}" is not a registered worktree or a direct child of ${repoDirSetting}`,
@@ -194,52 +237,56 @@ export class SessionMoveTool implements AgentTool<typeof sessionMoveSchema, Sess
 				`Cannot move the session: ${describeRunningSessionWork(work)}. Wait for them or cancel them, then call session_move again.`,
 			);
 		}
-		this.#assertNoPendingMove();
+		// Claim the move slot before the first await: the eval and Cursor bridges call `execute` directly,
+		// so the loop scheduler's `exclusive` concurrency does not serialise those calls.
+		const reservation = session.reserveSessionMove?.();
+		if (!reservation) {
+			throw new ToolError(
+				session.hasPendingSessionMove?.()
+					? "A session move is already pending for this run; wait for it to finish before requesting another."
+					: "This session has no relocator installed, so it cannot move. Ask the user to run /move instead.",
+			);
+		}
+		try {
+			const plan = this.#plan(params.path);
+			if (plan.kind === "invalid") throw new ToolError(plan.error);
 
-		const plan = this.#plan(params.path);
-		if (plan.kind === "invalid") throw new ToolError(plan.error);
-
-		let details: SessionMoveToolDetails;
-		if (plan.kind === "existing") {
-			const registered = new Set<string>([plan.primary]);
-			for (const entry of await plan.repo.worktrees()) {
-				try {
-					registered.add(fs.realpathSync(entry.path));
-				} catch {
-					// A registered worktree whose directory vanished cannot be a move target.
+			let details: SessionMoveToolDetails;
+			if (plan.kind === "existing") {
+				const registered = new Set<string>([plan.primary]);
+				for (const entry of await plan.repo.worktrees()) {
+					try {
+						registered.add(fs.realpathSync(entry.path));
+					} catch {
+						// A registered worktree whose directory vanished cannot be a move target.
+					}
 				}
+				if (!registered.has(plan.target)) {
+					const rejected = reject(`"${params.path}" exists but is not a registered worktree`, plan.worktreeDir);
+					throw new ToolError(rejected.kind === "invalid" ? rejected.error : "");
+				}
+				details = { path: plan.target, created: false };
+			} else {
+				details = await this.#createWorktree(plan, params);
 			}
-			if (!registered.has(plan.target)) {
-				const rejected = reject(`"${params.path}" exists but is not a registered worktree`, plan.worktreeDir);
-				throw new ToolError(rejected.kind === "invalid" ? rejected.error : "");
+
+			if (!reservation.commit({ path: details.path })) {
+				throw new ToolError(
+					"This session has no relocator installed, so it cannot move. Ask the user to run /move instead.",
+				);
 			}
-			details = { path: plan.target, created: false };
-		} else {
-			details = await this.#createWorktree(plan, params);
-		}
-
-		this.#assertNoPendingMove();
-		if (!session.requestSessionMove?.({ path: details.path })) {
-			throw new ToolError(
-				"This session has no relocator installed, so it cannot move. Ask the user to run /move instead.",
-			);
-		}
-		return {
-			content: [
-				{
-					type: "text",
-					text: `Session move to ${details.path} is scheduled. It runs after this tool batch ends the turn; the conversation then continues from that directory.`,
-				},
-			],
-			details,
-		};
-	}
-
-	#assertNoPendingMove(): void {
-		if (this.session.hasPendingSessionMove?.()) {
-			throw new ToolError(
-				"A session move is already pending for this run; wait for it to finish before requesting another.",
-			);
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Session move to ${details.path} is scheduled. It runs after this tool batch ends the turn; the conversation then continues from that directory.`,
+					},
+				],
+				details,
+			};
+		} finally {
+			// A no-op after a successful commit; frees the slot on every failure path.
+			reservation.release();
 		}
 	}
 

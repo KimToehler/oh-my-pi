@@ -77,7 +77,7 @@ describe("session move", () => {
 	}
 
 	/**
-	 * `tools` receive the session so test tools can call `requestSessionMove`.
+	 * `tools` receive the session so test tools can call `reserveSessionMove`.
 	 * `relocate` defaults to the real `moveSession` into `dstSessions`.
 	 */
 	function setup(options: {
@@ -150,7 +150,7 @@ describe("session move", () => {
 			description: "move",
 			parameters: Type.Object({}),
 			async execute() {
-				getSession().requestSessionMove({ path: target() });
+				getSession().reserveSessionMove()?.commit({ path: target() });
 				events.push("session_move-result");
 				return { content: [{ type: "text", text: "scheduled" }] };
 			},

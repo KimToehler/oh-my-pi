@@ -28,6 +28,7 @@ import chalk from "@oh-my-pi/pi-utils/chalk";
 import { reset as resetCapabilities } from "./capability";
 import {
 	type Args,
+	type Mode,
 	reportInvalidFlagValues,
 	reportUnrecognizedFlags,
 	validateGoalLaunch,
@@ -235,6 +236,15 @@ async function loadBuiltinSlashCommandExecutor() {
 /** Missing-session-directory prompt boundary; ordinary launches do not need node:readline. */
 async function loadReadlineInterface() {
 	return (await import("node:readline/promises")).createInterface;
+}
+
+/**
+ * Whether the top-level session's host installs a session relocator (`AgentSession.setSessionRelocator`)
+ * before the first prompt, which is what offers the `session_move` tool. The interactive TUI, `rpc` and
+ * `rpc-ui` do; print and `json` do not. ACP is not decided here: `createAcpSessionFactory` declares it.
+ */
+export function declaresSessionRelocation(options: { isInteractive: boolean; mode: Mode }): boolean {
+	return options.isInteractive || options.mode === "rpc" || options.mode === "rpc-ui";
 }
 
 export function writeStartupNotice(parsedArgs: Pick<Args, "mode">, text: string): void {
@@ -2286,7 +2296,7 @@ export async function runRootCommand(
 		sessionOptions.tuiTranscript = isInteractive;
 		sessionOptions.autoTitle = isInteractive;
 		// TUI and RPC install a session relocator (`session_move`) before the first prompt.
-		sessionOptions.sessionRelocation = isInteractive || mode === "rpc" || mode === "rpc-ui";
+		sessionOptions.sessionRelocation = declaresSessionRelocation({ isInteractive, mode });
 		sessionOptions.settings = settingsInstance;
 		sessionOptions.onPrewalkWarning = warning => {
 			if (isInteractive) notifs.push({ kind: "warn", message: warning });

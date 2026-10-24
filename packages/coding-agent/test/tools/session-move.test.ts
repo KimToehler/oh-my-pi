@@ -15,6 +15,8 @@ import { BUILTIN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools
 import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { createAcpSessionFactory, declaresSessionRelocation } from "@oh-my-pi/pi-coding-agent/main";
+import type { Mode } from "@oh-my-pi/pi-coding-agent/cli/args";
 import * as sessionWorktree from "@oh-my-pi/pi-coding-agent/session/session-worktree";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 
@@ -79,6 +81,7 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 	});
 
 	function stub(cwd: string, options: StubOptions = {}): ToolSession {
+		let reserved = false;
 		return {
 			cwd,
 			settings: Settings.isolated({ "worktree.clone": false, ...options.settings }),
@@ -89,12 +92,21 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 			getAgentId: () => options.agentId ?? "Main",
 			asyncJobManager: options.asyncJobManager,
 			agentRegistry: options.agentRegistry ?? new AgentRegistry(),
-			requestSessionMove: (request: { path: string }) => {
-				if (options.relocator === false) return false;
-				requests.push(request.path);
-				return true;
+			reserveSessionMove: () => {
+				if (options.relocator === false || options.pending?.() || reserved) return undefined;
+				reserved = true;
+				return {
+					commit: (request: { path: string }) => {
+						reserved = false;
+						requests.push(request.path);
+						return true;
+					},
+					release: () => {
+						reserved = false;
+					},
+				};
 			},
-			hasPendingSessionMove: options.pending,
+			hasPendingSessionMove: () => options.pending?.() === true || reserved,
 		} as unknown as ToolSession;
 	}
 
@@ -166,6 +178,65 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 		}
 		expect(await git("rev-parse", "refs/heads/pinned")).toBe(first);
 		expect(await $`git -C ${target} rev-parse HEAD`.text()).toBe(`${first}\n`);
+	});
+
+	async function realSessionTool() {
+		const authStorage = await AuthStorage.create(path.join(root, "testauth.db"));
+		cleanup.push(() => authStorage.close());
+		authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
+		const created = await createAgentSession({
+			cwd: repo,
+			authStorage,
+			modelRegistry: new ModelRegistry(authStorage, path.join(root, "models.yml")),
+			agentDir: root,
+			sessionManager: SessionManager.create(repo, path.join(root, "sessions")),
+			settings: Settings.isolated({ "worktree.clone": false, "compaction.enabled": false, "retry.enabled": false }),
+			model: getBundledModel("anthropic", "claude-sonnet-4-5"),
+			disableExtensionDiscovery: true,
+			skills: [],
+			contextFiles: [],
+			workspaceTree: { rootPath: repo, rendered: ".\n", truncated: false, totalLines: 1, agentsMdFiles: [] },
+			promptTemplates: [],
+			slashCommands: [],
+			enableMCP: false,
+			enableLsp: false,
+			toolNames: ["session_move"],
+			sessionRelocation: true,
+		});
+		cleanup.push(() => created.session.dispose());
+		created.session.setSessionRelocator(async () => ({ ok: true }));
+		const tool = created.session.getToolByName("session_move");
+		if (!tool) throw new Error("session_move tool was not built");
+		return { session: created.session, tool };
+	}
+
+	it("session_move: parallel direct calls create exactly one worktree", async () => {
+		const { tool } = await realSessionTool();
+		const targets = [path.join(repo, ".worktrees", "one"), path.join(repo, ".worktrees", "two")];
+		// The eval and Cursor bridges call `execute` directly, outside the loop scheduler's `exclusive` queue.
+		const settled = await Promise.allSettled([
+			tool.execute("a", { path: targets[0], branch: "one" }),
+			tool.execute("b", { path: targets[1], branch: "two" }),
+		]);
+		expect(settled.map(entry => entry.status).sort()).toEqual(["fulfilled", "rejected"]);
+		const rejected = settled.find(entry => entry.status === "rejected");
+		expect(rejected?.status === "rejected" && String(rejected.reason)).toMatch(/already pending/);
+		const created = (await Promise.all(targets.map(exists))).filter(Boolean);
+		expect(created).toHaveLength(1);
+		const branchNames = (await branches()).split("\n").map(line => line.replace(/^[*+]?\s+/, ""));
+		expect(branchNames.filter(name => name === "one" || name === "two")).toHaveLength(1);
+	});
+
+	it("session_move: parallel direct calls release the reservation when a creating call fails", async () => {
+		const { session, tool } = await realSessionTool();
+		await expect(tool.execute("bad", { path: path.join(repo, ".worktrees", "bad"), branch: "-bad" })).rejects.toThrow(
+			/Invalid branch name/,
+		);
+		expect(session.hasPendingSessionMove()).toBe(false);
+		const target = path.join(repo, ".worktrees", "after-failure");
+		await tool.execute("good", { path: target, branch: "after-failure" });
+		expect(await exists(target)).toBe(true);
+		expect(session.hasPendingSessionMove()).toBe(true);
 	});
 
 	it("session_move: an existing branch is checked out without detaching and is never reset", async () => {
@@ -473,11 +544,22 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 	});
 
 	describe("approval", () => {
-		it("session_move: approval is exec for a missing creatable target and write otherwise", async () => {
+		it("session_move approval: a registered worktree directly inside the worktree directory is exec, whether or not it exists", async () => {
+			const tool = toolFor(repo);
+			const registered = path.join(repo, ".worktrees", "reg");
+			await git("worktree", "add", "-b", "reg", registered);
+			expect(tool.approval({ path: registered })).toBe("exec");
+			// Removed while the approval prompt is pending: execute would plan a creation, so the tier must not drop.
+			await git("worktree", "remove", "--force", registered);
+			expect(await exists(registered)).toBe(false);
+			expect(tool.approval({ path: registered })).toBe("exec");
+			expect(tool.approval({ path: path.join(repo, ".worktrees", "never-existed") })).toBe("exec");
+		});
+
+		it("session_move approval: the main checkout and a worktree outside the worktree directory are write without branch or base", async () => {
 			const tool = toolFor(repo);
 			const linked = path.join(root, "linked");
 			await git("worktree", "add", "-b", "linked", linked);
-			expect(tool.approval({ path: path.join(repo, ".worktrees", "new"), branch: "new" })).toBe("exec");
 			expect(tool.approval({ path: repo })).toBe("write");
 			expect(tool.approval({ path: linked })).toBe("write");
 			expect(tool.approval({ path: path.join(root, "elsewhere") })).toBe("write");
@@ -485,6 +567,14 @@ describe.skipIf(process.platform === "win32")("session_move", () => {
 			expect(tool.approval({})).toBe("write");
 			const badDir = toolFor(repo, { settings: { "worktree.repoDir": "../wt" } });
 			expect(badDir.approval({ path: path.join(repo, ".worktrees", "new"), branch: "new" })).toBe("write");
+		});
+
+		it("session_move approval: a target outside the worktree directory with branch or base is exec", async () => {
+			const tool = toolFor(repo);
+			const outside = path.join(root, "outside");
+			expect(tool.approval({ path: outside, branch: "outside" })).toBe("exec");
+			expect(tool.approval({ path: outside, base: first })).toBe("exec");
+			expect(tool.approval({ path: path.join(repo, ".worktrees", "new"), branch: "new" })).toBe("exec");
 		});
 
 		it("session_move: under tools.approvalMode write an existing target is unprompted and creation is prompted", async () => {
@@ -660,7 +750,7 @@ describe("session_move availability", () => {
 			taskDepth: 0,
 			sessionRelocation: true,
 			getSessionFile: () => path.join(root, "s.jsonl"),
-			requestSessionMove: () => true,
+			reserveSessionMove: () => ({ commit: () => true, release: () => {} }),
 			...overrides,
 		} as unknown as ToolSession;
 	}
@@ -677,7 +767,7 @@ describe("session_move availability", () => {
 		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ taskDepth: 1 }))).toBeNull();
 	});
 
-	it("session_move availability: absent for print mode, whose session has requestSessionMove but declares no relocation", async () => {
+	it("session_move availability: absent for print mode, whose session has reserveSessionMove but declares no relocation", async () => {
 		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ sessionRelocation: false }))).toBeNull();
 		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ sessionRelocation: undefined }))).toBeNull();
 	});
@@ -695,8 +785,8 @@ describe("session_move availability", () => {
 		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ getSessionFile: () => null }))).toBeNull();
 	});
 
-	it("session_move availability: absent without requestSessionMove on the tool session", async () => {
-		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ requestSessionMove: undefined }))).toBeNull();
+	it("session_move availability: absent without reserveSessionMove on the tool session", async () => {
+		expect(BUILTIN_TOOLS.session_move(toolSessionStub({ reserveSessionMove: undefined }))).toBeNull();
 	});
 
 	it("session_move availability: an advisor never gets the tool, even when its config lists it", async () => {
@@ -705,5 +795,49 @@ describe("session_move availability", () => {
 		const advisorTools = session.getAdvisorAvailableToolNames();
 		expect(advisorTools.length).toBeGreaterThan(0);
 		expect(advisorTools).not.toContain("session_move");
+	});
+
+	it("session_move availability: host declaration decides the tool set of the TUI, RPC and ACP hosts", async () => {
+		// Part 1: the top-level mode predicate. ACP is declared by its session factory, not here.
+		const declared = (isInteractive: boolean, mode: Mode) => declaresSessionRelocation({ isInteractive, mode });
+		expect(declared(true, "text")).toBe(true);
+		expect(declared(false, "rpc")).toBe(true);
+		expect(declared(false, "rpc-ui")).toBe(true);
+		expect(declared(false, "text")).toBe(false);
+		expect(declared(false, "json")).toBe(false);
+		expect(declared(false, "acp")).toBe(false);
+
+		// Part 2: a real ACP session with a persisted session file carries the tool.
+		const authStorage = await AuthStorage.create(path.join(root, "testauth.db"));
+		authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
+		try {
+			const factory = createAcpSessionFactory({
+				baseOptions: {
+					agentDir: root,
+					model: getBundledModel("anthropic", "claude-sonnet-4-5"),
+					disableExtensionDiscovery: true,
+					skills: [],
+					contextFiles: [],
+					workspaceTree: { rootPath: root, rendered: ".\n", truncated: false, totalLines: 1, agentsMdFiles: [] },
+					promptTemplates: [],
+					slashCommands: [],
+					enableLsp: false,
+					toolNames: ["read", "session_move"],
+				},
+				settings: Settings.isolated({ "worktree.clone": false }),
+				sessionDir: path.join(root, "sessions"),
+				authStorage,
+				modelRegistry: new ModelRegistry(authStorage, path.join(root, "models.yml")),
+				parsedArgs: { invalidFlagValues: [] },
+				rawArgs: [],
+				createSession: createAgentSession,
+			});
+			const { session } = await factory(root);
+			sessions.push(session);
+			expect(session.sessionManager.getSessionFile()).toBeTruthy();
+			expect(session.getToolByName("session_move")?.name).toBe("session_move");
+		} finally {
+			authStorage.close();
+		}
 	});
 });

@@ -76,7 +76,7 @@ and their results are recorded, the loop calls the hook once (next to the
 and of the yield point (`agent-loop.ts:1787-1799`, `1819-1826`) are skipped so queued user input
 stays in its queues for the run after the relocation, exactly as the external abort path leaves
 them. `onTurnEnd` runs with the live signal, `agent_end` follows. AgentSession installs the hook and
-returns `true` while a move recorded through `requestSessionMove` is pending; a failed
+returns `true` while a move committed through the admission reservation (D2) is pending; a failed
 `session_move` records nothing, so the model sees the error and continues in the same run.
 
 The stop is session state, not a field on the tool result, because the result does not reach the
@@ -86,6 +86,15 @@ loop unchanged: `session_move` is a discoverable tool, so the model calls it thr
 (`AgentToolResult.stopAfterBatch`, the first implementation) was dropped on that path, and manual QA
 on e01af842ff showed the old run making another model request after the move. The hook works for
 every call path, including future tool wrappers.
+
+Cursor's server-side MCP bridge executes a mounted tool, `session_move` included, while the
+response streams. It writes the paired result out-of-band and marks the call `kCursorExecResolved`,
+and the loop excludes such calls from `executeToolCalls` (`agent-loop.ts:1611-1621`). An assistant
+message whose tool calls are all bridge-resolved therefore never reaches the hook above. The F3
+integration review (wave 3) found this; Tim chose the fix on 2026-10-24. After the tool handling of an
+assistant message that carried at least one bridge-resolved call, the loop asks the hook once, at
+the same point and with the same effect, before any queue drain. A message with runnable calls
+keeps its single call after `executeToolCalls`.
 
 Alternatives: (a) reuse the terminal yield abort: rejected, it aborts in-flight siblings (above);
 (b) relocate inside the tool call, like ACP plan approval: rejected, sibling calls in the batch
@@ -97,8 +106,8 @@ tool calls and pauses an active goal (`onTaskAborted({reason:"interrupted"})`).
 
 ### D2. AgentSession owns the pending move; hosts install a relocator
 
-`ToolSession` gets `requestSessionMove(request)` (records the pending move, returns whether a
-relocator is installed) and AgentSession gets `setSessionRelocator(relocator | null)`, following
+`ToolSession` gets `reserveSessionMove()` (the atomic admission reservation described below; its
+commit records the pending move) and AgentSession gets `setSessionRelocator(relocator | null)`, following
 `setPlanProposalHandler`. The relocator is `(targetPath) => Promise<{ ok: true } | { ok: false;
 reason: string }>`; each host implements it with its existing `/move` path:
 
@@ -111,18 +120,29 @@ reason: string }>`; each host implements it with its existing `/move` path:
   notifyTitleChanged) instead of `SlashCommandRuntime`; the `/move` and `/wt` builtins call it with
   their runtime, ACP and RPC call it with their session record. Behaviour of `/move` is unchanged.
 
-A second `session_move` while a move is pending (same batch or same run) is refused with an error;
-AgentSession exposes whether a move is pending so the tool can check it at admission.
+A second `session_move` while a move is pending or being admitted (same batch, same run, or a
+parallel call) is refused with an error before it creates anything. Admission is session state,
+not scheduling: `concurrency = "exclusive"` serialises calls only inside the agent loop's
+scheduler. The eval tool bridge (`Promise.all` in one cell) and Cursor's MCP bridge call the tool
+directly. So AgentSession owns an atomic reservation. `ToolSession.reserveSessionMove()`
+returns a reservation, or `undefined` when a move is pending, reserved, or no relocator is
+installed. The tool takes it after the D6 check and before its first `await`. On success it
+commits the reservation with the target path, which records the pending move that the hook sees.
+On every failure path it releases the reservation. The pending-move query reports a reservation
+as pending, and the stop hook returns `true` only for a committed move.
 
 The tool is offered only when the host declared at session creation that it installs a relocator
 (`createAgentSession` option `sessionRelocation`, ignored for subagents; the host installs the
 relocator before the first prompt), the session has a persisted session file and `taskDepth === 0`
 (spec: only relocatable top-level sessions). Hosts build the tool set before they can call
 `setSessionRelocator`, so the declaration, not the installed relocator, gates the tool set; a call
-that finds no relocator installed fails. Print mode, SDK sessions and subagents do not declare it,
+that finds no relocator installed fails. The declaring sites are `main.ts`, through one exported
+mode predicate (`true` for the interactive TUI, `rpc` and `rpc-ui`, `false` for print and `json`)
+applied to the top-level `sessionOptions`, and the ACP session factory in `main.ts`, which passes
+`sessionRelocation: true`. Print mode, SDK sessions and subagents do not declare it,
 so the tool is absent, not erroring. The advisor is a `kind: "sub"` agent at depth 0 whose
 ToolSession spreads the primary's (`sdk.ts:4688-4705`), so it would pass these checks:
-`advisorToolSession` sets `requestSessionMove: undefined` and `sessionRelocation: false`, and the
+`advisorToolSession` sets `reserveSessionMove: undefined` and `sessionRelocation: false`, and the
 factory builds the tool only when both are present.
 
 ### D3. Relocation runs as a post-prompt task inside a session transition
@@ -220,9 +240,17 @@ check: the batch completes before the relocation.
 
 ### D7. Approval decided per call
 
-`approval` is a function of the arguments: `exec` when the resolved target does not exist (the call
-runs the `post-checkout` hook), `write` otherwise. An invalid target resolves to `write` and fails in
-`execute`, so a rejection never asks first.
+`approval` is a function of the arguments, the settings and the repository location, never of the
+target's existence. `exec` applies when the call can create a worktree, meaning the resolved target
+lies directly inside the worktree directory (`worktree.repoDir`) or `branch`/`base` is given;
+creation runs the `post-checkout` hook. `write` applies otherwise (the main checkout, or a
+registered worktree outside the worktree directory). An earlier version chose `exec` only when the
+target did not exist. Plan review round 16 showed that this let a registered worktree that vanishes
+while the approval prompt is pending be created under `write` approval, because `execute` plans
+again. Tim chose the args-only tier on 2026-10-24. The cost is that a move into an existing
+worktree under the worktree directory asks at `exec` tier. An invalid target or an unresolvable
+path resolves to `write` and fails in `execute`, so a rejection never asks first. Paths that do
+not lead into the worktree directory cannot create anything.
 
 ### D8. Scope: one change across tool, session and hosts
 

@@ -465,7 +465,7 @@ import {
 	findRunningSessionWork,
 	hasRunningSessionWork,
 	type PendingSessionMove,
-	type SessionMoveRequest,
+	type SessionMoveReservation,
 	type SessionRelocationResult,
 	type SessionRelocator,
 } from "./session-move";
@@ -3242,6 +3242,8 @@ export class AgentSession implements SettingsScope {
 	/** Move requested by `session_move` in the current run; executed after the run ends (see {@link #scheduleSessionMove}). */
 	#pendingSessionMove: PendingSessionMove | undefined;
 	#sessionRelocator: SessionRelocator | undefined;
+	/** A `session_move` call holds the move slot (see {@link reserveSessionMove}). */
+	#sessionMoveReserved = false;
 	/** Post-prompt tasks that run a relocation and its continuation turn; excluded from each other's idle wait. */
 	readonly #sessionMoveTasks = new Set<Promise<unknown>>();
 
@@ -3251,18 +3253,35 @@ export class AgentSession implements SettingsScope {
 	}
 
 	/**
-	 * Record a move requested by the `session_move` tool; the relocation runs after the current run ends.
-	 * @returns whether a relocator is installed (false: the move will not happen).
+	 * Claim the single move slot before any work, synchronously. A `session_move` call that gets the
+	 * reservation commits it with its target once the target is ready, or releases it on any failure;
+	 * only a committed move stops the run and relocates the session.
+	 * @returns undefined while a move is pending or reserved, or when no relocator is installed.
 	 */
-	requestSessionMove(request: SessionMoveRequest): boolean {
-		if (!this.#sessionRelocator) return false;
-		this.#pendingSessionMove = { path: request.path, scheduled: false };
-		return true;
+	reserveSessionMove(): SessionMoveReservation | undefined {
+		if (!this.#sessionRelocator || this.#pendingSessionMove || this.#sessionMoveReserved) return undefined;
+		this.#sessionMoveReserved = true;
+		let open = true;
+		return {
+			commit: request => {
+				if (!open) return false;
+				open = false;
+				this.#sessionMoveReserved = false;
+				if (!this.#sessionRelocator) return false;
+				this.#pendingSessionMove = { path: request.path, scheduled: false };
+				return true;
+			},
+			release: () => {
+				if (!open) return;
+				open = false;
+				this.#sessionMoveReserved = false;
+			},
+		};
 	}
 
-	/** Whether a `session_move` is recorded and not yet executed or discarded. */
+	/** Whether a `session_move` is reserved or recorded and not yet executed or discarded. */
 	hasPendingSessionMove(): boolean {
-		return this.#pendingSessionMove !== undefined;
+		return this.#pendingSessionMove !== undefined || this.#sessionMoveReserved;
 	}
 
 	/** Drop a pending move and close its fence; idempotent. */

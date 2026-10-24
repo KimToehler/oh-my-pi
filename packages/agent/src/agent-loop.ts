@@ -1638,6 +1638,7 @@ async function runLoopBody(
 				const softNonCompliant = softGateActive && !calledOnlyRequiredTool;
 
 				const toolResults: ToolResultMessage[] = [];
+				let hookAsked = false;
 				const additionalMessages: AgentMessage[] = [];
 				if (softNonCompliant && softRequiredTool !== undefined) {
 					SpeculativeOperationCoordinator.discardForMessage(message, "soft tool requirement deferred execution");
@@ -1685,6 +1686,7 @@ async function runLoopBody(
 					toolResults.push(...executionResult.toolResults);
 					// Every started call has settled and its result is recorded; ask the host once.
 					batchStopped = config.shouldStopAfterBatch?.() === true;
+					hookAsked = true;
 
 					for (const result of toolResults) {
 						currentContext.messages.push(result);
@@ -1721,6 +1723,17 @@ async function runLoopBody(
 					if (message.stopReason === "length" && toolResults.length > 0 && !deadlinePassed) {
 						hasMoreToolCalls = true;
 					}
+				}
+
+				// Calls the Cursor bridge already executed never reach executeToolCalls, so the hook has not
+				// been asked for this message yet; its tools (session_move) may have recorded a stop.
+				if (
+					!hookAsked &&
+					message.content.some(
+						c => c.type === "toolCall" && (c as CursorExecResolvedCarrier)[kCursorExecResolved] === true,
+					)
+				) {
+					batchStopped = config.shouldStopAfterBatch?.() === true;
 				}
 
 				// A tool hook may mark its completed result as terminal (e.g. subagent yield).

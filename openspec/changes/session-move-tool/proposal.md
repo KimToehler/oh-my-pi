@@ -22,8 +22,9 @@ on its own.
   uses and continues the run in the new directory with a synthetic continuation, so the next turn
   sees the destination's tools cwd, system prompt, context files and rules.
 - The tool refuses while the session's own async jobs or subagents are running and names them.
-- Approval: moving to an existing target is `write`; creating a worktree is `exec` (it runs the
-  repository's `post-checkout` hook).
+- Approval: a call that can create a worktree (target directly inside the worktree directory, or
+  `branch`/`base` given) is `exec`, because creation runs the repository's `post-checkout` hook.
+  Any other call is `write`. The tier never depends on whether the target exists.
 - Worktree creation reuses the existing `omp worktree add` behaviour (copy-on-write clone per
   `worktree.clone`, plain-checkout fallback, `post-checkout` hook) through one shared helper instead
   of a second implementation.

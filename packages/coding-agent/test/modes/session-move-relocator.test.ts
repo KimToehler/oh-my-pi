@@ -105,7 +105,7 @@ describe("tui session move", () => {
 					description: "move",
 					parameters: Type.Object({}),
 					async execute() {
-						session?.requestSessionMove({ path: target });
+						session?.reserveSessionMove()?.commit({ path: target });
 						return { content: [{ type: "text" as const, text: "scheduled" }] };
 					},
 				},

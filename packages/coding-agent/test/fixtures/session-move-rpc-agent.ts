@@ -51,7 +51,7 @@ const sessionMove: AgentTool = {
 	description: "move",
 	parameters: Type.Object({}),
 	async execute() {
-		const requested = session.requestSessionMove({ path: target });
+		const requested = session.reserveSessionMove()?.commit({ path: target }) ?? false;
 		return { content: [{ type: "text", text: requested ? "scheduled" : "no relocator" }] };
 	},
 };
