@@ -43,6 +43,7 @@ import {
 	type FormElicitationTransport,
 	INTELLIJ_CLIENT_PLATFORM,
 	type ManagedSessionRecord,
+	type PromptDispatchCancellation,
 } from "./acp-surface";
 import { ACP_TERMINAL_AUTH_FLAG } from "./terminal-auth";
 
@@ -148,57 +149,90 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 				await this.#host.closeSession(params.sessionId, record);
 			});
 		}
-		return await this.#queuePrompt(record, async () => {
-			const previousTurn = record.promptTurn;
-			if (previousTurn) {
-				// Wait for any prompt that's still settling or whose cancel cleanup is
-				// still in flight. We deliberately swallow the prompt rejection (the
-				// owning caller already received it) but let cleanup rejections
-				// propagate — a timed-out cancel must fail this queued prompt instead
-				// of letting it run on a session that is about to be closed.
-				await previousTurn.promise.catch(() => undefined);
-				await previousTurn.work.cleanup;
-			}
-			// A cancelled prompt resolves (and is evicted) before its goal admission finishes; this
-			// prompt's own admission queues behind it on the actor's lane, so nothing waits here.
-			this.#host.throwIfRecordClosed(record);
+		// A cancel that lands between this prompt's wire acceptance and its
+		// turn slot creation must still stop it (the client believes it stopped
+		// the session). The carrier is marked by cancel() and consumed below.
+		const cancellation: PromptDispatchCancellation = { cancelled: false };
+		record.pendingPromptDispatches.push(cancellation);
+		try {
+			return await this.#queuePrompt(record, async () => {
+				const previousTurn = record.promptTurn;
+				if (previousTurn) {
+					// Wait for any prompt that's still settling or whose cancel cleanup is
+					// still in flight. We deliberately swallow the prompt rejection (the
+					// owning caller already received it) but let cleanup rejections
+					// propagate — a timed-out cancel must fail this queued prompt instead
+					// of letting it run on a session that is about to be closed.
+					await previousTurn.promise.catch(() => undefined);
+					await previousTurn.work.cleanup;
+				}
+				// A cancelled prompt resolves (and is evicted) before its goal admission finishes; this
+				// prompt's own admission queues behind it on the actor's lane, so nothing waits here.
+				this.#host.throwIfRecordClosed(record);
 
-			const converted = this.#host.convertPromptBlocks(params.prompt);
-			const pendingPrompt = Promise.withResolvers<PromptResponse>();
-			const work = createForegroundWork(
-				"prompt",
-				cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
-			);
-			const promptTurn: PromptTurnState = {
-				work,
-				settled: false,
-				resolve: pendingPrompt.resolve,
-				reject: pendingPrompt.reject,
-				promise: pendingPrompt.promise,
-			};
-			record.promptTurn = promptTurn;
-			this.onForegroundStart(record, work);
+				const converted = this.#host.convertPromptBlocks(params.prompt);
+				const pendingPrompt = Promise.withResolvers<PromptResponse>();
+				const work = createForegroundWork(
+					"prompt",
+					cloneUsageStatistics(record.session.sessionManager.getUsageStatistics()),
+				);
+				const promptTurn: PromptTurnState = {
+					work,
+					settled: false,
+					resolve: pendingPrompt.resolve,
+					reject: pendingPrompt.reject,
+					promise: pendingPrompt.promise,
+				};
+				record.promptTurn = promptTurn;
+				this.onForegroundStart(record, work);
 
-			// A prompt landing on a busy session is queued as steer below; AgentBusyError
-			// can still escape builtin commands. Type it for the wire instead of letting
-			// transport.ts wrap it as a generic -32603 internal error.
-			this.#host.runPromptOrCommand(record, converted.text, converted.images).catch(async (error: unknown) => {
-				const failure =
-					error instanceof AgentBusyError
-						? RequestError.sessionBusy(error.message, {
-								reason: "session_busy",
-								hint: "steer|followUp|wait",
-							})
-						: error;
-				// Recorded first: a steered command may already have armed the
-				// quiescence waiter, which then finishes the prompt with this failure.
-				work.deferredError ??= failure;
-				if (!(await this.#host.awaitSteeredBuiltins(record, promptTurn.work, true))) return;
-				this.onForegroundEnd(record, work, { error: failure });
+				// Cancelled before the turn ever started (dispatch window or
+				// queued behind a cancelled predecessor): settle the wire
+				// response cancelled instead of starting a run the client
+				// has already stopped.
+				if (cancellation.cancelled) {
+					const cleanup = this.#host.beginCancelCleanup(record, work);
+					// The wire response already says cancelled, but the cleanup
+					// barrier must still be observed: an abort that hangs past
+					// the timeout closes the managed session here instead of
+					// surfacing an unhandled rejection (mirrors cancel() and
+					// the implicit-cancel guard above).
+					cleanup.catch(async (error: unknown) => {
+						logger.warn("ACP cancel cleanup timed out; closing session", {
+							sessionId: record.session.sessionId,
+							error,
+						});
+						await this.#host.closeSession(record.session.sessionId, record);
+					});
+					return await pendingPrompt.promise;
+				}
+
+				// A prompt landing on a busy session is queued as steer below; AgentBusyError
+				// can still escape builtin commands. Type it for the wire instead of letting
+				// transport.ts wrap it as a generic -32603 internal error.
+				this.#host.runPromptOrCommand(record, converted.text, converted.images).catch(async (error: unknown) => {
+					const failure =
+						error instanceof AgentBusyError
+							? RequestError.sessionBusy(error.message, {
+									reason: "session_busy",
+									hint: "steer|followUp|wait",
+								})
+							: error;
+					// Recorded first: a steered command may already have armed the
+					// quiescence waiter, which then finishes the prompt with this failure.
+					work.deferredError ??= failure;
+					if (!(await this.#host.awaitSteeredBuiltins(record, promptTurn.work, true))) return;
+					this.onForegroundEnd(record, work, { error: failure });
+				});
+
+				return await pendingPrompt.promise;
 			});
-
-			return await pendingPrompt.promise;
-		});
+		} finally {
+			const index = record.pendingPromptDispatches.indexOf(cancellation);
+			if (index >= 0) {
+				record.pendingPromptDispatches.splice(index, 1);
+			}
+		}
 	}
 
 	async #queuePrompt(record: ManagedSessionRecord, run: () => Promise<PromptResponse>): Promise<PromptResponse> {
@@ -273,8 +307,9 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 		toolCall: ClientBridgePermissionToolCall,
 		options: ClientBridgePermissionOption[],
 		signal: AbortSignal | undefined,
+		steeringSignal?: AbortSignal,
 	): Promise<ClientBridgePermissionOutcome> {
-		return requestAcpPermission(this.#host.connection, sessionId, toolCall, options, signal);
+		return requestAcpPermission(this.#host.connection, sessionId, toolCall, options, signal, steeringSignal);
 	}
 
 	emit(_sessionId: string, notification: SessionNotification): Promise<void> {

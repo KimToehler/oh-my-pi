@@ -13,6 +13,11 @@
 ### Fixed
 
 - ACP connections now accept JSON-RPC batch messages and answer malformed lines with a parse error instead of dropping the connection
+## [18.12.6] - 2026-10-21
+
+### Added
+
+- Added `RpcConnection.requestCancellable()` and `Client.requestPermission(params, { signal })`; client connections abort a handler and answer `-32800` when the peer sends `$/cancel_request`, while agent connections keep running the request and return its real result ([#15885](https://github.com/can1357/oh-my-pi/pull/15885) by [@marcintustin](https://github.com/marcintustin))
 
 ## [18.12.4] - 2026-10-20
 
