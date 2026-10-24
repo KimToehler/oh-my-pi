@@ -159,6 +159,8 @@ export interface RpcSessionState {
 	sessionFile?: string;
 	sessionId: string;
 	sessionName?: string;
+	/** Working directory of the session; changes when the agent moves the session. */
+	cwd?: string;
 	autoCompactionEnabled: boolean;
 	fastModeEnabled: boolean;
 	fastModeActive: boolean;
@@ -808,7 +810,7 @@ export interface RpcHostToolUpdate {
 export interface RpcHostToolResult {
 	type: "host_tool_result";
 	id: string;
-	result: AgentToolResult<unknown>;
+	result: Omit<AgentToolResult<unknown>, "stopAfterBatch">;
 	isError?: boolean;
 }
 

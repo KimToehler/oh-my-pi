@@ -2112,6 +2112,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#extensionUiController = new ExtensionUiController(this);
 		this.#eventController = new EventController(this);
 		this.#commandController = new CommandController(this);
+		this.session.setSessionRelocator(targetPath => this.#commandController.relocateForAgent(targetPath));
 		this.#todoCommandController = new TodoCommandController(this);
 		this.#liveCommandController = new LiveCommandController(this);
 		this.#selectorController = new SelectorController(this);
@@ -3130,7 +3131,12 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	#isAutoSubmitBlocked(): boolean {
-		return this.session.isStreaming || this.session.isCompacting || this.session.hasPostPromptWork;
+		return (
+			this.session.isStreaming ||
+			this.session.isCompacting ||
+			this.session.hasPostPromptWork ||
+			this.session.isSessionTransitioning
+		);
 	}
 
 	#submitLoopPromptWhenReady(prompt: string): void {
@@ -7247,6 +7253,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#cancelTodoAutoClearTimer();
 		this.#cancelObserverUiSyncTimer();
 		this.#cancelGoalContinuation();
+		this.session.setSessionRelocator(null);
 		clearInterval(this.#jobsSheetTimer);
 		this.#jobsSheetTimer = undefined;
 		if (this.#sttController) {

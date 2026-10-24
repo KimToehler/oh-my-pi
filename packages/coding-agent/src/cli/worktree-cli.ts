@@ -23,10 +23,10 @@ import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { getWorktreesDir, isEnoent } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { Settings } from "../config/settings";
+import type { RepoWorktreeCheckout } from "../session/session-worktree";
+import { addRepoWorktree } from "../session/session-worktree";
 import { hasLiveIsolationOwner, ISOLATION_OWNER_FILE, readRetainedMountBackend } from "../task/isolation-ownership";
-import { formatIsolationBackend, parseIsolationBackend } from "../task/worktree";
-
-import { cfgIsolationBackend, cfgWorktreeClone } from "../task/settings";
+import { formatIsolationBackend } from "../task/worktree";
 
 type WorktreeKind = "pr-checkout" | "task-isolation" | "empty" | "stray";
 
@@ -103,57 +103,42 @@ export async function addWorktree(options: AddWorktreeOptions): Promise<void> {
 	const cwd = path.resolve(options.cwd ?? process.cwd());
 	const repository = vcs.requireGit(cwd);
 	const worktreePath = path.resolve(cwd, options.path);
-	try {
-		const stat = await fs.stat(worktreePath);
-		const nonEmpty = !stat.isDirectory() || (await fs.readdir(worktreePath)).length > 0;
-		if (nonEmpty) throw new Error(`fatal: '${options.path}' already exists`);
-	} catch (error) {
-		if (!isEnoent(error)) throw error;
-	}
-
 	const settings = await Settings.init({ cwd });
-	let ref: string;
-	let detach = false;
-	let createdBranch: string | undefined;
+	let checkout: RepoWorktreeCheckout;
 	if (options.branch || options.forceBranch) {
 		const branch = options.branch ?? options.forceBranch;
 		if (!branch) throw new Error("branch name is required");
-		await repository.createBranch(branch, options.commit ?? "HEAD", Boolean(options.forceBranch));
-		ref = branch;
-		createdBranch = branch;
+		checkout = {
+			kind: "new-branch",
+			name: branch,
+			from: options.commit ?? "HEAD",
+			force: Boolean(options.forceBranch),
+		};
 	} else if (options.detach) {
-		ref = options.commit ?? "HEAD";
-		detach = true;
+		checkout = { kind: "ref", ref: options.commit ?? "HEAD", detach: true };
 	} else if (options.commit) {
-		ref = options.commit;
-		detach = !(await repository.refExists(`refs/heads/${options.commit}`));
+		checkout = {
+			kind: "ref",
+			ref: options.commit,
+			detach: !(await repository.refExists(`refs/heads/${options.commit}`)),
+		};
 	} else {
 		const branch = path.basename(worktreePath);
-		if (!(await repository.refExists(`refs/heads/${branch}`))) {
-			await repository.createBranch(branch, "HEAD", false);
-			createdBranch = branch;
-		}
-		ref = branch;
+		checkout = (await repository.refExists(`refs/heads/${branch}`))
+			? { kind: "ref", ref: branch, detach: false }
+			: { kind: "new-branch", name: branch, from: "HEAD", force: false };
 	}
 
-	const commit = await repository.commitDetails(ref);
-	const shortSha = commit.sha.slice(0, 7);
-	const subject = commit.message.split("\n", 1)[0];
+	const result = await addRepoWorktree({ repository, path: worktreePath, checkout, settings });
 	if (!options.quiet) {
-		const preparation = createdBranch
-			? `new branch '${createdBranch}'`
-			: detach
+		const shortSha = result.commit.sha.slice(0, 7);
+		const preparation = result.createdBranch
+			? `new branch '${result.createdBranch}'`
+			: result.detached
 				? `detached HEAD ${shortSha}`
-				: `checking out '${ref}'`;
+				: `checking out '${result.ref}'`;
 		console.log(`Preparing worktree (${preparation})`);
-	}
-	const result = await repository.worktreeAdd(worktreePath, ref, {
-		detach,
-		clone: cfgWorktreeClone.get(settings),
-		backend: parseIsolationBackend(cfgIsolationBackend.get(settings)),
-	});
-	if (!options.quiet) {
-		console.log(`HEAD is now at ${shortSha} ${subject}`);
+		console.log(`HEAD is now at ${shortSha} ${result.commit.message.split("\n", 1)[0]}`);
 		if (result.clonedWith != null) {
 			console.log(`Cloned from ${repository.info().repoRoot} via ${formatIsolationBackend(result.clonedWith)}`);
 		}
@@ -161,10 +146,9 @@ export async function addWorktree(options: AddWorktreeOptions): Promise<void> {
 	if (result.cloneError) {
 		console.error(chalk.dim(`warning: worktree clone fell back to plain checkout: ${result.cloneError}`));
 	}
-	const hook = await vcs.runPostCheckoutHook(worktreePath, commit.sha);
-	process.stderr.write(hook.stdout);
-	process.stderr.write(hook.stderr);
-	if (hook.exitCode !== 0) process.exitCode = hook.exitCode;
+	process.stderr.write(result.hook.stdout);
+	process.stderr.write(result.hook.stderr);
+	if (result.hook.exitCode !== 0) process.exitCode = result.hook.exitCode;
 }
 
 export async function listWorktrees(options: ListWorktreesOptions): Promise<void> {

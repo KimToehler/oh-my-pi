@@ -215,6 +215,44 @@ effect(cfgWorktreeBase, value => {
 	}
 });
 
+export const cfgWorktreeRepoDir = register({
+	id: "worktree.repoDir",
+	type: "string",
+	default: ".worktrees",
+	ui: {
+		tab: "tasks",
+		group: "Isolation",
+		label: "Repository Worktree Directory",
+		description:
+			"Directory inside the repository where `session_move` creates missing worktrees. Repository-relative, `/`-separated; absolute or ~ paths, drive prefixes, backslashes and empty, `.` or `..` components are rejected.",
+	},
+});
+
+/** Result of validating `worktree.repoDir`: the normalized directory, or a message naming the setting and value. */
+export type RepoWorktreeDirResult = { ok: true; dir: string } | { ok: false; error: string };
+
+/**
+ * Validate `worktree.repoDir` on its own terms (unlike `worktree.base`, it must be a
+ * repository-relative path): non-empty, no leading `/` or `~`, no drive prefix, no `\` or NUL,
+ * and no empty, `.` or `..` component.
+ */
+export function resolveRepoWorktreeDir(value: string): RepoWorktreeDirResult {
+	const reject = (reason: string): RepoWorktreeDirResult => ({
+		ok: false,
+		error: `Invalid worktree.repoDir ${JSON.stringify(value)}: ${reason}`,
+	});
+	if (value.length === 0) return reject("must not be empty");
+	if (value.startsWith("/") || value.startsWith("~")) return reject("must be relative to the repository");
+	if (/^[A-Za-z]:/.test(value)) return reject("must not have a drive prefix");
+	if (value.includes("\\") || value.includes("\0")) return reject("must not contain a backslash or NUL");
+	for (const component of value.split("/")) {
+		if (component === "" || component === "." || component === "..") {
+			return reject("must not have an empty, '.' or '..' component");
+		}
+	}
+	return { ok: true, dir: value };
+}
+
 export const cfgTaskEager = register({
 	id: "task.eager",
 	protocolDefault: ["rpc", "acp"],

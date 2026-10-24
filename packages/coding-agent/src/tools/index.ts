@@ -75,7 +75,9 @@ import { MemoryRetainTool } from "./memory-retain";
 import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
 import type { PlanProposalCall, PlanProposalHandler, PlanProposalOwnershipReserver } from "./resolve";
+import type { SessionMoveRequest } from "../session/session-move";
 import { SecurityScanTool } from "./security-scan";
+import { SessionMoveTool } from "./session-move";
 import { supportsExternalThinking, ThinkTool } from "./think";
 import { type TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import { TodoTool } from "./todo";
@@ -513,6 +515,18 @@ export interface ToolSession {
 	submitPlanProposal?(title: string, call: PlanProposalCall): Promise<AgentToolResult<unknown>>;
 	/** Register or clear the plan-proposal handler. Passing `null` clears it. */
 	setPlanProposalHandler?(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void;
+	/**
+	 * Record a validated `session_move` target; the session relocates after the current run ends.
+	 * @returns whether a relocator is installed (false: the move will not happen).
+	 */
+	requestSessionMove?(request: SessionMoveRequest): boolean;
+	/** Whether a pending `session_move` is already recorded for this session's current run. */
+	hasPendingSessionMove?(): boolean;
+	/**
+	 * The host installs a session relocator before the first prompt (`CreateAgentSessionOptions.sessionRelocation`).
+	 * False for subagents and advisors regardless of the option.
+	 */
+	sessionRelocation?: boolean;
 	/** Get active checkpoint state if any. */
 	getCheckpointState?: () => CheckpointState | undefined;
 	/** Set or clear active checkpoint state. */
@@ -581,6 +595,7 @@ export const BUILTIN_TOOLS: Record<BuiltinToolName, ToolFactory> = {
 	lsp: LspTool.createIf,
 	checkpoint: CheckpointTool.createIf,
 	rewind: RewindTool.createIf,
+	session_move: SessionMoveTool.createIf,
 	context_notes: ContextNotesTool.createIf,
 	new_context: NewContextTool.createIf,
 	task: s => TaskTool.create(s),

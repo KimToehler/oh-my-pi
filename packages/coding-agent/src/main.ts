@@ -578,6 +578,8 @@ export function createAcpSessionFactory(args: AcpSessionFactoryOptions): AcpSess
 			// ACP defers the `ask` capability and reserve-policy confirmation until
 			// client capabilities are known, without enabling other UI-only behavior.
 			interactivePrompts: factoryOptions?.interactivePrompts,
+			// The ACP agent installs a per-session relocator (`session_move`) before the first prompt.
+			sessionRelocation: true,
 			deferUsageReserveConfirmation: true,
 			enableMCP: false,
 			titleSystemPrompt,
@@ -2283,6 +2285,8 @@ export async function runRootCommand(
 		sessionOptions.settingsApproval = isInteractive;
 		sessionOptions.tuiTranscript = isInteractive;
 		sessionOptions.autoTitle = isInteractive;
+		// TUI and RPC install a session relocator (`session_move`) before the first prompt.
+		sessionOptions.sessionRelocation = isInteractive || mode === "rpc" || mode === "rpc-ui";
 		sessionOptions.settings = settingsInstance;
 		sessionOptions.onPrewalkWarning = warning => {
 			if (isInteractive) notifs.push({ kind: "warn", message: warning });

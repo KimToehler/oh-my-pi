@@ -492,6 +492,8 @@ export interface SessionState {
 	interruptMode?: InterruptMode;
 	sessionFile?: string;
 	sessionName?: string;
+	/** Working directory of the session; changes when the agent moves the session. */
+	cwd?: string;
 	autoCompactionEnabled?: boolean;
 	fastModeEnabled?: boolean;
 	fastModeActive?: boolean;

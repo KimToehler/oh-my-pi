@@ -58,4 +58,6 @@ on its own.
   path, branch and base.
 - Settings: new worktree-directory setting (`task/settings.ts`).
 - Docs and `packages/coding-agent/CHANGELOG.md`.
+- RPC `get_state` gains an additive optional `cwd` field (the session's working directory), so RPC
+  clients can observe a move; decided by Tim on 2026-10-24 (apply).
 - No change to the ACP wire protocol, the session file format, or `/move` / `/wt` behaviour.

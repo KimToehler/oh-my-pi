@@ -14,6 +14,8 @@
 - ACP clients such as JetBrains IDEs can pick a Goal mode: your next message becomes the objective, the agent keeps working on it turn after turn within that reply until the goal is complete, Stop pauses the goal, and your next message resumes it (`goal.continuationModes` now includes `"acp"` by default)
 - `wait` and `read proc://` now show a running subagent's run time, request count, cost, context fill and stage, so a subagent that is looping is visible without opening its transcript
 - Subagents that keep compacting are now stopped automatically: after `task.softCompactionBudget` compactions (default 3) they are asked to wrap up (when `task.softRequestBudgetNotice` is on), and one more compaction stops the run and asks for a final report
+- The agent can move its own session into another checkout of the repository with the new `session_move` tool (interactive, ACP and RPC sessions): the main checkout, a registered worktree, or a new worktree it creates under `worktree.repoDir` (default `.worktrees`); the move happens after the current tool batch and the conversation continues in the new directory
+- RPC `get_state` now reports the session's working directory as `cwd`
 
 ### Changed
 

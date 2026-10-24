@@ -5769,6 +5769,126 @@ describe("agentLoop useless-flag propagation", () => {
 	});
 });
 
+describe("agentLoop stop after batch", () => {
+	async function runBatch(aResult: { isError?: boolean }) {
+		const schema = type({});
+		const releaseB = Promise.withResolvers<void>();
+		let bSignal: AbortSignal | undefined;
+		let bSignalAbortedAtEnd: boolean | undefined;
+		const steeringQueue: AgentMessage[] = [];
+		const asideQueue: AgentMessage[] = [];
+		const followUpQueue: AgentMessage[] = [];
+		const toolA: AgentTool<typeof schema> = {
+			name: "tool_a",
+			label: "A",
+			description: "A",
+			parameters: schema,
+			async execute() {
+				steeringQueue.push(createUserMessage("steer during batch"));
+				asideQueue.push(createUserMessage("aside during batch"));
+				followUpQueue.push(createUserMessage("follow-up during batch"));
+				return { content: [{ type: "text", text: "A done" }], details: {}, stopAfterBatch: true, ...aResult };
+			},
+		};
+		const toolB: AgentTool<typeof schema> = {
+			name: "tool_b",
+			label: "B",
+			description: "B",
+			parameters: schema,
+			async execute(_id, _params, signal) {
+				bSignal = signal;
+				await releaseB.promise;
+				bSignalAbortedAtEnd = signal?.aborted;
+				return { content: [{ type: "text", text: "B normal output" }], details: {} };
+			},
+		};
+		const context: AgentContext = { systemPrompt: [""], messages: [], tools: [toolA, toolB] };
+		const mock = createMockModel({
+			responses: [
+				{
+					content: [
+						{ type: "toolCall", id: "a-1", name: "tool_a", arguments: {} },
+						{ type: "toolCall", id: "b-1", name: "tool_b", arguments: {} },
+					],
+				},
+				{ content: ["second request"] },
+				{ content: ["third request"] },
+			],
+		});
+		const drain = (queue: AgentMessage[]) => async () => queue.splice(0);
+		const config: AgentLoopConfig = {
+			model: mock.model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: drain(steeringQueue),
+			getAsideMessages: drain(asideQueue),
+			getFollowUpMessages: drain(followUpQueue),
+		};
+		const events: AgentEvent[] = [];
+		let turnEndSignalAborted: boolean | undefined;
+		config.onTurnEnd = async (_ctx, signal) => {
+			turnEndSignalAborted = signal?.aborted;
+		};
+		const runController = new AbortController();
+		for await (const event of agentLoop(
+			[createUserMessage("go")],
+			context,
+			config,
+			runController.signal,
+			mock.stream,
+		)) {
+			events.push(event);
+			// Release B only after A's result has settled.
+			if (event.type === "tool_execution_end" && event.toolCallId === "a-1") releaseB.resolve();
+		}
+		const results = events
+			.flatMap(e => (e.type === "message_end" ? [e.message] : []))
+			.filter((m): m is ToolResultMessage => m.role === "toolResult");
+		return {
+			events,
+			mock,
+			results,
+			bSignal,
+			bSignalAbortedAtEnd,
+			turnEndSignalAborted,
+			steeringQueue,
+			asideQueue,
+			followUpQueue,
+		};
+	}
+
+	it("stop after batch: siblings settle normally, nothing is drained and no second request is made", async () => {
+		const r = await runBatch({});
+		const results = r.results;
+		expect(results.map(m => m.toolCallId).sort()).toEqual(["a-1", "b-1"]);
+		const b = results.find(m => m.toolCallId === "b-1");
+		expect(toolResultText(b!)).toBe("B normal output");
+		expect(b!.isError).toBe(false);
+		expect(r.bSignalAbortedAtEnd).toBe(false);
+		expect(r.bSignal?.aborted).toBe(false);
+		const ended = r.events.at(-1);
+		expect(ended?.type === "agent_end" && ended.messages.filter(m => m.role === "toolResult")).toHaveLength(2);
+		expect(r.mock.calls).toHaveLength(1);
+		expect(r.turnEndSignalAborted).toBe(false);
+		expect(r.events.at(-1)?.type).toBe("agent_end");
+		expect(r.steeringQueue).toHaveLength(1);
+		expect(r.asideQueue).toHaveLength(1);
+		expect(r.followUpQueue).toHaveLength(1);
+	});
+
+	it("stop after batch: the flag does not reach the persisted tool result message", async () => {
+		const r = await runBatch({});
+		const results = r.results;
+		expect(results).toHaveLength(2);
+		for (const m of results) expect("stopAfterBatch" in m).toBe(false);
+	});
+
+	it("stop after batch: an error result does not stop the run", async () => {
+		const r = await runBatch({ isError: true });
+		expect(r.mock.calls.length).toBeGreaterThanOrEqual(2);
+		expect(r.steeringQueue).toHaveLength(0);
+	});
+});
+
 describe("agentLoopContinue with AgentMessage", () => {
 	it("should throw when context has no messages", () => {
 		const context: AgentContext = {

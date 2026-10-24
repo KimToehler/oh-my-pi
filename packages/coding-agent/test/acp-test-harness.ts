@@ -29,6 +29,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { closeSessionIndex } from "@oh-my-pi/pi-coding-agent/session/session-index";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { SessionRelocator } from "@oh-my-pi/pi-coding-agent/session/session-move";
 import type { ClientBridge } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { getConfigRootDir, setAgentDir } from "@oh-my-pi/pi-utils";
@@ -521,6 +522,12 @@ export class FakeAgentSession {
 	setPlanProposalHandler(handler: PlanProposalHandler | null, reserveOwnership?: PlanProposalOwnershipReserver): void {
 		this.planProposalHandler = handler ?? undefined;
 		this.reservePlanProposalOwnership = handler ? reserveOwnership : undefined;
+	}
+
+	sessionRelocator: SessionRelocator | undefined;
+
+	setSessionRelocator(relocator: SessionRelocator | null): void {
+		this.sessionRelocator = relocator ?? undefined;
 	}
 
 	peekPlanProposalHandler(): PlanProposalHandler | undefined {

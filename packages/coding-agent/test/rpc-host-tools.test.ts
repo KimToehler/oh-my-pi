@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentEvent } from "@oh-my-pi/pi-agent-core";
+import type { AgentContext, AgentEvent, AgentLoopConfig } from "@oh-my-pi/pi-agent-core";
+import { agentLoop } from "@oh-my-pi/pi-agent-core/agent-loop";
+import type { Message } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import { defineRpcClientTool, RpcClient } from "@oh-my-pi/pi-coding-agent/modes";
 import { RpcHostToolBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
 import type {
@@ -79,6 +82,45 @@ describe("RpcHostToolBridge", () => {
 		await expect(execution).resolves.toEqual({
 			content: [{ type: "text", text: "5" }],
 		});
+	});
+
+	it("does not let a host tool result end the run with stopAfterBatch", async () => {
+		const frames: Array<RpcHostToolCallRequest | RpcHostToolCancelRequest> = [];
+		const bridge = new RpcHostToolBridge(frame => {
+			frames.push(frame);
+			if (frame.type !== "host_tool_call") return;
+			// A host result carrying the runtime-only flag, bypassing the typed wire contract.
+			const result = { content: [{ type: "text" as const, text: "ok" }], stopAfterBatch: true };
+			queueMicrotask(() => bridge.handleResult({ type: "host_tool_result", id: frame.id, result }));
+		});
+		const tools = bridge.setTools([
+			{ name: "host_noop", description: "No-op", parameters: { type: "object", properties: {} } },
+		]);
+		const mock = createMockModel({
+			responses: [
+				{ content: [{ type: "toolCall", id: "call-1", name: "host_noop", arguments: {} }] },
+				{ content: ["next request"] },
+			],
+		});
+		const context: AgentContext = { systemPrompt: [""], messages: [], tools };
+		const config: AgentLoopConfig = {
+			model: mock.model,
+			convertToLlm: messages =>
+				messages.filter(
+					(m): m is Message => m.role === "user" || m.role === "assistant" || m.role === "toolResult",
+				),
+		};
+		const run = agentLoop(
+			[{ role: "user", content: "go", timestamp: Date.now() }],
+			context,
+			config,
+			undefined,
+			mock.stream,
+		);
+		for await (const _event of run);
+
+		expect(frames).toHaveLength(1);
+		expect(mock.calls).toHaveLength(2);
 	});
 
 	it("emits a cancel frame when the host tool execution is aborted", async () => {

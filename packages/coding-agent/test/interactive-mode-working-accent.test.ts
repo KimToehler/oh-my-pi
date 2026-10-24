@@ -68,6 +68,7 @@ async function createHarness(sessionName: string): Promise<Harness> {
 		titleGenerationSignal: new AbortController().signal,
 		// No conversation to title: a bare /rename reports usage.
 		renameTitle: async () => null,
+		setSessionRelocator: () => {},
 	} as unknown as AgentSession;
 	const mode = new InteractiveMode(session, "test");
 	harness = { mode, sessionManager, tempDir };

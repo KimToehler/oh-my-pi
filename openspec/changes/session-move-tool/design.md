@@ -102,12 +102,19 @@ reason: string }>`; each host implements it with its existing `/move` path:
   notifyTitleChanged) instead of `SlashCommandRuntime`; the `/move` and `/wt` builtins call it with
   their runtime, ACP and RPC call it with their session record. Behaviour of `/move` is unchanged.
 
-The tool is offered only when a relocator is installed, the session has a persisted session file
-and `taskDepth === 0` (spec: only relocatable top-level sessions). Print mode, SDK sessions and
-subagents install none, so the tool is absent, not erroring. The advisor is a `kind: "sub"` agent
-at depth 0 whose ToolSession spreads the primary's (`sdk.ts:4688-4705`), so it would pass these
-checks: `advisorToolSession` sets `requestSessionMove: undefined`, and the factory builds the tool
-only when `requestSessionMove` is present.
+A second `session_move` while a move is pending (same batch or same run) is refused with an error;
+AgentSession exposes whether a move is pending so the tool can check it at admission.
+
+The tool is offered only when the host declared at session creation that it installs a relocator
+(`createAgentSession` option `sessionRelocation`, ignored for subagents; the host installs the
+relocator before the first prompt), the session has a persisted session file and `taskDepth === 0`
+(spec: only relocatable top-level sessions). Hosts build the tool set before they can call
+`setSessionRelocator`, so the declaration, not the installed relocator, gates the tool set; a call
+that finds no relocator installed fails. Print mode, SDK sessions and subagents do not declare it,
+so the tool is absent, not erroring. The advisor is a `kind: "sub"` agent at depth 0 whose
+ToolSession spreads the primary's (`sdk.ts:4688-4705`), so it would pass these checks:
+`advisorToolSession` sets `requestSessionMove: undefined` and `sessionRelocation: false`, and the
+factory builds the tool only when both are present.
 
 ### D3. Relocation runs as a post-prompt task inside a session transition
 
@@ -116,8 +123,12 @@ fence synchronously (so `isSessionTransitioning` is true before any goal continu
 then, as a post-prompt task after idle: re-checks own running async jobs (a sibling `async: true`
 call may have started one), calls the relocator, closes the fence, and submits exactly one hidden
 continuation message (`customType: "session-move-result"`, outcome and new cwd) that triggers a
-turn. Goal continuation for that `agent_end` is dropped by its existing admission gates (transition
-fence, then "another turn started"); it decides again at the continuation turn's `agent_end`.
+turn. The goal host does not decide at the move-requesting run's `agent_end`: that run ends inside
+the same prompt bracket as the post-prompt relocation and continuation, and AgentSession coalesces
+its `agent_end` with the continuation's into one published event (`#emitSessionEvent`, the same
+contract as the other post-prompt continuations), so hosts and the goal controller see one terminal
+`agent_end`, after the continuation turn, and the goal decides there. The fence covers the window
+in between for `GoalRuntime` and idle deliveries.
 
 The interactive TUI's own goal continuation timer is checked against the same fence; if it does not
 consult `isSessionTransitioning`, it is made to (task 4.3). Alternative: suppress goal continuation
@@ -226,10 +237,12 @@ consumer and cannot ship usefully without the tool.
   starts a turn during the relocation. Task 6.2 verifies the continuation's updates reach the client
   in the same session.
 - [Cloning the main checkout into `<main>/.worktrees/<name>` may copy other in-tree worktrees and
-  local state (see `task/worktree.ts:86-90`)] → Same behaviour as the `bash` `git worktree add`
-  rewrite today; task 2.3 checks what the native clone does with a target inside the source and
-  falls back to a plain checkout for that case if it copies `.worktrees/`. Tim approved this
-  fallback on 2026-10-24 (plan review round 3).
+  local state (see `task/worktree.ts:86-90`)] → Task 2.3 measured APFS: the native clone of a
+  target inside the source fails (`clonefile … Invalid argument`) and falls back to a plain
+  checkout, so nothing is copied; reflink, overlay and rcopy backends were not measurable here.
+  `addRepoWorktree` therefore uses a plain checkout for every target inside the source checkout and
+  records that in `cloneError`. Tim approved the fallback on 2026-10-24 (plan review round 3) and
+  keeping it unconditionally on 2026-10-24 (apply).
 - [LSP, MCP and eval kernels keep the old workspace after a move] → Same as `/move`; out of scope.
 - [The model keeps planning in old paths after the move] → The continuation message names the new
   cwd; the rebuilt system prompt carries the new workstation/cwd block.

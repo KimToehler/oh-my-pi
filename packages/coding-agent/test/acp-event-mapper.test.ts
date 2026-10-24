@@ -106,6 +106,7 @@ class ReplayTestSession {
 	setGoalModeState(): void {}
 
 	setClientBridge(_bridge: unknown): void {}
+	setSessionRelocator(_relocator: unknown): void {}
 
 	subscribe(_listener: (event: AgentSessionEvent) => void): () => void {
 		return () => {};

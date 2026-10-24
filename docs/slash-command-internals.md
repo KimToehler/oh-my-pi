@@ -387,6 +387,14 @@ or rollback, so a refused command cannot leave the shell in a different director
 Cancelled pickers, invalid destinations, and failed moves retain the BTW conversation.
 Successful relocation clears the old view only after moving the saved artifacts.
 
+The agent-callable `session_move` tool relocates through the same paths: the TUI
+installs `relocateForAgent` (the `/move` gate and `#relocateSession`, BTW gate and
+rollback included), ACP and RPC install `relocateHeadlessSession` from
+`session/headless-relocation.ts`, which the `/move` and `/wt` builtins also call.
+The tool only records the move; AgentSession runs the relocator after the run's
+tool batch, inside a session transition, then sends one continuation turn
+(see `docs/tools/session_move.md`).
+
 Resuming from a path, the session picker, or an imported session cancels BTW and
 waits for its terminal checkpoint before switching. Confirmed deletion of the
 active session uses the same cleanup before detaching and removing its artifacts.

@@ -558,6 +558,7 @@ function coerceToolResult(raw: unknown): { result: AgentToolResult<unknown>; mal
 	// Tools may flag the result contextually useless (zero matches, elapsed
 	// wait) so compaction can elide it once consumed. Errors are never useless.
 	const useless = Boolean(rawObj && "useless" in rawObj && rawObj.useless);
+	const stopAfterBatch = Boolean(rawObj && "stopAfterBatch" in rawObj && rawObj.stopAfterBatch);
 
 	if (!Array.isArray(rawContent)) {
 		return {
@@ -614,6 +615,7 @@ function coerceToolResult(raw: unknown): { result: AgentToolResult<unknown>; mal
 			providerMetadata,
 			...(isError ? { isError: true } : {}),
 			...(useless && !isError ? { useless: true } : {}),
+			...(stopAfterBatch && !isError ? { stopAfterBatch: true } : {}),
 		},
 		malformed: invalidBlocks > 0 || providerMetadataResult.malformed,
 	};
@@ -1313,6 +1315,7 @@ async function runLoopBody(
 		// Outer loop: continues when queued follow-up messages arrive after agent would stop
 		while (true) {
 			let hasMoreToolCalls = true;
+			let stopAfterBatch = false;
 
 			// Inner loop: process tool calls and steering messages
 			while (hasMoreToolCalls || pendingMessages.length > 0) {
@@ -1670,6 +1673,7 @@ async function runLoopBody(
 						[...liveAccepted, ...liveDeferred],
 					);
 					toolResults.push(...executionResult.toolResults);
+					stopAfterBatch = executionResult.stopAfterBatch;
 
 					for (const result of toolResults) {
 						currentContext.messages.push(result);
@@ -1711,6 +1715,12 @@ async function runLoopBody(
 				// A tool hook may mark its completed result as terminal (e.g. subagent yield).
 				// Stop before the next provider call without changing external/user abort semantics.
 				if (signal?.reason === TERMINAL_TOOL_RESULT_ABORT_REASON) {
+					hasMoreToolCalls = false;
+				}
+
+				// A tool batch may end the run without aborting it (e.g. session_move): siblings already
+				// settled; skip the next provider call and every queue drain so input waits for the next run.
+				if (stopAfterBatch) {
 					hasMoreToolCalls = false;
 				}
 
@@ -1769,8 +1779,11 @@ async function runLoopBody(
 				// still owns every message until this dequeue.
 				// Aborted: live-taken steering stays unrecorded, so the agent returns
 				// it to the queue for the continuation run.
-				const live = signal?.aborted ? [] : [...liveAccepted, ...liveDeferred];
-				const liveReachedModel = !signal?.aborted && liveAccepted.length > 0;
+				// stopAfterBatch behaves like an abort for the queues only: nothing is drained or recorded,
+				// so queued input (and live-taken, unrecorded steering) waits for the run after the stop.
+				const drainBlocked = signal?.aborted === true || stopAfterBatch;
+				const live = drainBlocked ? [] : [...liveAccepted, ...liveDeferred];
+				const liveReachedModel = !drainBlocked && liveAccepted.length > 0;
 				if (liveReachedModel) {
 					for (const message of liveAccepted) {
 						if (message.role === "user") message.liveSteered = true;
@@ -1784,12 +1797,10 @@ async function runLoopBody(
 					// for the next boundary (or is steered into that response).
 					pendingMessages = live;
 				} else {
-					const steering = signal?.aborted
-						? []
-						: [...live, ...((await config.getSteeringMessages?.(signal)) || [])];
+					const steering = drainBlocked ? [] : [...live, ...((await config.getSteeringMessages?.(signal)) || [])];
 					if (hasMoreToolCalls) {
 						// Mid-work: fold any non-interrupting asides into the next turn alongside steering.
-						const asides = signal?.aborted ? [] : resolveAsides(await config.getAsideMessages?.());
+						const asides = drainBlocked ? [] : resolveAsides(await config.getAsideMessages?.());
 						pendingMessages = asides.length > 0 ? [...steering, ...asides] : steering;
 					} else {
 						// Stop boundary: only steering (live user input) forces another turn here. Leave
@@ -1816,9 +1827,10 @@ async function runLoopBody(
 			// Re-poll steering too: a steer can land between the stop-boundary dequeue
 			// above and this yield point (e.g. queued while onBeforeYield ran). Without
 			// this poll it would strand in the queue until the next manual prompt.
-			const lateSteering = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
-			const asideMessages = signal?.aborted ? [] : resolveAsides(await config.getAsideMessages?.());
-			const followUpMessages = signal?.aborted ? [] : (await config.getFollowUpMessages?.(signal)) || [];
+			const yieldDrainBlocked = signal?.aborted === true || stopAfterBatch;
+			const lateSteering = yieldDrainBlocked ? [] : (await config.getSteeringMessages?.(signal)) || [];
+			const asideMessages = yieldDrainBlocked ? [] : resolveAsides(await config.getAsideMessages?.());
+			const followUpMessages = yieldDrainBlocked ? [] : (await config.getFollowUpMessages?.(signal)) || [];
 			if (lateSteering.length > 0 || asideMessages.length > 0 || followUpMessages.length > 0) {
 				// Set as pending so the inner loop processes them before stopping.
 				pendingMessages = [...lateSteering, ...asideMessages, ...followUpMessages];
@@ -3263,7 +3275,7 @@ async function executeToolCalls(
 	// Steering the provider took off the queue during the response that emitted
 	// this batch; it injects at this batch's boundary like queued steering.
 	liveSteering: readonly AgentMessage[],
-): Promise<{ toolResults: ToolResultMessage[]; additionalContext?: string }> {
+): Promise<{ toolResults: ToolResultMessage[]; additionalContext?: string; stopAfterBatch: boolean }> {
 	const tools = currentContext.tools;
 	const {
 		hasSteeringMessages,
@@ -3688,6 +3700,7 @@ async function executeToolCalls(
 							isError: after.isError ?? result.isError,
 							providerMetadata: after.providerMetadata ?? result.providerMetadata,
 							useless: after.useless ?? result.useless,
+							stopAfterBatch: result.stopAfterBatch,
 						});
 						result = coerced.result;
 						isError = coerced.malformed || (after.isError ?? isError);
@@ -3895,6 +3908,10 @@ async function executeToolCalls(
 	);
 	return {
 		toolResults: emittedToolResults,
+		// Non-error, executed results only; the flag lives on the raw result, never on the persisted message.
+		stopAfterBatch: records.some(
+			record => !record.skipped && !record.isError && record.result?.stopAfterBatch === true,
+		),
 		...(additionalContext !== undefined ? { additionalContext } : {}),
 	};
 }

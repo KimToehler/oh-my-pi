@@ -459,6 +459,16 @@ import {
 	SessionAdvisors,
 	type SessionAdvisorsHost,
 } from "./session-advisors";
+import sessionMoveResultTemplate from "../prompts/session/session-move-result.md" with { type: "text" };
+import {
+	describeRunningSessionWork,
+	findRunningSessionWork,
+	hasRunningSessionWork,
+	type PendingSessionMove,
+	type SessionMoveRequest,
+	type SessionRelocationResult,
+	type SessionRelocator,
+} from "./session-move";
 import type { SessionContext, TranscriptSessionContextOptions } from "./session-context";
 import { buildSessionContext, getRestorableSessionModels, isTranscriptEntry } from "./session-context";
 import { sessionEntryIdOf, stampSessionEntryId } from "./session-entry-id";
@@ -3223,6 +3233,129 @@ export class AgentSession implements SettingsScope {
 		this.#reservePlanProposalOwnership = handler ? reserveOwnership : undefined;
 	}
 
+	/** Move requested by `session_move` in the current run; executed after the run ends (see {@link #scheduleSessionMove}). */
+	#pendingSessionMove: PendingSessionMove | undefined;
+	#sessionRelocator: SessionRelocator | undefined;
+	/** Post-prompt tasks that run a relocation and its continuation turn; excluded from each other's idle wait. */
+	readonly #sessionMoveTasks = new Set<Promise<unknown>>();
+
+	/** Install or clear the host relocator that executes `session_move` requests. */
+	setSessionRelocator(relocator: SessionRelocator | null): void {
+		this.#sessionRelocator = relocator ?? undefined;
+	}
+
+	/**
+	 * Record a move requested by the `session_move` tool; the relocation runs after the current run ends.
+	 * @returns whether a relocator is installed (false: the move will not happen).
+	 */
+	requestSessionMove(request: SessionMoveRequest): boolean {
+		if (!this.#sessionRelocator) return false;
+		this.#pendingSessionMove = { path: request.path, scheduled: false };
+		return true;
+	}
+
+	/** Whether a `session_move` is recorded and not yet executed or discarded. */
+	hasPendingSessionMove(): boolean {
+		return this.#pendingSessionMove !== undefined;
+	}
+
+	/** Drop a pending move and close its fence; idempotent. */
+	#discardPendingSessionMove(): void {
+		const move = this.#pendingSessionMove;
+		this.#pendingSessionMove = undefined;
+		if (move) this.#closeSessionMoveFence(move);
+	}
+
+	#closeSessionMoveFence(move: PendingSessionMove): void {
+		const fence = move.fence;
+		move.fence = undefined;
+		fence?.[Symbol.dispose]();
+	}
+
+	#scheduleSessionMove(move: PendingSessionMove): void {
+		move.scheduled = true;
+		const task: Promise<void> = this.#schedulePostPromptTask(
+			async signal => {
+				await Promise.resolve();
+				await this.#executeSessionMove(move, task, signal);
+			},
+			{
+				onSkip: () => {
+					if (this.#pendingSessionMove === move) this.#pendingSessionMove = undefined;
+					this.#closeSessionMoveFence(move);
+				},
+			},
+		);
+		this.#sessionMoveTasks.add(task);
+		void task
+			.catch(error => logger.error("Session move failed", { error: toError(error).message }))
+			.finally(() => this.#sessionMoveTasks.delete(task));
+	}
+
+	async #executeSessionMove(move: PendingSessionMove, self: Promise<void>, signal: AbortSignal): Promise<void> {
+		let outcome: SessionRelocationResult | undefined;
+		const fromCwd = this.sessionManager.getCwd();
+		try {
+			// Settle the ended run's own follow-up work (reminders, retries) before moving.
+			for (;;) {
+				await this.agent.waitForIdle();
+				const others = [...this.#postPromptTasks].filter(
+					task => task !== self && !this.#sessionMoveTasks.has(task),
+				);
+				if (others.length === 0 && !this.agent.state.isStreaming) break;
+				await Promise.allSettled(others);
+			}
+			if (signal.aborted || this.#isDisposed || this.#pendingSessionMove !== move) return;
+			this.#pendingSessionMove = undefined;
+			const work = findRunningSessionWork({
+				asyncJobManager: this.#asyncJobManager,
+				agentId: this.#agentId,
+				sessionFile: this.sessionManager.getSessionFile(),
+			});
+			const relocator = this.#sessionRelocator;
+			if (hasRunningSessionWork(work)) {
+				outcome = { ok: false, reason: `background work is ${describeRunningSessionWork(work)}` };
+			} else if (!relocator) {
+				outcome = { ok: false, reason: "no session relocator is installed" };
+			} else {
+				try {
+					outcome = await relocator(move.path);
+				} catch (error) {
+					outcome = { ok: false, reason: toError(error).message };
+				}
+			}
+		} finally {
+			if (this.#pendingSessionMove === move) this.#pendingSessionMove = undefined;
+			this.#closeSessionMoveFence(move);
+		}
+		if (!outcome || signal.aborted || this.#isDisposed) return;
+		const cwd = this.sessionManager.getCwd();
+		const moved = outcome.ok;
+		await this.sendCustomMessage(
+			{
+				customType: "session-move-result",
+				content: prompt
+					.render(sessionMoveResultTemplate, {
+						moved,
+						cwd,
+						fromCwd,
+						target: move.path,
+						reason: outcome.ok ? "" : outcome.reason,
+					})
+					.trim(),
+				display: false,
+				details: {
+					outcome: moved ? "moved" : "failed",
+					cwd,
+					target: move.path,
+					...(outcome.ok ? {} : { reason: outcome.reason }),
+				},
+				attribution: "agent",
+			},
+			{ deliverAs: "nextTurn", triggerTurn: true },
+		);
+	}
+
 	#sessionBeforeSwitchReconciler: (() => Promise<void>) | undefined;
 
 	setSessionBeforeSwitchReconciler(reconciler: (() => Promise<void>) | null): void {
@@ -3985,6 +4118,9 @@ export class AgentSession implements SettingsScope {
 			return processing;
 		}
 		this.#proposalPlanners.clear();
+		// A pending move opens the transition fence before any goal continuation is admitted.
+		const pendingMove = this.#pendingSessionMove;
+		if (pendingMove && !pendingMove.scheduled) pendingMove.fence = this.#beginSessionTransition();
 		const { promise, resolve } = Promise.withResolvers<void>();
 		this.#trackPostPromptTask(promise);
 		this.#inFlightAgentEndMaintenance.add(promise);
@@ -4003,6 +4139,9 @@ export class AgentSession implements SettingsScope {
 			if (this.#settledAgentEnd !== event) await this.#settleAgentEnd(event, [...this.agent.state.messages]);
 		} finally {
 			this.#inFlightAgentEndMaintenance.delete(promise);
+			if (pendingMove && !pendingMove.scheduled && this.#pendingSessionMove === pendingMove) {
+				this.#scheduleSessionMove(pendingMove);
+			}
 			resolve();
 		}
 	};
@@ -5262,7 +5401,7 @@ export class AgentSession implements SettingsScope {
 	#schedulePostPromptTask(
 		task: (signal: AbortSignal) => Promise<void>,
 		options?: { delayMs?: number; generation?: number; onSkip?: (reason: PostPromptSkipReason) => void },
-	): void {
+	): Promise<void> {
 		const delayMs = options?.delayMs ?? 0;
 		const signal = this.#postPromptTasksAbortController.signal;
 		const scheduled = (async () => {
@@ -5285,6 +5424,7 @@ export class AgentSession implements SettingsScope {
 			await task(signal);
 		})();
 		this.#trackPostPromptTask(scheduled);
+		return scheduled;
 	}
 
 	#skipAgentContinue(reason: AgentContinueSkipReason, request: ScheduledAgentContinueRequest): void {
@@ -6210,6 +6350,7 @@ export class AgentSession implements SettingsScope {
 	 */
 	beginDispose(): void {
 		this.#isDisposed = true;
+		this.#discardPendingSessionMove();
 		for (const dispose of this.#disposers.splice(0)) dispose();
 		this.#modelDiscoveryAbortController.abort();
 		this.#queuedMessageDrainBlocked = false;
@@ -10990,6 +11131,7 @@ export class AgentSession implements SettingsScope {
 			for (const controller of this.#usagePreflightAbortControllers) controller.abort();
 			for (const controller of this.#imageDescriptionAbortControllers) controller.abort(options?.reason);
 			this.abortRetry();
+			this.#discardPendingSessionMove();
 			this.#promptGeneration++;
 			// Cancel any awaited pre-dispatch setup (e.g. Hindsight auto-recall) so the
 			// admitted submission unwinds now instead of at the recall timeout (#12668).

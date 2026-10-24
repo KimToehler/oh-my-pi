@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `stopAfterBatch` to `AgentToolResult`: a non-error result carrying it ends the run once the current tool batch has settled, without aborting sibling tools or draining queued steering, aside and follow-up messages
+
 ### Fixed
 
 - Fixed split-turn compaction leaving `session.compacting` context out of the turn-prefix summary ([#16707](https://github.com/can1357/oh-my-pi/pull/16707) by [@integrITsolutions](https://github.com/integrITsolutions))

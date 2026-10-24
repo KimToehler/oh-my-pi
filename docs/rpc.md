@@ -462,6 +462,9 @@ may also report `allowanceLeftPercent`, while wrap-up reports whether
 field is absent outside both stages. No event carries it, so re-read
 `get_state` while a run is active, after `agent_end`, and after slash commands.
 
+`cwd` is the session's working directory; it changes when the agent moves the
+session with `session_move` (see `docs/tools/session_move.md`).
+
 ```json
 {
   "model": { "provider": "...", "id": "..." },
@@ -473,6 +476,7 @@ field is absent outside both stages. No event carries it, so re-read
   "interruptMode": "immediate|wait",
   "sessionFile": "...",
   "sessionId": "...",
+  "cwd": "/path/to/project",
   "sessionName": "...",
   "fastModeEnabled": false,
   "tokensPerSecond": null,

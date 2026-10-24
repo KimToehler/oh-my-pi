@@ -19,6 +19,10 @@ it is refused, and what the continued run sees afterwards.
 - **WHEN** the session runs in a worktree and calls `session_move` with the main checkout's path
 - **THEN** the call succeeds and schedules the move to the main checkout
 
+#### Scenario: Symlink to a registered worktree
+- **WHEN** the target is a symlink (for example `repo/.worktrees/link`) whose resolved destination is a registered worktree of the same repository, even one outside the main checkout
+- **THEN** the call succeeds and schedules the move to the worktree's resolved path
+
 #### Scenario: Session outside a git repository
 - **WHEN** the session's directory is not inside a git repository
 - **THEN** `session_move` returns an error and nothing changes
@@ -28,7 +32,7 @@ it is refused, and what the continued run sees afterwards.
 - **THEN** the call returns an error naming `worktree.repoDir` and creates nothing; a concurrent writer changing a checked path component after the check is outside this requirement (gate.md, Accepted residual risks)
 
 #### Scenario: Negative control
-- **WHEN** the main checkout is `repo` and the target is `/tmp/elsewhere`, a checkout of another repository, the nested path `repo/.worktrees/a/b`, `repo/.worktrees/link` where `link` is a symlink to a directory outside the repository, or `repo/.worktrees/b` where `repo/.worktrees` itself is a symlink to a directory outside the repository; or `worktree.repoDir` is `/tmp/wt`, `~/wt`, `../wt` or `a/../../wt` and the call would create a worktree
+- **WHEN** the main checkout is `repo` and the target is `/tmp/elsewhere`, a checkout of another repository, the nested path `repo/.worktrees/a/b`, `repo/.worktrees/link` where `link` is a symlink to a directory outside the repository that is not a registered worktree of it, or `repo/.worktrees/b` where `repo/.worktrees` itself is a symlink to a directory outside the repository; or `worktree.repoDir` is `/tmp/wt`, `~/wt`, `../wt` or `a/../../wt` and the call would create a worktree
 - **THEN** accepting any of them MUST fail the requirement: each call returns an error (naming `/move` for a rejected target, naming `worktree.repoDir` for an invalid setting), no directory or branch is created inside or outside the repository, and the session's directory and session file are unchanged
 
 ### Requirement: Missing worktree is created before the move
@@ -85,11 +89,11 @@ After the relocation attempt, the session SHALL continue the run with exactly on
 - **THEN** starting two turns after the relocation (a move continuation and a goal continuation) MUST fail the requirement: exactly one turn starts, and a second one is a defect
 
 ### Requirement: The continued run works in the new directory
-The first turn after a successful move SHALL resolve relative tool paths against the new directory, and its system prompt SHALL be built from the new directory's context files and project rules. The session SHALL be listed by `omp --resume` started in the new directory and no longer by `omp --resume` started in the old one, as after `/move`.
+The first turn after a successful move SHALL resolve relative tool paths against the new directory, and its system prompt SHALL be built from the new directory's context files and project rules. As after `/move`, the session file SHALL move into the new directory's session bucket, where `omp --resume` started in the new directory lists it.
 
 #### Scenario: Relative paths and resume
-- **WHEN** the continued turn reads `README.md` and the user later runs `omp --resume` from the new directory
-- **THEN** the read returns the new directory's `README.md`, the session is listed for resume there, and `omp --resume` in the old directory no longer lists it
+- **WHEN** the session runs in a repository's main checkout, moves into a registered worktree of it, the continued turn reads `README.md`, and the user later runs `omp --resume` from the worktree
+- **THEN** the read returns the worktree's `README.md`, the session is listed for resume there, its session file lies in the worktree's session bucket, and the main checkout's own session bucket no longer holds it; `omp --resume` in the main checkout may still list it through the repository's worktree aggregation, as after `/wt`
 
 #### Scenario: Negative control
 - **WHEN** a project rule file exists only in the destination worktree's `.omp/rules/` (it is absent from the source checkout)

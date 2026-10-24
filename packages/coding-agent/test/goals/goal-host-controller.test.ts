@@ -306,6 +306,27 @@ describe("GoalHostController continuation gate", () => {
 		expect(controller.continuationPending).toBe(false);
 	});
 
+	test("session move: goal continuation is not admitted while the transition fence is open and decides again after it", async () => {
+		const admitted: string[] = [];
+		const { session, controller, dropped } = fakeSession(async customType => {
+			admitted.push(customType);
+			return true;
+		});
+
+		// agent_end of the run that requested the move: the fence is already open.
+		session.isSessionTransitioning = true;
+		controller.observe(agentEnd);
+		await nextMacrotask();
+		expect(admitted).toEqual([]);
+		expect(dropped()).toBe(1);
+
+		// The move continuation's agent_end, fence closed: the goal decides again.
+		session.isSessionTransitioning = false;
+		controller.observe(agentEnd);
+		await nextMacrotask();
+		expect(admitted).toEqual(["goal-continuation"]);
+	});
+
 	test("a change that stays in the same session holds, then resumes the goal without settling in between", async () => {
 		const admitted: string[] = [];
 		const { controller, hold, release, dropped } = fakeSession(async customType => {

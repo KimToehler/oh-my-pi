@@ -2567,6 +2567,10 @@
 				"sessionName": {
 					"type": "string"
 				},
+				"cwd": {
+					"type": "string",
+					"description": "Working directory of the session; changes when the agent moves the session."
+				},
 				"autoCompactionEnabled": {
 					"type": "boolean",
 					"default": false
