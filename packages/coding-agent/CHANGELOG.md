@@ -27,6 +27,7 @@
 
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
+- Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1
 - Fixed ACP resource-link attachments not reaching the model.
 - Fixed ACP v1 clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message (ACP v2 clients see the job's result as its own run)
 - Fixed ACP v1 steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply

@@ -1447,6 +1447,27 @@ describe("requires_action (plan 6)", () => {
 		},
 	);
 
+	it("reports a cancelled permission answer as a cancelled call, not a denial", async () => {
+		// Guards: a v2 `cancelled` outcome folded into reject_once surfaces as "denied by user".
+		const permission = pendingPermission(() => ({ outcome: "cancelled" }));
+		const bash = fakeBashTool();
+		const { client, sessionId } = await startReal(
+			{ tools: [bash], script: { 0: BASH_CALL }, approvalMode: "write" },
+			permission.onRequest,
+		);
+		await sendPrompt(client, sessionId, "run it");
+		await client.waitFor(() => permission.requests.length > 0, "permission request");
+		permission.answer.resolve(undefined);
+		await waitForIdle(client, sessionId);
+		expect(bash.executeCalls).toBe(0);
+		const callUpdates = client
+			.updates(sessionId)
+			.map(frame => frame.update)
+			.filter(update => isRecord(update) && update.toolCallId === "call-bash");
+		expect(JSON.stringify(callUpdates)).toContain("Permission request cancelled");
+		expect(client.schemaIssues).toEqual([]);
+	});
+
 	it("sends a v2 elicitation/create for a tool question, reports requires_action while open, and returns the answer", async () => {
 		// Guards: a v2 client that negotiated elicitation.form never gets the question (UI disabled) or gets a v1-shaped one.
 		const toolUi: { current?: ExtensionUIContext } = {};

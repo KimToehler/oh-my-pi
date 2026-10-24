@@ -316,21 +316,16 @@ describe("v2 permission", () => {
 		expect(validateAcpV2Frame("request", "session/request_permission", request)).toEqual([]);
 	});
 
-	it("accepts only a selected offered option; everything else is a rejection", () => {
-		const known = choices.map(choice => choice.optionId);
-		for (const optionId of ["grant:folder", "allow_always", "reject_always"]) {
-			expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId } }, known)).toEqual({
-				outcome: "selected",
-				optionId,
-			});
-		}
-		const rejected = { outcome: "selected", optionId: "reject_once", kind: "reject_once" } as const;
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId: "bogus" } }, known)).toEqual(
-			rejected,
-		);
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "cancelled" } }, known)).toEqual(rejected);
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "mystery" } } as never, known)).toEqual(rejected);
-		expect(interpretV2PermissionOutcome({} as never, known)).toEqual(rejected);
+	it("keeps a cancellation, passes a selected id through, and throws on a malformed response", () => {
+		// Guards: a v2 cancel collapsed into reject_once reports a user denial instead of a cancelled call.
+		expect(interpretV2PermissionOutcome({ outcome: { outcome: "cancelled" } })).toEqual({ outcome: "cancelled" });
+		// An id the request never offered passes through; the approval adapter fails the call on it.
+		expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId: "bogus" } })).toEqual({
+			outcome: "selected",
+			optionId: "bogus",
+		});
+		expect(() => interpretV2PermissionOutcome({ outcome: { outcome: "mystery" } } as never)).toThrow("Malformed");
+		expect(() => interpretV2PermissionOutcome({} as never)).toThrow("Malformed");
 	});
 });
 

@@ -35,9 +35,6 @@ export interface AcpV2MapperOptions extends AcpEventMapperOptions {
 	messageIdFor(message: unknown, role: AcpV2MessageRole): string;
 }
 
-/** Option id used when a v2 permission response is not a valid selection. Matches the gate's reject option. */
-const V2_REJECT_OPTION_ID = "reject_once";
-
 /** Map one session event to v2 updates (the v1 mapping, converted). */
 export function mapAgentSessionEventToAcpV2Updates(
 	event: AgentSessionEvent,
@@ -169,18 +166,18 @@ export function buildV2PermissionRequest(
 }
 
 /**
- * Anything other than `selected` with a known option id is a rejection; it is reported as a selection of the
- * gate's reject option so the permission gate fails closed instead of running the tool.
+ * The v2 permission outcome in the bridge's shape, as v1 reports it: `cancelled` stays a cancellation and a selected
+ * id passes through unchanged, so the approval adapter fails an id it never offered. A malformed response throws.
  */
-export function interpretV2PermissionOutcome(
-	response: v2.RequestPermissionResponse,
-	knownOptionIds: readonly string[],
-): ClientBridgePermissionOutcome {
+export function interpretV2PermissionOutcome(response: v2.RequestPermissionResponse): ClientBridgePermissionOutcome {
 	const outcome: unknown = isRecord(response) ? response.outcome : undefined;
-	if (isRecord(outcome) && outcome.outcome === "selected" && typeof outcome.optionId === "string") {
-		if (knownOptionIds.includes(outcome.optionId)) return { outcome: "selected", optionId: outcome.optionId };
+	if (isRecord(outcome)) {
+		if (outcome.outcome === "cancelled") return { outcome: "cancelled" };
+		if (outcome.outcome === "selected" && typeof outcome.optionId === "string") {
+			return { outcome: "selected", optionId: outcome.optionId };
+		}
 	}
-	return { outcome: "selected", optionId: V2_REJECT_OPTION_ID, kind: "reject_once" };
+	throw new Error("Malformed ACP v2 session/request_permission response");
 }
 
 function convertToolCallFields(update: ToolCall | ToolCallUpdate, options: AcpV2MapperOptions): v2.ToolCallUpdate {
