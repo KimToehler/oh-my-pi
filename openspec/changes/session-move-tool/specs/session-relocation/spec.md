@@ -99,6 +99,17 @@ The first turn after a successful move SHALL resolve relative tool paths against
 - **WHEN** a project rule file exists only in the destination worktree's `.omp/rules/` (it is absent from the source checkout)
 - **THEN** a continued turn whose system prompt lacks that rule MUST fail the requirement: the rule is present in the first system prompt after the move, and its absence is a defect
 
+### Requirement: RPC clients observe the move through `get_state`
+The RPC session state SHALL carry the session's working directory as an optional `cwd` field, so a client sees a relocation without a protocol addition for moves. `get_state` SHALL report the directory the session runs in at the time of the call: the source directory before a successful `session_move`, and the target directory from the relocation onwards. The field is additive and optional, so a client built against a server that omits it SHALL keep working.
+
+#### Scenario: State before and after a move
+- **WHEN** an RPC client calls `get_state` before a `session_move` and again after the continuation turn has started
+- **THEN** the first call reports the session's start directory and the second reports the move's target directory
+
+#### Scenario: Negative control
+- **WHEN** an RPC client calls `get_state` after a successful move
+- **THEN** reporting the old directory, or omitting `cwd` while the server sets it, MUST fail the requirement: the reported directory is the move's target, and a stale or missing value is a defect
+
 ### Requirement: Running background work blocks the move
 `session_move` SHALL refuse while the session's own async jobs or subagents are running, including subagents that run without an async job (woken by a peer message or revived from idle). The error SHALL name each running job or agent, and the check SHALL happen before any worktree is created.
 

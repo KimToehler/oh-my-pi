@@ -164,12 +164,23 @@ describe("session move", () => {
 			.join("");
 	}
 
-	function moveResultTexts(mock: MockModel): string[] {
-		const last = mock.calls.at(-1);
-		if (!last) return [];
-		return last.context.messages
-			.filter(message => /The session (was moved|move to)/.test(textOf(message)))
-			.map(textOf);
+	/** Structured facts `AgentSession` records on each `session-move-result` continuation message. */
+	interface MoveResultDetails {
+		outcome: "moved" | "failed";
+		cwd: string;
+		target: string;
+		reason?: string;
+	}
+
+	/** Select the continuation messages by type, never by their rendered prose. */
+	function moveResults(target: AgentSession): MoveResultDetails[] {
+		return target.sessionManager
+			.getEntries()
+			.flatMap(entry =>
+				entry.type === "custom_message" && entry.customType === "session-move-result"
+					? [entry.details as MoveResultDetails]
+					: [],
+			);
 	}
 
 	it("session move: batch stop lets the sibling finish in the old cwd and relocates after both results persist", async () => {
@@ -246,13 +257,7 @@ describe("session move", () => {
 		expect(fx.mock.calls).toHaveLength(2);
 		expect(fx.session.sessionManager.getCwd()).toBe(fx.dstDir);
 		expect(fx.session.isSessionTransitioning).toBe(false);
-		const texts = moveResultTexts(fx.mock);
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain(fx.dstDir);
-		const entries = fx.session.sessionManager.getEntries();
-		expect(
-			entries.filter(entry => entry.type === "custom_message" && entry.customType === "session-move-result"),
-		).toHaveLength(1);
+		expect(moveResults(fx.session)).toEqual([{ outcome: "moved", cwd: fx.dstDir, target: fx.dstDir }]);
 		// Relocated session accepts a later request with no pending move left behind.
 		expect(fx.relocatorCalls).toHaveLength(1);
 	});
@@ -274,10 +279,9 @@ describe("session move", () => {
 		expect(fx.session.sessionManager.getSessionFile()).toBe(fileBefore);
 		expect(fx.session.isSessionTransitioning).toBe(false);
 		expect(fx.mock.calls).toHaveLength(2);
-		const texts = moveResultTexts(fx.mock);
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain("host refused: settings flush failed");
-		expect(texts[0]).toContain(fx.srcDir);
+		expect(moveResults(fx.session)).toEqual([
+			{ outcome: "failed", cwd: fx.srcDir, target: fx.dstDir, reason: "host refused: settings flush failed" },
+		]);
 	});
 
 	it("session move: relocation is refused while a sibling async job is running and names the job", async () => {
@@ -311,9 +315,11 @@ describe("session move", () => {
 		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
 		expect(fx.session.sessionManager.getSessionFile()).toBe(fileBefore);
 		expect(jobId).not.toBe("");
-		const texts = moveResultTexts(fx.mock);
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain(jobId);
+		expect(fx.mock.calls).toHaveLength(2);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir, target: fx.dstDir });
+		expect(results[0]?.reason).toContain(jobId);
 		releaseJob.resolve();
 	});
 
@@ -350,9 +356,11 @@ describe("session move", () => {
 
 		expect(fx.relocatorCalls).toEqual([]);
 		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
-		const texts = moveResultTexts(fx.mock);
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain("MoveSub");
+		expect(fx.mock.calls).toHaveLength(2);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir, target: fx.dstDir });
+		expect(results[0]?.reason).toContain("MoveSub");
 	});
 
 	it("session move: the post-batch re-check sees subagents of a custom registry", async () => {
@@ -389,9 +397,11 @@ describe("session move", () => {
 
 		expect(fx.relocatorCalls).toEqual([]);
 		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
-		const texts = moveResultTexts(fx.mock);
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain("CustomSub");
+		expect(fx.mock.calls).toHaveLength(2);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir, target: fx.dstDir });
+		expect(results[0]?.reason).toContain("CustomSub");
 	});
 
 	it("session move: running work helper counts only own jobs and subagents inside the artifacts directory", async () => {
