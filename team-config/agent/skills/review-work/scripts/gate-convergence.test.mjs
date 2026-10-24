@@ -953,3 +953,17 @@ test("wave trailer: a criterion invariant copied from the gated plan is refused"
   assert.match(result.stderr, /adversarial_criteria/)
   assert.deepEqual(waveEvents(s), [])
 })
+
+// The record check refuses an artifact above 1 MiB before reading it; a wave that read and recorded
+// such a trailer would admit evidence the record can never cite.
+test("wave trailer: a trailer above the 1 MiB artifact bound is refused", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const args = s.trailer("implementation-audit", "PASS")
+  const file = path.join(s.repo, args[1].split("=")[1])
+  appendFileSync(file, `${"narrative padding line\n".repeat(Math.ceil((1024 * 1024) / 23))}`)
+  const result = s.wave("F2", "--outcome", "qa=PASS", "--outcome", "implementation-audit=PASS", ...args)
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /above the 1048576-byte limit/)
+  assert.deepEqual(waveEvents(s), [])
+})

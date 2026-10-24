@@ -9,7 +9,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSyn
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
-import { GATE_DELTAS_DIR, LEDGER_PATH } from "./gate-layout.mjs"
+import { GATE_DELTAS_DIR, LEDGER_PATH, MAX_ARTIFACT_BYTES } from "./gate-layout.mjs"
 import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 import { checkTrailer, TrailerError } from "./trailer.mjs"
 
@@ -540,9 +540,17 @@ const commands = {
     }
     const planText = ctx.planBytes.toString("utf8")
     for (const [name, file] of Object.entries(trailers)) {
+      const resolved = path.resolve(ctx.repo, file)
+      let size
+      try {
+        size = statSync(resolved).size
+      } catch {
+        fail(`trailer ${name}: ${file} is not readable`)
+      }
+      if (size > MAX_ARTIFACT_BYTES) fail(`trailer.${name}: is ${size} bytes, above the ${MAX_ARTIFACT_BYTES}-byte limit for a gate artifact`)
       let text
       try {
-        text = readFileSync(path.resolve(ctx.repo, file), "utf8")
+        text = readFileSync(resolved, "utf8")
       } catch {
         fail(`trailer ${name}: ${file} is not readable`)
       }

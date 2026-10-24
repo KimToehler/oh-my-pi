@@ -5,7 +5,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
-import { RECORD_SCHEMA } from "./gate-layout.mjs"
+import { MAX_ARTIFACT_BYTES, RECORD_SCHEMA } from "./gate-layout.mjs"
 import { abortRuleDefects, CRITERIA_HEADER_PATTERN, criteriaShapeDefect, mergeGateSection, planContent, readRiskTier, scanMarkdown, topLevelField } from "./plan-contract.mjs"
 import { checkTrailer, REQUIRED_SECTIONS, TrailerError, UNRESOLVED_MODEL } from "./trailer.mjs"
 import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
@@ -15,10 +15,6 @@ class GateError extends Error {}
 function block(field, detail) {
   throw new GateError(`${field}: ${detail}`)
 }
-
-// A tracked file is authored by whoever can commit, so this is a robustness bound rather than a
-// trust boundary - but every artifact is read whole into memory before anything is known about it.
-const MAX_ARTIFACT_BYTES = 1024 * 1024
 
 // The bound belongs to the READ, not to any admission path. It used to sit in
 // `verifyAndPinArtifact`, so splitting the record's undigested admission out of that function
