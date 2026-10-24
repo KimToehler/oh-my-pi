@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Agent, AgentMessage, AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import type { Agent, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { resolveDelegationBias } from "@oh-my-pi/pi-catalog/compat/delegation";
-import { isRecord, logger, prompt, stringProperty, structuredCloneJSON, untilAborted } from "@oh-my-pi/pi-utils";
+import { isRecord, logger, prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import { reset as resetCapabilities } from "../capability";
 import type { EffectiveExtensionRoots } from "../capability/types";
 import { shouldInlineToolDescriptors } from "../config/inline-tool-descriptors-mode";
@@ -28,13 +28,9 @@ import sessionAgentNoticePrompt from "../prompts/system/session-agent-notice.md"
 import toolRosterNoticePrompt from "../prompts/system/tool-roster-notice.md" with { type: "text" };
 import xdevMountNoticePrompt from "../prompts/system/xdev-mount-notice.md" with { type: "text" };
 import { isMCPToolName, normalizeToolNames } from "../tools/builtin-names";
-import { denyError, resolveApproval, resolveApprovalFromContext } from "../tools/approval";
-import { getApprovalGrants } from "../tools/approval-cache";
 import { wrapToolWithMetaNotice } from "../tools/output-meta";
 import { isFilesystemSourcePath } from "../tools/path-utils";
 import { supportsExternalThinking } from "../tools/think";
-import { ToolAbortError } from "../tools/tool-errors";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import {
 	isMountableUnderXdev,
 	listXdevTools,
@@ -45,15 +41,8 @@ import {
 } from "../tools/xdev";
 import { type EditMode } from "@oh-my-pi/pi-tui/tools/edit";
 import { resolveEditMode } from "../utils/edit-mode";
-import {
-	extractPermissionLocations,
-	getPermissionIntent,
-	PERMISSION_OPTIONS,
-	PERMISSION_OPTIONS_BY_ID,
-	PERMISSION_REQUIRED_TOOLS,
-} from "./acp-permission-gate";
-import type { ClientBridge, ClientBridgePermissionOutcome } from "./client-bridge";
 import { toolReadsSkillUris } from "../system-prompt";
+import type { ClientBridge } from "./client-bridge";
 
 import type { CustomMessage } from "./messages";
 import { SESSION_AGENT_NOTICE_TYPE } from "./queued-messages";
@@ -63,7 +52,7 @@ import type { SessionManager } from "./session-manager";
 import { cfgDisabledExtensions, cfgSkills, type SkillsSettings } from "../extensibility/settings";
 import { cfgExternalThinking, cfgIncludeModelInPrompt, cfgInlineToolDescriptors, cfgSkillful } from "./settings";
 import { cfgStartupQuiet } from "../modes/settings";
-import { cfgToolsApproval, cfgToolsApprovalMode, cfgToolsXdevDocs, cfgToolsXdevInlineDevices } from "../tools/settings";
+import { cfgToolsXdevDocs, cfgToolsXdevInlineDevices } from "../tools/settings";
 
 /** Capabilities borrowed from the owning AgentSession. */
 export interface SessionToolsHost {
@@ -78,36 +67,6 @@ export interface SessionToolsHost {
 	agentKind(): "main" | "sub";
 	isDisposed(): boolean;
 	isStreaming(): boolean;
-	/**
-	 * Aborts once per user steering-message arrival; the ACP permission gate
-	 * races it against its elicit so a steer supersedes an open dialog.
-	 */
-	steeringArrivalSignal(): AbortSignal;
-	/**
-	 * Monotonic count of steering arrivals fired so far. The permission gate
-	 * snapshots it when it parks, so its read of
-	 * {@link steeringArrivalAdmitted} covers exactly the arrivals inside its
-	 * own wait window — never a group that fired before the dialog opened.
-	 */
-	steeringArrivalSeq(): number;
-	/**
-	 * The user-message groups admitted by the steering arrivals after `since`
-	 * (a snapshot from {@link steeringArrivalSeq}), flattened in admission
-	 * order — first post-park arrival first — or `undefined` when none. The
-	 * permission gate promotes exactly these messages: an agent-authored
-	 * steer enqueued in the same window never fired the signal and must not
-	 * ride the promotion ahead of the user's superseding message, and an
-	 * earlier pre-dialog steer must not be re-promoted by a later dialog.
-	 */
-	steeringArrivalAdmitted(since?: number): readonly AgentMessage[] | undefined;
-	/**
-	 * Release a park snapshot taken by {@link steeringArrivalSeq} once its
-	 * dialog ends without superseding (the read in
-	 * {@link steeringArrivalAdmitted} releases it on the supersede path).
-	 * Without this, sessions that steer often but rarely supersede a dialog
-	 * would pin every arrival group since that stale snapshot forever.
-	 */
-	steeringArrivalRelease(seq: number): void;
 	queuedMessageCount(): number;
 	planModeEnabled(): boolean;
 	model(): Model | undefined;
@@ -122,8 +81,6 @@ export interface SessionToolsHost {
 	evalPreludes(): readonly EvalPreludeDefinition[];
 	/** Live user-tagged model agents; candidates for the next base rebuild's advertised snapshot. */
 	sessionAgents(): readonly AgentDefinition[];
-	/** Runs a wait for the user's answer, such as an ACP client's permission request. */
-	waitForUser<T>(dialog: () => Promise<T>): Promise<T>;
 }
 
 /** Registry delta applied by the SDK's settings-gated tool reconcile. */
@@ -137,7 +94,6 @@ export interface SettingsGatedToolDelta {
 }
 
 interface SessionToolsOptions {
-	autoApprove?: boolean;
 	toolRegistry?: Map<string, AgentTool>;
 	createVibeTools?: () => AgentTool[];
 	/** Creates the private `think` scratchpad tool for runtime setting changes. */
@@ -335,7 +291,6 @@ interface XdevMountNoticeProjection {
 /** Owns tool registration, presentation, prompt rebuilding, skills, and permissions. */
 export class SessionTools {
 	readonly #host: SessionToolsHost;
-	#autoApprove: boolean;
 	#toolRegistry: Map<string, AgentTool>;
 	#createVibeTools: (() => AgentTool[]) | undefined;
 	#createThinkTool: SessionToolsOptions["createThinkTool"];
@@ -461,11 +416,9 @@ export class SessionTools {
 	 * prefix without the intended prompt refresh. The refresh lifecycle updates it.
 	 */
 	#promptSurface: PromptSurface;
-	#acpPermissionDecisions = new Map<string, "allow_always" | "reject_always">();
 
 	constructor(host: SessionToolsHost, options: SessionToolsOptions) {
 		this.#host = host;
-		this.#autoApprove = options.autoApprove === true;
 		this.#toolRegistry = options.toolRegistry ?? new Map();
 		this.#createVibeTools = options.createVibeTools;
 		this.#createThinkTool = options.createThinkTool;
@@ -495,7 +448,6 @@ export class SessionTools {
 		if (this.#xdev && this.#xdev.tools !== this.#toolRegistry) {
 			throw new Error("xd:// state must reference the canonical session tool map");
 		}
-		if (this.#xdev) this.#xdev.decorateExecution = tool => this.#wrapToolForAcpPermission(tool);
 		this.#setActiveToolNames = options.setActiveToolNames;
 		this.#baseSystemPrompt = options.baseSystemPrompt;
 		const restoredReply = this.#latestReply();
@@ -621,21 +573,6 @@ export class SessionTools {
 			sessionAgents: this.#host.sessionAgents(),
 		};
 	}
-	/** Drops cached per-session ACP `allow_always`/`reject_always` decisions. */
-	clearAcpPermissionDecisions(): void {
-		this.#acpPermissionDecisions.clear();
-	}
-
-	/** Drops cached ACP decisions and re-wraps active tools after the client changes. */
-	refreshAcpPermissionGates(): void {
-		this.#acpPermissionDecisions.clear();
-		const activeTools = this.getActiveToolNames()
-			.map(name => this.#toolRegistry.get(name))
-			.filter((tool): tool is AgentTool => tool !== undefined)
-			.map(tool => this.#wrapToolForAcpPermission(tool));
-		this.#host.agent.setTools(activeTools);
-	}
-
 	#getActiveNonMCPToolNames(): string[] {
 		return this.getEnabledToolNames().filter(name => !isMCPToolName(name) && this.#toolRegistry.has(name));
 	}
@@ -683,11 +620,10 @@ export class SessionTools {
 		return resolveMCPToolAlias(bareName, candidate => this.#toolRegistry.get(candidate));
 	}
 
-	/** Looks up an enabled tool through the same ACP permission gate as direct calls. */
+	/** Looks up an enabled tool for the eval bridge; it runs through the same approval gate as a direct call. */
 	getToolForEvalBridge(name: string): AgentTool | undefined {
 		if (!this.getEnabledToolNames().includes(name)) return undefined;
-		const tool = this.#toolRegistry.get(name);
-		return tool ? this.#wrapToolForAcpPermission(tool) : undefined;
+		return this.#toolRegistry.get(name);
 	}
 
 	/** Canonical allowlist advertised by and enforced for the eval bridge. */
@@ -908,256 +844,6 @@ export class SessionTools {
 		return this.getEnabledToolNames().filter(name => isMCPToolName(name) && this.#toolRegistry.has(name));
 	}
 
-	/**
-	 * Wrap a tool with a permission-gate proxy when an ACP client is connected.
-	 * Only wraps tools whose name is in PERMISSION_REQUIRED_TOOLS and only when
-	 * the bridge exposes `requestPermission`. No-ops for all other cases.
-	 *
-	 * Bash follows its own approval resolution, including pattern allows, denials,
-	 * and critical overrides. The schema's implicit yolo default retains ACP's
-	 * client permission gate for unmatched bash commands; explicitly selecting
-	 * yolo opts out. Other tools keep their existing ACP gate behavior.
-	 */
-	#wrapToolForAcpPermission<T extends AgentTool>(tool: T): T {
-		const bridge = this.#host.clientBridge();
-		// Match the capability+method gating pattern used by read/write/bash.
-		if (!bridge?.capabilities.requestPermission || !bridge.requestPermission) return tool;
-		if (PERMISSION_REQUIRED_TOOLS[tool.name] !== true) return tool;
-		// Default-config ACP sessions still ask for executable calls even though
-		// the schema defaults to yolo; explicit yolo is an intentional opt-in.
-		if (tool.name !== "bash" && this.#isExplicitAutoApproveMode()) {
-			const userPolicies: Record<string, unknown> = cfgToolsApproval.get(this.#host.settings);
-			const toolPolicy = userPolicies[tool.name];
-			if (!toolPolicy || toolPolicy === "allow") return tool;
-		}
-		return new Proxy(tool, {
-			get: (target, prop) => {
-				if (prop !== "execute") return target[prop as keyof T];
-				return async (
-					toolCallId: string,
-					args: unknown,
-					signal: AbortSignal | undefined,
-					onUpdate: never,
-					ctx: AgentToolContext | undefined,
-				) => {
-					let cacheable = true;
-					if (target.name === "bash") {
-						const explicitAutoApprove = this.#isExplicitAutoApproveMode();
-						const { approvalMode, userPolicies } = resolveApprovalFromContext({
-							autoApprove: this.#autoApprove,
-							settings: this.#host.settings,
-						});
-						const mode = approvalMode === "yolo" && !explicitAutoApprove ? "always-ask" : approvalMode;
-						const resolved = resolveApproval(
-							target,
-							args,
-							mode,
-							userPolicies,
-							getApprovalGrants(this.#host.settings.getAgentDir(), this.#host.sessionManager.getSessionId()),
-						);
-						if (resolved.policy === "deny") throw denyError(resolved, target.name);
-						if (resolved.policy === "allow") {
-							return await target.execute(toolCallId, args as never, signal, onUpdate, ctx as never);
-						}
-						// A prompt forced by a critical command or an explicit pattern
-						// remains per-call, even after the client selects Always allow.
-						cacheable = !resolved.override;
-					}
-					const permissionIntent = getPermissionIntent(target.name, args);
-					if (!permissionIntent) {
-						return await target.execute(toolCallId, args as never, signal, onUpdate, ctx as never);
-					}
-					// Preserve the exact arguments authorized by a selected or
-					// persisted ACP grant; inner handlers may mutate `args` in place.
-					const approvedCtx = (ctx ? { ...ctx, acpApprovedArgs: structuredCloneJSON(args) } : ctx) as never;
-					const command =
-						target.name === "bash" && args && typeof args === "object" && !Array.isArray(args)
-							? stringProperty(args, "command")
-							: undefined;
-					const commandContent = command
-						? [{ type: "content" as const, content: { type: "text" as const, text: `$ ${command}` } }]
-						: undefined;
-					// Short-circuit on persisted decisions.
-					const persisted = cacheable ? this.#acpPermissionDecisions.get(permissionIntent.cacheKey) : undefined;
-					if (persisted === "allow_always") {
-						return await target.execute(toolCallId, args as never, signal, onUpdate, approvedCtx);
-					}
-					if (persisted === "reject_always") {
-						throw new ToolError(`Tool call rejected by user (preference)`);
-					}
-					if (signal?.aborted) {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					type PermissionRaceResult =
-						| { kind: "permission"; outcome: ClientBridgePermissionOutcome }
-						| { kind: "aborted" }
-						| { kind: "steered" };
-					const { promise: abortPromise, resolve: resolveAbort } = Promise.withResolvers<PermissionRaceResult>();
-					const onAbort = () => resolveAbort({ kind: "aborted" });
-					signal?.addEventListener("abort", onAbort, { once: true });
-					// The tool call's loop-owned steer signal: aborted when a
-					// queued steer is detected while this batch runs, gated on
-					// `interruptMode` ("wait" spares side-effecting work — the
-					// dialog then simply waits, and the message injects at the
-					// next boundary). Racing it instead of a session-level third
-					// signal keeps the gate on the loop's own policy. Direct
-					// executors without a loop context (e.g. the Cursor bridge)
-					// fall back to the session's steering-arrival signal.
-					const steeringSignal = ctx?.toolCall?.steeringSignal ?? this.#host.steeringArrivalSignal();
-					// Park marker: only arrivals fired after this snapshot
-					// belong to this dialog's supersede window — a steer
-					// that fired before the dialog opened must keep its
-					// natural queue position, not ride this promotion.
-					const arrivalParkSeq = this.#host.steeringArrivalSeq();
-					// The message that supersedes this dialog delivers at the
-					// next batch boundary ahead of older queued steers, so the
-					// agent reads the question that stopped the call first —
-					// the same "denying steer first" semantics as the TUI
-					// approval dialog (agent.prioritizeSteering, #15642).
-					// Promote exactly the group whose admission fired the
-					// session arrival signal — never whatever else appeared on
-					// the queue in the same window: an agent-authored steer
-					// enqueued after the dialog opened does not fire it, and
-					// promoting it along would deliver it first under the
-					// one-at-a-time boundary, making the user's superseding
-					// message wait another boundary. Identity-based promotion:
-					// text matching could hit an older equal-looking steer.
-					const { promise: steerPromise, resolve: resolveSteer } = Promise.withResolvers<PermissionRaceResult>();
-					// Only user steering may supersede the dialog. The
-					// loop-owned signal aborts — once per run — for ANY queued
-					// steering source (agent-authored asides, IRC interrupts
-					// included), none of which the user asked to preempt
-					// their own dialog, so re-check the arrival channel at
-					// the loop abort and only then classify the dialog as
-					// superseded. The loop's own interruptMode policy is
-					// untouched: a queued non-user steer still injects at
-					// the next batch boundary once the call this dialog
-					// guards finishes normally.
-					const userSteering = new AbortController();
-					let superseded = false;
-					const finishSteer = (arrived: readonly AgentMessage[]): void => {
-						const queued = new Set(this.#host.agent.peekSteeringQueue());
-						const promotable = arrived.filter(message => queued.has(message));
-						if (promotable.length > 0) {
-							this.#host.agent.prioritizeSteering(promotable);
-						}
-						userSteering.abort();
-						resolveSteer({ kind: "steered" });
-						superseded = true;
-					};
-					const onLoopSteer = () => {
-						if (superseded) return;
-						const arrived = this.#host.steeringArrivalAdmitted(arrivalParkSeq) ?? [];
-						// Empty window: agent-authored or IRC steering. Keep
-						// waiting — the arrival listener below still catches a
-						// user steer admitted later.
-						if (arrived.length === 0) {
-							return;
-						}
-						finishSteer(arrived);
-					};
-					// The arrival channel re-arms on every user-steering
-					// admission, so it also covers the case where an
-					// agent-authored steer already spent the loop's single
-					// soft abort: the loop signal being aborted is the proof
-					// the interruptMode policy allowed an interrupt this
-					// batch, so a user steer admitted afterwards still
-					// supersedes. In "wait" mode the loop signal never
-					// aborts and this listener stays inert, preserving the
-					// policy.
-					const arrivalSignal = this.#host.steeringArrivalSignal();
-					const onArrival = () => {
-						if (superseded) return;
-						if (!steeringSignal.aborted) return;
-						const arrived = this.#host.steeringArrivalAdmitted(arrivalParkSeq) ?? [];
-						if (arrived.length === 0) return;
-						finishSteer(arrived);
-					};
-					if (steeringSignal.aborted) {
-						onLoopSteer();
-					} else {
-						steeringSignal.addEventListener("abort", onLoopSteer);
-					}
-					if (arrivalSignal.aborted) {
-						onArrival();
-					} else {
-						arrivalSignal.addEventListener("abort", onArrival);
-					}
-					let raced: PermissionRaceResult;
-					try {
-						raced = await this.#host.waitForUser(() => {
-							const permissionPromise = bridge.requestPermission!(
-								{
-									toolCallId,
-									toolName: target.name,
-									title: permissionIntent.title,
-									...(target.name === "bash" ? { kind: "execute" } : {}),
-									status: "pending",
-									rawInput: args,
-									...(commandContent ? { content: commandContent } : {}),
-									locations: extractPermissionLocations(
-										args,
-										this.#host.sessionManager.getCwd(),
-										permissionIntent.paths,
-									),
-								},
-								PERMISSION_OPTIONS,
-								signal,
-								// The bridge cancels its pending wire dialog when the
-								// steer wins; the gate's own race above classifies the
-								// outcome either way. The derived signal keeps the wire
-								// cancel on user steering only — an agent-authored or
-								// IRC steer that aborted the loop signal leaves the
-								// client's dialog open.
-								userSteering.signal,
-							).then(outcome => ({ kind: "permission" as const, outcome }));
-							return Promise.race([permissionPromise, abortPromise, steerPromise]);
-						});
-					} finally {
-						signal?.removeEventListener("abort", onAbort);
-						steeringSignal.removeEventListener("abort", onLoopSteer);
-						arrivalSignal.removeEventListener("abort", onArrival);
-						// The dialog is over; its park window can no longer
-						// read. Idempotent when a supersede's drain already
-						// released it.
-						this.#host.steeringArrivalRelease(arrivalParkSeq);
-					}
-					if (raced.kind === "steered") {
-						throw new ToolAbortError("Permission request superseded by user steering");
-					}
-					if (raced.kind === "aborted" || signal?.aborted) {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					const outcome = raced.outcome;
-					if (outcome.outcome === "cancelled") {
-						throw new ToolAbortError("Permission request cancelled");
-					}
-					const selectedOption = PERMISSION_OPTIONS_BY_ID.get(outcome.optionId);
-					if (!selectedOption) {
-						throw new ToolError(`Tool permission response used unknown option ID: ${outcome.optionId}`);
-					}
-					if (cacheable && selectedOption.kind === "allow_always") {
-						this.#acpPermissionDecisions.set(permissionIntent.cacheKey, "allow_always");
-					} else if (cacheable && selectedOption.kind === "reject_always") {
-						this.#acpPermissionDecisions.set(permissionIntent.cacheKey, "reject_always");
-					}
-					if (selectedOption.kind === "reject_once" || selectedOption.kind === "reject_always") {
-						throw new ToolError(`Tool call rejected by user (${target.name})`);
-					}
-					return await target.execute(toolCallId, args as never, signal, onUpdate, approvedCtx);
-				};
-			},
-		}) as T;
-	}
-
-	#isExplicitAutoApproveMode(): boolean {
-		return (
-			this.#autoApprove ||
-			(cfgToolsApprovalMode.isConfigured(this.#host.settings) &&
-				cfgToolsApprovalMode.get(this.#host.settings) === "yolo")
-		);
-	}
-
 	/** Applies an enabled tool set and reconciles its `xd://` partition. */
 	applyActiveToolsByName(toolNames: string[], forcePromptRefresh = false, signal?: AbortSignal): Promise<void> {
 		return this.runToolRegistryMutation(
@@ -1218,7 +904,7 @@ export class SessionTools {
 		const validToolNames: string[] = [];
 		for (const { name, tool } of selectedTools) {
 			if (mountNames.has(name)) continue;
-			tools.push(this.#wrapToolForAcpPermission(tool));
+			tools.push(tool);
 			validToolNames.push(name);
 		}
 
@@ -1233,7 +919,7 @@ export class SessionTools {
 		if (transportNeeded && builtInWriteAvailable) {
 			const write = this.#toolRegistry.get("write");
 			if (write && !validToolNames.includes("write")) {
-				tools.push(this.#wrapToolForAcpPermission(write));
+				tools.push(write);
 				validToolNames.push("write");
 			}
 		} else if (
@@ -2129,7 +1815,6 @@ export class SessionTools {
 			const xdevChanged = delta.xdev !== this.#xdev;
 			if (xdevChanged) {
 				this.#xdev = delta.xdev;
-				if (delta.xdev) delta.xdev.decorateExecution = tool => this.#wrapToolForAcpPermission(tool);
 			}
 			if (!refreshPrompt && !xdevChanged && delta.added.length === 0 && delta.removed.length === 0) return;
 			await this.#applyActiveToolsByName([...enabled], true);

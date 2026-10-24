@@ -196,8 +196,6 @@ export interface AgentSessionConfig {
 	disableExtensionDiscovery?: boolean;
 	/** Whether the session spawn policy permits the read-only `scout` subagent. Defaults to true. */
 	scoutAllowedBySpawnPolicy?: boolean;
-	/** Whether the caller explicitly requested yolo/auto-approve behavior for this session. */
-	autoApprove?: boolean;
 	/** User-authorized model agents inherited from the parent session for nested delegation. */
 	inheritedSessionAgents?: readonly AgentDefinition[];
 	/** Models to cycle through with Ctrl+P (from --models flag). */
@@ -496,6 +494,14 @@ export interface FollowUpOptions {
 export interface SteerOptions {
 	/** Explicit billing/initiator attribution. */
 	attribution?: MessageAttribution;
+}
+
+/** An open approval dialog's watch for a superseding user steer (see `AgentSession.watchApprovalSupersede`). */
+export interface ApprovalSupersedeWatch {
+	/** Aborts once a user steer supersedes the dialog; the steer is already promoted. */
+	readonly signal: AbortSignal;
+	/** Ends the watch; call it when the dialog settles, superseded or not. */
+	dispose(): void;
 }
 
 /** Options for AgentSession.sendUserMessage(). */

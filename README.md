@@ -555,16 +555,15 @@ $ omp --mode rpc --no-session
 
 `omp acp`
 
-The [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol) over JSON-RPC. Under protocol v1, when the editor advertises capabilities, tool I/O routes through it (table below) and writes are gated by `session/request_permission`.
+The [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol) over JSON-RPC. Under protocol v1, when the editor advertises capabilities, tool I/O routes through it (table below). Approval follows the same rules as the terminal UI (approval mode, `tools.approval` policies, `bash.patterns`, critical-command and destructive-edit overrides, session decisions): a call that resolves to a prompt sends one `session/request_permission`, and one that resolves to allow or deny sends none. When nothing configures `tools.approvalMode`, ACP sessions use `write` instead of the default `yolo`. See [Approval in ACP sessions](docs/approval-mode.md#acp-sessions).
 
-Set `acp.protocolV2` to opt in to ACP protocol v2: clients that speak it get explicit `state_update` frames (`running`, `requires_action`, `idle`), prompt message ids that match your saved transcript and survive resume (agent replies and locally handled commands get fresh ids), and `session/resume` replays history only when the client asks with `replayFrom: {"type": "start"}`. Clients that do not negotiate v2 keep the v1 behaviour. Under v2, tool I/O stays local (no client `fs/*` or `terminal/*` calls), edits and commands still ask through `session/request_permission`, and `session/prompt` must be sent as a single request: a prompt inside a JSON-RPC batch gets `-32600`.
+Set `acp.protocolV2` to opt in to ACP protocol v2: clients that speak it get explicit `state_update` frames (`running`, `requires_action`, `idle`), prompt message ids that match your saved transcript and survive resume (agent replies and locally handled commands get fresh ids), and `session/resume` replays history only when the client asks with `replayFrom: {"type": "start"}`. Clients that do not negotiate v2 keep the v1 behaviour. Under v2, tool I/O stays local (no client `fs/*` or `terminal/*` calls), approval still asks through `session/request_permission`, and `session/prompt` must be sent as a single request: a prompt inside a JSON-RPC batch gets `-32600`.
 
 | omp tool     | ACP route (v1)                      |
 | ------------ | ----------------------------------- |
 | `bash`       | `terminal/create + terminal/output` |
 | `read`       | `fs/read_text_file`                 |
 | `write`      | `fs/write_text_file`                |
-| `edit, bash` | `session/request_permission`        |
 
 Full reference: [omp.sh/docs/sdk](https://omp.sh/docs/sdk).
 

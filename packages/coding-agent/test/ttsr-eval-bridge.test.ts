@@ -134,7 +134,6 @@ describe("TTSR eval bridge enforcement", () => {
 			extensionRunner,
 			toolRegistry: new Map(tools.map(tool => [tool.name, tool])),
 			ttsrManager,
-			autoApprove: true,
 		});
 		sessionRef.current = session;
 

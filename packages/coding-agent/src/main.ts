@@ -555,6 +555,10 @@ async function loadTrustedSessionExtensions(
 export function createAcpSessionFactory(args: AcpSessionFactoryOptions): AcpSessionFactory {
 	return async (cwd, factoryOptions) => {
 		const nextSettings = await args.settings.cloneForCwd(cwd);
+		// An unconfigured ACP session asks before exec-tier calls instead of running them under the
+		// schema default `yolo`. This is a host default, not an override: env, global, project and
+		// `--approval-mode` win, and it stays below them when the session later re-scopes to another cwd.
+		cfgToolsApprovalMode.hostDefault(nextSettings, "write");
 		const nextSessionManager = SessionManager.create(cwd, args.sessionDir);
 		const agentId = `acp:${nextSessionManager.getSessionId()}`;
 		// `baseOptions.titleSystemPrompt` is resolved from the launch cwd; an ACP
@@ -1947,7 +1951,7 @@ export async function runRootCommand(
 			cfgToolsApprovalMode.override(settingsInstance, parsedArgs.approvalMode);
 		} else if (parsedArgs.autoApprove) {
 			// --auto-approve / --yolo without an explicit --approval-mode: reflect in settings so
-			// setup-time checks (e.g. #wrapToolForAcpPermission) also see the yolo intent.
+			// setup-time checks (e.g. the ACP default approval mode) also see the yolo intent.
 			cfgToolsApprovalMode.override(settingsInstance, "yolo");
 		}
 		if (parsedArgs.mode === "rpc" || parsedArgs.mode === "rpc-ui") {

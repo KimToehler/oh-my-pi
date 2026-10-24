@@ -12,12 +12,15 @@
  * `enableMCP: false`, regardless of what `baseOptions` carries.
  */
 
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createAcpSessionFactory } from "@oh-my-pi/pi-coding-agent/main";
 import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { cfgToolsApprovalMode } from "@oh-my-pi/pi-coding-agent/tools/settings";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
@@ -238,5 +241,113 @@ describe("createAcpSessionFactory TITLE_SYSTEM.md per-cwd resolution (PR #3736)"
 		} finally {
 			await tempDir.remove();
 		}
+	});
+});
+
+describe("createAcpSessionFactory default approval mode", () => {
+	let tempDir: TempDir;
+	beforeEach(() => {
+		tempDir = TempDir.createSync("@pi-acp-default-mode-");
+	});
+	afterEach(async () => {
+		await tempDir.remove();
+	});
+
+	/** The approval mode of the settings the factory hands to the session for `cwd`. */
+	async function sessionApprovalMode(settings: Settings, cwd: string): Promise<string> {
+		let captured: Settings | undefined;
+		const factory = createAcpSessionFactory({
+			baseOptions: { disableExtensionDiscovery: true } as CreateAgentSessionOptions,
+			settings,
+			sessionDir: tempDir.join("sessions"),
+			authStorage,
+			modelRegistry,
+			parsedArgs: { invalidFlagValues: [] },
+			rawArgs: [],
+			createSession: async options => {
+				captured = options.settings;
+				return { session: {} as AgentSession } as unknown as CreateAgentSessionResult;
+			},
+		});
+		await factory(cwd);
+		if (!captured) throw new Error("Expected the factory to create a session");
+		return cfgToolsApprovalMode.get(captured);
+	}
+
+	it("acp default mode: unconfigured settings give write", async () => {
+		expect(await sessionApprovalMode(Settings.isolated({}), tempDir.path())).toBe("write");
+	});
+
+	it("acp default mode: a project config always-ask in the session cwd stays always-ask", async () => {
+		const launchDir = tempDir.join("launch");
+		const projectDir = tempDir.join("project");
+		await Bun.write(path.join(projectDir, ".omp", "config.yml"), "tools:\n  approvalMode: always-ask\n");
+		fs.mkdirSync(launchDir, { recursive: true });
+		const settings = await Settings.loadIsolated({ cwd: launchDir, agentDir: tempDir.join("agent") });
+		expect(await sessionApprovalMode(settings, projectDir)).toBe("always-ask");
+	});
+
+	it("acp default mode: a base runtime override yolo stays yolo", async () => {
+		const settings = Settings.isolated({});
+		// What `--approval-mode yolo` / `--yolo` does to the launch settings.
+		cfgToolsApprovalMode.override(settings, "yolo");
+		expect(await sessionApprovalMode(settings, tempDir.path())).toBe("yolo");
+	});
+
+	it.each(["write", "always-ask-cached"])("acp default mode: a global config %s stays unchanged", async mode => {
+		const agentDir = tempDir.join("agent");
+		await Bun.write(path.join(agentDir, "config.yml"), `tools:\n  approvalMode: ${mode}\n`);
+		const settings = await Settings.loadIsolated({ cwd: tempDir.path(), agentDir });
+		expect(await sessionApprovalMode(settings, tempDir.path())).toBe(mode);
+	});
+
+	/** The settings the factory hands to the session for `cwd`. */
+	async function sessionSettings(settings: Settings, cwd: string): Promise<Settings> {
+		let captured: Settings | undefined;
+		const factory = createAcpSessionFactory({
+			baseOptions: { disableExtensionDiscovery: true } as CreateAgentSessionOptions,
+			settings,
+			sessionDir: tempDir.join("sessions"),
+			authStorage,
+			modelRegistry,
+			parsedArgs: { invalidFlagValues: [] },
+			rawArgs: [],
+			createSession: async options => {
+				captured = options.settings;
+				return { session: {} as AgentSession } as unknown as CreateAgentSessionResult;
+			},
+		});
+		await factory(cwd);
+		if (!captured) throw new Error("Expected the factory to create a session");
+		return captured;
+	}
+
+	it("acp default mode: a session re-scoped into an always-ask project follows it and falls back to write", async () => {
+		const launchDir = tempDir.join("launch");
+		const strictDir = tempDir.join("strict");
+		await Bun.write(path.join(strictDir, ".omp", "config.yml"), "tools:\n  approvalMode: always-ask\n");
+		fs.mkdirSync(launchDir, { recursive: true });
+		const settings = await Settings.loadIsolated({ cwd: launchDir, agentDir: tempDir.join("agent") });
+		const session = await sessionSettings(settings, launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("write");
+		await session.reloadForCwd(strictDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("always-ask");
+		await session.reloadForCwd(launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("write");
+	});
+
+	it("acp default mode: --approval-mode yolo stays yolo across re-scoping", async () => {
+		const launchDir = tempDir.join("launch");
+		const otherDir = tempDir.join("other");
+		fs.mkdirSync(launchDir, { recursive: true });
+		fs.mkdirSync(otherDir, { recursive: true });
+		const settings = await Settings.loadIsolated({ cwd: launchDir, agentDir: tempDir.join("agent") });
+		cfgToolsApprovalMode.override(settings, "yolo");
+		const session = await sessionSettings(settings, launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
+		await session.reloadForCwd(otherDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
+		await session.reloadForCwd(launchDir);
+		expect(cfgToolsApprovalMode.get(session)).toBe("yolo");
 	});
 });

@@ -606,6 +606,12 @@ export class Settings {
 	#overrides: RawSettings = {};
 	/** Settings whose runtime override is a soft-pinned default ({@link pinDefaultValue}). */
 	#softPins = new Set<AnySetting>();
+	/**
+	 * Host defaults ({@link setHostDefault}): per-instance values below every layer (global, project,
+	 * `--config` overlay, runtime, parent) and above the schema default. Kept out of `#merged` so
+	 * {@link isConfigured} and {@link getProvenance} still report the setting as unconfigured.
+	 */
+	#hostDefaults: RawSettings = {};
 	/** Merged view (global + project + overrides) */
 	#merged: RawSettings = {};
 	/** Monotonic revision of merged layers and cwd-scoped resolution. */
@@ -863,7 +869,30 @@ export class Settings {
 	 * says is impossible (#13183).
 	 */
 	rawValue(setting: AnySetting): unknown {
-		return configuredValue(this.#mergedView(), setting, this.#cwd);
+		return configuredValue(this.#mergedView(), setting, this.#cwd) ?? this.#hostDefault(setting);
+	}
+
+	/** Host default of `setting` on this instance or, failing that, the nearest overlay ancestor. */
+	#hostDefault(setting: AnySetting): unknown {
+		const own = getByPath(this.#hostDefaults, setting.segments);
+		if (own !== undefined) return own;
+		return this.#parent ? this.#parent.#hostDefault(setting) : undefined;
+	}
+
+	/**
+	 * Registry plumbing behind `Setting.hostDefault`: supplies `value` for `setting` wherever no layer
+	 * (global, project, `--config` overlay, runtime override, overlay parent) configures it. Unlike
+	 * a runtime override it never masks a layer, so it yields to a global write, and it returns when
+	 * the configuring layer is unset or a re-scope lands in a project that does not configure
+	 * the setting. It survives {@link cloneForCwd}, {@link reloadForCwd} and disk reloads, and
+	 * {@link overlay} children inherit it live. {@link isConfigured} stays false for a value it alone supplies.
+	 */
+	setHostDefault(setting: AnySetting, value: unknown): void {
+		setting.assertWritable(value);
+		const prev = setting.get(this);
+		setByPath(this.#hostDefaults, setting.segments, structuredClone(value));
+		this.#rebuildMerged();
+		this.#fireIfChanged(setting, prev);
 	}
 
 	/**
@@ -1306,6 +1335,7 @@ export class Settings {
 		cloned.#configOverlay = structuredClone(this.#configOverlay);
 		// A soft-pinned default yields to a value the clone's own scope configures.
 		cloned.#softPins = new Set(this.#softPins);
+		cloned.#hostDefaults = structuredClone(this.#hostDefaults);
 		const layers = { ...cloned.#ownLayers(), overrides: this.#buildOriginalOverrides() };
 		for (const setting of cloned.#settlePins(layers)) cloned.#softPins.delete(setting);
 		cloned.#overrides = layers.overrides;

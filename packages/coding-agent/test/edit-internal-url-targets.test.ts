@@ -183,8 +183,9 @@ describe("EditTool approval of moves out of the local:// sandbox", () => {
 		it(`${mode}: a working-tree destination raises the tier to write and is shown`, () => {
 			const tool = new EditTool(createSession(), mode);
 
-			expect(tool.approval(args("local://b.md"))).toBe("read");
-			expect(tool.approval(args("bunfig.toml"))).toBe("write");
+			// A move is a destructive file operation: a per-call override at the strictest target tier.
+			expect(tool.approval(args("local://b.md"))).toMatchObject({ tier: "read", override: true });
+			expect(tool.approval(args("bunfig.toml"))).toMatchObject({ tier: "write", override: true });
 			expect(tool.formatApprovalDetails(args("bunfig.toml")).join("\n")).toContain("bunfig.toml");
 		});
 	}

@@ -10,8 +10,8 @@ Status: analysis snapshot, not an executable plan. Each item becomes its own pla
 
 ## P0 — safety / consistency
 
-1. **ACP permission gate too narrow** [verified]. `PERMISSION_REQUIRED_TOOLS` = `bash`, `edit`, `delete`, `move` (`session/acp-permission-gate.ts:7-12`); `edit` prompts only for delete/move intent (`:78-97`). `write`, plain `edit`, `ast_edit`, `eval`, `ssh`, `browser` run unprompted, so a client "Always reject" on `bash` is bypassable via `eval`. TUI uses tiered approval (`tools/approval.ts`: read/write/exec). Needs a product decision on which tiers prompt in ACP.
-2. **Subagents bypass the ACP gate and client bridge** [verified]. Subagents run `tools.approvalMode: "yolo"` because "the parent task approval is the authorization boundary" (`task/executor.ts:1213-1216`), but `task` is not gated in ACP. Subagents are `hasUI: false` (`task/executor.ts:4781` [analysis]); `setClientBridge` only at `modes/acp/acp-agent.ts:1589`, so subagent read/write/bash skip unsaved buffers, client terminal and permission prompts. Applies to plain `task`, not only vibe. Fix direction: inherit a parent permission broker/bridge via `SubagentSessionSpec`.
+1. ~~**ACP permission gate too narrow**~~ **Done** (OpenSpec `2026-10-24-acp-permission-parity`, merged to `main` at `733e681406`): ACP uses the TUI approval resolver; unconfigured ACP mode is `write`; `reject_always` is a session denial; the proxy gate is gone.
+2. ~~**Subagents bypass the ACP gate and client bridge**~~ **Done** (same change): descendants inherit session denials; non-isolated subagents read/write through the ACP client (no client terminal or permission dialog, by design).
 3. **Session id drift after in-place session change** [unverified]. `#sessions` keyed by id at registration (`modes/acp/acp-agent.ts:1615`), never re-keyed; updates use live `record.session.sessionId`. Extension `ctx.newSession()` / `switchSession()` run in place (`:2783-2821`), so updates may target an id the client never saw. Repro first.
 4. **`/session delete` leaves the record registered** [unverified]. Calls `dropSession`, no `session/close` (`slash-commands/builtin-session.ts:272-289`); next prompt may recreate the file. Repro first.
 
@@ -59,7 +59,7 @@ Images (prompt, model, tool), thinking content + level option, model selection +
 
 ## Recommended order
 
-1. Permission gate + subagent inheritance (P0 1+2) — own plan, full gate, decision on tiers needed from Tim.
+1. ~~Permission gate + subagent inheritance (P0 1+2)~~ — done, see P0.
 2. Event-mapping table with unmapped-event log + v1 fallback for notice/retry/compaction; v2 slots from Extras 3/4.
 3. Extract mode/session-transition controllers from `InteractiveMode` (plan, goal, vibe, loop, branch); prerequisite for vibe/loop/branch in ACP.
 4. Small fixes, each standalone: TUI-only command reply, skip failing MCP server, `authRequired`, session-id re-key (after repro), `/session delete` close (after repro).

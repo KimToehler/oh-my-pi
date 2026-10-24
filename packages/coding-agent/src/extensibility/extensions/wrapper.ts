@@ -17,6 +17,7 @@ import {
 	denyError,
 	recordApprovalGrant,
 	requestApproval,
+	type ResolvedApproval,
 	resolveApproval,
 	resolveApprovalFromContext,
 	sessionApprovalScope,
@@ -273,9 +274,18 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 			userPolicies,
 			approvalGrants,
 		);
+		// A session-long rejection ("always reject") denies the subject at its tier before anything
+		// else runs, whatever the policy: no prompt, not even for a critical override.
+		const throwIfSessionDenied = (approval: ResolvedApproval): void => {
+			const subject = approval.policyKey ?? this.tool.name;
+			if (this.runner.isSessionDenied(subject, approval.tier)) {
+				throw new Error(`Tool call denied by user for this session: ${subject}`);
+			}
+		};
 		if (preResolved.policy === "deny") {
 			throw denyError(preResolved, this.tool.name);
 		}
+		throwIfSessionDenied(preResolved);
 
 		// 1. Emit tool_call event first - extensions can block execution or revise the input the tool
 		// runs with. Doing this BEFORE the approval gate means approval (below) resolves against the
@@ -350,18 +360,18 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 			cancelPreflight();
 			throw denyError(resolved, this.tool.name);
 		}
+		try {
+			throwIfSessionDenied(resolved);
+		} catch (err) {
+			cancelPreflight();
+			throw err;
+		}
 		const pendingSafetyChecks = computerSafetyChecks(context);
 		// Outer approvals only cover the original input. `xd://` approval skips
-		// tier-only prompts while the same object flows through; ACP approval also
-		// satisfies explicit prompts, but compares against a deep snapshot because
-		// handlers can mutate the original argument object in place. Denies were
+		// tier-only prompts while the same object flows through. Denies were
 		// enforced above, and provider safety checks remain independently required.
 		const explicitPrompt = resolved.override || Object.hasOwn(userPolicies, resolved.policyKey ?? this.tool.name);
 		const xdevBypass = context?.xdevApproved === true && effectiveParams === params;
-		const acpBypass =
-			context !== undefined &&
-			Object.hasOwn(context, "acpApprovedArgs") &&
-			Bun.deepEquals(effectiveParams, context.acpApprovedArgs);
 		// Only a prompt `always-ask-cached` itself raised can be remembered by target; provider safety
 		// checks are per-call, so they never offer a grant of any kind.
 		const grantable =
@@ -378,7 +388,7 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 		const approvalCheck = {
 			required:
 				pendingSafetyChecks.length > 0 ||
-				(resolved.policy === "prompt" && !acpBypass && !sessionApproved && (explicitPrompt || !xdevBypass)),
+				(resolved.policy === "prompt" && !sessionApproved && (explicitPrompt || !xdevBypass)),
 			reason: resolved.reason,
 		};
 
@@ -441,15 +451,23 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 			const safetyAppendix =
 				pendingSafetyChecks.length > 0 ? ["Provider safety checks:", ...safetyCheckLines(pendingSafetyChecks)] : [];
 			let approved: boolean;
+			let deniedForSession = false;
 			try {
 				const answer = await requestApproval(uiContext, this.tool, resolvedArgs, {
 					reason: approvalCheck.reason,
 					appendix: safetyAppendix,
 					sessionSubject: sessionScope?.subject,
 					grants: cacheTargets,
+					call: { toolCallId, toolName: this.tool.name, args: resolvedArgs, tier: resolved.tier },
+					signal,
+					steeringSignal: context?.toolCall?.steeringSignal,
 				});
-				approved = answer !== "deny";
+				approved = answer !== "deny" && answer !== "deny-session";
 				if (answer === "session" && sessionScope) this.runner.grantSessionApproval(sessionScope.key);
+				if (answer === "deny-session" && sessionScope) {
+					this.runner.denySessionApproval(sessionScope.key);
+					deniedForSession = true;
+				}
 				if (typeof answer === "object" && approvalGrants) {
 					recordApprovalGrant(this.tool, resolvedArgs, approvalGrants, resolved.tier, answer);
 				}
@@ -458,10 +476,17 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 				cancelPreflight();
 				throw err;
 			}
-			await emitApprovalResolved(approved, approved ? undefined : "denied by user");
+			await emitApprovalResolved(
+				approved,
+				approved ? undefined : deniedForSession ? "denied by user for this session" : "denied by user",
+			);
 			if (!approved) {
 				cancelPreflight();
-				throw new Error(`Tool call denied by user: ${this.tool.name}`);
+				throw new Error(
+					deniedForSession && sessionScope
+						? `Tool call denied by user for this session: ${sessionScope.subject}`
+						: `Tool call denied by user: ${this.tool.name}`,
+				);
 			}
 			if (pendingSafetyChecks.length > 0) {
 				if (!context) {

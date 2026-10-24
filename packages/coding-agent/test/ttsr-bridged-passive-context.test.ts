@@ -112,7 +112,6 @@ async function createBridgedHarness(dir: string, rules: Rule[] = [RULE]) {
 		extensionRunner,
 		toolRegistry: new Map([[wrappedWrite.name, wrappedWrite]]),
 		ttsrManager,
-		autoApprove: true,
 	});
 	const injectedRules = () =>
 		manager

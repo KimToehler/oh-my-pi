@@ -1,0 +1,8 @@
+# Gate
+
+- **Mandatory class**: auth-secrets-pii
+- **Risk tier**: product
+- **Author's risk assessment**: The change rewrites the authorization path for every tool call in ACP sessions and adds denial checks to every subagent, and it changes the TUI prompt for destructive edits. A wrong resolution either runs shell/eval/subagent work the user did not consent to (silent privilege bypass, the bug being fixed) or blocks legitimate calls and stalls ACP clients. Removing the ACP proxy gate means any path that relied on it and is not covered by `ExtensionToolWrapper` would become unprompted. It ships to users of the omp CLI and ACP server (Zed, JetBrains Air), so `product`; it touches an authorization path, so `auth-secrets-pii`.
+- **Whole-diff review**: needed
+- **Accepted residual risks**: (1) A subagent still running after its parent ACP session closed gets failing client-bridge writes, and its reads fall back to disk (as a parent-session read does when a bridge call fails). (2) Permission requests raised outside a rendered tool call (eval prelude host calls, extensions calling `requestApproval` directly) carry a `toolCallId` the ACP client has not rendered; the client shows only the request title. (3) Session approvals and session denials are lost on restart or session switch, as TUI session approvals are today.
+- **Out of scope for blocking**: Advisor tool sessions (`session-advisors.ts`) and their approval settings; forwarding subagent prompts to the ACP client; subagent progress rendering in ACP; client terminals for subagents; `/forget-approvals` clearing session approvals or denials; the TUI dialog offering "always reject"; the approval tier of MCP tools (`write`, unchanged on every surface; user decision 2026-10-24).

@@ -50,10 +50,6 @@ const host: SessionToolsHost = {
 	agentKind: () => "main",
 	isDisposed: () => false,
 	isStreaming: () => false,
-	steeringArrivalSignal: () => new AbortController().signal,
-	steeringArrivalSeq: () => 0,
-	steeringArrivalAdmitted: () => undefined,
-	steeringArrivalRelease: () => {},
 	queuedMessageCount: () => 0,
 	planModeEnabled: () => false,
 	model: () => undefined,
@@ -66,7 +62,6 @@ const host: SessionToolsHost = {
 	localProtocolOptions: () => ({}),
 	evalPreludes: () => [],
 	sessionAgents: () => [],
-	waitForUser: dialog => dialog(),
 };
 const sessionTools = new SessionTools(host, {
 	baseSystemPrompt: [],

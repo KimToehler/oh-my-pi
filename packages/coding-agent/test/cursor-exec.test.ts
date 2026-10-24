@@ -80,6 +80,7 @@ function passthroughRunner(seen: string[] = []): ExtensionRunner {
 			return undefined;
 		},
 		emitToolResult: async () => undefined,
+		isSessionDenied: () => false,
 	} as unknown as ExtensionRunner;
 }
 

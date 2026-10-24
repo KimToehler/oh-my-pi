@@ -10,9 +10,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { type } from "@oh-my-pi/omptype";
+import { AgentBusyError, type AgentTool, type AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { ClientBridgePermissionOption } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
-import { AgentBusyError } from "@oh-my-pi/pi-agent-core";
+import type { RequestPermissionRequest } from "@oh-my-pi/pi-utils/acp";
 import {
 	cleanupHarnessState,
 	createWireHarness,
@@ -279,31 +282,58 @@ describe("ACP v1 golden transcripts", () => {
 		expectGolden("cancel", harness);
 	});
 
-	it("permission-request", async () => {
+	/**
+	 * Runs one ordinary `bash` call in `write` mode through the approval gate over the session's runner, whose UI the
+	 * ACP agent configured; the client answers the permission request with `optionId`.
+	 */
+	async function gatedBash(optionId: string) {
+		const requests: RequestPermissionRequest[] = [];
 		const harness = await createWireHarness({
+			extensionRunners: true,
 			clientHandlers: {
-				requestPermission: async () => ({ outcome: { outcome: "selected", optionId: "allow_once" } }),
+				requestPermission: async request => {
+					requests.push(request);
+					return { outcome: { outcome: "selected", optionId } };
+				},
 			},
 		});
 		const { session } = await startSession(harness);
-		const options: ClientBridgePermissionOption[] = [
-			{ optionId: "allow_once", name: "Allow once", kind: "allow_once" },
-			{ optionId: "reject_once", name: "Reject", kind: "reject_once" },
-		];
-		const outcome = await session.clientBridge!.requestPermission!(
+		const runner = session.extensionRunner;
+		if (!runner) throw new Error("expected the session's extension runner");
+		let runs = 0;
+		const bash = new ExtensionToolWrapper(
 			{
-				toolCallId: "call_bash_1",
-				toolName: "bash",
-				title: "Run: echo hi",
-				kind: "execute",
-				status: "pending",
-				rawInput: { command: "echo hi" },
-			},
-			options,
+				name: "bash",
+				label: "bash",
+				description: "Fake bash",
+				parameters: type({ "command?": "string" }),
+				approval: "exec",
+				execute: async () => (runs++, { content: [{ type: "text" as const, text: "ok" }] }),
+			} as AgentTool,
+			runner,
 		);
-		expect(outcome).toEqual({ outcome: "selected", optionId: "allow_once", kind: "allow_once" });
+		const call = bash.execute("call_bash_1", { command: "echo hi" }, undefined, undefined, {
+			settings: Settings.isolated({ "tools.approvalMode": "write" }),
+		} as AgentToolContext);
+		return { harness, requests, call, runs: () => runs };
+	}
+
+	it("permission-request", async () => {
+		const { harness, requests, call, runs } = await gatedBash("allow_once");
+		await call;
+		expect(runs()).toBe(1);
+		expect(requests.map(request => request.options.map(option => option.optionId))).toEqual([
+			["allow_once", "allow_always", "reject_once", "reject_always"],
+		]);
 		await finish(harness);
 		expectGolden("permission-request", harness);
+	});
+
+	it("permission-request rejected once fails the call", async () => {
+		const { harness, call, runs } = await gatedBash("reject_once");
+		await expect(call).rejects.toThrow("Tool call denied by user: bash");
+		expect(runs()).toBe(0);
+		await finish(harness);
 	});
 
 	it("session-load-replay", async () => {

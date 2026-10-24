@@ -6,6 +6,7 @@
 
 - SDK: `PlanProposalHandler` now receives the resolved plan (`{ planFilePath, planContent, title }`) instead of the proposed title; `AgentSession.preparePlanForReview` was removed.
 - SDK: `ClientBridge.deferAgentInitiatedTurns` and `AgentSession.setAcpPromptOpen()` were replaced by one callback, `ClientBridge.allowAgentInitiatedTurns?: () => boolean`, asked whenever a turn the agent starts on its own (such as a background-job wake) would begin; return what you used to pass to `setAcpPromptOpen`.
+- ACP sessions now default to the `write` approval mode when no config or flag sets `tools.approvalMode`; tool calls the TUI would ask about send a `session/request_permission`. Set `tools.approvalMode: yolo` or launch `omp acp --yolo` to keep running without prompts.
 
 ### Added
 
@@ -16,14 +17,19 @@
 - Subagents that keep compacting are now stopped automatically: after `task.softCompactionBudget` compactions (default 3) they are asked to wrap up (when `task.softRequestBudgetNotice` is on), and one more compaction stops the run and asks for a final report
 - The agent can move its own session into another checkout of the repository with the new `session_move` tool (interactive, ACP and RPC sessions): the main checkout, a registered worktree, or a new worktree it creates under `worktree.repoDir` (default `.worktrees`); the move happens after the current tool batch and the conversation continues in the new directory
 - RPC `get_state` now reports the session's working directory as `cwd`
+- Subagents of an ACP session now read and write files through the client like the parent (so they see unsaved editor buffers) and inherit the session's "reject always" answers, including denials made while they run
 
 ### Changed
 
 - ACP plan approval no longer asks the judge model to recommend an implementation model; the dialog opens immediately with the `default` role preselected, like the terminal approval slider
+- Deleting or moving files through `edit` now asks for approval every time outside `yolo` mode, in the TUI and in ACP
+- ACP permission requests now offer the same choices as the TUI prompt (approve for this session, always-ask-cached grants, reject for this session) and reach clients without form elicitation
 
 ### Fixed
 
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
+- Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
+- Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1
 - Fixed ACP resource-link attachments not reaching the model.
 - Fixed ACP v1 clients such as JetBrains IDEs ending a reply while a background job (async `bash`, async `task`, `/tan`) was still running; the reply now stays open, the job's result streams into it, and Stop ends the turn without killing the job, whose result then arrives with your next message (ACP v2 clients see the job's result as its own run)
 - Fixed ACP v1 steering sent while omp waits on a background job starting a competing turn; it is now added to the open reply

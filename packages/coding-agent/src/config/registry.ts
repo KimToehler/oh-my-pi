@@ -768,6 +768,18 @@ export class Setting<T, Id extends string = string> extends Derived<T> {
 		if (this.envValue() === undefined) settingsOf(scope).pinDefaultValue(this);
 	}
 
+	/**
+	 * Sets the host's own default for this setting: it applies only where no layer (global, project,
+	 * `--config` overlay, runtime override) configures it, so it never masks a project or user choice,
+	 * and it persists across re-scoping ({@link Settings.reloadForCwd}, {@link Settings.cloneForCwd}).
+	 * {@link isConfigured} stays false while only the host default supplies the value.
+	 *
+	 * @throws Error when the value does not fit the definition.
+	 */
+	hostDefault(scope: ScopeLike, value: T): void {
+		settingsOf(scope).setHostDefault(this, this.#normalize(value));
+	}
+
 	#normalize(value: T): unknown {
 		return this.definition.normalize ? this.definition.normalize(value) : value;
 	}

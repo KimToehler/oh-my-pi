@@ -533,10 +533,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		const response = await this.#host.connection.v2.requestPermission(
 			buildV2PermissionRequest(sessionId, toolCall, options),
 		);
-		const outcome = interpretV2PermissionOutcome(
-			response,
-			options.map(option => option.optionId),
-		);
+		const outcome = interpretV2PermissionOutcome(response);
 		if (outcome.outcome === "selected") {
 			const matched = options.find(option => option.optionId === outcome.optionId);
 			if (matched) return { ...outcome, kind: matched.kind };

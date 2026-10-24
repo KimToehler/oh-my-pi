@@ -99,16 +99,25 @@ async function approvePreludeInvocation(
 	if (resolved.policy !== "prompt") return;
 
 	const ui = context.context?.ui;
-	if (!ui || context.context?.hasUI === false) {
+	// A host with an approval dialog (ACP's permission request) can ask even without form UI.
+	if (!ui || (context.context?.hasUI === false && !ui.approve)) {
 		throw new Error(
 			`Eval prelude "${definition.name}" requires approval but no interactive UI is available.\n` +
 				`Set tools.approval.${definition.name}: allow or use an interactive UI to approve the call.`,
 		);
 	}
+	// The enclosing eval call, when the context names one, is the call the host already rendered.
+	const enclosing = context.context?.toolCall;
+	const toolCallId = enclosing?.toolCalls[enclosing.index]?.id ?? context.toolCallId;
 	const answer = await untilAborted(context.signal, () =>
-		requestApproval(ui, subject, parameters, { reason: resolved.reason }),
+		requestApproval(ui, subject, parameters, {
+			reason: resolved.reason,
+			call: { toolCallId, toolName: definition.name, args: parameters, tier: resolved.tier },
+			signal: context.signal,
+		}),
 	);
-	if (answer === "deny") throw new Error(`Eval prelude call denied by user: ${definition.name}`);
+	// No session scope is offered here, so only "once" approves; anything else denies.
+	if (answer !== "once") throw new Error(`Eval prelude call denied by user: ${definition.name}`);
 }
 
 /**

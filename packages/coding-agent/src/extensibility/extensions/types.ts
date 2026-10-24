@@ -34,6 +34,7 @@ import type {
 	ThinkingLevel,
 	ToolApproval,
 	ToolLoadMode,
+	ToolTier,
 } from "@oh-my-pi/pi-agent-core";
 import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
 import type { ContextUsage } from "@oh-my-pi/pi-tui/status-line/types";
@@ -199,6 +200,12 @@ export function timedOutAskDialogResult(questions: ExtensionAskDialogQuestion[])
  */
 export interface ExtensionUIDialogOptions {
 	signal?: AbortSignal;
+	/**
+	 * The pending tool call's loop-owned steer signal (`ctx.toolCall.steeringSignal`), passed to
+	 * `approve()` so a host can let a user steer supersede the dialog under the loop's
+	 * `interruptMode` policy. Unlike `signal` it never means the turn was cancelled.
+	 */
+	steeringSignal?: AbortSignal;
 	timeout?: number;
 	/** Invoked when the UI times out while waiting for a selection/input */
 	onTimeout?: () => void;
@@ -257,6 +264,17 @@ export interface ExtensionCustomOptions {
 /** Wrap the current autocomplete provider with additional behavior (pi-compatible). */
 export type AutocompleteProviderFactory = (current: AutocompleteProvider) => AutocompleteProvider;
 
+/** The tool call an approval prompt asks about, for hosts that render the call itself (ACP). */
+export interface ExtensionApprovalCall {
+	/** The pending call's id; ACP references it from `session/request_permission`. */
+	toolCallId: string;
+	toolName: string;
+	/** The arguments the call runs with. */
+	args: unknown;
+	/** The tier approval resolved for this call. */
+	tier: ToolTier;
+}
+
 /** The renderings of a tool-approval prompt passed to `ExtensionUIContext.approve()`. */
 export interface ExtensionApprovalPrompt {
 	full: string;
@@ -268,6 +286,8 @@ export interface ExtensionApprovalPrompt {
 	 * that does not render them still answers `once`/`session`/`deny`.
 	 */
 	grants?: readonly ExtensionApprovalGrant[];
+	/** The call being approved; absent for a prompt raised outside a tool call. The TUI ignores it. */
+	call?: ExtensionApprovalCall;
 }
 
 /** One remembered-approval choice of an `always-ask-cached` prompt. */
@@ -282,12 +302,14 @@ export interface ExtensionApprovalGrant {
 
 /**
  * An answer to `ExtensionUIContext.approve()`: this call only, later like calls this session too,
- * one of the prompt's {@link ExtensionApprovalPrompt.grants} (`always`: across sessions), or no.
+ * one of the prompt's {@link ExtensionApprovalPrompt.grants} (`always`: across sessions), no, or
+ * no for the rest of the session (`deny-session`, honored only when the prompt offered `session`).
  */
 export type ExtensionApprovalAnswer =
 	| "once"
 	| "session"
 	| "deny"
+	| "deny-session"
 	| { grant: ExtensionApprovalGrant["scope"]; always: boolean };
 
 /**

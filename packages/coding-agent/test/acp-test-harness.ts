@@ -39,6 +39,8 @@ import type {
 	CreateElicitationRequest,
 	CreateElicitationResponse,
 	InitializeRequest,
+	RequestPermissionRequest,
+	RequestPermissionResponse,
 	SessionNotification,
 	Validator,
 } from "@oh-my-pi/pi-utils/acp";
@@ -435,6 +437,10 @@ export class FakeAgentSession {
 		}
 		return true;
 	}
+	/** The fake never admits a user steer into an open approval, so no dialog is superseded. */
+	watchApprovalSupersede(_loopSteeringSignal: AbortSignal | undefined): { signal: AbortSignal; dispose(): void } {
+		return { signal: new AbortController().signal, dispose: () => {} };
+	}
 
 	getContextUsage(): { tokens: number | null; contextWindow: number; percent: number } | undefined {
 		return this.contextUsage;
@@ -805,6 +811,8 @@ export async function createHarness(
 		clientInfo?: InitializeRequest["clientInfo"];
 		/** Protocol version sent with `initialize`; defaults to 1. */
 		protocolVersion?: number;
+		/** Answers v1 `session/request_permission` requests the agent sends. */
+		requestPermission?: (request: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
 		/** Exposed to each created session's `modelRegistry` for MCP credential round-trips. */
 		authStorage?: AuthStorage;
 	} = {},
@@ -822,6 +830,11 @@ export async function createHarness(
 		},
 		unstable_createElicitation: options.elicitationHandler
 			? async (req: CreateElicitationRequest) => options.elicitationHandler!(req)
+			: undefined,
+		requestPermission: options.requestPermission,
+		// The agent sends v1 permission requests through the cancellable form.
+		requestPermissionWithCancel: options.requestPermission
+			? (request: RequestPermissionRequest) => ({ promise: options.requestPermission!(request), cancel: () => {} })
 			: undefined,
 		signal: abortController.signal,
 		closed: Promise.withResolvers<void>().promise,

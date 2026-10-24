@@ -89,3 +89,25 @@ export interface ClientBridge {
 		steeringSignal?: AbortSignal,
 	): Promise<ClientBridgePermissionOutcome>;
 }
+
+/**
+ * The bridge a subagent of a client-hosted session gets: the parent's file-system capabilities only.
+ * No terminal, no permission requests, no agent-initiated turns. `undefined` when the parent offers no
+ * file-system capability, since the child would then behave exactly as it does without a bridge.
+ */
+export function createSubagentClientBridge(parent: ClientBridge): ClientBridge | undefined {
+	const readTextFile = parent.capabilities.readTextFile ? parent.readTextFile?.bind(parent) : undefined;
+	const writeTextFile = parent.capabilities.writeTextFile ? parent.writeTextFile?.bind(parent) : undefined;
+	if (!readTextFile && !writeTextFile) return undefined;
+	return {
+		capabilities: {
+			readTextFile: readTextFile !== undefined,
+			writeTextFile: writeTextFile !== undefined,
+			terminal: false,
+			requestPermission: false,
+		},
+		allowAgentInitiatedTurns: () => false,
+		readTextFile,
+		writeTextFile,
+	};
+}

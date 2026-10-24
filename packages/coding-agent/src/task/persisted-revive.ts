@@ -13,6 +13,7 @@ import type { PersistedSubagentReviverFactory } from "../registry/agent-lifecycl
 import { AgentRegistry, MAIN_AGENT_ID } from "../registry/agent-registry";
 import { createAgentSession } from "../sdk";
 import type { AgentSession } from "../session/agent-session";
+import { createSubagentClientBridge } from "../session/client-bridge";
 import { installRetryFallbackRole } from "../session/retry-fallback-chains";
 import type { AuthStorage } from "../session/auth-storage";
 import {
@@ -257,6 +258,16 @@ export function createPersistedSubagentReviverFactory(
 							? init.agent
 							: ref.displayName,
 					parentTaskPrefix: ref.id,
+					// The reviving parent's live ledger, never persisted state: the revived child's own
+					// parent when that is live, else the top-level session that revives it.
+					approvalLedgerParent:
+						(ref.parentId ? registry.get(ref.parentId)?.session : undefined)?.extensionRunner?.approvalLedger ??
+						ctx.session.extensionRunner?.approvalLedger,
+					// Seance children run in their own workspace; everything else is non-isolated (isolated refuse above).
+					clientBridge:
+						!restoredSeance && ctx.session.clientBridge
+							? createSubagentClientBridge(ctx.session.clientBridge)
+							: undefined,
 					asyncJobManager: ctx.session.asyncJobManager,
 					parentAgentId: ref.parentId,
 					oauthAccountPools,

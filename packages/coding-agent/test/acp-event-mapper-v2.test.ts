@@ -278,23 +278,36 @@ describe("v2 edit diffs", () => {
 });
 
 describe("v2 permission", () => {
+	// The request the approval gate builds for an ordinary `bash` prompt (see `acp-approval.ts`).
 	const toolCall = {
 		toolCallId: "tc-1",
 		toolName: "bash",
-		title: "ls -la",
+		title: "Allow tool: bash",
 		kind: "execute",
 		status: "pending" as const,
+		rawInput: { command: "ls" },
+		content: [{ type: "content", content: { type: "text", text: "$ ls" } }],
+		locations: [],
 	};
 	const choices = [
-		{ optionId: "allow_once", name: "Allow once", kind: "allow_once" as const },
+		{ optionId: "grant:folder", name: "Approve Directory", kind: "allow_always" as const },
+		{ optionId: "allow_once", name: "Approve", kind: "allow_once" as const },
+		{ optionId: "allow_always", name: "Approve bash for this session", kind: "allow_always" as const },
 		{ optionId: "reject_once", name: "Reject", kind: "reject_once" as const },
+		{ optionId: "reject_always", name: "Reject for this session", kind: "reject_always" as const },
 	];
 
-	it("builds a schema-valid request with tool_call subject", () => {
-		const request = buildV2PermissionRequest(SESSION_ID, { ...toolCall, rawInput: { command: "ls" } }, choices);
+	it("builds a schema-valid request with the prompt's title, command row and every offered option", () => {
+		const request = buildV2PermissionRequest(SESSION_ID, toolCall, choices);
 		expect(validateAcpV2Frame("request", "session/request_permission", request)).toEqual([]);
-		expect(request.title).toBe("ls -la");
-		expect(request.subject).toMatchObject({ type: "tool_call", toolCall: { toolCallId: "tc-1", title: "ls -la" } });
+		expect(request.title).toBe("Allow tool: bash");
+		expect(request.subject).toMatchObject({
+			type: "tool_call",
+			toolCall: { toolCallId: "tc-1", name: "bash", content: [{ type: "content", content: { text: "$ ls" } }] },
+		});
+		expect(request.options.map(option => [option.optionId, option.kind])).toEqual(
+			choices.map(choice => [choice.optionId, choice.kind]),
+		);
 	});
 
 	it("falls back to Allow <tool>? when the title is empty", () => {
@@ -303,21 +316,16 @@ describe("v2 permission", () => {
 		expect(validateAcpV2Frame("request", "session/request_permission", request)).toEqual([]);
 	});
 
-	it("accepts only a selected known option; everything else is a rejection", () => {
-		const known = choices.map(choice => choice.optionId);
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId: "allow_once" } }, known)).toEqual(
-			{
-				outcome: "selected",
-				optionId: "allow_once",
-			},
-		);
-		const rejected = { outcome: "selected", optionId: "reject_once", kind: "reject_once" } as const;
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId: "bogus" } }, known)).toEqual(
-			rejected,
-		);
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "cancelled" } }, known)).toEqual(rejected);
-		expect(interpretV2PermissionOutcome({ outcome: { outcome: "mystery" } } as never, known)).toEqual(rejected);
-		expect(interpretV2PermissionOutcome({} as never, known)).toEqual(rejected);
+	it("keeps a cancellation, passes a selected id through, and throws on a malformed response", () => {
+		// Guards: a v2 cancel collapsed into reject_once reports a user denial instead of a cancelled call.
+		expect(interpretV2PermissionOutcome({ outcome: { outcome: "cancelled" } })).toEqual({ outcome: "cancelled" });
+		// An id the request never offered passes through; the approval adapter fails the call on it.
+		expect(interpretV2PermissionOutcome({ outcome: { outcome: "selected", optionId: "bogus" } })).toEqual({
+			outcome: "selected",
+			optionId: "bogus",
+		});
+		expect(() => interpretV2PermissionOutcome({ outcome: { outcome: "mystery" } } as never)).toThrow("Malformed");
+		expect(() => interpretV2PermissionOutcome({} as never)).toThrow("Malformed");
 	});
 });
 

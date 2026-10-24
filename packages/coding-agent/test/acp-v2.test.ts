@@ -22,6 +22,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
 import * as skillsModule from "@oh-my-pi/pi-coding-agent/extensibility/skills";
 import * as availableCommandsModule from "@oh-my-pi/pi-coding-agent/slash-commands/available-commands";
 import { singleShotOutcome } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-foreground";
@@ -77,6 +78,8 @@ interface RigOptions {
 	holdToolStarts?: PromiseWithResolvers<void>;
 	/** Receives the extension UI context the ACP layer installs for tools (it does so only for a form-capable client). */
 	toolUi?: { current?: ExtensionUIContext };
+	/** Wraps every tool in the approval gate over the session's runner (as production does) under this mode. */
+	approvalMode?: "write" | "always-ask";
 }
 
 class RealSessionRig {
@@ -137,13 +140,6 @@ class RealSessionRig {
 			},
 		});
 		this.mockCalls.push(mock.calls as MockCall[]);
-		const tools = options.tools ?? [];
-		const agent = new Agent({
-			getApiKey: () => "test-key",
-			initialState: { model, systemPrompt: ["Test"], tools },
-			convertToLlm,
-			streamFn: mock.stream,
-		});
 		const authStorage = await AuthStorage.create(":memory:");
 		this.#storages.push(authStorage);
 		authStorage.keys.setRuntime("anthropic", "test-key");
@@ -160,7 +156,20 @@ class RealSessionRig {
 				"v2-test-command",
 			);
 			extensionRunner = new ExtensionRunner([extension], runtime, cwd, manager, modelRegistry);
+		} else if (options.approvalMode) {
+			extensionRunner = new ExtensionRunner([], new ExtensionRuntime(), cwd, manager, modelRegistry);
 		}
+		const runner = extensionRunner;
+		const tools =
+			options.approvalMode && runner
+				? (options.tools ?? []).map(tool => new ExtensionToolWrapper(tool, runner) as AgentTool)
+				: (options.tools ?? []);
+		const agent = new Agent({
+			getApiKey: () => "test-key",
+			initialState: { model, systemPrompt: ["Test"], tools },
+			convertToLlm,
+			streamFn: mock.stream,
+		});
 		const skillDir = options.skill ? path.join(cwd, "skills", options.skill) : undefined;
 		if (skillDir) {
 			fs.mkdirSync(skillDir, { recursive: true });
@@ -185,7 +194,12 @@ class RealSessionRig {
 					: [],
 			agent,
 			sessionManager: manager,
-			settings: Settings.isolated({ "compaction.enabled": false, "retry.enabled": false, ...options.settings }),
+			settings: Settings.isolated({
+				"compaction.enabled": false,
+				"retry.enabled": false,
+				...(options.approvalMode ? { "tools.approvalMode": options.approvalMode } : {}),
+				...options.settings,
+			}),
 			modelRegistry,
 			extensionRunner,
 			agentId: options.agentId,
@@ -236,6 +250,7 @@ function fakeBashTool(): AgentTool & { executeCalls: number } {
 		label: "bash",
 		description: "Fake bash",
 		parameters: type({ "command?": "string" }),
+		approval: "exec" as const,
 		executeCalls: 0,
 		async execute() {
 			tool.executeCalls++;
@@ -1380,7 +1395,10 @@ describe("requires_action (plan 6)", () => {
 		// Guards: the client shows a spinner while the agent silently waits for the user.
 		const permission = pendingPermission(allow);
 		const bash = fakeBashTool();
-		const { client, sessionId } = await startReal({ tools: [bash], script: { 0: BASH_CALL } }, permission.onRequest);
+		const { client, sessionId } = await startReal(
+			{ tools: [bash], script: { 0: BASH_CALL }, approvalMode: "write" },
+			permission.onRequest,
+		);
 		await sendPrompt(client, sessionId, "run it");
 		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
 		expect(client.states(sessionId).at(-1)?.state).toBe("requires_action");
@@ -1396,6 +1414,58 @@ describe("requires_action (plan 6)", () => {
 		expect(after[0]).toMatchObject({ state: "running" });
 		expect(after.at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 		expect(bash.executeCalls).toBe(1);
+	});
+
+	it.each([
+		["allow_once", 1],
+		["reject_once", 0],
+	] as const)(
+		"an ordinary bash request offers the four session options, and %s decides the call",
+		async (optionId, runs) => {
+			// Guards: the gate's prompt reaches a v2 client with the TUI title and choices, and the choice decides the call.
+			const permission = pendingPermission(() => ({ outcome: "selected", optionId }));
+			const bash = fakeBashTool();
+			const { client, sessionId } = await startReal(
+				{ tools: [bash], script: { 0: BASH_CALL }, approvalMode: "write" },
+				permission.onRequest,
+			);
+			await sendPrompt(client, sessionId, "run it");
+			await client.waitFor(() => permission.requests.length > 0, "permission request");
+			const params = permission.requests[0];
+			if (!isRecord(params) || !Array.isArray(params.options)) throw new Error("expected permission options");
+			expect(params.options.map(option => (isRecord(option) ? option.optionId : undefined))).toEqual([
+				"allow_once",
+				"allow_always",
+				"reject_once",
+				"reject_always",
+			]);
+			expect(params.title).toBe("Allow tool: bash");
+			permission.answer.resolve(undefined);
+			await waitForIdle(client, sessionId);
+			expect(bash.executeCalls).toBe(runs);
+			expect(client.schemaIssues).toEqual([]);
+		},
+	);
+
+	it("reports a cancelled permission answer as a cancelled call, not a denial", async () => {
+		// Guards: a v2 `cancelled` outcome folded into reject_once surfaces as "denied by user".
+		const permission = pendingPermission(() => ({ outcome: "cancelled" }));
+		const bash = fakeBashTool();
+		const { client, sessionId } = await startReal(
+			{ tools: [bash], script: { 0: BASH_CALL }, approvalMode: "write" },
+			permission.onRequest,
+		);
+		await sendPrompt(client, sessionId, "run it");
+		await client.waitFor(() => permission.requests.length > 0, "permission request");
+		permission.answer.resolve(undefined);
+		await waitForIdle(client, sessionId);
+		expect(bash.executeCalls).toBe(0);
+		const callUpdates = client
+			.updates(sessionId)
+			.map(frame => frame.update)
+			.filter(update => isRecord(update) && update.toolCallId === "call-bash");
+		expect(JSON.stringify(callUpdates)).toContain("Permission request cancelled");
+		expect(client.schemaIssues).toEqual([]);
 	});
 
 	it("sends a v2 elicitation/create for a tool question, reports requires_action while open, and returns the answer", async () => {
@@ -1499,7 +1569,7 @@ describe("requires_action (plan 6)", () => {
 		// Guards: a client that reconnects mid-permission sees `idle` and never learns it must act.
 		const permission = pendingPermission(allow);
 		const { h, client, sessionId } = await startReal(
-			{ tools: [fakeBashTool()], script: { 0: BASH_CALL } },
+			{ tools: [fakeBashTool()], script: { 0: BASH_CALL }, approvalMode: "write" },
 			permission.onRequest,
 		);
 		await sendPrompt(client, sessionId, "run it");
@@ -1519,7 +1589,10 @@ describe("requires_action (plan 6)", () => {
 		// Guards: a malformed client answer executes the gated tool.
 		const permission = pendingPermission(() => ({ outcome: "bogus" }));
 		const bash = fakeBashTool();
-		const { client, sessionId } = await startReal({ tools: [bash], script: { 0: BASH_CALL } }, permission.onRequest);
+		const { client, sessionId } = await startReal(
+			{ tools: [bash], script: { 0: BASH_CALL }, approvalMode: "write" },
+			permission.onRequest,
+		);
 		await sendPrompt(client, sessionId, "run it");
 		await client.waitFor(c => c.states(sessionId).some(s => s.state === "requires_action"), "requires_action");
 		permission.answer.resolve(undefined);
@@ -1537,6 +1610,7 @@ describe("requires_action (plan 6)", () => {
 			name: "slow",
 			label: "slow",
 			description: "Slow tool",
+			approval: "read",
 			parameters: type({}),
 			async execute() {
 				slowStarted.resolve();
@@ -1551,7 +1625,7 @@ describe("requires_action (plan 6)", () => {
 			],
 		};
 		const { client, sessionId } = await startReal(
-			{ tools: [bash, slow], script: { 0: script } },
+			{ tools: [bash, slow], script: { 0: script }, approvalMode: "write" },
 			permission.onRequest,
 		);
 		await sendPrompt(client, sessionId, "run both");
@@ -1594,6 +1668,7 @@ describe("requires_action (plan 6)", () => {
 			name: "slow",
 			label: "slow",
 			description: "Slow tool",
+			approval: "read",
 			parameters: type({}),
 			async execute() {
 				slowStarted.resolve();
@@ -1608,7 +1683,10 @@ describe("requires_action (plan 6)", () => {
 				{ type: "toolCall", id: "call-c", name: "slow", arguments: {} },
 			],
 		};
-		const { h, client, sessionId } = await startReal({ tools: [bash, slow], script: { 0: script } }, onRequest);
+		const { h, client, sessionId } = await startReal(
+			{ tools: [bash, slow], script: { 0: script }, approvalMode: "write" },
+			onRequest,
+		);
 		await sendPrompt(client, sessionId, "run three");
 		await slowStarted.promise;
 		await client.waitFor(() => requests.length === 2, "both permission requests");
@@ -1663,6 +1741,7 @@ describe("requires_action (plan 6)", () => {
 			name: "slow",
 			label: "slow",
 			description: "Slow tool",
+			approval: "read",
 			parameters: type({}),
 			async execute() {
 				await slowGate.promise;
@@ -1687,7 +1766,7 @@ describe("requires_action (plan 6)", () => {
 		}) as unknown as typeof setTimeout);
 		const holdToolStarts = Promise.withResolvers<void>();
 		const { h, client, sessionId } = await startReal(
-			{ tools: [fakeBashTool(), slow], script: { 0: script }, holdToolStarts },
+			{ tools: [fakeBashTool(), slow], script: { 0: script }, holdToolStarts, approvalMode: "write" },
 			permission.onRequest,
 		);
 		await sendPrompt(client, sessionId, "run both");

@@ -4200,21 +4200,6 @@ describe("ACP agent", () => {
 		await harness.agent.dispose();
 	});
 
-	it("does not install the tool UI context without form elicitation", async () => {
-		const harness = await createHarness({ clientCapabilities: {} });
-		const session = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
-		await harness.agent.prompt({
-			sessionId: session.sessionId,
-			prompt: [{ type: "text", text: "ping" }],
-		} as PromptRequest);
-
-		expect(harness.sessionFactoryOptions).toEqual([{ interactivePrompts: false }]);
-		expect(harness.setToolUIContextSpies).toHaveLength(1);
-		expect(harness.setToolUIContextSpies[0]).not.toHaveBeenCalled();
-
-		await harness.agent.dispose();
-	});
-
 	it("keeps the extension UI context without form elicitation, with prompts that answer nothing", async () => {
 		const messages: string[] = [];
 		const harness = await createHarness({

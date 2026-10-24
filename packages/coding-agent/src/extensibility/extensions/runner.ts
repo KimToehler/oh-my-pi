@@ -10,6 +10,7 @@ import {
 	type AgentToolUpdateCallback,
 	isNonBlankContext,
 	joinAdditionalContext,
+	type ToolTier,
 } from "@oh-my-pi/pi-agent-core";
 import type {
 	AssistantMessage,
@@ -37,6 +38,7 @@ import { type Theme, theme } from "@oh-my-pi/pi-tui/theme";
 import type { AsyncJobSnapshot, SendUserMessageOptions } from "../../session/agent-session";
 import { MAIN_AGENT_ID } from "../../registry/agent-registry";
 import type { SessionManager } from "../../session/session-manager";
+import { type ApprovalDenialLedger, sessionGrantKey } from "../../tools/approval";
 import { addFileDeleteFallback, addFileWriteFallback } from "../../tools/file-write-fallback";
 import type { BranchHandler, NavigateTreeHandler, NewSessionHandler } from "../session-handler-types";
 import { accumulateToolCallResult, buildAggregatedToolCallResult } from "../shared-events";
@@ -514,6 +516,10 @@ export class ExtensionRunner {
 	#toolApprovalPreviewWaiter?: (toolCallId: string) => Promise<void>;
 	/** Grant keys (see `sessionApprovalScope`) approved "for this session", each prefixed by the session it covers. */
 	#sessionApprovals = new Set<string>();
+	/** Grant keys rejected "for this session" (`deny-session`), prefixed like {@link #sessionApprovals}. */
+	#sessionDenials = new Set<string>();
+	/** Ledger of the session that spawned this one; read live so denials recorded after spawn apply. */
+	#approvalLedgerParent: ApprovalDenialLedger | undefined;
 	#trackUserWait?: UserWaitTracker;
 	#errorListeners: Set<ExtensionErrorListener> = new Set();
 	#getModel: () => Model | undefined = () => undefined;
@@ -1015,6 +1021,30 @@ export class ExtensionRunner {
 
 	grantSessionApproval(key: string): void {
 		this.#sessionApprovals.add(`${this.sessionId}\0${key}`);
+	}
+
+	/** Rejects `key` (see `sessionGrantKey`) for the rest of the current session. */
+	denySessionApproval(key: string): void {
+		this.#sessionDenials.add(`${this.sessionId}\0${key}`);
+	}
+
+	/**
+	 * Whether `subject` at `tier` was rejected for the current session or by an ancestor session; a new or
+	 * switched session starts with none of its own.
+	 */
+	isSessionDenied(subject: string, tier: ToolTier): boolean {
+		return (
+			this.#sessionDenials.has(`${this.sessionId}\0${sessionGrantKey(subject, tier)}`) ||
+			this.#approvalLedgerParent?.isDenied(subject, tier) === true
+		);
+	}
+
+	/** This session's denials chained onto its ancestors'; hand it to subagents as their ledger parent. */
+	readonly approvalLedger: ApprovalDenialLedger = { isDenied: (subject, tier) => this.isSessionDenied(subject, tier) };
+
+	/** Chains this runner's denial checks onto the spawning session's ledger. */
+	setApprovalLedgerParent(parent: ApprovalDenialLedger | undefined): void {
+		this.#approvalLedgerParent = parent;
 	}
 
 	getUIContext(): ExtensionUIContext {
