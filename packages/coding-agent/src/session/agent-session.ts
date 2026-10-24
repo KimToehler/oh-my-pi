@@ -9580,9 +9580,12 @@ export class AgentSession implements SettingsScope {
 		// arrival, and promoting it would deliver it ahead of the user's
 		// superseding message. Identity-based: text matching could hit an older
 		// equal-looking steer.
+		// Every live watch reads the same window without consuming it, so one
+		// user steer supersedes all dialogs open in a parallel tool batch;
+		// promoting the same group again is a no-op.
 		const supersedeWith = (): void => {
 			if (superseded.signal.aborted) return;
-			const arrived = this.#steeringArrivalAdmitted(parkSeq) ?? [];
+			const arrived = this.#steeringArrivalsSince(parkSeq);
 			// Empty window: agent-authored or IRC steering; keep waiting.
 			if (arrived.length === 0) return;
 			const queued = new Set(this.agent.peekSteeringQueue());
@@ -9607,7 +9610,6 @@ export class AgentSession implements SettingsScope {
 			dispose: () => {
 				steeringSignal.removeEventListener("abort", onLoopSteer);
 				arrivalSignal.removeEventListener("abort", onArrival);
-				// Idempotent when the supersede's read already released it.
 				this.#steeringArrivalRelease(parkSeq);
 			},
 		};
@@ -9626,70 +9628,56 @@ export class AgentSession implements SettingsScope {
 
 	/**
 	 * User-message groups admitted by steering arrivals, in admission order,
-	 * each tagged with its arrival's sequence number, not yet consumed by a
-	 * permission gate. A single latest-slot would let a second concurrent
-	 * admission (both landing while one dialog is open, before the gate's
-	 * abort wake runs) shadow the first group: the gate would promote only
-	 * the second and reorder the two steers. The sequence tags let the gate
-	 * drain exactly the arrivals fired after it parked (its park snapshot
-	 * from `#steeringArrivalSeq`), first post-dialog admission first, while
-	 * a steer that fired before the dialog opened keeps its natural queue
-	 * position instead of riding the promotion.
+	 * each tagged with its arrival's sequence number. A single latest-slot
+	 * would let a second concurrent admission (both landing while a dialog is
+	 * open, before its abort wake runs) shadow the first group: the watch
+	 * would promote only the second and reorder the two steers. The sequence
+	 * tags let each watch read exactly the arrivals fired after it parked
+	 * (its snapshot from `#steeringArrivalSeq`), first post-park admission
+	 * first, while a steer that fired before the dialog opened keeps its
+	 * natural queue position instead of riding the promotion.
 	 */
 	#steeringArrivalPendingGroups: { seq: number; group: readonly AgentMessage[] }[] = [];
 	/** Monotonic count of steering arrivals fired so far; see the field above. */
 	#steeringArrivalFireCount = 0;
 	/**
-	 * Park snapshots taken by live permission gates (via `#steeringArrivalSeq`)
-	 * that have not read yet. Only a gate whose snapshot precedes an arrival
-	 * can promote it, so an entry is inert once every live snapshot is at or
-	 * above it — `#fireSteeringArrival` prunes those instead of retaining one
-	 * group per steer for sessions that steer often but rarely supersede a
-	 * dialog. Released by the gate's read (`#steeringArrivalAdmitted`) or its
-	 * dialog-end release hook.
+	 * Park snapshots of live approval watches, counted per sequence number
+	 * (dialogs of one tool batch park at the same count). Only a watch whose
+	 * snapshot precedes an arrival can promote it, so an entry is inert once
+	 * every live snapshot is at or above it; `#fireSteeringArrival` prunes
+	 * those instead of retaining one group per steer for sessions that steer
+	 * often but rarely open a dialog. Released when the watch is disposed.
 	 */
-	#steeringArrivalParkSnapshots = new Set<number>();
+	#steeringArrivalParkSnapshots = new Map<number, number>();
 
 	/** Current {@link #steeringArrivalController} signal; see that field. */
 	#steeringArrivalSignal(): AbortSignal {
 		return this.#steeringArrivalController.signal;
 	}
 
-	/** Snapshot of {@link #steeringArrivalFireCount} for a parking listener's window. */
+	/** Snapshot of {@link #steeringArrivalFireCount} for a parking watch's window. */
 	#steeringArrivalSeq(): number {
 		const seq = this.#steeringArrivalFireCount;
-		this.#steeringArrivalParkSnapshots.add(seq);
+		this.#steeringArrivalParkSnapshots.set(seq, (this.#steeringArrivalParkSnapshots.get(seq) ?? 0) + 1);
 		return seq;
 	}
 
-	/** Release a gate's park snapshot: its dialog ended without a read. */
+	/** Release one watch's park snapshot: its dialog settled. */
 	#steeringArrivalRelease(seq: number): void {
-		this.#steeringArrivalParkSnapshots.delete(seq);
+		const count = this.#steeringArrivalParkSnapshots.get(seq) ?? 0;
+		if (count <= 1) this.#steeringArrivalParkSnapshots.delete(seq);
+		else this.#steeringArrivalParkSnapshots.set(seq, count - 1);
 	}
 
 	/**
-	 * Drain the steering-arrival groups fired after `since` (a park
-	 * snapshot; `undefined` drains everything pending), flattened in
-	 * admission order — first post-park arrival first — or `undefined` when
-	 * none are in the window. Everything at or before `since` is dropped:
-	 * consumed by this read, or stale (fired before any parked listener's
-	 * window — a future gate snapshots a count at least this high). The ACP
-	 * permission gate promotes exactly these messages; entries whose
-	 * messages the queue no longer holds are filtered out by the gate's
-	 * intersection, so drained-but-stale groups are inert.
+	 * The steering-arrival groups fired after `since` (a park snapshot),
+	 * flattened in admission order, first post-park arrival first. The read
+	 * consumes nothing: every watch parked at or before an arrival sees it.
+	 * Entries whose messages the queue no longer holds are filtered out by
+	 * the watch's intersection with the queue.
 	 */
-	#steeringArrivalAdmitted(since?: number): readonly AgentMessage[] | undefined {
-		const boundary = since ?? 0;
-		if (since !== undefined) {
-			this.#steeringArrivalParkSnapshots.delete(since);
-		}
-		const pending = this.#steeringArrivalPendingGroups;
-		this.#steeringArrivalPendingGroups = [];
-		// Entries at or below the boundary are consumed-or-stale for every
-		// future reader (a later gate snapshots a count at least this
-		// high); entries above it are this window's, in admission order.
-		const inWindow = pending.filter(entry => entry.seq > boundary).map(entry => entry.group);
-		return inWindow.length > 0 ? inWindow.flat() : undefined;
+	#steeringArrivalsSince(since: number): readonly AgentMessage[] {
+		return this.#steeringArrivalPendingGroups.filter(entry => entry.seq > since).flatMap(entry => entry.group);
 	}
 
 	/** Record an admitted steering group and arm the next arrival signal. */
@@ -9705,7 +9693,7 @@ export class AgentSession implements SettingsScope {
 			this.#steeringArrivalPendingGroups.length = 0;
 		} else {
 			let oldest = Infinity;
-			for (const snapshot of this.#steeringArrivalParkSnapshots) {
+			for (const snapshot of this.#steeringArrivalParkSnapshots.keys()) {
 				if (snapshot < oldest) oldest = snapshot;
 			}
 			this.#steeringArrivalPendingGroups = this.#steeringArrivalPendingGroups.filter(entry => entry.seq > oldest);

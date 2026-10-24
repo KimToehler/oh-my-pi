@@ -61,15 +61,24 @@ interface PermissionRequest {
 function acpClient(...answers: ClientAnswer[]) {
 	const requests: PermissionRequest[] = [];
 	const asked = Promise.withResolvers<void>();
+	const waiters: { count: number; resolve: () => void }[] = [];
 	const request: AcpPermissionRequester = async (toolCall, options, _signal, steeringSignal) => {
 		requests.push({ toolCall, options, steeringSignal });
 		asked.resolve();
+		for (const waiter of waiters) if (requests.length >= waiter.count) waiter.resolve();
 		const answer = answers.shift() ?? pick("reject_once");
 		if (answer === "hang") return Promise.withResolvers<never>().promise;
 		if (answer instanceof Error) throw answer;
 		return answer;
 	};
-	return { requests, request, asked: asked.promise };
+	/** Resolves once `count` requests are open or answered. */
+	const askedTimes = (count: number): Promise<void> => {
+		const waiter = Promise.withResolvers<void>();
+		if (requests.length >= count) waiter.resolve();
+		else waiters.push({ count, resolve: waiter.resolve });
+		return waiter.promise;
+	};
+	return { requests, request, asked: asked.promise, askedTimes };
 }
 
 const optionIds = (request: PermissionRequest | undefined) => request?.options.map(option => option.optionId);
@@ -805,6 +814,33 @@ describe("acp steering", () => {
 		expect(userTextIndex(session, "first steering question")).toBeLessThan(
 			userTextIndex(session, "second steering question"),
 		);
+	});
+
+	it("acp steering: one user steer supersedes every permission request open in a parallel tool batch", async () => {
+		const client = acpClient("hang", "hang");
+		const deleteTool = countingTool("delete");
+		const session = await createSessionWithMockModel(
+			[deleteTool],
+			[
+				{ content: [...deleteCall("call-delete-a").content, ...deleteCall("call-delete-b").content] },
+				{ content: ["done after steer"] },
+			],
+			{ client },
+		);
+		const promptDone = session.prompt("delete two things");
+		await withTimeout(client.askedTimes(2), 5_000, "Both permission requests never opened");
+
+		expect(await session.joinActiveTurn("stop, neither deletion")).toBe(true);
+		await withTimeout(promptDone, 5_000, "A permission request stayed open after the steer");
+
+		expect(deleteTool.runs).toBe(0);
+		expect(client.requests.map(request => request.steeringSignal?.aborted)).toEqual([true, true]);
+		const results = session.agent.state.messages.filter(message => message.role === "toolResult");
+		expect(results).toHaveLength(2);
+		for (const result of results) {
+			expect(JSON.stringify(result)).toContain("Permission request superseded by user steering");
+		}
+		expect(userTextIndex(session, "stop, neither deletion")).toBeGreaterThanOrEqual(0);
 	});
 
 	it("parks a steer that lands mid-dispatch until the owning prompt goes live, then injects it", async () => {
