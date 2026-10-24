@@ -81,7 +81,7 @@ A VOID trial is no reviewer outcome: it stores no trailer, runs no `--trailer` c
 - [The reviewer is no longer addressable (parked revival fails, session gone)] → fresh dispatch as before.
 - [`GC wave` refuses a legitimate wave] → nothing is appended; the finding names the field; repair or re-dispatch, then run the same command again.
 - [The record check and the `GC` check drift apart] → one module, D1; the record check's existing suite runs unchanged against it.
-- [Prompt cache expired before the repair turn] → one more input pass, still without the tool calls and output of a review.
+- [Prompt cache expired before the repair turn] → one more input pass, still without the review tool calls and output of a review (the repair turn's one tool call is the IRC reply).
 
 ## Migration Plan
 
