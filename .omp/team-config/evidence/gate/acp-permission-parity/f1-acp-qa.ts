@@ -13,6 +13,9 @@
  *   c  a client without form elicitation gets the `bash` request and the call completes
  *   d  a `task` child reads the client's unsaved buffer through `fs/read_text_file`
  *   e  an `edit` delete offers only allow_once/reject_once; reject_once keeps the file
+ *   f  a `_session/steering` message sent while the `bash` request is open supersedes it: the agent
+ *      withdraws the request (`$/cancel_request`), the call fails as superseded without running, and
+ *      the model's next request carries the steer
  */
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
@@ -23,10 +26,11 @@ import { $ } from "bun";
 const HERE = import.meta.dir;
 const FRAMES_DEFAULT = path.join(HERE, "f1-frames.jsonl");
 const QA_MD = path.join(HERE, "f1-qa.md");
-const SCENARIOS = ["a", "b", "c", "d", "e"] as const;
+const SCENARIOS = ["a", "b", "c", "d", "e", "f"] as const;
 type Scenario = (typeof SCENARIOS)[number];
 const SCENARIO_TIMEOUT_MS = 120_000;
 const SENTINEL = "UNSAVED-SENTINEL";
+const STEER_TEXT = "QA-f-steer: explain the command first";
 
 type Json = Record<string, unknown>;
 interface Frame {
@@ -62,6 +66,7 @@ const SCRIPTS: Record<string, Step[]> = {
 	d: [{ name: "task", args: { agent: "task", task: "[QA-d-child] read buffer.txt", solutionSpace: "One read call." } }],
 	"d-child": [{ name: "read", args: { path: "buffer.txt" } }],
 	e: [{ name: "edit", args: { input: "*** Begin Patch\n[doomed.txt#0000]\nREM\n*** End Patch" } }],
+	f: [{ name: "bash", args: { command: "echo f > steered.txt" } }],
 };
 
 function messageText(message: Json): string {
@@ -77,7 +82,7 @@ function scriptKey(messages: Json[]): string | undefined {
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index];
 		if (message.role !== "user") continue;
-		const match = /\[QA-([a-e](?:-child)?)\]/.exec(messageText(message));
+		const match = /\[QA-([a-f](?:-child)?)\]/.exec(messageText(message));
 		if (match) return match[1];
 	}
 	return undefined;
@@ -136,7 +141,8 @@ function startFixtureModel(): ReturnType<typeof Bun.serve> {
 			if (key.endsWith("-child") && offersYield && index === steps.length) {
 				return toolReply(body.model, `call_${key}_yield`, "yield", { data: report });
 			}
-			return textReply(body.model, key.endsWith("-child") ? report : `done ${key}`);
+			const sawSteer = messages.some(message => message.role === "user" && messageText(message).includes(STEER_TEXT));
+			return textReply(body.model, key.endsWith("-child") ? report : `done ${key}${sawSteer ? " saw-steer" : ""}`);
 		},
 	});
 }
@@ -240,6 +246,17 @@ async function run(): Promise<void> {
 		switch (msg.method) {
 			case "session/request_permission": {
 				const toolCall = isRecord(params.toolCall) ? params.toolCall : {};
+				// Scenario f: leave the request open and steer the running turn instead.
+				if (toolCall.toolCallId === "call_f_0") {
+					void request("_session/steering", {
+						sessionId: params.sessionId,
+						prompt: [{ type: "text", text: STEER_TEXT }],
+					}).then(
+						result => record({ dir: "qa", msg: { method: "qa/steer_result", params: result } }),
+						error => record({ dir: "qa", msg: { method: "qa/steer_result", params: { error: String(error) } } }),
+					);
+					return;
+				}
 				const optionId = ANSWERS[String(toolCall.toolCallId)] ?? "allow_once";
 				reply({ outcome: { outcome: "selected", optionId } });
 				return;
@@ -330,6 +347,10 @@ async function run(): Promise<void> {
 			if (scenario === "e") {
 				const exists = await Bun.file(path.join(workspace, "doomed.txt")).exists();
 				record({ dir: "qa", msg: { method: "qa/file_exists", params: { path: "doomed.txt", exists } } });
+			}
+			if (scenario === "f") {
+				const exists = await Bun.file(path.join(workspace, "steered.txt")).exists();
+				record({ dir: "qa", msg: { method: "qa/file_exists", params: { path: "steered.txt", exists } } });
 			}
 		}
 	} finally {
@@ -493,8 +514,48 @@ async function check(framesPath: string): Promise<void> {
 			}
 			if (answeredOption(permission) !== "reject_once") return "edit request not answered reject_once";
 			if (!updatesFor(sid, "call_e_0").some(entry => statusOf(entry) === "failed")) return "edit call did not fail";
-			const [exists] = qa("qa/file_exists");
+			const exists = qa("qa/file_exists").find(entry => params(entry).path === "doomed.txt");
 			if (!exists || params(exists).exists !== true) return "doomed.txt was deleted";
+			return undefined;
+		},
+		f() {
+			const sid = sessionOf.get("f");
+			if (!sid) return "no session";
+			const [permission] = permissionFor(sid, "call_f_0");
+			if (!permission) return "no bash permission request";
+			if (answerTo(permission)) return "the client answered the request it meant to leave open";
+			const steer = frames.find(
+				entry =>
+					entry.frame.dir === "client->agent" &&
+					entry.frame.msg.method === "_session/steering" &&
+					entry.index > permission.index,
+			);
+			if (!steer) return "no _session/steering sent while the request was open";
+			const [steerResult] = qa("qa/steer_result");
+			if (!steerResult || params(steerResult).outcome !== "injected") {
+				return `steer not injected: ${JSON.stringify(steerResult ? params(steerResult) : null)}`;
+			}
+			const withdrawn = frames.find(
+				entry =>
+					entry.frame.dir === "agent->client" &&
+					entry.frame.msg.method === "$/cancel_request" &&
+					params(entry).requestId === permission.frame.msg.id &&
+					entry.index > steer.index,
+			);
+			if (!withdrawn) return "the agent did not withdraw the open permission request";
+			const failed = updatesFor(sid, "call_f_0").filter(entry => statusOf(entry) === "failed");
+			if (failed.length === 0) return "bash call did not fail";
+			if (!JSON.stringify(params(failed.at(-1)!).update).includes("superseded by user steering")) {
+				return "bash call failure does not report the supersede";
+			}
+			const file = qa("qa/file_exists").find(entry => params(entry).path === "steered.txt");
+			if (!file || params(file).exists !== false) return "steered.txt was written: bash ran";
+			const sawSteer = frames.some(entry => {
+				if (entry.frame.dir !== "agent->client" || entry.frame.msg.method !== "session/update") return false;
+				const p = params(entry);
+				return p.sessionId === sid && JSON.stringify(p.update).includes("done f saw-steer");
+			});
+			if (!sawSteer) return "the model's reply after the supersede did not see the steer";
 			return undefined;
 		},
 	};
