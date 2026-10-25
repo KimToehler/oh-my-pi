@@ -22,9 +22,11 @@
 - ACP plan approval no longer asks the judge model to recommend an implementation model; the dialog opens immediately with the `default` role preselected, like the terminal approval slider
 - Deleting or moving files through `edit` now asks for approval every time outside `yolo` mode, in the TUI and in ACP
 - ACP permission requests now offer the same choices as the TUI prompt (approve for this session, always-ask-cached grants, reject for this session) and reach clients without form elicitation
+- Under ACP, extension commands calling `newSession`, `switchSession` or `branch` now get `{ cancelled: true }` and the session stays unchanged, instead of switching to a transcript the client never learns about; `navigateTree` and `reload` still work
 
 ### Fixed
 
+- Fixed `/session delete` recreating the deleted session file on the next save, and under ACP the deleted session now closes after the confirmation, so later prompts for it are rejected
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
 - Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1
