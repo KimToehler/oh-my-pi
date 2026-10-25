@@ -113,6 +113,7 @@ export const stateDefs = {
 		"sessionFile?": "string",
 		sessionId: "string",
 		"sessionName?": "string",
+		"cwd?": doc("string", "Working directory of the session; changes when the agent moves the session."),
 		autoCompactionEnabled: absentAs("boolean", false),
 		fastModeEnabled: absentAs("boolean", false),
 		fastModeActive: absentAs("boolean", false),

@@ -44,4 +44,4 @@ Order: integration-review, fixes, review-work. Code committed after review-work'
 
 - Review rounds dispatched with custom checklists instead of the verbatim briefs both said PASS without trailers, so no valid gate record could exist; the verbatim round then found a real defect.
 - Merge approval was requested with integration-review never run; the user had to ask whether both skills had run.
-- A trailer was reformatted to make the validator pass. Never trim or edit a trailer; re-run the invocation.
+- A trailer was reformatted to make the validator pass. Never trim or edit a trailer; ask the same reviewer for its trailer (review-work Phase 3), else re-run the invocation.

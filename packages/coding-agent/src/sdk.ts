@@ -794,6 +794,11 @@ export interface CreateAgentSessionOptions {
 	lspReadOnly?: boolean;
 	/** Whether this invocation may expose IRC. `false` removes it even for subagents. */
 	enableIrc?: boolean;
+	/**
+	 * The host installs a session relocator via `AgentSession.setSessionRelocator` before the first prompt,
+	 * so the `session_move` tool may be offered. Ignored for subagents. Default: false.
+	 */
+	sessionRelocation?: boolean;
 	/** Skip subprocess-kernel availability checks and prelude warmup */
 	skipPythonPreflight?: boolean;
 	/** Tool names explicitly requested (enables disabled-by-default tools) */
@@ -2384,6 +2389,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			enableLsp,
 			lspReadOnly,
 			enableIrc: restrictToolNames ? false : options.enableIrc,
+			sessionRelocation: taskDepth === 0 && !options.parentTaskPrefix && options.sessionRelocation === true,
 			/**
 			 * Frozen at the last system-prompt rebuild: a mid-session `/skillful`
 			 * toggle rides the next turn's notice, never the tool prefix. The
@@ -2519,6 +2525,8 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			peekPlanProposalHandler: () => session.peekPlanProposalHandler(),
 			setPlanProposalHandler: (handler, reserveOwnership) =>
 				session.setPlanProposalHandler(handler, reserveOwnership),
+			reserveSessionMove: () => session.reserveSessionMove(),
+			hasPendingSessionMove: () => session.hasPendingSessionMove(),
 			submitPlanProposal: (title, call) => session.submitPlanProposal(title, call),
 			allocateOutputArtifact: async toolType => {
 				try {
@@ -4714,6 +4722,9 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// The primary may carry a dormant xd:// write transport. Advisors use
 			// their own configured tool slate, so a selected write is always full.
 			deviceOnlyWrite: undefined,
+			reserveSessionMove: undefined,
+			hasPendingSessionMove: undefined,
+			sessionRelocation: false,
 			pendingFullWriteDescription: undefined,
 			get cwd() {
 				return sessionManager.getCwd();
@@ -4799,6 +4810,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// Children borrow their parent's manager but never dispose it.
 			ownedAsyncJobManager: asyncJobManager,
 			asyncJobManager: scopedAsyncJobManager,
+			agentRegistry,
 			scopedModels: options.scopedModels,
 			inheritedSessionAgents: options.inheritedSessionAgents,
 			promptTemplates,

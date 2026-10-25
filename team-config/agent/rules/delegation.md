@@ -30,7 +30,8 @@ delivered `task-result`). A staged-but-uncommitted tree looks the same as finish
 tasks, not one per angle. Put the `file:line` inventory and only the relevant plan excerpt in the
 brief; ask for blockers with `file:line`, at most 5 notes, and one verdict line. A re-review
 after fixes is a new task with the delta and the open blockers, never a follow-up message to the
-old reviewer (`write agent://...`). A procedure that prescribes its own brief overrides this
+old reviewer (`write agent://...`). The review-work TRAILER REPAIR. message is not a re-review: it
+goes to the same reviewer by design. A procedure that prescribes its own brief overrides this
 paragraph: review-work and integration-review dispatch their verbatim briefs, and the OpenSpec
 `omp-gated` review artifact dispatches its fixed brief for every round, with the two paths filled
 in and nothing added.

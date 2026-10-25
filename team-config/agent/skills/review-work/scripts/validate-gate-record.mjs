@@ -5,8 +5,9 @@ import { readFileSync, realpathSync, statSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
-import { RECORD_SCHEMA } from "./gate-layout.mjs"
+import { MAX_ARTIFACT_BYTES, RECORD_SCHEMA } from "./gate-layout.mjs"
 import { abortRuleDefects, CRITERIA_HEADER_PATTERN, criteriaShapeDefect, mergeGateSection, planContent, readRiskTier, scanMarkdown, topLevelField } from "./plan-contract.mjs"
+import { checkTrailer, REQUIRED_SECTIONS, TrailerError, UNRESOLVED_MODEL } from "./trailer.mjs"
 import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
 
 class GateError extends Error {}
@@ -14,10 +15,6 @@ class GateError extends Error {}
 function block(field, detail) {
   throw new GateError(`${field}: ${detail}`)
 }
-
-// A tracked file is authored by whoever can commit, so this is a robustness bound rather than a
-// trust boundary - but every artifact is read whole into memory before anything is known about it.
-const MAX_ARTIFACT_BYTES = 1024 * 1024
 
 // The bound belongs to the READ, not to any admission path. It used to sit in
 // `verifyAndPinArtifact`, so splitting the record's undigested admission out of that function
@@ -162,17 +159,6 @@ function invocationSet(entries, field) {
   }
   return result
 }
-
-// Section sets differ per invocation: the audit brief prescribes five sections, the strategic
-// brief poses four questions. Both are the reviewer's own account of what it was asked.
-const REQUIRED_SECTIONS = {
-  "implementation-audit": [1, 2, 3, 4, 5],
-  "strategic-risk-review": [1, 2, 3, 4],
-}
-const CRITERION_FIELDS = ["invariant", "positive_witness", "negative_control", "observable", "boundary"]
-const TRAILER_OPEN = "REVIEW-TRAILER-v1"
-const TRAILER_CLOSE = "END-REVIEW-TRAILER"
-const UNRESOLVED_MODEL = "unresolved"
 
 // Error correlation follows the weights, not the route. `anthropic/claude-opus-5`,
 // `openrouter/anthropic/claude-opus-5`, `github-copilot/claude-opus-5` and `onara/cc/claude-opus-5`
@@ -430,172 +416,21 @@ function commitsTouchOnlyEvidence(repo, reviewedSha, head, context) {
   return changed.every((file) => evidencePaths.has(file))
 }
 
-function parseCriteriaBlock(lines, field) {
-  const criteria = []
-  for (const line of lines) {
-    const entry = line.match(/^-\s+([a-z_]+)\s*:\s*(.*)$/)
-    if (entry) {
-      criteria.push({ [entry[1]]: entry[2].trim() })
-      continue
-    }
-    const continuation = line.match(/^\s+([a-z_]+)\s*:\s*(.*)$/)
-    if (!continuation) continue
-    if (criteria.length === 0) block(field, `field ${continuation[1]} appears before any criterion`)
-    // Same rule as the scalar parser, for the same reason: last-wins would let one appended
-    // indented line rewrite a criterion while the reviewer's real answer sits verbatim above it.
-    // A second criterion is legal; a repeated field inside one is ambiguous.
-    if (Object.hasOwn(criteria[criteria.length - 1], continuation[1])) {
-      block(`${field}.${criteria.length - 1}.${continuation[1]}`, "appears more than once in the criterion; an appended field would override what the reviewer wrote")
-    }
-    criteria[criteria.length - 1][continuation[1]] = continuation[2].trim()
+// The record check adds the one trailer rule that needs the record: the reviewer's model must be
+// the model the record resolved for that invocation. Everything else is the shared check, so the
+// standalone trailer check and `GC wave` apply the same rules with the same field names.
+function validateTrailer(text, { field, invocation, recordVerdict, resolvedModel, planText }) {
+  let outcome
+  try {
+    outcome = checkTrailer(text, { field, invocation, verdict: recordVerdict, planText })
+  } catch (error) {
+    if (error instanceof TrailerError) block(error.field, error.detail)
+    throw error
   }
-  return criteria
-}
-
-// Two distinct failures meet here, and fixing one must not reopen the other.
-// A reviewer auditing this contract cites the marker lines as file:line evidence, so a bare mention
-// inside prose cannot invalidate the reply: rejecting it would make a correct FAIL unstorable and
-// bias the gate toward reviews that found nothing. Line anchoring alone solves that.
-// Cardinality is the other half. If a second block were tolerated, an orchestrator holding an
-// honest FAIL could append a PASS block and have the validator read it, while the reviewer's real
-// verdict sits verbatim in the same committed file. So exactly one block, matched on whole lines.
-function markerLineIndexes(lines, marker) {
-  return lines.flatMap((line, index) => (line.trim() === marker ? [index] : []))
-}
-
-function parseTrailer(text, field) {
-  const lines = text.split("\n")
-  const openIndexes = markerLineIndexes(lines, TRAILER_OPEN)
-  const closeIndexes = markerLineIndexes(lines, TRAILER_CLOSE)
-  if (openIndexes.length === 0 || closeIndexes.length === 0) {
-    block(field, `trailer is missing: no ${TRAILER_OPEN} / ${TRAILER_CLOSE} block on its own line, so what the reviewer was asked cannot be established`)
+  if (outcome.scalars.model_id !== resolvedModel) {
+    block(`${field}.model_id`, `trailer reports ${outcome.scalars.model_id} but resolution records model ${resolvedModel}`)
   }
-  if (openIndexes.length > 1 || closeIndexes.length > 1) {
-    block(field, "carries more than one trailer block; an appended block would override what the reviewer actually answered")
-  }
-  if (closeIndexes[0] < openIndexes[0]) block(field, "trailer close marker precedes its open marker")
-  // The reply around the block is the reviewer's narrative: its `Blocker B<n>:` lines are the
-  // findings the trailer's `blockers:` list must account for.
-  const narrative = lines.slice(0, openIndexes[0]).concat(lines.slice(closeIndexes[0] + 1))
-  return { ...parseTrailerBody(lines.slice(openIndexes[0] + 1, closeIndexes[0]), field), narrative }
-}
-
-function parseTrailerBody(lines, field) {
-  const criteriaIndex = lines.findIndex((line) => /^adversarial_criteria\s*:/.test(line))
-  const scalarLines = criteriaIndex === -1 ? lines : lines.slice(0, criteriaIndex)
-  const scalars = {}
-  for (const line of scalarLines) {
-    const match = line.match(/^([a-z_]+)\s*:\s*(.*)$/)
-    if (!match) continue
-    // Last-wins assignment would let one appended line override an honest narrow answer, which is
-    // cheaper than rewriting the reviewer's reply. A repeated key is ambiguous, so it blocks.
-    if (Object.hasOwn(scalars, match[1])) block(`${field}.${match[1]}`, "appears more than once in the trailer; a repeated field is ambiguous")
-    scalars[match[1]] = match[2].trim()
-  }
-  if (criteriaIndex === -1) block(`${field}.adversarial_criteria`, "trailer must carry an adversarial_criteria block")
-  return { scalars, criteria: parseCriteriaBlock(lines.slice(criteriaIndex + 1), `${field}.adversarial_criteria`) }
-}
-
-function validateTrailer(trailer, options) {
-  const { field, invocation, recordVerdict, resolvedModel, planText } = options
-  const { scalars, criteria, narrative } = trailer
-
-  // Without this binding a single dispatched reviewer satisfies every recorded invocation: the
-  // section sets nest (1,2,3,4 is a subset of 1,2,3,4,5) and the model check only discriminates
-  // when the two lanes resolved to different models, so nothing else catches a reused reply.
-  if (typeof scalars.invocation !== "string" || scalars.invocation.trim() === "") {
-    block(`${field}.invocation`, "trailer must name the invocation the reviewer was dispatched for")
-  }
-  if (scalars.invocation !== invocation) {
-    block(`${field}.invocation`, `trailer was written for ${scalars.invocation} but the record cites it for ${invocation}`)
-  }
-
-  const sections = scalars.sections_covered
-  if (typeof sections !== "string" || sections.trim() === "") {
-    block(`${field}.sections_covered`, "trailer must state which brief sections the reviewer received")
-  }
-  const covered = new Set(sections.split(",").map((part) => Number.parseInt(part.trim(), 10)).filter((n) => Number.isInteger(n)))
-  const missing = REQUIRED_SECTIONS[invocation].filter((section) => !covered.has(section))
-  if (missing.length > 0) {
-    block(`${field}.sections_covered`, `brief omitted section ${missing.join(", ")} of ${REQUIRED_SECTIONS[invocation].join(",")}; an incomplete brief cannot substantiate a verdict`)
-  }
-
-  if (typeof scalars.model_id !== "string" || scalars.model_id.trim() === "") {
-    block(`${field}.model_id`, `trailer must echo the reviewer's exact model ID, or ${UNRESOLVED_MODEL}`)
-  }
-  if (scalars.model_id !== resolvedModel) {
-    block(`${field}.model_id`, `trailer reports ${scalars.model_id} but resolution records model ${resolvedModel}`)
-  }
-
-  if (scalars.security_delta !== "yes" && scalars.security_delta !== "no") {
-    block(`${field}.security_delta`, "trailer must answer yes or no from the reviewer's own security and privacy section")
-  }
-
-  if (!new Set(["PASS", "FAIL", "INCONCLUSIVE"]).has(scalars.verdict)) {
-    block(`${field}.verdict`, `${scalars.verdict ?? "missing"} is not a verdict token; a brief soliciting APPROVE or REJECT breaks the verdict mapping`)
-  }
-  if (scalars.verdict !== recordVerdict) {
-    block(`${field}.verdict`, `trailer reports ${scalars.verdict} but the record claims ${recordVerdict}`)
-  }
-
-  // An override may leave a FAIL's blockers unfixed only by downgrading each one, so the blocker
-  // list has to be complete: it must equal the reply's own `Blocker B<n>:` lines. Either list alone
-  // lets one finding drop out - an id the trailer omits, or a narrative blocker nobody numbered.
-  const blockerIds = reconcileBlockers(scalars, narrative, field)
-
-  if (criteria.length === 0) {
-    block(`${field}.adversarial_criteria`, "reviewer must generate at least one adversarial criterion of its own")
-  }
-  for (const [index, criterion] of criteria.entries()) {
-    for (const required of CRITERION_FIELDS) {
-      if (typeof criterion[required] !== "string" || criterion[required].trim() === "") {
-        block(`${field}.adversarial_criteria.${index}.${required}`, "every adversarial criterion carries all five fields")
-      }
-    }
-  }
-  // A criterion lifted verbatim from the plan re-tests the author's own assumption, which is the
-  // failure mode the self-generated criteria exist to escape.
-  // The rule holds against criterion COUNT, not only field content: with `some`, appending one
-  // well-formed block satisfied a rule the reviewer's real criteria violated, laundering a wholly
-  // copied criterion for five lines. That is cheaper than the declared forgery boundary, and it is
-  // the fourth appearance of append-overrides-reviewer. No criterion may be copied.
-  if (!criteria.every((criterion) => !planText.includes(criterion.invariant))) {
-    block(`${field}.adversarial_criteria`, "a criterion restates an invariant already in the plan; every criterion must be the reviewer's own")
-  }
-
-  return { securityDelta: scalars.security_delta === "yes", blockerIds }
-}
-
-const BLOCKER_LIST = /^B[1-9]\d*(?:\s*,\s*B[1-9]\d*)*$/
-const NARRATIVE_BLOCKER = /^\s*(?:[-*]\s+)?(?:\*\*)?Blocker (B[1-9]\d*)(?:\*\*)?\s*:/
-
-function reconcileBlockers(scalars, narrative, field) {
-  if (scalars.verdict !== "FAIL") {
-    if (scalars.blockers !== undefined && scalars.blockers !== "none") {
-      block(`${field}.blockers`, "only a FAIL trailer lists blockers; a PASS or INCONCLUSIVE trailer carries none or omits the line")
-    }
-    return []
-  }
-  if (typeof scalars.blockers !== "string" || !BLOCKER_LIST.test(scalars.blockers)) {
-    block(`${field}.blockers`, "a FAIL trailer lists its blocker ids as B1, B2, ...; without them no downgrade can be reconciled")
-  }
-  const ids = scalars.blockers.split(",").map((id) => id.trim())
-  if (new Set(ids).size !== ids.length) block(`${field}.blockers`, "repeats a blocker id")
-  // Two findings under one id would let a single downgrade account for both, so each narrative id
-  // must name exactly one finding.
-  const narrativeIds = narrative.flatMap((line) => NARRATIVE_BLOCKER.exec(line)?.[1] ?? [])
-  const reported = new Set()
-  for (const id of narrativeIds) {
-    if (reported.has(id)) block(`${field}.blockers`, `narrative repeats Blocker ${id}; each finding needs its own id`)
-    reported.add(id)
-  }
-  for (const id of reported) {
-    if (!ids.includes(id)) block(`${field}.blockers`, `narrative reports ${id} but the trailer omits it`)
-  }
-  for (const id of ids) {
-    if (!reported.has(id)) block(`${field}.blockers`, `no narrative Blocker ${id}: line in the reply`)
-  }
-  return ids
+  return outcome
 }
 
 // The opt-out is one top-level bullet. A glued suffix (`not applicableXYZ`) is not a declaration.
@@ -860,7 +695,7 @@ function validateRecord(record, context) {
     // The path exemption alone would cover everything else in this file, so the artifact is bound
     // by content. Any byte moving after the review stops matching the record.
     const { text: trailerText } = verifyAndPinArtifact(context, artifactPath, field, `verdicts.${index}.trailer_sha256`, verdict.trailer_sha256)
-    const outcome = validateTrailer(parseTrailer(trailerText, field), {
+    const outcome = validateTrailer(trailerText, {
       field,
       invocation: verdict.invocation,
       recordVerdict: verdict.verdict,
@@ -938,20 +773,51 @@ function validateDowngrades(record, verdicts, hasOverride, blockersByInvocation)
   }
 }
 
+// The standalone trailer check: every trailer rule of the record check except the model binding,
+// which needs the record's resolution. The file is read from the working tree, untracked and
+// undigested, because trailers are staged only with the record. The plan is loaded as in the other
+// modes, so the restated-criterion rule sees the bytes the record check will see.
+function checkTrailerFile(file, { invocation, verdict }, planText) {
+  if (!Object.hasOwn(REQUIRED_SECTIONS, invocation ?? "")) {
+    block("invocation", "--trailer needs --invocation implementation-audit or strategic-risk-review")
+  }
+  if (!["PASS", "FAIL", "INCONCLUSIVE"].includes(verdict)) block("verdict", "--trailer needs --verdict PASS, FAIL or INCONCLUSIVE")
+  const text = readText(file, "trailer")
+  try {
+    checkTrailer(text, { field: "trailer", invocation, verdict, planText })
+  } catch (error) {
+    if (error instanceof TrailerError) block(error.field, error.detail)
+    throw error
+  }
+  return "passed"
+}
+
 function main() {
   const { values } = parseArgs({ options: {
     record: { type: "string" },
     plan: { type: "string" },
     repo: { type: "string" },
     "plan-only": { type: "boolean" },
+    trailer: { type: "string" },
+    invocation: { type: "string" },
+    verdict: { type: "string" },
   }, strict: true })
   if (!values.plan) block("plan", "--plan is required")
+  // --trailer checks one stored reviewer reply as soon as it arrives, before any record exists.
+  // --invocation and --verdict say what the reply is checked against, so they belong to it alone.
+  if (values.trailer === undefined) {
+    if (values.invocation !== undefined) block("invocation", "--invocation belongs to --trailer; add --trailer or drop it")
+    if (values.verdict !== undefined) block("verdict", "--verdict belongs to --trailer; add --trailer or drop it")
+  } else {
+    if (values.record) block("trailer", "--trailer checks one reviewer reply without a record; drop --record")
+    if (values["plan-only"]) block("trailer", "--trailer checks a reviewer reply and --plan-only a plan alone; run them separately")
+  }
   // --plan-only is the write-time check, run by the merge-gate extension on every proposal and by
   // review-work Phase 0.6. It owns the opt-out decision and requires the omp-local abort fields;
   // full mode keeps the prior plan shape (criteria only), so records of plans written before the
   // fields still validate. It never passes a gate, so a record alongside it is a mistaken invocation.
   if (values["plan-only"] && values.record) block("record", "--plan-only checks the plan alone; drop --record")
-  if (!values["plan-only"] && !values.record) block("record", "--record is required")
+  if (!values["plan-only"] && values.trailer === undefined && !values.record) block("record", "--record is required")
   const repo = values.repo ?? execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim()
   // Every path resolves against the REPO, never the cwd. Anchoring the read to the cwd while the
   // tracked check anchored to the repo let the guarantee and the parsed bytes be different files,
@@ -959,6 +825,7 @@ function main() {
   const planPath = path.resolve(repo, values.plan)
   const folder = isFolderPlan(planPath) ? loadFolderPlan(repo, planPath) : null
   const planText = folder ? folder.bundle.toString("utf8") : readText(planPath, "plan")
+  if (values.trailer !== undefined) return checkTrailerFile(path.resolve(repo, values.trailer), values, planText)
   if (values["plan-only"]) {
     if (!folder) validatePlanContract(planText)
     return "passed"

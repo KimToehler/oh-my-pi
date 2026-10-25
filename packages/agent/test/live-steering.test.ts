@@ -302,4 +302,51 @@ describe("agent loop live steering", () => {
 		expect(ended.flatMap(userTexts)).toEqual(["start"]);
 		expect(agent.peekSteeringQueue()).toEqual([]);
 	});
+
+	it("stop after batch: live-taken steering is requeued", async () => {
+		// The steer was accepted live by the response that issued the batch; the stop hook skips the
+		// drain that would record it, so the run's cleanup must hand it back to the steering queue.
+		const schema = type({});
+		let stopRequested = false;
+		const stopTool: AgentTool<typeof schema> = {
+			name: "stop_tool",
+			label: "Stop",
+			description: "Stops after the batch",
+			parameters: schema,
+			async execute() {
+				stopRequested = true;
+				return { content: [{ type: "text", text: "stopping" }], details: {} };
+			},
+		};
+		const mock = createMockModel({
+			responses: [
+				{ content: [{ type: "toolCall", id: "stop-1", name: "stop_tool", arguments: {} }] },
+				{ content: ["must not be requested"] },
+			],
+		});
+		let calls = 0;
+		const agent = new Agent({
+			initialState: { model: mock.model, tools: [stopTool] },
+			streamFn: async (model, context, options) => {
+				if (++calls === 1) {
+					const live = options?.liveSteering;
+					const signal = options?.signal;
+					if (!live || !signal) throw new Error("live steering was not offered");
+					await live.wait(signal);
+					(await live.claim(signal))?.accept();
+				}
+				return mock.stream(model, context, options);
+			},
+		});
+		agent.setShouldStopAfterBatch(() => stopRequested);
+		const steer = createUserMessage("use tabs");
+		const running = agent.prompt("start");
+		agent.steer(steer);
+		await running;
+
+		expect(mock.calls).toHaveLength(1);
+		expect(agent.peekSteeringQueue()).toEqual([steer]);
+		expect(agent.peekLiveSteeredMessages()).toEqual([]);
+		expect(agent.state.messages.filter(m => m.role === "user").map(userText)).toEqual(["start"]);
+	});
 });

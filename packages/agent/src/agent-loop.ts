@@ -1239,15 +1239,20 @@ async function runLoopBody(
 			endAgentStream(stream, newMessages, telemetry, stepCounter.count);
 			return;
 		}
+		// A trailing assistant message with unpaired tool calls is replayed first (below). Its steering
+		// drain waits until the batch has settled, so a host stop leaves queued steering in its queue.
+		const resumeTail = unpairedToolCallTail(currentContext.messages);
 		// Check for steering messages at start (user may have typed while waiting).
 		// Skip when the run is already externally aborted — dequeuing would strand
 		// the messages in a run that is about to die.
-		try {
-			pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
-		} catch (error) {
-			stream.push({ type: "turn_start" });
-			emitInputMessages(stream, messagesToEmit);
-			throw error;
+		if (!resumeTail) {
+			try {
+				pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
+			} catch (error) {
+				stream.push({ type: "turn_start" });
+				emitInputMessages(stream, messagesToEmit);
+				throw error;
+			}
 		}
 		let harmonyRetryAttempt = 0;
 		let harmonyTruncateResumeCount = 0;
@@ -1271,7 +1276,6 @@ async function runLoopBody(
 		// steering stays parked until after the batch — injecting a message
 		// between the tool_use blocks and their results would break the
 		// provider's pairing invariant.
-		const resumeTail = unpairedToolCallTail(currentContext.messages);
 		if (resumeTail) {
 			stream.push({ type: "turn_start" });
 			emitInputMessages(stream, messagesToEmit);
@@ -1297,22 +1301,31 @@ async function runLoopBody(
 				stream,
 				executionResult.additionalContext,
 			);
+			// Every replayed call has settled: the host may end the run here, exactly like the main path.
+			const resumeBatchStopped = config.shouldStopAfterBatch?.() === true;
 			await emitTurnEnd(stream, currentContext, resumeTail, executionResult.toolResults, config, signal, {
-				willContinue: !isDeadlineExceeded(config.deadline),
+				willContinue: !resumeBatchStopped && !isDeadlineExceeded(config.deadline),
 				...(resumeContextMessage ? { additionalMessages: [resumeContextMessage] } : {}),
 			});
 			turnOpen = false;
+			if (resumeBatchStopped) {
+				endAgentStream(stream, newMessages, telemetry, stepCounter.count);
+				return;
+			}
 			// A tool hook may mark its completed result as terminal (e.g. subagent
 			// yield) — same stop-before-next-model-call rule as the main loop.
 			if (signal?.reason === TERMINAL_TOOL_RESULT_ABORT_REASON) {
 				endAgentStream(stream, newMessages, telemetry, stepCounter.count);
 				return;
 			}
+			// Steering parked behind the replayed batch is taken only now: a stop leaves it queued.
+			pendingMessages = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
 		}
 
 		// Outer loop: continues when queued follow-up messages arrive after agent would stop
 		while (true) {
 			let hasMoreToolCalls = true;
+			let batchStopped = false;
 
 			// Inner loop: process tool calls and steering messages
 			while (hasMoreToolCalls || pendingMessages.length > 0) {
@@ -1625,6 +1638,7 @@ async function runLoopBody(
 				const softNonCompliant = softGateActive && !calledOnlyRequiredTool;
 
 				const toolResults: ToolResultMessage[] = [];
+				let hookAsked = false;
 				const additionalMessages: AgentMessage[] = [];
 				if (softNonCompliant && softRequiredTool !== undefined) {
 					SpeculativeOperationCoordinator.discardForMessage(message, "soft tool requirement deferred execution");
@@ -1670,6 +1684,9 @@ async function runLoopBody(
 						[...liveAccepted, ...liveDeferred],
 					);
 					toolResults.push(...executionResult.toolResults);
+					// Every started call has settled and its result is recorded; ask the host once.
+					batchStopped = config.shouldStopAfterBatch?.() === true;
+					hookAsked = true;
 
 					for (const result of toolResults) {
 						currentContext.messages.push(result);
@@ -1708,9 +1725,26 @@ async function runLoopBody(
 					}
 				}
 
+				// Calls the Cursor bridge already executed never reach executeToolCalls, so the hook has not
+				// been asked for this message yet; its tools (session_move) may have recorded a stop.
+				if (
+					!hookAsked &&
+					message.content.some(
+						c => c.type === "toolCall" && (c as CursorExecResolvedCarrier)[kCursorExecResolved] === true,
+					)
+				) {
+					batchStopped = config.shouldStopAfterBatch?.() === true;
+				}
+
 				// A tool hook may mark its completed result as terminal (e.g. subagent yield).
 				// Stop before the next provider call without changing external/user abort semantics.
 				if (signal?.reason === TERMINAL_TOOL_RESULT_ABORT_REASON) {
+					hasMoreToolCalls = false;
+				}
+
+				// A tool batch may end the run without aborting it (e.g. session_move): siblings already
+				// settled; skip the next provider call and every queue drain so input waits for the next run.
+				if (batchStopped) {
 					hasMoreToolCalls = false;
 				}
 
@@ -1769,8 +1803,11 @@ async function runLoopBody(
 				// still owns every message until this dequeue.
 				// Aborted: live-taken steering stays unrecorded, so the agent returns
 				// it to the queue for the continuation run.
-				const live = signal?.aborted ? [] : [...liveAccepted, ...liveDeferred];
-				const liveReachedModel = !signal?.aborted && liveAccepted.length > 0;
+				// A batch stop behaves like an abort for the queues only: nothing is drained or recorded,
+				// so queued input (and live-taken, unrecorded steering) waits for the run after the stop.
+				const drainBlocked = signal?.aborted === true || batchStopped;
+				const live = drainBlocked ? [] : [...liveAccepted, ...liveDeferred];
+				const liveReachedModel = !drainBlocked && liveAccepted.length > 0;
 				if (liveReachedModel) {
 					for (const message of liveAccepted) {
 						if (message.role === "user") message.liveSteered = true;
@@ -1784,12 +1821,10 @@ async function runLoopBody(
 					// for the next boundary (or is steered into that response).
 					pendingMessages = live;
 				} else {
-					const steering = signal?.aborted
-						? []
-						: [...live, ...((await config.getSteeringMessages?.(signal)) || [])];
+					const steering = drainBlocked ? [] : [...live, ...((await config.getSteeringMessages?.(signal)) || [])];
 					if (hasMoreToolCalls) {
 						// Mid-work: fold any non-interrupting asides into the next turn alongside steering.
-						const asides = signal?.aborted ? [] : resolveAsides(await config.getAsideMessages?.());
+						const asides = drainBlocked ? [] : resolveAsides(await config.getAsideMessages?.());
 						pendingMessages = asides.length > 0 ? [...steering, ...asides] : steering;
 					} else {
 						// Stop boundary: only steering (live user input) forces another turn here. Leave
@@ -1816,9 +1851,10 @@ async function runLoopBody(
 			// Re-poll steering too: a steer can land between the stop-boundary dequeue
 			// above and this yield point (e.g. queued while onBeforeYield ran). Without
 			// this poll it would strand in the queue until the next manual prompt.
-			const lateSteering = signal?.aborted ? [] : (await config.getSteeringMessages?.(signal)) || [];
-			const asideMessages = signal?.aborted ? [] : resolveAsides(await config.getAsideMessages?.());
-			const followUpMessages = signal?.aborted ? [] : (await config.getFollowUpMessages?.(signal)) || [];
+			const yieldDrainBlocked = signal?.aborted === true || batchStopped;
+			const lateSteering = yieldDrainBlocked ? [] : (await config.getSteeringMessages?.(signal)) || [];
+			const asideMessages = yieldDrainBlocked ? [] : resolveAsides(await config.getAsideMessages?.());
+			const followUpMessages = yieldDrainBlocked ? [] : (await config.getFollowUpMessages?.(signal)) || [];
 			if (lateSteering.length > 0 || asideMessages.length > 0 || followUpMessages.length > 0) {
 				// Set as pending so the inner loop processes them before stopping.
 				pendingMessages = [...lateSteering, ...asideMessages, ...followUpMessages];

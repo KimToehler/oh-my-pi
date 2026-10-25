@@ -19,6 +19,10 @@ it is refused, and what the continued run sees afterwards.
 - **WHEN** the session runs in a worktree and calls `session_move` with the main checkout's path
 - **THEN** the call succeeds and schedules the move to the main checkout
 
+#### Scenario: Symlink to a registered worktree
+- **WHEN** the target is a symlink (for example `repo/.worktrees/link`) whose resolved destination is a registered worktree of the same repository, even one outside the main checkout
+- **THEN** the call succeeds and schedules the move to the worktree's resolved path
+
 #### Scenario: Session outside a git repository
 - **WHEN** the session's directory is not inside a git repository
 - **THEN** `session_move` returns an error and nothing changes
@@ -28,7 +32,7 @@ it is refused, and what the continued run sees afterwards.
 - **THEN** the call returns an error naming `worktree.repoDir` and creates nothing; a concurrent writer changing a checked path component after the check is outside this requirement (gate.md, Accepted residual risks)
 
 #### Scenario: Negative control
-- **WHEN** the main checkout is `repo` and the target is `/tmp/elsewhere`, a checkout of another repository, the nested path `repo/.worktrees/a/b`, `repo/.worktrees/link` where `link` is a symlink to a directory outside the repository, or `repo/.worktrees/b` where `repo/.worktrees` itself is a symlink to a directory outside the repository; or `worktree.repoDir` is `/tmp/wt`, `~/wt`, `../wt` or `a/../../wt` and the call would create a worktree
+- **WHEN** the main checkout is `repo` and the target is `/tmp/elsewhere`, a checkout of another repository, the nested path `repo/.worktrees/a/b`, `repo/.worktrees/link` where `link` is a symlink to a directory outside the repository that is not a registered worktree of it, or `repo/.worktrees/b` where `repo/.worktrees` itself is a symlink to a directory outside the repository; or `worktree.repoDir` is `/tmp/wt`, `~/wt`, `../wt` or `a/../../wt` and the call would create a worktree
 - **THEN** accepting any of them MUST fail the requirement: each call returns an error (naming `/move` for a rejected target, naming `worktree.repoDir` for an invalid setting), no directory or branch is created inside or outside the repository, and the session's directory and session file are unchanged
 
 ### Requirement: Missing worktree is created before the move
@@ -85,15 +89,26 @@ After the relocation attempt, the session SHALL continue the run with exactly on
 - **THEN** starting two turns after the relocation (a move continuation and a goal continuation) MUST fail the requirement: exactly one turn starts, and a second one is a defect
 
 ### Requirement: The continued run works in the new directory
-The first turn after a successful move SHALL resolve relative tool paths against the new directory, and its system prompt SHALL be built from the new directory's context files and project rules. The session SHALL be listed by `omp --resume` started in the new directory and no longer by `omp --resume` started in the old one, as after `/move`.
+The first turn after a successful move SHALL resolve relative tool paths against the new directory, and its system prompt SHALL be built from the new directory's context files and project rules. As after `/move`, the session file SHALL move into the new directory's session bucket, where `omp --resume` started in the new directory lists it.
 
 #### Scenario: Relative paths and resume
-- **WHEN** the continued turn reads `README.md` and the user later runs `omp --resume` from the new directory
-- **THEN** the read returns the new directory's `README.md`, the session is listed for resume there, and `omp --resume` in the old directory no longer lists it
+- **WHEN** the session runs in a repository's main checkout, moves into a registered worktree of it, the continued turn reads `README.md`, and the user later runs `omp --resume` from the worktree
+- **THEN** the read returns the worktree's `README.md`, the session is listed for resume there, its session file lies in the worktree's session bucket, and the main checkout's own session bucket no longer holds it; `omp --resume` in the main checkout may still list it through the repository's worktree aggregation, as after `/wt`
 
 #### Scenario: Negative control
 - **WHEN** a project rule file exists only in the destination worktree's `.omp/rules/` (it is absent from the source checkout)
 - **THEN** a continued turn whose system prompt lacks that rule MUST fail the requirement: the rule is present in the first system prompt after the move, and its absence is a defect
+
+### Requirement: RPC clients observe the move through `get_state`
+The RPC session state SHALL carry the session's working directory as an optional `cwd` field, so a client sees a relocation without a protocol addition for moves. `get_state` SHALL report the directory the session runs in at the time of the call: the source directory before a successful `session_move`, and the target directory from the relocation onwards. The field is additive and optional, so a client built against a server that omits it SHALL keep working.
+
+#### Scenario: State before and after a move
+- **WHEN** an RPC client calls `get_state` before a `session_move` and again after the continuation turn has started
+- **THEN** the first call reports the session's start directory and the second reports the move's target directory
+
+#### Scenario: Negative control
+- **WHEN** an RPC client calls `get_state` after a successful move
+- **THEN** reporting the old directory, or omitting `cwd` while the server sets it, MUST fail the requirement: the reported directory is the move's target, and a stale or missing value is a defect
 
 ### Requirement: Running background work blocks the move
 `session_move` SHALL refuse while the session's own async jobs or subagents are running, including subagents that run without an async job (woken by a peer message or revived from idle). The error SHALL name each running job or agent, and the check SHALL happen before any worktree is created.
@@ -111,15 +126,15 @@ The first turn after a successful move SHALL resolve relative tool paths against
 - **THEN** proceeding MUST fail the requirement: the call returns an error naming the running job or agent, no worktree or branch is created, and no move is scheduled
 
 ### Requirement: Approval follows what the call does
-A `session_move` call to an existing target SHALL require `write` approval; a call that creates a worktree SHALL require `exec` approval, because it runs the repository's `post-checkout` hook.
+A `session_move` call that can create a worktree SHALL require `exec` approval, because creation runs the repository's `post-checkout` hook. A call can create a worktree when its target lies directly inside the worktree directory, or when it passes `branch` or `base`. Every other call SHALL require `write` approval. The tier SHALL depend only on the arguments, the settings and the repository location, never on whether the target exists, so it cannot change between approval and execution.
 
 #### Scenario: Existing target under write mode
-- **WHEN** `tools.approvalMode` is `write` and the target is a registered worktree
+- **WHEN** `tools.approvalMode` is `write` and the target is the main checkout or a registered worktree outside the worktree directory, with no `branch` or `base`
 - **THEN** the call runs without an approval prompt
 
 #### Scenario: Negative control
-- **WHEN** `tools.approvalMode` is `write` and the target is a missing directory under the worktree directory
-- **THEN** creating the worktree without approval MUST fail the requirement: the call asks for approval (or is denied without an interactive surface), and an unprompted creation is a defect
+- **WHEN** `tools.approvalMode` is `write` and the target lies directly inside the worktree directory, either missing, or a registered worktree that is removed while the approval is pending
+- **THEN** creating the worktree without `exec` approval MUST fail the requirement: the call asks for approval (or is denied without an interactive surface), and a creation or `post-checkout` hook run under `write` approval is a defect
 
 ### Requirement: Only relocatable top-level sessions get the tool
 `session_move` SHALL be offered only to a top-level session with a persisted session file in the interactive TUI, ACP or RPC host. Subagents (including the advisor), sessions without a session file (`--no-session`) and hosts that cannot relocate (print mode, SDK sessions without a relocation handler) SHALL NOT have it in their tool set.

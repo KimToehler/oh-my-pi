@@ -26,6 +26,7 @@ import {
 } from "@oh-my-pi/pi-utils";
 import { isTaskToolDetails, type StructuredSubagentSchemaMode } from "@oh-my-pi/pi-tui/tools/task";
 import * as snapcompact from "@oh-my-pi/snapcompact";
+import type { AgentRegistry } from "../registry/agent-registry";
 import { moveFileAcrossDevices } from "../utils/atomic-file";
 import { ArtifactManager } from "./artifacts";
 import { type BlobPutOptions, type BlobPutResult, BlobStore, lazyImageDataSync } from "./blob-store";
@@ -100,6 +101,7 @@ import {
 	visitEntriesFromFile,
 } from "./session-loader";
 import { generateId, migrateToCurrentVersion } from "./session-migrations";
+import { rebaseDescendantSessionFiles } from "./session-move";
 import {
 	computeDefaultSessionDir,
 	hasPositiveMovedProjectEvidence,
@@ -998,6 +1000,8 @@ export class SessionManager {
 	#artifactManager: ArtifactManager | null = null;
 	#artifactManagerSessionFile: string | null = null;
 	#adoptedArtifactManager: ArtifactManager | null = null;
+	/** Registry whose descendant refs follow the artifacts directory on every move; global when unset. */
+	#agentRegistry: AgentRegistry | undefined;
 	#inMemoryArtifacts: Map<string, string> | null = null;
 	#inMemoryArtifactCounter = 0;
 
@@ -2730,6 +2734,14 @@ export class SessionManager {
 					throw err;
 				}
 
+				// Descendant transcripts inside the artifacts directory moved with it. Repoint
+				// their registry refs here, where every rename lands (forward moves and
+				// `rollbackMove` alike), so ownership checks keyed on the path (design D6)
+				// never lose a descendant to a move or to its rollback.
+				if (artifactPathChanged) {
+					await rebaseDescendantSessionFiles(oldSessionFile, newSessionFile, this.#agentRegistry);
+				}
+
 				if (sessionFileExisted && sessionPathChanged) {
 					this.#header.previousSessionFiles = [
 						...new Set([...(this.#header.previousSessionFiles ?? []), path.resolve(oldSessionFile)]),
@@ -3280,6 +3292,11 @@ export class SessionManager {
 
 	adoptArtifactManager(manager: ArtifactManager): void {
 		this.#adoptedArtifactManager = manager;
+	}
+
+	/** Registry whose descendant refs `moveTo` repoints; the process-wide one when never set. */
+	useAgentRegistry(registry: AgentRegistry | undefined): void {
+		this.#agentRegistry = registry;
 	}
 
 	getArtifactManager(): ArtifactManager | null {

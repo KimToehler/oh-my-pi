@@ -72,9 +72,11 @@ import { cfgCycleOrder } from "../../config/model-settings";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
 import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
 import { BlobStore, resolveImageDataSync } from "../../session/blob-store";
+import { relocateHeadlessSession } from "../../session/headless-relocation";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import type { SessionInfo as StoredSessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
+import type { SessionRelocationResult } from "../../session/session-move";
 import {
 	type AcpBuiltinSlashCommandResult,
 	type ResolvedAcpBuiltinSlashCommand,
@@ -1937,6 +1939,7 @@ export class AcpAgent implements Agent {
 			await this.#configureExtensions(record);
 			await this.#configureMcpServers(record, mcpServers);
 			record.surfaceUnsubscribe = this.#surface.subscribe(record);
+			session.setSessionRelocator(targetPath => this.#relocateSession(record, targetPath));
 			this.#sessions.set(session.sessionId, record);
 			return record;
 		} catch (error) {
@@ -3219,6 +3222,23 @@ export class AcpAgent implements Agent {
 		}
 	}
 
+	/**
+	 * The record's `session_move` relocator: the shared headless relocation inside the goal's session-change
+	 * bracket (a same-session change, so the run is not detached). A failed rollback leaves the session unusable,
+	 * so it is disposed exactly as `/move` does.
+	 */
+	async #relocateSession(record: ManagedSessionRecord, targetPath: string): Promise<SessionRelocationResult> {
+		const runtime = this.#buildSlashCommandRuntime(record, undefined);
+		const { result } = await this.#goalSessionChange(
+			record,
+			async () => ({ cancelled: false, result: await relocateHeadlessSession(runtime, targetPath) }),
+			{ detachesRun: false },
+		);
+		if (result.ok) return { ok: true };
+		if (result.fatal) await record.session.dispose();
+		return { ok: false, reason: result.reason };
+	}
+
 	async #configureMcpServers(record: ManagedSessionRecord, servers: McpServer[]): Promise<void> {
 		if (record.mcpManager) {
 			await record.mcpManager.disconnectAll();
@@ -3416,6 +3436,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #disposeSessionRecord(record: ManagedSessionRecord, reason?: postmortem.Reason): Promise<void> {
+		record.session.setSessionRelocator(null);
 		record.lifetimeUnsubscribe?.();
 		record.surfaceUnsubscribe?.();
 		record.surfaceUnsubscribe = undefined;

@@ -148,6 +148,7 @@ class LazyFakeSession {
 	}
 	setActiveToolsByName(): void {}
 	setClientBridge(): void {}
+	setSessionRelocator(): void {}
 	getPlanModeState(): undefined {
 		return undefined;
 	}

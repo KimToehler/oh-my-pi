@@ -97,6 +97,7 @@ import {
 } from "../../utils/changelog";
 import { copyToClipboard } from "../../utils/clipboard";
 import { formatDumpArchiveReport, type SessionDumpArchive } from "../../session/session-dump-format";
+import type { SessionRelocationResult } from "../../session/session-move";
 import { openPath } from "../../utils/open";
 import { resumeCommand } from "../../utils/resume-command";
 import { setSessionTerminalTitle } from "../../utils/title-generator";
@@ -1773,31 +1774,70 @@ export class CommandController {
 
 	/** Relocate only while #withSessionMove holds the BTW gate; false means no successful move. */
 	async #relocateSession(resolvedPath: string): Promise<boolean> {
-		if (resolvedPath === path.resolve(this.ctx.sessionManager.getCwd())) return false;
+		const outcome = await this.#relocateSessionOutcome(resolvedPath);
+		if (!outcome.ok && outcome.showReason) this.ctx.showError(outcome.reason);
+		return outcome.ok;
+	}
+
+	/**
+	 * Move the session to an existing directory on behalf of the agent's `session_move` tool.
+	 * Runs the same gated relocation as `/move`; failures come back as a reason (the TUI also
+	 * shows the underlying errors it already reports) instead of a boolean.
+	 */
+	async relocateForAgent(resolvedPath: string): Promise<SessionRelocationResult> {
+		let failure: string | undefined;
+		const moved = await this.#withSessionMove(async () => {
+			const outcome = await this.#relocateSessionOutcome(resolvedPath);
+			if (!outcome.ok) failure = outcome.reason;
+			return outcome.ok;
+		});
+		if (moved) return { ok: true };
+		return { ok: false, reason: failure ?? "Session relocation did not complete." };
+	}
+
+	/** Shared relocation body; `showReason` marks failures whose reason no deeper layer already reported. */
+	async #relocateSessionOutcome(
+		resolvedPath: string,
+	): Promise<{ ok: true } | { ok: false; reason: string; showReason: boolean }> {
+		const sourceCwd = path.resolve(this.ctx.sessionManager.getCwd());
+		if (resolvedPath === sourceCwd) {
+			return { ok: false, reason: `The session is already in ${resolvedPath}.`, showReason: false };
+		}
 
 		const previousState = this.ctx.sessionManager.captureState();
 		try {
 			await this.ctx.session.moveSession(resolvedPath);
 		} catch (err) {
-			this.ctx.showError(`Move failed: ${err instanceof Error ? err.message : String(err)}`);
-			return false;
+			return {
+				ok: false,
+				reason: `Move failed: ${err instanceof Error ? err.message : String(err)}`,
+				showReason: true,
+			};
 		}
 		let applied = false;
 		try {
 			applied = await this.ctx.applyCwdChange(resolvedPath);
 		} catch (error) {
 			await this.#restoreAfterMoveFailure(previousState, error);
-			return false;
+			return {
+				ok: false,
+				reason: `Failed to switch workspace to ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`,
+				showReason: false,
+			};
 		}
 		if (!applied) {
 			await this.#restoreAfterMoveFailure(previousState);
-			return false;
+			return {
+				ok: false,
+				reason: `Failed to switch workspace to ${resolvedPath}; the session stays in ${sourceCwd}.`,
+				showReason: false,
+			};
 		}
 
 		this.ctx.updateEditorBorderColor();
 		await this.ctx.reloadTodos();
 		this.ctx.ui.requestRender();
-		return true;
+		return { ok: true };
 	}
 
 	async handleRenameCommand(title: string): Promise<void> {

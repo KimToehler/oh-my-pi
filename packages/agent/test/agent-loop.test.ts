@@ -5769,6 +5769,278 @@ describe("agentLoop useless-flag propagation", () => {
 	});
 });
 
+describe("agentLoop stop after batch", () => {
+	async function runBatch(stopHook: (flag: { raised: boolean }) => boolean) {
+		const schema = type({});
+		const releaseB = Promise.withResolvers<void>();
+		const flag = { raised: false };
+		let bSettled = false;
+		let hookCalls = 0;
+		let bSettledAtHook: boolean | undefined;
+		let bSignal: AbortSignal | undefined;
+		let bSignalAbortedAtEnd: boolean | undefined;
+		const steeringQueue: AgentMessage[] = [];
+		const asideQueue: AgentMessage[] = [];
+		const followUpQueue: AgentMessage[] = [];
+		const toolA: AgentTool<typeof schema> = {
+			name: "tool_a",
+			label: "A",
+			description: "A",
+			parameters: schema,
+			async execute() {
+				steeringQueue.push(createUserMessage("steer during batch"));
+				asideQueue.push(createUserMessage("aside during batch"));
+				followUpQueue.push(createUserMessage("follow-up during batch"));
+				flag.raised = true;
+				return { content: [{ type: "text", text: "A done" }], details: {} };
+			},
+		};
+		const toolB: AgentTool<typeof schema> = {
+			name: "tool_b",
+			label: "B",
+			description: "B",
+			parameters: schema,
+			async execute(_id, _params, signal) {
+				bSignal = signal;
+				await releaseB.promise;
+				bSignalAbortedAtEnd = signal?.aborted;
+				bSettled = true;
+				return { content: [{ type: "text", text: "B normal output" }], details: {} };
+			},
+		};
+		const context: AgentContext = { systemPrompt: [""], messages: [], tools: [toolA, toolB] };
+		const mock = createMockModel({
+			responses: [
+				{
+					content: [
+						{ type: "toolCall", id: "a-1", name: "tool_a", arguments: {} },
+						{ type: "toolCall", id: "b-1", name: "tool_b", arguments: {} },
+					],
+				},
+				{ content: ["second request"] },
+				{ content: ["third request"] },
+			],
+		});
+		const drain = (queue: AgentMessage[]) => async () => queue.splice(0);
+		const config: AgentLoopConfig = {
+			model: mock.model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: drain(steeringQueue),
+			getAsideMessages: drain(asideQueue),
+			getFollowUpMessages: drain(followUpQueue),
+			shouldStopAfterBatch: () => {
+				hookCalls++;
+				bSettledAtHook = bSettled;
+				return stopHook(flag);
+			},
+		};
+		const events: AgentEvent[] = [];
+		let turnEndSignalAborted: boolean | undefined;
+		config.onTurnEnd = async (_ctx, signal) => {
+			turnEndSignalAborted = signal?.aborted;
+		};
+		const runController = new AbortController();
+		for await (const event of agentLoop(
+			[createUserMessage("go")],
+			context,
+			config,
+			runController.signal,
+			mock.stream,
+		)) {
+			events.push(event);
+			// Release B only after A's result has settled.
+			if (event.type === "tool_execution_end" && event.toolCallId === "a-1") releaseB.resolve();
+		}
+		const results = events
+			.flatMap(e => (e.type === "message_end" ? [e.message] : []))
+			.filter((m): m is ToolResultMessage => m.role === "toolResult");
+		return {
+			events,
+			mock,
+			results,
+			bSignal,
+			bSignalAbortedAtEnd,
+			turnEndSignalAborted,
+			steeringQueue,
+			asideQueue,
+			followUpQueue,
+			hookCalls,
+			bSettledAtHook,
+		};
+	}
+
+	it("stop after batch: siblings settle normally, nothing is drained and no second request is made", async () => {
+		const r = await runBatch(flag => flag.raised);
+		const results = r.results;
+		expect(results.map(m => m.toolCallId).sort()).toEqual(["a-1", "b-1"]);
+		const b = results.find(m => m.toolCallId === "b-1");
+		expect(toolResultText(b!)).toBe("B normal output");
+		expect(b!.isError).toBe(false);
+		expect(r.bSignalAbortedAtEnd).toBe(false);
+		expect(r.bSignal?.aborted).toBe(false);
+		const ended = r.events.at(-1);
+		expect(ended?.type === "agent_end" && ended.messages.filter(m => m.role === "toolResult")).toHaveLength(2);
+		expect(r.mock.calls).toHaveLength(1);
+		expect(r.turnEndSignalAborted).toBe(false);
+		expect(r.events.at(-1)?.type).toBe("agent_end");
+		expect(r.steeringQueue).toHaveLength(1);
+		expect(r.asideQueue).toHaveLength(1);
+		expect(r.followUpQueue).toHaveLength(1);
+		expect(r.hookCalls).toBe(1);
+		expect(r.bSettledAtHook).toBe(true);
+	});
+
+	it("stop after batch: a hook returning false lets the run continue", async () => {
+		const r = await runBatch(() => false);
+		expect(r.mock.calls.length).toBeGreaterThanOrEqual(2);
+		expect(r.steeringQueue).toHaveLength(0);
+	});
+
+	async function runReplayedTail(stopHook: (flag: { raised: boolean }) => boolean) {
+		const schema = type({});
+		const flag = { raised: false };
+		let turnEndWillContinue: boolean | undefined;
+		const steeringQueue: AgentMessage[] = [createUserMessage("queued before the replay")];
+		const tool: AgentTool<typeof schema> = {
+			name: "tool_a",
+			label: "A",
+			description: "A",
+			parameters: schema,
+			async execute() {
+				flag.raised = true;
+				return { content: [{ type: "text", text: "A replayed" }], details: {} };
+			},
+		};
+		const tail: AssistantMessage = {
+			role: "assistant",
+			content: [{ type: "toolCall", id: "tail-1", name: "tool_a", arguments: {} }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
+			usage: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "toolUse",
+			timestamp: Date.now(),
+		};
+		const context: AgentContext = {
+			systemPrompt: [""],
+			messages: [createUserMessage("start over"), tail],
+			tools: [tool],
+		};
+		const mock = createMockModel({ responses: [{ content: ["must not be requested"] }] });
+		const config: AgentLoopConfig = {
+			model: mock.model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: async () => steeringQueue.splice(0),
+			shouldStopAfterBatch: () => stopHook(flag),
+			onTurnEnd: async (_messages, _signal, turnContext) => {
+				turnEndWillContinue = turnContext?.willContinue;
+			},
+		};
+		const events: AgentEvent[] = [];
+		const stream = agentLoopContinue(context, config, undefined, mock.stream);
+		for await (const event of stream) events.push(event);
+		const newMessages = await stream.result();
+		return { mock, events, newMessages, turnEndWillContinue, steeringQueue };
+	}
+
+	it("stop after batch: a replayed unpaired tool tail stops before the first model call", async () => {
+		const r = await runReplayedTail(flag => flag.raised);
+		expect(r.mock.calls).toHaveLength(0);
+		const results = r.newMessages.filter((m): m is ToolResultMessage => m.role === "toolResult");
+		expect(results.map(m => m.toolCallId)).toEqual(["tail-1"]);
+		expect(toolResultText(results[0]!)).toBe("A replayed");
+		expect(r.turnEndWillContinue).toBe(false);
+		expect(r.events.at(-1)?.type).toBe("agent_end");
+	});
+
+	it("stop after batch: steering queued before a replayed tail stays queued when the hook stops", async () => {
+		const r = await runReplayedTail(flag => flag.raised);
+		expect(r.steeringQueue).toHaveLength(1);
+		const emitted = r.events.flatMap(e => (e.type === "message_start" ? [e.message] : []));
+		expect(emitted.some(m => m.role === "user" && JSON.stringify(m).includes("queued before the replay"))).toBe(
+			false,
+		);
+	});
+
+	it("stop after batch: a replayed unpaired tool tail continues when the hook returns false", async () => {
+		const r = await runReplayedTail(() => false);
+		expect(r.mock.calls).toHaveLength(1);
+		expect(r.steeringQueue).toHaveLength(0);
+		// Steering is delivered after the replayed result, before the first model call.
+		const roles = r.mock.calls[0]?.context.messages.map(m => m.role);
+		expect(roles).toEqual(["user", "assistant", "toolResult", "user"]);
+	});
+
+	async function runBridgeResolved(stopHook: () => boolean) {
+		const steeringQueue: AgentMessage[] = [];
+		let requests = 0;
+		const streamFn = () => {
+			const requestNumber = ++requests;
+			// Steering arrives while the first response streams.
+			if (requestNumber === 1) steeringQueue.push(createUserMessage("queued steering"));
+			const stream = new AssistantMessageEventStream();
+			queueMicrotask(() => {
+				const resolvedBlock = {
+					type: "toolCall" as const,
+					id: "cursor-exec-move",
+					name: "session_move",
+					arguments: {},
+					[kCursorExecResolved]: true as const,
+				};
+				const finalMessage: AssistantMessage = {
+					role: "assistant",
+					content: requestNumber === 1 ? [resolvedBlock] : [{ type: "text", text: "second request" }],
+					api: "cursor-agent",
+					provider: "cursor",
+					model: "cursor-composer-2.5",
+					usage: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						totalTokens: 0,
+						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+					},
+					stopReason: "stop",
+					timestamp: Date.now(),
+				};
+				stream.push({ type: "start", partial: finalMessage });
+				stream.push({ type: "done", reason: "stop", message: finalMessage });
+			});
+			return stream;
+		};
+		const context: AgentContext = { systemPrompt: [""], messages: [], tools: [] };
+		const config: AgentLoopConfig = {
+			model: createMockModel().model,
+			convertToLlm: identityConverter,
+			getSteeringMessages: async () => steeringQueue.splice(0),
+			shouldStopAfterBatch: stopHook,
+		};
+		const stream = agentLoop([createUserMessage("move")], context, config, undefined, streamFn);
+		for await (const _event of stream);
+		return { requests, steeringQueue };
+	}
+
+	it("stop after batch: a bridge-resolved tool call stops the run", async () => {
+		const r = await runBridgeResolved(() => true);
+		expect(r.requests).toBe(1);
+		expect(r.steeringQueue).toHaveLength(1);
+	});
+
+	it("stop after batch: a bridge-resolved tool call continues when the hook returns false", async () => {
+		const r = await runBridgeResolved(() => false);
+		expect(r.requests).toBe(2);
+		expect(r.steeringQueue).toHaveLength(0);
+	});
+});
+
 describe("agentLoopContinue with AgentMessage", () => {
 	it("should throw when context has no messages", () => {
 		const context: AgentContext = {

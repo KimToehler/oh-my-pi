@@ -4,6 +4,7 @@
  * `session/request_permission` whose selected option maps back to the gate's answer.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
+import { $ } from "bun";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
@@ -35,6 +36,8 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targets";
 import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { getAgentDir, isRecord, setAgentDir, TempDir, withTimeout } from "@oh-my-pi/pi-utils";
 import type { RequestPermissionRequest } from "@oh-my-pi/pi-utils/acp";
 import { cleanupHarnessState, createHarness, type SetToolUIContextSpy } from "./acp-test-harness";
@@ -44,6 +47,9 @@ const BASE_SETTINGS = {
 	"bash.autoBackground.enabled": false,
 	"bashInterceptor.enabled": false,
 } as const;
+
+/** Commit identity for the throwaway repository the `session_move` case needs. */
+const GIT = ["-c", "user.name=Probe", "-c", "user.email=probe@example.invalid", "-c", "commit.gpgsign=false"];
 
 /** One scripted client answer: an outcome, a transport failure, or no answer until the turn aborts. */
 type ClientAnswer = ClientBridgePermissionOutcome | Error | "hang";
@@ -382,6 +388,65 @@ describe("acp approve", () => {
 			[{ path: path.join(cwd, "b.txt") }],
 		]);
 		expect(fs.existsSync(path.join(cwd, "b.txt"))).toBe(true);
+	});
+
+	it("acp approve: a creating session_move asks once as execute and a rejection neither creates nor relocates", async () => {
+		const client = acpClient(pick("reject_once"), pick("allow_once"));
+		const repo = workspace();
+		await $`git init -q ${repo}`.quiet();
+		await Bun.write(path.join(repo, "a.txt"), "one\n");
+		await $`git -C ${repo} ${GIT} add a.txt`.quiet();
+		await $`git -C ${repo} ${GIT} commit -qm first`.quiet();
+		const committed: string[] = [];
+		let reserved = false;
+		const session = {
+			cwd: repo,
+			settings: Settings.isolated({ ...BASE_SETTINGS, "worktree.clone": false }),
+			taskDepth: 0,
+			sessionRelocation: true,
+			getSessionFile: () => path.join(repo, "session.jsonl"),
+			getAgentId: () => "Main",
+			agentRegistry: new AgentRegistry(),
+			reserveSessionMove: () => {
+				if (reserved) return undefined;
+				reserved = true;
+				return {
+					commit: (request: { path: string }) => {
+						committed.push(request.path);
+						reserved = false;
+						return true;
+					},
+					release: () => {
+						reserved = false;
+					},
+				};
+			},
+			hasPendingSessionMove: () => reserved,
+		} as unknown as ToolSession;
+		const inner = SessionMoveTool.createIf(session);
+		if (!inner) throw new Error("expected session_move to be available");
+		const sessionManager = SessionManager.inMemory(repo);
+		const move = new ExtensionToolWrapper(
+			inner as unknown as AgentTool,
+			acpRunner(sessionManager, repo, client.request),
+		);
+		const write = toolContext(sessionManager, { "tools.approvalMode": "write" });
+		const target = path.join(repo, ".worktrees", "a");
+		const call = { path: target, branch: "wt-a" };
+		await expect(move.execute("m1", call, undefined, undefined, write)).rejects.toThrow("denied by user");
+		expect(client.requests).toHaveLength(1);
+		expect(client.requests[0]!.toolCall).toMatchObject({
+			toolCallId: "m1",
+			toolName: "session_move",
+			kind: "execute",
+		});
+		expect(fs.existsSync(target)).toBe(false);
+		expect(committed).toEqual([]);
+		const allowed = await move.execute("m2", call, undefined, undefined, write);
+		expect(client.requests).toHaveLength(2);
+		expect(fs.existsSync(path.join(target, "a.txt"))).toBe(true);
+		expect(committed).toEqual([fs.realpathSync(target)]);
+		expect(JSON.stringify(allowed.content)).toContain("scheduled");
 	});
 });
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `AgentLoopConfig.shouldStopAfterBatch` / `Agent.setShouldStopAfterBatch`: asked once after every call of a tool batch has settled; returning `true` ends the run without aborting sibling tools or draining queued steering, aside and follow-up messages, whichever call path (direct, `write xd://<tool>`, eval bridge) ran the tools. It is also asked once for an assistant message whose tool calls were executed by Cursor's server-side bridge (`kCursorExecResolved`), which never reach the batch executor
+
 ### Fixed
 
 - Fixed split-turn compaction leaving `session.compacting` context out of the turn-prefix summary ([#16707](https://github.com/can1357/oh-my-pi/pull/16707) by [@integrITsolutions](https://github.com/integrITsolutions))

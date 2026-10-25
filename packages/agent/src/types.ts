@@ -371,6 +371,13 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 */
 	getAsideMessages?: () => Promise<AsideMessage[]>;
 	/**
+	 * Asked once after every call of a tool batch has settled and its result is recorded. Returning
+	 * `true` ends the run without aborting the signal: the loop skips the next provider request and
+	 * the steering, aside and follow-up drains, leaving queued input in its queues. Because it is a
+	 * loop-level hook, it holds for every call path (direct, `write xd://<tool>`, eval bridge).
+	 */
+	shouldStopAfterBatch?: () => boolean;
+	/**
 	 * Hook fired right before the loop would exit.
 	 *
 	 * Called when the agent has no more tool calls and no steering messages,

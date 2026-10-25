@@ -9,8 +9,9 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSyn
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
-import { GATE_DELTAS_DIR, LEDGER_PATH } from "./gate-layout.mjs"
+import { GATE_DELTAS_DIR, LEDGER_PATH, MAX_ARTIFACT_BYTES } from "./gate-layout.mjs"
 import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
+import { checkTrailer, TrailerError } from "./trailer.mjs"
 
 class GateError extends Error {}
 const fail = (message) => {
@@ -24,6 +25,7 @@ const LANES = new Set(["F2", "F3"])
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const SHA = /^[0-9a-f]{40}$/
 const OUTCOME_NAMES = { F2: ["qa", "implementation-audit", "strategic-risk-review"], F3: ["f3", "verification"] }
+const REVIEWERS = ["implementation-audit", "strategic-risk-review"]
 const OUTCOME_VALUES = new Set(["PASS", "FAIL", "INCONCLUSIVE"])
 const CHOICES = new Set(["freeze", "replan", "continue"])
 
@@ -470,6 +472,8 @@ const commands = {
 
   wave(ctx) {
     const lane = requireLane(ctx.values)
+    // Trailers are reviewer evidence of lane F2; F3 records the integration review, which has none.
+    if (lane !== "F2" && (ctx.values.trailer ?? []).length > 0) fail(`--trailer belongs to lane F2 reviewer outcomes; lane ${lane} takes none`)
     const state = gateState(ctx)
     const waves = laneWaves(state.events, lane)
     const n = waves.length + 1
@@ -514,6 +518,49 @@ const commands = {
       if (cleanupSince) required.push("verification")
     }
     for (const name of required) if (!Object.hasOwn(outcomes, name)) fail(`missing required outcome ${name}`)
+
+    // A reviewer PASS or FAIL is recorded only with its stored trailer, checked here with the rules
+    // the gate record applies, against the plan bytes verified above and with that outcome as the
+    // verdict. A repair turn that changed its verdict is refused, and a refusal appends nothing.
+    const trailers = {}
+    for (const spec of ctx.values.trailer ?? []) {
+      const at = spec.indexOf("=")
+      const name = at === -1 ? "" : spec.slice(0, at)
+      const file = spec.slice(at + 1)
+      if (!REVIEWERS.includes(name) || file === "") fail(`malformed trailer ${spec}; use --trailer <invocation>=<path> with implementation-audit or strategic-risk-review`)
+      if (Object.hasOwn(trailers, name)) fail(`duplicate trailer for ${name}`)
+      if (!Object.hasOwn(outcomes, name)) fail(`trailer for ${name} names no outcome; pass --outcome ${name}=<value> or drop the trailer`)
+      trailers[name] = file
+    }
+    for (const name of REVIEWERS) {
+      const value = outcomes[name]
+      if ((value === "PASS" || value === "FAIL") && !Object.hasOwn(trailers, name)) {
+        fail(`${name} is ${value} but no --trailer ${name}=<path> was given; store and check the reviewer's trailer first`)
+      }
+    }
+    const planText = ctx.planBytes.toString("utf8")
+    for (const [name, file] of Object.entries(trailers)) {
+      const resolved = path.resolve(ctx.repo, file)
+      let size
+      try {
+        size = statSync(resolved).size
+      } catch {
+        fail(`trailer ${name}: ${file} is not readable`)
+      }
+      if (size > MAX_ARTIFACT_BYTES) fail(`trailer.${name}: is ${size} bytes, above the ${MAX_ARTIFACT_BYTES}-byte limit for a gate artifact`)
+      let text
+      try {
+        text = readFileSync(resolved, "utf8")
+      } catch {
+        fail(`trailer ${name}: ${file} is not readable`)
+      }
+      try {
+        checkTrailer(text, { field: `trailer.${name}`, invocation: name, verdict: outcomes[name], planText })
+      } catch (error) {
+        if (error instanceof TrailerError) fail(error.message)
+        throw error
+      }
+    }
 
     const blockers = (ctx.values.blocker ?? []).map(parseBlocker)
     for (const [name, value] of Object.entries(outcomes)) {
@@ -630,6 +677,7 @@ function main() {
       outcome: { type: "string", multiple: true },
       blocker: { type: "string", multiple: true },
       choice: { type: "string" },
+      trailer: { type: "string", multiple: true },
     },
   })
   const [command, ...rest] = positionals

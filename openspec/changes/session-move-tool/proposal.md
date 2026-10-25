@@ -22,8 +22,9 @@ on its own.
   uses and continues the run in the new directory with a synthetic continuation, so the next turn
   sees the destination's tools cwd, system prompt, context files and rules.
 - The tool refuses while the session's own async jobs or subagents are running and names them.
-- Approval: moving to an existing target is `write`; creating a worktree is `exec` (it runs the
-  repository's `post-checkout` hook).
+- Approval: a call that can create a worktree (target directly inside the worktree directory, or
+  `branch`/`base` given) is `exec`, because creation runs the repository's `post-checkout` hook.
+  Any other call is `write`. The tier never depends on whether the target exists.
 - Worktree creation reuses the existing `omp worktree add` behaviour (copy-on-write clone per
   `worktree.clone`, plain-checkout fallback, `post-checkout` hook) through one shared helper instead
   of a second implementation.
@@ -46,10 +47,10 @@ on its own.
 
 - `packages/coding-agent/src/tools/`: new `session_move` tool, its prompt in `src/prompts/tools/`,
   registry entry, approval decision per call.
-- `packages/agent`: `AgentToolResult.stopAfterBatch`, a non-aborting stop that ends the run after the
+- `packages/agent`: a `shouldStopAfterBatch` loop hook, a non-aborting stop that ends the run after the
   current tool batch has settled (loop handling and `CHANGELOG.md`).
 - `packages/coding-agent/src/session/agent-session.ts`: pending-move state, turn end after a
-  successful `session_move` through `stopAfterBatch`, host handler on `ToolSession` (pattern of
+  successful `session_move` through the `shouldStopAfterBatch` hook, host handler on `ToolSession` (pattern of
   `setPlanProposalHandler`).
 - Hosts: `modes/interactive-mode.ts` + `modes/controllers/command-controller.ts` (TUI relocation),
   `modes/acp/acp-agent.ts`, `modes/rpc/` (headless relocation shared with the `/move` builtin in
@@ -58,4 +59,6 @@ on its own.
   path, branch and base.
 - Settings: new worktree-directory setting (`task/settings.ts`).
 - Docs and `packages/coding-agent/CHANGELOG.md`.
+- RPC `get_state` gains an additive optional `cwd` field (the session's working directory), so RPC
+  clients can observe a move; decided by Tim on 2026-10-24 (apply).
 - No change to the ACP wire protocol, the session file format, or `/move` / `/wt` behaviour.

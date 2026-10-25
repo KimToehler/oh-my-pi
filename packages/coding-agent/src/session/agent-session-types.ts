@@ -28,6 +28,7 @@ import type { SessionAccountPoolScope } from "../config/account-pools";
 import type { ModelRegistry } from "../config/model-registry";
 import type { PromptTemplate } from "../config/prompt-templates";
 import type { Settings } from "../config/settings";
+import type { AgentRegistry } from "../registry/agent-registry";
 import type { SkillsSettings } from "../extensibility/settings";
 import type { CursorMcpResourceAdapter } from "../cursor";
 import type { RawSseDebugBuffer } from "@oh-my-pi/pi-tui/apps/debug/raw-sse-buffer";
@@ -345,6 +346,8 @@ export interface AgentSessionConfig {
 	asyncJobManager?: AsyncJobManager;
 	/** Registry identity used for IRC routing. */
 	agentId?: string;
+	/** Registry this session was created with; the post-move running-work re-check reads it. Default: AgentRegistry.global(). */
+	agentRegistry?: AgentRegistry;
 	/** Whether this is a top-level or subagent session. */
 	agentKind?: "main" | "sub";
 	/** Provider-facing session ID override. */

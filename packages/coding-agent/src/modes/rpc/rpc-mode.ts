@@ -53,6 +53,7 @@ import type { MCPManager } from "../../mcp/manager";
 import { reconnectMcpManagerServer } from "../../mcp/oauth-reauth";
 import type { RestoredQueuedMessage } from "../../session/agent-session-types";
 import { CACHE_WARMING_MODES } from "../../session/cache-warmer";
+import { relocateHeadlessSession } from "../../session/headless-relocation";
 import { findMostRecentNonEmptySession } from "../../session/session-listing";
 import { SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import { executeAcpBuiltinSlashCommand } from "../../slash-commands/acp-builtins";
@@ -1713,6 +1714,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 			});
 			// Close the realtime call (microphone, socket) before the session it delegates into.
 			await liveBridge.stop();
+			session.setSessionRelocator(null);
 			await session.dispose();
 		} catch (error) {
 			if (!persistenceFailure || error !== persistenceFailure) throw error;
@@ -1761,6 +1763,41 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 		void emitAvailableCommandsUpdate();
 	});
 	await emitAvailableCommandsUpdate();
+
+	// `session_move` relocates this same session (no session switch): quiesce BTW and the goal
+	// continuation driver around the move, like an extension-initiated session change.
+	session.setSessionRelocator(async targetPath => {
+		await btw.close();
+		await goalController.beginSessionChange();
+		try {
+			const outcome = await relocateHeadlessSession(
+				{
+					settings: session.settings,
+					sessionManager: session.sessionManager,
+					session,
+					refreshCommands: emitAvailableCommandsUpdate,
+					reloadPlugins: reloadPluginState,
+					notifyTitleChanged: async () => {
+						output({ type: "session_info_update", title: session.sessionName, sessionId: session.sessionId });
+					},
+					notifyConfigChanged: async () => {
+						output({ type: "config_update", model: session.model, thinkingLevel: session.thinkingLevel });
+					},
+				},
+				targetPath,
+			);
+			if (outcome.ok) return { ok: true };
+			if (outcome.fatal) {
+				// Rollback could not re-align the session: it is unusable, so end it as `/move` does.
+				output({ type: "notice", level: "error", message: outcome.reason, source: "session-move" });
+				await disposeAndExit();
+			}
+			return { ok: false, reason: outcome.reason };
+		} finally {
+			await goalController.endSessionChange({ detachedRun: false });
+			void settleWatcher.check();
+		}
+	});
 
 	const inputGate = new RpcUserInputGate();
 	type OrderedUserInput = Extract<RpcCommand, { type: "prompt" | "steer" | "follow_up" | "abort_and_prompt" }>;
@@ -2080,6 +2117,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					sessionFile: session.sessionFile,
 					sessionId: session.sessionId,
 					sessionName: session.sessionName,
+					cwd: session.sessionManager.getCwd(),
 					autoCompactionEnabled: session.autoCompactionEnabled,
 					queuedMessageCount: session.queuedMessageCount,
 					hasPendingAsyncWork: session.hasPendingAsyncWork(),

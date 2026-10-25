@@ -10,9 +10,9 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { IsoBackendKind } from "@oh-my-pi/pi-natives";
+import type { IsoBackendKind, VcsCommitDetails, VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
-import { getWorktreeDir, hashPath, logger } from "@oh-my-pi/pi-utils";
+import { getWorktreeDir, hashPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
 import type { Settings } from "../config/settings";
 import { formatIsolationBackend, parseIsolationBackend } from "../task/worktree";
@@ -161,6 +161,115 @@ export async function createSessionWorktree(
 		sourceCwd: cwd,
 		baseCommit,
 		keptChanges: keepChanges,
+	};
+}
+
+/** What `addRepoWorktree` checks out in the new worktree. */
+export type RepoWorktreeCheckout =
+	| { kind: "new-branch"; name: string; from: string; force: boolean }
+	| { kind: "ref"; ref: string; detach: boolean };
+
+export interface AddRepoWorktreeOptions {
+	repository: VcsGitRepo;
+	/** Absolute target path. */
+	path: string;
+	checkout: RepoWorktreeCheckout;
+	settings: Settings;
+}
+
+export interface AddRepoWorktreeResult {
+	path: string;
+	/** Branch name, or the commit-ish when detached. */
+	ref: string;
+	/** Branch created (or reset with `force`) for this worktree. */
+	createdBranch?: string;
+	detached: boolean;
+	commit: VcsCommitDetails;
+	/** Backend that cloned the checkout, or undefined for a plain checkout. */
+	clonedWith?: IsoBackendKind;
+	/** Why the clone fell back to (or was replaced by) a plain checkout, when it did. */
+	cloneError?: string;
+	/** `post-checkout` hook outcome; a non-zero exit leaves the worktree in place. */
+	hook: { exitCode: number; stdout: string; stderr: string };
+}
+
+/** Resolve `target` through its nearest existing ancestor, so a not-yet-created path compares with real paths. */
+async function realpathOfPlannedPath(target: string): Promise<string> {
+	const missing: string[] = [];
+	let current = path.resolve(target);
+	for (;;) {
+		try {
+			return path.join(await fs.realpath(current), ...missing.reverse());
+		} catch (error) {
+			if (!isEnoent(error)) throw error;
+			const parent = path.dirname(current);
+			if (parent === current) return path.resolve(target);
+			missing.push(path.basename(current));
+			current = parent;
+		}
+	}
+}
+
+/**
+ * Create a linked worktree at `path` for `checkout`, run its `post-checkout` hook, and report the
+ * outcome without printing. Throws when the target exists and is not an empty directory, or git refuses.
+ */
+export async function addRepoWorktree(options: AddRepoWorktreeOptions): Promise<AddRepoWorktreeResult> {
+	const { repository, checkout, settings } = options;
+	const worktreePath = path.resolve(options.path);
+	try {
+		const stat = await fs.stat(worktreePath);
+		const nonEmpty = !stat.isDirectory() || (await fs.readdir(worktreePath)).length > 0;
+		if (nonEmpty) throw new Error(`fatal: '${options.path}' already exists`);
+	} catch (error) {
+		if (!isEnoent(error)) throw error;
+	}
+
+	let ref: string;
+	let detached = false;
+	let createdBranch: string | undefined;
+	if (checkout.kind === "new-branch") {
+		await repository.createBranch(checkout.name, checkout.from, checkout.force);
+		ref = checkout.name;
+		createdBranch = checkout.name;
+	} else {
+		ref = checkout.ref;
+		detached = checkout.detach;
+	}
+	const commit = await repository.commitDetails(ref);
+
+	let clone = cfgWorktreeClone.get(settings);
+	let skipReason: string | undefined;
+	if (clone) {
+		// Cloning the source checkout into a path inside itself re-enters the clone source (clonefile on APFS
+		// fails with EINVAL and falls back); other backends may carry nested sibling worktrees along.
+		const sourceRoot = await realpathOfPlannedPath(repository.info().repoRoot);
+		const target = await realpathOfPlannedPath(worktreePath);
+		const relative = path.relative(sourceRoot, target);
+		if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+			clone = false;
+			skipReason = "target is inside the source checkout; used a plain checkout so sibling worktrees are not cloned";
+		}
+	}
+	const added = await repository.worktreeAdd(worktreePath, ref, {
+		detach: detached,
+		clone,
+		backend: parseIsolationBackend(cfgIsolationBackend.get(settings)),
+	});
+	const hook = await vcs.runPostCheckoutHook(worktreePath, commit.sha);
+	return {
+		path: worktreePath,
+		ref,
+		createdBranch,
+		detached,
+		commit,
+		clonedWith: added.clonedWith ?? undefined,
+		cloneError: added.cloneError ?? skipReason,
+		hook: {
+			exitCode: hook.exitCode,
+			stdout: new TextDecoder().decode(hook.stdout),
+			stderr: new TextDecoder().decode(hook.stderr),
+		},
 	};
 }
 

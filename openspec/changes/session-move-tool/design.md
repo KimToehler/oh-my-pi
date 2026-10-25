@@ -59,7 +59,7 @@ Current state the design builds on:
 
 ## Decisions
 
-### D1. Defer the move to the end of the tool batch with a stop-after-batch tool result
+### D1. Defer the move to the end of the tool batch with a session-owned stop-after-batch hook
 
 The existing terminal-tool path cannot be reused: AgentSession aborts the run with
 `TERMINAL_TOOL_RESULT_ABORT_REASON` as soon as the terminal result settles
@@ -67,16 +67,34 @@ The existing terminal-tool path cannot be reused: AgentSession aborts the run wi
 (`packages/agent/src/agent-loop.ts:3309-3312`), which check it (`tools/read.ts:591`, `2845`). A
 sibling `read` still scanning when `session_move` returns would be aborted.
 
-Instead `packages/agent` gets a non-aborting stop: `AgentToolResult` gains `stopAfterBatch?:
-boolean`. The loop never touches the run signal for it. After `executeToolCalls` has settled every
-started call and their results are recorded, the loop checks the batch (next to the
-`TERMINAL_TOOL_RESULT_ABORT_REASON` check, `agent-loop.ts:1711-1715`): if any non-error result
-carries the flag, `hasMoreToolCalls` becomes false, and the steering, aside and follow-up drains
-of that iteration and of the yield point (`agent-loop.ts:1787-1799`, `1819-1826`) are skipped so
-queued user input stays in its queues for the run after the relocation, exactly as the external
-abort path leaves them. `onTurnEnd` runs with the live signal, `agent_end` follows. A successful
-`session_move` returns `stopAfterBatch: true`; a failed one does not, so the model sees the error
-and continues in the same run.
+Instead `packages/agent` gets a non-aborting stop: the loop config gains a hook
+`shouldStopAfterBatch?: () => boolean`, settable through `Agent` like the other loop callbacks. The
+loop never touches the run signal for it. After `executeToolCalls` has settled every started call
+and their results are recorded, the loop calls the hook once (next to the
+`TERMINAL_TOOL_RESULT_ABORT_REASON` check, `agent-loop.ts:1711-1715`): if it returns `true`,
+`hasMoreToolCalls` becomes false, and the steering, aside and follow-up drains of that iteration
+and of the yield point (`agent-loop.ts:1787-1799`, `1819-1826`) are skipped so queued user input
+stays in its queues for the run after the relocation, exactly as the external abort path leaves
+them. `onTurnEnd` runs with the live signal, `agent_end` follows. AgentSession installs the hook and
+returns `true` while a move committed through the admission reservation (D2) is pending; a failed
+`session_move` records nothing, so the model sees the error and continues in the same run.
+
+The stop is session state, not a field on the tool result, because the result does not reach the
+loop unchanged: `session_move` is a discoverable tool, so the model calls it through
+`write xd://session_move`, and `XdProtocolHandler.write` and `WriteTool` build a new result for the
+`write` call; the eval tool bridge likewise returns the eval cell's result. A result field
+(`AgentToolResult.stopAfterBatch`, the first implementation) was dropped on that path, and manual QA
+on e01af842ff showed the old run making another model request after the move. The hook works for
+every call path, including future tool wrappers.
+
+Cursor's server-side MCP bridge executes a mounted tool, `session_move` included, while the
+response streams. It writes the paired result out-of-band and marks the call `kCursorExecResolved`,
+and the loop excludes such calls from `executeToolCalls` (`agent-loop.ts:1611-1621`). An assistant
+message whose tool calls are all bridge-resolved therefore never reaches the hook above. The F3
+integration review (wave 3) found this; Tim chose the fix on 2026-10-24. After the tool handling of an
+assistant message that carried at least one bridge-resolved call, the loop asks the hook once, at
+the same point and with the same effect, before any queue drain. A message with runnable calls
+keeps its single call after `executeToolCalls`.
 
 Alternatives: (a) reuse the terminal yield abort: rejected, it aborts in-flight siblings (above);
 (b) relocate inside the tool call, like ACP plan approval: rejected, sibling calls in the batch
@@ -88,8 +106,8 @@ tool calls and pauses an active goal (`onTaskAborted({reason:"interrupted"})`).
 
 ### D2. AgentSession owns the pending move; hosts install a relocator
 
-`ToolSession` gets `requestSessionMove(request)` (records the pending move, returns whether a
-relocator is installed) and AgentSession gets `setSessionRelocator(relocator | null)`, following
+`ToolSession` gets `reserveSessionMove()` (the atomic admission reservation described below; its
+commit records the pending move) and AgentSession gets `setSessionRelocator(relocator | null)`, following
 `setPlanProposalHandler`. The relocator is `(targetPath) => Promise<{ ok: true } | { ok: false;
 reason: string }>`; each host implements it with its existing `/move` path:
 
@@ -102,12 +120,30 @@ reason: string }>`; each host implements it with its existing `/move` path:
   notifyTitleChanged) instead of `SlashCommandRuntime`; the `/move` and `/wt` builtins call it with
   their runtime, ACP and RPC call it with their session record. Behaviour of `/move` is unchanged.
 
-The tool is offered only when a relocator is installed, the session has a persisted session file
-and `taskDepth === 0` (spec: only relocatable top-level sessions). Print mode, SDK sessions and
-subagents install none, so the tool is absent, not erroring. The advisor is a `kind: "sub"` agent
-at depth 0 whose ToolSession spreads the primary's (`sdk.ts:4688-4705`), so it would pass these
-checks: `advisorToolSession` sets `requestSessionMove: undefined`, and the factory builds the tool
-only when `requestSessionMove` is present.
+A second `session_move` while a move is pending or being admitted (same batch, same run, or a
+parallel call) is refused with an error before it creates anything. Admission is session state,
+not scheduling: `concurrency = "exclusive"` serialises calls only inside the agent loop's
+scheduler. The eval tool bridge (`Promise.all` in one cell) and Cursor's MCP bridge call the tool
+directly. So AgentSession owns an atomic reservation. `ToolSession.reserveSessionMove()`
+returns a reservation, or `undefined` when a move is pending, reserved, or no relocator is
+installed. The tool takes it after the D6 check and before its first `await`. On success it
+commits the reservation with the target path, which records the pending move that the hook sees.
+On every failure path it releases the reservation. The pending-move query reports a reservation
+as pending, and the stop hook returns `true` only for a committed move.
+
+The tool is offered only when the host declared at session creation that it installs a relocator
+(`createAgentSession` option `sessionRelocation`, ignored for subagents; the host installs the
+relocator before the first prompt), the session has a persisted session file and `taskDepth === 0`
+(spec: only relocatable top-level sessions). Hosts build the tool set before they can call
+`setSessionRelocator`, so the declaration, not the installed relocator, gates the tool set; a call
+that finds no relocator installed fails. The declaring sites are `main.ts`, through one exported
+mode predicate (`true` for the interactive TUI, `rpc` and `rpc-ui`, `false` for print and `json`)
+applied to the top-level `sessionOptions`, and the ACP session factory in `main.ts`, which passes
+`sessionRelocation: true`. Print mode, SDK sessions and subagents do not declare it,
+so the tool is absent, not erroring. The advisor is a `kind: "sub"` agent at depth 0 whose
+ToolSession spreads the primary's (`sdk.ts:4688-4705`), so it would pass these checks:
+`advisorToolSession` sets `reserveSessionMove: undefined` and `sessionRelocation: false`, and the
+factory builds the tool only when both are present.
 
 ### D3. Relocation runs as a post-prompt task inside a session transition
 
@@ -116,8 +152,12 @@ fence synchronously (so `isSessionTransitioning` is true before any goal continu
 then, as a post-prompt task after idle: re-checks own running async jobs (a sibling `async: true`
 call may have started one), calls the relocator, closes the fence, and submits exactly one hidden
 continuation message (`customType: "session-move-result"`, outcome and new cwd) that triggers a
-turn. Goal continuation for that `agent_end` is dropped by its existing admission gates (transition
-fence, then "another turn started"); it decides again at the continuation turn's `agent_end`.
+turn. The goal host does not decide at the move-requesting run's `agent_end`: that run ends inside
+the same prompt bracket as the post-prompt relocation and continuation, and AgentSession coalesces
+its `agent_end` with the continuation's into one published event (`#emitSessionEvent`, the same
+contract as the other post-prompt continuations), so hosts and the goal controller see one terminal
+`agent_end`, after the continuation turn, and the goal decides there. The fence covers the window
+in between for `GoalRuntime` and idle deliveries.
 
 The interactive TUI's own goal continuation timer is checked against the same fence; if it does not
 consult `isSessionTransitioning`, it is made to (task 4.3). Alternative: suppress goal continuation
@@ -169,9 +209,11 @@ The helper keeps the non-empty-target refusal. `addWorktree` keeps option normal
 plus `-B` refusal, `commit ?? "HEAD"` resolved in the invoking checkout, the derived branch name),
 maps the options to a `checkout`, prints from the result and keeps its exit-code behaviour. The tool
 maps its own arguments: a missing branch → `new-branch` from `base` (default: `headSha` of the
-repository at `primaryRoot()`), `force: false`; an existing branch → `ref` without detach, and a
-given `base` is then an error (the call would silently ignore it otherwise). A non-zero hook exit is
-reported as an error and no move is scheduled; the worktree stays.
+repository at `primaryRoot()`), `force: false`; an explicit `base` is resolved once to its commit
+SHA in the primary repository and that SHA, not the ref name, is passed as `from`, so a ref moved by
+a concurrent fetch after admission cannot change the start commit; an existing branch → `ref` without
+detach, and a given `base` is then an error (the call would silently ignore it otherwise). A
+non-zero hook exit is reported as an error and no move is scheduled; the worktree stays.
 
 ### D6. Background-work check covers the session's own jobs and subagents
 
@@ -198,17 +240,25 @@ check: the batch completes before the relocation.
 
 ### D7. Approval decided per call
 
-`approval` is a function of the arguments: `exec` when the resolved target does not exist (the call
-runs the `post-checkout` hook), `write` otherwise. An invalid target resolves to `write` and fails in
-`execute`, so a rejection never asks first.
+`approval` is a function of the arguments, the settings and the repository location, never of the
+target's existence. `exec` applies when the call can create a worktree, meaning the resolved target
+lies directly inside the worktree directory (`worktree.repoDir`) or `branch`/`base` is given;
+creation runs the `post-checkout` hook. `write` applies otherwise (the main checkout, or a
+registered worktree outside the worktree directory). An earlier version chose `exec` only when the
+target did not exist. Plan review round 16 showed that this let a registered worktree that vanishes
+while the approval prompt is pending be created under `write` approval, because `execute` plans
+again. Tim chose the args-only tier on 2026-10-24. The cost is that a move into an existing
+worktree under the worktree directory asks at `exec` tier. An invalid target or an unresolvable
+path resolves to `write` and fails in `execute`, so a rejection never asks first. Paths that do
+not lead into the worktree directory cannot create anything.
 
 ### D8. Scope: one change across tool, session and hosts
 
 The tool, the AgentSession pending-move/relocator contract and the three host relocators cannot ship
 separately: without a relocator the tool is absent, and a relocator without the tool has no caller.
 The worktree helper extraction is the shared contract that keeps the tool from adding a second
-`git worktree add`. All parts live in `packages/coding-agent` except the `stopAfterBatch` tool
-result field and its loop handling (D1), which live in `packages/agent`; that field has no other
+`git worktree add`. All parts live in `packages/coding-agent` except the `shouldStopAfterBatch`
+loop hook and its loop handling (D1), which live in `packages/agent`; that hook has no other
 consumer and cannot ship usefully without the tool.
 
 ## Risks / Trade-offs
@@ -226,10 +276,12 @@ consumer and cannot ship usefully without the tool.
   starts a turn during the relocation. Task 6.2 verifies the continuation's updates reach the client
   in the same session.
 - [Cloning the main checkout into `<main>/.worktrees/<name>` may copy other in-tree worktrees and
-  local state (see `task/worktree.ts:86-90`)] → Same behaviour as the `bash` `git worktree add`
-  rewrite today; task 2.3 checks what the native clone does with a target inside the source and
-  falls back to a plain checkout for that case if it copies `.worktrees/`. Tim approved this
-  fallback on 2026-10-24 (plan review round 3).
+  local state (see `task/worktree.ts:86-90`)] → Task 2.3 measured APFS: the native clone of a
+  target inside the source fails (`clonefile … Invalid argument`) and falls back to a plain
+  checkout, so nothing is copied; reflink, overlay and rcopy backends were not measurable here.
+  `addRepoWorktree` therefore uses a plain checkout for every target inside the source checkout and
+  records that in `cloneError`. Tim approved the fallback on 2026-10-24 (plan review round 3) and
+  keeping it unconditionally on 2026-10-24 (apply).
 - [LSP, MCP and eval kernels keep the old workspace after a move] → Same as `/move`; out of scope.
 - [The model keeps planning in old paths after the move] → The continuation message names the new
   cwd; the rebuilt system prompt carries the new workstation/cwd block.
