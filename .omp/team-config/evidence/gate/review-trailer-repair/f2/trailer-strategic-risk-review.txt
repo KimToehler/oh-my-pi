@@ -1,0 +1,41 @@
+**Bottom line:** The change holds up architecturally: trailer semantics now have one implementation, every admission path uses it, and `GC wave` performs validation before mutating the ledger. I found no blocking defect; the remaining fail-open risks are explicitly identified and accepted in `openspec/changes/review-trailer-repair/gate.md`.
+
+**Action plan / answers**
+
+1. **Architecture:** `trailer.mjs::checkTrailer` is the correct shared boundary. `validate-gate-record.mjs::validateTrailer` adds only record-specific model binding, while `checkTrailerFile` and `gate-convergence.mjs::commands.wave` reuse the common rules. The wave checks run before ledger append, and the repair procedure in `SKILL.md` is bounded and preserves the original verdict.
+
+2. **What the line-level audit structurally misses:** validation proves consistency of supplied bytes, not reviewer provenance. It cannot establish that the first verdict was interpreted correctly, that a repaired trailer came from the claimed reviewer, or that the trailer later cited by the record is byte-identical to the one checked by `GC wave`. These limits are accurately disclosed under `gate.md`’s accepted residual risks rather than being presented as solved.
+
+3. **Most harmful production failure:** a fabricated or incorrectly attributed passing trailer could admit unreviewed code into the protected merge audit trail. Verdict binding, shared semantic validation, final record validation, bounded repair, and same-session operating guidance reduce accidental occurrence, but deliberate fabrication remains outside the validator’s trust boundary; that residual is explicitly accepted rather than silently fail-open.
+
+4. **Auditor false positives:** none. The implementation audit returned no blocker, and its conclusions about shared validation, pre-append rejection, artifact bounds, and the absence of a security/privacy delta agree with the supplied implementation.
+
+5. **Nonblocking maintenance note:** `validate-gate-record.test.mjs` deletes the source/document quantifier regression without showing a replacement aimed at `trailer.mjs`. Current behavior is correct because `checkTrailer` uses `criteria.every(...)`, but a behavioral test containing one original and one plan-copied criterion would preserve that regression guard without depending on source text.
+
+6. **Nonblocking evidence-path note:** `tasks.md` task 6.3 and its Verify command name `.omp/team-config/evidence/review-trailer-repair/f1/`, while the changed and cited artifacts live under `.omp/team-config/evidence/gate/review-trailer-repair/f1/`. The supplied matrix consistently cites the existing tracked files, so this does not invalidate the reviewed behavior, but the stale task path could mislead a future rerun or archive audit.
+
+**Effort:** Quick (<1h) for the two optional maintenance cleanups, excluding any required gate rerun after modifying reviewed files.
+
+**Confidence:** high — the complete changed-file list, diff, plan bundle, QA matrix, and implementation-audit result were supplied.
+
+**Watch out for:**
+- Deployment skew until every agent directory is reinstalled and running sessions are restarted.
+- The accepted absence of cryptographic/session provenance and a trailer digest in the `gate_wave` event.
+- The separately planned gap where `qa[].artifact` is not checked for existence, tracking, or digest binding.
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: GC must preserve every equals sign after the first invocation/path delimiter in a --trailer argument
+  positive_witness: a valid trailer stored at evidence/reviewer=primary.txt is read and its passing wave is recorded
+  negative_control: truncating or re-splitting that readable path at its second equals sign and refusing or reading another file MUST fail
+  observable: process exit status, stderr, and the resulting gate_wave event count
+  boundary: gate-convergence.mjs wave command-line trailer argument parsing
+END-REVIEW-TRAILER
