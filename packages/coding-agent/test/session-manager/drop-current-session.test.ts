@@ -136,4 +136,66 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(fs.readFileSync(current, "utf8")).toContain("after failed delete");
 		await manager.close();
 	});
+
+	/** Run the real unlink, then hold the deletion open until `release` is called. */
+	function holdDeletionAfterUnlink(storage: FileSessionStorage, outcome: "succeed" | Error) {
+		const realDelete = storage.deleteSessionWithArtifacts.bind(storage);
+		const unlinked = Promise.withResolvers<void>();
+		const gate = Promise.withResolvers<void>();
+		vi.spyOn(storage, "deleteSessionWithArtifacts").mockImplementation(async sessionPath => {
+			await realDelete(sessionPath);
+			unlinked.resolve();
+			await gate.promise;
+			if (outcome !== "succeed") throw outcome;
+		});
+		return { unlinked: unlinked.promise, release: () => gate.resolve() };
+	}
+
+	it("keeps entries appended while the delete runs in memory when the delete succeeds", async () => {
+		const storage = new FileSessionStorage();
+		const manager = await persistedManager(storage);
+		const deleted = manager.getSessionFile()!;
+		const held = holdDeletionAfterUnlink(storage, "succeed");
+
+		const dropping = manager.dropSession(deleted);
+		await held.unlinked;
+		manager.appendMessage(userMessage("during delete"));
+		await manager.setSessionName("Late title", "user");
+		held.release();
+		await dropping;
+		await manager.flush();
+		await manager.close();
+
+		expect(fs.existsSync(deleted)).toBe(false);
+		expect(fs.readdirSync(sessionDir).filter(name => name.endsWith(".jsonl"))).toEqual([]);
+	});
+
+	it("persists the whole session including entries appended during a failed delete", async () => {
+		const storage = new FileSessionStorage();
+		const manager = await persistedManager(storage);
+		const current = manager.getSessionFile()!;
+		const held = holdDeletionAfterUnlink(storage, new Error("EPERM: delete refused"));
+
+		const dropping = manager.dropSession(current).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+		await held.unlinked;
+		manager.appendMessage(userMessage("during delete"));
+		held.release();
+		expect(String(await dropping)).toContain("EPERM: delete refused");
+		await manager.flush();
+
+		expect(manager.getSessionFile()).toBe(current);
+		const lines = fs
+			.readFileSync(current, "utf8")
+			.split("\n")
+			.filter(line => line.length > 0);
+		expect(lines.map(entryType).filter(type => type === "session")).toHaveLength(1);
+		const text = lines.join("\n");
+		expect(text).toContain("before delete");
+		expect(text).toContain("during delete");
+		expect(lines.filter(line => entryType(line) === "message")).toHaveLength(3);
+		await manager.close();
+	});
 });
