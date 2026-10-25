@@ -2,6 +2,70 @@
 
 Environment, controls and dependencies per design.md "F1 environment and liveness". Scratch repository `/tmp/rtr-s3/repo` (one commit: `clamp` rejects an inverted range), plan `.omp/plans/clamp.md`. Brief: the implementation-audit brief from the worktree `SKILL.md`, verbatim, inputs filled; saved at `/tmp/rtr-s3/brief.md`. Reviewer: `auditor`, not isolated, id `S3LiveRepairAudit` (model `onara/cx/gpt-5.6-terra`).
 
+## Brief (dispatched verbatim as the task text; sha256 82c84dcf62609d0dd2b24bc799d8d048d4609a4fd5619e1643decfd4470da90f)
+
+````
+Local implementation audit. No PR lookup, remote fetch, file write, or sub-reviewer dispatch.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
+
+Inputs:
+- Goal, constraints, and behavioural contract: Goal from the plan: `clamp` rejects an inverted range instead of returning a misleading value. Repository root: /tmp/rtr-s3/repo.
+- Changed files and reviewed diff: src/clamp.js
+
+diff --git a/src/clamp.js b/src/clamp.js
+index 279bc73..c7a91e1 100644
+--- a/src/clamp.js
++++ b/src/clamp.js
+@@ -1,3 +1,4 @@
+ export function clamp(x, lo, hi) {
++  if (lo > hi) throw new RangeError(`clamp: lo ${lo} > hi ${hi}`)
+   return Math.min(Math.max(x, lo), hi)
+ }
+
+- Repository context and plan: /tmp/rtr-s3/repo/src/clamp.js; plan /tmp/rtr-s3/repo/.omp/plans/clamp.md (read it).
+- Manual QA matrix and artifacts: | # | Scenario | Command | Expected | Observed | Verdict | Artifact |
+|---|---|---|---|---|---|---|
+| 1 | valid and inverted range | bun -e 'clamp(5,0,10); clamp(5,10,0)' | 5, RangeError | 5, RangeError | PASS | /tmp/rtr-s3/qa.txt |
+- Author-supplied behavioural criteria: the Feature-specific criteria in the plan's ## Merge gate
+- Whole-diff review report and its class list, when F3 ran: none: not needed (one function)
+
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
+Review exactly these five sections:
+1. Goal and behavioural contract
+2. Correctness, regressions, architecture, wire contracts
+3. Security and privacy delta
+4. Verification adequacy
+5. Final `PASS | FAIL | INCONCLUSIVE`
+
+Generate at least one adversarial behavioural criterion of your own using Phase 2.5 fields, and make every criterion you emit your own - the validator rejects a trailer carrying any criterion whose invariant is restated from the plan, so quoting one back beside an original does not satisfy the rule. Author-supplied criteria are inputs, never complete review scope.
+
+Security scope: a finding blocks only when it cites changed lines in DIFF_RANGE, or shows change altered exploitability or exposure of pre-existing code. Otherwise label it `PRE-EXISTING / OUT-OF-SCOPE` as a note.
+
+Brief guard: if this message did not carry all five numbered sections, or withheld the QA matrix, return INCONCLUSIVE and name what was missing. Do not answer a narrower brief as if it were the whole assignment.
+
+Return each blocker on its own `Blocker B<n>:` line with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site; do not re-derive classes F3 already closed. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+
+End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: <numbers you received, comma-separated>
+model_id: <your exact resolved model ID, or unresolved>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+adversarial_criteria:
+- invariant: <your own, not restated from the plan>
+  positive_witness: <representative valid outcome>
+  negative_control: <plausible broken outcome that MUST fail>
+  observable: <runtime evidence distinguishing them>
+  boundary: <layer where the result is checked>
+END-REVIEW-TRAILER
+````
+
 ## First reply (delivered verbatim)
 
 ```

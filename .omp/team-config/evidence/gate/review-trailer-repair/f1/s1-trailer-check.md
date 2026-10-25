@@ -1,4 +1,4 @@
-# s1 trailer check (worktree validator, head 727e46f95551a46a9e77699c9506381d7d116052)
+# s1 trailer check (worktree validator, head 9c23851b72cfe68e216d5c0934a65ea5784553ba)
 
 Plan: `openspec/changes/review-trailer-repair` (change folder). Inputs under `/tmp/rtr-f1/inputs`; the repair reply is kept as `s1-repair-reply.md`.
 
@@ -70,7 +70,7 @@ END-REVIEW-TRAILER
 ### foreign Reviewer: Auditor layout
 
 ```
-$ check /tmp/rtr-f1/inputs/foreign-layout.md PASS
+$ node /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs --repo /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair --trailer /tmp/rtr-f1/inputs/foreign-layout.md --invocation implementation-audit --verdict PASS --plan openspec/changes/review-trailer-repair
 stdout: blocked
 stderr: trailer.adversarial_criteria: trailer must carry an adversarial_criteria block
 exit: 1
@@ -79,7 +79,7 @@ exit: 1
 ### adversarial_criterion typo
 
 ```
-$ check /tmp/rtr-f1/inputs/criterion-typo.md PASS
+$ node /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs --repo /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair --trailer /tmp/rtr-f1/inputs/criterion-typo.md --invocation implementation-audit --verdict PASS --plan openspec/changes/review-trailer-repair
 stdout: blocked
 stderr: trailer.adversarial_criteria: trailer must carry an adversarial_criteria block
 exit: 1
@@ -88,7 +88,7 @@ exit: 1
 ### no trailer block
 
 ```
-$ check /tmp/rtr-f1/inputs/no-trailer.md PASS
+$ node /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs --repo /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair --trailer /tmp/rtr-f1/inputs/no-trailer.md --invocation implementation-audit --verdict PASS --plan openspec/changes/review-trailer-repair
 stdout: blocked
 stderr: trailer: trailer is missing: no REVIEW-TRAILER-v1 / END-REVIEW-TRAILER block on its own line, so what the reviewer was asked cannot be established
 exit: 1
@@ -97,7 +97,7 @@ exit: 1
 ### repair-shaped FAIL reply
 
 ```
-$ check /tmp/rtr-f1/inputs/repair-fail.md FAIL
+$ node /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair/team-config/agent/skills/review-work/scripts/validate-gate-record.mjs --repo /Users/tim/git/oh-my-pi/.worktrees/review-trailer-repair --trailer /tmp/rtr-f1/inputs/repair-fail.md --invocation implementation-audit --verdict FAIL --plan openspec/changes/review-trailer-repair
 stdout: passed
 stderr: 
 exit: 0
