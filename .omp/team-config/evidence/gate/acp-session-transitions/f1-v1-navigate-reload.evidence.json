@@ -9,7 +9,7 @@
         "id": 10,
         "method": "session/new",
         "params": {
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v1-CxrVyG/workspace",
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v1-blky9x/workspace",
           "mcpServers": []
         }
       }
@@ -20,7 +20,7 @@
         "jsonrpc": "2.0",
         "id": 10,
         "result": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "configOptions": [
             {
               "id": "mode",
@@ -114,7 +114,7 @@
         "id": 11,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "prompt": [
             {
               "type": "text",
@@ -130,14 +130,14 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "agent_message_chunk",
             "content": {
               "type": "text",
               "text": "fixture reply"
             },
-            "messageId": "41c18e2c-0cfd-49f2-8212-d69509a5ce92"
+            "messageId": "fd8eb371-6c41-4263-a118-db76a43ae83d"
           }
         }
       }
@@ -148,7 +148,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -163,7 +163,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -178,10 +178,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T13:49:21.067Z"
+            "updatedAt": "2026-10-25T21:53:02.561Z"
           }
         }
       }
@@ -202,7 +202,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "available_commands_update",
             "availableCommands": [
@@ -569,10 +569,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T13:49:20.976Z"
+            "updatedAt": "2026-10-25T21:53:02.444Z"
           }
         }
       }
@@ -583,7 +583,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -599,7 +599,7 @@
         "id": 12,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "prompt": [
             {
               "type": "text",
@@ -615,14 +615,14 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "agent_message_chunk",
             "content": {
               "type": "text",
               "text": "fixture reply"
             },
-            "messageId": "43f50320-21d5-43be-8f65-5b18243d21c8"
+            "messageId": "413140b0-fe11-4d28-94f1-9a9e0b9c2d45"
           }
         }
       }
@@ -633,7 +633,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -648,7 +648,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -663,10 +663,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T13:49:21.394Z"
+            "updatedAt": "2026-10-25T21:53:02.887Z"
           }
         }
       }
@@ -688,7 +688,7 @@
         "id": 13,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "prompt": [
             {
               "type": "text",
@@ -715,7 +715,7 @@
         "id": 14,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "prompt": [
             {
               "type": "text",
@@ -731,14 +731,14 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "agent_message_chunk",
             "content": {
               "type": "text",
               "text": "fixture reply"
             },
-            "messageId": "e6ab5a85-9b6d-48b0-9f49-e8127981e43f"
+            "messageId": "4a1f3b96-2400-443f-aab2-6b82e95e1a0f"
           }
         }
       }
@@ -749,7 +749,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -764,7 +764,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "usage_update",
             "size": 128000,
@@ -779,10 +779,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a17352-aed0-764d-9247-deb854e17474",
+          "sessionId": "01a1750d-83ec-76e0-9f5a-aa1646cf297d",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T13:49:22.036Z"
+            "updatedAt": "2026-10-25T21:53:03.530Z"
           }
         }
       }
@@ -805,10 +805,10 @@
         "cancelled": false
       },
       "reload": "ok",
-      "entryId": "287e2cb4",
-      "leaf": "21f431fe"
+      "entryId": "0f57c40c",
+      "leaf": "f3e6e593"
     }
   },
   "pass": true,
-  "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a17352-aed0-764d-9247-deb854e17474, later prompt persisted in A's file"
+  "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1750d-83ec-76e0-9f5a-aa1646cf297d, later prompt persisted in A's file"
 }
