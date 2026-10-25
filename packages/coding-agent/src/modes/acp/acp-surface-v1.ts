@@ -280,9 +280,10 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 		}
 		if ("error" in end) {
 			promptTurn.reject(end.error);
-			return;
+		} else {
+			promptTurn.resolve(end.response);
 		}
-		promptTurn.resolve(end.response);
+		work.markEnded();
 	}
 
 	/**

@@ -64,9 +64,14 @@ export type ForegroundWork = {
 	runningTools: Set<string>;
 	/** Per-work event subscription (v1: prompt-scoped); the v2 session-lifetime subscription leaves it unset. */
 	unsubscribe: (() => void) | undefined;
+	/** Resolves once the surface ended this work (v1: the prompt response is resolved; v2: the foreground is cleared). */
+	ended: Promise<void>;
+	/** Called by the surface's `onForegroundEnd`; later calls are no-ops. */
+	markEnded: () => void;
 };
 
 export function createForegroundWork(origin: ForegroundOrigin, usageBaseline: UsageStatistics): ForegroundWork {
+	const ended = Promise.withResolvers<void>();
 	return {
 		origin,
 		abortController: new AbortController(),
@@ -82,6 +87,8 @@ export function createForegroundWork(origin: ForegroundOrigin, usageBaseline: Us
 		pendingInteractions: 0,
 		runningTools: new Set(),
 		unsubscribe: undefined,
+		ended: ended.promise,
+		markEnded: ended.resolve,
 	};
 }
 

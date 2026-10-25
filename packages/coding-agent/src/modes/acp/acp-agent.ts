@@ -748,13 +748,25 @@ export function createAcpExtensionUiContext(
 	};
 }
 
+interface ClosingSession {
+	record: ManagedSessionRecord;
+	/**
+	 * Runs the close once; later calls (and calls while it runs) await the same close. `disposal` marks the agent's
+	 * own dispose, which like `dispose()` of a registered session does not wait for the client to take queued frames.
+	 */
+	start(disposal?: { reason?: postmortem.Reason }): Promise<void>;
+}
+
 export class AcpAgent implements Agent {
 	#connection: AgentSideConnection;
 	#initialSession: AgentSession | undefined;
 	#createSession: CreateAcpSession;
 	#sessions = new Map<string, ManagedSessionRecord>();
-	/** Closes still running: the record is no longer registered, but its updates keep the surface's ordered path. */
-	#closing = new Map<string, { record: ManagedSessionRecord; closed: Promise<void> }>();
+	/**
+	 * Sessions on their way out: the record is no longer registered, but its updates keep the surface's ordered path.
+	 * A close that has not started yet (a deleted session whose turn is still finishing) waits here for `start`.
+	 */
+	#closing = new Map<string, ClosingSession>();
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
@@ -890,8 +902,9 @@ export class AcpAgent implements Agent {
 	async closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
 		const record = this.#sessions.get(params.sessionId);
 		if (record) await this.#closeManagedSession(params.sessionId, record);
-		// A repeated close answers once the running one is done, so its response cannot overtake the session's last updates.
-		else await this.#closing.get(params.sessionId)?.closed;
+		// A repeated close answers once the running one is done, so its response cannot overtake the session's last
+		// updates; a close still pending (deleted session) starts now.
+		else await this.#closing.get(params.sessionId)?.start();
 		return {};
 	}
 
@@ -1127,6 +1140,7 @@ export class AcpAgent implements Agent {
 			// ACP-declared servers (`session/new` `mcpServers`) live in this
 			// manager, in no writable config file; `/mcp` lookups must consult it.
 			mcpManager: record.mcpManager,
+			endSessionAfterTurn: () => this.#endSessionAfterTurn(record, turn),
 			keepTurnOpenUntilIdle: async () => {
 				await record.session.waitForIdle();
 				// `AgentSession.#emit()` does not await listeners, so the retried
@@ -1342,7 +1356,8 @@ export class AcpAgent implements Agent {
 	}
 
 	async cancel(params: { sessionId: string }): Promise<void> {
-		const record = this.#getSessionRecord(params.sessionId);
+		// A deleted session's turn may still be finishing: Stop must reach it.
+		const record = this.#closing.get(params.sessionId)?.record ?? this.#getSessionRecord(params.sessionId);
 		// Stop means stop everything accepted on this session: prompts still
 		// inside the dispatch window or queued behind the running turn must not
 		// stream after the client believes it stopped the session.
@@ -3321,24 +3336,63 @@ export class AcpAgent implements Agent {
 
 	async #closeManagedSession(sessionId: string, record: ManagedSessionRecord): Promise<void> {
 		const running = this.#closing.get(sessionId);
-		if (running?.record === record) {
-			await running.closed;
-			return;
-		}
-		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
+		await (running?.record === record ? running : this.#parkForClose(sessionId, record)).start();
+	}
+
+	/**
+	 * Unregister `record` and park it in `#closing` with its close not started. Every lookup through `#sessions` now
+	 * misses it, while the surfaces still reach it through `recordFor` until the close completes.
+	 */
+	#parkForClose(sessionId: string, record: ManagedSessionRecord): ClosingSession {
 		this.#sessions.delete(sessionId);
-		const done = Promise.withResolvers<void>();
-		const entry = { record, closed: done.promise };
+		let closed: Promise<void> | undefined;
+		const entry: ClosingSession = {
+			record,
+			start: disposal => {
+				closed ??= this.#runClose(sessionId, record, entry, disposal);
+				return closed;
+			},
+		};
 		this.#closing.set(sessionId, entry);
+		return entry;
+	}
+
+	/** The one close path: refuse queued prompts, stop the running turn, flush the surface, dispose the record. */
+	async #runClose(
+		sessionId: string,
+		record: ManagedSessionRecord,
+		entry: ClosingSession,
+		disposal: { reason?: postmortem.Reason } | undefined,
+	): Promise<void> {
+		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
 		try {
 			await this.#cancelPromptForClose(record);
 			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
-			await this.#surface.drain(record);
-			await this.#disposeSessionRecord(record);
+			if (!disposal) await this.#surface.drain(record);
+			await this.#disposeSessionRecord(record, disposal?.reason);
 		} finally {
 			if (this.#closing.get(sessionId) === entry) this.#closing.delete(sessionId);
-			done.resolve();
 		}
+	}
+
+	/**
+	 * `/session delete` succeeded: the session accepts nothing more, but the turn that ran the command still reports
+	 * its confirmation and its normal end. The close starts once that turn has ended, unless `session/close` or agent
+	 * dispose started it first.
+	 */
+	#endSessionAfterTurn(record: ManagedSessionRecord, turn: PromptTurnState | undefined): void {
+		const sessionId = record.session.sessionId;
+		const entry =
+			this.#closing.get(sessionId)?.record === record
+				? this.#closing.get(sessionId)!
+				: this.#parkForClose(sessionId, record);
+		const close = () => {
+			entry.start().catch((error: unknown) => {
+				logger.warn("Failed to close deleted ACP session", { sessionId, error });
+			});
+		};
+		if (turn) void turn.work.ended.then(close);
+		else close();
 	}
 
 	/** True once the session was closed or its agent disposed: late continuations must send and persist nothing. */
@@ -3400,6 +3454,8 @@ export class AcpAgent implements Agent {
 		this.#disposePromise = (async () => {
 			const records = Array.from(this.#sessions.entries());
 			this.#sessions.clear();
+			// Closes that were queued or are running finish here too, so dispose returns with every record disposed.
+			const closing = Array.from(this.#closing.entries());
 			await Promise.all(
 				records.map(async ([sessionId, record]) => {
 					try {
@@ -3410,6 +3466,16 @@ export class AcpAgent implements Agent {
 						await this.#disposeSessionRecord(record, reason);
 					} catch (error) {
 						logger.warn("Failed to clean up ACP session", { sessionId, error });
+					}
+				}),
+			);
+
+			await Promise.all(
+				closing.map(async ([sessionId, entry]) => {
+					try {
+						await entry.start({ reason });
+					} catch (error) {
+						logger.warn("Failed to clean up closing ACP session", { sessionId, error });
 					}
 				}),
 			);

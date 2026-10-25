@@ -283,6 +283,8 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				} catch (err) {
 					return usage(`Failed to delete session: ${errorMessage(err)}`, runtime);
 				}
+				// The conversation is gone; the host must not keep accepting work for it.
+				runtime.endSessionAfterTurn?.();
 				await runtime.output(
 					`Session deleted: ${sessionFile}. Use ACP \`session/load\` to switch to another session.`,
 				);
