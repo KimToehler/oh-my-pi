@@ -1,0 +1,103 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/acp-session-transitions",
+  "plan_sha256": "afe70a01a01c3017fe7341a5492368c2348812b4104fcc7819f63a970166b50c",
+  "reviewed_sha": "ee95383125e74cda887a4ac7ed002dbb733e11f2",
+  "diff_base": "dfdededea0c8cf45dc71ef768ce2bbe00ef9c463",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class wire-contract-api (ACP session lifecycle and request admission change), so both invocations run; F2 wave 1 strategic blocker unsealed-pre-detach-write-admission fixed by row 4.3 (f1ec24bdf1, 18a77c254e, e4dbc16416; delta OKAY in round 3 after two REJECTs, user chose the target-generation amendment); F2 wave 2 on ee95383125 both PASS.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-sonnet-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 v1+v2: extension newSession/switchSession/branch refused under real omp acp, later updates keep id A",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v1-extension-refusal.evidence.json"
+    },
+    {
+      "name": "F1 v1+v2 regression guard: navigateTree and reload keep id A",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v1-navigate-reload.evidence.json"
+    },
+    {
+      "name": "F1 v1+v2: /session delete confirms, then prompt/resume/set_mode|set_config_option for A answer like a never-issued id; file gone; A not listed",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v2-delete.evidence.json"
+    },
+    {
+      "name": "F1 v1+v2: no header-less session file after the runs",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-results.json"
+    },
+    {
+      "name": "F1 negative control: same driver on main passes only the navigate-reload guards (2/8)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-results-main.json"
+    },
+    {
+      "name": "Change suites on ee95383125 (664 pass, 0 fail) incl. store race regressions of 4.1.1 and 4.3, each RED on its unfixed source",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/qa-matrix.md"
+    },
+    {
+      "name": "F2 fix 4.3 amendment: switch-in-flight regression RED without the target generation (10 pass / 1 fail)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/red-switch-in-flight.log"
+    },
+    {
+      "name": "Full verification after the last code commit e4dbc16416: bun check exit 0; full package suite failure set identical to main",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/full-suite-summary.log"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/acp-session-transitions/f3-integration-review-report.md",
+    "report_sha256": "c2358a83ccfa8df5c3cf7fbc3734a347fb30c01638cba4e4bb3c25a787402065"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f2-implementation-audit-trailer.md",
+      "trailer_sha256": "d26549f7114e73fc72065ce444f36ff8103555f6f8d1d4a9a7692091f4f57a2d",
+      "note": "F2 wave 2 (snapshot ee95383125); note: pre-existing non-atomic session-file/artifact deletion (F3 Should-fix, not taken) non-blocking"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f2-strategic-risk-review-trailer.md",
+      "trailer_sha256": "0a2948d6ea9488923fce2b8512e03400ba530fff6707579a76ee42346073acb0",
+      "note": "F2 wave 2 (snapshot ee95383125); notes N1 (accepted failed-delete/concurrent-target residual), N2 (ACP Goal swap tests removed with the unreachable path), N3 (non-atomic artifact cleanup) non-blocking"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "wave1-strategic-risk-review-B1",
+      "severity": "high",
+      "location": "packages/coding-agent/src/session/session-manager.ts:2459",
+      "coverage": "packages/coding-agent/test/session-manager/drop-current-session.test.ts::SessionManager.dropSession of the current file > keeps entries appended while the current writer drains in memory and leaves no writer open",
+      "fix_sha": "f1ec24bdf1aa0170d6a030f0f8afe400771e5399"
+    }
+  ]
+}
