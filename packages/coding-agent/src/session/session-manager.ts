@@ -752,6 +752,8 @@ interface DetachedSessionFile {
 	draftOnlySessionCleanupArmed: boolean;
 	pendingArtifactCopy: { sessionFile: string; done: Promise<void> } | undefined;
 	sessionClaim: { sessionId: string; release: (() => void) | undefined } | undefined;
+	/** {@link SessionManager} target generation when the delete detached the file. */
+	targetGeneration: number;
 }
 
 interface SessionManagerStateSnapshot {
@@ -1024,6 +1026,12 @@ export class SessionManager {
 	 * {@link #moveOffSessionFile}, {@link createBranchedSession}). Never rejects.
 	 */
 	#pendingArtifactCopy: { sessionFile: string; done: Promise<void> } | undefined;
+	/**
+	 * Bumped synchronously when {@link newSession} or {@link setSessionFile}
+	 * starts, before its first await, so a failed {@link dropSession} can tell a
+	 * switch that has started but not installed its target yet.
+	 */
+	#targetGeneration = 0;
 
 	private constructor(cwd: string, sessionDir: string, persist: boolean, storage: SessionStorage) {
 		this.#cwd = cwd;
@@ -2340,6 +2348,7 @@ export class SessionManager {
 		loadedSession?: SessionLoadResult,
 		options?: { throwIfMissing?: boolean; newSession?: NewSessionOptions },
 	): Promise<void> {
+		this.#targetGeneration++;
 		await this.#drainAndCloseWriter();
 		this.#clearDiskError();
 		this.#draftOnlySessionCleanupArmed = false;
@@ -2432,6 +2441,7 @@ export class SessionManager {
 	 * from selecting the previous conversation as the most recent session.
 	 */
 	async newSession(options?: NewSessionOptions): Promise<string | undefined> {
+		this.#targetGeneration++;
 		await this.#drainAndCloseWriter();
 		const sessionFile = this.#resetToNewSession(options);
 		await this.ensureOnDisk();
@@ -2483,6 +2493,7 @@ export class SessionManager {
 			draftOnlySessionCleanupArmed: this.#draftOnlySessionCleanupArmed,
 			pendingArtifactCopy: this.#pendingArtifactCopy,
 			sessionClaim: this.#sessionClaim,
+			targetGeneration: this.#targetGeneration,
 		};
 		this.#sessionFile = undefined;
 		this.#fileIsCurrent = false;
@@ -2498,11 +2509,12 @@ export class SessionManager {
 	 * Undo {@link #detachSessionFile} after a failed drain or delete and publish
 	 * the whole file (header and every entry, including those appended while
 	 * detached) through the authoritative repair, which also clears a close
-	 * failure the drain latched. A target installed meanwhile ({@link newSession},
-	 * {@link setSessionFile}) stays: the failed delete must not overwrite it.
+	 * failure the drain latched. A switch started meanwhile ({@link newSession},
+	 * {@link setSessionFile}), installed or still loading, stays: the failed
+	 * delete must not overwrite it or recreate the deleted path.
 	 */
 	async #reattachSessionFile(detached: DetachedSessionFile, operationError: Error): Promise<void> {
-		if (this.#sessionFile !== undefined) return;
+		if (this.#targetGeneration !== detached.targetGeneration || this.#sessionFile !== undefined) return;
 		this.#sessionFile = detached.sessionFile;
 		this.#expectedDiskSize = detached.expectedDiskSize;
 		this.#forceFileCreation = detached.forceFileCreation;

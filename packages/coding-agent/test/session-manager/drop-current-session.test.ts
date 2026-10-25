@@ -310,4 +310,47 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(fs.existsSync(deleted)).toBe(false);
 		expect(fs.readFileSync(started!, "utf8")).toContain("in the new session");
 	});
+
+	it("leaves a session switch that started during a failed delete untouched", async () => {
+		const other = await persistedManager();
+		const otherFile = other.getSessionFile()!;
+		const otherId = other.getSessionId();
+		await other.close();
+		const otherBytes = fs.readFileSync(otherFile, "utf8");
+
+		const storage = new FileSessionStorage();
+		const manager = await persistedManager(storage);
+		const deleted = manager.getSessionFile()!;
+		const held = holdDeletionAfterUnlink(storage, new Error("EPERM: delete refused"));
+		// Hold the switch's load so it has started but not installed its target yet.
+		const realReadText = storage.readText.bind(storage);
+		const loadStarted = Promise.withResolvers<void>();
+		const loadGate = Promise.withResolvers<void>();
+		vi.spyOn(storage, "readText").mockImplementation(async filePath => {
+			if (path.resolve(filePath) === path.resolve(otherFile)) {
+				loadStarted.resolve();
+				await loadGate.promise;
+			}
+			return realReadText(filePath);
+		});
+
+		const dropping = manager.dropSession(deleted).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+		await held.unlinked;
+		const switching = manager.setSessionFile(otherFile);
+		await loadStarted.promise;
+		held.release();
+		expect(String(await dropping)).toContain("EPERM: delete refused");
+		loadGate.resolve();
+		await switching;
+		await manager.flush();
+		await manager.close();
+
+		expect(manager.getSessionFile()).toBe(path.resolve(otherFile));
+		expect(manager.getSessionId()).toBe(otherId);
+		expect(fs.readFileSync(otherFile, "utf8")).toBe(otherBytes);
+		expect(fs.existsSync(deleted)).toBe(false);
+	});
 });
