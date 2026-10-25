@@ -1,14 +1,14 @@
 {
   "schema": "team-config.merge-gate/v3",
   "plan": "openspec/changes/acp-session-transitions",
-  "plan_sha256": "afe70a01a01c3017fe7341a5492368c2348812b4104fcc7819f63a970166b50c",
-  "reviewed_sha": "ee95383125e74cda887a4ac7ed002dbb733e11f2",
-  "diff_base": "dfdededea0c8cf45dc71ef768ce2bbe00ef9c463",
+  "plan_sha256": "ce3e06850b9386cd657dcf4a5feee2e768de4bfbe6a5521eeb98ba98486adbf4",
+  "reviewed_sha": "b4a1a0a326a26b233aa34ac1fe1f672bc72a620d",
+  "diff_base": "f9b45b503d9908715a5fa4eee4ca5277a728ead7",
   "reviewers_run": [
     "implementation-audit",
     "strategic-risk-review"
   ],
-  "decision_reason": "Mandatory class wire-contract-api (ACP session lifecycle and request admission change), so both invocations run; F2 wave 1 strategic blocker unsealed-pre-detach-write-admission fixed by row 4.3 (f1ec24bdf1, 18a77c254e, e4dbc16416; delta OKAY in round 3 after two REJECTs, user chose the target-generation amendment); F2 wave 2 on ee95383125 both PASS.",
+  "decision_reason": "Mandatory class wire-contract-api (ACP session lifecycle and request admission change), so both invocations run; F2 wave 1 strategic blocker unsealed-pre-detach-write-admission fixed by row 4.3 (f1ec24bdf1, 18a77c254e, e4dbc16416; delta OKAY in round 3 after two REJECTs, user chose the target-generation amendment); F2 wave 2 on ee95383125 both PASS; then main moved and the user chose a re-gate: main merged into the branch (b23f0657de, row 4.4, merged main commits exempted as gated on main), the row 4.4 delta REJECT (fatal session_move//move relocation left the ACP record live) fixed by row 4.4.1 (b0ac1a2e35; delta OKAY round 2); F2 wave 3 on the merged tree b4a1a0a326 both PASS.",
   "mandatory_class": "wire-contract-api",
   "implementation_models": [
     "onara/cc/claude-opus-5-5",
@@ -16,22 +16,22 @@
   ],
   "qa": [
     {
-      "name": "F1 v1+v2: extension newSession/switchSession/branch refused under real omp acp, later updates keep id A",
+      "name": "F1 v1+v2: extension newSession/switchSession/branch refused under real omp acp, later updates keep id A (rerun on b0ac1a2e35, merged tree, 8/8)",
       "passed": true,
       "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v1-extension-refusal.evidence.json"
     },
     {
-      "name": "F1 v1+v2 regression guard: navigateTree and reload keep id A",
+      "name": "F1 v1+v2 regression guard: navigateTree and reload keep id A (rerun on b0ac1a2e35, merged tree, 8/8)",
       "passed": true,
       "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v1-navigate-reload.evidence.json"
     },
     {
-      "name": "F1 v1+v2: /session delete confirms, then prompt/resume/set_mode|set_config_option for A answer like a never-issued id; file gone; A not listed",
+      "name": "F1 v1+v2: /session delete confirms, then prompt/resume/set_mode|set_config_option for A answer like a never-issued id; file gone; A not listed (rerun on b0ac1a2e35, merged tree, 8/8)",
       "passed": true,
       "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-v2-delete.evidence.json"
     },
     {
-      "name": "F1 v1+v2: no header-less session file after the runs",
+      "name": "F1 v1+v2: no header-less session file after the runs (rerun on b0ac1a2e35, merged tree, 8/8)",
       "passed": true,
       "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-results.json"
     },
@@ -41,19 +41,24 @@
       "artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f1-results-main.json"
     },
     {
-      "name": "Change suites on ee95383125 (664 pass, 0 fail) incl. store race regressions of 4.1.1 and 4.3, each RED on its unfixed source",
+      "name": "Change suites on b4a1a0a326 (759 pass, 0 fail, 45 files) incl. store race regressions of 4.1.1 and 4.3 and the 4.4.1 fatal-relocation regressions, each RED on its unfixed source",
       "passed": true,
-      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/qa-matrix.md"
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-3/qa-matrix.md"
     },
     {
       "name": "F2 fix 4.3 amendment: switch-in-flight regression RED without the target generation (10 pass / 1 fail)",
       "passed": true,
-      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/red-switch-in-flight.log"
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-3/red-switch-in-flight.log"
     },
     {
-      "name": "Full verification after the last code commit e4dbc16416: bun check exit 0; full package suite failure set identical to main",
+      "name": "Merge fix 4.4.1: ACP fatal relocation regressions RED without the fix (24 pass / 4 fail)",
       "passed": true,
-      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-2/full-suite-summary.log"
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-3/red-fatal-relocation.log"
+    },
+    {
+      "name": "Full verification after the last code commit b0ac1a2e35: bun check exit 0; full package suite failures = main's set plus one load timeout (fetch-binary-dispatch, 10/0 alone, untouched area)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-session-transitions/f2-wave-3/full-suite-summary.log"
     }
   ],
   "whole_diff": {
@@ -80,15 +85,15 @@
       "invocation": "implementation-audit",
       "verdict": "PASS",
       "trailer_artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f2-implementation-audit-trailer.md",
-      "trailer_sha256": "d26549f7114e73fc72065ce444f36ff8103555f6f8d1d4a9a7692091f4f57a2d",
-      "note": "F2 wave 2 (snapshot ee95383125); note: pre-existing non-atomic session-file/artifact deletion (F3 Should-fix, not taken) non-blocking"
+      "trailer_sha256": "52b9c5bb6220e68f3a6b72191e879de7344a0244d57da40ca07c3d546750b8aa",
+      "note": "F2 wave 3 (snapshot b4a1a0a326, merged tree); note: repeated session/close race statically covered by the ClosingSession latch, regression optional; non-blocking"
     },
     {
       "invocation": "strategic-risk-review",
       "verdict": "PASS",
       "trailer_artifact": ".omp/team-config/evidence/gate/acp-session-transitions/f2-strategic-risk-review-trailer.md",
-      "trailer_sha256": "0a2948d6ea9488923fce2b8512e03400ba530fff6707579a76ee42346073acb0",
-      "note": "F2 wave 2 (snapshot ee95383125); notes N1 (accepted failed-delete/concurrent-target residual), N2 (ACP Goal swap tests removed with the unreachable path), N3 (non-atomic artifact cleanup) non-blocking"
+      "trailer_sha256": "bd6fce8e745b0a640155b8cefdf67413913407f4637934c144a6f0ce88d8607a",
+      "note": "F2 wave 3 (snapshot b4a1a0a326, merged tree); notes N1 (started-but-failed setSessionFile may suppress failed-delete restore, within the accepted serialization residual), N2 (close liveness depends on surfaces resolving ForegroundWork.ended), N3 (delete confirmation names session/load on v2) non-blocking"
     }
   ],
   "blockers": [

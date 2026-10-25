@@ -1,23 +1,52 @@
-Bottom line: The change holds up architecturally: ACP-specific refusal remains at the ACP adapter, persistence ownership remains in `SessionManager`, and slash-command code only exposes an optional host lifecycle hook. I found no blocking defect; the highest-impact risk—silent transcript loss after deleting or failing to delete the active file—is directly addressed and adversarially covered in the supplied QA matrix.
+Bottom line: The change holds up architecturally: ACP-specific refusal stays at the ACP adapter, deletion durability is enforced in `SessionManager`, and host-session termination is exposed through an optional slash-runtime hook rather than leaking ACP policy into shared commands. I found no substantiated blocker; the highest-impact risk—silent transcript loss or recreation of a deleted transcript—is directly addressed and adversarially exercised.
 
-Action plan / answers:
+## 1. Architectural fit
 
-1. **Architecture:** The boundaries are appropriate. `AcpAgent.#configureExtensions` owns the ACP-only transcript-replacement policy; `BUILTIN_SESSION_SLASH_COMMANDS` signals successful deletion through `SlashCommandRuntime.endSessionAfterTurn`; `AcpAgent.#parkForClose`, `#endSessionAfterTurn`, and `#runClose` own protocol admission and shutdown; and `SessionManager.dropSession`, `#detachSessionFile`, and `#reattachSessionFile` own persistence integrity. The optional hook preserves existing TUI/RPC/print behavior rather than pushing ACP semantics into shared storage or extension APIs.
+Yes. The responsibilities are placed at the narrowest existing boundaries:
 
-2. **What a line-level audit structurally misses:** The core correctness property is a distributed state machine, not any individual branch: after deletion, the record must be absent from `#sessions`, temporarily reachable through `#closing` only for output/cancel/close/dispose, and disposed only after `ForegroundWork.ended` is marked by `AcpSurfaceV1.onForegroundEnd` or `AcpSurfaceV2.onForegroundEnd`. The supplied Q9 coverage exercises that admission boundary. Likewise, current-file deletion is a transaction across synchronous detachment, writer drain, storage deletion, authoritative recovery, target-generation arbitration, and session-claim release; Q11 targets those cross-method races rather than merely testing the happy path.
+- ACP transcript replacement is refused in `AcpAgent.#configureExtensions` through `#refuseTranscriptReplacement` (`packages/coding-agent/src/modes/acp/acp-agent.ts`), while `navigateTree` and `reload` retain their existing same-session path. This avoids changing TUI, RPC, print, or `AgentSession` semantics.
+- The no-recreation invariant is centralized in `SessionManager.dropSession`, `#detachSessionFile`, and `#reattachSessionFile` (`packages/coding-agent/src/session/session-manager.ts`), so late title, exit, and append writers cannot each forget a separate “deleted” flag.
+- ACP teardown is centralized in `ClosingSession.start`, `#parkForClose`, `#runClose`, and `#endSessionAfterTurn` (`packages/coding-agent/src/modes/acp/acp-agent.ts`). The optional `SlashCommandRuntime.endSessionAfterTurn` hook (`packages/coding-agent/src/slash-commands/types.ts`) leaves non-ACP hosts unchanged.
+- The merged fatal-relocation behavior correctly reuses that same close path from `#relocateSession` and `relocateWithRuntime` rather than creating a second ACP-record cleanup protocol.
 
-3. **Worst production failure:** Silent loss or malformed recreation of a user's transcript in every mode would hurt most. The change addresses it by detaching only when the resolved deletion path is the current file, doing so before the first await, restoring failed deletion/close operations through `#authoritativelyRewriteCurrentStateLocked`, and preventing recovery from overwriting a replacement target that has started. The supplied Q11 results cover held writer close, held unlink, failed close/delete, concurrent `newSession`, and an in-flight `setSessionFile`; Q7 supplies the real-surface header check. The explicitly accepted overlap residual in `gate.md` remains narrower and does not overturn that result.
+## 2. What the line-level audit structurally misses
 
-4. **Auditor false positives:** None. The implementation auditor's non-atomic session-file/artifact deletion note is a real pre-existing property of direct storage deletion, but the diff neither introduces nor broadens it; its non-blocking classification is therefore correct rather than a false positive.
+The main structural dependency is a three-party lifecycle handshake: the builtin parks the record, `AcpAgent` owns the close latch, and the active protocol surface must resolve `ForegroundWork.ended`. Current v1 and v2 implementations both call `markEnded` (`acp-surface-v1.ts` and `acp-surface-v2.ts`), but the type system does not ensure that every future terminal path or protocol surface does so. A missed settlement would leave a deleted session correctly unaddressable but parked and undisposed until explicit close or agent disposal.
 
-Effort: Quick (<1h); no remediation is indicated by this review.
+A second structural edge is that `SessionManager.#targetGeneration` records that `newSession` or `setSessionFile` *started*, not that a replacement target was successfully installed. [INFERENCE] If a failed current-file deletion overlaps a `setSessionFile` that starts and then itself rejects before installing a target, `#reattachSessionFile` appears to skip restoration solely because the generation changed. This is not a blocker under the supplied threshold: it requires two overlapping failure paths, no ordinary admitted flow producing that overlap is established in the supplied material, the damage is local/reversible, and nearby unsynchronized restoration overlap is an accepted residual risk. It is nevertheless the most valuable missing adversarial regression.
 
-Confidence: medium — conclusions are grounded in the complete supplied diff, plan, QA matrix, and audit report, but the assignment intentionally prohibited inspecting unchanged helper implementations and omitted evidence artifacts.
+## 3. Highest-impact production failure
 
-Watch out for:
-- Note N1: The accepted failed-delete/concurrent-target residual does not block because it requires overlapping failure paths and is explicitly recorded in `gate.md`; it should remain visible if persistence serialization is redesigned.
-- Note N2: Removing the ACP Goal-mode transcript-swap tests is correct for the now-unreachable public path, but it removes direct regression protection for the defensive branches in `AcpGoalActor.#syncTranscript` and `endSessionChange`; any future ACP session-replacement wire feature must restore equivalent tests before enabling that path.
-- Note N3: The non-atomic artifact cleanup observation does not block because it is unchanged behavior, requires a local cleanup failure, and is outside this change's session-file recreation contract.
+The worst credible failure is silent transcript loss across every mode: detaching the wrong persistence target, or failing to republish the complete in-memory transcript after deletion or writer-close failure. That is addressed by:
+
+- matching the requested deletion against the current file before detachment;
+- detaching before the first `await`, closing the pre-existing writer, and preventing hot-path appends from reopening the old path;
+- authoritative full-state rewrite on failure;
+- preserving a concurrently selected replacement target with `#targetGeneration`;
+- real-storage race tests in `test/session-manager/drop-current-session.test.ts`, including held unlink, held writer close, close failure, failed deletion, `newSession`, and in-flight `setSessionFile` cases.
+
+The QA matrix’s Q7/Q11 negative controls and the real ACP runs provide evidence at both the persistence boundary and the user-facing protocol boundary. The remaining accepted serialization residual does not overturn that conclusion.
+
+## 4. Auditor findings versus unchanged behavior
+
+No auditor finding is a false positive. The implementation audit’s repeated-`session/close` item is explicitly a coverage-strengthening note, not a claimed defect; the shown `ClosingSession.start` latch structurally shares one `#runClose` promise. Its mention of non-atomic session-file/artifact deletion is also correctly classified as pre-existing storage behavior rather than a change-caused blocker.
+
+## Notes
+
+- Note N1: A started-but-failed concurrent `setSessionFile` may suppress failed-delete restoration through `#targetGeneration`; it does not block because the supplied system flow does not establish this double-failure overlap as ordinary operation and the accepted residual already acknowledges unsynchronized target restoration.
+- Note N2: Close liveness depends on every ACP surface resolving `ForegroundWork.ended`; it does not block because both current surfaces visibly resolve it on success and error, and close/dispose retain escape paths.
+- Note N3: `/session delete` still tells every ACP client to use `session/load`, while the new test states protocol v2 exposes `session/resume` instead; this is unchanged, reversible guidance text and does not break the implemented deletion contract.
+
+## Action plan
+
+1. Proceed without a strategic blocking fix.
+2. Add a focused regression where failed `dropSession(current)` overlaps a `setSessionFile` that also rejects; assert the chosen recovery semantics through `getSessionFile()`, a subsequent `flush()`, and complete on-disk entries.
+3. Add a lifecycle conformance test that every v1/v2 foreground terminal outcome resolves `ended` and eventually removes a parked record from `#closing`.
+4. Make the deletion confirmation protocol-neutral (“start or resume another session”) or select the valid v1/v2 method.
+
+Effort: Short (1–4h) for the optional hardening; no blocking implementation work.
+
+Confidence: high.
 
 PASS
 
@@ -29,9 +58,9 @@ security_delta: no
 verdict: PASS
 blockers: none
 adversarial_criteria:
-- invariant: A parked ACP record has exactly one close owner even when turn settlement, `session/close`, and agent disposal race.
-  positive_witness: Every close initiator converges on the same `ClosingSession.start()` promise, the already-admitted terminal frame is emitted once, and the record is disposed once.
-  negative_control: Concurrent close initiators cause double disposal, omit the terminal frame, or leave the record parked after all close promises settle.
-  observable: Ordered terminal frames, close-promise settlement, disposal-call count, and rejection of a post-close request as an unknown session.
-  boundary: `AcpAgent` closing-map lifecycle through `ClosingSession.start`/`#runClose` and the v1/v2 surface drain boundary.
+- invariant: A replacement-target operation that starts but fails to install a target must not by itself suppress recovery of the original persistence target after current-file deletion also fails.
+  positive_witness: A failed delete overlapping a rejected `setSessionFile` leaves the manager on the original session, and a later append plus flush produces one complete header and every pre-existing and later entry.
+  negative_control: The attempted switch increments the generation, restoration is skipped, `getSessionFile()` remains undefined, and the later append is retained only in memory; this MUST fail.
+  observable: Both operation errors, `getSessionFile()`, old-path existence, parsed header count, and message contents after a successful flush.
+  boundary: `SessionManager.dropSession` / `#reattachSessionFile` target-generation handoff.
 END-REVIEW-TRAILER
