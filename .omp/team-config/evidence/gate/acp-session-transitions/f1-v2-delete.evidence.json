@@ -9,7 +9,7 @@
         "id": 15,
         "method": "session/new",
         "params": {
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
           "mcpServers": []
         }
       }
@@ -20,7 +20,7 @@
         "jsonrpc": "2.0",
         "id": 15,
         "result": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "configOptions": [
             {
               "configId": "mode",
@@ -492,7 +492,7 @@
         "id": 16,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "prompt": [
             {
               "type": "text",
@@ -508,7 +508,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -522,7 +522,7 @@
         "jsonrpc": "2.0",
         "id": 16,
         "result": {
-          "messageId": "82d146da"
+          "messageId": "371f521e"
         }
       }
     },
@@ -532,10 +532,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "82d146da",
+            "messageId": "371f521e",
             "content": [
               {
                 "type": "text",
@@ -552,10 +552,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "agent_message_chunk",
-            "messageId": "e2876bcf-eb42-4bbc-82d3-854b02de6e92",
+            "messageId": "ef1a7f0e-4d8e-4d61-a811-3f9f10d2238c",
             "content": {
               "type": "text",
               "text": "fixture reply"
@@ -570,10 +570,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6964,
+            "used": 6991,
             "size": 128000
           }
         }
@@ -585,10 +585,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6964,
+            "used": 6991,
             "size": 128000
           }
         }
@@ -600,10 +600,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:09.559Z"
+            "updatedAt": "2026-10-25T23:35:12.936Z"
           }
         }
       }
@@ -614,7 +614,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -629,7 +629,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "available_commands_update",
             "availableCommands": [
@@ -1040,10 +1040,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:09.475Z"
+            "updatedAt": "2026-10-25T23:35:12.848Z"
           }
         }
       }
@@ -1054,10 +1054,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6964,
+            "used": 6991,
             "size": 128000
           }
         }
@@ -1070,7 +1070,7 @@
         "id": 17,
         "method": "session/list",
         "params": {
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace"
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace"
         }
       }
     },
@@ -1082,39 +1082,39 @@
         "result": {
           "sessions": [
             {
-              "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:09.558Z",
+              "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:12.936Z",
               "_meta": {
                 "messageCount": 2,
                 "size": 2549
               }
             },
             {
-              "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:09.123Z",
+              "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:12.495Z",
               "_meta": {
                 "messageCount": 4,
                 "size": 5338
               }
             },
             {
-              "sessionId": "01a1750d-9494-7168-9fa4-1645c3727238",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:07.559Z",
+              "sessionId": "01a1756b-044d-7533-8e27-8f119d6f2b82",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:10.935Z",
               "_meta": {
                 "messageCount": 4,
-                "size": 4649
+                "size": 4650
               }
             },
             {
-              "sessionId": "01a1750d-9261-70f4-8a84-16d0fc11ebbe",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:06.359Z",
+              "sessionId": "01a1756b-0256-7605-98ac-ac2cffa86dde",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:09.806Z",
               "_meta": {
                 "messageCount": 2,
-                "size": 2534
+                "size": 2533
               }
             }
           ]
@@ -1128,7 +1128,7 @@
         "id": 18,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "prompt": [
             {
               "type": "text",
@@ -1144,7 +1144,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -1158,7 +1158,7 @@
         "jsonrpc": "2.0",
         "id": 18,
         "result": {
-          "messageId": "ed18dea8-55e9-459b-a02e-86d9acfe4897"
+          "messageId": "d041bfd1-637c-4111-a8ca-f3bc9de752a6"
         }
       }
     },
@@ -1168,10 +1168,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "ed18dea8-55e9-459b-a02e-86d9acfe4897",
+            "messageId": "d041bfd1-637c-4111-a8ca-f3bc9de752a6",
             "content": [
               {
                 "type": "text",
@@ -1188,13 +1188,13 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "agent_message_chunk",
-            "messageId": "616b2d06-133d-466d-9f2e-ab4679da3384",
+            "messageId": "2973ca52-6a85-420e-bd0c-4a6708ed230c",
             "content": {
               "type": "text",
-              "text": "Session deleted: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/agent/sessions/-tmp-omp-f1-transitions-v2-GnKl79-workspace/2026-10-25T21-53-09-475Z_01a1750d-9f63-75e9-b316-213a53253add.jsonl. Use ACP `session/load` to switch to another session."
+              "text": "Session deleted: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/agent/sessions/-tmp-omp-f1-transitions-v2-3mlT32-workspace/2026-10-25T23-35-12-848Z_01a1756b-0ed0-7568-9522-a47f71d37a51.jsonl. Use ACP `session/load` to switch to another session."
             }
           }
         }
@@ -1206,10 +1206,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6964,
+            "used": 6991,
             "size": 128000
           }
         }
@@ -1221,7 +1221,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -1237,7 +1237,7 @@
         "id": 19,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "prompt": [
             {
               "type": "text",
@@ -1256,7 +1256,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "Unsupported ACP session: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       }
@@ -1268,7 +1268,7 @@
         "id": 20,
         "method": "session/prompt",
         "params": {
-          "sessionId": "08b9737a-0e3e-4a41-8f9c-be4dcc5e5756",
+          "sessionId": "21b1eb98-c6f2-4ba4-989d-25a9a8f3335c",
           "prompt": [
             {
               "type": "text",
@@ -1287,7 +1287,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "Unsupported ACP session: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }
@@ -1299,8 +1299,8 @@
         "id": 21,
         "method": "session/resume",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
           "mcpServers": []
         }
       }
@@ -1314,7 +1314,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "ACP session not found: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "ACP session not found: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       }
@@ -1326,8 +1326,8 @@
         "id": 22,
         "method": "session/resume",
         "params": {
-          "sessionId": "08b9737a-0e3e-4a41-8f9c-be4dcc5e5756",
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
+          "sessionId": "21b1eb98-c6f2-4ba4-989d-25a9a8f3335c",
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
           "mcpServers": []
         }
       }
@@ -1341,7 +1341,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "ACP session not found: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "ACP session not found: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }
@@ -1353,7 +1353,7 @@
         "id": 23,
         "method": "session/set_config_option",
         "params": {
-          "sessionId": "01a1750d-9f63-75e9-b316-213a53253add",
+          "sessionId": "01a1756b-0ed0-7568-9522-a47f71d37a51",
           "configId": "thinking",
           "value": "high"
         }
@@ -1368,7 +1368,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "Unsupported ACP session: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       }
@@ -1380,7 +1380,7 @@
         "id": 24,
         "method": "session/set_config_option",
         "params": {
-          "sessionId": "08b9737a-0e3e-4a41-8f9c-be4dcc5e5756",
+          "sessionId": "21b1eb98-c6f2-4ba4-989d-25a9a8f3335c",
           "configId": "thinking",
           "value": "high"
         }
@@ -1395,7 +1395,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "Unsupported ACP session: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }
@@ -1407,7 +1407,7 @@
         "id": 25,
         "method": "session/list",
         "params": {
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace"
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace"
         }
       }
     },
@@ -1419,30 +1419,30 @@
         "result": {
           "sessions": [
             {
-              "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:09.123Z",
+              "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:12.495Z",
               "_meta": {
                 "messageCount": 4,
                 "size": 5338
               }
             },
             {
-              "sessionId": "01a1750d-9494-7168-9fa4-1645c3727238",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:07.559Z",
+              "sessionId": "01a1756b-044d-7533-8e27-8f119d6f2b82",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:10.935Z",
               "_meta": {
                 "messageCount": 4,
-                "size": 4649
+                "size": 4650
               }
             },
             {
-              "sessionId": "01a1750d-9261-70f4-8a84-16d0fc11ebbe",
-              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
-              "updatedAt": "2026-10-25T21:53:06.359Z",
+              "sessionId": "01a1756b-0256-7605-98ac-ac2cffa86dde",
+              "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
+              "updatedAt": "2026-10-25T23:35:09.806Z",
               "_meta": {
                 "messageCount": 2,
-                "size": 2534
+                "size": 2533
               }
             }
           ]
@@ -1451,7 +1451,7 @@
     }
   ],
   "notes": {
-    "delete text": "Session deleted: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/agent/sessions/-tmp-omp-f1-transitions-v2-GnKl79-workspace/2026-10-25T21-53-09-475Z_01a1750d-9f63-75e9-b316-213a53253add.jsonl. Use ACP `session/load` to switch to another session.",
+    "delete text": "Session deleted: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/agent/sessions/-tmp-omp-f1-transitions-v2-3mlT32-workspace/2026-10-25T23-35-12-848Z_01a1756b-0ed0-7568-9522-a47f71d37a51.jsonl. Use ACP `session/load` to switch to another session.",
     "session/prompt": {
       "deleted": {
         "jsonrpc": "2.0",
@@ -1460,7 +1460,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "Unsupported ACP session: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       },
@@ -1471,7 +1471,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "Unsupported ACP session: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }
@@ -1484,7 +1484,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "ACP session not found: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "ACP session not found: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       },
@@ -1495,7 +1495,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "ACP session not found: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "ACP session not found: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }
@@ -1508,7 +1508,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 01a1750d-9f63-75e9-b316-213a53253add"
+            "details": "Unsupported ACP session: 01a1756b-0ed0-7568-9522-a47f71d37a51"
           }
         }
       },
@@ -1519,7 +1519,7 @@
           "code": -32603,
           "message": "Internal error",
           "data": {
-            "details": "Unsupported ACP session: 08b9737a-0e3e-4a41-8f9c-be4dcc5e5756"
+            "details": "Unsupported ACP session: 21b1eb98-c6f2-4ba4-989d-25a9a8f3335c"
           }
         }
       }

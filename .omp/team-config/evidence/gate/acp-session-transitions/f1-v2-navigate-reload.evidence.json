@@ -9,7 +9,7 @@
         "id": 10,
         "method": "session/new",
         "params": {
-          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-GnKl79/workspace",
+          "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/workspace",
           "mcpServers": []
         }
       }
@@ -20,7 +20,7 @@
         "jsonrpc": "2.0",
         "id": 10,
         "result": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "configOptions": [
             {
               "configId": "mode",
@@ -492,7 +492,7 @@
         "id": 11,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "prompt": [
             {
               "type": "text",
@@ -508,7 +508,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -522,7 +522,7 @@
         "jsonrpc": "2.0",
         "id": 11,
         "result": {
-          "messageId": "6b1b5a12"
+          "messageId": "607f47eb"
         }
       }
     },
@@ -532,10 +532,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "6b1b5a12",
+            "messageId": "607f47eb",
             "content": [
               {
                 "type": "text",
@@ -552,10 +552,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "agent_message_chunk",
-            "messageId": "000328ca-8dd1-46ea-b6b7-3957ef069778",
+            "messageId": "c5a0544d-00b4-4aa8-af89-2ce26eab1561",
             "content": {
               "type": "text",
               "text": "fixture reply"
@@ -570,10 +570,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6963,
+            "used": 6990,
             "size": 128000
           }
         }
@@ -585,10 +585,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6963,
+            "used": 6990,
             "size": 128000
           }
         }
@@ -600,10 +600,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:08.007Z"
+            "updatedAt": "2026-10-25T23:35:11.375Z"
           }
         }
       }
@@ -614,7 +614,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -629,7 +629,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "available_commands_update",
             "availableCommands": [
@@ -1040,10 +1040,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:07.913Z"
+            "updatedAt": "2026-10-25T23:35:11.288Z"
           }
         }
       }
@@ -1054,10 +1054,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6963,
+            "used": 6990,
             "size": 128000
           }
         }
@@ -1070,7 +1070,7 @@
         "id": 12,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "prompt": [
             {
               "type": "text",
@@ -1086,7 +1086,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -1100,7 +1100,7 @@
         "jsonrpc": "2.0",
         "id": 12,
         "result": {
-          "messageId": "e5a79f32"
+          "messageId": "5b117b1b"
         }
       }
     },
@@ -1110,10 +1110,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "e5a79f32",
+            "messageId": "5b117b1b",
             "content": [
               {
                 "type": "text",
@@ -1130,10 +1130,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "agent_message_chunk",
-            "messageId": "9839c1de-6a13-41c6-b762-153e49e7b02e",
+            "messageId": "8bea1fe6-fed2-411e-a8cb-9672b4f104c0",
             "content": {
               "type": "text",
               "text": "fixture reply"
@@ -1148,10 +1148,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6974,
+            "used": 7001,
             "size": 128000
           }
         }
@@ -1163,10 +1163,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 6974,
+            "used": 7001,
             "size": 128000
           }
         }
@@ -1178,10 +1178,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:08.381Z"
+            "updatedAt": "2026-10-25T23:35:11.752Z"
           }
         }
       }
@@ -1192,7 +1192,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -1208,7 +1208,7 @@
         "id": 13,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "prompt": [
             {
               "type": "text",
@@ -1224,7 +1224,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -1238,7 +1238,7 @@
         "jsonrpc": "2.0",
         "id": 13,
         "result": {
-          "messageId": "abcff98f-e4f1-4b03-9a00-dd7e7e36ee4a"
+          "messageId": "44621868-1c51-4a54-b414-df685250e29a"
         }
       }
     },
@@ -1248,10 +1248,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "abcff98f-e4f1-4b03-9a00-dd7e7e36ee4a",
+            "messageId": "44621868-1c51-4a54-b414-df685250e29a",
             "content": [
               {
                 "type": "text",
@@ -1268,7 +1268,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -1284,7 +1284,7 @@
         "id": 14,
         "method": "session/prompt",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "prompt": [
             {
               "type": "text",
@@ -1300,7 +1300,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "running"
@@ -1314,7 +1314,7 @@
         "jsonrpc": "2.0",
         "id": 14,
         "result": {
-          "messageId": "05ec09f5"
+          "messageId": "67a0cf50"
         }
       }
     },
@@ -1324,10 +1324,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "user_message",
-            "messageId": "05ec09f5",
+            "messageId": "67a0cf50",
             "content": [
               {
                 "type": "text",
@@ -1344,10 +1344,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "agent_message_chunk",
-            "messageId": "b4c6de63-cbf4-49b4-9a46-19cb4952c50c",
+            "messageId": "bda58f1f-e23e-4d11-9fdb-d35b756f8db9",
             "content": {
               "type": "text",
               "text": "fixture reply"
@@ -1362,10 +1362,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 7009,
+            "used": 7036,
             "size": 128000
           }
         }
@@ -1377,10 +1377,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "usage_update",
-            "used": 7009,
+            "used": 7036,
             "size": 128000
           }
         }
@@ -1392,10 +1392,10 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "session_info_update",
-            "updatedAt": "2026-10-25T21:53:09.124Z"
+            "updatedAt": "2026-10-25T23:35:12.496Z"
           }
         }
       }
@@ -1406,7 +1406,7 @@
         "jsonrpc": "2.0",
         "method": "session/update",
         "params": {
-          "sessionId": "01a1750d-9949-7170-a91f-da4e962ad31c",
+          "sessionId": "01a1756b-08b8-773d-b821-7f293360f96e",
           "update": {
             "sessionUpdate": "state_update",
             "state": "idle",
@@ -1423,10 +1423,10 @@
         "cancelled": false
       },
       "reload": "ok",
-      "entryId": "6b1b5a12",
-      "leaf": "91729e79"
+      "entryId": "607f47eb",
+      "leaf": "85b47607"
     }
   },
   "pass": true,
-  "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1750d-9949-7170-a91f-da4e962ad31c, later prompt persisted in A's file"
+  "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1756b-08b8-773d-b821-7f293360f96e, later prompt persisted in A's file"
 }

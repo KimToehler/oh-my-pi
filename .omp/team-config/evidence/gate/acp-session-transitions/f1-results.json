@@ -4,14 +4,14 @@
     "protocolVersion": 1,
     "pass": true,
     "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-extension-refusal.evidence.json",
-    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a1750d-800c-7510-97bf-4d43dc59f89d, no new session/file, next prompt persisted in A's file"
+    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a1756a-efdb-76a9-97e8-e545596b60f9, no new session/file, next prompt persisted in A's file"
   },
   {
     "scenario": "navigate-reload",
     "protocolVersion": 1,
     "pass": true,
     "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-navigate-reload.evidence.json",
-    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1750d-83ec-76e0-9f5a-aa1646cf297d, later prompt persisted in A's file"
+    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1756a-f3bb-707d-bc9c-c430f86cb5f9, later prompt persisted in A's file"
   },
   {
     "scenario": "delete",
@@ -32,14 +32,14 @@
     "protocolVersion": 2,
     "pass": true,
     "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-extension-refusal.evidence.json",
-    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a1750d-9494-7168-9fa4-1645c3727238, no new session/file, next prompt persisted in A's file"
+    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a1756b-044d-7533-8e27-8f119d6f2b82, no new session/file, next prompt persisted in A's file"
   },
   {
     "scenario": "navigate-reload",
     "protocolVersion": 2,
     "pass": true,
     "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-navigate-reload.evidence.json",
-    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1750d-9949-7170-a91f-da4e962ad31c, later prompt persisted in A's file"
+    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a1756b-08b8-773d-b821-7f293360f96e, later prompt persisted in A's file"
   },
   {
     "scenario": "delete",
