@@ -1,26 +1,27 @@
 {
   "schema": "team-config.merge-gate/v3",
   "plan": "openspec/changes/session-move-tool",
-  "plan_sha256": "6a50701e492ea4e501aea81be7b9490dd56057e27243e283cf82e94491d1af7d",
-  "reviewed_sha": "420c6cc4eaa8d201d9e854657ee6fb982b255e08",
-  "diff_base": "24d028086d48b80e5a380e5dc3d1309e8bc6d653",
+  "plan_sha256": "bfb5f89a4eb681d3edbc51c3dd6870972badb7a0dd7c09ef3aa666ff65c6a123",
+  "reviewed_sha": "8afce3c62402e8eff915f52a1d716397e37aca94",
+  "diff_base": "dfdededea0c8cf45dc71ef768ce2bbe00ef9c463",
   "reviewers_run": ["implementation-audit", "strategic-risk-review"],
-  "decision_reason": "Both F2 reviewers returned PASS with no blockers on the head whose F1 QA and F3 wave 5 also passed.",
+  "decision_reason": "F2 wave 3: QA passed on every row and both reviewers returned FAIL with one shared blocker (relocation-admission); gate-convergence returned STOP and Tim chose freeze with a follow-up change. The later tasks.md-only commit de03be7490865ed1332dd605cdd220ec422ebd84 (tick 12.1, follow-up bullet) passed its fix-delta review.",
   "mandatory_class": "concurrency-state",
-  "implementation_models": ["onara/cc/claude-opus-5"],
+  "implementation_models": ["onara/cc/claude-opus-5", "onara/cc/claude-opus-5-5"],
   "qa": [
-    { "name": "F1 (a) move into an existing worktree, continuation runs there", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/a-existing.md" },
-    { "name": "F1 (b) create a worktree on a new branch and move", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/b-create.md" },
-    { "name": "F1 (c) target outside the repository rejected, cwd unchanged", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/c-outside.md" },
-    { "name": "F1 (d) refused while a background bash job runs", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/d-background.md" },
-    { "name": "F1 (e) exactly one turn after the move under an active goal", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/e-goal.md" },
-    { "name": "F1 (f) ACP stdio move, continuation updates, no chunk before the command reload", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/f-acp.md" },
-    { "name": "F1 (g) resume lists the moved session in the target's session bucket", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/g-resume.md" }
+    { "name": "F2 wave 3 (a) move into an existing worktree, continuation runs there", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/a-existing.md" },
+    { "name": "F2 wave 3 (b) create a worktree on a new branch and move", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/b-create.md" },
+    { "name": "F1 (c) target outside the repository rejected, cwd unchanged (reused: target validation untouched since)", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/f1/c-outside.md" },
+    { "name": "F2 wave 3 (d) refused while a background bash job runs", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/d-background.md" },
+    { "name": "F2 wave 3 (e) exactly one turn after the move under an active goal", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/e-goal.md" },
+    { "name": "F2 wave 3 (f) ACP stdio moves through the approval gate: allow continues, reject creates and relocates nothing", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/f-acp.md" },
+    { "name": "F2 wave 3 (g) resume lists and reopens the moved session from the target's session bucket", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/g-resume.md" },
+    { "name": "F2 wave 3 (h) a subagent spawned before a move and woken after it blocks the next move", "passed": true, "artifact": ".omp/team-config/evidence/session-move-tool/wave-3/h-descendant.md" }
   ],
   "whole_diff": {
     "run": true,
     "report": ".omp/team-config/evidence/gate/session-move-tool/f3-integration-review-report.md",
-    "report_sha256": "e554e44853d8f1642a540d55f4639fec53ee7df2746b64f79ae94d3a6a5537c0"
+    "report_sha256": "44a23cd03011927f6a7a135aa0ce93780edb7a89327d1f5bad9eaf000c727d55"
   },
   "resolution": [
     { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" },
@@ -29,18 +30,33 @@
   "verdicts": [
     {
       "invocation": "implementation-audit",
-      "verdict": "PASS",
+      "verdict": "FAIL",
       "trailer_artifact": ".omp/team-config/evidence/gate/session-move-tool/implementation-audit-trailer.md",
-      "trailer_sha256": "d002c4f523bfba0cb7f99829e2cef95201a83f756a3af0a1c46234380e0111d0",
-      "note": "No blockers; verification adequacy section cites the F1 artifacts and the package test runs. First invocation returned PASS with an unindented trailer; re-run verbatim rather than edited."
+      "trailer_sha256": "cdab6591e94790351bb850d911bf0a592cd18510ca462efa0df1201b733336aa",
+      "note": "B1: the final D6 snapshot in #executeSessionMove is not held through the awaited relocator, so a peer wake of an idle descendant can start a turn in the source checkout."
     },
     {
       "invocation": "strategic-risk-review",
-      "verdict": "PASS",
+      "verdict": "FAIL",
       "trailer_artifact": ".omp/team-config/evidence/gate/session-move-tool/strategic-risk-review-trailer.md",
-      "trailer_sha256": "34c5b650bb87982cf3201709d03e3d614d886811074a762256c520468b54c028",
-      "note": "No blockers; two non-blocking notes (abort during worktree creation, ACP fatal disposal self-wait) recorded as hardening observations."
+      "trailer_sha256": "614ac726133b07f3f1d9c288fa9e7a0608f6733f90bd7a67a780c0fbaa71e24c",
+      "note": "B1: same class, broadened to the root itself and to parked-descendant revival (IrcBus, AgentLifecycleManager.ensureLive); non-blocking note that tasks.md 12.1 is unchecked."
     }
   ],
-  "blockers": []
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "high",
+      "location": "packages/coding-agent/src/session/agent-session.ts:3331",
+      "coverage": "not-testable:frozen unfixed; the follow-up change adds paused-relocator tests for root, idle-live and parked descendants"
+    }
+  ],
+  "downgrades": [
+    { "invocation": "implementation-audit", "blocker": "B1", "rule": "frozen", "reason": "Peer wake during the relocator window needs a root-tree run-admission lease across IRC, lifecycle and AgentSession; deferred to a follow-up OpenSpec change.", "disposition": "follow-up" },
+    { "invocation": "strategic-risk-review", "blocker": "B1", "rule": "frozen", "reason": "Same relocation-admission class (root, live and parked descendants); the follow-up change builds the root-tree admission lease.", "disposition": "follow-up" }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "Chose freeze at the F2 wave 3 STOP on 2026-10-25: the relocation-admission race needs a concurrent peer message inside the sub-second relocator window and is accepted as residual risk until a follow-up change adds a root-tree admission lease."
+  }
 }
