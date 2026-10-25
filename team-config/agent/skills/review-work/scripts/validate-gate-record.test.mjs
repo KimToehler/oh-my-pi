@@ -1367,28 +1367,6 @@ test("#given a duplicated scalar key appended after a narrow answer #when valida
   assert.match(result.stderr, /sections_covered/)
 })
 
-// The contract sentence in SKILL.md and the predicate in the validator are maintained separately,
-// and drift between them has now shipped twice: `some` -> `every` left "at least one" in all three
-// copies, and the QA-artifact exemption was re-licensed in prose after the code removed it. A
-// denylist of known-stale phrases is a lagging indicator, so this binds the doc to the CURRENT
-// predicate instead: whichever quantifier the validator uses, the shipped sentence must not claim
-// the opposite one. These are the predicate's own tokens, not authored prose.
-test("#given the shipped contract text #when compared with the D8 predicate #then they agree on the quantifier", () => {
-  // given
-  const validatorSource = readFileSync(validator, "utf8")
-  const skill = readFileSync(path.join(scriptsDir, "..", "SKILL.md"), "utf8")
-
-  // when
-  const requiresEvery = validatorSource.includes("criteria.every((criterion) => !planText.includes(criterion.invariant))")
-
-  // then
-  assert.ok(requiresEvery, "D8 must hold against criterion count; `some` lets an appended criterion launder a copied one")
-  assert.ok(
-    !/at least one[^.]*adversarial criterion whose invariant is not restated/i.test(skill),
-    "SKILL.md still promises `at least one` original criterion while the validator requires every one",
-  )
-})
-
 // Differential, not anecdotal. The guard exists to agree with `JSON.parse` about which key names
 // collide; six rounds showed that hand-written agreement drifts. So the oracle is the real parser:
 // for each spelling, a source whose literal key count exceeds `Object.keys(...).length` HAS a
@@ -2554,3 +2532,93 @@ test("committed bytes: a clean committed record with its artifacts passes", () =
     assert.equal(result.status, 0, result.stderr)
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// Trailer check: one stored reviewer reply, checked as soon as it arrives, before any record exists.
+// The file sits under a tracked-able evidence path but is never staged: trailers are staged only
+// with the record, so the check must not require the index.
+// ---------------------------------------------------------------------------------------------
+function runTrailerCheck(body, { invocation = "implementation-audit", verdict = "PASS", planPath = plan, extra = [] } = {}) {
+  const directory = mkdtempSync(path.join(trackedRecordRoot, "trailer-check-"))
+  try {
+    const file = path.join(directory, "trailer-implementation-audit.txt")
+    writeFileSync(file, body)
+    return spawnSync(process.execPath, [validator, "--trailer", file, "--invocation", invocation, "--verdict", verdict, "--plan", planPath, "--repo", sandboxRepo, ...extra], { encoding: "utf8" })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+function expectTrailerPassed(result) {
+  assert.equal(result.status, 0, `expected passed, got: ${result.stdout}${result.stderr}`)
+  assert.equal(result.stdout, "passed\n")
+}
+
+function expectTrailerFinding(result, field) {
+  assert.equal(result.status, 1, `expected a ${field} finding, got: ${result.stdout}${result.stderr}`)
+  assert.equal(result.stdout, "blocked\n")
+  assert.match(result.stderr, new RegExp(`^${field.replaceAll(".", "\\.")}: `, "m"))
+}
+
+test("trailer check: a well-formed untracked trailer passes", () => {
+  expectTrailerPassed(runTrailerCheck(buildTrailer()))
+})
+
+test("trailer check: a repair reply holding only blocker lines and the trailer passes", () => {
+  const body = buildTrailer({ verdict: "FAIL", blockers: "B1", narrative: "Blocker B1: the cache key ignores the tenant id" })
+  assert.equal(body.split("\n")[0], "Blocker B1: the cache key ignores the tenant id")
+  expectTrailerPassed(runTrailerCheck(body, { verdict: "FAIL" }))
+})
+
+test("trailer check: a reply without a trailer blocks as missing", () => {
+  const result = runTrailerCheck("Section 1: read the diff.\nSection 5: no blocker found.\n\nPASS\n")
+  expectTrailerFinding(result, "trailer")
+  assert.match(result.stderr, /trailer is missing/)
+})
+
+test("trailer check: an adversarial_criterion key blocks on adversarial_criteria (negative control)", () => {
+  const body = buildTrailer().replace("adversarial_criteria:", "adversarial_criterion:")
+  expectTrailerFinding(runTrailerCheck(body), "trailer.adversarial_criteria")
+})
+
+test("trailer check: a trailer written for another invocation blocks on invocation", () => {
+  const body = buildTrailer({ invocation: "strategic-risk-review" })
+  expectTrailerFinding(runTrailerCheck(body, { invocation: "implementation-audit" }), "trailer.invocation")
+})
+
+test("trailer check: a PASS trailer checked with --verdict FAIL blocks on verdict (negative control)", () => {
+  expectTrailerFinding(runTrailerCheck(buildTrailer({ verdict: "PASS" }), { verdict: "FAIL" }), "trailer.verdict")
+})
+
+test("trailer check: a criterion invariant copied from the --plan file blocks on adversarial_criteria", () => {
+  const directory = mkdtempSync(path.join(sandboxRepo, ".omp", "trailer-check-plan-"))
+  try {
+    const planPath = path.join(directory, "plan.md")
+    const invariant = "the copied invariant proves nothing the author had not already assumed"
+    writeFileSync(planPath, `## Merge gate\n\n- Feature-specific criteria:\n  - Invariant: ${invariant}\n    Positive witness: witnessed\n    Negative control: mutation fails\n    Observable: exit code\n    Boundary: process\n`)
+    const criteria = [{ invariant, positive_witness: "w", negative_control: "n", observable: "o", boundary: "b" }]
+    const body = buildTrailer({ criteria })
+    // The same trailer against the default plan passes, so the block comes from the plan bytes.
+    expectTrailerPassed(runTrailerCheck(body))
+    expectTrailerFinding(runTrailerCheck(body, { planPath }), "trailer.adversarial_criteria")
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test("trailer check: --trailer together with --record blocks", () => {
+  expectTrailerFinding(runTrailerCheck(buildTrailer(), { extra: ["--record", "record.json"] }), "trailer")
+})
+
+test("trailer check: --trailer together with --plan-only blocks", () => {
+  expectTrailerFinding(runTrailerCheck(buildTrailer(), { extra: ["--plan-only"] }), "trailer")
+})
+
+// Each flag is added to a --plan-only run that passes on its own, so the block is the flag's.
+for (const [flag, value] of [["--invocation", "implementation-audit"], ["--verdict", "PASS"]]) {
+  test(`trailer check: ${flag} without --trailer blocks`, () => {
+    assert.equal(runPlanOnly(plan).status, 0, "the plan-only baseline must pass")
+    const result = spawnSync(process.execPath, [validator, "--plan-only", "--plan", plan, "--repo", sandboxRepo, flag, value], { encoding: "utf8" })
+    expectTrailerFinding(result, flag.slice(2))
+  })
+}

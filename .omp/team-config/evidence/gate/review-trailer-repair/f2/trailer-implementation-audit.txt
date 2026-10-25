@@ -1,0 +1,56 @@
+PASS
+
+## 1. Goal and behavioural contract
+The implementation meets the requested cutover. `trailer.mjs` centralizes record-independent trailer parsing and checks; the standalone validator mode checks an untracked stored reply against its invocation, expected verdict, and plan text; and `GC wave` validates required reviewer trailers before ledger append.
+
+The F2 repair flow is documented consistently: repair is same-reviewer, one-message, verdict-bound, and followed by one fresh-context retry only when repair fails or is unavailable. Non-token trailer verdicts remain excluded from repair.
+
+## 2. Correctness, regressions, architecture, wire contracts
+Reviewed:
+- `scripts/trailer.mjs:1-197`
+- `scripts/validate-gate-record.mjs:422-435, 776-831`
+- `scripts/gate-convergence.mjs:475-562, 677-710`
+- Added validator and convergence tests
+- `SKILL.md`, `merge-gate-proof.md`, and `delegation.md`
+
+All three production consumers use `checkTrailer`; record validation retains its record-dependent model binding. `GC wave` rejects F3 trailers, duplicate/orphan trailer arguments, missing PASS/FAIL reviewer trailers, unreadable or oversized artifacts, and trailer semantic failures before blocker calculation and `append`.
+
+The F3-reported classes are closed at their identified sites:
+- `noncanonical-verdict-repair`
+- `unbounded GC wave trailer read`
+
+Searches found no second production implementation of trailer parsing or `checkTrailer` validation. No blocking regression or wire-contract violation found.
+
+## 3. Security and privacy delta
+No new credential, authentication/authorization, personal-data, or protected-asset access path was introduced.
+
+The known limitation that a validator cannot prove reviewer-dispatch provenance remains documented as an accepted residual risk. Final record validation still authenticates the tracked trailer it cites; this change does not widen that declared boundary.
+
+## 4. Verification adequacy
+The supplied evidence covers:
+- standalone `--trailer` acceptance and rejection paths;
+- malformed/missing blocks, criterion-key typo, invocation/verdict mismatch, and repair-shaped FAIL replies;
+- F2 no-append behavior for missing or mismatched trailers;
+- optional INCONCLUSIVE trailers and F3 rejection;
+- copied-plan criterion rejection and the shared 1 MiB bound;
+- live same-reviewer repair transport and installed-copy controls.
+
+I performed a read-only audit and did not execute tests or commands. The supplied F1 and F3 artifacts report successful verification, and the red-evidence artifacts show the guidance checks failed before the associated fixes.
+
+## 5. Final
+PASS
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An unreadable supplied reviewer trailer must fail with invocation-specific gate diagnostics rather than escaping as an unhandled filesystem error.
+  positive_witness: A missing trailer file for implementation-audit exits non-zero with a trailer.implementation-audit or invocation-specific readability finding and appends no gate_wave event.
+  negative_control: A missing trailer path producing an uncaught filesystem stack or recording a gate_wave event MUST fail.
+  observable: Process stderr, exit status, and the ledger event count before and after GC wave.
+  boundary: gate-convergence.mjs wave trailer-file admission.
+END-REVIEW-TRAILER

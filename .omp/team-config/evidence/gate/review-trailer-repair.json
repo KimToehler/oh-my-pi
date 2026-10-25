@@ -1,0 +1,79 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/review-trailer-repair",
+  "plan_sha256": "a4488923d622759f17a66e58ed1295919f427d98779fd8f94664eb4e7c44b010",
+  "reviewed_sha": "d4d8eeb358d1da7c43a392bf181d6e718305f3a4",
+  "diff_base": "24d028086d48b80e5a380e5dc3d1309e8bc6d653",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state (gate ledger admission) requires both reviewers; F3 whole-diff review ran because the change spans validator, GC and guidance.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "s1 worktree validator --trailer on observed failure shapes",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f1/s1-trailer-check.md"
+    },
+    {
+      "name": "s2 GC wave refuses missing/mismatched trailers, records a passing one",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f1/s2-gc-wave.md"
+    },
+    {
+      "name": "s3 live same-reviewer trailer repair with host-validator and loss controls",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f1/s3-live-repair.md"
+    },
+    {
+      "name": "s4 installed copy: validator --trailer and guidance checks, with controls",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f1/s4-installed-copy.md"
+    },
+    {
+      "name": "verification gate: every task Verify incl. whole team-config suite",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f1/f3-verification-gate.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/review-trailer-repair/f3-integration-review-report.md",
+    "report_sha256": "805d37ee721c4fb859a03cde9db6aa580d07066631039d06a1f2596b735e4571"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "8b76a46980db089e645a8ffc7ad84e53d1eb1e98253d32c5290ffa09d8b5e434",
+      "note": "F2TrailerRepairAudit2 (F2 wave 2); no blockers"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/review-trailer-repair/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "7145d0c9b5f17710aebc633d94c5b333146562b2d1f33daee71ab8cdd9196202",
+      "note": "F2TrailerRepairStrat2 (F2 wave 2); no blockers, two non-blocking notes"
+    }
+  ],
+  "blockers": []
+}
