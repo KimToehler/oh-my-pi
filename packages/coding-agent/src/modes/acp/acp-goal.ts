@@ -260,6 +260,8 @@ export class AcpGoalActor {
 		// does not change when the transcript does.
 		const id = this.#session.sessionManager.getSessionId();
 		if (id === this.#transcriptId) return;
+		// Defensive: ACP refuses extension newSession/branch/switchSession, so the transcript id
+		// cannot change under a live record today. Kept in case ACP gains session replacement.
 		this.#transcriptId = id;
 		this.#transcriptGeneration++;
 	}
@@ -638,6 +640,7 @@ export class AcpGoalActor {
 		this.#syncTranscript();
 		this.#changes++;
 		if (--this.#sessionChanges === 0) {
+			// Defensive, as in #syncTranscript: unreachable while ACP refuses session replacement.
 			if (this.#session.sessionManager.getSessionId() !== this.#transcriptBeforeChange) {
 				this.#selected = false;
 				this.#objectivePending = false;

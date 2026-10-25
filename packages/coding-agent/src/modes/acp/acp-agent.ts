@@ -3138,27 +3138,11 @@ export class AcpAgent implements Agent {
 			{
 				getContextUsage: () => record.session.getContextUsage(),
 				waitForIdle: () => record.session.agent.waitForIdle(),
-				newSession: options =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const success = await record.session.newSession({ parentSession: options?.parentSession });
-							if (success && options?.setup) {
-								await options.setup(record.session.sessionManager);
-							}
-							return { cancelled: !success };
-						},
-						{ detachesRun: true },
-					),
-				branch: entryId =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const result = await record.session.branch(entryId);
-							return { cancelled: result.cancelled };
-						},
-						{ detachesRun: false },
-					),
+				// ACP has no message that tells a client its session was replaced, so the id the
+				// client holds must keep addressing this transcript: actions that would mint or load
+				// another session id in place are refused (navigateTree/reload keep the id).
+				newSession: async () => this.#refuseTranscriptReplacement(record, "newSession"),
+				branch: async () => this.#refuseTranscriptReplacement(record, "branch"),
 				navigateTree: (targetId, options) =>
 					this.#goalSessionChange(
 						record,
@@ -3168,15 +3152,7 @@ export class AcpAgent implements Agent {
 						},
 						{ detachesRun: false },
 					),
-				switchSession: sessionPath =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const success = await record.session.switchSession(sessionPath);
-							return { cancelled: !success };
-						},
-						{ detachesRun: true },
-					),
+				switchSession: async () => this.#refuseTranscriptReplacement(record, "switchSession"),
 				reload: async () => {
 					await this.#goalSessionChange(
 						record,
@@ -3194,6 +3170,17 @@ export class AcpAgent implements Agent {
 		);
 		await extensionRunner.emit({ type: "session_start" });
 		record.extensionsConfigured = true;
+	}
+
+	#refuseTranscriptReplacement(
+		record: ManagedSessionRecord,
+		action: "newSession" | "branch" | "switchSession",
+	): { cancelled: true } {
+		logger.warn("Extension session action refused in ACP: it would replace the client's session", {
+			action,
+			sessionId: record.session.sessionId,
+		});
+		return { cancelled: true };
 	}
 
 	/**
