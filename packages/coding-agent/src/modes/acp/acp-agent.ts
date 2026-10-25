@@ -3224,8 +3224,9 @@ export class AcpAgent implements Agent {
 
 	/**
 	 * The record's `session_move` relocator: the shared headless relocation inside the goal's session-change
-	 * bracket (a same-session change, so the run is not detached). A failed rollback leaves the session unusable,
-	 * so it is disposed exactly as `/move` does.
+	 * bracket (a same-session change, so the run is not detached). A failed rollback leaves the session unusable:
+	 * the record closes like a deleted session's (requests answer as for an unknown id) and the session is
+	 * disposed at once, exactly as `/move` does.
 	 */
 	async #relocateSession(record: ManagedSessionRecord, targetPath: string): Promise<SessionRelocationResult> {
 		const runtime = this.#buildSlashCommandRuntime(record, undefined);
@@ -3235,7 +3236,10 @@ export class AcpAgent implements Agent {
 			{ detachesRun: false },
 		);
 		if (result.ok) return { ok: true };
-		if (result.fatal) await record.session.dispose();
+		if (result.fatal) {
+			this.#endSessionAfterTurn(record, undefined);
+			await record.session.dispose();
+		}
 		return { ok: false, reason: result.reason };
 	}
 

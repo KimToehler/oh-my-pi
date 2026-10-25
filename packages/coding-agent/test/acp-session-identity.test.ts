@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
+import * as path from "node:path";
+import * as headlessRelocation from "@oh-my-pi/pi-coding-agent/session/headless-relocation";
 import type { SubmissionOutcome } from "@oh-my-pi/pi-coding-agent/session/agent-session-types";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { isRecord } from "@oh-my-pi/pi-utils";
@@ -460,5 +462,60 @@ describe.each([1, 2] as const)("ACP /session delete on protocol v%d", surface =>
 				hold.release();
 			}
 		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// A relocation whose rollback fails leaves the session unusable: the record closes like a deleted one
+// ---------------------------------------------------------------------------
+
+describe.each([1, 2] as const)("ACP fatal relocation on protocol v%d", surface => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	function forceFatalRelocation(): void {
+		vi.spyOn(headlessRelocation, "relocateHeadlessSession").mockResolvedValue({
+			ok: false,
+			fatal: true,
+			reason: "rollback failed (forced)",
+		});
+	}
+
+	function moveTarget(rig: DeleteRig): string {
+		const dir = path.join(rig.h.cwd, "move-target");
+		fs.mkdirSync(dir, { recursive: true });
+		return dir;
+	}
+
+	it("/move reports the failure, then refuses the session and releases its record", async () => {
+		const rig = await startDeleteRig(surface);
+		const { client, sessionId, session } = rig;
+		forceFatalRelocation();
+
+		expect(await startTurn(rig, `/move ${moveTarget(rig)}`).ended).toBe("end_turn");
+		expect(chunkTexts(client, sessionId).some(text => text.includes("rollback failed (forced)"))).toBe(true);
+
+		const refused = await startTurn(rig, "after the failed move").ack;
+		expect(JSON.stringify(refused.error ?? null)).toContain(`Unsupported ACP session: ${sessionId}`);
+		await until(() => session.sessionRelocator === undefined, "the record's relocator to be released");
+		expect(session.disposed).toBe(true);
+		expect(session.promptCalls).not.toContain("after the failed move");
+	});
+
+	it("session_move refuses the session and releases its record", async () => {
+		const rig = await startDeleteRig(surface);
+		const { sessionId, session } = rig;
+		forceFatalRelocation();
+		const relocate = session.sessionRelocator;
+		if (!relocate) throw new Error("Expected the ACP record to register a session relocator");
+
+		expect(await relocate(moveTarget(rig))).toEqual({ ok: false, reason: "rollback failed (forced)" });
+
+		const refused = await startTurn(rig, "after the failed move").ack;
+		expect(JSON.stringify(refused.error ?? null)).toContain(`Unsupported ACP session: ${sessionId}`);
+		await until(() => session.sessionRelocator === undefined, "the record's relocator to be released");
+		expect(session.disposed).toBe(true);
+		expect(session.promptCalls).not.toContain("after the failed move");
 	});
 });
