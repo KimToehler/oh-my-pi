@@ -746,11 +746,12 @@ export type ReadonlySessionManager = Pick<
 
 /** Per-file persistence state cleared while a delete of the current session file runs. */
 interface DetachedSessionFile {
-	sessionFile: string | undefined;
+	sessionFile: string;
 	expectedDiskSize: number | null;
 	forceFileCreation: boolean;
 	draftOnlySessionCleanupArmed: boolean;
 	pendingArtifactCopy: { sessionFile: string; done: Promise<void> } | undefined;
+	sessionClaim: { sessionId: string; release: (() => void) | undefined } | undefined;
 }
 
 interface SessionManagerStateSnapshot {
@@ -2446,34 +2447,42 @@ export class SessionManager {
 	 * delete keeps the current file as the persistence target.
 	 */
 	async dropSession(sessionPath: string): Promise<void> {
-		await this.#drainAndCloseWriter();
-		const isCurrent =
-			this.#sessionFile !== undefined && path.resolve(sessionPath) === path.resolve(this.#sessionFile);
-		// Detach before the storage call: the file is unlinked while it runs, and an
-		// append landing in that window must stay in memory instead of recreating it.
-		const detached = isCurrent ? this.#detachSessionFile() : undefined;
+		const currentFile = this.#sessionFile;
+		// Detach before the first await: every persistence path checks
+		// `#sessionFile`, so an append landing while the writer drains or the
+		// storage unlinks the file stays in memory instead of reopening the path.
+		const detached =
+			currentFile !== undefined && path.resolve(sessionPath) === path.resolve(currentFile)
+				? this.#detachSessionFile(currentFile)
+				: undefined;
 		try {
-			await this.#storage.deleteSessionWithArtifacts(sessionPath);
-		} catch (err) {
-			if (!isEnoent(err)) {
-				if (detached) await this.#reattachSessionFile(detached);
-				throw err;
+			await this.#drainAndCloseWriter();
+			try {
+				await this.#storage.deleteSessionWithArtifacts(sessionPath);
+			} catch (err) {
+				if (!isEnoent(err)) throw err;
 			}
+		} catch (err) {
+			if (detached) await this.#reattachSessionFile(detached);
+			throw err;
 		}
-		if (detached) {
-			this.#sessionClaim?.release?.();
+		// Release the deleted file's claim only: a target installed meanwhile
+		// already released it and holds its own.
+		if (detached && this.#sessionClaim === detached.sessionClaim) {
+			detached.sessionClaim?.release?.();
 			this.#sessionClaim = undefined;
 		}
 	}
 
 	/** Clear the per-file persistence state so appends stay in memory; returns what was cleared. */
-	#detachSessionFile(): DetachedSessionFile {
+	#detachSessionFile(sessionFile: string): DetachedSessionFile {
 		const detached: DetachedSessionFile = {
-			sessionFile: this.#sessionFile,
+			sessionFile,
 			expectedDiskSize: this.#expectedDiskSize,
 			forceFileCreation: this.#forceFileCreation,
 			draftOnlySessionCleanupArmed: this.#draftOnlySessionCleanupArmed,
 			pendingArtifactCopy: this.#pendingArtifactCopy,
+			sessionClaim: this.#sessionClaim,
 		};
 		this.#sessionFile = undefined;
 		this.#fileIsCurrent = false;
@@ -2486,10 +2495,13 @@ export class SessionManager {
 	}
 
 	/**
-	 * Undo {@link #detachSessionFile} after a failed delete and rewrite the whole
-	 * file (header and every entry, including those appended while detached).
+	 * Undo {@link #detachSessionFile} after a failed drain or delete and rewrite
+	 * the whole file (header and every entry, including those appended while
+	 * detached). A target installed meanwhile ({@link newSession},
+	 * {@link setSessionFile}) stays: the failed delete must not overwrite it.
 	 */
 	async #reattachSessionFile(detached: DetachedSessionFile): Promise<void> {
+		if (this.#sessionFile !== undefined) return;
 		this.#sessionFile = detached.sessionFile;
 		this.#expectedDiskSize = detached.expectedDiskSize;
 		this.#forceFileCreation = detached.forceFileCreation;

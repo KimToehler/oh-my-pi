@@ -4,7 +4,7 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { FileSessionStorage, type SessionStorageWriter } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 
 import { makeAssistantMessage } from "./helpers";
 
@@ -170,6 +170,48 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(fs.readdirSync(sessionDir).filter(name => name.endsWith(".jsonl"))).toEqual([]);
 	});
 
+	it("keeps entries appended while the current writer drains in memory and leaves no writer open", async () => {
+		const storage = new FileSessionStorage();
+		const realOpenWriter = storage.openWriter.bind(storage);
+		const opened: Array<{ path: string; writer: SessionStorageWriter }> = [];
+		const closing = Promise.withResolvers<void>();
+		const gate = Promise.withResolvers<void>();
+		let holdClose = false;
+		vi.spyOn(storage, "openWriter").mockImplementation((fpath, options) => {
+			const writer = realOpenWriter(fpath, options);
+			opened.push({ path: fpath, writer });
+			const realClose = writer.close.bind(writer);
+			vi.spyOn(writer, "close").mockImplementation(async () => {
+				if (holdClose) {
+					holdClose = false;
+					closing.resolve();
+					await gate.promise;
+				}
+				await realClose();
+			});
+			return writer;
+		});
+		const manager = await persistedManager(storage);
+		const deleted = manager.getSessionFile()!;
+
+		holdClose = true;
+		const dropping = manager.dropSession(deleted);
+		await closing.promise;
+		manager.appendMessage(userMessage("during drain"));
+		const titled = manager.setSessionName("Drain title", "user");
+		gate.resolve();
+		await dropping;
+		await titled;
+		manager.appendMessage(userMessage("after delete"));
+		await manager.flush();
+		await manager.close();
+
+		expect(fs.existsSync(deleted)).toBe(false);
+		expect(fs.readdirSync(sessionDir).filter(name => name.endsWith(".jsonl"))).toEqual([]);
+		// A writer opened on the old path while the drain runs would hold the deleted file open.
+		expect(opened.filter(entry => entry.path === deleted && entry.writer.isOpen())).toEqual([]);
+	});
+
 	it("persists the whole session including entries appended during a failed delete", async () => {
 		const storage = new FileSessionStorage();
 		const manager = await persistedManager(storage);
@@ -197,5 +239,28 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(text).toContain("during delete");
 		expect(lines.filter(line => entryType(line) === "message")).toHaveLength(3);
 		await manager.close();
+	});
+
+	it("keeps a session started during a failed delete as the target and does not write it to the old path", async () => {
+		const storage = new FileSessionStorage();
+		const manager = await persistedManager(storage);
+		const deleted = manager.getSessionFile()!;
+		const held = holdDeletionAfterUnlink(storage, new Error("EPERM: delete refused"));
+
+		const dropping = manager.dropSession(deleted).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+		await held.unlinked;
+		const started = await manager.newSession();
+		manager.appendMessage(userMessage("in the new session"));
+		held.release();
+		expect(String(await dropping)).toContain("EPERM: delete refused");
+		await manager.flush();
+		await manager.close();
+
+		expect(manager.getSessionFile()).toBe(started);
+		expect(fs.existsSync(deleted)).toBe(false);
+		expect(fs.readFileSync(started!, "utf8")).toContain("in the new session");
 	});
 });
