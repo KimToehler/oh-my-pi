@@ -56,10 +56,15 @@ New module `session/session-resume-location.ts` exporting
 `resolveResumeLocation(session: { path: string; cwd: string }, requestCwd: string, sessionDir?: string)`
 returning one of:
 
-- `{ kind: "open", cwd }`: open at `cwd`. `cwd` is `requestCwd` when the recorded `cwd` is empty or
-  resolves to the same directory; it is the recorded `cwd` when that directory is enterable and
-  `vcs.git(recorded).primaryRoot()` equals `vcs.git(requestCwd).primaryRoot()` (both through
-  `fs.realpath`, so `/var` vs `/private/var` and symlinked checkouts compare equal).
+- `{ kind: "open", cwd }`: open at `cwd`. `cwd` is `requestCwd` only when the recorded `cwd` is
+  empty (old sessions). Otherwise it is `path.resolve(recorded)`, the recorded spelling, when that
+  directory is enterable and either realpaths to `requestCwd` or has
+  `vcs.git(recorded).primaryRoot()` equal to `vcs.git(requestCwd).primaryRoot()` (both through
+  `fs.realpath`, so `/var` vs `/private/var` and symlinked checkouts compare equal). The recorded
+  spelling is required: `AgentSession.switchSession` compares the recorded and the live `cwd`
+  lexically (`agent-session.ts:13024-13035`) and rejects any other spelling with
+  `SESSION_CWD_CHANGE_REJECTED`, which ACP reports as "load was cancelled". `switchSession` stays
+  unchanged.
 - `{ kind: "relocate", from: recorded, to: requestCwd }`: the recorded `cwd` is missing and
   `SessionManager.isFromRemovedWorktree(session, requestCwd, sessionDir)` is true.
 - `{ kind: "refuse", recordedCwd, missing: boolean }`: everything else (other repository, no
@@ -72,16 +77,22 @@ rejected: accept any existing directory (Tim, 2026-10-25: same repository only),
 
 ### D2. `isFromRemovedWorktree` also recognizes a removed `.worktrees/<slug>` of the primary checkout
 
-Add one clause: the recorded `cwd` is missing and equals or lies below
+Add one clause: the recorded `cwd` is missing, equals or lies below
 `realpath(primaryRoot(requestCwd))/.worktrees/<slug>` for some single path segment `<slug>`
 (the recorded path resolved through its nearest existing ancestor, so `/var` vs `/private/var`
-compare equal). This covers `.worktrees/<slug>` after `git worktree remove` + prune, the layout
-the `/move` workflow and the repository's worktree rule use; git keeps no record of a pruned
-linked worktree, so the path layout is the only remaining evidence, as the name match is for
-agent-managed `/wt` worktrees. A missing plain subdirectory of the primary checkout (not under
-`.worktrees/`) does not qualify and stays refused (spec negative controls). Changing the shared
-helper rather than adding an ACP-only rule keeps one definition (AGENTS.md: two implementations
-is a bug); its CLI effect (no prompt for such sessions) is specified in `session-resume-location`.
+compare equal), and the worktree root `.worktrees/<slug>` itself is missing. This covers
+`.worktrees/<slug>` after `git worktree remove` + prune, the layout the `/move` workflow and the
+repository's worktree rule use; git keeps no record of a pruned linked worktree, so the path
+layout is the only remaining evidence, as the name match is for agent-managed `/wt` worktrees.
+A missing subdirectory of a live worktree (`.worktrees/a/pkg/old` while `.worktrees/a` exists)
+and a missing plain subdirectory of the primary checkout (not under `.worktrees/`) do not
+qualify and stay refused (spec scenarios). Changing the shared helper rather than adding an
+ACP-only rule keeps one definition (AGENTS.md: two implementations is a bug). Its callers all
+inherit the clause: CLI `--resume <id>` (`main.ts:931`), the startup picker resume
+(`main.ts:2232`) and the in-session resume selector (`selector-controller.ts:2023`). All three
+then move such a session into the current checkout instead of asking or failing; the CLI path
+carries the specified scenarios, the two picker paths share the same branch and get no
+separate witness.
 
 ### D3. ACP opens the session where the resolver says, assembled for that directory
 
@@ -101,6 +112,9 @@ is a bug); its CLI effect (no prompt for such sessions) is specified in `session
   of <requestCwd>` or `… belongs to <recordedCwd>, which no longer exists`. No session is created.
 - A `false` from `switchSession` can now only be a `session_before_switch` cancel; the
   "was cancelled" text stays for it.
+- Wire replay is untouched: after the session is open, each method keeps today's behaviour
+  (v1 `session/load` replays via `#surface.replay`, v1 `session/resume` does not, v2 resume
+  replays only for `replayFrom: {type: "start"}` and otherwise sends the state snapshot).
 
 ### D4. Already open sessions and forks use the same resolver
 
@@ -129,8 +143,10 @@ apart from it without two definitions of "removed worktree".
   `open-elsewhere`), the same outcome as two processes resuming one session today.
 - [Primary-root comparison costs two `vcs.git` opens per reopen of a moved session] → only on the
   mismatch path; same-directory loads skip it.
-- [D2 changes `omp --resume` for sessions from removed in-repository worktrees] → intended and
-  specified; the session moves into the checkout instead of a prompt or a non-TTY failure.
+- [D2 changes resume of sessions from removed in-repository worktrees in the CLI, the startup
+  picker and the in-session resume selector] → intended; the session moves into the checkout
+  instead of a prompt or a non-TTY failure. A missing subdirectory of a live worktree stays
+  refused, so no live worktree's session is moved silently.
 
 ## Migration Plan
 

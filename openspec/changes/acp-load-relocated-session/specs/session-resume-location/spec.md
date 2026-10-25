@@ -9,26 +9,42 @@ refused instead.
 ## ADDED Requirements
 
 ### Requirement: An ACP client reopens a session moved within its repository
-ACP `session/load` and `session/resume` (v1) and `session/resume` (v2) of a stored session whose recorded directory exists, differs from the request `cwd`, and belongs to the same git repository (primary checkout or a linked worktree) SHALL succeed and open the session in its recorded directory. The transcript SHALL be replayed, and the session file SHALL stay in its current session bucket.
+ACP `session/load` and `session/resume` (v1) and `session/resume` (v2) of a stored session whose recorded directory exists, differs from the request `cwd` (or spells the same directory differently), and belongs to the same git repository SHALL succeed, restore the transcript and run the session in its recorded directory. Wire replay SHALL stay as each method defines it today, and the session file SHALL stay in its bucket.
 
 #### Scenario: Reload after a move into a worktree
-- **WHEN** a session created in a repository's primary checkout was moved into a linked worktree `.worktrees/a` of that repository, the ACP process restarted, and the client sends `session/load` or `session/resume` with the primary checkout as `cwd`
-- **THEN** the response is a success for the same session id, earlier messages are replayed, the session is assembled for and runs in `.worktrees/a` (the ACP session factory receives `.worktrees/a` as `cwd` and the session's working directory is `.worktrees/a`), and the session file is still in the worktree's session bucket
+- **WHEN** a session created in a repository's primary checkout was moved into a linked worktree `.worktrees/a` of that repository, the ACP process restarted, and the client sends v1 `session/load` with the primary checkout as `cwd`
+- **THEN** the response is a success for the same session id, earlier messages are replayed as `session/update` notifications, the session is assembled for and runs in `.worktrees/a` (the ACP session factory receives `.worktrees/a` as `cwd` and the session's working directory is `.worktrees/a`), and the session file is still in the worktree's session bucket
+
+#### Scenario: v1 resume after a move
+- **WHEN** the same moved session is resumed with v1 `session/resume` with the primary checkout as `cwd` after a restart
+- **THEN** the resume succeeds for the same session id, the session's transcript holds the earlier messages, no transcript replay is sent (as for any v1 resume today), and the session runs in `.worktrees/a`
 
 #### Scenario: v2 resume after a move
-- **WHEN** the same moved session is resumed over ACP v2 with the primary checkout as `cwd`
-- **THEN** the resume succeeds for the same session id and the session runs in `.worktrees/a`
+- **WHEN** the same moved session is resumed over ACP v2 with the primary checkout as `cwd`, once without a cursor and once with `replayFrom: {type: "start"}`
+- **THEN** both resumes succeed for the same session id and run in `.worktrees/a`; without a cursor only the state snapshot is sent, and with `replayFrom` start the earlier messages are replayed
+
+#### Scenario: Same directory spelled differently
+- **WHEN** the recorded directory and the request `cwd` name the same directory through different spellings (a symlink or `/tmp` versus `/private/tmp`)
+- **THEN** the load succeeds and does not fail with "load was cancelled"
 
 #### Scenario: Negative control
 - **WHEN** the stored session's recorded directory is an existing checkout of a different git repository than the request `cwd`
 - **THEN** the load MUST fail with an error that names the recorded directory, no session is opened for the id, and the session file is unchanged
 
 ### Requirement: An ACP client reopens a session whose worktree was removed
-ACP `session/load` and `session/resume` of a stored session whose recorded directory no longer exists and was a worktree of the request `cwd`'s repository (a directory `.worktrees/<slug>` of its primary checkout, or an agent-managed `/wt` worktree) SHALL move the session, artifacts included, into the request `cwd` and open it there.
+ACP `session/load` and `session/resume` of a stored session whose recorded directory no longer exists and was in a removed worktree of the request `cwd`'s repository (a `.worktrees/<slug>` of its primary checkout whose root is gone, or an agent-managed `/wt` worktree) SHALL move the session, artifacts included, into the request `cwd` and open it there.
 
 #### Scenario: Worktree removed after merge
 - **WHEN** a session was moved into `.worktrees/a`, the worktree was then removed with `git worktree remove` and pruned, and the client loads the session with the primary checkout as `cwd`
 - **THEN** the load succeeds for the same session id, the session runs in the primary checkout, its session file now lies in the primary checkout's session bucket, and no file for the id remains in the removed worktree's bucket
+
+#### Scenario: Agent-managed worktree removed
+- **WHEN** a session moved by `/wt` into an agent-managed worktree whose worktree was then removed and pruned is loaded with the primary checkout as `cwd`
+- **THEN** the load succeeds, the session runs in the primary checkout, and its session file now lies in the primary checkout's session bucket
+
+#### Scenario: Deleted directory inside a live worktree
+- **WHEN** the recorded directory `.worktrees/a/pkg/old` no longer exists but the worktree `.worktrees/a` still does
+- **THEN** the load fails with an error that names the missing directory and says it no longer exists, and the session file stays where it was
 
 #### Scenario: Deleted directory outside the repository
 - **WHEN** the recorded directory no longer exists and lay outside the request repository (for example a deleted unrelated project directory)
@@ -56,6 +72,10 @@ ACP `unstable_forkSession` of a session (open or stored) whose directory differs
 - **WHEN** the client forks a stored session recorded in `.worktrees/a` with the primary checkout as `cwd`
 - **THEN** the fork succeeds with a new session id, contains the source's messages, and runs in `.worktrees/a`
 
+#### Scenario: Fork of an open session after a live move
+- **WHEN** an ACP session moved into `.worktrees/a` with `/move` in the running process and the client forks it with the primary checkout as `cwd`
+- **THEN** the fork succeeds with a new session id, contains the source's messages, and runs in `.worktrees/a`, and the source session stays open and unchanged
+
 #### Scenario: Fork of a session whose directory no longer exists
 - **WHEN** the client forks a stored session whose recorded directory was deleted and lay outside the request repository
 - **THEN** the fork fails with an error that names the missing directory and says it no longer exists, no new session is created, and the source's session file is unchanged
@@ -65,7 +85,7 @@ ACP `unstable_forkSession` of a session (open or stored) whose directory differs
 - **THEN** the fork MUST fail with an error naming the source's directory and no new session is created
 
 ### Requirement: The CLI moves a session from a removed in-repository worktree without asking
-`omp --resume <id>` started in a repository checkout SHALL move a session whose recorded directory no longer exists and lay in that repository's primary checkout under `.worktrees/` (a removed `.worktrees/<slug>`) into the current directory without prompting, as it already does for a removed agent-managed `/wt` worktree.
+`omp --resume <id>` started in a repository checkout SHALL move a session whose recorded directory no longer exists and lay in a removed `.worktrees/<slug>` of that repository's primary checkout (the worktree root is gone) into the current directory without prompting, as it already does for a removed agent-managed `/wt` worktree.
 
 #### Scenario: Non-interactive resume of a removed `.worktrees` session
 - **WHEN** `omp --resume <id>` runs without a TTY in the primary checkout for a session recorded in a removed and pruned `.worktrees/a`
@@ -73,6 +93,10 @@ ACP `unstable_forkSession` of a session (open or stored) whose directory differs
 
 #### Scenario: Deleted directory outside the repository
 - **WHEN** the recorded directory no longer exists and lay outside the repository (a deleted unrelated directory) and the resume runs without a TTY
+- **THEN** the resume fails with the existing "belongs to a directory that no longer exists" error and the session file stays where it was
+
+#### Scenario: Deleted directory inside a live worktree
+- **WHEN** the recorded directory `.worktrees/a/pkg/old` no longer exists, the worktree `.worktrees/a` still exists, and the resume runs without a TTY
 - **THEN** the resume fails with the existing "belongs to a directory that no longer exists" error and the session file stays where it was
 
 #### Scenario: Negative control
