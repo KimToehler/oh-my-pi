@@ -108,7 +108,9 @@ describe("prepared session fork cleanup", () => {
 			expect(result.exitCode).not.toBe(0);
 			expect(fs.existsSync(path.join(artifactsDir, `${AGENT_ID}.jsonl`))).toBe(false);
 			expect(fs.existsSync(path.join(artifactsDir, AGENT_ID))).toBe(false);
-			expect(warn.mock.calls.map(call => call[0])).not.toContain("Failed to remove incomplete prepared session fork");
+			expect(warn.mock.calls.map(call => call[0])).not.toContain(
+				"Failed to remove incomplete prepared session fork",
+			);
 			expect(fs.existsSync(sourceFile)).toBe(true);
 		} finally {
 			setAgentDir(previousAgentDir);
