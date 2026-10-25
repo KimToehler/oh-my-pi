@@ -1,0 +1,58 @@
+[
+  {
+    "scenario": "extension-refusal",
+    "protocolVersion": 1,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-extension-refusal.evidence.json",
+    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a17352-aadf-7461-a270-672eeee9a770, no new session/file, next prompt persisted in A's file"
+  },
+  {
+    "scenario": "navigate-reload",
+    "protocolVersion": 1,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-navigate-reload.evidence.json",
+    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a17352-aed0-764d-9247-deb854e17474, later prompt persisted in A's file"
+  },
+  {
+    "scenario": "delete",
+    "protocolVersion": 1,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-delete.evidence.json",
+    "detail": "confirmation delivered (stopReason end_turn); prompt/resume/set_mode for A rejected like a never-issued id; file gone; A not listed"
+  },
+  {
+    "scenario": "no-headerless-file",
+    "protocolVersion": 1,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v1-no-headerless-file.evidence.json",
+    "detail": "3 .jsonl file(s) under isolated agent dir, all start with a session header"
+  },
+  {
+    "scenario": "extension-refusal",
+    "protocolVersion": 2,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-extension-refusal.evidence.json",
+    "detail": "all three {cancelled:true}, setup not run, file unchanged, updates carry only 01a17352-bede-74b5-a58e-d5f72019cff9, no new session/file, next prompt persisted in A's file"
+  },
+  {
+    "scenario": "navigate-reload",
+    "protocolVersion": 2,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-navigate-reload.evidence.json",
+    "detail": "navigateTree {cancelled:false}, reload completed, updates keep 01a17352-c377-74db-aa61-1399258198be, later prompt persisted in A's file"
+  },
+  {
+    "scenario": "delete",
+    "protocolVersion": 2,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-delete.evidence.json",
+    "detail": "confirmation delivered (idle end_turn); prompt/resume/set_config_option for A rejected like a never-issued id; file gone; A not listed"
+  },
+  {
+    "scenario": "no-headerless-file",
+    "protocolVersion": 2,
+    "pass": true,
+    "evidence": "/Users/tim/git/oh-my-pi/.worktrees/acp-session-transitions/.omp/team-config/evidence/gate/acp-session-transitions/f1-v2-no-headerless-file.evidence.json",
+    "detail": "3 .jsonl file(s) under isolated agent dir, all start with a session header"
+  }
+]
