@@ -2463,7 +2463,7 @@ export class SessionManager {
 				if (!isEnoent(err)) throw err;
 			}
 		} catch (err) {
-			if (detached) await this.#reattachSessionFile(detached);
+			if (detached) await this.#reattachSessionFile(detached, toError(err));
 			throw err;
 		}
 		// Release the deleted file's claim only: a target installed meanwhile
@@ -2495,21 +2495,23 @@ export class SessionManager {
 	}
 
 	/**
-	 * Undo {@link #detachSessionFile} after a failed drain or delete and rewrite
+	 * Undo {@link #detachSessionFile} after a failed drain or delete and publish
 	 * the whole file (header and every entry, including those appended while
-	 * detached). A target installed meanwhile ({@link newSession},
+	 * detached) through the authoritative repair, which also clears a close
+	 * failure the drain latched. A target installed meanwhile ({@link newSession},
 	 * {@link setSessionFile}) stays: the failed delete must not overwrite it.
 	 */
-	async #reattachSessionFile(detached: DetachedSessionFile): Promise<void> {
+	async #reattachSessionFile(detached: DetachedSessionFile, operationError: Error): Promise<void> {
 		if (this.#sessionFile !== undefined) return;
 		this.#sessionFile = detached.sessionFile;
 		this.#expectedDiskSize = detached.expectedDiskSize;
 		this.#forceFileCreation = detached.forceFileCreation;
 		this.#draftOnlySessionCleanupArmed = detached.draftOnlySessionCleanupArmed;
 		this.#pendingArtifactCopy = detached.pendingArtifactCopy;
-		this.#fileIsCurrent = false;
-		this.#rewriteRequired = true;
-		await this.#rewriteAtomically();
+		await this.#withAtomicPersistenceLock(async () => {
+			await this.#authoritativelyRewriteCurrentStateLocked(operationError);
+			this.#notifyDurableEntries();
+		});
 	}
 
 	/**

@@ -170,31 +170,46 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(fs.readdirSync(sessionDir).filter(name => name.endsWith(".jsonl"))).toEqual([]);
 	});
 
-	it("keeps entries appended while the current writer drains in memory and leaves no writer open", async () => {
-		const storage = new FileSessionStorage();
+	/**
+	 * Record every writer the storage opens; `armClose` makes the next writer
+	 * close run `onClose` (given the real close) instead of closing directly.
+	 */
+	function interceptWriterClose(storage: FileSessionStorage) {
 		const realOpenWriter = storage.openWriter.bind(storage);
 		const opened: Array<{ path: string; writer: SessionStorageWriter }> = [];
-		const closing = Promise.withResolvers<void>();
-		const gate = Promise.withResolvers<void>();
-		let holdClose = false;
+		let armed: ((realClose: () => Promise<void>) => Promise<void>) | undefined;
 		vi.spyOn(storage, "openWriter").mockImplementation((fpath, options) => {
 			const writer = realOpenWriter(fpath, options);
 			opened.push({ path: fpath, writer });
 			const realClose = writer.close.bind(writer);
 			vi.spyOn(writer, "close").mockImplementation(async () => {
-				if (holdClose) {
-					holdClose = false;
-					closing.resolve();
-					await gate.promise;
-				}
-				await realClose();
+				const onClose = armed;
+				armed = undefined;
+				await (onClose ? onClose(realClose) : realClose());
 			});
 			return writer;
 		});
+		return {
+			opened,
+			armClose: (onClose: (realClose: () => Promise<void>) => Promise<void>) => {
+				armed = onClose;
+			},
+		};
+	}
+
+	it("keeps entries appended while the current writer drains in memory and leaves no writer open", async () => {
+		const storage = new FileSessionStorage();
+		const writers = interceptWriterClose(storage);
+		const closing = Promise.withResolvers<void>();
+		const gate = Promise.withResolvers<void>();
 		const manager = await persistedManager(storage);
 		const deleted = manager.getSessionFile()!;
 
-		holdClose = true;
+		writers.armClose(async realClose => {
+			closing.resolve();
+			await gate.promise;
+			await realClose();
+		});
 		const dropping = manager.dropSession(deleted);
 		await closing.promise;
 		manager.appendMessage(userMessage("during drain"));
@@ -209,7 +224,39 @@ describe("SessionManager.dropSession of the current file", () => {
 		expect(fs.existsSync(deleted)).toBe(false);
 		expect(fs.readdirSync(sessionDir).filter(name => name.endsWith(".jsonl"))).toEqual([]);
 		// A writer opened on the old path while the drain runs would hold the deleted file open.
-		expect(opened.filter(entry => entry.path === deleted && entry.writer.isOpen())).toEqual([]);
+		expect(writers.opened.filter(entry => entry.path === deleted && entry.writer.isOpen())).toEqual([]);
+	});
+
+	it("restores the whole session and clears the close failure when closing the writer fails", async () => {
+		const storage = new FileSessionStorage();
+		const writers = interceptWriterClose(storage);
+		const manager = await persistedManager(storage);
+		const current = manager.getSessionFile()!;
+
+		writers.armClose(async realClose => {
+			await realClose();
+			throw new Error("EIO: close failed");
+		});
+		const dropped = await manager.dropSession(current).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+		expect(String(dropped)).toContain("EIO: close failed");
+		// The restore already published the session, so the close failure is not left latched for the next save.
+		await manager.flush();
+		manager.appendMessage(userMessage("after failed delete"));
+		await manager.flush();
+		await manager.close();
+
+		expect(manager.getSessionFile()).toBe(current);
+		const lines = fs
+			.readFileSync(current, "utf8")
+			.split("\n")
+			.filter(line => line.length > 0);
+		expect(lines.map(entryType).filter(type => type === "session")).toHaveLength(1);
+		const text = lines.join("\n");
+		expect(text).toContain("before delete");
+		expect(text).toContain("after failed delete");
 	});
 
 	it("persists the whole session including entries appended during a failed delete", async () => {
