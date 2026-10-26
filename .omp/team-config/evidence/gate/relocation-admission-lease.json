@@ -1,0 +1,84 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/relocation-admission-lease",
+  "plan_sha256": "a6b55671e3c32c1b5db69e44b9ebbb1cb6c364d525c252de27373960020d6316",
+  "reviewed_sha": "aa2af068801e83e2292a6b9fab5b0ab443846d26",
+  "diff_base": "f9b45b503d9908715a5fa4eee4ca5277a728ead7",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state requires both reviewers; F2 wave 1 blocker B1 was fixed by task 8.1 and accepted by cumulative delta review, F3 wave 4 passed, and both F2 wave 2 reviewers passed on aa2af068801e.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5",
+    "onara/cc/claude-opus-5",
+    "onara/cx/gpt-5.6-sol"
+  ],
+  "qa": [
+    {
+      "name": "F1: real TUI move continues in the destination worktree and keeps the completed descendant transcript under moved artifacts",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/relocation-admission-lease/f1/a-move.md"
+    },
+    {
+      "name": "F1: real ACP peer delivery to A's parked descendant waits through A's move and revives from the relocated transcript",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/relocation-admission-lease/f1/b-acp-peer.md"
+    },
+    {
+      "name": "F1 negative scope control: B's parked descendant revives before A's relocation settles",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/relocation-admission-lease/f1/c-other-tree.md"
+    },
+    {
+      "name": "F1 refusal control: real TUI session_move refuses and names a running descendant without moving the session",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/relocation-admission-lease/f1/d-refused.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/relocation-admission-lease/f3-integration-review-report.md",
+    "report_sha256": "d0e8d21d7284eb63355d6a24dda5f9db31e108d35b526d733a7928b6774f9cd3"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "same-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "same-model"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/relocation-admission-lease/implementation-audit-trailer.md",
+      "trailer_sha256": "b3017314323b1304312cbfd08fef5b6b7f138ebce3b4432762bc9945c82598b3",
+      "note": "F2 wave 2 on aa2af068801e; no blocking defect found; the out-of-scope live-input latency expansion remains non-blocking."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/relocation-admission-lease/strategic-risk-review-trailer.md",
+      "trailer_sha256": "4786708b32869c3bbb501e99d1cceed48271c502517d66439847239ceba8a895",
+      "note": "F2 wave 2 on aa2af068801e; same-root relocation serialization, cwd-sensitive parked revival, and same-ID kind reuse are non-blocking hardening notes."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "wave1-strategic-risk-review-B1",
+      "severity": "high",
+      "location": "packages/coding-agent/src/task/executor.ts:2604",
+      "coverage": "packages/coding-agent/test/task/executor-subagent-reminders.test.ts::task follow-up: a retry reacquires admission and releases it when submitted",
+      "fix_sha": "08e0ed66649c0f2f82b58cc90d3356a183d8cdcd"
+    }
+  ]
+}
