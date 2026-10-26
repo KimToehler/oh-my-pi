@@ -91,9 +91,13 @@ export function sessionTreeMembership(
 }
 
 /**
- * Own running async jobs plus running registry subagents of this session's tree (design D6,
+ * Own running async jobs plus busy registry subagents of this session's tree (design D6,
  * {@link sessionTreeMembership}). A subagent ref without a session file never counts.
- * Reads the claimed registry status, so a stale `running` entry also counts.
+ * A descendant counts when its claimed registry status is `running` (a stale entry also
+ * counts) or its live session already owns a turn the status does not show yet: it is
+ * streaming (including a claimed wake), holds an admitted prompt submission, or has
+ * scheduled post-prompt work such as a restored turn's continuation (relocation-admission-lease
+ * design D4).
  */
 export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningSessionWork {
 	const jobIds: string[] = [];
@@ -115,7 +119,12 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 		};
 		const registry = scope.registry ?? AgentRegistry.global();
 		for (const ref of registry.list()) {
-			if (ref.status !== "running" || covered.has(ref.id)) continue;
+			if (covered.has(ref.id)) continue;
+			const session = ref.session;
+			const busy =
+				ref.status === "running" ||
+				(session !== null && (session.isStreaming || session.hasAdmittedSubmission || session.hasPostPromptWork));
+			if (!busy) continue;
 			if (sessionTreeMembership(tree, ref) !== "descendant") continue;
 			agentIds.push(ref.id);
 		}

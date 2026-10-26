@@ -462,6 +462,7 @@ import {
 } from "./session-advisors";
 import sessionMoveResultTemplate from "../prompts/session/session-move-result.md" with { type: "text" };
 import {
+	artifactsDirOf,
 	describeRunningSessionWork,
 	findRunningSessionWork,
 	hasRunningSessionWork,
@@ -469,7 +470,10 @@ import {
 	type SessionMoveReservation,
 	type SessionRelocationResult,
 	type SessionRelocator,
+	type SessionTree,
+	sessionTreeMembership,
 } from "./session-move";
+import type { RelocationLease } from "../registry/relocation-admission";
 import type { SessionContext, TranscriptSessionContextOptions } from "./session-context";
 import { buildSessionContext, getRestorableSessionModels, isTranscriptEntry } from "./session-context";
 import { sessionEntryIdOf, stampSessionEntryId } from "./session-entry-id";
@@ -1091,6 +1095,8 @@ export class AgentSession implements SettingsScope {
 		| undefined;
 	/** The observation whose monitor is attached; at most one at a time. */
 	#openTurnObservation: TurnObservation | undefined;
+	/** A release continuation of the relocation holding this session's tree is registered (#deferIrcWhileRelocating). */
+	#ircResumeAfterRelocation = false;
 	// Agent identity (registry id) used for IRC routing and job ownership.
 	#agentId: string | undefined;
 	/** Registry the session was created with; undefined falls back to `AgentRegistry.global()`. */
@@ -1461,6 +1467,9 @@ export class AgentSession implements SettingsScope {
 		if (this.#workPoolYieldItems.length > 0) {
 			return;
 		}
+		// A relocation holds this session's tree: leave the records pending; the
+		// release resumes them (design D2 of relocation-admission-lease).
+		if (this.#deferIrcWhileRelocating()) return;
 		// Session transitions call #disconnectFromAgent() BEFORE `await abort()`, and only bump
 		// #sessionGeneration/clear the IRC queue several awaits later once they reach agent.reset().
 		// A normalization await that resolves in that gap sees an unchanged generation and an idle,
@@ -1494,6 +1503,28 @@ export class AgentSession implements SettingsScope {
 			return;
 		}
 		this.#wakeForIrc(records);
+	}
+
+	/**
+	 * Whether a relocation holds this session's agent tree. While it does, IRC
+	 * wakes stay deferred and one release continuation resumes them
+	 * (#resumeStrandedIrcAsides, which drains deferred wakes first), so a wake
+	 * claimed just before the relocation's barrier never dispatches a turn
+	 * against the checkout the session is leaving.
+	 */
+	#deferIrcWhileRelocating(): boolean {
+		const agentId = this.#agentId;
+		if (!agentId) return false;
+		const admission = (this.#agentRegistry ?? AgentRegistry.global()).relocationAdmission;
+		if (!admission.isLeased(agentId)) return false;
+		if (!this.#ircResumeAfterRelocation) {
+			this.#ircResumeAfterRelocation = true;
+			void admission.whenReleased(agentId).then(() => {
+				this.#ircResumeAfterRelocation = false;
+				this.#resumeStrandedIrcAsides();
+			});
+		}
+		return true;
 	}
 
 	/** Persist stranded IRC/extension asides into context without starting a turn — shared by the
@@ -1587,6 +1618,13 @@ export class AgentSession implements SettingsScope {
 				if (this.agent.state.isStreaming) {
 					this.#irc.queueAside(records);
 					logger.debug("IRC wake turn deferred behind the running turn");
+					return;
+				}
+				if (this.#deferIrcWhileRelocating()) {
+					// Same atomic check: the relocation's barrier was taken after this
+					// wake was claimed; its turn starts after the move settles.
+					this.#irc.queueDeferredWake(records);
+					logger.debug("IRC wake turn deferred while the session relocates");
 					return;
 				}
 				observation = this.#startTurnObservation(records);
@@ -3313,8 +3351,45 @@ export class AgentSession implements SettingsScope {
 			.finally(() => this.#sessionMoveTasks.delete(task));
 	}
 
+	/** This session's agent tree over its current artifacts directory plus `extraDirs` (design D1). */
+	#sessionTree(extraDirs: readonly (string | null)[] = []): SessionTree {
+		const dirs = [artifactsDirOf(this.sessionManager.getSessionFile()), ...extraDirs];
+		return { rootId: this.#agentId, artifactsDirs: dirs.filter(dir => dir !== null) };
+	}
+
+	/**
+	 * Hold the relocation admission barrier for this session's agent tree
+	 * (relocation-admission-lease, design D1/D3): peer messages and revivals for
+	 * the session's own agent and for the subagents whose transcripts lie under
+	 * its artifacts directory wait until the returned lease is disposed. Taken
+	 * synchronously; await `ready` for activity admitted before the hold to hand
+	 * off. Membership holds through a move and its rollback: every member at hold
+	 * time stays one, and refs under the hold-time, current or move-target
+	 * directory count.
+	 */
+	holdRelocationAdmission(): RelocationLease {
+		const registry = this.#agentRegistry ?? AgentRegistry.global();
+		const holdDir = artifactsDirOf(this.sessionManager.getSessionFile());
+		const atHold = this.#sessionTree();
+		const snapshot = new Set(
+			registry
+				.list()
+				.filter(ref => sessionTreeMembership(atHold, ref) !== undefined)
+				.map(ref => ref.id),
+		);
+		return registry.relocationAdmission.hold({
+			rootId: this.#agentId ?? `session:${this.sessionId}`,
+			isMember: ref => {
+				if (snapshot.has(ref.id)) return true;
+				const tree = this.#sessionTree([holdDir, artifactsDirOf(this.sessionManager.getMoveTargetSessionFile())]);
+				return sessionTreeMembership(tree, ref) !== undefined;
+			},
+		});
+	}
+
 	async #executeSessionMove(move: PendingSessionMove, self: Promise<void>, signal: AbortSignal): Promise<void> {
 		let outcome: SessionRelocationResult | undefined;
+		let admission: RelocationLease | undefined;
 		const fromCwd = this.sessionManager.getCwd();
 		try {
 			// Settle the ended run's own follow-up work (reminders, retries) before moving.
@@ -3328,6 +3403,14 @@ export class AgentSession implements SettingsScope {
 			}
 			if (signal.aborted || this.#isDisposed || this.#pendingSessionMove !== move) return;
 			this.#pendingSessionMove = undefined;
+			// No await between the idle check above and the hold: a wake of this
+			// session claimed after that check reaches its dispatch under the lease
+			// and is deferred until the move settles (design D2).
+			admission = this.holdRelocationAdmission();
+			// Deliveries and revivals admitted before the hold hand off first, so
+			// the check below sees every turn they started (design D3, D4).
+			await admission.ready;
+			if (signal.aborted || this.#isDisposed) return;
 			const work = findRunningSessionWork({
 				asyncJobManager: this.#asyncJobManager,
 				agentId: this.#agentId,
@@ -3349,6 +3432,7 @@ export class AgentSession implements SettingsScope {
 		} finally {
 			if (this.#pendingSessionMove === move) this.#pendingSessionMove = undefined;
 			this.#closeSessionMoveFence(move);
+			admission?.[Symbol.dispose]();
 		}
 		if (!outcome || signal.aborted || this.#isDisposed) return;
 		const cwd = this.sessionManager.getCwd();

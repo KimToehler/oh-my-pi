@@ -982,6 +982,8 @@ export class SessionManager {
 	 * `null` outside an active relocation.
 	 */
 	#sessionFileRelocating: { source: string; dest: string; copying?: boolean } | null = null;
+	/** See {@link getMoveTargetSessionFile}. */
+	#moveTargetSessionFile: string | undefined;
 	/** Atomic entry batch currently staged for a full-file commit. */
 	#atomicEntryBatch: AtomicEntryBatch | undefined;
 
@@ -2576,6 +2578,9 @@ export class SessionManager {
 
 				const oldSessionFile = this.#sessionFile;
 				const newSessionFile = path.join(nextSessionDir, path.basename(oldSessionFile));
+				// Published before the artifacts rename and the descendant ref rebase,
+				// so a relocation lease keeps claiming refs already repointed here.
+				this.#moveTargetSessionFile = newSessionFile;
 				const oldArtifactsDir = artifactsDirectoryFor(oldSessionFile);
 				const newArtifactsDir = artifactsDirectoryFor(newSessionFile);
 				const sessionPathChanged = path.resolve(oldSessionFile) !== path.resolve(newSessionFile);
@@ -2699,6 +2704,7 @@ export class SessionManager {
 
 			if (this.#sessionFile) this.#rememberBreadcrumb(resolvedCwd, this.#sessionFile);
 		} finally {
+			this.#moveTargetSessionFile = undefined;
 			this.#sessionFileRelocating = null;
 			// The destination is ours or untouched now.
 			destination?.release();
@@ -3175,6 +3181,15 @@ export class SessionManager {
 
 	getSessionFile(): string | undefined {
 		return this.#sessionFile;
+	}
+
+	/**
+	 * The destination session file of the {@link moveTo} in progress (also a
+	 * {@link rollbackMove}), from the moment it is computed, before the artifacts
+	 * directory and descendant refs move, until `moveTo` returns or throws.
+	 */
+	getMoveTargetSessionFile(): string | undefined {
+		return this.#moveTargetSessionFile;
 	}
 
 	/**
