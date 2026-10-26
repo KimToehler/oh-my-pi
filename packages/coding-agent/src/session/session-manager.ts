@@ -105,6 +105,7 @@ import { rebaseDescendantSessionFiles } from "./session-move";
 import {
 	computeDefaultSessionDir,
 	hasPositiveMovedProjectEvidence,
+	isInRemovedCheckoutWorktree,
 	readTerminalBreadcrumbEntry,
 	resolveManagedSessionRoot,
 	worktreeSessionDirs,
@@ -4262,8 +4263,9 @@ export class SessionManager {
 
 	/**
 	 * Whether `session` was recorded in a worktree of `cwd`'s repository that no
-	 * longer exists, e.g. a `/wt` worktree removed since. Resume such a session
-	 * through {@link openRelocated} into `cwd`: its own directory cannot be entered.
+	 * longer exists: a `/wt` worktree removed since, or a removed
+	 * `.worktrees/<slug>` of the primary checkout. Resume such a session through
+	 * {@link openRelocated} into `cwd`: its own directory cannot be entered.
 	 * @param sessionDir `cwd`'s session directory; defaults to the cwd-derived one.
 	 */
 	static async isFromRemovedWorktree(
@@ -4272,6 +4274,7 @@ export class SessionManager {
 		sessionDir?: string,
 	): Promise<boolean> {
 		if (!session.cwd || !(await directoryIsMissing(session.cwd))) return false;
+		if (await isInRemovedCheckoutWorktree(session.cwd, cwd)) return true;
 		const dir = sessionDir ?? SessionManager.getDefaultSessionDir(cwd);
 		const home = path.resolve(path.dirname(session.path));
 		return (await worktreeSessionDirs(cwd, dir)).some(sibling => path.resolve(sibling) === home);
