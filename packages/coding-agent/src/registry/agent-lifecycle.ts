@@ -26,6 +26,7 @@ import * as fs from "node:fs/promises";
 import { logger, untilAborted } from "@oh-my-pi/pi-utils";
 import type { AgentSession } from "../session/agent-session";
 import { trackLateCleanup } from "../utils/late-cleanup";
+import type { AdmissionTicket } from "./relocation-admission";
 import {
 	type AgentRef,
 	type AgentRefExpectation,
@@ -375,8 +376,20 @@ export class AgentLifecycleManager {
 	 *
 	 * Never returns a session that is mid-dispose: an in-flight park is either
 	 * cancelled (session still live) or awaited to completion before revive.
+	 *
+	 * Waits while a relocation holds the agent's tree (design D2 of
+	 * relocation-admission-lease), so a revival reads the transcript at its
+	 * settled path. A caller that goes on to start a turn passes its own
+	 * `admission` ticket and keeps it open until that turn is visible;
+	 * otherwise this call takes a ticket and holds it until it returns.
 	 */
-	async ensureLive(id: string): Promise<AgentSession> {
+	async ensureLive(id: string, options?: { admission?: AdmissionTicket }): Promise<AgentSession> {
+		const admissions = this.#registry.relocationAdmission;
+		// Admit without yielding when no relocation claims the agent, so a caller
+		// in the same tick as a park still reaches its cancel window below.
+		using _admission = options?.admission
+			? undefined
+			: (admissions.tryAdmit(id) ?? (await admissions.admit(id)));
 		const park = this.#parks.get(id);
 		if (park) {
 			const parked = this.#registry.get(id);

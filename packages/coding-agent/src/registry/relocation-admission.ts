@@ -92,11 +92,21 @@ export class RelocationAdmission {
 	 * the agent; otherwise waits, in arrival order, until the tree is released.
 	 */
 	admit(agentId: string): Promise<AdmissionTicket> {
-		const claim = this.#claiming(agentId);
-		if (!claim) return Promise.resolve(this.#openTicket(agentId));
+		const ticket = this.tryAdmit(agentId);
+		if (ticket) return Promise.resolve(ticket);
 		const { promise, resolve } = Promise.withResolvers<AdmissionTicket>();
-		claim.waiters.push({ agentId, grant: resolve });
+		this.#claiming(agentId)!.waiters.push({ agentId, grant: resolve });
 		return promise;
+	}
+
+	/**
+	 * The ticket {@link admit} would grant at once, synchronously; `undefined`
+	 * while a held tree claims the agent. Lets a caller whose ordering depends
+	 * on not yielding (a send in the same tick as a park) admit without an
+	 * async hop when no relocation is in the way.
+	 */
+	tryAdmit(agentId: string): AdmissionTicket | undefined {
+		return this.#claiming(agentId) ? undefined : this.#openTicket(agentId);
 	}
 
 	/** Whether a held tree claims `agentId`. */

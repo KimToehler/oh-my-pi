@@ -133,22 +133,31 @@ export class IrcBus {
 	}
 
 	async #deliver(message: IrcMessage, opts?: { suppressRelay?: boolean }): Promise<IrcDeliveryReceipt> {
-		const ref = this.#registry.get(message.to);
-		if (!ref) {
-			return {
-				to: message.to,
-				outcome: "failed",
-				error: `Unknown agent "${message.to}" — check the subagent roster or read history:// for known peers.`,
-			};
-		}
+		const unknown: IrcDeliveryReceipt = {
+			to: message.to,
+			outcome: "failed",
+			error: `Unknown agent "${message.to}" — check the subagent roster or read history:// for known peers.`,
+		};
+		const addressed = this.#registry.get(message.to);
+		if (!addressed) return unknown;
 		// Advisor refs are observability-only transcripts, never messageable peers.
-		if (ref.kind === "advisor") {
+		if (addressed.kind === "advisor") {
 			return {
 				to: message.to,
 				outcome: "failed",
 				error: `Agent "${message.to}" is a read-only advisor transcript and cannot be messaged.`,
 			};
 		}
+
+		// While a relocation holds the recipient's agent tree, wait for it to
+		// settle; the ticket stays open through the hand-off below, so the
+		// relocation's running-work check sees the wake this delivery claims.
+		// A free recipient is admitted without yielding: a send in the same tick
+		// as a park must still reach the park's cancel window.
+		const admissions = this.#registry.relocationAdmission;
+		using admission = admissions.tryAdmit(message.to) ?? (await admissions.admit(message.to));
+		const ref = this.#registry.get(message.to);
+		if (!ref) return unknown;
 
 		// A `parked` or killed (`aborted`) recipient always needs the lifecycle to
 		// revive it from its transcript — this is read from *this* bus's registry,
@@ -169,7 +178,7 @@ export class IrcBus {
 		let revived = false;
 		if (needsLifecycleGate) {
 			try {
-				const liveSession = await lifecycle.ensureLive(message.to);
+				const liveSession = await lifecycle.ensureLive(message.to, { admission });
 				// Revival = we did not keep the same live instance (parked start, or
 				// park completed and a fresh session was rebuilt).
 				revived = !priorSession || liveSession !== priorSession;
