@@ -82,26 +82,36 @@ In both branches, never create the root as a side effect: do not run `openspec i
    If a task names a worktree for this change (typically the first task, with a path such as
    `.worktrees/<slug>` in its text or Verify command), implementation happens only while the
    session's working directory is that worktree. The returned `sourcePath` and every relative path in
-   edits and Verify commands resolve against the session's working directory, and you cannot change
-   it yourself: only the user's `/move` does. Working on from another checkout ticks the boxes in the
-   wrong `tasks.md` and lands relative edits there.
+   edits and Verify commands resolve against the session's working directory. Working on from another
+   checkout ticks the boxes in the wrong `tasks.md` and lands relative edits there. Move the session
+   yourself with the `session_move` tool (written to `xd://session_move` when it is listed as a tool
+   device). Do not ask the user to type `/move` while `session_move` is available.
 
-   Compare the real path of `git rev-parse --show-toplevel` with the named worktree:
+   Resolve the task's worktree path against the primary checkout (the first `worktree` entry of
+   `git worktree list --porcelain`) and pass that absolute path to `session_move`. Compare its real
+   path with the real path of `git rev-parse --show-toplevel`:
    - **Same path**: continue. The worktree task is ticked once its Verify passes here.
-   - **Worktree exists elsewhere**: stop before any edit or tick.
+   - **Worktree exists elsewhere**: before any edit or tick, call `session_move` with `path`.
    - **Worktree missing**: without a store, the change folder must be committed, or the new
      worktree will not contain it: `git status --porcelain -- <changeRoot>` must print nothing and
      `git ls-files -- <changeRoot>` must list its files. If not, stop and ask the user to commit it.
-     Otherwise create the worktree with the branch and base the task names (for example
-     `git worktree add <path> -b <branch> <base>`), then stop. Do not tick the worktree task here:
-     its checkbox belongs to the worktree's `tasks.md`.
+     Otherwise call `session_move` with `path`, plus the `branch` and `base` the task names; it
+     creates the worktree and moves there. Leave out `base` when the branch already exists. If the
+     tool refuses the path because it is not directly inside the worktree directory, create the
+     worktree with `git worktree add <path> -b <branch> <base>` and call `session_move` with `path`
+     only. Do not tick the worktree task before the move: its checkbox belongs to the worktree's
+     `tasks.md`.
 
-   When you stop, tell the user to move this session into the worktree and rerun this command:
+   Make `session_move` the last call of its message. The move runs after that tool batch and ends the
+   run; the conversation then continues in the worktree. Continue this command there from step 2, so
+   status, apply instructions and every `sourcePath` come from the worktree's change folder.
+
+   If `session_move` refuses because background jobs or subagents of this session still run, wait
+   for them or cancel them, then call it again. If the tool is not available or fails otherwise, stop
+   before any edit or tick and tell the user to move this session and rerun this command:
    `/move <worktree path>`, then `/opsx-apply <name>`. `/move` works in the terminal UI and in ACP
-   clients such as IntelliJ, and keeps the conversation. An ACP client that reloads the chat reopens
-   it in the worktree it was moved to; a chat whose worktree was removed reopens in the project
-   directory. Do not suggest `/wt`: it creates its own worktree and branch outside `.worktrees/`,
-   not the one the task names.
+   clients such as IntelliJ, and keeps the conversation. Never use or suggest `/wt`: it creates its
+   own worktree and branch outside `.worktrees/`, not the one the task names.
 
    No task naming a worktree: skip this step.
 
