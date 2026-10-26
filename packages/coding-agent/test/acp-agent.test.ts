@@ -1236,6 +1236,32 @@ describe("ACP agent", () => {
 		await harness.agent.dispose();
 	});
 
+	it("gives IntelliJ select config options whose currentValue is always in the list", async () => {
+		// JetBrains maps each select by value and fails the session with
+		// "Could not load session settings" when currentValue is missing or
+		// duplicated, and it rejects OMP-only `auto` on thought_level.
+		const harness = await createHarness({
+			clientInfo: INTELLIJ_CLIENT_INFO,
+			prepareSession: session => {
+				session.thinkingLevel = "auto";
+			},
+		});
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		expectAcpStructure(zNewSessionResponse, created);
+		for (const option of created.configOptions ?? []) {
+			if (option.type !== "select") continue;
+			const values = option.options.map(entry => entry.value);
+			expect(new Set(values).size, option.id).toBe(values.length);
+			expect(values, option.id).toContain(option.currentValue);
+		}
+		const thinking = created.configOptions?.find(option => option.id === "thinking");
+		expect(thinking?.type).toBe("select");
+		if (thinking?.type !== "select") throw new Error("expected thinking select");
+		expect(thinking.options.map(entry => entry.value)).not.toContain("auto");
+		expect(thinking.currentValue).toBe("off");
+		await harness.agent.dispose();
+	});
+
 	it("keeps advertising loadSession to non-IntelliJ clients", async () => {
 		const harness = await createHarness();
 		const response = await harness.agent.initialize({

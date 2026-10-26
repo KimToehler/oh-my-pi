@@ -183,6 +183,19 @@ const SESSION_STEERING_METHOD = "_session/steering";
 export const ACP_BOOTSTRAP_RACE_GUARD_MS = 50;
 const ACP_CANCEL_CLEANUP_TIMEOUT_MS = 5_000;
 
+function uniqueSelectOptions<T extends { value: string }>(options: T[]): T[] {
+	const seen = new Set<string>();
+	return options.filter(option => {
+		if (seen.has(option.value)) return false;
+		seen.add(option.value);
+		return true;
+	});
+}
+
+function coerceSelectCurrent(options: Array<{ value: string }>, current: string): string {
+	return options.some(option => option.value === current) ? current : (options[0]?.value ?? current);
+}
+
 async function nextMacrotask(): Promise<void> {
 	const { promise, resolve } = Promise.withResolvers<void>();
 	setImmediate(resolve);
@@ -2510,48 +2523,65 @@ export class AcpAgent implements Agent {
 	#buildConfigOptions(record: ManagedSessionRecord): SessionConfigOption[] {
 		const session = record.session;
 		const currentModeId = record.goal.modeId;
-		const modeOptions = this.#getAvailableModes(session).map(mode => ({
-			value: mode.id,
-			name: mode.name,
-			description: mode.description,
-		}));
+		const modeOptions = uniqueSelectOptions(
+			this.#getAvailableModes(session).map(mode => ({
+				value: mode.id,
+				name: mode.name,
+				description: mode.description,
+			})),
+		);
 		const configOptions: SessionConfigOption[] = [
 			{
 				id: MODE_CONFIG_ID,
 				name: "Mode",
 				category: "mode",
 				type: "select",
-				currentValue: currentModeId,
+				currentValue: coerceSelectCurrent(modeOptions, currentModeId),
 				options: modeOptions,
 			},
 		];
 
 		const models = session.getAvailableModels();
 		const currentModel = session.model;
-		if (models.length > 0) {
+		if (models.length > 0 || currentModel) {
+			const listed = models.some(model => currentModel && this.#toModelId(model) === this.#toModelId(currentModel))
+				? models
+				: currentModel
+					? [currentModel, ...models]
+					: models;
+			const modelOptions = uniqueSelectOptions(
+				listed.map(model => ({
+					value: this.#toModelId(model),
+					name: model.name,
+					description: `${model.provider}/${model.id}`,
+				})),
+			);
 			configOptions.push({
 				id: MODEL_CONFIG_ID,
 				name: "Model",
 				category: "model",
 				type: "select",
-				currentValue: currentModel ? this.#toModelId(currentModel) : this.#toModelId(models[0]),
-				options: models.map(model => ({
-					value: this.#toModelId(model),
-					name: model.name,
-					description: `${model.provider}/${model.id}`,
-				})),
+				currentValue: coerceSelectCurrent(
+					modelOptions,
+					currentModel ? this.#toModelId(currentModel) : modelOptions[0]!.value,
+				),
+				options: modelOptions,
 			});
 		}
 
+		const thinkingOptions = uniqueSelectOptions(this.#buildThinkingOptions(session));
 		configOptions.push({
 			id: THINKING_CONFIG_ID,
 			name: "Thinking",
 			category: "thought_level",
 			type: "select",
-			currentValue: this.#toThinkingConfigValue(
-				session.model?.reasoning ? this.#getConfiguredThinkingLevel(session) : undefined,
+			currentValue: coerceSelectCurrent(
+				thinkingOptions,
+				this.#toThinkingConfigValue(
+					session.model?.reasoning ? this.#getConfiguredThinkingLevel(session) : undefined,
+				),
 			),
-			options: this.#buildThinkingOptions(session),
+			options: thinkingOptions,
 		});
 		return configOptions;
 	}
@@ -2566,14 +2596,22 @@ export class AcpAgent implements Agent {
 	}
 
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
-		return [
+		const options: Array<{ value: string; name: string; description?: string }> = [
 			{ value: THINKING_OFF, name: "Off" },
-			{ value: AUTO_THINKING, name: "Auto", description: "Auto-detect per prompt" },
+		];
+		// JetBrains treats `thought_level` as a closed effort vocabulary and
+		// fails session setup ("Could not load session settings") on OMP-only
+		// `auto`. Other clients still get the selector.
+		if (!this.#clientIsIntelliJ) {
+			options.push({ value: AUTO_THINKING, name: "Auto", description: "Auto-detect per prompt" });
+		}
+		options.push(
 			...session.getAvailableThinkingLevels().map(level => ({
 				value: level,
 				name: level,
 			})),
-		];
+		);
+		return options;
 	}
 	#getConfiguredThinkingLevel(session: AgentSession): string | undefined {
 		const configuredThinkingLevel = (session as { configuredThinkingLevel?: () => string | undefined })
@@ -2584,7 +2622,9 @@ export class AcpAgent implements Agent {
 	}
 
 	#toThinkingConfigValue(value: string | undefined): string {
-		return value && value !== "inherit" ? value : THINKING_OFF;
+		if (!value || value === "inherit") return THINKING_OFF;
+		if (this.#clientIsIntelliJ && value === AUTO_THINKING) return THINKING_OFF;
+		return value;
 	}
 
 	async #setModelById(session: AgentSession, modelId: string): Promise<void> {

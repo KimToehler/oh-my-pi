@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Fixed JetBrains IDEs failing ACP session setup with "Could not load session settings": thinking no longer advertises OMP-only `auto`, and each select's current value is always one of its options
 - Fixed ACP clients such as JetBrains IDEs failing to reopen a chat whose session was moved into a worktree with "load was cancelled"; the session now reopens in that worktree, a session whose worktree was removed moves into the project directory, and a session of another repository is refused with an error naming its directory
 - Fixed `omp --resume` asking (or failing without a terminal) to move a session from a removed `.worktrees/` worktree of the repository; it now moves into the current checkout without asking, like a removed `/wt` worktree
 - Fixed `/session delete` recreating the deleted session file on the next save, and under ACP the deleted session now closes after the confirmation, so later prompts for it are rejected
