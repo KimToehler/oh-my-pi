@@ -1,0 +1,65 @@
+**Bottom line:** PASS. The architecture holds: reopen policy is centralized, relocation remains a session-store responsibility, and ACP publishes a live record only after successful placement and setup. No blocker meets the stated threshold.
+
+### 1. Architectural fit
+
+Yes. `resolveResumeLocation` provides one policy boundary for same-directory, same-repository, removed-worktree, and refusal outcomes (`packages/coding-agent/src/session/session-resume-location.ts:24-54`). ACP consumes those outcomes without duplicating repository logic, while `SessionManager.openRelocated` retains ownership of transcript and artifact movement (`packages/coding-agent/src/session/session-manager.ts:4359-4394`).
+
+The merged lifecycle code is compatible with that design:
+
+- Stored-session placement occurs before ACP record construction and registration (`packages/coding-agent/src/modes/acp/acp-agent.ts:1893-1940`).
+- A closing record is synchronously removed from `#sessions`, preventing the reopen paths from treating it as live (`packages/coding-agent/src/modes/acp/acp-agent.ts:3422-3454`).
+- Deletion detaches the active persistence target before asynchronous draining and unlinking, preventing later writes from recreating the deleted path (`packages/coding-agent/src/session/session-manager.ts:2464-2498`).
+
+### 2. What the line-level audit structurally misses
+
+The main structural concern is policy fan-out rather than a line defect. `SessionManager.isFromRemovedWorktree` now changes four surfaces: ACP placement, direct CLI resume, startup picker resume, and the in-session selector (`packages/coding-agent/src/main.ts:931-932`, `packages/coding-agent/src/main.ts:2231-2234`, `packages/coding-agent/src/modes/controllers/selector-controller.ts:2022-2032`). Those consumers remain aligned because they all delegate both classification and movement to the same session layer.
+
+The other architectural characteristic is a deliberately non-transactional boundary: relocation is committed and the temporary manager closed before ACP factory creation, transcript switching, extension setup, MCP setup, and registration (`packages/coding-agent/src/modes/acp/acp-agent.ts:1893-1984`). A later setup failure can therefore leave the transcript relocated even though that ACP request fails. It does not lose the transcript or artifacts, and recovery remains local and reversible, so it does not block.
+
+### 3. Highest-impact production failure
+
+The worst plausible failure would be opening a session under the wrong repository identity and then allowing tools, rules, or extensions from that checkout to act on unrelated files. The change addresses this at the correct boundary: existing directories require either directory identity or equal canonical primary-checkout identity, while everything else is refused before session construction (`packages/coding-agent/src/session/session-resume-location.ts:29-44`).
+
+For missing directories, silent relocation is restricted to the established removed-worktree evidence. The other-repository negative control and byte-preservation QA directly exercise the dangerous side of this boundary. The remaining path-layout heuristic under `.worktrees/<slug>` is conservative enough for the repository convention and only causes reversible local relocation if that namespace is repurposed.
+
+### 4. Auditor false positives
+
+No. The close/delete observations concern behavior introduced on merged `main`, but they are relevant integration constraints for the reviewed head rather than defects falsely attributed to this branch. The auditor’s conclusions about the merged seams agree with `#parkForClose`, `#runClose`, `dropSession`, and the pre-registration placement path.
+
+### Non-blocking notes
+
+- **Note:** A deleted ordinary directory deliberately placed under `.worktrees/<slug>` could be classified as a removed worktree; this does not block because the convention reserves that layout and the resulting local transcript relocation preserves data and is reversible.
+- **Note:** Relocation can remain committed if later ACP setup fails; this does not block because the transcript and artifacts remain intact in a valid bucket rather than being lost.
+- **Note:** Startup and in-session picker behavior lacks a dedicated F1 surface row; this does not block because their callsites directly use the tested shared predicate and relocation operation, with no independent placement policy.
+
+### Action plan
+
+1. Record this strategic lane as PASS; no source fix is warranted.
+2. Preserve the merged-head QA artifacts and trailer unchanged for the SHA-bound gate record.
+3. Keep the `.worktrees/<slug>` heuristic and post-relocation setup boundary documented as residual operational behavior rather than expanding scope.
+
+**Effort:** Quick (<1h) to record the gate evidence; no implementation wave required.
+
+**Confidence:** high.
+
+**Watch out for:**
+- Repurposing `.worktrees/` for non-worktree data would weaken the path-layout evidence.
+- A persistent factory or extension failure after relocation can make the session appear moved but still unloadable until that independent setup problem is fixed.
+- Concurrent reopen attempts remain dependent on existing session-file ownership semantics.
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An ACP record becomes live only after placement, transcript switching, extension and MCP configuration, and surface subscription all succeed.
+  positive_witness: A successful stored-session reopen completes setup and publishes exactly one record through the final #sessions insertion.
+  negative_control: A switch or configuration failure MUST return an error without leaving the requested id as a live ACP record or accepting later prompts through a half-configured record.
+  observable: The setup response versus error, subsequent prompt acceptance versus rejection, emitted updates, and presence of the id in the live-session registry distinguish the outcomes.
+  boundary: AcpAgent #openStoredSession and #registerPreparedSession publication boundary
+END-REVIEW-TRAILER

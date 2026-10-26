@@ -448,6 +448,8 @@ Command handlers additionally get:
 
 Use command context for session-control flows; these methods are intentionally separated from general event handlers.
 
+For extensions running under ACP (`omp acp`), `newSession(...)`, `switchSession(...)` and `branch(entryId)` return `{ cancelled: true }` without touching the session, and omp logs a warning: ACP has no way to tell the client that its session was replaced, so the client keeps addressing the original session id. `navigateTree(...)` and `reload()` keep the id and work as usual. The TUI, RPC and print modes keep the behaviour described above.
+
 ## Event surface (current names and behavior)
 
 Canonical event unions and payload types are in `types.ts`.

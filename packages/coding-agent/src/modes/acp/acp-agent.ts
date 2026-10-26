@@ -76,6 +76,7 @@ import { relocateHeadlessSession } from "../../session/headless-relocation";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import type { SessionInfo as StoredSessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
+import { resolveResumeLocation } from "../../session/session-resume-location";
 import type { SessionRelocationResult } from "../../session/session-move";
 import {
 	type AcpBuiltinSlashCommandResult,
@@ -181,6 +182,19 @@ const SESSION_STEERING_METHOD = "_session/steering";
  */
 export const ACP_BOOTSTRAP_RACE_GUARD_MS = 50;
 const ACP_CANCEL_CLEANUP_TIMEOUT_MS = 5_000;
+
+function uniqueSelectOptions<T extends { value: string }>(options: T[]): T[] {
+	const seen = new Set<string>();
+	return options.filter(option => {
+		if (seen.has(option.value)) return false;
+		seen.add(option.value);
+		return true;
+	});
+}
+
+function coerceSelectCurrent(options: Array<{ value: string }>, current: string): string {
+	return options.some(option => option.value === current) ? current : (options[0]?.value ?? current);
+}
 
 async function nextMacrotask(): Promise<void> {
 	const { promise, resolve } = Promise.withResolvers<void>();
@@ -362,6 +376,19 @@ function toV1McpServers(servers: v2.McpServer[] | undefined): McpServer[] {
 		}
 		return { name: server.name, command: server.command, args: server.args ?? [], env: server.env ?? [] };
 	});
+}
+
+/** Error for a session that cannot reopen for a request from `requestCwd`; `subject` names the session. */
+function resumeRefusal(
+	subject: string,
+	location: { recordedCwd: string; missing: boolean },
+	requestCwd: string,
+): Error {
+	return new Error(
+		location.missing
+			? `${subject} ${location.recordedCwd}, which no longer exists`
+			: `${subject} ${location.recordedCwd}, which is not in the git repository of ${path.resolve(requestCwd)}`,
+	);
 }
 
 function normalizeCreatedAcpSession(created: AgentSession | AcpSessionHandle): {
@@ -750,13 +777,25 @@ export function createAcpExtensionUiContext(
 	};
 }
 
+interface ClosingSession {
+	record: ManagedSessionRecord;
+	/**
+	 * Runs the close once; later calls (and calls while it runs) await the same close. `disposal` marks the agent's
+	 * own dispose, which like `dispose()` of a registered session does not wait for the client to take queued frames.
+	 */
+	start(disposal?: { reason?: postmortem.Reason }): Promise<void>;
+}
+
 export class AcpAgent implements Agent {
 	#connection: AgentSideConnection;
 	#initialSession: AgentSession | undefined;
 	#createSession: CreateAcpSession;
 	#sessions = new Map<string, ManagedSessionRecord>();
-	/** Closes still running: the record is no longer registered, but its updates keep the surface's ordered path. */
-	#closing = new Map<string, { record: ManagedSessionRecord; closed: Promise<void> }>();
+	/**
+	 * Sessions on their way out: the record is no longer registered, but its updates keep the surface's ordered path.
+	 * A close that has not started yet (a deleted session whose turn is still finishing) waits here for `start`.
+	 */
+	#closing = new Map<string, ClosingSession>();
 	#disposePromise: Promise<void> | undefined;
 	#cleanupRegistered = false;
 	#clientCapabilities: ClientCapabilities | undefined;
@@ -892,8 +931,9 @@ export class AcpAgent implements Agent {
 	async closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
 		const record = this.#sessions.get(params.sessionId);
 		if (record) await this.#closeManagedSession(params.sessionId, record);
-		// A repeated close answers once the running one is done, so its response cannot overtake the session's last updates.
-		else await this.#closing.get(params.sessionId)?.closed;
+		// A repeated close answers once the running one is done, so its response cannot overtake the session's last
+		// updates; a close still pending (deleted session) starts now.
+		else await this.#closing.get(params.sessionId)?.start();
 		return {};
 	}
 
@@ -1129,6 +1169,7 @@ export class AcpAgent implements Agent {
 			// ACP-declared servers (`session/new` `mcpServers`) live in this
 			// manager, in no writable config file; `/mcp` lookups must consult it.
 			mcpManager: record.mcpManager,
+			endSessionAfterTurn: () => this.#endSessionAfterTurn(record, turn),
 			keepTurnOpenUntilIdle: async () => {
 				await record.session.waitForIdle();
 				// `AgentSession.#emit()` does not await listeners, so the retried
@@ -1344,7 +1385,8 @@ export class AcpAgent implements Agent {
 	}
 
 	async cancel(params: { sessionId: string }): Promise<void> {
-		const record = this.#getSessionRecord(params.sessionId);
+		// A deleted session's turn may still be finishing: Stop must reach it.
+		const record = this.#closing.get(params.sessionId)?.record ?? this.#getSessionRecord(params.sessionId);
 		// Stop means stop everything accepted on this session: prompts still
 		// inside the dispatch window or queued behind the running turn must not
 		// stream after the client believes it stopped the session.
@@ -1811,7 +1853,7 @@ export class AcpAgent implements Agent {
 	async #loadManagedSession(sessionId: string, cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const existing = this.#sessions.get(sessionId);
 		if (existing) {
-			this.#assertMatchingCwd(existing.session, cwd);
+			await this.#liveReopenCwd(existing.session, cwd);
 			await this.#configureMcpServers(existing, mcpServers);
 			return existing;
 		}
@@ -1820,13 +1862,13 @@ export class AcpAgent implements Agent {
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return await this.#openStoredSession(storedSession.path, cwd, mcpServers, sessionId);
+		return await this.#openStoredSession(storedSession, cwd, mcpServers, sessionId);
 	}
 
 	async #resumeManagedSession(sessionId: string, cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const existing = this.#sessions.get(sessionId);
 		if (existing) {
-			this.#assertMatchingCwd(existing.session, cwd);
+			await this.#liveReopenCwd(existing.session, cwd);
 			await this.#configureMcpServers(existing, mcpServers);
 			return existing;
 		}
@@ -1835,18 +1877,18 @@ export class AcpAgent implements Agent {
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return await this.#openStoredSession(storedSession.path, cwd, mcpServers, sessionId);
+		return await this.#openStoredSession(storedSession, cwd, mcpServers, sessionId);
 	}
 
 	async #forkManagedSession(params: ForkSessionRequest): Promise<ManagedSessionRecord> {
-		const sourcePath = await this.#resolveForkSourceSessionPath(params.sessionId);
+		const source = await this.#resolveForkSource(params.sessionId, params.cwd);
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
-			await this.#createSession(path.resolve(params.cwd), {
+			await this.#createSession(source.cwd, {
 				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
-			const success = await session.switchSession(sourcePath);
+			const success = await session.switchSession(source.sessionPath);
 			if (!success) {
 				throw new Error(`ACP session fork was cancelled: ${params.sessionId}`);
 			}
@@ -1862,13 +1904,15 @@ export class AcpAgent implements Agent {
 	}
 
 	async #openStoredSession(
-		sessionPath: string,
-		cwd: string,
+		storedSession: StoredSessionInfo,
+		requestCwd: string,
 		mcpServers: McpServer[],
 		sessionId: string,
 	): Promise<ManagedSessionRecord> {
+		const { cwd, sessionPath } = await this.#placeStoredSession(storedSession, requestCwd, sessionId);
+		// Assembled for the directory the session runs in (settings, rules, extensions), as `session/new` there would be.
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
-			await this.#createSession(path.resolve(cwd), {
+			await this.#createSession(cwd, {
 				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
@@ -1882,6 +1926,30 @@ export class AcpAgent implements Agent {
 			throw error;
 		}
 		return await this.#registerPreparedSession(session, mcpServers, setToolUIContext);
+	}
+
+	/**
+	 * Where a stored session opens for a request from `requestCwd`: in its recorded directory when that is in
+	 * the request's repository, or in the request directory after moving it out of a removed worktree.
+	 */
+	async #placeStoredSession(
+		storedSession: Pick<StoredSessionInfo, "path" | "cwd">,
+		requestCwd: string,
+		sessionId: string,
+	): Promise<{ cwd: string; sessionPath: string }> {
+		const location = await resolveResumeLocation(storedSession, path.resolve(requestCwd));
+		switch (location.kind) {
+			case "open":
+				return { cwd: location.cwd, sessionPath: storedSession.path };
+			case "relocate": {
+				const moved = await SessionManager.openRelocated(storedSession.path, location.from, location.to);
+				const sessionPath = moved.getSessionFile() ?? storedSession.path;
+				await moved.close();
+				return { cwd: location.to, sessionPath };
+			}
+			case "refuse":
+				throw resumeRefusal(`ACP session ${sessionId} belongs to`, location, requestCwd);
+		}
 	}
 
 	async #registerPreparedSession(
@@ -2047,15 +2115,30 @@ export class AcpAgent implements Agent {
 		return record;
 	}
 
-	#assertMatchingCwd(session: AgentSession, cwd: string): void {
-		const expected = path.resolve(cwd);
-		const actual = path.resolve(session.sessionManager.getCwd());
-		if (actual !== expected) {
-			throw new Error(`ACP session ${session.sessionId} is already loaded for ${actual}, not ${expected}`);
+	/**
+	 * The directory an open session serves a request from `cwd` in: its live directory, when that is the request
+	 * directory or in its repository (after `/move` or `session_move` in this process). An open session is never
+	 * relocated, so any other directory is refused.
+	 */
+	async #liveReopenCwd(session: AgentSession, cwd: string): Promise<string> {
+		const live = session.sessionManager.getCwd();
+		const subject = `ACP session ${session.sessionId} is already loaded for`;
+		const location = await resolveResumeLocation(
+			{ path: session.sessionManager.getSessionFile() ?? "", cwd: live },
+			path.resolve(cwd),
+		);
+		switch (location.kind) {
+			case "open":
+				return location.cwd;
+			case "relocate":
+				throw resumeRefusal(subject, { recordedCwd: live, missing: true }, cwd);
+			case "refuse":
+				throw resumeRefusal(subject, location, cwd);
 		}
 	}
 
-	async #resolveForkSourceSessionPath(sessionId: string): Promise<string> {
+	/** The fork source's session file and the directory its fork runs in, for a request from `cwd`. */
+	async #resolveForkSource(sessionId: string, cwd: string): Promise<{ cwd: string; sessionPath: string }> {
 		const loaded = this.#sessions.get(sessionId);
 		if (loaded) {
 			if (isPromptTurnInFlight(loaded.promptTurn)) {
@@ -2066,14 +2149,14 @@ export class AcpAgent implements Agent {
 			if (!sessionPath) {
 				throw new Error(`ACP session cannot be forked before it is persisted: ${sessionId}`);
 			}
-			return sessionPath;
+			return { cwd: await this.#liveReopenCwd(loaded.session, cwd), sessionPath };
 		}
 
 		const storedSession = await this.#findStoredSessionById(sessionId);
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return storedSession.path;
+		return await this.#placeStoredSession(storedSession, cwd, sessionId);
 	}
 
 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
@@ -2440,48 +2523,65 @@ export class AcpAgent implements Agent {
 	#buildConfigOptions(record: ManagedSessionRecord): SessionConfigOption[] {
 		const session = record.session;
 		const currentModeId = record.goal.modeId;
-		const modeOptions = this.#getAvailableModes(session).map(mode => ({
-			value: mode.id,
-			name: mode.name,
-			description: mode.description,
-		}));
+		const modeOptions = uniqueSelectOptions(
+			this.#getAvailableModes(session).map(mode => ({
+				value: mode.id,
+				name: mode.name,
+				description: mode.description,
+			})),
+		);
 		const configOptions: SessionConfigOption[] = [
 			{
 				id: MODE_CONFIG_ID,
 				name: "Mode",
 				category: "mode",
 				type: "select",
-				currentValue: currentModeId,
+				currentValue: coerceSelectCurrent(modeOptions, currentModeId),
 				options: modeOptions,
 			},
 		];
 
 		const models = session.getAvailableModels();
 		const currentModel = session.model;
-		if (models.length > 0) {
+		if (models.length > 0 || currentModel) {
+			const listed = models.some(model => currentModel && this.#toModelId(model) === this.#toModelId(currentModel))
+				? models
+				: currentModel
+					? [currentModel, ...models]
+					: models;
+			const modelOptions = uniqueSelectOptions(
+				listed.map(model => ({
+					value: this.#toModelId(model),
+					name: model.name,
+					description: `${model.provider}/${model.id}`,
+				})),
+			);
 			configOptions.push({
 				id: MODEL_CONFIG_ID,
 				name: "Model",
 				category: "model",
 				type: "select",
-				currentValue: currentModel ? this.#toModelId(currentModel) : this.#toModelId(models[0]),
-				options: models.map(model => ({
-					value: this.#toModelId(model),
-					name: model.name,
-					description: `${model.provider}/${model.id}`,
-				})),
+				currentValue: coerceSelectCurrent(
+					modelOptions,
+					currentModel ? this.#toModelId(currentModel) : modelOptions[0]!.value,
+				),
+				options: modelOptions,
 			});
 		}
 
+		const thinkingOptions = uniqueSelectOptions(this.#buildThinkingOptions(session));
 		configOptions.push({
 			id: THINKING_CONFIG_ID,
 			name: "Thinking",
 			category: "thought_level",
 			type: "select",
-			currentValue: this.#toThinkingConfigValue(
-				session.model?.reasoning ? this.#getConfiguredThinkingLevel(session) : undefined,
+			currentValue: coerceSelectCurrent(
+				thinkingOptions,
+				this.#toThinkingConfigValue(
+					session.model?.reasoning ? this.#getConfiguredThinkingLevel(session) : undefined,
+				),
 			),
-			options: this.#buildThinkingOptions(session),
+			options: thinkingOptions,
 		});
 		return configOptions;
 	}
@@ -2496,14 +2596,22 @@ export class AcpAgent implements Agent {
 	}
 
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
-		return [
+		const options: Array<{ value: string; name: string; description?: string }> = [
 			{ value: THINKING_OFF, name: "Off" },
-			{ value: AUTO_THINKING, name: "Auto", description: "Auto-detect per prompt" },
+		];
+		// JetBrains treats `thought_level` as a closed effort vocabulary and
+		// fails session setup ("Could not load session settings") on OMP-only
+		// `auto`. Other clients still get the selector.
+		if (!this.#clientIsIntelliJ) {
+			options.push({ value: AUTO_THINKING, name: "Auto", description: "Auto-detect per prompt" });
+		}
+		options.push(
 			...session.getAvailableThinkingLevels().map(level => ({
 				value: level,
 				name: level,
 			})),
-		];
+		);
+		return options;
 	}
 	#getConfiguredThinkingLevel(session: AgentSession): string | undefined {
 		const configuredThinkingLevel = (session as { configuredThinkingLevel?: () => string | undefined })
@@ -2514,7 +2622,9 @@ export class AcpAgent implements Agent {
 	}
 
 	#toThinkingConfigValue(value: string | undefined): string {
-		return value && value !== "inherit" ? value : THINKING_OFF;
+		if (!value || value === "inherit") return THINKING_OFF;
+		if (this.#clientIsIntelliJ && value === AUTO_THINKING) return THINKING_OFF;
+		return value;
 	}
 
 	async #setModelById(session: AgentSession, modelId: string): Promise<void> {
@@ -3014,7 +3124,7 @@ export class AcpAgent implements Agent {
 		// naming scheme. Sessions written under a legacy/hashed project directory
 		// (the 17.2.5+ scheme reverted in #7656) live elsewhere, so fall back to a
 		// global by-id scan: the session id is globally unique, and
-		// #openStoredSession reopens the file with the request cwd. See #7779.
+		// #openStoredSession decides where the file reopens. See #7779.
 		return this.#findStoredSessionById(sessionId);
 	}
 
@@ -3141,27 +3251,11 @@ export class AcpAgent implements Agent {
 			{
 				getContextUsage: () => record.session.getContextUsage(),
 				waitForIdle: () => record.session.agent.waitForIdle(),
-				newSession: options =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const success = await record.session.newSession({ parentSession: options?.parentSession });
-							if (success && options?.setup) {
-								await options.setup(record.session.sessionManager);
-							}
-							return { cancelled: !success };
-						},
-						{ detachesRun: true },
-					),
-				branch: entryId =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const result = await record.session.branch(entryId);
-							return { cancelled: result.cancelled };
-						},
-						{ detachesRun: false },
-					),
+				// ACP has no message that tells a client its session was replaced, so the id the
+				// client holds must keep addressing this transcript: actions that would mint or load
+				// another session id in place are refused (navigateTree/reload keep the id).
+				newSession: async () => this.#refuseTranscriptReplacement(record, "newSession"),
+				branch: async () => this.#refuseTranscriptReplacement(record, "branch"),
 				navigateTree: (targetId, options) =>
 					this.#goalSessionChange(
 						record,
@@ -3171,15 +3265,7 @@ export class AcpAgent implements Agent {
 						},
 						{ detachesRun: false },
 					),
-				switchSession: sessionPath =>
-					this.#goalSessionChange(
-						record,
-						async () => {
-							const success = await record.session.switchSession(sessionPath);
-							return { cancelled: !success };
-						},
-						{ detachesRun: true },
-					),
+				switchSession: async () => this.#refuseTranscriptReplacement(record, "switchSession"),
 				reload: async () => {
 					await this.#goalSessionChange(
 						record,
@@ -3197,6 +3283,17 @@ export class AcpAgent implements Agent {
 		);
 		await extensionRunner.emit({ type: "session_start" });
 		record.extensionsConfigured = true;
+	}
+
+	#refuseTranscriptReplacement(
+		record: ManagedSessionRecord,
+		action: "newSession" | "branch" | "switchSession",
+	): { cancelled: true } {
+		logger.warn("Extension session action refused in ACP: it would replace the client's session", {
+			action,
+			sessionId: record.session.sessionId,
+		});
+		return { cancelled: true };
 	}
 
 	/**
@@ -3222,8 +3319,9 @@ export class AcpAgent implements Agent {
 
 	/**
 	 * The record's `session_move` relocator: the shared headless relocation inside the goal's session-change
-	 * bracket (a same-session change, so the run is not detached). A failed rollback leaves the session unusable,
-	 * so it is disposed exactly as `/move` does.
+	 * bracket (a same-session change, so the run is not detached). A failed rollback leaves the session unusable:
+	 * the record closes like a deleted session's (requests answer as for an unknown id) and the session is
+	 * disposed at once, exactly as `/move` does.
 	 */
 	async #relocateSession(record: ManagedSessionRecord, targetPath: string): Promise<SessionRelocationResult> {
 		const runtime = this.#buildSlashCommandRuntime(record, undefined);
@@ -3233,7 +3331,10 @@ export class AcpAgent implements Agent {
 			{ detachesRun: false },
 		);
 		if (result.ok) return { ok: true };
-		if (result.fatal) await record.session.dispose();
+		if (result.fatal) {
+			this.#endSessionAfterTurn(record, undefined);
+			await record.session.dispose();
+		}
 		return { ok: false, reason: result.reason };
 	}
 
@@ -3354,24 +3455,63 @@ export class AcpAgent implements Agent {
 
 	async #closeManagedSession(sessionId: string, record: ManagedSessionRecord): Promise<void> {
 		const running = this.#closing.get(sessionId);
-		if (running?.record === record) {
-			await running.closed;
-			return;
-		}
-		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
+		await (running?.record === record ? running : this.#parkForClose(sessionId, record)).start();
+	}
+
+	/**
+	 * Unregister `record` and park it in `#closing` with its close not started. Every lookup through `#sessions` now
+	 * misses it, while the surfaces still reach it through `recordFor` until the close completes.
+	 */
+	#parkForClose(sessionId: string, record: ManagedSessionRecord): ClosingSession {
 		this.#sessions.delete(sessionId);
-		const done = Promise.withResolvers<void>();
-		const entry = { record, closed: done.promise };
+		let closed: Promise<void> | undefined;
+		const entry: ClosingSession = {
+			record,
+			start: disposal => {
+				closed ??= this.#runClose(sessionId, record, entry, disposal);
+				return closed;
+			},
+		};
 		this.#closing.set(sessionId, entry);
+		return entry;
+	}
+
+	/** The one close path: refuse queued prompts, stop the running turn, flush the surface, dispose the record. */
+	async #runClose(
+		sessionId: string,
+		record: ManagedSessionRecord,
+		entry: ClosingSession,
+		disposal: { reason?: postmortem.Reason } | undefined,
+	): Promise<void> {
+		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
 		try {
 			await this.#cancelPromptForClose(record);
 			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
-			await this.#surface.drain(record);
-			await this.#disposeSessionRecord(record);
+			if (!disposal) await this.#surface.drain(record);
+			await this.#disposeSessionRecord(record, disposal?.reason);
 		} finally {
 			if (this.#closing.get(sessionId) === entry) this.#closing.delete(sessionId);
-			done.resolve();
 		}
+	}
+
+	/**
+	 * `/session delete` succeeded: the session accepts nothing more, but the turn that ran the command still reports
+	 * its confirmation and its normal end. The close starts once that turn has ended, unless `session/close` or agent
+	 * dispose started it first.
+	 */
+	#endSessionAfterTurn(record: ManagedSessionRecord, turn: PromptTurnState | undefined): void {
+		const sessionId = record.session.sessionId;
+		const entry =
+			this.#closing.get(sessionId)?.record === record
+				? this.#closing.get(sessionId)!
+				: this.#parkForClose(sessionId, record);
+		const close = () => {
+			entry.start().catch((error: unknown) => {
+				logger.warn("Failed to close deleted ACP session", { sessionId, error });
+			});
+		};
+		if (turn) void turn.work.ended.then(close);
+		else close();
 	}
 
 	/** True once the session was closed or its agent disposed: late continuations must send and persist nothing. */
@@ -3434,6 +3574,8 @@ export class AcpAgent implements Agent {
 		this.#disposePromise = (async () => {
 			const records = Array.from(this.#sessions.entries());
 			this.#sessions.clear();
+			// Closes that were queued or are running finish here too, so dispose returns with every record disposed.
+			const closing = Array.from(this.#closing.entries());
 			await Promise.all(
 				records.map(async ([sessionId, record]) => {
 					try {
@@ -3444,6 +3586,16 @@ export class AcpAgent implements Agent {
 						await this.#disposeSessionRecord(record, reason);
 					} catch (error) {
 						logger.warn("Failed to clean up ACP session", { sessionId, error });
+					}
+				}),
+			);
+
+			await Promise.all(
+				closing.map(async ([sessionId, entry]) => {
+					try {
+						await entry.start({ reason });
+					} catch (error) {
+						logger.warn("Failed to clean up closing ACP session", { sessionId, error });
 					}
 				}),
 			);

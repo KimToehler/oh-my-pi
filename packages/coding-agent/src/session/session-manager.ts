@@ -105,6 +105,7 @@ import { rebaseDescendantSessionFiles } from "./session-move";
 import {
 	computeDefaultSessionDir,
 	hasPositiveMovedProjectEvidence,
+	isInRemovedCheckoutWorktree,
 	readTerminalBreadcrumbEntry,
 	resolveManagedSessionRoot,
 	worktreeSessionDirs,
@@ -746,6 +747,18 @@ export type ReadonlySessionManager = Pick<
 	| "putBlobSync"
 >;
 
+/** Per-file persistence state cleared while a delete of the current session file runs. */
+interface DetachedSessionFile {
+	sessionFile: string;
+	expectedDiskSize: number | null;
+	forceFileCreation: boolean;
+	draftOnlySessionCleanupArmed: boolean;
+	pendingArtifactCopy: { sessionFile: string; done: Promise<void> } | undefined;
+	sessionClaim: { sessionId: string; release: (() => void) | undefined } | undefined;
+	/** {@link SessionManager} target generation when the delete detached the file. */
+	targetGeneration: number;
+}
+
 interface SessionManagerStateSnapshot {
 	cwd: string;
 	sessionDir: string;
@@ -1020,6 +1033,12 @@ export class SessionManager {
 	 * {@link #moveOffSessionFile}, {@link createBranchedSession}). Never rejects.
 	 */
 	#pendingArtifactCopy: { sessionFile: string; done: Promise<void> } | undefined;
+	/**
+	 * Bumped synchronously when {@link newSession} or {@link setSessionFile}
+	 * starts, before its first await, so a failed {@link dropSession} can tell a
+	 * switch that has started but not installed its target yet.
+	 */
+	#targetGeneration = 0;
 
 	private constructor(cwd: string, sessionDir: string, persist: boolean, storage: SessionStorage) {
 		this.#cwd = cwd;
@@ -2336,6 +2355,7 @@ export class SessionManager {
 		loadedSession?: SessionLoadResult,
 		options?: { throwIfMissing?: boolean; newSession?: NewSessionOptions },
 	): Promise<void> {
+		this.#targetGeneration++;
 		await this.#drainAndCloseWriter();
 		this.#clearDiskError();
 		this.#draftOnlySessionCleanupArmed = false;
@@ -2428,20 +2448,89 @@ export class SessionManager {
 	 * from selecting the previous conversation as the most recent session.
 	 */
 	async newSession(options?: NewSessionOptions): Promise<string | undefined> {
+		this.#targetGeneration++;
 		await this.#drainAndCloseWriter();
 		const sessionFile = this.#resetToNewSession(options);
 		await this.ensureOnDisk();
 		return sessionFile;
 	}
 
-	/** Delete a session file and its artifact directory. ENOENT is treated as success. */
+	/**
+	 * Delete a session file and its artifact directory. ENOENT is treated as success.
+	 *
+	 * Deleting the current session file leaves this manager in-memory: later
+	 * entries are not persisted and nothing recreates the deleted path until
+	 * {@link newSession} or {@link setSessionFile} assigns another file. A failed
+	 * delete keeps the current file as the persistence target.
+	 */
 	async dropSession(sessionPath: string): Promise<void> {
-		await this.#drainAndCloseWriter();
+		const currentFile = this.#sessionFile;
+		// Detach before the first await: every persistence path checks
+		// `#sessionFile`, so an append landing while the writer drains or the
+		// storage unlinks the file stays in memory instead of reopening the path.
+		const detached =
+			currentFile !== undefined && path.resolve(sessionPath) === path.resolve(currentFile)
+				? this.#detachSessionFile(currentFile)
+				: undefined;
 		try {
-			await this.#storage.deleteSessionWithArtifacts(sessionPath);
+			await this.#drainAndCloseWriter();
+			try {
+				await this.#storage.deleteSessionWithArtifacts(sessionPath);
+			} catch (err) {
+				if (!isEnoent(err)) throw err;
+			}
 		} catch (err) {
-			if (!isEnoent(err)) throw err;
+			if (detached) await this.#reattachSessionFile(detached, toError(err));
+			throw err;
 		}
+		// Release the deleted file's claim only: a target installed meanwhile
+		// already released it and holds its own.
+		if (detached && this.#sessionClaim === detached.sessionClaim) {
+			detached.sessionClaim?.release?.();
+			this.#sessionClaim = undefined;
+		}
+	}
+
+	/** Clear the per-file persistence state so appends stay in memory; returns what was cleared. */
+	#detachSessionFile(sessionFile: string): DetachedSessionFile {
+		const detached: DetachedSessionFile = {
+			sessionFile,
+			expectedDiskSize: this.#expectedDiskSize,
+			forceFileCreation: this.#forceFileCreation,
+			draftOnlySessionCleanupArmed: this.#draftOnlySessionCleanupArmed,
+			pendingArtifactCopy: this.#pendingArtifactCopy,
+			sessionClaim: this.#sessionClaim,
+			targetGeneration: this.#targetGeneration,
+		};
+		this.#sessionFile = undefined;
+		this.#fileIsCurrent = false;
+		this.#rewriteRequired = false;
+		this.#expectedDiskSize = null;
+		this.#forceFileCreation = false;
+		this.#draftOnlySessionCleanupArmed = false;
+		this.#pendingArtifactCopy = undefined;
+		return detached;
+	}
+
+	/**
+	 * Undo {@link #detachSessionFile} after a failed drain or delete and publish
+	 * the whole file (header and every entry, including those appended while
+	 * detached) through the authoritative repair, which also clears a close
+	 * failure the drain latched. A switch started meanwhile ({@link newSession},
+	 * {@link setSessionFile}), installed or still loading, stays: the failed
+	 * delete must not overwrite it or recreate the deleted path.
+	 */
+	async #reattachSessionFile(detached: DetachedSessionFile, operationError: Error): Promise<void> {
+		if (this.#targetGeneration !== detached.targetGeneration || this.#sessionFile !== undefined) return;
+		this.#sessionFile = detached.sessionFile;
+		this.#expectedDiskSize = detached.expectedDiskSize;
+		this.#forceFileCreation = detached.forceFileCreation;
+		this.#draftOnlySessionCleanupArmed = detached.draftOnlySessionCleanupArmed;
+		this.#pendingArtifactCopy = detached.pendingArtifactCopy;
+		await this.#withAtomicPersistenceLock(async () => {
+			await this.#authoritativelyRewriteCurrentStateLocked(operationError);
+			this.#notifyDurableEntries();
+		});
 	}
 
 	/**
@@ -4277,8 +4366,9 @@ export class SessionManager {
 
 	/**
 	 * Whether `session` was recorded in a worktree of `cwd`'s repository that no
-	 * longer exists, e.g. a `/wt` worktree removed since. Resume such a session
-	 * through {@link openRelocated} into `cwd`: its own directory cannot be entered.
+	 * longer exists: a `/wt` worktree removed since, or a removed
+	 * `.worktrees/<slug>` of the primary checkout. Resume such a session through
+	 * {@link openRelocated} into `cwd`: its own directory cannot be entered.
 	 * @param sessionDir `cwd`'s session directory; defaults to the cwd-derived one.
 	 */
 	static async isFromRemovedWorktree(
@@ -4287,6 +4377,7 @@ export class SessionManager {
 		sessionDir?: string,
 	): Promise<boolean> {
 		if (!session.cwd || !(await directoryIsMissing(session.cwd))) return false;
+		if (await isInRemovedCheckoutWorktree(session.cwd, cwd)) return true;
 		const dir = sessionDir ?? SessionManager.getDefaultSessionDir(cwd);
 		const home = path.resolve(path.dirname(session.path));
 		return (await worktreeSessionDirs(cwd, dir)).some(sibling => path.resolve(sibling) === home);

@@ -24,10 +24,16 @@
 - ACP plan approval no longer asks the judge model to recommend an implementation model; the dialog opens immediately with the `default` role preselected, like the terminal approval slider
 - Deleting or moving files through `edit` now asks for approval every time outside `yolo` mode, in the TUI and in ACP
 - ACP permission requests now offer the same choices as the TUI prompt (approve for this session, always-ask-cached grants, reject for this session) and reach clients without form elicitation
+- Under ACP, extension commands calling `newSession`, `switchSession` or `branch` now get `{ cancelled: true }` and the session stays unchanged, instead of switching to a transcript the client never learns about; `navigateTree` and `reload` still work
 
 ### Fixed
 
 - Fixed a peer message or a subagent revival that arrived while a session moved (`session_move`, `/move`, `/wt`) starting a turn in the checkout the session was leaving; peer messages and revivals for the session and its subagents now wait until the move has finished or rolled back
+- Fixed JetBrains IDEs failing ACP session setup with "Could not load session settings": thinking no longer advertises OMP-only `auto`, and each select's current value is always one of its options
+- Fixed ACP clients such as JetBrains IDEs failing to reopen a chat whose session was moved into a worktree with "load was cancelled"; the session now reopens in that worktree, a session whose worktree was removed moves into the project directory, and a session of another repository is refused with an error naming its directory
+- Fixed `omp --resume` asking (or failing without a terminal) to move a session from a removed `.worktrees/` worktree of the repository; it now moves into the current checkout without asking, like a removed `/wt` worktree
+- Fixed `/session delete` recreating the deleted session file on the next save, and under ACP the deleted session now closes after the confirmation, so later prompts for it are rejected
+- Fixed an ACP session whose `/move` or `session_move` could not roll back after a failed move staying registered as a broken session; it now closes, and later prompts for it are rejected
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
 - Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1

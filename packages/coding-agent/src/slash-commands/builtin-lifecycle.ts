@@ -73,6 +73,8 @@ async function relocateWithRuntime(
 	if (outcome.ok) return undefined;
 	if (outcome.fatal) {
 		await runtime.output(outcome.reason);
+		// The session is unusable: the host stops accepting work for it, then it is disposed at once.
+		runtime.endSessionAfterTurn?.();
 		await runtime.session.dispose();
 		return commandConsumed();
 	}

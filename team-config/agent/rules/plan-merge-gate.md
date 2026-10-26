@@ -1,6 +1,5 @@
 ---
-description: Every feature plan that will be merged carries the final verification wave (F3, F1, F2) and a `## Merge gate` section, including the abort-rule fields, that validate-gate-record.mjs --plan-only accepts
-alwaysApply: true
+description: Read before writing or proposing any plan. Every feature plan that will be merged carries the final verification wave (F3, F1, F2) and a `## Merge gate` section, including the abort-rule fields, that validate-gate-record.mjs --plan-only accepts
 ---
 
 # Plans carry their merge gate

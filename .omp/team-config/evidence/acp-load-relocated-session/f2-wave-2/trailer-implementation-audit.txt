@@ -1,0 +1,55 @@
+PASS
+
+## 1. Goal and behavioural contract
+The implementation centralizes stored-session placement in `resolveResumeLocation` and applies it to ACP stored load/resume, already-open reloads, and forks. It preserves the recorded spelling for same-repository live worktrees, relocates only a missing removed-worktree session, and refuses all other mismatches before creating an ACP session.
+
+The shared `SessionManager.isFromRemovedWorktree` extension is correctly reached by CLI resume and both picker flows. The retained global by-ID fallback for legacy hashed buckets remains in `#findStoredSession`; it now delegates only placement, not lookup semantics.
+
+## 2. Correctness, regressions, architecture, wire contracts
+The resolver’s discriminated outcomes are exhaustively consumed at the ACP placement seam:
+- `open` creates the ACP session for the recorded directory and switches to the unchanged session file.
+- `relocate` uses `SessionManager.openRelocated`, captures its moved path, closes the temporary manager, then opens the relocated transcript.
+- `refuse` returns an error naming the recorded directory without creating a session.
+
+The already-open path uses the same policy without relocating a live record. Forking resolves the source first and creates the fork in the same directory a load would use. ACP v1/v2 response shapes and method surfaces are unchanged; only the formerly failing result changes to the required successful reopen.
+
+I also traced the merged close/delete seam: ACP lookup checks only `#sessions`; records parked in `#closing` cannot be reused as live sessions. A deleted transcript has been detached and removed by `SessionManager.dropSession`, so the subsequent stored lookup cannot reopen it. The relocation path executes before registration and does not invoke the live `#relocateSession` fatal-close path.
+
+No blocker found.
+
+## 3. Security and privacy delta
+No real credential, authentication/authorization path, or third-party personal-data handling changed. The new repository comparison narrows session reopening: a globally found ID whose recorded cwd belongs to another repository is refused rather than opened. The required error includes the recorded local path, but that is an explicit behavioural contract and only follows a caller supplying a session ID already resolved by the existing global fallback.
+
+No security blocker or protected-asset exposure found.
+
+## 4. Verification adequacy
+Reviewed the complete supplied 1,265-line implementation diff, the pinned OpenSpec bundle and all five requirement blocks, merged ACP/session-manager seams, focused test additions, F3 report, and the five manual-QA artifacts.
+
+The focused tests meaningfully exercise real `AgentSession` instances over the raw ACP wire, including v1 load/resume replay distinctions, v2 cursor replay behavior, stored/open forks, artifact relocation, non-mutating refusal paths, symlink spellings, and noninteractive CLI resume. The supplied pre-change discrimination result—18 of 19 ACP cases failing—supports that the new tests are not tautological.
+
+The supplied real-surface artifacts on the merged head show:
+- moved worktree resume/load succeeds while retaining the worktree bucket;
+- removed-worktree resume relocates transcript and artifact together;
+- cross-repository resume refuses and leaves the file unchanged;
+- CLI resume relocates without prompting; and
+- same-directory load/resume remains unchanged.
+
+The reported `bun check` and targeted-suite results were not independently rerun by this read-only audit.
+
+## 5. Final
+No substantiated defect meets the stated blocking threshold. No non-blocking risk requires escalation.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A session that has entered ACP's delete/close lifecycle must never become reloadable merely because a later load falls through from the live-record map to persistent lookup.
+  positive_witness: After deletion has completed, a load for that id reports that the session is not found and does not construct a new ACP session.
+  negative_control: A closing or deleted record remains discoverable as a stored transcript and a later load recreates an active session for the deleted id.
+  observable: ACP load response is an unknown-session error with no session-factory invocation, rather than a successful setup response for the deleted id.
+  boundary: ACP session-record lifecycle and SessionManager persistent-file deletion boundary
+END-REVIEW-TRAILER

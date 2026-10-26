@@ -102,6 +102,14 @@ export interface SlashCommandRuntime {
 	 */
 	keepTurnOpenUntilIdle?: () => Promise<void>;
 	/**
+	 * End the host session once the turn that ran this command has settled, without cutting that turn short.
+	 *
+	 * Provided only by the ACP dispatcher. The host stops accepting requests for the session at once; the running
+	 * turn still reports the command's output and its normal end before the session is closed. Absent in TUI, RPC
+	 * and print, whose session outlives the command.
+	 */
+	endSessionAfterTurn?: () => void;
+	/**
 	 * Start a local command operation without holding the host's prompt response.
 	 *
 	 * RPC provides this for provider-backed commands because its prompt API must

@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { getTerminalId } from "@oh-my-pi/pi-tui/ttyid";
 import {
+	directoryIsMissing,
 	getCustomSessionFilesDir,
 	getSessionsDir,
 	getTerminalSessionsDir,
@@ -252,6 +253,33 @@ export async function worktreeSessionDirs(cwd: string, sessionDir: string): Prom
 		logger.debug("Worktree session directory lookup failed", { cwd, error: String(error) });
 		return [];
 	}
+}
+
+/** Directory of the primary checkout that holds its linked worktrees, one per child (`<slug>`). */
+const CHECKOUT_WORKTREES_DIR = ".worktrees";
+
+/**
+ * Whether the missing directory `recordedCwd` lay in a removed worktree
+ * `.worktrees/<slug>` of `cwd`'s primary checkout: at or below that worktree
+ * root, with the root itself gone. Git forgets a linked worktree once it is
+ * pruned, so the path layout is the only remaining evidence. A missing
+ * directory inside a live worktree, or a plain subdirectory of the checkout,
+ * does not count.
+ */
+export async function isInRemovedCheckoutWorktree(recordedCwd: string, cwd: string): Promise<boolean> {
+	let primaryRoot: string | undefined;
+	try {
+		primaryRoot = vcs.git(cwd)?.primaryRoot();
+	} catch (error) {
+		logger.debug("Primary checkout lookup failed", { cwd, error: String(error) });
+		return false;
+	}
+	if (!primaryRoot) return false;
+	const worktreesDir = path.join(resolveEquivalentPath(primaryRoot), CHECKOUT_WORKTREES_DIR);
+	const relative = path.relative(worktreesDir, resolveEquivalentPath(recordedCwd, { throughMissing: true }));
+	if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return false;
+	const slug = relative.split(path.sep)[0];
+	return directoryIsMissing(path.join(worktreesDir, slug));
 }
 
 /** Stand-in worktree name: encoding a path through it yields the name around any managed worktree's. */

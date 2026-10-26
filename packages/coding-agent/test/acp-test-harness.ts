@@ -350,6 +350,12 @@ export class FakeAgentSession {
 		await this.waitForIdleBlocker?.();
 	}
 
+	/** The v2 surface drops queued messages when a Stop lands; the fake keeps no queue. */
+	clearQueue(_options?: { forInterrupt?: boolean }): void {}
+
+	/** The v2 surface settles submissions still waiting for an outcome when a foreground ends; the fake has none. */
+	settlePendingSubmissions(): void {}
+
 	hasPendingAsyncWork(): boolean {
 		return this.pendingAsyncWork;
 	}
@@ -771,16 +777,19 @@ function createFakeSessionFactory(
 	cwdA: string,
 	extensionRunners: boolean | undefined,
 	authStorage?: AuthStorage,
+	prepareSession?: (session: FakeAgentSession) => void,
 ): FakeSessionFactoryState {
 	const sessions: FakeAgentSession[] = [];
 	const setToolUIContextSpies: SetToolUIContextSpy[] = [];
 	const sessionFactoryOptions: Array<{ interactivePrompts?: boolean } | undefined> = [];
 	const initialSession = new FakeAgentSession(cwdA);
 	if (authStorage) initialSession.authStorage = authStorage;
+	prepareSession?.(initialSession);
 	sessions.push(initialSession);
 	const factory = async (cwd: string, factoryOptions?: { interactivePrompts?: boolean }) => {
 		const session = new FakeAgentSession(cwd);
 		if (authStorage) session.authStorage = authStorage;
+		prepareSession?.(session);
 		if (extensionRunners) {
 			session.extensionRunner = new ExtensionRunner(
 				[],
@@ -815,6 +824,8 @@ export async function createHarness(
 		requestPermission?: (request: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
 		/** Exposed to each created session's `modelRegistry` for MCP credential round-trips. */
 		authStorage?: AuthStorage;
+		/** Mutates each fake session before `session/new` builds config options. */
+		prepareSession?: (session: FakeAgentSession) => void;
 	} = {},
 ): Promise<AgentHarness> {
 	const { cwdA, cwdB } = await prepareHarnessRoots();
@@ -844,6 +855,7 @@ export async function createHarness(
 		cwdA,
 		options.extensionRunners,
 		options.authStorage,
+		options.prepareSession,
 	);
 
 	const agent = new AcpAgent(connection, factory, initialSession as unknown as AgentSession);

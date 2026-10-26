@@ -113,4 +113,50 @@ describe.skipIf(process.platform === "win32")("resume picker across git worktree
 		expect(own.map(s => [s.id, s.cwd])).toEqual([[moved.id, repo]]);
 		expect(fs.existsSync(listed!.path)).toBe(false);
 	});
+
+	/** A session recorded in `cwd` (created first), whose directory is deleted afterwards. */
+	async function sessionRecordedIn(cwd: string): Promise<{ path: string; cwd: string }> {
+		fs.mkdirSync(cwd, { recursive: true });
+		const session = await answeredSession(cwd);
+		await session.close();
+		return { path: session.getSessionFile()!, cwd };
+	}
+
+	it("removed in-repository worktree: a pruned .worktrees session counts as removed", async () => {
+		const worktree = path.join(repo, ".worktrees", "a");
+		await $`git worktree add -q -b a ${worktree}`.cwd(repo).quiet();
+		const session = await answeredSession(repo);
+		await session.moveTo(worktree);
+		await session.close();
+		const moved = { path: session.getSessionFile()!, cwd: worktree };
+		await $`git worktree remove --force ${worktree} && git worktree prune`.cwd(repo).quiet();
+
+		expect(await SessionManager.isFromRemovedWorktree(moved, repo)).toBe(true);
+		const relocated = await SessionManager.openRelocated(moved.path, moved.cwd, repo);
+		await relocated.close();
+		expect((await SessionManager.list(repo)).map(s => [s.id, s.cwd])).toEqual([[session.getSessionId(), repo]]);
+	});
+
+	it("removed in-repository worktree: a deleted directory inside a live worktree does not count", async () => {
+		const worktree = path.join(repo, ".worktrees", "a");
+		await $`git worktree add -q -b a ${worktree}`.cwd(repo).quiet();
+		const recorded = await sessionRecordedIn(path.join(worktree, "pkg", "old"));
+		fs.rmSync(recorded.cwd, { recursive: true });
+
+		expect(await SessionManager.isFromRemovedWorktree(recorded, repo)).toBe(false);
+	});
+
+	it("removed in-repository worktree: a deleted plain subdirectory does not count", async () => {
+		const recorded = await sessionRecordedIn(path.join(repo, "pkg", "old"));
+		fs.rmSync(recorded.cwd, { recursive: true });
+
+		expect(await SessionManager.isFromRemovedWorktree(recorded, repo)).toBe(false);
+	});
+
+	it("removed in-repository worktree: a missing directory outside the repository does not count", async () => {
+		const recorded = await sessionRecordedIn(path.join(root, "gone"));
+		fs.rmSync(recorded.cwd, { recursive: true });
+
+		expect(await SessionManager.isFromRemovedWorktree(recorded, repo)).toBe(false);
+	});
 });

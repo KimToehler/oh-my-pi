@@ -99,8 +99,9 @@ In both branches, never create the root as a side effect: do not run `openspec i
    When you stop, tell the user to move this session into the worktree and rerun this command:
    `/move <worktree path>`, then `/opsx-apply <name>`. `/move` works in the terminal UI and in ACP
    clients such as IntelliJ, and keeps the conversation. An ACP client that reloads the chat reopens
-   it in its own project directory, so after a reload the user runs `/move` again. Do not suggest
-   `/wt`: it creates its own worktree and branch outside `.worktrees/`, not the one the task names.
+   it in the worktree it was moved to; a chat whose worktree was removed reopens in the project
+   directory. Do not suggest `/wt`: it creates its own worktree and branch outside `.worktrees/`,
+   not the one the task names.
 
    No task naming a worktree: skip this step.
 

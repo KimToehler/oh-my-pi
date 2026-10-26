@@ -12,10 +12,10 @@ Status: analysis snapshot, not an executable plan. Each item becomes its own pla
 
 1. ~~**ACP permission gate too narrow**~~ **Done** (OpenSpec `2026-10-24-acp-permission-parity`, merged to `main` at `733e681406`): ACP uses the TUI approval resolver; unconfigured ACP mode is `write`; `reject_always` is a session denial; the proxy gate is gone.
 2. ~~**Subagents bypass the ACP gate and client bridge**~~ **Done** (same change): descendants inherit session denials; non-isolated subagents read/write through the ACP client (no client terminal or permission dialog, by design).
-3. **Session id drift after in-place session change** [verified by repro, 2026-10-24]. `#sessions` is keyed once at registration (`modes/acp/acp-agent.ts:1925`) and never re-keyed; updates use the live `record.session.sessionId`. Repro (real `omp acp`, fixture model, extension command calling `ctx.newSession()`): the command sends no update at all; the next `session/prompt` addressed to the original id A is accepted, but every update for it (reply chunk, usage, session_info) carries a new id B the client never saw, so a client that drops unknown session ids (Zed) shows nothing. The continuation is persisted in B's file; `session/list` shows A and B as unrelated sessions. Trigger in ACP: extension `ctx.newSession()` / `branch()` / `switchSession()` (`acp-agent.ts:3141-3179`); `/move` keeps the id; `/handoff` not checked. Fix needs a decision: keep the ACP id stable as an alias of the record (but `session/load A` then misses the continuation), close A and tell the client to open B, or refuse in-place transitions in ACP.
-4. **`/session delete` leaves the record registered** [verified by repro, 2026-10-24]. Calls only `dropSession` (`slash-commands/builtin-session.ts:282`), no ACP close. The file is deleted, but the record stays live: the next `session/prompt` to the same id succeeds with the deleted conversation still in context, and the writer recreates the file **without its title and session header lines** (first line `type=message`, parentId pointing at deleted entries), so the session vanishes from `session/list` while it keeps being written. Fix direction: close the ACP record after the drop (later prompts fail as unknown session), and make `SessionManager` refuse writes after `dropSession` instead of recreating a header-less file.
+3. ~~**Session id drift after in-place session change**~~ **Done** (OpenSpec `2026-10-26-acp-session-transitions`, merged to `main` at `6d121754b3`): decision "refuse in-place transitions in ACP" — extension `newSession`/`switchSession`/`branch` return `{ cancelled: true }` and the session id stays stable; `navigateTree` and `reload` keep working. Accepted residual: the client is not told why (ACP has no agent-initiated session-replacement notice).
+4. ~~**`/session delete` leaves the record registered**~~ **Done** (same change): `SessionManager.dropSession` detaches persistence before deleting (no header-less file recreated; a failed delete restores the whole file); ACP closes the record after the confirmation, so later requests for the id answer like a never-issued id. A `/move`/`session_move` whose rollback fails now closes the record the same way.
 
-Repro driver for 3+4 (throwaway, not committed): `/tmp/acp-repro/repro.ts <worktree root>`.
+Repro driver for 3+4 (throwaway, not committed): `/tmp/acp-repro/repro.ts <worktree root>`; the committed real-process QA driver is `.omp/team-config/evidence/gate/acp-session-transitions/f1-acp-qa.ts`.
 
 Items 1+2 touch an authorization path → Mandatory class `auth-secrets-pii`.
 
@@ -64,7 +64,7 @@ Images (prompt, model, tool), thinking content + level option, model selection +
 1. ~~Permission gate + subagent inheritance (P0 1+2)~~ — done, see P0.
 2. Event-mapping table with unmapped-event log + v1 fallback for notice/retry/compaction; v2 slots from Extras 3/4.
 3. Extract mode/session-transition controllers from `InteractiveMode` (plan, goal, vibe, loop, branch); prerequisite for vibe/loop/branch in ACP.
-4. Small fixes, each standalone: TUI-only command reply, `authRequired`, surface "host MCP config is off in ACP", session-id re-key (after repro), `/session delete` close (after repro).
+4. Small fixes, each standalone: TUI-only command reply, `authRequired`, surface "host MCP config is off in ACP". (Session-id re-key and `/session delete` close: done, see P0 3+4.)
 
 ## Open plan residue (from `ACP_*` plans)
 
