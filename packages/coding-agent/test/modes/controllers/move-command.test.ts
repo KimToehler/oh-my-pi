@@ -36,7 +36,14 @@ function createMoveContext(sourceDir: string, settingsFlush?: () => Promise<void
 		return moved;
 	});
 	const ctx = {
-		session: { isStreaming: false, moveSession },
+		session: {
+			isStreaming: false,
+			moveSession,
+			holdRelocationAdmission: () => ({
+				ready: Promise.resolve(),
+				[Symbol.dispose]: () => {},
+			}),
+		},
 		sessionManager: {
 			getCwd: () => state.cwd,
 			captureState,
