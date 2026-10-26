@@ -67,7 +67,8 @@ function fixture(agents: { id: string; status: "idle" | "parked" }[]): Fixture {
 		bus: new IrcBus(registry, lifecycle),
 		delivered,
 		revivals,
-		holdTree: members => registry.relocationAdmission.hold({ rootId: ROOT, isMember: ref => members.includes(ref.id) }),
+		holdTree: members =>
+			registry.relocationAdmission.hold({ rootId: ROOT, isMember: ref => members.includes(ref.id) }),
 	};
 }
 

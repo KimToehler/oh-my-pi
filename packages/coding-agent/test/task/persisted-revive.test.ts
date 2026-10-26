@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
+import { scheduler } from "node:timers/promises";
 import { type } from "@oh-my-pi/omptype";
 import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
 import { createMockModel, type MockResponse, type MockResponseSource } from "@oh-my-pi/pi-ai/providers/mock";
@@ -1633,6 +1634,243 @@ describe("cold revival replays the system prompt the last request sent", () => {
 		const restored = new AgentRegistry();
 		await registerPersistedSubagents(restored, parentFile);
 		expect(restored.get("prompt-blocks")?.status).toBe("parked");
+	});
+
+	describe("relocation admission", () => {
+		// A failing test can leave a turn holding a ticket; the next test needs a fresh admission barrier.
+		afterEach(() => {
+			AgentRegistry.resetGlobalForTests();
+		});
+
+		const followUpAgent = { name: "task", description: "test", systemPrompt: "charter", source: "bundled" } as const;
+		const subtree = { rootId: "Main", isMember: (ref: AgentRef) => ref.id === "prompt-blocks" };
+
+		/** Track whether a promise has settled once pending continuations ran. */
+		function track<T>(promise: Promise<T>): { readonly settled: boolean } {
+			const state = { settled: false };
+			void promise.then(
+				() => {
+					state.settled = true;
+				},
+				() => {
+					state.settled = true;
+				},
+			);
+			return state;
+		}
+
+		/** Drain pending promise continuations; the paths under test wait on promises, not timers. */
+		async function flush(): Promise<void> {
+			for (let i = 0; i < 30; i++) await Promise.resolve();
+		}
+
+		/**
+		 * Let the revival's and the turn's file reads finish too: an absence check that only drained
+		 * microtasks would pass before they could ever run.
+		 */
+		async function settle(): Promise<void> {
+			await flush();
+			for (let i = 0; i < 10; i++) await fs.promises.stat(import.meta.dir);
+			await flush();
+		}
+
+		/** Parks the spawned subagent and arranges a warm revival into a session answering with a follow-up. */
+		async function parkForWarmRevival(
+			hooks?: ExtensionHooks,
+		): Promise<{ revived: () => RecordingSession | undefined }> {
+			await AgentLifecycleManager.global().park("prompt-blocks");
+			let warm: RecordingSession | undefined;
+			vi.spyOn(sdkModule, "createAgentSession").mockImplementationOnce(async options => {
+				warm = createRecordingSession(
+					options!.sessionManager!,
+					names => subagentPrompt(names, options),
+					[{ content: ["follow-up"] }],
+					hooks,
+				);
+				return { session: warm.session } as CreateAgentSessionResult;
+			});
+			return { revived: () => warm };
+		}
+
+		const followUp = () =>
+			executorModule.runSubagentFollowUpTurn({
+				id: "prompt-blocks",
+				agent: followUpAgent,
+				message: "continue",
+				structured: false,
+			});
+
+		it("persisted revive: task resume of a parked subagent waits for a held relocation lease", async () => {
+			const cwd = makeTempDir("@pi-revive-resume-lease-");
+			await spawn(cwd, subagentPrompt, spawnResponses());
+			const { revived } = await parkForWarmRevival();
+			const lease = AgentRegistry.global().relocationAdmission.hold(subtree);
+
+			const turn = followUp();
+			const settled = track(turn);
+			await settle();
+			expect(settled.settled).toBe(false);
+			expect(revived()).toBeUndefined();
+
+			lease[Symbol.dispose]();
+			expect((await turn).exitCode).toBe(0);
+			expect(revived()?.requests).toHaveLength(1);
+		});
+
+		it("persisted revive: a task resume paused between revival and submission keeps the lease from becoming ready until its prompt is submitted", async () => {
+			const cwd = makeTempDir("@pi-revive-resume-handoff-");
+			await spawn(cwd, subagentPrompt, spawnResponses());
+			const modelCall = Promise.withResolvers<void>();
+			const modelGate = Promise.withResolvers<void>();
+			const { revived } = await parkForWarmRevival({
+				beforeModelCall: async () => {
+					modelCall.resolve();
+					await modelGate.promise;
+				},
+			});
+			const lifecycle = AgentLifecycleManager.global();
+			const realEnsureLive = lifecycle.ensureLive.bind(lifecycle);
+			const revivedLive = Promise.withResolvers<void>();
+			const resume = Promise.withResolvers<void>();
+			vi.spyOn(lifecycle, "ensureLive").mockImplementationOnce(async (id, options) => {
+				const live = await realEnsureLive(id, options);
+				revivedLive.resolve();
+				await resume.promise;
+				return live;
+			});
+
+			const turn = followUp();
+			await revivedLive.promise;
+			using lease = AgentRegistry.global().relocationAdmission.hold(subtree);
+			const ready = track(lease.ready);
+			await flush();
+			expect(revived()?.requests).toEqual([]);
+			expect(ready.settled).toBe(false);
+
+			// Submitting the prompt hands the turn off: it is running, and the lease is ready.
+			resume.resolve();
+			await modelCall.promise;
+			await flush();
+			expect(revived()?.session.isStreaming).toBe(true);
+			expect(ready.settled).toBe(true);
+
+			modelGate.resolve();
+			expect((await turn).exitCode).toBe(0);
+		});
+
+		it("persisted revive: a task restore releases its ticket once the interrupted turn's continuation is scheduled", async () => {
+			const usage = {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			};
+			// A turn a crash cut off inside a tool call: no tool result, no exit record.
+			const sessionManager = SessionManager.inMemory();
+			sessionManager.appendMessage({ role: "user", content: "read it", timestamp: Date.now() });
+			sessionManager.appendMessage({
+				role: "assistant",
+				content: [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "a.ts" } }],
+				api: "openai-responses",
+				provider: "openai",
+				model: "mock",
+				usage,
+				stopReason: "toolUse",
+				timestamp: Date.now(),
+			});
+			const restored = createRecordingSession(sessionManager, () => ["base"], [{ content: ["done after restore"] }]);
+			restored.session.agent.replaceMessages(sessionManager.buildSessionContext().messages);
+			AgentRegistry.global().register({
+				id: "prompt-blocks",
+				displayName: "prompt-blocks",
+				kind: "sub",
+				session: restored.session,
+				sessionFile: null,
+				status: "idle",
+			});
+			// Hold the scheduled continuation (`retry()` schedules it after a 1 ms delay) before its turn starts.
+			const continuation = Promise.withResolvers<void>();
+			const realWait = scheduler.wait.bind(scheduler);
+			vi.spyOn(scheduler, "wait").mockImplementation(((delay: number, options?: Parameters<typeof realWait>[1]) =>
+				delay === 1 ? continuation.promise : realWait(delay, options)) as typeof scheduler.wait);
+			const realRestore = restored.session.restoreInterruptedTurn.bind(restored.session);
+			const restoreReturned = Promise.withResolvers<void>();
+			vi.spyOn(restored.session, "restoreInterruptedTurn").mockImplementation(async () => {
+				const scheduled = await realRestore();
+				restoreReturned.resolve();
+				return scheduled;
+			});
+
+			const turn = executorModule.runSubagentFollowUpTurn({
+				id: "prompt-blocks",
+				agent: followUpAgent,
+				message: "restore",
+				restore: true,
+				structured: false,
+			});
+			await restoreReturned.promise;
+			await flush();
+			using lease = AgentRegistry.global().relocationAdmission.hold(subtree);
+			const ready = track(lease.ready);
+			await flush();
+			expect(restored.requests).toEqual([]);
+			expect(restored.session.hasPostPromptWork).toBe(true);
+			expect(ready.settled).toBe(true);
+
+			continuation.resolve();
+			expect((await turn).exitCode).toBe(0);
+			expect(restored.requests).toHaveLength(1);
+		});
+
+		it("persisted revive: a task resume waiting for a streaming subagent's ownership does not hold its ticket", async () => {
+			const cwd = makeTempDir("@pi-revive-resume-ownership-");
+			let armed = false;
+			const modelCall = Promise.withResolvers<void>();
+			const modelGate = Promise.withResolvers<void>();
+			const spawned = await spawn(
+				cwd,
+				subagentPrompt,
+				[...spawnResponses(), { content: ["busy turn"] }, { content: ["follow-up"] }],
+				{
+					beforeModelCall: async () => {
+						if (!armed) return;
+						armed = false;
+						modelCall.resolve();
+						await modelGate.promise;
+					},
+				},
+			);
+			armed = true;
+			const busy = spawned.session.prompt("busy");
+			await modelCall.promise;
+			expect(spawned.session.isStreaming).toBe(true);
+
+			const install = vi.spyOn(spawned.session, "setWorkPoolYieldItems");
+			const turn = followUp();
+			const settled = track(turn);
+			await flush();
+			// The resume is waiting for the busy turn: a lease taken now must not wait for it.
+			const lease = AgentRegistry.global().relocationAdmission.hold(subtree);
+			const ready = track(lease.ready);
+			await flush();
+			expect(ready.settled).toBe(true);
+
+			// Once the busy turn ends, the resume admits again and waits for the lease before submitting.
+			modelGate.resolve();
+			await busy;
+			await spawned.session.waitForIdle();
+			const requestsBefore = spawned.requests.length;
+			await settle();
+			expect(settled.settled).toBe(false);
+			expect(spawned.requests).toHaveLength(requestsBefore);
+			expect(install).not.toHaveBeenCalled();
+
+			lease[Symbol.dispose]();
+			expect((await turn).exitCode).toBe(0);
+			expect(spawned.requests).toHaveLength(requestsBefore + 1);
+		});
 	});
 });
 

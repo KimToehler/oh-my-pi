@@ -1,6 +1,8 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import type { AdmissionTicket, RelocationTree } from "@oh-my-pi/pi-coding-agent/registry/relocation-admission";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 
 function registryWith(...ids: string[]): AgentRegistry {
 	const registry = new AgentRegistry();
@@ -25,6 +27,56 @@ function track<T>(promise: Promise<T>): { readonly settled: boolean; readonly va
 /** Drain pending promise continuations; every path under test settles through microtasks only. */
 async function flush(): Promise<void> {
 	for (let i = 0; i < 10; i++) await Promise.resolve();
+}
+
+interface PromptFixture {
+	registry: AgentRegistry;
+	lifecycle: AgentLifecycleManager;
+	/** Prompts the revived stub session received. */
+	prompts: { text: string; streamingBehavior: unknown }[];
+	/** Gates the persisted revival of the parked `Worker`. */
+	revival: PromiseWithResolvers<void>;
+}
+
+const lifecycles: AgentLifecycleManager[] = [];
+
+afterEach(async () => {
+	vi.restoreAllMocks();
+	for (const lifecycle of lifecycles.splice(0)) await lifecycle.dispose();
+});
+
+/** A parked `Worker` whose persisted revival waits on `revival` and yields a prompt-recording stub session. */
+function promptFixture(): PromptFixture {
+	const registry = new AgentRegistry();
+	registry.register({
+		id: "Worker",
+		displayName: "Worker",
+		kind: "sub",
+		parentId: "Main",
+		session: null,
+		sessionFile: "/tmp/relocation-admission/Worker.jsonl",
+		status: "parked",
+	});
+	const prompts: PromptFixture["prompts"] = [];
+	const revival = Promise.withResolvers<void>();
+	const session = {
+		prompt: async (text: string, options: { streamingBehavior?: unknown }) => {
+			prompts.push({ text, streamingBehavior: options.streamingBehavior });
+			return true;
+		},
+		subscribe: () => () => {},
+		dispose: async () => {},
+	} as unknown as AgentSession;
+	const lifecycle = new AgentLifecycleManager(registry);
+	lifecycles.push(lifecycle);
+	lifecycle.setPersistedSubagentReviverFactory(
+		async () => async () => {
+			await revival.promise;
+			return session;
+		},
+		() => 0,
+	);
+	return { registry, lifecycle, prompts, revival };
 }
 
 describe("relocation admission", () => {
@@ -137,5 +189,51 @@ describe("relocation admission", () => {
 		await Promise.all(admitted);
 		await flush();
 		expect(order).toEqual(["released sub", "released root", "admit"]);
+	});
+
+	it("relocation admission: promptLive paused between revival and prompt keeps the lease from becoming ready until the prompt is submitted", async () => {
+		const { registry, lifecycle, prompts, revival } = promptFixture();
+		const realEnsureLive = lifecycle.ensureLive.bind(lifecycle);
+		const afterRevival = Promise.withResolvers<void>();
+		vi.spyOn(lifecycle, "ensureLive").mockImplementation(async (id, options) => {
+			const session = await realEnsureLive(id, options);
+			await afterRevival.promise;
+			return session;
+		});
+		const prompted = track(lifecycle.promptLive("Worker", "hello", { streamingBehavior: "steer" }));
+		using lease = registry.relocationAdmission.hold(tree("Main", ["Worker"]));
+		const ready = track(lease.ready);
+		revival.resolve();
+		await flush();
+		expect(prompts).toEqual([]);
+		expect(ready.settled).toBe(false);
+
+		afterRevival.resolve();
+		await flush();
+		expect(prompts).toEqual([{ text: "hello", streamingBehavior: "steer" }]);
+		expect(prompted.settled).toBe(true);
+		expect(ready.settled).toBe(true);
+	});
+
+	it("relocation admission: promptLive with a rejecting beforePrompt prompts nothing and releases its ticket", async () => {
+		const { registry, lifecycle, prompts, revival } = promptFixture();
+		const seen: unknown[] = [];
+		const prompted = track(
+			lifecycle.promptLive("Worker", "hello", { streamingBehavior: "steer" }, session => {
+				seen.push(session);
+				return false;
+			}),
+		);
+		using lease = registry.relocationAdmission.hold(tree("Main", ["Worker"]));
+		const ready = track(lease.ready);
+		await flush();
+		expect(ready.settled).toBe(false);
+
+		revival.resolve();
+		await flush();
+		expect(seen).toHaveLength(1);
+		expect(prompts).toEqual([]);
+		expect(prompted.settled).toBe(true);
+		expect(ready.settled).toBe(true);
 	});
 });

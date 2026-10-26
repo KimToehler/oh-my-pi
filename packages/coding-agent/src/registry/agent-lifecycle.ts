@@ -25,6 +25,7 @@
 import * as fs from "node:fs/promises";
 import { logger, untilAborted } from "@oh-my-pi/pi-utils";
 import type { AgentSession } from "../session/agent-session";
+import type { PromptOptions } from "../session/agent-session-types";
 import { trackLateCleanup } from "../utils/late-cleanup";
 import type { AdmissionTicket } from "./relocation-admission";
 import {
@@ -387,9 +388,7 @@ export class AgentLifecycleManager {
 		const admissions = this.#registry.relocationAdmission;
 		// Admit without yielding when no relocation claims the agent, so a caller
 		// in the same tick as a park still reaches its cancel window below.
-		using _admission = options?.admission
-			? undefined
-			: (admissions.tryAdmit(id) ?? (await admissions.admit(id)));
+		using _admission = options?.admission ? undefined : (admissions.tryAdmit(id) ?? (await admissions.admit(id)));
 		const park = this.#parks.get(id);
 		if (park) {
 			const parked = this.#registry.get(id);
@@ -429,6 +428,33 @@ export class AgentLifecycleManager {
 		} finally {
 			if (this.#revivals.get(id) === pending) this.#revivals.delete(id);
 		}
+	}
+
+	/**
+	 * Revive `id` if needed and prompt its session, holding one admission
+	 * ticket from before the revival until `session.prompt` is called (or
+	 * `beforePrompt` rejects), so a relocation never reads a half-started turn
+	 * (design D2 of relocation-admission-lease). `beforePrompt` runs
+	 * synchronously right after the revival; returning `false` suppresses the
+	 * prompt. Resolves with the prompt's own result.
+	 */
+	async promptLive(
+		id: string,
+		text: string,
+		options: PromptOptions,
+		beforePrompt?: (session: AgentSession) => boolean,
+	): Promise<void> {
+		const admissions = this.#registry.relocationAdmission;
+		const ticket = admissions.tryAdmit(id) ?? (await admissions.admit(id));
+		let prompted: Promise<unknown>;
+		try {
+			const session = await this.ensureLive(id, { admission: ticket });
+			if (beforePrompt && !beforePrompt(session)) return;
+			prompted = session.prompt(text, options);
+		} finally {
+			ticket[Symbol.dispose]();
+		}
+		await prompted;
 	}
 
 	/**

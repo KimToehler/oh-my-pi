@@ -356,6 +356,52 @@ describe("SessionFocusController", () => {
 		]);
 	});
 
+	it("session focus: focusing a parked subagent waits for a held relocation lease", async () => {
+		const h = makeHarness();
+		const worker = makeSessionStub();
+		h.registry.register({
+			id: "Worker",
+			displayName: "Worker",
+			kind: "sub",
+			parentId: MAIN_AGENT_ID,
+			session: null,
+			sessionFile: "/tmp/session-focus-controller/Worker.jsonl",
+			status: "parked",
+		});
+		const lifecycle = new AgentLifecycleManager(h.registry);
+		const revivals: string[] = [];
+		lifecycle.setPersistedSubagentReviverFactory(
+			async ref => async () => {
+				revivals.push(ref.id);
+				return worker.session;
+			},
+			() => 0,
+		);
+		const controller = new SessionFocusController(h.ctx, h.registry, () => lifecycle);
+		try {
+			const lease = h.registry.relocationAdmission.hold({
+				rootId: MAIN_AGENT_ID,
+				isMember: ref => ref.id === "Worker",
+			});
+			let focused = false;
+			const focus = controller.focusAgent("Worker").then(() => {
+				focused = true;
+			});
+			await flushAsync();
+			expect(revivals).toEqual([]);
+			expect(focused).toBe(false);
+			expect(controller.focusedAgentId).toBeUndefined();
+
+			lease[Symbol.dispose]();
+			await focus;
+			expect(revivals).toEqual(["Worker"]);
+			expect(controller.focusedAgentId).toBe("Worker");
+			expect(controller.target).toBe(worker.session);
+		} finally {
+			await lifecycle.dispose();
+		}
+	});
+
 	it("drops a slower focus that resolves after a newer request", async () => {
 		const h = makeHarness();
 		const slow = makeSessionStub();

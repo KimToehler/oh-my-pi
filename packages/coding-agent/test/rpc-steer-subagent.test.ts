@@ -172,4 +172,35 @@ describe("handleRpcSteerSubagent", () => {
 		);
 		expect(sent).toEqual([]);
 	});
+
+	test("rpc steer_subagent: a steer to an idle running subagent paused between ensureLive and prompt keeps the lease from becoming ready until the prompt is submitted", async () => {
+		emitLifecycle("SubagentA", "started");
+		registerLiveAgent("SubagentA");
+		const lifecycle = AgentLifecycleManager.global();
+		const realEnsureLive = lifecycle.ensureLive.bind(lifecycle);
+		const afterEnsureLive = Promise.withResolvers<void>();
+		vi.spyOn(lifecycle, "ensureLive").mockImplementation(async (id, options) => {
+			const session = await realEnsureLive(id, options);
+			await afterEnsureLive.promise;
+			return session;
+		});
+		const steered = handleRpcSteerSubagent(registry, "SubagentA", "go");
+		using lease = AgentRegistry.global().relocationAdmission.hold({
+			rootId: "Main",
+			isMember: ref => ref.id === "SubagentA",
+		});
+		let ready = false;
+		void lease.ready.then(() => {
+			ready = true;
+		});
+		for (let i = 0; i < 10; i++) await Promise.resolve();
+		expect(sent).toEqual([]);
+		expect(ready).toBe(false);
+
+		afterEnsureLive.resolve();
+		await expect(steered).resolves.toBeUndefined();
+		for (let i = 0; i < 10; i++) await Promise.resolve();
+		expect(sent).toEqual([{ id: "SubagentA", text: "go", streamingBehavior: "steer" }]);
+		expect(ready).toBe(true);
+	});
 });
