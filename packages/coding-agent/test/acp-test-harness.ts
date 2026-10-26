@@ -350,6 +350,12 @@ export class FakeAgentSession {
 		await this.waitForIdleBlocker?.();
 	}
 
+	/** The v2 surface drops queued messages when a Stop lands; the fake keeps no queue. */
+	clearQueue(_options?: { forInterrupt?: boolean }): void {}
+
+	/** The v2 surface settles submissions still waiting for an outcome when a foreground ends; the fake has none. */
+	settlePendingSubmissions(): void {}
+
 	hasPendingAsyncWork(): boolean {
 		return this.pendingAsyncWork;
 	}

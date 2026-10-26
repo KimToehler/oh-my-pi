@@ -435,6 +435,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 					? { state: "idle", stopReason: "error", error: { code: -32603, message: turnFailure } }
 					: { state: "idle", stopReason: end.response.stopReason };
 		this.#emitState(record, state);
+		work.markEnded();
 	}
 
 	beforeCancel(record: ManagedSessionRecord): void {

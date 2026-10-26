@@ -1,0 +1,15 @@
+{
+  "scenario": "no-headerless-file",
+  "protocolVersion": 2,
+  "frames": [],
+  "notes": {
+    "files": [
+      "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/agent/sessions/-tmp-omp-f1-transitions-v2-3mlT32-workspace/2026-10-25T23-35-09-654Z_01a1756b-0256-7605-98ac-ac2cffa86dde.jsonl",
+      "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/agent/sessions/-tmp-omp-f1-transitions-v2-3mlT32-workspace/2026-10-25T23-35-10-157Z_01a1756b-044d-7533-8e27-8f119d6f2b82.jsonl",
+      "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/omp-f1-transitions-v2-3mlT32/agent/sessions/-tmp-omp-f1-transitions-v2-3mlT32-workspace/2026-10-25T23-35-11-288Z_01a1756b-08b8-773d-b821-7f293360f96e.jsonl"
+    ],
+    "headerless": []
+  },
+  "pass": true,
+  "detail": "3 .jsonl file(s) under isolated agent dir, all start with a session header"
+}
