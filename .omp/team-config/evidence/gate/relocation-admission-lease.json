@@ -44,7 +44,7 @@
   ],
   "whole_diff": {
     "run": true,
-    "report": ".omp/team-config/evidence/gate/relocation-admission-lease/f3-integration-review-report.md",
+    "report": ".omp/team-config/evidence/gate/relocation-admission-lease/f3-integration-review-report-wave5.md",
     "report_sha256": "54e2099c3c5a575086c7418fb4b16274d51146834446f610da85c269de004353"
   },
   "resolution": [
