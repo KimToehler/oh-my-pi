@@ -72,6 +72,8 @@ export interface AgentHubRegistry<TRecord extends AgentRecordLike = AgentRecordL
 /** Lifecycle actions exposed by the host. */
 export interface AgentLifecycleLike<TRecord extends AgentRecordLike = AgentRecordLike> {
 	ensureLive(id: string): Promise<{ prompt(text: string, options: { streamingBehavior: "steer" }): Promise<unknown> }>;
+	/** Revive if needed, then prompt; holds the host's relocation admission until the prompt is called. */
+	promptLive(id: string, text: string, options: { streamingBehavior: "steer" }): Promise<void>;
 	release(id: string, expected: TRecord, options: { tombstone: true }): Promise<boolean>;
 }
 /** Unread-message counts supplied by the host IRC bus. */

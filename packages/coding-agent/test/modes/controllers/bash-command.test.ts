@@ -46,6 +46,10 @@ function createCwdContext(sourceDir: string, isStreaming = false, showImages = t
 	const ctx = {
 		session: {
 			isStreaming,
+			holdRelocationAdmission: () => ({
+				ready: Promise.resolve(),
+				[Symbol.dispose]: () => {},
+			}),
 			executeBash,
 			moveSession: vi.fn(async (cwd: string) => {
 				state.cwd = cwd;

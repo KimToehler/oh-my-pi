@@ -7,6 +7,8 @@ import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import * as headlessRelocation from "@oh-my-pi/pi-coding-agent/session/headless-relocation";
 import { runRpcMode } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
@@ -19,6 +21,10 @@ import { Type } from "@sinclair/typebox";
 // records the move request and stops the batch exactly as the real tool does.
 // argv: <temp root> <move target> [<"fatal"> <request log>]. "fatal" forces the shared headless relocation to
 // report a fatal rollback failure; the log gets one `request` line per provider request and `exit` at process exit.
+// "pause" registers the session as "Main" on the global agent registry. The tool then reserves no move: once the
+// first turn is idle the fixture calls the host's own relocator directly (no `session_move` hold around it), sends
+// the session a peer message ("peer-ping") while the relocation's rescope is paused, and logs what had happened by
+// then (`paused requests=<n> send-settled=<bool>`) and, once the message was delivered, `final delivered=<bool> cwd=<cwd>`.
 const root = process.argv[2];
 const target = process.argv[3];
 if (!root || !target) throw new Error("session-move-rpc-agent: expected <temp root> <move target>");
@@ -38,6 +44,7 @@ if (fatal) {
 		reason: "rollback failed (forced)",
 	});
 }
+const pause = process.argv[4] === "pause";
 let calls = 0;
 const mock = createMockModel({
 	handler: () => {
@@ -51,6 +58,7 @@ const sessionMove: AgentTool = {
 	description: "move",
 	parameters: Type.Object({}),
 	async execute() {
+		if (pause) return { content: [{ type: "text", text: "no move reserved" }] };
 		const requested = session.reserveSessionMove()?.commit({ path: target }) ?? false;
 		return { content: [{ type: "text", text: requested ? "scheduled" : "no relocator" }] };
 	},
@@ -69,6 +77,52 @@ const session: AgentSession = new AgentSession({
 	sessionManager: SessionManager.create(cwd, path.join(cwd, "sessions")),
 	settings: Settings.isolated({ "compaction.enabled": false, "retry.enabled": false }),
 	modelRegistry,
+	agentId: pause ? "Main" : undefined,
 	toolRegistry: new Map([[sessionMove.name, sessionMove]]),
 });
+if (pause) {
+	if (!requestLog) throw new Error("session-move-rpc-agent: pause needs a request log");
+	const log = (line: string) => fs.appendFileSync(requestLog, `${line}\n`);
+	AgentRegistry.global().register({
+		id: "Main",
+		displayName: "Main",
+		kind: "main",
+		session,
+		sessionFile: session.sessionManager.getSessionFile() ?? null,
+		status: "idle",
+	});
+	const bus = new IrcBus();
+	const installRelocator = spyOn(session, "setSessionRelocator");
+	let relocating = false;
+	session.subscribe(event => {
+		if (event.type !== "agent_end" || relocating) return;
+		relocating = true;
+		const relocator = installRelocator.mock.calls.map(call => call[0]).find(installed => installed !== null);
+		if (!relocator) throw new Error("session-move-rpc-agent: the rpc host installed no relocator");
+		void session.waitForIdle().then(async () => log(`relocated ${JSON.stringify(await relocator(target))}`));
+	});
+	const reloadForCwd = session.settings.reloadForCwd.bind(session.settings);
+	let paused = false;
+	spyOn(session.settings, "reloadForCwd").mockImplementation(async newCwd => {
+		if (paused) return reloadForCwd(newCwd);
+		paused = true;
+		// The rescope of the first relocation is the paused step; the peer message goes out while it is stuck here.
+		const send = bus.send({ from: "Peer", to: "Main", body: "peer-ping" });
+		let sendSettled = false;
+		void send.then(() => {
+			sendSettled = true;
+		});
+		// A wake the barrier let through would start its provider request through microtasks and file turns.
+		for (let i = 0; i < 50; i++) await Promise.resolve();
+		for (let i = 0; i < 5; i++) await fs.promises.stat(root);
+		log(`paused requests=${calls} send-settled=${sendSettled}`);
+		await reloadForCwd(newCwd);
+		void send
+			.then(() => session.waitForIdle())
+			.then(() => {
+				const delivered = JSON.stringify(session.messages).includes("peer-ping");
+				log(`final delivered=${delivered} cwd=${session.sessionManager.getCwd()}`);
+			});
+	});
+}
 await runRpcMode(session);

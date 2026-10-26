@@ -8,8 +8,10 @@ import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
 import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import type { RelocationLease } from "@oh-my-pi/pi-coding-agent/registry/relocation-admission";
 import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { findRunningSessionWork } from "@oh-my-pi/pi-coding-agent/session/session-move";
 import {
 	finalizeSubprocessOutput,
 	runSubagentFollowUpTurn,
@@ -314,6 +316,132 @@ describe("runSubprocess yield reminders", () => {
 			);
 		} finally {
 			AgentRegistry.global().unregister("subagent-race");
+		}
+	});
+	it("task follow-up: a retry reacquires admission and releases it when submitted", async () => {
+		const registry = AgentRegistry.global();
+		const admissions = registry.relocationAdmission;
+		const tree = { rootId: "Main", isMember: (ref: { id: string }) => ref.id === "subagent-admission-retry" };
+		const busyTurnGate = Promise.withResolvers<void>();
+		const busyWaitStarted = Promise.withResolvers<void>();
+		const retryStarted = Promise.withResolvers<void>();
+		const retryProviderGate = Promise.withResolvers<void>();
+		const reminderStarted = Promise.withResolvers<void>();
+		const reminderProviderGate = Promise.withResolvers<void>();
+		let prompts = 0;
+		let streaming = false;
+		const yieldTool = new YieldTool({
+			cwd: "/tmp",
+			hasUI: false,
+			getSessionFile: () => null,
+			getSessionSpawns: () => "*",
+			settings: Settings.isolated(),
+			getLastAssistantText: () => undefined,
+		});
+		const session = createMockSession(async ({ emit, state }) => {
+			prompts++;
+			streaming = true;
+			if (prompts === 1) throw new AgentBusyError("wake turn is running");
+			if (prompts === 2) {
+				retryStarted.resolve();
+				await retryProviderGate.promise;
+				const assistant = createAssistantStopMessage("did some work");
+				state.messages.push(assistant);
+				emit({ type: "message_end", message: assistant });
+				streaming = false;
+				return;
+			}
+			reminderStarted.resolve();
+			await reminderProviderGate.promise;
+			emit({
+				type: "tool_execution_end",
+				toolCallId: "tool-reminder",
+				toolName: "yield",
+				result: {
+					content: [{ type: "text", text: "Result submitted." }],
+					details: { status: "success", data: { reminder: true } },
+				},
+				isError: false,
+			});
+			streaming = false;
+		});
+		Object.defineProperty(session, "isStreaming", { get: () => streaming });
+		Object.assign(session, {
+			getToolByName: (name: string) => (name === "yield" ? yieldTool : undefined),
+			setWorkPoolYieldItems: async () => {},
+			waitForIdle: async () => {
+				busyWaitStarted.resolve();
+				await busyTurnGate.promise;
+				streaming = false;
+			},
+		});
+		registry.register({
+			id: "subagent-admission-retry",
+			displayName: "subagent-admission-retry",
+			kind: "sub",
+			status: "idle",
+			session,
+			sessionFile: "/tmp/root-session/subagent-admission-retry.jsonl",
+		});
+		const runningWork = () =>
+			findRunningSessionWork({
+				sessionFile: "/tmp/root-session.jsonl",
+				agentId: "Main",
+				asyncJobManager: undefined,
+				registry,
+			}).agentIds;
+		let firstLease: RelocationLease | undefined;
+		let secondLease: RelocationLease | undefined;
+		let reminderLease: RelocationLease | undefined;
+		try {
+			const turn = runSubagentFollowUpTurn({
+				...baseOptions,
+				id: "subagent-admission-retry",
+				message: "retry work",
+			});
+			await busyWaitStarted.promise;
+			firstLease = admissions.hold(tree);
+			await firstLease.ready;
+
+			busyTurnGate.resolve();
+			for (let i = 0; i < 20; i++) await Promise.resolve();
+			expect(prompts).toBe(1);
+
+			firstLease[Symbol.dispose]();
+			firstLease = undefined;
+			await retryStarted.promise;
+			expect(prompts).toBe(2);
+
+			secondLease = admissions.hold(tree);
+			await secondLease.ready;
+			expect(runningWork()).toEqual(["subagent-admission-retry"]);
+
+			secondLease[Symbol.dispose]();
+			secondLease = undefined;
+			retryProviderGate.resolve();
+			await reminderStarted.promise;
+			expect(prompts).toBe(3);
+
+			reminderLease = admissions.hold(tree);
+			let reminderLeaseReady = false;
+			void reminderLease.ready.then(() => {
+				reminderLeaseReady = true;
+			});
+			for (let i = 0; i < 20; i++) await Promise.resolve();
+			expect(reminderLeaseReady).toBe(true);
+			expect(runningWork()).toEqual(["subagent-admission-retry"]);
+
+			reminderLease[Symbol.dispose]();
+			reminderLease = undefined;
+			reminderProviderGate.resolve();
+			expect((await turn).exitCode).toBe(0);
+		} finally {
+			firstLease?.[Symbol.dispose]();
+			secondLease?.[Symbol.dispose]();
+			reminderLease?.[Symbol.dispose]();
+			retryProviderGate.resolve();
+			reminderProviderGate.resolve();
+			registry.unregister("subagent-admission-retry");
 		}
 	});
 	it("waits out a running turn before installing the pooled contract", async () => {

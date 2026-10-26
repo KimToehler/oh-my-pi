@@ -1186,13 +1186,15 @@ export class CollabHost {
 					this.#send({ t: "error", message: `agent ${agentId}: empty chat message` }, fromPeer);
 					return;
 				}
-				// Mirrors the hub's #submitChatMessage: revive if parked, steer if mid-turn.
+				// Mirrors the hub's #submitChatMessage: revive if parked, steer if mid-turn. The
+				// guard re-checks the room after a revival that may have waited for a relocation.
 				AgentLifecycleManager.global()
-					.ensureLive(agentId)
-					.then(session => {
-						if (!this.#guestTrafficAllowed() || !this.#guestActionsReady()) return;
-						return session.prompt(trimmed, { streamingBehavior: "steer" });
-					})
+					.promptLive(
+						agentId,
+						trimmed,
+						{ streamingBehavior: "steer" },
+						() => this.#guestTrafficAllowed() && this.#guestActionsReady(),
+					)
 					.catch(fail);
 				break;
 			}

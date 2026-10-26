@@ -62,6 +62,7 @@ import submitReminderTemplate from "../prompts/system/subagent-yield-reminder.md
 import { AgentLifecycleManager, type AgentReviver } from "../registry/agent-lifecycle";
 import { AgentRegistry, MAIN_AGENT_ID } from "../registry/agent-registry";
 import { ensurePersistedRoster, isCurrentSessionRosterRef } from "../registry/persisted-agents";
+import type { AdmissionTicket } from "../registry/relocation-admission";
 import {
 	type CreateAgentSessionOptions,
 	type CreateAgentSessionResult,
@@ -2552,9 +2553,19 @@ async function driveSessionToResult(
 		onPromptBusy?: () => Promise<void>;
 		/** Go on with the interrupted turn instead of sending `task`, which only labels the run. */
 		restore?: boolean;
+		/**
+		 * Called before every prompt submission attempt or restore scheduling. A retry
+		 * can use it to reacquire admission after the preceding attempt handed off.
+		 */
+		beforeHandOff?: () => Promise<void>;
+		/**
+		 * Called for every attempt once the turn is visible to a relocation's
+		 * running-work check, and once more as an idempotent failure backstop.
+		 */
+		onHandOff?: () => void;
 	} = {},
 ): Promise<DriveOutcome> {
-	const { solutionSpace, onPromptBusy, restore } = options;
+	const { solutionSpace, onPromptBusy, restore, beforeHandOff, onHandOff } = options;
 	const structured = options.structured !== false;
 	using _keepalive = new EventLoopKeepalive();
 	const abortSignal = monitor.abortSignal;
@@ -2589,6 +2600,10 @@ async function driveSessionToResult(
 			abortSignal.removeEventListener("abort", onAbort);
 		}
 	};
+	/** Hands the current submission generation to the running-work check. */
+	const handOff = (): void => {
+		onHandOff?.();
+	};
 	/**
 	 * Send a headless prompt, retrying pre-provider drops (`PromptDroppedError`).
 	 * Local slash commands are disabled so an assignment always reaches the
@@ -2603,9 +2618,13 @@ async function driveSessionToResult(
 		{ forceFinalYield = false }: { forceFinalYield?: boolean } = {},
 	): Promise<void> => {
 		for (let attempt = 1; attempt <= MAX_PROMPT_DISPATCH_ATTEMPTS; attempt++) {
+			await beforeHandOff?.();
 			if (forceFinalYield) monitor.markFinalYieldForced(true);
 			try {
-				await awaitAbortable(session.prompt(text, { ...promptOptions, runCommands: false, throwOnDrop: true }));
+				const submitted = session.prompt(text, { ...promptOptions, runCommands: false, throwOnDrop: true });
+				// `prompt` records its admitted submission synchronously at the call.
+				handOff();
+				await awaitAbortable(submitted);
 				return;
 			} catch (err) {
 				if (!(err instanceof PromptDroppedError)) throw err;
@@ -2637,8 +2656,13 @@ async function driveSessionToResult(
 			let promptAttempts = 0;
 			for (;;) {
 				try {
-					if (restore) await awaitAbortable(session.restoreInterruptedTurn());
-					else await dispatchPrompt(task, { attribution: "agent", solutionSpace }, "initial prompt");
+					if (restore) {
+						await beforeHandOff?.();
+						await awaitAbortable(session.restoreInterruptedTurn());
+						handOff();
+					} else {
+						await dispatchPrompt(task, { attribution: "agent", solutionSpace }, "initial prompt");
+					}
 					break;
 				} catch (error) {
 					promptAttempts++;
@@ -2869,6 +2893,7 @@ async function driveSessionToResult(
 			}
 		}
 	} finally {
+		handOff();
 		error ??= monitor.terminalError();
 		if (abortSignal.aborted && (!monitor.yieldCalled() || monitor.runtimeLimitExceeded())) {
 			aborted = monitor.isAbortedRun();
@@ -3822,7 +3847,22 @@ export async function runSubagentFollowUpTurn(options: FollowUpTurnOptions): Pro
 	const { id, agent, message, signal } = options;
 	const index = options.index ?? 0;
 	const startTime = Date.now();
-	let session = await AgentLifecycleManager.global().ensureLive(id);
+	// One admission ticket from before each revival/submission generation until
+	// that generation is visible to the running-work check. A dropped/busy prompt
+	// hands off its generation, then the next attempt reacquires before submission.
+	const admissions = AgentRegistry.global().relocationAdmission;
+	let ticket: AdmissionTicket | undefined;
+	const acquireTicket = async (): Promise<AdmissionTicket> => {
+		if (ticket) return ticket;
+		ticket = admissions.tryAdmit(id) ?? (await admissions.admit(id));
+		return ticket;
+	};
+	const releaseTicket = (): void => {
+		ticket?.[Symbol.dispose]();
+		ticket = undefined;
+	};
+	using _ticketGuard = { [Symbol.dispose]: releaseTicket };
+	let session = await AgentLifecycleManager.global().ensureLive(id, { admission: await acquireTicket() });
 	// Acquire turn ownership before mutating the shared yield contract: installing
 	// pooled items under a running ordinary wake would reject its in-flight tool
 	// calls. The check-to-install section below has no await, so once idle is
@@ -3830,14 +3870,21 @@ export async function runSubagentFollowUpTurn(options: FollowUpTurnOptions): Pro
 	// Bounded: a worker that never settles fails its batch instead of installing
 	// under the active turn or hanging the pool.
 	let ownershipWaits = 0;
+	// The ticket must never be held across another turn: a running subagent's `irc`
+	// call to a tree member waits for the lease, and the lease for this ticket.
+	// Drop it for each wait on a still-streaming subagent and admit again after it,
+	// before the install and submission (the loop condition re-checks idleness
+	// right after the admit, so check and install stay synchronous).
 	const acquireOwnership = async (): Promise<void> => {
 		while (session.isStreaming && ownershipWaits < 3) {
 			ownershipWaits++;
+			releaseTicket();
 			if (signal) {
 				await untilAborted(signal, () => session.waitForIdle());
 			} else {
 				await session.waitForIdle();
 			}
+			ticket = admissions.tryAdmit(id) ?? (await admissions.admit(id));
 		}
 		if (session.isStreaming) {
 			throw new Error(
@@ -3855,7 +3902,7 @@ export async function runSubagentFollowUpTurn(options: FollowUpTurnOptions): Pro
 	// already be streaming a wake, so ownership is reacquired every round.
 	for (let acquireAttempts = 0; ; acquireAttempts++) {
 		await session.setWorkPoolYieldItems(options.workPoolYieldItems ?? []);
-		const live = await AgentLifecycleManager.global().ensureLive(id);
+		const live = await AgentLifecycleManager.global().ensureLive(id, { admission: ticket });
 		if (live === session) break;
 		if (acquireAttempts >= 2) {
 			throw new Error(
@@ -3924,6 +3971,10 @@ export async function runSubagentFollowUpTurn(options: FollowUpTurnOptions): Pro
 		outcome = await driveSessionToResult(session, monitor, message, {
 			structured,
 			restore: options.restore,
+			beforeHandOff: async () => {
+				await acquireTicket();
+			},
+			onHandOff: releaseTicket,
 			onPromptBusy: async () => {
 				attemptUnsubscribe();
 				logger.debug("Subagent follow-up lost the prompt race to an IRC wake; backing off", { id });
@@ -4189,6 +4240,10 @@ function trackSubagentSettings(session: AgentSession, capture: WarmReviveCapture
 function createWarmSubagentReviver(capture: WarmReviveCapture): AgentReviver {
 	return async expectedAgentRef => {
 		const { id } = capture.spec.prompt;
+		// A session move renames the artifacts directory and repoints the descendant
+		// refs (`rebaseDescendantSessionFiles`); the spawn-time capture still names the
+		// old path, so the ref is the authority for where this transcript lives now.
+		if (expectedAgentRef.sessionFile) capture.sessionFile = expectedAgentRef.sessionFile;
 		const reopened = await SessionManager.open(capture.sessionFile, undefined, undefined, {
 			suppressBreadcrumb: true,
 			throwIfMissing: true,

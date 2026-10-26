@@ -30,6 +30,8 @@
 
 - Fixed JetBrains IDEs failing ACP session setup with "Couldn't load session settings": thinking no longer advertises OMP-only `auto` to any client, and each select's current value is always one of its options
 - Fixed JetBrains IDEs no longer being recognized over ACP after the Air plugin stopped sending `clientInfo._meta`, which had disabled their session-resume and config-option handling
+- Fixed a peer message or a subagent revival that arrived while a session moved (`session_move`, `/move`, `/wt`) starting a turn in the checkout the session was leaving; peer messages and revivals for the session and its subagents now wait until the move has finished or rolled back
+- Fixed JetBrains IDEs failing ACP session setup with "Could not load session settings": thinking no longer advertises OMP-only `auto`, and each select's current value is always one of its options
 - Fixed ACP clients such as JetBrains IDEs failing to reopen a chat whose session was moved into a worktree with "load was cancelled"; the session now reopens in that worktree, a session whose worktree was removed moves into the project directory, and a session of another repository is refused with an error naming its directory
 - Fixed `omp --resume` asking (or failing without a terminal) to move a session from a removed `.worktrees/` worktree of the repository; it now moves into the current checkout without asking, like a removed `/wt` worktree
 - Fixed `/session delete` recreating the deleted session file on the next save, and under ACP the deleted session now closes after the confirmation, so later prompts for it are rejected

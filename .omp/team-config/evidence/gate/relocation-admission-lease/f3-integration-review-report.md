@@ -1,0 +1,31 @@
+INTEGRATION-REVIEW-REPORT-v1
+## Must-fix
+
+None.
+
+## Should-fix
+
+- `packages/coding-agent/src/registry/agent-lifecycle.ts:449`; `packages/coding-agent/src/collab/host.ts:1192`; `packages/tui/src/overlays/agent-transcript-viewer.ts:622`; `packages/coding-agent/src/modes/rpc/rpc-mode.ts:838`; `packages/coding-agent/src/task/executor.ts:3857,3887` — **what:** admission is acquired unconditionally for already-live chat, steering, and follow-up/resume paths, although their prompt/resume portion is explicitly outside the plan’s blocking scope. **why:** a normal live user steer/chat or live-idle follow-up can wait behind an unrelated relocation of its tree even though no transcript revival needs protection; the latency is reversible and the pinned gate expressly classifies this scope as non-blocking. **fix:** distinguish revival-needed work before retaining a ticket through the subsequent prompt, while preserving pre-revival admission for parked/killed refs and the D4 hand-off guarantee.  
+  **class:** unconditional admission of excluded live prompt/resume paths. **sites:** all six sites above; the shared `promptLive` acquisition feeds both chat callers, RPC admits its known-live steer, and executor admits initial/reacquired live follow-up generations. **Search run:** `functions.grep(pattern="(?:tryAdmit|\\.admit\\(|promptLive\\(|ensureLive\\()", path="packages/coding-agent/src;packages/tui/src", case=true, gitignore=true, skip=0)`.
+
+## Nit
+
+None.
+
+## Checked
+
+- **F2 retry-generation fix:** confirmed by source inspection. `driveSessionToResult` calls `beforeHandOff` before every prompt dispatch attempt and restore scheduling (`packages/coding-agent/src/task/executor.ts:2618,2657`), calls `handOff` immediately after synchronous `session.prompt` submission (`2622-2624`), and retains an idempotent failure backstop (`2893`). `runSubagentFollowUpTurn` reacquires after ownership waits and before each generation, then hands each generation off via `releaseTicket` (`3853-3888,3971-3975`). The new regression at `packages/coding-agent/test/task/executor-subagent-reminders.test.ts:318` forces the busy first generation, blocks/reopens the retry admission, verifies lease readiness while the retry is running, and repeats the check for the reminder generation. The previous retry-ticket deadlock class is not present.
+- **Plan-only Verify syntax delta:** no syntax defect found by inspection in the refreshed pinned plan’s F1 `for f in …; do …; done` verification (`tasks.md`, task 7.2) or F2 task-8.1 command. The required four F1 evidence files are in the diff with their stated `RESULT` witnesses. Command execution itself was not performed in this read-only review.
+- **Duplication across slices/files:** no instance found. `RelocationAdmission` is the sole lease/waiter implementation; registry, lifecycle, IRC, sessions, and hosts consume it rather than recreating queues or release sequencing.
+- **Naming inconsistency:** no instance found. The nouns *relocation admission*, *lease*, *ticket*, *session tree*, and *artifacts directory* retain the same meaning in the registry, session, task, host, TUI, tests, and docs.
+- **Uneven API surface:** no instance found. `ensureLive(id, { admission })` is the lower-level revive operation and `promptLive(...)` is the paired revive-and-prompt operation; the altered TUI interface and caller use the latter consistently.
+- **Mixed conventions:** no instance found. Deferred `session_move`, TUI host relocations, and headless relocations each acquire `holdRelocationAdmission()` before their bodies, await `ready`, and release only after success, refusal, or rollback. Admission paths consistently pass an existing ticket to `ensureLive` rather than nest tickets.
+- **Missing abstractions / abstraction gravity:** no instance found. The repeated `tryAdmit(...) ?? await admit(...)` is intentionally the no-yield ordering primitive; membership and lease mechanics remain centralized in `sessionTreeMembership` and `RelocationAdmission`.
+- **Dead code:** no instance found. Production consumers exist for `RelocationAdmission`, `RelocationLease`, `AdmissionTicket`, `promptLive`, `holdRelocationAdmission`, `getMoveTargetSessionFile`, `sessionTreeMembership`, and `artifactsDirOf`. Search run: `functions.grep(pattern="RelocationAdmission|RelocationLease|AdmissionTicket|promptLive|holdRelocationAdmission|getMoveTargetSessionFile|sessionTreeMembership|artifactsDirOf", path="packages/coding-agent/src;packages/tui/src", case=true, gitignore=true, skip=0)`.
+- **Doc drift:** no instance found. `docs/tools/session_move.md`, `docs/slash-command-internals.md`, and the Unreleased changelog describe tree-scoped waiting, release after failure/rollback, and other-tree isolation. The diff adds no i18n keys, locale resources, OpenAPI surface, or public wire contract.
+- **Surprise-scope walk:** no unexpected production surface found. Every changed source file maps to a plan D1–D5 surface or the post-F3 warm-revival/F2 retry repair; the evidence and OpenSpec task changes belong to the stated final-verification work. The plan has no separate per-slice file list; its task-level lists cover the changed production paths and their tests.
+- **Plan walks:** the design’s D1–D5 producer/consumer contracts, all listed relocation entry paths, requirements, and task verification targets were traced. The Out-of-Scope list was walked: no direct client prompt to the relocating root and no subagent background-completion admission was added. The retained live prompt/live-idle-resume expansion is the Should-fix above and is expressly out of scope for blocking. All tasks are checked complete; F1 contains all four expected result witnesses, but command-based verification was not independently run here.
+- **Seam list:** reviewed registry snapshot membership and FIFO release; IRC ticket lifetime through lifecycle and delivery; lifecycle revival/prompt hand-off; task/RPC/collab/TUI consumers; session-tree membership across target-path rebasing; deferred pre-barrier IRC wakes; running-work busy signals; all deferred/TUI/ACP/RPC/headless relocation holders; warm revival against rebased refs; and F2 retry/reminder ticket generations. No additional seam discrepancy found.
+- **Simplification pass:** no additional whole-diff simplification candidate found.
+
+PASS

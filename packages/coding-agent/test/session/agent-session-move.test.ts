@@ -4,19 +4,23 @@
  * exactly one hidden continuation turn follows.
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import { $ } from "bun";
 import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
+import { scheduler } from "node:timers/promises";
 import * as path from "node:path";
 import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
 import type { ToolCall } from "@oh-my-pi/pi-ai";
-import { createMockModel, type MockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
+import { createMockModel, type MockHandler, type MockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async/job-manager";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { GoalHostController } from "@oh-my-pi/pi-coding-agent/goals/host-controller";
+import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
@@ -29,6 +33,8 @@ import {
 } from "@oh-my-pi/pi-coding-agent/session/session-move";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { runSubagentFollowUpTurn } from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { Type } from "@sinclair/typebox";
 
@@ -74,6 +80,8 @@ describe("session move", () => {
 		dstSessions: string;
 		relocatorCalls: string[];
 		events: string[];
+		/** The session's cwd at each provider request. */
+		requestCwds: string[];
 	}
 
 	/**
@@ -109,12 +117,14 @@ describe("session move", () => {
 		});
 		settings.setModelRole("default", `${model.provider}/${model.id}`);
 		const events: string[] = [];
+		const requestCwds: string[] = [];
 		const tools = options.tools({ getSession: () => session as AgentSession, srcDir, events });
 		const agent = new Agent({
 			getApiKey: agentModel => `${agentModel.provider}-test-key`,
 			initialState: { model, systemPrompt: ["Test"], tools, messages: [] },
 			streamFn: (streamModel, context, streamOptions) => {
 				events.push("provider-request");
+				requestCwds.push(session?.sessionManager.getCwd() ?? "");
 				return mock.stream(streamModel, context, streamOptions);
 			},
 			convertToLlm,
@@ -130,7 +140,7 @@ describe("session move", () => {
 			agentRegistry: options.agentRegistry,
 		});
 		const relocatorCalls: string[] = [];
-		const fx: Fixture = { session, mock, srcDir, dstDir, dstSessions, relocatorCalls, events };
+		const fx: Fixture = { session, mock, srcDir, dstDir, dstSessions, relocatorCalls, events, requestCwds };
 		const relocator: SessionRelocator = async target => {
 			relocatorCalls.push(target);
 			events.push("relocator");
@@ -656,6 +666,574 @@ describe("session move", () => {
 		expect(turnStarts).toEqual(["session-move-result@dst", "goal-continuation@dst"]);
 		expect(fx.mock.calls).toHaveLength(3);
 		expect(fx.relocatorCalls).toEqual([fx.dstDir]);
+	});
+
+	// ── Relocation admission (relocation-admission-lease, tasks 4.1/4.2) ──
+
+	const lifecycles: AgentLifecycleManager[] = [];
+	afterEach(async () => {
+		for (const lifecycle of lifecycles.splice(0)) await lifecycle.dispose();
+	});
+
+	interface AdmissionFixture extends Fixture {
+		registry: AgentRegistry;
+		bus: IrcBus;
+		/** Bodies each stub descendant received, in delivery order. */
+		delivered: Map<string, string[]>;
+		/** The session file each revived descendant was rebuilt from. */
+		revivedFrom: Map<string, string | null>;
+		/** Resolves once the relocator runs, that is, while the relocation holds the barrier. */
+		relocating: Promise<void>;
+		/** Lets the paused relocator go on. */
+		releaseRelocator(): void;
+		/** The artifacts directory of the session file at setup. */
+		artifactsDir: string;
+	}
+
+	function stubDescendant(id: string, fx: { delivered: Map<string, string[]>; events: string[] }): AgentSession {
+		return {
+			deliverIrcMessage: async (message: { body: string }) => {
+				fx.events.push(`${id}-delivered`);
+				fx.delivered.set(id, [...(fx.delivered.get(id) ?? []), message.body]);
+				return "woken" as const;
+			},
+			subscribe: () => () => {},
+			dispose: async () => {},
+		} as unknown as AgentSession;
+	}
+
+	/**
+	 * A session on its own registry, IRC bus and lifecycle whose `session_move` relocator pauses
+	 * until {@link AdmissionFixture.releaseRelocator}, then moves for real (or fails).
+	 */
+	function admissionSetup(options: {
+		name: string;
+		relocation: "move" | "fail" | "unpaused";
+		registerRoot?: boolean;
+	}): AdmissionFixture {
+		const registry = new AgentRegistry();
+		const relocating = Promise.withResolvers<void>();
+		const gate = Promise.withResolvers<void>();
+		const delivered = new Map<string, string[]>();
+		const revivedFrom = new Map<string, string | null>();
+		const base = setup({
+			name: options.name,
+			responses: [
+				{ content: [call("m1", "session_move")] },
+				{ content: ["first"] },
+				{ content: ["second"] },
+				{ content: ["third"] },
+			],
+			tools: ({ getSession, srcDir, events }) => [
+				sessionMoveTool(getSession, () => path.join(path.dirname(srcDir), "dst"), events),
+			],
+			agentRegistry: registry,
+			relocate: async (target, fx) => {
+				relocating.resolve();
+				if (options.relocation !== "unpaused") await gate.promise;
+				if (options.relocation === "fail") return { ok: false, reason: "host refused" };
+				await session?.moveSession(target, fx().dstSessions);
+				fx().events.push("relocator-returned");
+				return { ok: true };
+			},
+		});
+		const lifecycle = new AgentLifecycleManager(registry);
+		lifecycles.push(lifecycle);
+		const fx: AdmissionFixture = {
+			...base,
+			registry,
+			bus: new IrcBus(registry, lifecycle),
+			delivered,
+			revivedFrom,
+			relocating: relocating.promise,
+			releaseRelocator: () => gate.resolve(),
+			artifactsDir: (base.session.sessionManager.getSessionFile() as string).slice(0, -".jsonl".length),
+		};
+		lifecycle.setPersistedSubagentReviverFactory(
+			async ref => async live => {
+				revivedFrom.set(ref.id, live.sessionFile);
+				return stubDescendant(ref.id, fx);
+			},
+			() => 0,
+		);
+		if (options.registerRoot) {
+			registry.register({
+				id: AGENT_ID,
+				displayName: AGENT_ID,
+				kind: "main",
+				session: base.session,
+				sessionFile: base.session.sessionManager.getSessionFile() ?? null,
+				status: "idle",
+			});
+		}
+		return fx;
+	}
+
+	/** Register a descendant whose transcript lies in the session's artifacts directory. */
+	function addDescendant(fx: AdmissionFixture, id: string, status: "idle" | "parked"): string {
+		const file = path.join(fx.artifactsDir, `${id}.jsonl`);
+		fs.mkdirSync(fx.artifactsDir, { recursive: true });
+		fs.writeFileSync(file, `${id}\n`);
+		fx.registry.register({
+			id,
+			displayName: id,
+			kind: "sub",
+			parentId: AGENT_ID,
+			session: status === "idle" ? stubDescendant(id, fx) : null,
+			sessionFile: file,
+			status,
+		});
+		return file;
+	}
+
+	/** Drain pending promise continuations; the paths under test settle through microtasks only. */
+	async function flushMicrotasks(): Promise<void> {
+		for (let i = 0; i < 50; i++) await Promise.resolve();
+	}
+
+	/** Provider calls whose context carries `text`. */
+	function callsMentioning(mock: MockModel, text: string): number {
+		return mock.calls.filter(entry => JSON.stringify(entry.context).includes(text)).length;
+	}
+
+	/** Whether `promise` has settled, read synchronously. */
+	function track(promise: Promise<unknown>): { readonly settled: boolean } {
+		const state = { settled: false };
+		void promise.finally(() => {
+			state.settled = true;
+		});
+		return state;
+	}
+
+	it("session move: a peer message to the session during a paused relocation starts its turn after the move in the new cwd", async () => {
+		const fx = admissionSetup({ name: "admit-root", relocation: "move", registerRoot: true });
+		const run = fx.session.prompt("go");
+		await fx.relocating;
+		const send = fx.bus.send({ from: "Peer", to: AGENT_ID, body: "peer-ping" });
+		const sent = track(send);
+		await flushMicrotasks();
+		// Held at the barrier: not delivered into the session that is still in the old checkout.
+		expect(sent.settled).toBe(false);
+		expect(fx.events.filter(event => event === "provider-request")).toHaveLength(1);
+
+		fx.releaseRelocator();
+		expect((await send).outcome).not.toBe("failed");
+		await run;
+		await fx.session.waitForIdle();
+
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.dstDir);
+		expect(callsMentioning(fx.mock, "peer-ping")).toBeGreaterThan(0);
+		expect(fx.requestCwds.slice(1).length).toBeGreaterThan(0);
+		expect(fx.requestCwds.slice(1).every(cwd => cwd === fx.dstDir)).toBe(true);
+	});
+
+	it("session move: an idle descendant messaged during a paused relocation starts no turn before the relocator returns", async () => {
+		const fx = admissionSetup({ name: "admit-idle-child", relocation: "move" });
+		addDescendant(fx, "IdleChild", "idle");
+		const run = fx.session.prompt("go");
+		await fx.relocating;
+		const send = fx.bus.send({ from: "Peer", to: "IdleChild", body: "child-ping" });
+		await flushMicrotasks();
+		expect(fx.delivered.get("IdleChild")).toBeUndefined();
+
+		fx.releaseRelocator();
+		expect((await send).outcome).toBe("woken");
+		await run;
+		await fx.session.waitForIdle();
+		expect(fx.delivered.get("IdleChild")).toEqual(["child-ping"]);
+		expect(fx.events.indexOf("relocator-returned")).toBeLessThan(fx.events.indexOf("IdleChild-delivered"));
+	});
+
+	it("session move: a parked descendant messaged during a paused relocation revives after the move from its rebased transcript", async () => {
+		const fx = admissionSetup({ name: "admit-parked-child", relocation: "move" });
+		const sourceFile = addDescendant(fx, "ParkedChild", "parked");
+		const run = fx.session.prompt("go");
+		await fx.relocating;
+		const send = fx.bus.send({ from: "Peer", to: "ParkedChild", body: "revive-ping" });
+		await flushMicrotasks();
+		expect(fx.revivedFrom.has("ParkedChild")).toBe(false);
+
+		fx.releaseRelocator();
+		expect((await send).outcome).toBe("revived");
+		await run;
+		await fx.session.waitForIdle();
+		const movedArtifacts = (fx.session.sessionManager.getSessionFile() as string).slice(0, -".jsonl".length);
+		const revivedFile = fx.revivedFrom.get("ParkedChild");
+		expect(revivedFile).toBe(path.join(movedArtifacts, "ParkedChild.jsonl"));
+		expect(fs.readFileSync(revivedFile as string, "utf8")).toBe("ParkedChild\n");
+		expect(fs.existsSync(sourceFile)).toBe(false);
+		expect(fx.delivered.get("ParkedChild")).toEqual(["revive-ping"]);
+	});
+
+	it("session move: a failed relocation releases a held message, which is delivered in the unchanged cwd", async () => {
+		const fx = admissionSetup({ name: "admit-failed", relocation: "fail", registerRoot: true });
+		const run = fx.session.prompt("go");
+		await fx.relocating;
+		const send = fx.bus.send({ from: "Peer", to: AGENT_ID, body: "after-failure" });
+		const sent = track(send);
+		await flushMicrotasks();
+		expect(sent.settled).toBe(false);
+		expect(fx.events.filter(event => event === "provider-request")).toHaveLength(1);
+
+		fx.releaseRelocator();
+		expect((await send).outcome).not.toBe("failed");
+		await run;
+		await fx.session.waitForIdle();
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
+		expect(callsMentioning(fx.mock, "after-failure")).toBeGreaterThan(0);
+		expect(fx.requestCwds.slice(1).every(cwd => cwd === fx.srcDir)).toBe(true);
+	});
+
+	it("session move: a descendant rebased before the manager publishes its new session file stays held", async () => {
+		const fx = admissionSetup({ name: "admit-rebase-window", relocation: "unpaused" });
+		addDescendant(fx, "FirstChild", "idle");
+		const secondFile = addDescendant(fx, "SecondChild", "idle");
+		const lstatPaused = Promise.withResolvers<void>();
+		const lstatGate = Promise.withResolvers<void>();
+		const originalLstat = fsPromises.lstat;
+		const spy = vi.spyOn(fsPromises, "lstat").mockImplementation((async (file: fs.PathLike) => {
+			if (String(file) === secondFile) {
+				lstatPaused.resolve();
+				await lstatGate.promise;
+			}
+			return originalLstat(file);
+		}) as typeof fsPromises.lstat);
+		try {
+			const run = fx.session.prompt("go");
+			await lstatPaused.promise;
+			// FirstChild's ref already points into the destination; the manager has not published it yet.
+			expect(fx.registry.get("FirstChild")?.sessionFile?.startsWith(fx.artifactsDir + path.sep)).toBe(false);
+			const send = fx.bus.send({ from: "Peer", to: "FirstChild", body: "window-ping" });
+			await flushMicrotasks();
+			expect(fx.delivered.get("FirstChild")).toBeUndefined();
+
+			lstatGate.resolve();
+			expect((await send).outcome).toBe("woken");
+			await run;
+			await fx.session.waitForIdle();
+			expect(fx.delivered.get("FirstChild")).toEqual(["window-ping"]);
+			expect(fx.events.indexOf("relocator-returned")).toBeLessThan(fx.events.indexOf("FirstChild-delivered"));
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	// ── Work admitted just before the barrier (relocation-admission-lease, task 4.2) ──
+
+	const subSessions: AgentSession[] = [];
+	afterEach(async () => {
+		vi.restoreAllMocks();
+		for (const sub of subSessions.splice(0)) await sub.dispose();
+		AgentLifecycleManager.resetGlobalForTests();
+		AgentRegistry.resetGlobalForTests();
+	});
+
+	const followUpAgent = { name: "task", description: "test", systemPrompt: "charter", source: "bundled" } as const;
+
+	/** A real subagent session answering from `handlers`, disposed after the test. */
+	function subSession(options: {
+		name: string;
+		id: string;
+		handlers: MockHandler[];
+		registry?: AgentRegistry;
+		sessionManager?: SessionManager;
+	}): { session: AgentSession; mock: MockModel } {
+		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
+		if (!model) throw new Error("Expected bundled test model to exist");
+		const dir = path.join(tempDir.path(), options.name, `sub-${options.id}`);
+		fs.mkdirSync(dir, { recursive: true });
+		const mock = createMockModel({ responses: options.handlers });
+		const settings = Settings.isolated({
+			"compaction.enabled": false,
+			"retry.enabled": false,
+			"todo.reminders": false,
+			"tools.xdev": false,
+		});
+		settings.setModelRole("default", `${model.provider}/${model.id}`);
+		const sessionManager = options.sessionManager ?? SessionManager.create(dir, path.join(dir, "sessions"));
+		const agent = new Agent({
+			getApiKey: agentModel => `${agentModel.provider}-test-key`,
+			initialState: {
+				model,
+				systemPrompt: ["Sub"],
+				tools: [],
+				messages: sessionManager.buildSessionContext().messages,
+			},
+			streamFn: (streamModel, context, streamOptions) => mock.stream(streamModel, context, streamOptions),
+			convertToLlm,
+		});
+		const sub = new AgentSession({
+			agent,
+			sessionManager,
+			settings,
+			modelRegistry,
+			agentId: options.id,
+			agentRegistry: options.registry,
+		});
+		subSessions.push(sub);
+		return { session: sub, mock };
+	}
+
+	/** A session whose model requests one `session_move`; the default relocator records each call and moves. */
+	function barrierSetup(options: { name: string; registry?: AgentRegistry }) {
+		const fx = setup({
+			name: options.name,
+			responses: [{ content: [call("m1", "session_move")] }, { content: ["first"] }, { content: ["second"] }],
+			tools: ({ getSession, srcDir, events }) => [
+				sessionMoveTool(getSession, () => path.join(path.dirname(srcDir), "dst"), events),
+			],
+			agentRegistry: options.registry,
+		});
+		const artifactsDir = (fx.session.sessionManager.getSessionFile() as string).slice(0, -".jsonl".length);
+		fs.mkdirSync(artifactsDir, { recursive: true });
+		return { ...fx, artifactsDir };
+	}
+
+	/** Runs `before` synchronously at the relocation's hold, after its idle wait; resolves once the hold is taken. */
+	function atHold(target: AgentSession, before: () => void): Promise<void> {
+		const held = Promise.withResolvers<void>();
+		const real = target.holdRelocationAdmission.bind(target);
+		vi.spyOn(target, "holdRelocationAdmission").mockImplementationOnce(() => {
+			before();
+			const lease = real();
+			held.resolve();
+			return lease;
+		});
+		return held.promise;
+	}
+
+	function ircMessage(to: string, body: string): IrcMessage {
+		return { id: `msg-${to}`, from: "Peer", to, body, ts: Date.now() };
+	}
+
+	it("session move: a wake admitted just before the barrier refuses the move and names the agent", async () => {
+		const registry = new AgentRegistry();
+		const fx = barrierSetup({ name: "barrier-wake", registry });
+		const childGate = Promise.withResolvers<void>();
+		const child = subSession({
+			name: "barrier-wake",
+			id: "WakeChild",
+			registry,
+			handlers: [
+				async () => {
+					await childGate.promise;
+					return { content: ["woke"] };
+				},
+			],
+		});
+		const childFile = path.join(fx.artifactsDir, "WakeChild.jsonl");
+		registry.register({
+			id: "WakeChild",
+			displayName: "WakeChild",
+			kind: "sub",
+			parentId: AGENT_ID,
+			session: child.session,
+			sessionFile: childFile,
+			status: "idle",
+		});
+		// The delivery was admitted and handed off before the barrier: the wake is claimed, its status still idle.
+		void atHold(fx.session, () => {
+			void child.session.deliverIrcMessage(ircMessage("WakeChild", "wake-ping"));
+		});
+
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+
+		expect(fx.relocatorCalls).toEqual([]);
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir });
+		expect(results[0]?.reason).toContain("WakeChild");
+		expect(registry.get("WakeChild")?.sessionFile).toBe(childFile);
+
+		childGate.resolve();
+		await child.session.waitForIdle();
+	});
+
+	/** A parked descendant of `artifactsDir` in the global registry, revived into `build()` on demand. */
+	function parkedDescendant(artifactsDir: string, id: string, build: () => AgentSession): string {
+		const file = path.join(artifactsDir, `${id}.jsonl`);
+		fs.writeFileSync(file, `${id}\n`);
+		AgentRegistry.global().register({
+			id,
+			displayName: id,
+			kind: "sub",
+			parentId: AGENT_ID,
+			session: null,
+			sessionFile: file,
+			status: "parked",
+		});
+		AgentLifecycleManager.global().setPersistedSubagentReviverFactory(
+			async () => async () => build(),
+			() => 0,
+		);
+		return file;
+	}
+
+	it("session move: a task resume admitted just before the barrier refuses the move and names the subagent", async () => {
+		const fx = barrierSetup({ name: "barrier-resume" });
+		// The revived session still loads its deferred extensions, so the follow-up's submission is
+		// admitted (`hasAdmittedSubmission`) but has not started a turn when the relocation checks.
+		const extensionsLoaded = Promise.withResolvers<void>();
+		const childFile = parkedDescendant(fx.artifactsDir, "ResumeChild", () => {
+			const child = subSession({
+				name: "barrier-resume",
+				id: "ResumeChild",
+				handlers: [{ content: ["follow-up"] }],
+			});
+			child.session.setDeferredExtensionLoader(() => extensionsLoaded.promise);
+			return child.session;
+		});
+		// Pause the resume between its revival and its submission.
+		const lifecycle = AgentLifecycleManager.global();
+		const realEnsureLive = lifecycle.ensureLive.bind(lifecycle);
+		const revived = Promise.withResolvers<void>();
+		const resume = Promise.withResolvers<void>();
+		vi.spyOn(lifecycle, "ensureLive").mockImplementationOnce(async (id, options) => {
+			const live = await realEnsureLive(id, options);
+			revived.resolve();
+			await resume.promise;
+			return live;
+		});
+		const turn = runSubagentFollowUpTurn({
+			id: "ResumeChild",
+			agent: followUpAgent,
+			message: "continue",
+			structured: false,
+		});
+		await revived.promise;
+		const held = atHold(fx.session, () => {});
+
+		const run = fx.session.prompt("go");
+		await held;
+		resume.resolve();
+		await run;
+		await fx.session.waitForIdle();
+
+		expect(fx.relocatorCalls).toEqual([]);
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir });
+		expect(results[0]?.reason).toContain("ResumeChild");
+		expect(AgentRegistry.global().get("ResumeChild")?.sessionFile).toBe(childFile);
+
+		extensionsLoaded.resolve();
+		expect((await turn).exitCode).toBe(0);
+	});
+
+	it("session move: a task restore admitted just before the barrier refuses the move and names the subagent", async () => {
+		const fx = barrierSetup({ name: "barrier-restore" });
+		// A turn a crash cut off inside a tool call: no tool result, no exit record.
+		const interrupted = SessionManager.inMemory();
+		interrupted.appendMessage({ role: "user", content: "read it", timestamp: Date.now() });
+		interrupted.appendMessage({
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "a.ts" } }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "mock",
+			usage: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "toolUse",
+			timestamp: Date.now(),
+		});
+		let child: { session: AgentSession; mock: MockModel } | undefined;
+		const childFile = parkedDescendant(fx.artifactsDir, "RestoreChild", () => {
+			child = subSession({
+				name: "barrier-restore",
+				id: "RestoreChild",
+				sessionManager: interrupted,
+				handlers: [{ content: ["done after restore"] }],
+			});
+			const realRestore = child.session.restoreInterruptedTurn.bind(child.session);
+			vi.spyOn(child.session, "restoreInterruptedTurn").mockImplementation(async () => {
+				const scheduled = await realRestore();
+				restored.resolve();
+				return scheduled;
+			});
+			return child.session;
+		});
+		// Hold the restored turn's scheduled continuation (`retry()` waits 1 ms) before its turn starts.
+		const continuation = Promise.withResolvers<void>();
+		const realWait = scheduler.wait.bind(scheduler);
+		vi.spyOn(scheduler, "wait").mockImplementation(((delay: number, options?: Parameters<typeof realWait>[1]) =>
+			delay === 1 ? continuation.promise : realWait(delay, options)) as typeof scheduler.wait);
+		const restored = Promise.withResolvers<void>();
+		const turn = runSubagentFollowUpTurn({
+			id: "RestoreChild",
+			agent: followUpAgent,
+			message: "restore",
+			restore: true,
+			structured: false,
+		});
+		await restored.promise;
+		await flushMicrotasks();
+
+		// Refused, not stalled: the move settles while the continuation is still held.
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+
+		expect(child?.mock.calls).toHaveLength(0);
+		expect(fx.relocatorCalls).toEqual([]);
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.srcDir);
+		const results = moveResults(fx.session);
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({ outcome: "failed", cwd: fx.srcDir });
+		expect(results[0]?.reason).toContain("RestoreChild");
+		expect(AgentRegistry.global().get("RestoreChild")?.sessionFile).toBe(childFile);
+
+		continuation.resolve();
+		expect((await turn).exitCode).toBe(0);
+	});
+
+	it("session move: a peer message to the session admitted just before the barrier starts its turn only after the move", async () => {
+		// The `session_move` path delivers into a session that is still inside its move fence, so a
+		// claimed wake of the relocating root arises on host relocations (`/move`, ACP), which take
+		// the barrier from an idle session (design D2/D3): drive that hold directly.
+		const registry = new AgentRegistry();
+		const fx = setup({
+			name: "barrier-root",
+			responses: [{ content: ["ready"] }, { content: ["woken"] }],
+			tools: () => [],
+			agentRegistry: registry,
+		});
+		registry.register({
+			id: AGENT_ID,
+			displayName: AGENT_ID,
+			kind: "main",
+			session: fx.session,
+			sessionFile: null,
+			status: "idle",
+		});
+		await fx.session.prompt("go");
+		await fx.session.waitForIdle();
+
+		// Admitted and handed off before the barrier: the wake is claimed, its turn not dispatched yet.
+		const delivered = fx.session.deliverIrcMessage(ircMessage(AGENT_ID, "root-ping"));
+		const lease = fx.session.holdRelocationAdmission();
+		expect(await delivered).toBe("woken");
+		await lease.ready;
+		await flushMicrotasks();
+		expect(fx.events.filter(event => event === "provider-request")).toHaveLength(1);
+
+		await fx.session.moveSession(fx.dstDir, fx.dstSessions);
+		await flushMicrotasks();
+		expect(fx.events.filter(event => event === "provider-request")).toHaveLength(1);
+		lease[Symbol.dispose]();
+		await flushMicrotasks();
+		await fx.session.waitForIdle();
+
+		expect(fx.session.sessionManager.getCwd()).toBe(fx.dstDir);
+		expect(callsMentioning(fx.mock, "root-ping")).toBe(1);
+		expect(fx.requestCwds).toEqual([fx.srcDir, fx.dstDir]);
 	});
 });
 

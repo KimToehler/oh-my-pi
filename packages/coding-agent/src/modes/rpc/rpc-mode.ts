@@ -41,6 +41,7 @@ import {
 } from "../../extensibility/skills";
 import { type Theme, theme } from "@oh-my-pi/pi-tui/theme";
 import { AgentLifecycleManager } from "../../registry/agent-lifecycle";
+import { AgentRegistry } from "../../registry/agent-registry";
 import {
 	type WordCompletionEngine,
 	type WordCompletionMethod,
@@ -831,9 +832,13 @@ export async function handleRpcSteerSubagent(
 	const notRunning = `Subagent not running: ${subagentId}`;
 	const owned = resolveOwnedLiveSubagent(subagentRegistry, subagentId);
 	if (!owned) return notRunning;
+	// One ticket from before the (non-reviving) ensureLive until `session.prompt` is
+	// called, so a relocation's running-work check sees the steered turn.
+	const admissions = AgentRegistry.global().relocationAdmission;
+	using ticket = admissions.tryAdmit(subagentId) ?? (await admissions.admit(subagentId));
 	let session: AgentSession;
 	try {
-		session = await AgentLifecycleManager.global().ensureLive(subagentId);
+		session = await AgentLifecycleManager.global().ensureLive(subagentId, { admission: ticket });
 	} catch {
 		return notRunning;
 	}
@@ -853,6 +858,7 @@ export async function handleRpcSteerSubagent(
 			logger.warn("steer_subagent message failed", { subagentId, error: String(err) });
 		},
 	);
+	ticket[Symbol.dispose]();
 	try {
 		await accepted.promise;
 		return undefined;

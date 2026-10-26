@@ -25,7 +25,9 @@
 import * as fs from "node:fs/promises";
 import { logger, untilAborted } from "@oh-my-pi/pi-utils";
 import type { AgentSession } from "../session/agent-session";
+import type { PromptOptions } from "../session/agent-session-types";
 import { trackLateCleanup } from "../utils/late-cleanup";
+import type { AdmissionTicket } from "./relocation-admission";
 import {
 	type AgentRef,
 	type AgentRefExpectation,
@@ -375,8 +377,18 @@ export class AgentLifecycleManager {
 	 *
 	 * Never returns a session that is mid-dispose: an in-flight park is either
 	 * cancelled (session still live) or awaited to completion before revive.
+	 *
+	 * Waits while a relocation holds the agent's tree (design D2 of
+	 * relocation-admission-lease), so a revival reads the transcript at its
+	 * settled path. A caller that goes on to start a turn passes its own
+	 * `admission` ticket and keeps it open until that turn is visible;
+	 * otherwise this call takes a ticket and holds it until it returns.
 	 */
-	async ensureLive(id: string): Promise<AgentSession> {
+	async ensureLive(id: string, options?: { admission?: AdmissionTicket }): Promise<AgentSession> {
+		const admissions = this.#registry.relocationAdmission;
+		// Admit without yielding when no relocation claims the agent, so a caller
+		// in the same tick as a park still reaches its cancel window below.
+		using _admission = options?.admission ? undefined : (admissions.tryAdmit(id) ?? (await admissions.admit(id)));
 		const park = this.#parks.get(id);
 		if (park) {
 			const parked = this.#registry.get(id);
@@ -407,7 +419,8 @@ export class AgentLifecycleManager {
 		if (ref.status === "aborted") ref = await this.#reopen(id, ref);
 		if (ref.session) return ref.session;
 		const inflight = this.#revivals.get(id);
-		if (inflight?.ref === ref) return inflight.promise;
+		// Awaited so this call's ticket covers the joined revival (`using` releases on return).
+		if (inflight?.ref === ref) return await inflight.promise;
 		const revival = this.#resolveAndRevive(id, ref);
 		const pending: RevivingAgent = { ref, promise: revival };
 		this.#revivals.set(id, pending);
@@ -416,6 +429,33 @@ export class AgentLifecycleManager {
 		} finally {
 			if (this.#revivals.get(id) === pending) this.#revivals.delete(id);
 		}
+	}
+
+	/**
+	 * Revive `id` if needed and prompt its session, holding one admission
+	 * ticket from before the revival until `session.prompt` is called (or
+	 * `beforePrompt` rejects), so a relocation never reads a half-started turn
+	 * (design D2 of relocation-admission-lease). `beforePrompt` runs
+	 * synchronously right after the revival; returning `false` suppresses the
+	 * prompt. Resolves with the prompt's own result.
+	 */
+	async promptLive(
+		id: string,
+		text: string,
+		options: PromptOptions,
+		beforePrompt?: (session: AgentSession) => boolean,
+	): Promise<void> {
+		const admissions = this.#registry.relocationAdmission;
+		const ticket = admissions.tryAdmit(id) ?? (await admissions.admit(id));
+		let prompted: Promise<unknown>;
+		try {
+			const session = await this.ensureLive(id, { admission: ticket });
+			if (beforePrompt && !beforePrompt(session)) return;
+			prompted = session.prompt(text, options);
+		} finally {
+			ticket[Symbol.dispose]();
+		}
+		await prompted;
 	}
 
 	/**

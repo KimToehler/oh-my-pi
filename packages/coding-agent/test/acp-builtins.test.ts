@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { afterEach, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -12,6 +12,10 @@ import type {
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins";
 import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import type { RelocationLease } from "@oh-my-pi/pi-coding-agent/registry/relocation-admission";
 import type { AgentSession, AsyncJobTree } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionDumpArchive } from "@oh-my-pi/pi-coding-agent/session/session-dump-format";
 import type { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
@@ -59,6 +63,7 @@ interface FakeAcpBuiltinSession {
 	newSession(opts?: { drop?: boolean; parentSession?: string }): Promise<boolean>;
 	switchSession(sessionPath: string): Promise<boolean>;
 	moveSession(newCwd: string, targetSessionDir?: string): Promise<void>;
+	holdRelocationAdmission(): RelocationLease;
 	markMovedFromEmptySessionFile(sessionFile: string): void;
 	fork(): Promise<boolean>;
 	handoff(instr?: string): Promise<{ document: string; savedPath?: string } | undefined>;
@@ -87,6 +92,9 @@ interface FakeAcpBuiltinSession {
 	listResetCredits: () => Promise<ResetCreditAccountStatus[]>;
 	redeemResetCredit: (target: ResetCreditTarget) => Promise<ResetCreditRedeemOutcome>;
 }
+
+/** Registry id of the fake session's own agent. */
+const FAKE_AGENT_ID = "FakeMain";
 
 function createRuntime() {
 	const settings = Settings.isolated();
@@ -148,6 +156,13 @@ function createRuntime() {
 		async moveSession(newCwd: string, _targetSessionDir?: string) {
 			if (!fakeSessionManager) throw new Error("fake session manager not initialized");
 			await fakeSessionManager.moveTo(newCwd);
+		},
+		// The real barrier on the global registry, over this session's agent and its subagents.
+		holdRelocationAdmission() {
+			return AgentRegistry.global().relocationAdmission.hold({
+				rootId: FAKE_AGENT_ID,
+				isMember: ref => ref.id === FAKE_AGENT_ID || ref.parentId === FAKE_AGENT_ID,
+			});
 		},
 		markMovedFromEmptySessionFile(sessionFile: string) {
 			this._movedFromEmptySessionFile = path.resolve(sessionFile);
@@ -1789,5 +1804,335 @@ describe("/move preflight flush", () => {
 			setProjectDir(originalProjectDir);
 			await fs.rm(targetDir, { recursive: true, force: true });
 		}
+	});
+});
+
+/**
+ * Peer messages wait while a headless relocation holds the session's agent tree
+ * (relocation-admission-lease, design D3): `relocateHeadlessSession` takes the hold
+ * around settings flush, `moveSession`, rescope and rollback. The fake session is not
+ * a real AgentSession, so the registered stubs record deliveries (a wake is a delivery).
+ */
+describe("headless relocation admission", () => {
+	afterEach(() => {
+		AgentLifecycleManager.resetGlobalForTests();
+		AgentRegistry.resetGlobalForTests();
+	});
+
+	interface Delivery {
+		to: string;
+		body: string;
+		/** The session manager's cwd at the moment of delivery. */
+		cwd: string;
+	}
+
+	interface Peers {
+		bus: IrcBus;
+		delivered: Delivery[];
+		revivals: string[];
+		/** Ordered log shared by deliveries and test hooks. */
+		events: string[];
+	}
+
+	/** Register FakeMain, an idle subagent `Idle` and a parked subagent `Parked` in the global registry. */
+	function setupPeers(sessionManager: { getCwd(): string }): Peers {
+		AgentLifecycleManager.resetGlobalForTests();
+		AgentRegistry.resetGlobalForTests();
+		const registry = AgentRegistry.global();
+		const lifecycle = AgentLifecycleManager.global();
+		const delivered: Delivery[] = [];
+		const revivals: string[] = [];
+		const events: string[] = [];
+		const stub = (id: string): AgentSession =>
+			({
+				deliverIrcMessage: async (message: { body: string }) => {
+					delivered.push({ to: id, body: message.body, cwd: sessionManager.getCwd() });
+					events.push(`deliver:${id}`);
+					return "woken" as const;
+				},
+				subscribe: () => () => {},
+				dispose: async () => {},
+			}) as unknown as AgentSession;
+		registry.register({
+			id: FAKE_AGENT_ID,
+			displayName: FAKE_AGENT_ID,
+			kind: "main",
+			session: stub(FAKE_AGENT_ID),
+			sessionFile: null,
+			status: "idle",
+		});
+		registry.register({
+			id: "Idle",
+			displayName: "Idle",
+			kind: "sub",
+			parentId: FAKE_AGENT_ID,
+			session: stub("Idle"),
+			sessionFile: "/tmp/acp-relocation-admission/Idle.jsonl",
+			status: "idle",
+		});
+		registry.register({
+			id: "Parked",
+			displayName: "Parked",
+			kind: "sub",
+			parentId: FAKE_AGENT_ID,
+			session: null,
+			sessionFile: "/tmp/acp-relocation-admission/Parked.jsonl",
+			status: "parked",
+		});
+		lifecycle.setPersistedSubagentReviverFactory(
+			async ref => async () => {
+				revivals.push(ref.id);
+				events.push(`revive:${ref.id}`);
+				return stub(ref.id);
+			},
+			() => 0,
+		);
+		return { bus: new IrcBus(registry, lifecycle), delivered, revivals, events };
+	}
+
+	/** A step that parks its caller until the test opens it. */
+	function createGate() {
+		const entered = Promise.withResolvers<void>();
+		const open = Promise.withResolvers<void>();
+		return {
+			entered: entered.promise,
+			/** Called by the paused step: signal arrival, then wait for `open`. */
+			async pause(): Promise<void> {
+				entered.resolve();
+				await open.promise;
+			},
+			open: () => open.resolve(),
+		};
+	}
+
+	function track<T>(promise: Promise<T>): { readonly settled: boolean } {
+		const state = { settled: false };
+		void promise.then(
+			() => {
+				state.settled = true;
+			},
+			() => {
+				state.settled = true;
+			},
+		);
+		return state;
+	}
+
+	/** Drain microtasks and a few file-system turns; nothing here waits on a timer. */
+	async function flush(): Promise<void> {
+		for (let i = 0; i < 5; i++) {
+			for (let j = 0; j < 20; j++) await Promise.resolve();
+			await fs.stat(os.tmpdir());
+		}
+	}
+
+	async function withDirs(fn: (startDir: string, targetDir: string) => Promise<void>): Promise<void> {
+		const startDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-adm-start-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-adm-target-"));
+		const originalProjectDir = getProjectDir();
+		try {
+			await fn(startDir, targetDir);
+		} finally {
+			setProjectDir(originalProjectDir);
+			await fs.rm(startDir, { recursive: true, force: true });
+			await fs.rm(targetDir, { recursive: true, force: true });
+		}
+	}
+
+	it("/move: a peer message during a paused headless rescope wakes no turn until the rescope finishes", async () => {
+		await withDirs(async (startDir, targetDir) => {
+			const { runtime, fakeSessionManager } = createRuntime();
+			fakeSessionManager._cwd = startDir;
+			const peers = setupPeers(fakeSessionManager);
+			runtime.notifyConfigChanged = () => {
+				peers.events.push("moved");
+			};
+			const gate = createGate();
+			const original = runtime.settings.reloadForCwd.bind(runtime.settings);
+			const reloadForCwd = spyOn(runtime.settings, "reloadForCwd").mockImplementation(async cwd => {
+				await gate.pause();
+				return original(cwd);
+			});
+			try {
+				const move = executeAcpBuiltinSlashCommand(`/move ${targetDir}`, runtime);
+				await gate.entered;
+				const send = track(peers.bus.send({ from: "Peer", to: FAKE_AGENT_ID, body: "ping" }));
+				await flush();
+				expect(peers.delivered).toEqual([]);
+				expect(send.settled).toBe(false);
+
+				gate.open();
+				expect(await move).toEqual({ consumed: true });
+				await flush();
+				expect(send.settled).toBe(true);
+				expect(peers.events).toEqual(["moved", `deliver:${FAKE_AGENT_ID}`]);
+				expect(peers.delivered).toEqual([{ to: FAKE_AGENT_ID, body: "ping", cwd: targetDir }]);
+			} finally {
+				reloadForCwd.mockRestore();
+			}
+		});
+	});
+
+	it("/wt: a peer message during a paused headless rescope wakes no turn until the rescope finishes", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-wt-adm-"));
+		const repoDir = path.join(root, "repo");
+		const originalProjectDir = getProjectDir();
+		const originalWorktreeDir = process.env.OMP_WORKTREE_DIR;
+		process.env.OMP_WORKTREE_DIR = path.join(root, "wt");
+		const git = async (...args: string[]) => {
+			const proc = Bun.spawn(["git", ...args], { cwd: repoDir, stdout: "pipe", stderr: "pipe" });
+			const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+			expect(code).toBe(0);
+			return stdout.trim();
+		};
+		try {
+			await fs.mkdir(repoDir, { recursive: true });
+			await git("init", "-q", "-b", "main");
+			await git("config", "user.email", "t@example.com");
+			await git("config", "user.name", "t");
+			await Bun.write(path.join(repoDir, "tracked.txt"), "committed\n");
+			await git("add", "-A");
+			await git("commit", "-qm", "init");
+			const { runtime, session, fakeSessionManager } = createRuntime();
+			fakeSessionManager._cwd = repoDir;
+			const peers = setupPeers(fakeSessionManager);
+			runtime.notifyConfigChanged = () => {
+				peers.events.push("moved");
+			};
+			const gate = createGate();
+			const refresh = spyOn(session, "refreshSkillsAndCommands").mockImplementation(async () => {
+				await gate.pause();
+			});
+			try {
+				const move = executeAcpBuiltinSlashCommand("/wt feature/adm", runtime);
+				await gate.entered;
+				const send = track(peers.bus.send({ from: "Peer", to: FAKE_AGENT_ID, body: "ping" }));
+				await flush();
+				expect(peers.delivered).toEqual([]);
+				expect(send.settled).toBe(false);
+
+				gate.open();
+				expect(await move).toEqual({ consumed: true });
+				await flush();
+				expect(send.settled).toBe(true);
+				expect(peers.events).toEqual(["moved", `deliver:${FAKE_AGENT_ID}`]);
+				expect(peers.delivered).toHaveLength(1);
+				expect(peers.delivered[0]!.body).toBe("ping");
+				expect(peers.delivered[0]!.cwd).toBe(fakeSessionManager._movedTo!);
+				expect(fakeSessionManager._movedTo).not.toBe(repoDir);
+			} finally {
+				refresh.mockRestore();
+			}
+		} finally {
+			setProjectDir(originalProjectDir);
+			if (originalWorktreeDir === undefined) delete process.env.OMP_WORKTREE_DIR;
+			else process.env.OMP_WORKTREE_DIR = originalWorktreeDir;
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("/move: peer messages during a paused moveSession wake no turn and revive no subagent until the relocation settles", async () => {
+		await withDirs(async (startDir, targetDir) => {
+			const { runtime, session, fakeSessionManager } = createRuntime();
+			fakeSessionManager._cwd = startDir;
+			const peers = setupPeers(fakeSessionManager);
+			const gate = createGate();
+			const originalMove = session.moveSession.bind(session);
+			const moveSession = spyOn(session, "moveSession").mockImplementation(async (newCwd, targetSessionDir) => {
+				await gate.pause();
+				await originalMove(newCwd, targetSessionDir);
+			});
+			try {
+				const move = executeAcpBuiltinSlashCommand(`/move ${targetDir}`, runtime);
+				await gate.entered;
+				const toMain = track(peers.bus.send({ from: "Peer", to: FAKE_AGENT_ID, body: "to-main" }));
+				const toParked = track(peers.bus.send({ from: "Peer", to: "Parked", body: "to-parked" }));
+				await flush();
+				expect(peers.delivered).toEqual([]);
+				expect(peers.revivals).toEqual([]);
+				expect(toMain.settled).toBe(false);
+				expect(toParked.settled).toBe(false);
+
+				gate.open();
+				expect(await move).toEqual({ consumed: true });
+				await flush();
+				expect(toMain.settled).toBe(true);
+				expect(toParked.settled).toBe(true);
+				expect(peers.revivals).toEqual(["Parked"]);
+				expect(peers.delivered.map(d => `${d.to}:${d.body}`).sort()).toEqual([
+					`${FAKE_AGENT_ID}:to-main`,
+					"Parked:to-parked",
+				]);
+				expect(peers.delivered.every(d => d.cwd === targetDir)).toBe(true);
+			} finally {
+				moveSession.mockRestore();
+			}
+		});
+	});
+
+	it("/move: a failed headless rescope rolls back and then delivers the held message in the unchanged cwd", async () => {
+		await withDirs(async (startDir, targetDir) => {
+			const { runtime, fakeSessionManager } = createRuntime();
+			fakeSessionManager._cwd = startDir;
+			const peers = setupPeers(fakeSessionManager);
+			const gate = createGate();
+			const original = runtime.settings.reloadForCwd.bind(runtime.settings);
+			let calls = 0;
+			const reloadForCwd = spyOn(runtime.settings, "reloadForCwd").mockImplementation(async cwd => {
+				// Only the rescope into the target fails; the rollback rescope runs for real.
+				if (calls++ > 0) return original(cwd);
+				await gate.pause();
+				throw new Error("rescope failed");
+			});
+			try {
+				const move = executeAcpBuiltinSlashCommand(`/move ${targetDir}`, runtime);
+				await gate.entered;
+				const send = track(peers.bus.send({ from: "Peer", to: "Idle", body: "held" }));
+				await flush();
+				expect(peers.delivered).toEqual([]);
+				expect(send.settled).toBe(false);
+
+				gate.open();
+				expect(await move).toEqual({ consumed: true, failed: true });
+				await flush();
+				expect(calls).toBe(2);
+				expect(fakeSessionManager.getCwd()).toBe(startDir);
+				expect(send.settled).toBe(true);
+				expect(peers.delivered).toEqual([{ to: "Idle", body: "held", cwd: startDir }]);
+			} finally {
+				reloadForCwd.mockRestore();
+			}
+		});
+	});
+
+	it("/move: a /move refused by moveSession delivers the held message", async () => {
+		await withDirs(async (startDir, targetDir) => {
+			const { output, runtime, session, fakeSessionManager } = createRuntime();
+			fakeSessionManager._cwd = startDir;
+			const peers = setupPeers(fakeSessionManager);
+			const gate = createGate();
+			const moveSession = spyOn(session, "moveSession").mockImplementation(async () => {
+				await gate.pause();
+				throw new Error("move refused");
+			});
+			try {
+				const move = executeAcpBuiltinSlashCommand(`/move ${targetDir}`, runtime);
+				await gate.entered;
+				const send = track(peers.bus.send({ from: "Peer", to: "Idle", body: "held" }));
+				await flush();
+				expect(peers.delivered).toEqual([]);
+				expect(send.settled).toBe(false);
+
+				gate.open();
+				expect(await move).toEqual({ consumed: true, failed: true });
+				expect(output[0]).toContain("move refused");
+				await flush();
+				expect(fakeSessionManager.getCwd()).toBe(startDir);
+				expect(send.settled).toBe(true);
+				expect(peers.delivered).toEqual([{ to: "Idle", body: "held", cwd: startDir }]);
+			} finally {
+				moveSession.mockRestore();
+			}
+		});
 	});
 });
