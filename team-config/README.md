@@ -201,12 +201,14 @@ artifact changed after the review (`stale`; ticking tasks does not count). Re-ru
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
 
-When a task names a worktree for the change, `/opsx-apply` implements only while the session runs inside it. Anywhere
-else, it creates a missing worktree (once the change folder is committed), ticks nothing and asks you to type
-`/move <worktree>` and then `/opsx-apply <change>`, because relative paths and task ticks resolve against the session's
-directory. `/move` works in the terminal UI and over ACP (IntelliJ) and keeps the chat; an ACP client that reloads the
-chat reopens it in the worktree it was moved to, and a chat whose worktree was removed reopens in the project directory.
-Do not use `/wt` here: it creates its own worktree outside `.worktrees/` with a generated branch.
+When a task names a worktree for the change, `/opsx-apply` implements only while the session runs inside it, because
+relative paths and task ticks resolve against the session's directory. Anywhere else, the agent moves the session there
+itself with the `session_move` tool, creating a missing worktree with the task's branch and base (once the change folder
+is committed), and continues the command in the worktree; it ticks nothing before the move. Only when `session_move` is
+unavailable or fails does it ask you to type `/move <worktree>` and then `/opsx-apply <change>`. `/move` works in the
+terminal UI and over ACP (IntelliJ) and keeps the chat; an ACP client that reloads the chat reopens it in the worktree it
+was moved to, and a chat whose worktree was removed reopens in the project directory. Do not use `/wt` here: it creates
+its own worktree outside `.worktrees/` with a generated branch.
 
 The team validator enforces the proposal sections (`## Why`, `## What Changes` and `## Impact` with content outside HTML
 comments, and `## Capabilities` without template placeholders; its subsections may stay empty), the `Negative control`
@@ -226,19 +228,21 @@ telemetry setting.
 ### Bumping OpenSpec
 
 `team-config/openspec-version` is the single pin; the deploy check reads it.
-`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are verbatim output of that version and
-stay standalone so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version, with one
+team addition: step 4 of `opsx-apply.md` ("Run in the change's worktree"; the later steps are renumbered). They stay
+standalone so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then
 regenerate the commands with it and compare:
 
 ```sh
 v=$(cat team-config/openspec-version)
 tmp=$(mktemp -d) && git -C "$tmp" init -q
 DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun "@fission-ai/openspec@$v" init "$tmp" --tools oh-my-pi --profile core --no-animation
-diff -r "$tmp/.omp/commands" team-config/agent/commands   # empty output = no drift
+diff -r "$tmp/.omp/commands" team-config/agent/commands   # only opsx-apply.md step 4 and its renumbering = no drift
 ```
 
-Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/` and rerun the diff. Update the version in the
-New machine install line and in Provenance, install the new CLI, and redeploy. Never hand-edit the six command files.
+Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply step 4 of `opsx-apply.md` from the
+previous version (`git diff` shows it as removed), and rerun the diff. Update the version in the New machine install line
+and in Provenance, install the new CLI, and redeploy. Hand-edit the command files only for that team addition.
 
 ## Changing the team config
 
