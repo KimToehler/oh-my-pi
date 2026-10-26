@@ -326,6 +326,8 @@ describe("runSubprocess yield reminders", () => {
 		const busyWaitStarted = Promise.withResolvers<void>();
 		const retryStarted = Promise.withResolvers<void>();
 		const retryProviderGate = Promise.withResolvers<void>();
+		const reminderStarted = Promise.withResolvers<void>();
+		const reminderProviderGate = Promise.withResolvers<void>();
 		let prompts = 0;
 		let streaming = false;
 		const yieldTool = new YieldTool({
@@ -336,19 +338,28 @@ describe("runSubprocess yield reminders", () => {
 			settings: Settings.isolated(),
 			getLastAssistantText: () => undefined,
 		});
-		const session = createMockSession(async ({ emit }) => {
+		const session = createMockSession(async ({ emit, state }) => {
 			prompts++;
 			streaming = true;
 			if (prompts === 1) throw new AgentBusyError("wake turn is running");
-			retryStarted.resolve();
-			await retryProviderGate.promise;
+			if (prompts === 2) {
+				retryStarted.resolve();
+				await retryProviderGate.promise;
+				const assistant = createAssistantStopMessage("did some work");
+				state.messages.push(assistant);
+				emit({ type: "message_end", message: assistant });
+				streaming = false;
+				return;
+			}
+			reminderStarted.resolve();
+			await reminderProviderGate.promise;
 			emit({
 				type: "tool_execution_end",
-				toolCallId: "tool-retry",
+				toolCallId: "tool-reminder",
 				toolName: "yield",
 				result: {
 					content: [{ type: "text", text: "Result submitted." }],
-					details: { status: "success", data: { retry: true } },
+					details: { status: "success", data: { reminder: true } },
 				},
 				isError: false,
 			});
@@ -372,8 +383,16 @@ describe("runSubprocess yield reminders", () => {
 			session,
 			sessionFile: "/tmp/root-session/subagent-admission-retry.jsonl",
 		});
+		const runningWork = () =>
+			findRunningSessionWork({
+				sessionFile: "/tmp/root-session.jsonl",
+				agentId: "Main",
+				asyncJobManager: undefined,
+				registry,
+			}).agentIds;
 		let firstLease: RelocationLease | undefined;
 		let secondLease: RelocationLease | undefined;
+		let reminderLease: RelocationLease | undefined;
 		try {
 			const turn = runSubagentFollowUpTurn({
 				...baseOptions,
@@ -395,23 +414,33 @@ describe("runSubprocess yield reminders", () => {
 
 			secondLease = admissions.hold(tree);
 			await secondLease.ready;
-			expect(
-				findRunningSessionWork({
-					sessionFile: "/tmp/root-session.jsonl",
-					agentId: "Main",
-					asyncJobManager: undefined,
-					registry,
-				}).agentIds,
-			).toEqual(["subagent-admission-retry"]);
+			expect(runningWork()).toEqual(["subagent-admission-retry"]);
 
 			secondLease[Symbol.dispose]();
 			secondLease = undefined;
 			retryProviderGate.resolve();
+			await reminderStarted.promise;
+			expect(prompts).toBe(3);
+
+			reminderLease = admissions.hold(tree);
+			let reminderLeaseReady = false;
+			void reminderLease.ready.then(() => {
+				reminderLeaseReady = true;
+			});
+			for (let i = 0; i < 20; i++) await Promise.resolve();
+			expect(reminderLeaseReady).toBe(true);
+			expect(runningWork()).toEqual(["subagent-admission-retry"]);
+
+			reminderLease[Symbol.dispose]();
+			reminderLease = undefined;
+			reminderProviderGate.resolve();
 			expect((await turn).exitCode).toBe(0);
 		} finally {
 			firstLease?.[Symbol.dispose]();
 			secondLease?.[Symbol.dispose]();
+			reminderLease?.[Symbol.dispose]();
 			retryProviderGate.resolve();
+			reminderProviderGate.resolve();
 			registry.unregister("subagent-admission-retry");
 		}
 	});

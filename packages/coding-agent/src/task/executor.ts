@@ -2615,7 +2615,7 @@ async function driveSessionToResult(
 		text: string,
 		promptOptions: PromptOptions,
 		label: string,
-		{ forceFinalYield = false, onSubmitted }: { forceFinalYield?: boolean; onSubmitted?: () => void } = {},
+		{ forceFinalYield = false }: { forceFinalYield?: boolean } = {},
 	): Promise<void> => {
 		for (let attempt = 1; attempt <= MAX_PROMPT_DISPATCH_ATTEMPTS; attempt++) {
 			await beforeHandOff?.();
@@ -2623,7 +2623,7 @@ async function driveSessionToResult(
 			try {
 				const submitted = session.prompt(text, { ...promptOptions, runCommands: false, throwOnDrop: true });
 				// `prompt` records its admitted submission synchronously at the call.
-				onSubmitted?.();
+				handOff();
 				await awaitAbortable(submitted);
 				return;
 			} catch (err) {
@@ -2661,9 +2661,7 @@ async function driveSessionToResult(
 						await awaitAbortable(session.restoreInterruptedTurn());
 						handOff();
 					} else {
-						await dispatchPrompt(task, { attribution: "agent", solutionSpace }, "initial prompt", {
-							onSubmitted: handOff,
-						});
+						await dispatchPrompt(task, { attribution: "agent", solutionSpace }, "initial prompt");
 					}
 					break;
 				} catch (error) {
