@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
 import type { AsyncJobManager } from "../async/job-manager";
-import { AgentRegistry } from "../registry/agent-registry";
+import { type AgentRef, AgentRegistry } from "../registry/agent-registry";
 
 /** A model-requested session relocation, recorded by `session_move` and executed after the tool batch. */
 export interface SessionMoveRequest {
@@ -51,19 +51,48 @@ export interface RunningSessionWorkScope {
 	agentId: string | null | undefined;
 	/** The session's persisted file; its artifacts directory is the file path without `.jsonl`. */
 	sessionFile: string | null | undefined;
+	/** Further artifacts directories of the same session tree (a move's source or target). */
+	extraArtifactsDirs?: readonly string[];
 	/** Defaults to the process-wide registry. */
 	registry?: AgentRegistry;
 }
 
+/** A session's agent tree: its own agent and the subagents whose transcripts lie under its artifacts directories. */
+export interface SessionTree {
+	rootId: string | null | undefined;
+	/** Absolute artifacts directories (session file paths without `.jsonl`). */
+	artifactsDirs: readonly string[];
+}
+
 /** The artifacts directory of a session file: its path without the `.jsonl` suffix. */
-function artifactsDirOf(sessionFile: string | null | undefined): string | null {
+export function artifactsDirOf(sessionFile: string | null | undefined): string | null {
 	if (!sessionFile) return null;
 	return path.resolve(sessionFile.endsWith(".jsonl") ? sessionFile.slice(0, -".jsonl".length) : sessionFile);
 }
 
 /**
- * Own running async jobs plus running registry subagents whose session file lies inside this
- * session's artifacts directory (design D6). A subagent ref without a session file never counts.
+ * How `ref` belongs to `tree` (design D6 of session-move-tool): `"root"` for the session's own
+ * agent; `"descendant"` for a `sub` ref whose session file lies inside one of the tree's artifacts
+ * directories; otherwise `undefined` (no session file, an advisor or another kind, or a path
+ * outside every directory).
+ */
+export function sessionTreeMembership(
+	tree: SessionTree,
+	ref: Pick<AgentRef, "id" | "kind" | "sessionFile">,
+): "root" | "descendant" | undefined {
+	if (tree.rootId && ref.id === tree.rootId) return "root";
+	if (ref.kind !== "sub" || !ref.sessionFile) return undefined;
+	const file = path.resolve(ref.sessionFile);
+	for (const dir of tree.artifactsDirs) {
+		const relative = path.relative(dir, file);
+		if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) return "descendant";
+	}
+	return undefined;
+}
+
+/**
+ * Own running async jobs plus running registry subagents of this session's tree (design D6,
+ * {@link sessionTreeMembership}). A subagent ref without a session file never counts.
  * Reads the claimed registry status, so a stale `running` entry also counts.
  */
 export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningSessionWork {
@@ -80,12 +109,14 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 	const agentIds: string[] = [];
 	const artifactsDir = artifactsDirOf(scope.sessionFile);
 	if (artifactsDir) {
+		const tree: SessionTree = {
+			rootId: scope.agentId,
+			artifactsDirs: [artifactsDir, ...(scope.extraArtifactsDirs ?? [])],
+		};
 		const registry = scope.registry ?? AgentRegistry.global();
 		for (const ref of registry.list()) {
-			if (ref.kind !== "sub" || ref.status !== "running" || !ref.sessionFile) continue;
-			if (ref.id === scope.agentId || covered.has(ref.id)) continue;
-			const relative = path.relative(artifactsDir, path.resolve(ref.sessionFile));
-			if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) continue;
+			if (ref.status !== "running" || covered.has(ref.id)) continue;
+			if (sessionTreeMembership(tree, ref) !== "descendant") continue;
 			agentIds.push(ref.id);
 		}
 	}
