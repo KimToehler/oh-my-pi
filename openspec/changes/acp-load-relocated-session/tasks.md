@@ -18,7 +18,7 @@ Tests go in a new `packages/coding-agent/test/acp-session-resume-location.test.t
 
 ## 3. Documentation
 
-- [ ] 3.1 Replace the reload text in `team-config/README.md` (lines 207-208) and `team-config/agent/commands/opsx-apply.md` (lines 101-102): an ACP client that reloads the chat reopens it in the worktree it was moved to; a chat whose worktree was removed reopens in the project directory. Add a `### Fixed` entry under `## [Unreleased]` in `packages/coding-agent/CHANGELOG.md`: ACP clients reopen sessions moved into a worktree instead of failing with "load was cancelled", and `omp --resume` moves a session from a removed `.worktrees/` worktree into the checkout without asking. Verify: `! grep -rnE 'reopens (it )?in its (own )?project directory' team-config && awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' packages/coding-agent/CHANGELOG.md | grep -q 'load was cancelled'`
+- [x] 3.1 Replace the reload text in `team-config/README.md` (lines 207-208) and `team-config/agent/commands/opsx-apply.md` (lines 101-102): an ACP client that reloads the chat reopens it in the worktree it was moved to; a chat whose worktree was removed reopens in the project directory. Add a `### Fixed` entry under `## [Unreleased]` in `packages/coding-agent/CHANGELOG.md`: ACP clients reopen sessions moved into a worktree instead of failing with "load was cancelled", and `omp --resume` moves a session from a removed `.worktrees/` worktree into the checkout without asking. Verify: `! grep -rnE 'reopens (it )?in its (own )?project directory' team-config && awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' packages/coding-agent/CHANGELOG.md | grep -q 'load was cancelled'`
 
 ## 4. Final verification
 

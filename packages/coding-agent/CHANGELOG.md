@@ -27,6 +27,8 @@
 
 ### Fixed
 
+- Fixed ACP clients such as JetBrains IDEs failing to reopen a chat whose session was moved into a worktree with "load was cancelled"; the session now reopens in that worktree, a session whose worktree was removed moves into the project directory, and a session of another repository is refused with an error naming its directory
+- Fixed `omp --resume` asking (or failing without a terminal) to move a session from a removed `.worktrees/` worktree of the repository; it now moves into the current checkout without asking, like a removed `/wt` worktree
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
 - Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1
