@@ -4,7 +4,7 @@
  * session id. Driven over the raw NDJSON wire client with a real `AgentSession` and the mock provider; the tool is a
  * stand-in that records the request and stops the batch exactly as the real `session_move` tool does.
  */
-import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test";
+import { afterEach, describe, expect, it, setDefaultTimeout, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { type AgentTool } from "@oh-my-pi/pi-agent-core";
@@ -14,7 +14,10 @@ import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
@@ -34,6 +37,8 @@ afterEach(async () => {
 	for (const step of teardown.splice(0)) await step();
 	await cleanupHarnessState();
 	AsyncJobManager.resetForTests();
+	AgentLifecycleManager.resetGlobalForTests();
+	AgentRegistry.resetGlobalForTests();
 });
 
 interface MoveRig {
@@ -47,6 +52,8 @@ interface MoveRig {
 	modelCalls(): number;
 	/** Whether the move reservation was committed (a relocator was installed). */
 	requested: boolean[];
+	/** The relocator the ACP host installed on the session, for running outside `session_move`. */
+	relocate(targetPath: string): Promise<{ ok: boolean }>;
 }
 
 function contentText(content: unknown): string {
@@ -54,12 +61,17 @@ function contentText(content: unknown): string {
 	return "";
 }
 
-async function startMoveRig(version: 1 | 2, script: Record<number, MockResponse>): Promise<MoveRig> {
+async function startMoveRig(
+	version: 1 | 2,
+	script: Record<number, MockResponse>,
+	opts: { agentId?: string } = {},
+): Promise<MoveRig> {
 	const sessions: AgentSession[] = [];
 	const storages: AuthStorage[] = [];
 	const requested: boolean[] = [];
 	let calls = 0;
 	let current: AgentSession | undefined;
+	let installed: ((targetPath: string) => Promise<{ ok: boolean }>) | undefined;
 	const moveTool: AgentTool = {
 		name: "session_move",
 		label: "session_move",
@@ -94,6 +106,12 @@ async function startMoveRig(version: 1 | 2, script: Record<number, MockResponse>
 			settings: Settings.isolated({ "compaction.enabled": false, "retry.enabled": false }),
 			modelRegistry: new ModelRegistry(authStorage),
 			toolRegistry: new Map([[moveTool.name, moveTool]]),
+			agentId: opts.agentId,
+		});
+		const setRelocator = session.setSessionRelocator.bind(session);
+		spyOn(session, "setSessionRelocator").mockImplementation(relocator => {
+			installed = relocator ?? undefined;
+			setRelocator(relocator);
 		});
 		current = session;
 		sessions.push(session);
@@ -127,6 +145,10 @@ async function startMoveRig(version: 1 | 2, script: Record<number, MockResponse>
 		source: h.cwd,
 		modelCalls: () => calls,
 		requested,
+		relocate: targetPath => {
+			if (!installed) throw new Error("no relocator installed");
+			return installed(targetPath);
+		},
 	};
 }
 
@@ -186,6 +208,54 @@ describe("acp session move", () => {
 		expect(states.map(state => state.state)).toEqual(["running", "idle"]);
 		expect(states[1]!.stopReason).toBe("end_turn");
 		expect(states[1]!.index).toBeGreaterThan(chunkIndex(rig, "continued"));
+	});
+
+	it("acp session move: the acp relocator holds relocation admission until the rescope finishes", async () => {
+		// The relocator runs on its own, outside `session_move`'s outer hold, so only its own hold can defer a peer message.
+		const rig = await startMoveRig(1, {}, { agentId: "AcpMain" });
+		const registry = AgentRegistry.global();
+		registry.register({
+			id: "AcpMain",
+			displayName: "AcpMain",
+			kind: "main",
+			session: rig.session,
+			sessionFile: null,
+			status: "idle",
+		});
+		const bus = new IrcBus(registry, AgentLifecycleManager.global());
+		const entered = Promise.withResolvers<void>();
+		const open = Promise.withResolvers<void>();
+		const original = rig.session.refreshSkillsAndCommands.bind(rig.session);
+		const refresh = spyOn(rig.session, "refreshSkillsAndCommands").mockImplementation(async () => {
+			entered.resolve();
+			await open.promise;
+			await original();
+		});
+		try {
+			const relocation = rig.relocate(rig.target);
+			await entered.promise;
+			let sendSettled = false;
+			const send = bus.send({ from: "Peer", to: "AcpMain", body: "ping" }).then(receipt => {
+				sendSettled = true;
+				return receipt;
+			});
+			for (let i = 0; i < 5; i++) {
+				for (let j = 0; j < 20; j++) await Promise.resolve();
+				await fs.promises.stat(rig.source);
+			}
+			// The peer message woke no turn: the model was never called and the send is still pending.
+			expect(rig.modelCalls()).toBe(0);
+			expect(sendSettled).toBe(false);
+
+			open.resolve();
+			expect(await relocation).toEqual({ ok: true });
+			expect((await send).outcome).toBe("woken");
+			await rig.session.waitForIdle();
+			expect(rig.modelCalls()).toBe(1);
+			expect(rig.session.sessionManager.getCwd()).toBe(rig.target);
+		} finally {
+			refresh.mockRestore();
+		}
 	});
 
 	it("acp session move: closing the session clears the relocator", async () => {

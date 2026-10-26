@@ -1775,7 +1775,8 @@ export class CommandController {
 			return false;
 		}
 
-		return this.ctx.withBtwSessionMove(operation);
+		// Awaited here: `using` releases the hold when this frame returns.
+		return await this.ctx.withBtwSessionMove(operation);
 	}
 
 	/** Relocate only while #withSessionMove holds the BTW gate; false means no successful move. */

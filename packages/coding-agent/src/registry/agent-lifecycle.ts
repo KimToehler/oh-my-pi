@@ -419,7 +419,8 @@ export class AgentLifecycleManager {
 		if (ref.status === "aborted") ref = await this.#reopen(id, ref);
 		if (ref.session) return ref.session;
 		const inflight = this.#revivals.get(id);
-		if (inflight?.ref === ref) return inflight.promise;
+		// Awaited so this call's ticket covers the joined revival (`using` releases on return).
+		if (inflight?.ref === ref) return await inflight.promise;
 		const revival = this.#resolveAndRevive(id, ref);
 		const pending: RevivingAgent = { ref, promise: revival };
 		this.#revivals.set(id, pending);
