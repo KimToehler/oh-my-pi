@@ -33,7 +33,9 @@ export async function resolveResumeLocation(
 		const recordedCheckout = primaryCheckout(recorded);
 		const sameRepository =
 			sameDirectory || (recordedCheckout !== undefined && recordedCheckout === primaryCheckout(requestCwd));
-		return sameRepository ? { kind: "open", cwd: recorded } : { kind: "refuse", recordedCwd: recorded, missing: false };
+		return sameRepository
+			? { kind: "open", cwd: recorded }
+			: { kind: "refuse", recordedCwd: recorded, missing: false };
 	}
 	if (await SessionManager.isFromRemovedWorktree(session, requestCwd, sessionDir)) {
 		return { kind: "relocate", from: session.cwd, to: requestCwd };

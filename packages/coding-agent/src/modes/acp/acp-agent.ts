@@ -76,6 +76,7 @@ import { relocateHeadlessSession } from "../../session/headless-relocation";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import type { SessionInfo as StoredSessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
+import { resolveResumeLocation } from "../../session/session-resume-location";
 import type { SessionRelocationResult } from "../../session/session-move";
 import {
 	type AcpBuiltinSlashCommandResult,
@@ -362,6 +363,19 @@ function toV1McpServers(servers: v2.McpServer[] | undefined): McpServer[] {
 		}
 		return { name: server.name, command: server.command, args: server.args ?? [], env: server.env ?? [] };
 	});
+}
+
+/** Error for a session that cannot reopen for a request from `requestCwd`; `subject` names the session. */
+function resumeRefusal(
+	subject: string,
+	location: { recordedCwd: string; missing: boolean },
+	requestCwd: string,
+): Error {
+	return new Error(
+		location.missing
+			? `${subject} ${location.recordedCwd}, which no longer exists`
+			: `${subject} ${location.recordedCwd}, which is not in the git repository of ${path.resolve(requestCwd)}`,
+	);
 }
 
 function normalizeCreatedAcpSession(created: AgentSession | AcpSessionHandle): {
@@ -1811,7 +1825,7 @@ export class AcpAgent implements Agent {
 	async #loadManagedSession(sessionId: string, cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const existing = this.#sessions.get(sessionId);
 		if (existing) {
-			this.#assertMatchingCwd(existing.session, cwd);
+			await this.#liveReopenCwd(existing.session, cwd);
 			await this.#configureMcpServers(existing, mcpServers);
 			return existing;
 		}
@@ -1820,13 +1834,13 @@ export class AcpAgent implements Agent {
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return await this.#openStoredSession(storedSession.path, cwd, mcpServers, sessionId);
+		return await this.#openStoredSession(storedSession, cwd, mcpServers, sessionId);
 	}
 
 	async #resumeManagedSession(sessionId: string, cwd: string, mcpServers: McpServer[]): Promise<ManagedSessionRecord> {
 		const existing = this.#sessions.get(sessionId);
 		if (existing) {
-			this.#assertMatchingCwd(existing.session, cwd);
+			await this.#liveReopenCwd(existing.session, cwd);
 			await this.#configureMcpServers(existing, mcpServers);
 			return existing;
 		}
@@ -1835,18 +1849,18 @@ export class AcpAgent implements Agent {
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return await this.#openStoredSession(storedSession.path, cwd, mcpServers, sessionId);
+		return await this.#openStoredSession(storedSession, cwd, mcpServers, sessionId);
 	}
 
 	async #forkManagedSession(params: ForkSessionRequest): Promise<ManagedSessionRecord> {
-		const sourcePath = await this.#resolveForkSourceSessionPath(params.sessionId);
+		const source = await this.#resolveForkSource(params.sessionId, params.cwd);
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
-			await this.#createSession(path.resolve(params.cwd), {
+			await this.#createSession(source.cwd, {
 				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
 		try {
-			const success = await session.switchSession(sourcePath);
+			const success = await session.switchSession(source.sessionPath);
 			if (!success) {
 				throw new Error(`ACP session fork was cancelled: ${params.sessionId}`);
 			}
@@ -1862,13 +1876,15 @@ export class AcpAgent implements Agent {
 	}
 
 	async #openStoredSession(
-		sessionPath: string,
-		cwd: string,
+		storedSession: StoredSessionInfo,
+		requestCwd: string,
 		mcpServers: McpServer[],
 		sessionId: string,
 	): Promise<ManagedSessionRecord> {
+		const { cwd, sessionPath } = await this.#placeStoredSession(storedSession, requestCwd, sessionId);
+		// Assembled for the directory the session runs in (settings, rules, extensions), as `session/new` there would be.
 		const { session, setToolUIContext } = normalizeCreatedAcpSession(
-			await this.#createSession(path.resolve(cwd), {
+			await this.#createSession(cwd, {
 				interactivePrompts: this.#supportsFormElicitation,
 			}),
 		);
@@ -1882,6 +1898,30 @@ export class AcpAgent implements Agent {
 			throw error;
 		}
 		return await this.#registerPreparedSession(session, mcpServers, setToolUIContext);
+	}
+
+	/**
+	 * Where a stored session opens for a request from `requestCwd`: in its recorded directory when that is in
+	 * the request's repository, or in the request directory after moving it out of a removed worktree.
+	 */
+	async #placeStoredSession(
+		storedSession: Pick<StoredSessionInfo, "path" | "cwd">,
+		requestCwd: string,
+		sessionId: string,
+	): Promise<{ cwd: string; sessionPath: string }> {
+		const location = await resolveResumeLocation(storedSession, path.resolve(requestCwd));
+		switch (location.kind) {
+			case "open":
+				return { cwd: location.cwd, sessionPath: storedSession.path };
+			case "relocate": {
+				const moved = await SessionManager.openRelocated(storedSession.path, location.from, location.to);
+				const sessionPath = moved.getSessionFile() ?? storedSession.path;
+				await moved.close();
+				return { cwd: location.to, sessionPath };
+			}
+			case "refuse":
+				throw resumeRefusal(`ACP session ${sessionId} belongs to`, location, requestCwd);
+		}
 	}
 
 	async #registerPreparedSession(
@@ -2047,15 +2087,30 @@ export class AcpAgent implements Agent {
 		return record;
 	}
 
-	#assertMatchingCwd(session: AgentSession, cwd: string): void {
-		const expected = path.resolve(cwd);
-		const actual = path.resolve(session.sessionManager.getCwd());
-		if (actual !== expected) {
-			throw new Error(`ACP session ${session.sessionId} is already loaded for ${actual}, not ${expected}`);
+	/**
+	 * The directory an open session serves a request from `cwd` in: its live directory, when that is the request
+	 * directory or in its repository (after `/move` or `session_move` in this process). An open session is never
+	 * relocated, so any other directory is refused.
+	 */
+	async #liveReopenCwd(session: AgentSession, cwd: string): Promise<string> {
+		const live = session.sessionManager.getCwd();
+		const subject = `ACP session ${session.sessionId} is already loaded for`;
+		const location = await resolveResumeLocation(
+			{ path: session.sessionManager.getSessionFile() ?? "", cwd: live },
+			path.resolve(cwd),
+		);
+		switch (location.kind) {
+			case "open":
+				return location.cwd;
+			case "relocate":
+				throw resumeRefusal(subject, { recordedCwd: live, missing: true }, cwd);
+			case "refuse":
+				throw resumeRefusal(subject, location, cwd);
 		}
 	}
 
-	async #resolveForkSourceSessionPath(sessionId: string): Promise<string> {
+	/** The fork source's session file and the directory its fork runs in, for a request from `cwd`. */
+	async #resolveForkSource(sessionId: string, cwd: string): Promise<{ cwd: string; sessionPath: string }> {
 		const loaded = this.#sessions.get(sessionId);
 		if (loaded) {
 			if (isPromptTurnInFlight(loaded.promptTurn)) {
@@ -2066,14 +2121,14 @@ export class AcpAgent implements Agent {
 			if (!sessionPath) {
 				throw new Error(`ACP session cannot be forked before it is persisted: ${sessionId}`);
 			}
-			return sessionPath;
+			return { cwd: await this.#liveReopenCwd(loaded.session, cwd), sessionPath };
 		}
 
 		const storedSession = await this.#findStoredSessionById(sessionId);
 		if (!storedSession) {
 			throw new Error(`ACP session not found: ${sessionId}`);
 		}
-		return storedSession.path;
+		return await this.#placeStoredSession(storedSession, cwd, sessionId);
 	}
 
 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
@@ -3014,7 +3069,7 @@ export class AcpAgent implements Agent {
 		// naming scheme. Sessions written under a legacy/hashed project directory
 		// (the 17.2.5+ scheme reverted in #7656) live elsewhere, so fall back to a
 		// global by-id scan: the session id is globally unique, and
-		// #openStoredSession reopens the file with the request cwd. See #7779.
+		// #openStoredSession decides where the file reopens. See #7779.
 		return this.#findStoredSessionById(sessionId);
 	}
 

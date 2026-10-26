@@ -138,7 +138,11 @@ describe.skipIf(process.platform === "win32")("resume location", () => {
 		fs.mkdirSync(other);
 		await $`git init -q && git commit -q --allow-empty -m init`.cwd(other).quiet();
 		const session = await storedSession(other);
-		expect(await resolveResumeLocation(session, repo)).toEqual({ kind: "refuse", recordedCwd: other, missing: false });
+		expect(await resolveResumeLocation(session, repo)).toEqual({
+			kind: "refuse",
+			recordedCwd: other,
+			missing: false,
+		});
 	});
 
 	it("resume location: a missing directory outside the repository is refused as missing", async () => {
