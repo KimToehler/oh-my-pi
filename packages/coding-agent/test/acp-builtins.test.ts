@@ -12,6 +12,8 @@ import type {
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins";
 import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import type { RelocationLease } from "@oh-my-pi/pi-coding-agent/registry/relocation-admission";
 import type { AgentSession, AsyncJobTree } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionDumpArchive } from "@oh-my-pi/pi-coding-agent/session/session-dump-format";
 import type { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
@@ -59,6 +61,7 @@ interface FakeAcpBuiltinSession {
 	newSession(opts?: { drop?: boolean; parentSession?: string }): Promise<boolean>;
 	switchSession(sessionPath: string): Promise<boolean>;
 	moveSession(newCwd: string, targetSessionDir?: string): Promise<void>;
+	holdRelocationAdmission(): RelocationLease;
 	markMovedFromEmptySessionFile(sessionFile: string): void;
 	fork(): Promise<boolean>;
 	handoff(instr?: string): Promise<{ document: string; savedPath?: string } | undefined>;
@@ -87,6 +90,9 @@ interface FakeAcpBuiltinSession {
 	listResetCredits: () => Promise<ResetCreditAccountStatus[]>;
 	redeemResetCredit: (target: ResetCreditTarget) => Promise<ResetCreditRedeemOutcome>;
 }
+
+/** Registry id of the fake session's own agent. */
+const FAKE_AGENT_ID = "FakeMain";
 
 function createRuntime() {
 	const settings = Settings.isolated();
@@ -148,6 +154,13 @@ function createRuntime() {
 		async moveSession(newCwd: string, _targetSessionDir?: string) {
 			if (!fakeSessionManager) throw new Error("fake session manager not initialized");
 			await fakeSessionManager.moveTo(newCwd);
+		},
+		// The real barrier on the global registry, over this session's agent and its subagents.
+		holdRelocationAdmission() {
+			return AgentRegistry.global().relocationAdmission.hold({
+				rootId: FAKE_AGENT_ID,
+				isMember: ref => ref.id === FAKE_AGENT_ID || ref.parentId === FAKE_AGENT_ID,
+			});
 		},
 		markMovedFromEmptySessionFile(sessionFile: string) {
 			this._movedFromEmptySessionFile = path.resolve(sessionFile);

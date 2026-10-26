@@ -1760,8 +1760,14 @@ export class CommandController {
 		return created;
 	}
 
-	/** Save source settings before acquiring the gate for a complete relocation operation. */
+	/**
+	 * Hold the session tree's relocation admission (relocation-admission-lease, design D3), save
+	 * source settings, then acquire the gate for a complete relocation operation. Peer messages
+	 * and revivals for the tree wait until the whole operation, rollback included, has settled.
+	 */
 	async #withSessionMove(operation: () => Promise<boolean>): Promise<boolean> {
+		using admission = this.ctx.session.holdRelocationAdmission();
+		await admission.ready;
 		try {
 			await this.ctx.settings.flush();
 		} catch (err) {

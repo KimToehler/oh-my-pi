@@ -65,12 +65,16 @@ async function failedRollback(deps: HeadlessRelocationDeps, rollbackError: unkno
 /**
  * Relocate the headless session to `resolvedPath` (an existing directory):
  * flush settings, move the session file, re-scope the process, rolling back
- * on failure.
+ * on failure. The session tree's relocation admission is held throughout
+ * (relocation-admission-lease, design D3), so peer messages and revivals for
+ * the tree wait until the relocation, rollback included, has settled.
  */
 export async function relocateHeadlessSession(
 	deps: HeadlessRelocationDeps,
 	resolvedPath: string,
 ): Promise<HeadlessRelocationResult> {
+	using admission = deps.session.holdRelocationAdmission();
+	await admission.ready;
 	try {
 		await deps.settings.flush();
 	} catch (err) {
