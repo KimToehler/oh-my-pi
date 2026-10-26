@@ -4232,6 +4232,10 @@ function trackSubagentSettings(session: AgentSession, capture: WarmReviveCapture
 function createWarmSubagentReviver(capture: WarmReviveCapture): AgentReviver {
 	return async expectedAgentRef => {
 		const { id } = capture.spec.prompt;
+		// A session move renames the artifacts directory and repoints the descendant
+		// refs (`rebaseDescendantSessionFiles`); the spawn-time capture still names the
+		// old path, so the ref is the authority for where this transcript lives now.
+		if (expectedAgentRef.sessionFile) capture.sessionFile = expectedAgentRef.sessionFile;
 		const reopened = await SessionManager.open(capture.sessionFile, undefined, undefined, {
 			suppressBreadcrumb: true,
 			throwIfMissing: true,

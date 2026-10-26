@@ -27,6 +27,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { rebaseDescendantSessionFiles } from "@oh-my-pi/pi-coding-agent/session/session-move";
 import {
 	findRetryFallbackCandidates,
 	getRetryFallbackChains,
@@ -1715,6 +1716,23 @@ describe("cold revival replays the system prompt the last request sent", () => {
 			lease[Symbol.dispose]();
 			expect((await turn).exitCode).toBe(0);
 			expect(revived()?.requests).toHaveLength(1);
+		});
+
+		it("persisted revive: a parked subagent is warm-revived from its transcript at the relocated path", async () => {
+			// The barrier only defers the revival; the move renamed the artifacts directory
+			// underneath it, so the revival must follow the rebased ref instead of the
+			// spawn-time capture, or the held message dies with ENOENT on the old path.
+			const cwd = makeTempDir("@pi-revive-relocated-");
+			await spawn(cwd, subagentPrompt, spawnResponses());
+			const { revived } = await parkForWarmRevival();
+			const relocated = `${cwd}-moved`;
+			await fs.promises.rename(cwd, relocated);
+			expect(
+				await rebaseDescendantSessionFiles(`${cwd}.jsonl`, `${relocated}.jsonl`, AgentRegistry.global()),
+			).toEqual(["prompt-blocks"]);
+
+			expect((await followUp()).exitCode).toBe(0);
+			expect(revived()?.session.sessionManager.getSessionFile()).toBe(path.join(relocated, "prompt-blocks.jsonl"));
 		});
 
 		it("persisted revive: a task resume paused between revival and submission keeps the lease from becoming ready until its prompt is submitted", async () => {
