@@ -1,0 +1,46 @@
+PASS
+
+## 1. Goal and behavioural contract
+The implementation centralizes placement in `resolveResumeLocation` (`packages/coding-agent/src/session/session-resume-location.ts:24-43`): it keeps an enterable same-repository session at its recorded spelling, relocates only a missing eligible worktree session, and refuses all other mismatches.
+
+ACP load, resume, already-open, and fork paths use that decision before constructing or switching a session (`packages/coding-agent/src/modes/acp/acp-agent.ts:1825-1927, 2095-2132`). The legacy global by-id fallback remains in place (`:3062-3078`). The D2 classification is shared through `SessionManager.isFromRemovedWorktree` (`session-manager.ts:4271-4282`), retaining the CLI and picker consumers.
+
+## 2. Correctness, regressions, architecture, wire contracts
+No blockers found.
+
+- The worktree classifier requires the recorded path to be below the request repository primary root’s `.worktrees/<slug>` and requires that direct child to be missing (`session-paths.ts:269-282`); it does not classify a deleted plain checkout subdirectory or a deleted directory inside a live worktree as relocatable.
+- Refusal happens before ACP session creation in `#placeStoredSession`, so a cross-repository or missing non-worktree request does not create a session with the wrong project’s settings/extensions (`acp-agent.ts:1907-1925`).
+- Relocation delegates to the existing `SessionManager.openRelocated` path, which anchors to the recorded missing cwd and uses `moveTo`, including its existing session-writer protections and artifact movement (`session-manager.ts:4289-4305`).
+- The changed paths preserve the existing ACP v1/v2 method signatures and response construction; no wire fields or methods were added.
+- Existing-session and stored-session fork handling both resolve the source cwd first, avoiding the prior request-cwd/session-header mismatch at `switchSession`.
+
+## 3. Security and privacy delta
+No security or privacy delta found. The change does not touch credentials, authentication/authorization, or third-party personal data, and it preserves the repository-boundary refusal for sessions from another repository. No changed-line security finding met the blocking threshold.
+
+## 4. Verification adequacy
+The supplied evidence is meaningful and covers real ACP stdio processes, SIGKILL/restart, actual Git worktree removal/pruning, artifact relocation, cross-repository refusal with byte-preserved session file, non-interactive CLI resume, and same-directory regression:
+
+- F1 artifacts show the moved-worktree resume/load behavior, removed-worktree artifact preservation, cross-repository refusal, and non-interactive CLI relocation.
+- The later same-directory artifact runs on the reviewed code head.
+- Focused tests exercise v1/v2 replay distinctions, symlink spellings, stored/open forks, refusal non-mutation, removed `/wt` and `.worktrees` paths, CLI behavior, and picker-helper classification.
+- Supplied automated results report `bun check` passing and the targeted suite at 687 pass / 0 fail; the new ACP suite reportedly failed 18/19 cases against the pre-change ACP source.
+
+Note: the removed-worktree ACP integration test directly invokes `session/resume`, not `session/load`. This does not block because both request handlers pass the same stored-session inputs into `#openStoredSession` and its shared relocation branch; nevertheless, a direct `session/load` relocation case would make that method-level coverage more explicit.
+
+## 5. Final `PASS | FAIL | INCONCLUSIVE`
+No substantiated finding meets the supplied blocker threshold. The diff implements the specified placement/refusal policy without changing ACP wire shape, and the supplied real-surface and automated evidence is adequate for this audit.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A stored session discovered only by ACP's global by-id fallback is still subjected to resume-location resolution rather than being reported absent or opened from the request directory.
+  positive_witness: A legacy-bucket session whose recorded directory is in the request repository is found by id and opens at its recorded directory.
+  negative_control: A fallback-only session is rejected as not found, or is created at the request cwd and then fails the cwd-change switch.
+  observable: ACP returns the requested session id and the session factory receives the resolved recorded cwd.
+  boundary: ACP stored-session lookup and `#openStoredSession`
+END-REVIEW-TRAILER

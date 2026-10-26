@@ -1,0 +1,74 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/acp-load-relocated-session",
+  "plan_sha256": "3d2f60698e835ef3f9ee2365f7f4e031fde606298fb212ab99a60738e2c4a4c0",
+  "reviewed_sha": "e17e406ea33195e349015a707e2ccd61920ad978",
+  "diff_base": "f9b45b503d9908715a5fa4eee4ca5277a728ead7",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Mandatory class wire-contract-api (ACP session/load, session/resume and fork now open sessions in another directory than the request cwd): both invocations required; F2 wave 1 QA 5/5 PASS, both reviewers PASS, F3 PASS.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": ["onara/cc/claude-opus-5-5"],
+  "qa": [
+    {
+      "name": "F1 (a) moved-resume: ACP session/resume and session/load after /move into .worktrees/a open the session in the worktree",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-load-relocated-session/f1/moved-resume.md"
+    },
+    {
+      "name": "F1 (b) removed-worktree: ACP session/resume relocates a session from a removed .worktrees/b with its artifacts",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-load-relocated-session/f1/removed-worktree.md"
+    },
+    {
+      "name": "F1 (c) other-repo: ACP session/resume of another repository's session is refused naming its directory, file unchanged",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-load-relocated-session/f1/other-repo.md"
+    },
+    {
+      "name": "F1 (d) cli-removed-worktree: omp --resume --mode rpc moves a removed .worktrees/c session without a prompt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-load-relocated-session/f1/cli-removed-worktree.md"
+    },
+    {
+      "name": "F2 regression: unmoved session reloads in place over ACP session/resume and session/load",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/acp-load-relocated-session/wave-1/same-dir-reload.md"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/acp-load-relocated-session/f3-integration-review-report.md",
+    "report_sha256": "3199aff68ea5f9375f76fe411053346bf7d21c89bfee9a74a0ab21b6b12c1374"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/acp-load-relocated-session/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "9f26b48214410a585bba9f5e39825c0648fdb097a88a592fa9335d8f66cc0011",
+      "note": "No blockers; note: removed-worktree ACP integration test drives session/resume only (load shares #openStoredSession)."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/acp-load-relocated-session/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "bbc36e61eee5175e64fc976de0f358d1b3ef0e78c92bc56474abc213a67c8ee9",
+      "note": "No blockers; notes: relocation commits before ACP session construction; live record with deleted worktree refused (D4); .worktrees/<slug> layout as evidence."
+    }
+  ],
+  "blockers": []
+}

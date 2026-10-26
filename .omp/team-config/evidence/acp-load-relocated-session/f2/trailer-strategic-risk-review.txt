@@ -1,0 +1,34 @@
+**Bottom line:** The change holds up architecturally: directory placement is centralized in `resolveResumeLocation`, while ACP load, resume, fork, and already-open handling consume that policy before constructing or reusing a session. I found no blockers; the highest-impact risk—opening a session under the wrong repository’s execution context—is explicitly prevented before session creation.
+
+**Action plan:**
+
+1. **Architecture:** Keep the current design. `packages/coding-agent/src/session/session-resume-location.ts::resolveResumeLocation` owns repository-aware placement, `packages/coding-agent/src/modes/acp/acp-agent.ts::{#placeStoredSession,#liveReopenCwd,#resolveForkSource}` applies it across ACP entry points, and `SessionManager.isFromRemovedWorktree` remains the shared compatibility point for CLI and picker callers. This is a suitably small extension of existing relocation machinery rather than a parallel ACP-only mechanism.
+
+2. **What the line-level audit structurally misses:** Relocation is a committed storage transition before ACP session construction: `#placeStoredSession` calls `SessionManager.openRelocated`, obtains the moved path, and closes it before `#openStoredSession` calls `#createSession` and `switchSession`. Thus a settings, extension, or factory failure can make an unsuccessful ACP request still move the transcript and artifacts. This does not block because the move is to the intended durable destination, preserves the session through the existing relocation path, and a retry can reopen it there; the local effect is reversible.
+
+3. **Most damaging production failure:** The worst outcome would be a globally found session from repository B being assembled under repository A’s settings, extensions, and tools, potentially causing edits in the wrong checkout. It is addressed: `resolveResumeLocation` requires matching normalized primary roots for existing directories, and `#placeStoredSession` resolves or refuses before `#createSession`; the supplied cross-repository QA additionally observes unchanged bytes and no successful reopen.
+
+4. **Auditor false positives:** None. Its observations about unchanged wire shape and the existing `openRelocated` implementation are relevant even though those implementations are unchanged, because this diff newly routes ACP requests through them. Its direct-`session/load` coverage note is also accurate and appropriately non-blocking because both load and resume converge on `#openStoredSession`.
+
+**Effort:** Quick (<1h)
+
+**Confidence:** high
+
+**Watch out for:**
+- **Note:** An already-open ACP session whose live worktree is deleted is refused by `#liveReopenCwd` rather than relocated. This does not block because design D4 explicitly excludes relocation of live records, and restarting ACP converts it into the covered stored-session path; the impact is local and reversible.
+- **Note:** `session-paths.ts::isInRemovedCheckoutWorktree` intentionally treats path layout as the remaining evidence after pruning, so a deleted ordinary directory deliberately placed under reserved `.worktrees/<slug>` could also qualify. This does not block because it requires unusual user-created state under the repository’s reserved worktree convention and only relocates the user’s local session.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A rejected reopen is observationally pure: repository authority is decided before any runtime record is constructed or persisted session data is moved or rewritten.
+  positive_witness: A globally discovered session belonging to another repository is refused while the session factory call count, source path, and source bytes remain unchanged.
+  negative_control: The request returns an error but still invokes the session factory, registers the session, moves its artifacts, or rewrites its transcript.
+  observable: JSON-RPC refusal together with unchanged factory-call count, session listing, file location, and file bytes.
+  boundary: AcpAgent.#placeStoredSession and resolveResumeLocation before #createSession or SessionManager.openRelocated
+END-REVIEW-TRAILER
