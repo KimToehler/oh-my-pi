@@ -127,7 +127,7 @@ import {
 	type AcpWireV2,
 	type AgentImageContent,
 	type FormElicitationTransport,
-	INTELLIJ_CLIENT_PLATFORM,
+	isJetBrainsClient,
 	type ManagedSessionRecord,
 	type PromptLifecycleError,
 } from "./acp-surface";
@@ -853,7 +853,7 @@ export class AcpAgent implements Agent {
 		this.#registerConnectionCleanup();
 		this.#clientCapabilities = params.clientCapabilities;
 		this.#supportsFormElicitation = params.clientCapabilities?.elicitation?.form != null;
-		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
+		const isIntelliJClient = isJetBrainsClient(params.clientInfo);
 		this.#clientPinsConfigOptions = isIntelliJClient;
 		this.#clientIsIntelliJ = isIntelliJClient;
 		// The v1 `initialize` handler: it always selects the v1 surface.
@@ -2595,23 +2595,21 @@ export class AcpAgent implements Agent {
 		return values;
 	}
 
+	/**
+	 * `thought_level` offers only explicit efforts, never OMP's `auto`. The
+	 * category is a closed effort vocabulary for clients, which map each value
+	 * onto their own enum; JetBrains rejects the whole session setup on an
+	 * unknown one ("Couldn't load session settings"). `auto` stays the session's
+	 * internal default and is reported as {@link THINKING_OFF} on the wire.
+	 */
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
-		const options: Array<{ value: string; name: string; description?: string }> = [
+		return [
 			{ value: THINKING_OFF, name: "Off" },
-		];
-		// JetBrains treats `thought_level` as a closed effort vocabulary and
-		// fails session setup ("Could not load session settings") on OMP-only
-		// `auto`. Other clients still get the selector.
-		if (!this.#clientIsIntelliJ) {
-			options.push({ value: AUTO_THINKING, name: "Auto", description: "Auto-detect per prompt" });
-		}
-		options.push(
 			...session.getAvailableThinkingLevels().map(level => ({
 				value: level,
 				name: level,
 			})),
-		);
-		return options;
+		];
 	}
 	#getConfiguredThinkingLevel(session: AgentSession): string | undefined {
 		const configuredThinkingLevel = (session as { configuredThinkingLevel?: () => string | undefined })
@@ -2622,8 +2620,7 @@ export class AcpAgent implements Agent {
 	}
 
 	#toThinkingConfigValue(value: string | undefined): string {
-		if (!value || value === "inherit") return THINKING_OFF;
-		if (this.#clientIsIntelliJ && value === AUTO_THINKING) return THINKING_OFF;
+		if (!value || value === "inherit" || value === AUTO_THINKING) return THINKING_OFF;
 		return value;
 	}
 

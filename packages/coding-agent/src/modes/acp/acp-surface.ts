@@ -13,6 +13,7 @@ import type {
 	AuthMethod,
 	AvailableCommand,
 	ClientCapabilities,
+	Implementation,
 	InitializeRequest,
 	InitializeResponse,
 	MaybePromise,
@@ -137,6 +138,26 @@ export type ManagedSessionRecord = {
 export type ForegroundEnd = { response: PromptResponse } | { error: unknown };
 
 export const INTELLIJ_CLIENT_PLATFORM = "intellij";
+
+/**
+ * `clientInfo.name` prefix every JetBrains Air plugin reports
+ * (`AIR_ACP_CLIENT_NAME_PREFIX` + `:<ide>`, e.g. `air-plugin:idea`).
+ */
+const JETBRAINS_CLIENT_NAME_PREFIX = "air-plugin:";
+
+/**
+ * Whether `clientInfo` identifies a JetBrains IDE, which needs the `loadSession`
+ * workaround in `AcpSurfaceV1.initializeResponse` and the stale-reassert handling
+ * in `AcpGoalActor`. Both signals are accepted because the plugin changed how it
+ * identifies itself: older builds set `_meta.platform`, current ones omit `_meta`
+ * entirely and carry the IDE only in the prefixed `name`. Matching one alone left
+ * the branch unreachable against the live plugin.
+ */
+export function isJetBrainsClient(clientInfo: Implementation | null | undefined): boolean {
+	if (!clientInfo) return false;
+	if (clientInfo._meta?.platform === INTELLIJ_CLIENT_PLATFORM) return true;
+	return clientInfo.name?.startsWith(JETBRAINS_CLIENT_NAME_PREFIX) === true;
+}
 
 export type SessionSetupKind = "new" | "load" | "resume" | "fork";
 

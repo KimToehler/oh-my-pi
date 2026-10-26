@@ -41,7 +41,7 @@ import {
 	type ForegroundEnd,
 	type FormElicitation,
 	type FormElicitationTransport,
-	INTELLIJ_CLIENT_PLATFORM,
+	isJetBrainsClient,
 	type ManagedSessionRecord,
 	type PromptDispatchCancellation,
 } from "./acp-surface";
@@ -89,7 +89,7 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 	}
 
 	initializeResponse(params: InitializeRequest): InitializeResponse {
-		const isIntelliJClient = params.clientInfo?._meta?.platform === INTELLIJ_CLIENT_PLATFORM;
+		const isIntelliJClient = isJetBrainsClient(params.clientInfo);
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentInfo: {
