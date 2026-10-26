@@ -172,7 +172,7 @@ export default function mergeGate(pi: ExtensionAPI) {
 				block: true,
 				reason:
 					`Plan local://${slug}-plan.md is not ready for approval: validate-gate-record.mjs --plan-only says\n${detail}\n` +
-					"Add or fix the `## Merge gate` section and the `## Final verification wave` (F3, F1, F2) per the plan-merge-gate rule, " +
+					"Add or fix the `## Merge gate` section and the `## Final verification wave` (F3, F1, F2) per rule://plan-merge-gate, " +
 					"then propose again. If this work will not go through a merge gate, add the line `- Merge gate: not applicable (<reason>)`.",
 			};
 		}
@@ -218,7 +218,7 @@ export default function mergeGate(pi: ExtensionAPI) {
 			return {
 				decision: "block",
 				reason:
-					"Merge gate: the claim has no single Gate proof binding. Include one full reviewed_sha and its record line, " +
+					"Merge gate: the claim has no single Gate proof binding. Include one full reviewed_sha and its record line (block format: rule://merge-gate-proof), " +
 					"or state plainly that the gate has NOT run and do not ask for merge approval.",
 			};
 		}

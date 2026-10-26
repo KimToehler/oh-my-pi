@@ -1,6 +1,5 @@
 ---
-description: Before asking to merge or reporting gated work as done, show a Gate proof block proving integration-review and review-work actually ran in full
-alwaysApply: true
+description: Read before asking to merge, asking for merge approval, or reporting work governed by a plan's Merge gate as done. The reply then carries a Gate proof block proving integration-review and review-work actually ran in full
 ---
 
 # Merge gate proof: show it, never make the user ask
