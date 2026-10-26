@@ -395,6 +395,17 @@ The tool only records the move; AgentSession runs the relocator after the run's
 tool batch, inside a session transition, then sends one continuation turn
 (see `docs/tools/session_move.md`).
 
+Every relocation (`/move`, `/wt`, `relocateForAgent`, `relocateHeadlessSession`)
+holds the relocation admission barrier of the session's agent tree around its
+whole body, from the settings flush through the session-file move, cwd
+application or rescope, and rollback (`AgentSession.holdRelocationAdmission`,
+`registry/relocation-admission.ts`). While it is held, a peer message to the
+session's own agent or to a subagent whose transcript lies under the session's
+artifacts directory waits: no turn starts in the checkout being left and no
+parked subagent is revived from a transcript that is being moved. The barrier is
+released on every outcome, and held messages and revivals then proceed in order.
+Other sessions in the same process are not affected.
+
 Resuming from a path, the session picker, or an imported session cancels BTW and
 waits for its terminal checkpoint before switching. Confirmed deletion of the
 active session uses the same cleanup before detaching and removing its artifacts.

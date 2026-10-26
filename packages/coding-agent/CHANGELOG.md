@@ -27,6 +27,7 @@
 
 ### Fixed
 
+- Fixed a peer message or a subagent revival that arrived while a session moved (`session_move`, `/move`, `/wt`) starting a turn in the checkout the session was leaving; peer messages and revivals for the session and its subagents now wait until the move has finished or rolled back
 - Fixed stopping during a skill command's startup still running the skill afterwards in ACP.
 - Fixed ACP tool permissions being bypassed through `eval`, eval preludes and subagent `task`/`vibe_spawn` calls; these now ask the client like any other gated tool
 - Fixed ACP protocol v2 clients' cancelled permission requests being reported as "denied by user"; the call is now reported as cancelled, as under v1

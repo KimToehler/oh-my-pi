@@ -31,7 +31,7 @@ against the pre-change source. Test files live in `packages/coding-agent/test/`.
 
 ## 6. Documentation
 
-- [ ] 6.1 Document in `docs/tools/session_move.md` and `docs/slash-command-internals.md` (the `/move` section) that peer messages and revivals for the session's agent tree wait while it relocates, and add an entry naming peer messages under `### Fixed` in `## [Unreleased]` of `packages/coding-agent/CHANGELOG.md`. Verify: `grep -qi "peer message" docs/tools/session_move.md && grep -qi "peer message" docs/slash-command-internals.md && awk '/^## \[Unreleased\]/{u=1;next} /^## \[/{u=0} u&&/^### /{s=$0} u&&s=="### Fixed"&&/[Pp]eer message/{f=1} END{exit !f}' packages/coding-agent/CHANGELOG.md`
+- [x] 6.1 Document in `docs/tools/session_move.md` and `docs/slash-command-internals.md` (the `/move` section) that peer messages and revivals for the session's agent tree wait while it relocates, and add an entry naming peer messages under `### Fixed` in `## [Unreleased]` of `packages/coding-agent/CHANGELOG.md`. Verify: `grep -qi "peer message" docs/tools/session_move.md && grep -qi "peer message" docs/slash-command-internals.md && awk '/^## \[Unreleased\]/{u=1;next} /^## \[/{u=0} u&&/^### /{s=$0} u&&s=="### Fixed"&&/[Pp]eer message/{f=1} END{exit !f}' packages/coding-agent/CHANGELOG.md`
 
 ## 7. Final verification
 
