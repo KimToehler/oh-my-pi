@@ -1236,12 +1236,30 @@ describe("ACP agent", () => {
 		await harness.agent.dispose();
 	});
 
-	it("gives IntelliJ select config options whose currentValue is always in the list", async () => {
-		// JetBrains maps each select by value and fails the session with
-		// "Could not load session settings" when currentValue is missing or
-		// duplicated, and it rejects OMP-only `auto` on thought_level.
+	it("advertises resume but not loadSession to an air-plugin client without _meta", async () => {
+		// Given/When: the current JetBrains Air plugin identifies itself only through
+		// clientInfo.name ("air-plugin:<ide>") and sends no _meta at all.
+		const harness = await createHarness();
+		const response = await harness.agent.initialize({
+			protocolVersion: 1,
+			clientCapabilities: {},
+			clientInfo: { name: "air-plugin:idea", title: "262.10968.63", version: "IntelliJ IDEA 2026.2.3" },
+		});
+		// Then: it is still recognized, so the replay path that breaks its turn
+		// tracking stays unadvertised.
+		expect(response.agentCapabilities).toMatchObject({ loadSession: false, sessionCapabilities: { resume: {} } });
+		await harness.agent.dispose();
+	});
+
+	it.each([
+		["IntelliJ", INTELLIJ_CLIENT_INFO],
+		["air-plugin", { name: "air-plugin:idea", version: "2026.2.3" }],
+		["Zed", { name: "zed", version: "1" }],
+	])("offers %s no auto thought_level and a currentValue in the list", async (_label, clientInfo) => {
+		// Clients map each select value onto a closed enum, so an OMP-only `auto`
+		// fails the whole setup ("Couldn't load session settings" on JetBrains).
 		const harness = await createHarness({
-			clientInfo: INTELLIJ_CLIENT_INFO,
+			clientInfo,
 			prepareSession: session => {
 				session.thinkingLevel = "auto";
 			},
@@ -1262,7 +1280,7 @@ describe("ACP agent", () => {
 		await harness.agent.dispose();
 	});
 
-	it("keeps advertising loadSession to non-IntelliJ clients", async () => {
+	it("keeps advertising loadSession to non-JetBrains clients", async () => {
 		const harness = await createHarness();
 		const response = await harness.agent.initialize({
 			protocolVersion: 1,
