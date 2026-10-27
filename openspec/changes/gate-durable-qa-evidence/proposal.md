@@ -24,7 +24,7 @@ The 24 gate records in `.omp/team-config/evidence/gate/` cite 155 distinct QA pa
 ## Impact
 
 - `team-config/agent/skills/review-work/scripts/validate-gate-record.mjs` and its tests and fixtures (`fixtures/*.json` that carry `qa` rows).
-- `team-config/agent/skills/review-work/SKILL.md`: Fix waves step 2, Phase 5 record template and the field rules, and the `qa[].artifact` exemption paragraph.
+- Guidance that says where F1 evidence goes: review-work `SKILL.md` (Reuse first, Fix waves step 2, the Phase 5 template, the field rules, the tracked-artifact, exemption and validator-summary paragraphs), the `plan-merge-gate` rule's F1 line, the omp-gated `templates/tasks.md` F1 row with this repository's installed `openspec/schemas/omp-gated/` copy, `team-config/README.md`, the `gate-layout.mjs` comment, and `visual-qa/SKILL.md`.
 - Deployed copies: `~/.omp/agent/skills/review-work` after `deploy-local.sh`, plus every profile and `PI_CODING_AGENT_DIR` install, and the running sessions that load them.
 - No change to `gate-convergence.mjs`, the ledger, the `.gitignore` block, or the `gate-workspace-layout` ignore policy: `evidence/gate/**` is already addable.
 - In-flight gates, checked on 2026-10-27: no unmerged oh-my-pi worktree has a gate ledger or a record. onara's `.worktrees/strength-progression-targets` is mid-gate: F3 recorded, no F1/F2 and no record yet. Its F1 artifacts follow onara's tracked `docs/evidence/<slug>/` convention, so its record only needs `artifact_sha256` per row once this ships.

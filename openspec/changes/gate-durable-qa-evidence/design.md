@@ -35,7 +35,9 @@ The comment at line 393 and SKILL.md "`qa[].artifact` is **not** exempt" both re
 
 3. **Digest is mandatory, not optional.** An optional digest would leave records without one durable but unbound. A later edit to a tracked QA file would then go unnoticed, which is exactly the class `trailer_sha256` closes.
 
-4. **Guidance: wave QA goes to `.omp/team-config/evidence/gate/<plan basename>/wave-<n>/`.** That path is addable but unstaged, so `GC snapshot` (`status --untracked-files=no`) is unaffected. Phase 5 stages the rows' files together with the record. Other evidence paths stay ignored scratch space, including reviewer reply copies and failed-wave output. Alternative: copy final artifacts at Phase 5 from the ignored path. Rejected: the copy is an extra step, and the row would name a different file than the one QA wrote.
+4. **Guidance: wave QA goes to `.omp/team-config/evidence/gate/<plan basename>/wave-<n>/`.** That path is addable but unstaged, so `GC snapshot` (`status --untracked-files=no`) is unaffected. Phase 5 stages the rows' files together with the record. Because the path is no longer ignored, the guidance names explicit-path staging. A `git add -A` in a fix commit would sweep wave QA into that commit and force a delta review. Other evidence paths stay ignored scratch space, including reviewer reply copies and failed-wave output. Alternative: copy final artifacts at Phase 5 from the ignored path. Rejected: the copy is an extra step, and the row would name a different file than the one QA wrote.
+
+   The cutover covers every text that tells an author or orchestrator where F1 evidence goes, because a stale one now fails only at Phase 5, after the reviewers ran. That text is: the `plan-merge-gate` rule's F1 line, the omp-gated `templates/tasks.md` F1 row and this repository's installed copy, review-work's "Reuse first", the tracked-artifact and validator-summary paragraphs, the README layout, the `gate-layout.mjs` comment, and both `visual-qa` paths.
 
 5. **One shipping unit.** The validator change and the guidance change share one contract, the record field set, and one cutover. Guidance without the validator leaves the rule unenforced, and the validator without guidance blocks every gate that follows the old text. They cannot ship separately.
 
@@ -43,11 +45,12 @@ The comment at line 393 and SKILL.md "`qa[].artifact` is **not** exempt" both re
 
 - [Records in progress at deploy time block until migrated] → None exist on 2026-10-27 in oh-my-pi. onara's `strength-progression-targets` has no record yet, and its tracked `docs/evidence` artifacts need only digests. The migration is mechanical: copy the files, add digests, stage, commit. The exemption makes a re-review unnecessary.
 - [Post-review commit adds an executable file below the evidence directory, e.g. `x.test.ts` picked up by `bun test`] → It is still exempt if a QA row names it. Accepted residual: nothing in the shipped code imports from the evidence directory. The file enters the default branch visibly in the gate's evidence commit, and the reviewer of the merge sees it.
+- [A record at an unusual path, e.g. `src/foo.json`, makes `src/foo/` its evidence directory] → It takes a deliberately odd `--record` path, and the shipped guidance names only `evidence/gate/`. A record path without `.json` has no evidence directory, because the path is a file and nothing lies below it, so no QA artifact is exempt for it.
 - [Artifact above the 1 MiB limit (screenshots, frame logs)] → The existing `MAX_ARTIFACT_BYTES` refusal applies with the `qa.<n>.artifact` field. All 40 surviving cited QA artifacts are below 84 KB. The guidance says to split or compress, never to drop a row.
 - [Repository size growth from tracked QA output] → Bounded by 1 MiB per file and by citing only the final wave's rows.
 
 ## Migration Plan
 
 1. Land the validator, tests, fixtures and guidance on the branch. Merge after the gate.
-2. Deploy: `scripts/deploy-local.sh` for `~/.omp/agent`. Then, per profile or `PI_CODING_AGENT_DIR` root, `env -u PI_PROFILE -u OMP_PROFILE PI_CODING_AGENT_DIR=<dir> bun scripts/install-team-config.ts`. Restart running sessions that loaded the old skill text.
+2. Deploy: `scripts/deploy-local.sh` for `~/.omp/agent`. Then, per profile or `PI_CODING_AGENT_DIR` root, `env -u PI_PROFILE -u OMP_PROFILE PI_CODING_AGENT_DIR=<dir> bun scripts/install-team-config.ts`. Restart running sessions that loaded the old skill text. Projects with an installed `openspec/schemas/omp-gated/` copy, onara today, re-run `install-openspec-workflow.mjs` so their task template names the new F1 location.
 3. Rollback: revert the merge commit and redeploy. Records written under the new rule carry an extra `artifact_sha256` field, which the old validator ignores.
