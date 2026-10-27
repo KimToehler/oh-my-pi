@@ -2662,15 +2662,11 @@ test("QA artifact: QA artifact outside the repository", () => {
     const outside = mkdtempSync(path.join(tmpdir(), "gate-outside-"))
     try {
       const bytes = "outside the repository\n"
-      // `../outside.md` from the repository root, next to the scratch repository.
-      const sibling = path.join(path.dirname(repository.directory), "outside.md")
-      writeFileSync(sibling, bytes)
-      try {
-        rewriteRecord(repository, artifacts, (r) => { r.qa[0] = { ...r.qa[0], artifact: "../outside.md", artifact_sha256: sha256(bytes) } })
-        expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
-      } finally {
-        rmSync(sibling, { force: true })
-      }
+      // A file outside the repository, named by a `../` path from the repository root.
+      const escaped = path.join(outside, "outside.md")
+      writeFileSync(escaped, bytes)
+      rewriteRecord(repository, artifacts, (r) => { r.qa[0] = { ...r.qa[0], artifact: path.relative(repository.directory, escaped), artifact_sha256: sha256(bytes) } })
+      expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
       const target = path.join(outside, "target.md")
       writeFileSync(target, bytes)
       const link = "evidence/merge-gate/wave-1/link.md"
