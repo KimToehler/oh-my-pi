@@ -1,4 +1,7 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { attribute, lintRule, parseRule } from "./measure-context";
 
 const prompt = (parts: { files?: string; rules?: string[]; skills?: string[]; tail?: string }) =>
@@ -63,6 +66,23 @@ describe("attribute", () => {
 		const projectFileChars = result.files[1].chars;
 		const listed = [...result.projectRules, ...result.projectSkills].reduce((n, entry) => n + entry.chars, 0);
 		expect(result.projectChars).toBe(projectFileChars + listed + result.otherProject[0].chars);
+	});
+
+	describe("repository reached through a symlink", () => {
+		const real = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "measure-context-real-")));
+		const alias = `${real}-alias`;
+		fs.symlinkSync(real, alias);
+		fs.writeFileSync(path.join(real, "AGENTS.md"), "# Repo\n");
+		afterAll(() => {
+			fs.rmSync(alias, { force: true });
+			fs.rmSync(real, { recursive: true, force: true });
+		});
+
+		it("counts a context file omp prints under the alias path as project scope", () => {
+			const aliased = `<file path="${alias}/AGENTS.md">\n# Repo\n</file>`;
+			const viaAlias = attribute(prompt({ files: `${userFile}\n${aliased}` }), prompt({ files: userFile }), real);
+			expect(viaAlias.files.map(file => file.scope)).toEqual(["user", "project"]);
+		});
 	});
 });
 

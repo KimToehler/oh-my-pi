@@ -12,7 +12,7 @@
  *
  * Token figures are estimates: omp's count for the whole request, spread over characters.
  */
-import * as fs from "node:fs/promises";
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -67,6 +67,15 @@ function isInside(child: string, parent: string): boolean {
 	return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+/** omp prints context file paths as it resolved them (e.g. `/tmp/...`), the repo root is a realpath (`/private/tmp/...`). */
+function realOrSelf(file: string): string {
+	try {
+		return fs.realpathSync(file);
+	} catch {
+		return file;
+	}
+}
+
 /** `##` sections of a markdown context file; text before the first heading counts as "(preamble)". */
 export function sectionsOf(body: string): Section[] {
 	const sections: Section[] = [];
@@ -116,7 +125,7 @@ export function attribute(repoPrompt: string, baselinePrompt: string, repoRoot: 
 		const [, filePath, body] = match;
 		files.push({
 			path: filePath,
-			scope: isInside(filePath, repoRoot) ? "project" : "user",
+			scope: isInside(realOrSelf(filePath), repoRoot) ? "project" : "user",
 			chars: match[0].length + 1,
 			sections: sectionsOf(body),
 		});
@@ -211,7 +220,7 @@ async function projectRuleDirs(cwd: string, repoRoot: string): Promise<string[]>
 	const existing: string[] = [];
 	for (const dir of dirs) {
 		try {
-			if ((await fs.stat(dir)).isDirectory()) existing.push(dir);
+			if ((await fs.promises.stat(dir)).isDirectory()) existing.push(dir);
 		} catch {
 			// absent rule directory
 		}
@@ -290,19 +299,19 @@ const k = (tokens: number) => `${(tokens / 1000).toFixed(1)}k`;
 
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
-	const cwd = await fs.realpath(args.repo);
+	const cwd = await fs.promises.realpath(args.repo);
 	const top = Bun.spawnSync(["git", "rev-parse", "--show-toplevel"], { cwd });
 	if (top.exitCode !== 0) throw new Error(`${cwd} is not inside a git repository`);
-	const repoRoot = await fs.realpath(top.stdout.toString().trim());
+	const repoRoot = await fs.promises.realpath(top.stdout.toString().trim());
 
-	const empty = await fs.mkdtemp(path.join(os.tmpdir(), "measure-context-"));
+	const empty = await fs.promises.mkdtemp(path.join(os.tmpdir(), "measure-context-"));
 	let repoState: PromptState;
 	let baseState: PromptState;
 	try {
 		Bun.spawnSync(["git", "init", "-q"], { cwd: empty });
 		[repoState, baseState] = await Promise.all([captureState(cwd, args.omp), captureState(empty, args.omp)]);
 	} finally {
-		await fs.rm(empty, { recursive: true, force: true });
+		await fs.promises.rm(empty, { recursive: true, force: true });
 	}
 
 	const attribution = attribute(repoState.systemPrompt, baseState.systemPrompt, repoRoot);
@@ -314,7 +323,7 @@ async function main(): Promise<void> {
 	const listedRules = new Set(attribution.projectRules.map(rule => rule.name));
 	const findings: Finding[] = [];
 	for (const dir of await projectRuleDirs(cwd, repoRoot)) {
-		for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+		for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
 			if (!entry.isFile() || !/\.mdc?$/.test(entry.name)) continue;
 			const file = path.join(dir, entry.name);
 			const name = entry.name.replace(/\.mdc?$/, "");
