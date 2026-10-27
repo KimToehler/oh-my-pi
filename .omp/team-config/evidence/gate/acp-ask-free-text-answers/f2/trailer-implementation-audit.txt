@@ -1,0 +1,34 @@
+### 1. Goal and behavioural contract
+
+No blocker found. The shared decoder preserves exact option matching, treats non-blank off-list select values as free text, and retains the existing single-select companion precedence. The outgoing form-building code is unchanged.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the decoder and its call site in `packages/coding-agent/src/modes/acp/acp-agent.ts`, the v2 transport, and the `AskTool` result and cancellation paths. Both protocol paths reach the shared decoder. The recorded Air scenarios cover single-select, multi-select and a two-question dialog.
+
+### 3. Security and privacy delta
+
+No credential, authentication, authorization or third-party personal-data change identified. An off-list value can now reach the model as user text; that is the intended wire-contract change and the stale-value ambiguity is recorded as an accepted residual risk.
+
+### 4. Verification adequacy
+
+Reviewed the committed RED and request-shape mutation evidence, bridge tests, real `AskTool` test, v2 codec harness test, and Air QA artifacts. The v2 evidence uses a harness rather than a real v2 client; that remains a non-blocking coverage limitation.
+
+No checks were rerun, as instructed.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Decoding one question must not leak deduplication state or answer text into another question in the same accepted form.
+  positive_witness: Two questions independently answered with the same off-list text each retain that text in their own result.
+  negative_control: A decoder sharing its seen-text set across questions drops the second answer.
+  observable: Both ordered result entries contain their own matching customInput.
+  boundary: ACP askDialog result mapping for a multi-question form.
+END-REVIEW-TRAILER

@@ -1,0 +1,71 @@
+=== test/acp-agent.test.ts :: translates a recommended single-choice ask into one form
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4382 | 
+4383 | 			expect(calls).toHaveLength(1);
+4384 | 			const request = calls[0]!;
+4385 | 			if (!isFormElicitation(request)) throw new Error("expected form-mode elicitation");
+4386 | 			expect(request.message).toBe("Which approach?");
+4387 | 			expect(request.requestedSchema.required).toBeUndefined();
+                                                   ^
+error: expect(received).toBeUndefined()
+
+Received: [ "q0__other" ]
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4387:45)
+(fail) ACP agent > ACP elicitation bridge > translates a recommended single-choice ask into one form [3.83ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [531.00ms]
+=== test/acp-agent.test.ts :: treats a single-choice custom answer as exclusive
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [531.00ms]
+=== test/acp-agent.test.ts :: uses only free-text fields for questions without options
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [566.00ms]
+=== test/acp-agent.test.ts :: packs multiple ask questions into one ordered form
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [564.00ms]
+=== test/acp-v2.test.ts :: ask free text: a v2 client's select value outside the options reaches the tool as free text
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-v2.test.ts:
+1563 | 		if (!isRecord(requestedSchema) || !isRecord(requestedSchema.properties)) {
+1564 | 			throw new Error("expected a form elicitation with requestedSchema.properties");
+1565 | 		}
+1566 | 		expect(Object.keys(requestedSchema.properties)).toEqual(["q0", "q0__other"]);
+1567 | 		expect(requestedSchema.properties.q0__other).toEqual({ type: "string", title: "Other (type your own)" });
+1568 | 		expect(requestedSchema.required ?? []).not.toContain("q0__other");
+                                                    ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "q0__other"
+Received: [ "q0__other" ]
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-v2.test.ts:1568:46)
+(fail) requires_action (plan 6) > ask free text: a v2 client's select value outside the options reaches the tool as free text [115.48ms]
+
+ 0 pass
+ 55 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [708.00ms]

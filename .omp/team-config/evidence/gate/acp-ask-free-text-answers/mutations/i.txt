@@ -1,0 +1,128 @@
+=== test/acp-agent.test.ts :: translates a recommended single-choice ask into one form
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4393 | 					{ const: "Approach A", title: "Approach A (Recommended)", description: "Faster" },
+4394 | 					{ const: "Approach B", title: "Approach B", description: "Safer" },
+4395 | 				],
+4396 | 				default: "Approach A",
+4397 | 			});
+4398 | 			expect(request.requestedSchema.properties.q0__other).toEqual({
+                                                               ^
+error: expect(received).toEqual(expected)
+
+- {
+-   "title": "Other (type your own)",
+-   "type": "string",
+- }
++ undefined
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4398:57)
+(fail) ACP agent > ACP elicitation bridge > translates a recommended single-choice ask into one form [4.35ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [783.00ms]
+=== test/acp-agent.test.ts :: treats a single-choice custom answer as exclusive
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [552.00ms]
+=== test/acp-agent.test.ts :: uses only free-text fields for questions without options
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4494 | 			]);
+4495 | 
+4496 | 			expect(calls).toHaveLength(1);
+4497 | 			const request = calls[0]!;
+4498 | 			if (!isFormElicitation(request)) throw new Error("expected form-mode elicitation");
+4499 | 			expect(Object.keys(request.requestedSchema.properties)).toEqual(["q0__other", "q1__other"]);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "q0__other",
+-   "q1__other",
+- ]
++ []
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4499:60)
+(fail) ACP agent > ACP elicitation bridge > uses only free-text fields for questions without options [4.80ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [570.00ms]
+=== test/acp-agent.test.ts :: packs multiple ask questions into one ordered form
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4680 | 
+4681 | 			expect(calls).toHaveLength(1);
+4682 | 			const request = calls[0]!;
+4683 | 			if (!isFormElicitation(request)) throw new Error("expected form-mode elicitation");
+4684 | 			expect(request.message).toBe("Answer 2 questions");
+4685 | 			expect(Object.keys(request.requestedSchema.properties)).toEqual(["q0", "q0__other", "q1", "q1__other"]);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+@@ -2,5 +2,3 @@
+    "q0",
+-   "q0__other",
+    "q1",
+-   "q1__other",
+  ]
+
+- Expected  - 2
++ Received  + 0
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4685:60)
+(fail) ACP agent > ACP elicitation bridge > packs multiple ask questions into one ordered form [2.18ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [561.00ms]
+=== test/acp-v2.test.ts :: ask free text: a v2 client's select value outside the options reaches the tool as free text
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-v2.test.ts:
+1561 | 		const request = requests[0];
+1562 | 		const requestedSchema = isRecord(request) ? request.requestedSchema : undefined;
+1563 | 		if (!isRecord(requestedSchema) || !isRecord(requestedSchema.properties)) {
+1564 | 			throw new Error("expected a form elicitation with requestedSchema.properties");
+1565 | 		}
+1566 | 		expect(Object.keys(requestedSchema.properties)).toEqual(["q0", "q0__other"]);
+                                                         ^
+error: expect(received).toEqual(expected)
+
+@@ -2,3 +2,2 @@
+    "q0",
+-   "q0__other",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-v2.test.ts:1566:51)
+(fail) requires_action (plan 6) > ask free text: a v2 client's select value outside the options reaches the tool as free text [133.12ms]
+
+ 0 pass
+ 55 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [723.00ms]

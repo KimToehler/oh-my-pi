@@ -1,0 +1,38 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4593 | 
+4594 | 				const result = await ctx.askDialog!([
+4595 | 					{ id: "widget", question: "Which widget?", options: [{ label: "Standard" }] },
+4596 | 				]);
+4597 | 
+4598 | 				expect(result?.kind === "submit" ? result.results[0] : undefined).toMatchObject({
+                                                                             ^
+error: expect(received).toMatchObject(expected)
+
+@@ -1,6 +1,9 @@
+  {
+-   "customInput": 
+- "typed in the select
+- typed in the field"
+- ,
++   "customInput": "typed in the field",
++   "id": "widget",
++   "multi": false,
++   "options": [
++     "Standard",
++   ],
++   "question": "Which widget?",
+    "selectedOptions": [],
+
+- Expected  - 4
++ Received  + 7
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4598:71)
+(fail) ACP agent > ACP elicitation bridge > ask free text: select text and companion text are both kept [3.52ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [487.00ms]

@@ -1,0 +1,79 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/acp-ask-free-text-answers",
+  "plan_sha256": "46bfb3fc8731a8e0ef919ede6e37fdf6fe78e675d7a8f1eecc96b9006976971e",
+  "reviewed_sha": "eddf85efce1f5cff4cb4bd579f0fc83bc20f402b",
+  "diff_base": "a00f09319bfe6ae644a93686c49af80a2d534387",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Product ACP accepted-answer wire semantics change; both mandatory reviewers run. One shared decoding module, so whole-diff integration review is not needed under gate.md.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5",
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Air v1 single-select typed Other and successful turn continuation",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/f1/a.md"
+    },
+    {
+      "name": "Air v1 selected option plus typed Other in multi-select",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/f1/b.md"
+    },
+    {
+      "name": "Air v1 two questions retain distinct ordered answers without cancellation",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/f1/c.md"
+    },
+    {
+      "name": "Blank and non-string answer guard remains unanswered",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/red/guard.txt"
+    },
+    {
+      "name": "Adjacent v1/v2 request-shape tests pass on clean source",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/mutations/clean.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "the change spans one module, the askDialog answer decoding in packages/coding-agent/src/modes/acp/acp-agent.ts, plus tests in acp-agent.test.ts and acp-v2.test.ts and one changelog line; that is below the three independently testable modules that make a whole-diff review needed. The wire-contract class already runs both F2 reviewers"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "975ad33d32a70af78bc71c24b56354981610e9579f743b25e6fcaf9ca088cf6e",
+      "note": "No blockers. Real v2 client coverage is accepted residual risk; v2 codec harness covers transport."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-ask-free-text-answers/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "5436b0855949f8cb220de869aea6c27164451875e4cec96621e33acee58f6bfe",
+      "note": "No blockers. Optional future hardening: retain test process status in mutation-check.sh clean classification; current transcripts complete successfully."
+    }
+  ],
+  "blockers": []
+}

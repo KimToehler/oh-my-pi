@@ -1,0 +1,37 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4574 | 				customInput: "x\ny",
+4575 | 			});
+4576 | 		});
+4577 | 
+4578 | 		it("ask free text: multi-select ignores blank and non-string items", async () => {
+4579 | 			expect(await askMulti({ q0: ["A", "   ", 7, null, "typed"] })).toMatchObject({
+                                                                         ^
+error: expect(received).toMatchObject(expected)
+
+@@ -1,3 +1,11 @@
+  {
+-   "customInput": "typed",
++   "customInput": undefined,
++   "id": "features",
++   "multi": true,
++   "options": [
++     "A",
++     "B",
++     "C",
++   ],
++   "question": "Which?",
+    "selectedOptions": [
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4579:67)
+(fail) ACP agent > ACP elicitation bridge > ask free text: multi-select ignores blank and non-string items [3.57ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [490.00ms]

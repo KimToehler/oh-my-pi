@@ -1,0 +1,32 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4645 | 					result => ({ result }),
+4646 | 					(error: unknown) => ({ error }),
+4647 | 				);
+4648 | 
+4649 | 			// Pre-fix, the off-list `q0` is dropped and AskTool ends the turn with `ToolAbortError`.
+4650 | 			expect("error" in outcome ? outcome.error : outcome.result).not.toBeInstanceOf(ToolAbortError);
+                                                                          ^
+error: expect(received).not.toBeInstanceOf(expected)
+
+Expected constructor: not [class ToolAbortError extends Error]
+Received value: 848 | 							!result.multi &&
+849 | 							result.selectedOptions.length === 0 &&
+850 | 							result.customInput === undefined)
+851 | 					) {
+852 | 						context.abort();
+853 | 						throw new ToolAbortError("Ask tool was cancelled by the user");
+                  ^
+ToolAbortError: Ask tool was cancelled by the user
+      at execute (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/src/tools/ask.ts:853:13)
+
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4650:68)
+(fail) ACP agent > ACP elicitation bridge > ask free text: the ask tool reports a folded Other answer instead of cancelling [5.18ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [504.00ms]
