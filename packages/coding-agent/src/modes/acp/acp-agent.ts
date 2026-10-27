@@ -46,6 +46,7 @@ import { disableProvider, enableProvider } from "../../capability";
 import { Settings } from "../../config/settings";
 import { clearPluginRootsAndCaches, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import {
+	type ExtensionAskDialogQuestion,
 	type ExtensionUIContext,
 	type ExtensionUIDialogOptions,
 	getExtensionUISelectOptionLabel,
@@ -573,6 +574,43 @@ function isAcceptedElicitation(
 const FORM_ELICITATION_CAPABILITIES: ClientCapabilities = { elicitation: { form: {} } };
 
 /**
+ * Decode one `askDialog` question from an accepted form. A string the client returns in the select field that is
+ * not an offered label is the user's free text: clients such as JetBrains Air fold the `q<i>__other` companion into
+ * the select and submit the typed answer under `q<i>`. Select texts come first, then the companion text; each
+ * trimmed text is kept once. A single-select free answer is exclusive, as a companion answer always was.
+ */
+function decodeAskAnswer(
+	question: ExtensionAskDialogQuestion,
+	key: string,
+	content: Record<string, ElicitationContentValue>,
+): { selectedOptions: string[]; customInput: string | undefined } {
+	const labels = question.options.map(option => option.label);
+	const value = content[key];
+	const texts: string[] = [];
+	// Items are `unknown`: a client may send entries outside the declared value type.
+	const addText = (candidate: unknown): void => {
+		if (typeof candidate !== "string") return;
+		const text = candidate.trim();
+		if (text && !texts.includes(text)) texts.push(text);
+	};
+	const selected: string[] = [];
+	if (question.multi === true) {
+		if (Array.isArray(value)) {
+			for (const item of value as unknown[]) {
+				if (typeof item === "string" && labels.includes(item)) selected.push(item);
+				else addText(item);
+			}
+		}
+	} else if (typeof value === "string") {
+		if (labels.includes(value)) selected.push(value);
+		else addText(value);
+	}
+	addText(content[`${key}__other`]);
+	const customInput = texts.length > 0 ? texts.join("\n") : undefined;
+	return { selectedOptions: question.multi !== true && customInput !== undefined ? [] : selected, customInput };
+}
+
+/**
  * Build an {@link ExtensionUIContext} that translates skill/extension UI
  * requests into ACP elicitations against `connection` for the session
  * returned by `getSessionId()`. The id is read lazily at each elicitation
@@ -711,30 +749,13 @@ export function createAcpExtensionUiContext(
 
 			return {
 				kind: "submit",
-				results: questions.map((question, index) => {
-					const key = `q${index}`;
-					const otherKey = `${key}__other`;
-					const labels = question.options.map(option => option.label);
-					const otherValue = content[otherKey];
-					const customInput = typeof otherValue === "string" && otherValue.trim() ? otherValue.trim() : undefined;
-					const value = content[key];
-					const selectedOptions =
-						question.multi === true
-							? Array.isArray(value)
-								? value.filter(candidate => typeof candidate === "string" && labels.includes(candidate))
-								: []
-							: customInput === undefined && typeof value === "string" && labels.includes(value)
-								? [value]
-								: [];
-					return {
-						id: question.id,
-						question: question.question,
-						options: labels,
-						multi: question.multi ?? false,
-						selectedOptions,
-						customInput,
-					};
-				}),
+				results: questions.map((question, index) => ({
+					id: question.id,
+					question: question.question,
+					options: question.options.map(option => option.label),
+					multi: question.multi ?? false,
+					...decodeAskAnswer(question, `q${index}`, content),
+				})),
 			};
 		},
 		notify: (message, type) => {
