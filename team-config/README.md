@@ -183,19 +183,23 @@ openspec validate <change> --strict
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
 
-The last artifact `/opsx-propose` creates is `review.md`: the agent runs the bundled `plan-reviewer` (the `advisor`
-model, another family than the planner) over the whole change folder with a fixed brief (the planner adds no focus),
-fixes blockers in the artifacts for at most two rounds, and records the verdict with the digest of the folder it
-reviewed. If the reviewer still rejects, the agent asks per blocker: fix it, accept it in `gate.md` as a residual risk
-or out-of-scope area in your words (the next round does not block on it), or stop. OpenSpec reports apply as `blocked`
-while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
+The last artifact `/opsx-propose` creates is `review.md`. A review round is three fixed-lens `plan-reviewer` tasks (the
+`advisor` model, another family than the planner) in one batch over the whole change folder: each gets the same fixed
+brief plus one fixed lens paragraph (correctness, verification, or security and the mechanical checks), and the planner
+adds no focus. The round is OKAY only when all three lenses return OKAY; a lens without a structured verdict is
+retried once, and if the retry has none either the round is incomplete and no record is written. The agent fixes blockers in the
+artifacts for at most two fix rounds and records the verdict with the digest of the folder it reviewed; the record's
+`Reviewer` lists every subagent id of the round, in lens order. If the round still rejects, the agent asks per blocker:
+fix it, accept it in `gate.md` as a residual risk or out-of-scope area in your words (the next round does not block on
+it), or stop. OpenSpec reports apply as `blocked` while `review.md` is missing, and `/opsx-apply` runs this before the
+first source edit:
 
 ```sh
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/<change>
 ```
 
-It fails when `review.md` is missing or malformed (including a missing `## Blockers` section, or one that says `none`
-for a `REJECT`), when the verdict is `REJECT` without an override, and when any
+It fails when `review.md` is missing or malformed (including a missing `## Blockers` section, one that says `none`
+for a `REJECT`, one that lists blockers for an `OKAY`, or a repeated subagent id), when the verdict is `REJECT` without an override, and when any
 artifact changed after the review (`stale`; ticking tasks does not count). Re-run the review after editing an artifact:
 `openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
