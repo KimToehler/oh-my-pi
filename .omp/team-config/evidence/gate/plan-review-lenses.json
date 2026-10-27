@@ -1,0 +1,88 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/plan-review-lenses",
+  "plan_sha256": "811a24e157d2d8a537762f0f279b458223f78c3dbec7ca6aad60528745a276c8",
+  "reviewed_sha": "0922ce92161d60af2e4e9eae2e89dcd945005bd1",
+  "diff_base": "a00f09319bfe6ae644a93686c49af80a2d534387",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state (the review-blocked to apply-ready predicate and its record format change), so both invocations run.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "fresh planner dispatches three fixed-lens items (F1 a)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-lenses/dispatch-a.json"
+    },
+    {
+      "name": "REJECT record grouped by lens refused without override (F1 b)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-lenses/f1-qa.md"
+    },
+    {
+      "name": "malformed records refused, clean OKAY accepted (F1 c)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-lenses/f1-qa.md"
+    },
+    {
+      "name": "pre-change one-id record in onara still accepted (F1 d)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-lenses/f1-qa.md"
+    },
+    {
+      "name": "incomplete round writes no review.md (F1 e)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-lenses/dispatch-e.json"
+    },
+    {
+      "name": "rendered instruction verbatim on final tree",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/plan-review-lenses/wave-1/verify-instruction.txt"
+    },
+    {
+      "name": "team-config suite 667 pass",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/plan-review-lenses/wave-1/test-team-config.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "two modules, the omp-gated review instruction with its template and the OpenSpec validator, sharing one record format"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-lenses/trailer-implementation-audit.txt",
+      "trailer_sha256": "c6a4d3c332dc594aade633430dba444c60b7ff1bcc677caa0ce7722aa3ee47fe",
+      "note": "no blocker; non-blocking note: mixed-verdict round and successful retry not exercised live"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-lenses/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "c641c7a9c5a5b8b6f523dcc22d29d8c8e39a791b06c2a09be46e2a0cc6ca0084",
+      "note": "no blocker; notes: recall is not convergence, checker is not live enforcement (both accepted in gate.md)"
+    }
+  ],
+  "blockers": []
+}

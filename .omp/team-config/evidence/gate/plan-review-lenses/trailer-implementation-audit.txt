@@ -1,0 +1,34 @@
+### 1. Goal and behavioural contract
+
+The schema prescribes one batch of three fresh lens tasks, the fixed brief plus one fixed paragraph per task, retry handling, verdict composition, and lens-ordered recording. The validator retains one-id compatibility while checking distinct IDs and the OKAY Blockers section.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+No blocking defect found in the reviewed implementation. I traced the schema and template through `checkReview`, the installed-schema test, and the recorded dispatch evidence.
+
+### 3. Security and privacy delta
+
+No change touching a real credential, authentication or authorization path, third-party personal data, or access to a protected asset was identified.
+
+### 4. Verification adequacy
+
+The supplied evidence reports 667 team-config tests passing, a rendered-instruction check with five rejected mutations, and a fresh planner’s three-lens dispatch. The validator tests exercise the changed record checks.
+
+**Non-blocking verification risk:** The recorded real-surface round had three REJECT results, while the incomplete-round exercise killed both attempts. It does not demonstrate a mixed-verdict round or a retry that successfully returns a verdict and is recorded with the retry ID. The instruction specifies both paths; the remaining risk is behavioral coverage rather than an evidenced implementation failure.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Whitespace around reviewer-list separators must not allow the same subagent identity to appear twice as if it were distinct.
+  positive_witness: A current OKAY record with reviewer list `plan-reviewer, Parent.Cor, Parent.Ver, Parent.Chk` is accepted.
+  negative_control: The same record with reviewer list `plan-reviewer, Parent.Cor, Parent.Ver,  Parent.Cor ` MUST be rejected as a duplicate.
+  observable: The validator exits nonzero and identifies the Reviewer field for the negative control.
+  boundary: Reviewer-list normalization and uniqueness check in `checkReview`.
+END-REVIEW-TRAILER

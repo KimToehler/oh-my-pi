@@ -161,9 +161,11 @@ describe("install", () => {
 		const record = canonical("templates/review.md")
 			.replace(/<OKAY or REJECT[^>]*>/, "OKAY")
 			.replace(/<64-hex digest[^>]*>/, digest.stdout.trim())
-			.replace("<subagent id>", "Probe")
+			.replace("<correctness id>", "ProbeCor")
+			.replace("<verification id>", "ProbeVer")
+			.replace("<checks id>", "ProbeChk")
 			.replace(/<1 for the first dispatch>/, "1")
-			.replace(/<the reviewer's blockers[^>]*>/, "none");
+			.replace(/<none, or one "### Lens[^>]*>/, "none");
 		write(change, { "review.md": record });
 		const ready = JSON.parse(openspec(...applyArgs).stdout);
 		expect(ready.state).toBe("ready");

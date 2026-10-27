@@ -1,0 +1,39 @@
+**Bottom line:** The change holds up architecturally within its stated, trusted-agent boundary. I found no substantiated blocker, but the evidence supports improved replay recall—not fewer review rounds or runtime enforcement that every lens actually ran.
+
+## Action plan / review answers
+
+1. **Architecture — retain the current division of responsibility.**  
+   The schema owns dispatch, retry handling and verdict composition; the template carries the result; `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs::checkReview` checks the persisted record. Keeping one-id compatibility permits the staged deployment described in `openspec/changes/plan-review-lenses/design.md`, while rejecting duplicate IDs and contradictory OKAY records strengthens the existing boundary without requiring a second record format. No incompatible consumer is demonstrated by the supplied diff or QA.
+
+2. **Structural blind spots — distinguish record correctness from workflow effectiveness.**  
+   A line-level audit can establish that the new record format is accepted and malformed records are rejected. It cannot establish that discovering more findings reduces convergence time, or that a syntactically valid record faithfully represents its task results. The two notes below are the material strategic limitations.
+
+3. **Highest-consequence deployed failure — an incomplete or rejecting round recorded as OKAY.**  
+   This would let implementation start without the intended review coverage. The schema’s review instruction addresses it procedurally through all-lens agreement, bounded retries and no record updates after an incomplete round; `checkReview` additionally rejects OKAY records containing blockers. It does **not** detect omitted results or discarded blockers. That remaining exposure is explicitly accepted in `openspec/changes/plan-review-lenses/gate.md`, rather than silently presented as validator-enforced. The supplied change does not establish a new path to a protected asset.
+
+4. **Auditor false positives — none identified.**  
+   The auditor’s coverage observation concerns newly introduced multi-lens and retry behavior, not unchanged behavior incorrectly attributed to this change. Its non-blocking classification is appropriate: the supplied evidence does not demonstrate an implementation failure. Legacy one-id acceptance is intentional compatibility, not evidence that the new three-lens instruction is broken.
+
+## Watch out for
+
+- **Note — recall is not convergence.** `proposal.md` attributes the historical 11–27 rounds to the single-reviewer loop, but `design.md` also reports substantial invalid/below-severity findings and increased blocker volume. Earlier discovery can coexist with more fix churn. **Non-blocking:** `gate.md` explicitly leaves rounds-to-OKAY unmeasured; do not treat reduced total cost or elapsed time as an established outcome.
+
+- **Note — the instruction checker is not a live enforcement layer.** `verify-review-instruction.py::problems` checks text containment, while `check_dispatch` checks a supplied dispatch artifact. Neither intercepts future task calls or reconciles their results with `review.md`. **Non-blocking:** F1 supplies a real fresh-planner witness, and the remaining provenance limitation is explicitly accepted.
+
+**Effort:** Quick (<1h); no implementation change recommended from this review.  
+**Confidence:** Medium—based on the supplied diff, plan and reported QA; unchanged callers and replay data were not independently inspected.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Once a replacement attempt supplies a lens result, a late reply from the superseded attempt must not overwrite that selected result.
+  positive_witness: The checks attempt is stopped, its retry returns REJECT, and any later reply from the original attempt leaves the recorded retry identity and blockers unchanged.
+  negative_control: A late OKAY reply from the superseded checks attempt replaces the retry's REJECT and clears its blockers; this outcome MUST fail the criterion.
+  observable: The task transcript identifies both attempts and their result ordering; review.md retains the selected retry's id and rejecting findings regardless of a later superseded reply.
+  boundary: Task-result reconciliation before round composition and review.md generation in the schema's review instruction.
+END-REVIEW-TRAILER
