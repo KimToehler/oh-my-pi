@@ -1,0 +1,10 @@
+--- a/packages/coding-agent/src/modes/acp/acp-agent.ts
++++ b/packages/coding-agent/src/modes/acp/acp-agent.ts
+@@ -723,7 +723,6 @@
+ 						};
+ 					}
+ 				}
+-				properties[`${key}__other`] = { type: "string", title: OTHER_OPTION };
+ 			}
+ 
+ 			let timedOut = false;

@@ -1,0 +1,11 @@
+--- a/packages/coding-agent/src/modes/acp/acp-agent.ts
++++ b/packages/coding-agent/src/modes/acp/acp-agent.ts
+@@ -734,7 +734,7 @@
+ 					"askDialog",
+ 					questions.length === 1 ? questions[0].question : `Answer ${questions.length} questions`,
+ 					properties,
+-					undefined,
++					questions.map((_, index) => `q${index}__other`),
+ 					{
+ 						...dialogOptions,
+ 						onTimeout: () => {

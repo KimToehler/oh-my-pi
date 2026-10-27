@@ -1,0 +1,87 @@
+=== test/acp-agent.test.ts :: translates a recommended single-choice ask into one form
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [536.00ms]
+=== test/acp-agent.test.ts :: treats a single-choice custom answer as exclusive
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [551.00ms]
+=== test/acp-agent.test.ts :: uses only free-text fields for questions without options
+bun test v1.4.4 (5d9cc0f4f)
+
+ 1 pass
+ 188 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [526.00ms]
+=== test/acp-agent.test.ts :: packs multiple ask questions into one ordered form
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4680 | 
+4681 | 			expect(calls).toHaveLength(1);
+4682 | 			const request = calls[0]!;
+4683 | 			if (!isFormElicitation(request)) throw new Error("expected form-mode elicitation");
+4684 | 			expect(request.message).toBe("Answer 2 questions");
+4685 | 			expect(Object.keys(request.requestedSchema.properties)).toEqual(["q0", "q0__other", "q1", "q1__other"]);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "q0",
+    "q0__other",
+-   "q1",
++   "q0",
+    "q1__other",
++   "q1",
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4685:60)
+(fail) ACP agent > ACP elicitation bridge > packs multiple ask questions into one ordered form [2.89ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [537.00ms]
+=== test/acp-v2.test.ts :: ask free text: a v2 client's select value outside the options reaches the tool as free text
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-v2.test.ts:
+1561 | 		const request = requests[0];
+1562 | 		const requestedSchema = isRecord(request) ? request.requestedSchema : undefined;
+1563 | 		if (!isRecord(requestedSchema) || !isRecord(requestedSchema.properties)) {
+1564 | 			throw new Error("expected a form elicitation with requestedSchema.properties");
+1565 | 		}
+1566 | 		expect(Object.keys(requestedSchema.properties)).toEqual(["q0", "q0__other"]);
+                                                         ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "q0",
+    "q0__other",
++   "q0",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-v2.test.ts:1566:51)
+(fail) requires_action (plan 6) > ask free text: a v2 client's select value outside the options reaches the tool as free text [120.17ms]
+
+ 0 pass
+ 55 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [687.00ms]
