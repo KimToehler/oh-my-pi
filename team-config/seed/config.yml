@@ -84,9 +84,41 @@ bash:
       approval: prompt
     - match: git branch -D *
       approval: prompt
-    - match: rm -rf *
+    - match: rm -rf ~
       approval: prompt
-    - match: rm -fr *
+    - match: rm -rf ~/
+      approval: prompt
+    - match: rm -rf $HOME
+      approval: prompt
+    - match: rm -rf $HOME/
+      approval: prompt
+    - match: rm -rf "$HOME"
+      approval: prompt
+    - match: rm -rf .
+      approval: prompt
+    - match: rm -rf ./
+      approval: prompt
+    - match: rm -rf ..
+      approval: prompt
+    - match: rm -rf ../
+      approval: prompt
+    - match: rm -fr ~
+      approval: prompt
+    - match: rm -fr ~/
+      approval: prompt
+    - match: rm -fr $HOME
+      approval: prompt
+    - match: rm -fr $HOME/
+      approval: prompt
+    - match: rm -fr "$HOME"
+      approval: prompt
+    - match: rm -fr .
+      approval: prompt
+    - match: rm -fr ./
+      approval: prompt
+    - match: rm -fr ..
+      approval: prompt
+    - match: rm -fr ../
       approval: prompt
     - match: sh
       approval: deny
