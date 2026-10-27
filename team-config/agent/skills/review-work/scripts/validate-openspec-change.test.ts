@@ -635,6 +635,44 @@ The system SHALL export records in batches.
 		});
 	}
 
+	for (const reviewer of ["plan-reviewer, LensCor1, LensVer1, LensChk1", "plan-reviewer, PlanReviewR27"]) {
+		it(`accepts the reviewer list ${reviewer}`, async () => {
+			const result = run("--reviewed", await reviewed({ Reviewer: reviewer }));
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		});
+	}
+
+	for (const reviewer of [
+		"plan-reviewer, LensCor1, LensCor1, LensChk1",
+		"plan-reviewer, <correctness id>, LensVer1, LensChk1",
+		"plan-reviewer, LensCor1,",
+	]) {
+		it(`refuses the reviewer list ${reviewer}`, async () => {
+			const result = run("--reviewed", await reviewed({ Reviewer: reviewer }));
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("review.md Reviewer:");
+		});
+	}
+
+	it("refuses an OKAY whose Blockers section lists a lens's blockers", async () => {
+		const lensBlockers = `### Verification (LensVer1)\n\n${REJECT_BLOCKERS}`;
+		const result = run("--reviewed", await reviewed({ Reviewer: "plan-reviewer, LensCor1, LensVer1, LensChk1" }, "", lensBlockers));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Blockers:");
+	});
+
+	for (const [name, blockers] of [
+		["none followed by a Notes section", "none\n\n## Notes\n\n1. The day-list read is unrelated."],
+		["an empty Blockers section", ""],
+	] as const) {
+		it(`accepts an OKAY with ${name}`, async () => {
+			const result = run("--reviewed", await reviewed({}, "", blockers));
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		});
+	}
+
 	it("refuses a REJECT without a user override", async () => {
 		const result = run("--reviewed", await reviewed({ Verdict: "REJECT" }, "", REJECT_BLOCKERS));
 		expect(result.exitCode).toBe(1);

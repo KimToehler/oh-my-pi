@@ -386,8 +386,18 @@ export function checkReview(snapshot) {
 	if (reviewedDigest !== undefined && !/^[0-9a-f]{64}$/.test(reviewedDigest))
 		errors.push(`${REVIEW_FILE} Reviewed digest: expected the 64-hex digest printed by --digest`);
 	const reviewer = values.get("Reviewer");
-	if (reviewer !== undefined && !/^plan-reviewer\s*,\s*[A-Za-z0-9][\w.-]*$/.test(reviewer))
-		errors.push(`${REVIEW_FILE} Reviewer: expected plan-reviewer and the subagent id the task tool returned (plan-reviewer, <id>)`);
+	if (reviewer !== undefined) {
+		const [agent, ...ids] = reviewer.split(",").map((part) => part.trim());
+		if (
+			agent !== "plan-reviewer" ||
+			ids.length === 0 ||
+			!ids.every((id) => /^[A-Za-z0-9][\w.-]*$/.test(id)) ||
+			new Set(ids).size !== ids.length
+		)
+			errors.push(
+				`${REVIEW_FILE} Reviewer: expected plan-reviewer and the distinct subagent ids the task tool returned, in lens order (plan-reviewer, <id>[, <id>...])`,
+			);
+	}
 	const round = values.get("Round");
 	if (round !== undefined && !/^[1-9]\d*$/.test(round))
 		errors.push(`${REVIEW_FILE} Round: expected a positive integer`);
@@ -399,8 +409,12 @@ export function checkReview(snapshot) {
 	if (blockers === undefined) errors.push(`${REVIEW_FILE} Blockers: expected exactly one "## Blockers" section`);
 	else if (/^<[^>\n]*>$/.test(blockers))
 		errors.push(`${REVIEW_FILE} Blockers: replace the template placeholder with the reviewer's blockers verbatim, or none`);
-	else if (verdict === "REJECT" && (blockers === "" || /^none\.?$/i.test(blockers.replace(/`/g, ""))))
-		errors.push(`${REVIEW_FILE} Blockers: a REJECT needs the reviewer's blockers verbatim`);
+	else {
+		const empty = blockers === "" || /^none\.?$/i.test(blockers.replace(/`/g, ""));
+		if (verdict === "REJECT" && empty) errors.push(`${REVIEW_FILE} Blockers: a REJECT needs the reviewer's blockers verbatim`);
+		else if (verdict === "OKAY" && !empty)
+			errors.push(`${REVIEW_FILE} Blockers: an OKAY round has no blockers; expected none (a lens that returned blockers makes the round REJECT)`);
+	}
 	if (errors.length > 0) return { errors };
 
 	const current = reviewDigest(snapshot);
