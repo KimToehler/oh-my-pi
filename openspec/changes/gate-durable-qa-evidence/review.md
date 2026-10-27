@@ -1,26 +1,31 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: c5f961931d0d4639728c75c14ce7f89537e3faaeda3c23ffa99994ce37190b34
-- **Reviewer**: plan-reviewer, GdqeCorrectnessR3, GdqeVerificationR3, GdqeChecksR3
-- **Round**: 3
+- **Reviewed digest**: 62b99e7fd0636d5b037979164e91d3713bdc7797ecf190292dfc7a2008cdac52
+- **Reviewer**: plan-reviewer, GdqeCorrectnessR4, GdqeVerificationR4, GdqeChecksR4
+- **Round**: 4
 - **Override**: none
 
 ## Blockers
 
-### Verification (GdqeVerificationR3)
+### Correctness (GdqeCorrectnessR4)
 
 [
   {
-    "area": "Final verification — task 3.1",
-    "defect": "The F1 evidence can report PASS even when the snapshot or validator exit status is wrong. The script compares only validator outcome and finding; the Verify command accepts any numeric Exit and does not check the GC snapshot result. A normal new-guidance run where snapshot fails but a later validator invocation passes can therefore be recorded as passing, so the stated workflow integration is not proved. This is reversible but undermines the merge-gate evidence.",
-    "evidence": "openspec/changes/gate-durable-qa-evidence/tasks.md:15 requires GC snapshot to succeed and records an Exit line, but derives RESULT solely from outcome and finding; its Verify command checks only '^Exit: [0-9]+$' and does not assert a snapshot exit or output. The scenarios in specs/merge-gate-record/spec.md:8-10, 53-55 explicitly require exit 0.",
-    "change": "Capture and independently assert the GC snapshot exit and its expected result, and compare each validator exit status with the scenario's expected zero or nonzero status both when generating RESULT and when checking the evidence."
-  },
+    "area": "Correctness — bootstrap and rollback",
+    "defect": "The plan requires the new post-review QA exemption before deploying the validator that implements it. The existing installed validator rejects those same committed QA files, and the merge-gate hook independently invokes that installed validator for an unsettled record. Rolling back has the same incompatibility for any unmerged record written under the new rule.",
+    "evidence": "tasks.md:15,20-22 writes this change's F1 artifacts under its evidence directory, cites them in F2, requires the record to validate before merge, and deploys only afterwards. review-work/SKILL.md:6,493-497 uses the installed ~/.omp validator; team-config/agent/extensions/merge-gate.ts:262-278 invokes that validator for unmerged records. The existing validator explicitly does not exempt QA paths (validate-gate-record.mjs:393-396), and its post-review diff scan rejects any changed path not pinned (397-419). Thus, once the record and new QA files are committed after reviewed_sha, the installed validator reports reviewed_sha despite the worktree implementation passing. The failed gate is recoverable, but blocks the planned merge. design.md:60-62 also claims rollback compatibility based only on the old validator ignoring the extra field; it still rejects those added QA paths.",
+    "change": "Specify a pre-merge bootstrap that makes both the Phase 5 validation and the merge-gate hook use the branch's new validator, without prematurely deploying an unmerged release, and specify how rollback handles unmerged records that already rely on the new exemption."
+  }
+]
+
+### Checks (GdqeChecksR4)
+
+[
   {
-    "area": "Executability — tasks 2.1 and 2.2",
-    "defect": "The Verify commands do not prove several required guidance changes. For example, task 2.1 passes when the Reuse first line merely contains \"record's evidence directory\" even if it still tells authors to reuse an untracked artifact elsewhere; task 2.2 counts two occurrences of that phrase without checking that the actual visual-qa storage and tui-check paths moved. Such stale guidance causes ordinary gate authors to produce artifacts the new validator rejects at Phase 5. The failed gate is recoverable, but the planned cutover and task-completion proof are broken.",
-    "evidence": "openspec/changes/gate-durable-qa-evidence/tasks.md:10-11 specify the reuse, staging, safe-publishing and visual-qa path changes, while their Verify commands use phrase-presence and occurrence checks. team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:255-257 requires each command to directly prove its task's observable result.",
-    "change": "Use deterministic assertions tied to each changed instruction and actual command/path, including the tracked-or-copy reuse rule, unstaged/explicit staging, both visual-qa destinations and the redaction procedure; ensure stale or contradictory instructions make the relevant Verify fail."
+    "area": "CHECK 1 — published QA evidence",
+    "defect": "The plan requires unshareable captures to stay local but does not inventory protected-data holders and publication sinks, provide a shared exclusion chokepoint, or test that sensitive inputs cannot reach committed artifacts. Synthetic test data alone does not prevent a real credential or third-party data from appearing in terminal output, screenshots, command metadata, or logs. Once such a capture is committed and pushed to the public repository, disclosure is not reliably reversible.",
+    "evidence": "design.md:44 extends safe-to-share handling to images and raw terminal streams and says unshareable captures stay local; tasks.md:10-11 moves wave output and visual captures into addable evidence directories and relies on inspection before citation. The existing rule at team-config/agent/skills/review-work/SKILL.md:337 names tokens, credentials, auth headers, cookies, environment dumps and PII, but the plan provides no holder/sink inventory or sentinel control.",
+    "change": "Inventory sources, holders and sinks for protected data across capture, staging, records, logs and handoffs; define a shared publication boundary or justify exclusions, and add a negative control planting sentinels in each applicable input and scanning every publishable artifact."
   }
 ]
