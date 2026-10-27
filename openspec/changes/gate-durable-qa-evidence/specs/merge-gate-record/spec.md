@@ -89,6 +89,14 @@ For every tracked artifact (the record, each trailer, the whole-diff report, eac
 - **WHEN** the record is not yet committed, a QA artifact is staged with bytes A, then edited to bytes B in the working tree, and its row carries the digest of B
 - **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
 
+#### Scenario: Committed QA artifact edited in the working tree
+- **WHEN** a commit holds QA bytes A beside a record whose row carries the digest of bytes B, and the working-tree QA file is then changed to B without staging
+- **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
+
+#### Scenario: Committed QA artifact staged differently from HEAD
+- **WHEN** the record and a QA artifact with bytes A are committed, bytes B are then staged for the QA file, the working-tree file is restored to A, and its row carries the digest of A
+- **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
+
 #### Scenario: Negative control
 - **WHEN** the report is staged with bytes A, then edited to bytes B in the working tree, and the record carries the digest of B
 - **THEN** validation MUST fail with a `whole_diff.report` finding; an exit 0 is a defect
