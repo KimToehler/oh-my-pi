@@ -8,7 +8,7 @@ An OpenSpec plan review today is one `plan-reviewer` run per round, and a single
 
 - The `omp-gated` schema's `review` artifact dispatches one review round as three fresh `plan-reviewer` tasks in one batch. Each gets the existing fixed brief verbatim plus one fixed lens paragraph: correctness (review scope items 1 and 2), verification (items 3 and 5), checks (item 4, CHECK 1 to 8, the checks that rules loaded for the reviewer define, and the merge-gate `Boundary:` rule). The planner still adds nothing to any brief.
 - A round is OKAY only when all three lenses return OKAY; otherwise it is REJECT with every rejecting lens's blockers, recorded verbatim per lens. A lens without a structured verdict gets one fresh retry; without a verdict after it, the round is incomplete and no review record is written.
-- `review.md` lists every subagent of the round: `- **Reviewer**: plan-reviewer, <correctness id>, <verification id>, <checks id>`. `validate-openspec-change.mjs` accepts `plan-reviewer` followed by one or more distinct ids (a record from before this change, with one id, stays valid), refuses duplicate ids, and refuses an OKAY whose `## Blockers` section is not `none`.
+- `review.md` lists every subagent of the round: `- **Reviewer**: plan-reviewer, <correctness id>, <verification id>, <checks id>`. `validate-openspec-change.mjs` accepts `plan-reviewer` followed by one or more distinct ids (a record from before this change, with one id, stays valid), refuses duplicate ids, and refuses an OKAY whose `## Blockers` section is neither `none` nor empty.
 - The team-config README describes the three-lens round.
 
 ## Capabilities

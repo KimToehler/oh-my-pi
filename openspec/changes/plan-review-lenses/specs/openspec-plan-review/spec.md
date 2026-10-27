@@ -22,7 +22,7 @@ Each review round SHALL dispatch three fresh `plan-reviewer` tasks in one `task`
 - **THEN** recording that dispatch as a review round MUST fail: no review record is written from it
 
 ### Requirement: Round verdict
-A round SHALL be OKAY only when all three lenses return OKAY. Otherwise it SHALL be REJECT, and its record SHALL carry the blockers of every rejecting lens verbatim, grouped by lens. `--reviewed` SHALL refuse a record whose verdict is OKAY while its `## Blockers` section is anything other than `none`.
+A round SHALL be OKAY only when all three lenses return OKAY. Otherwise it SHALL be REJECT, and its record SHALL carry the blockers of every rejecting lens verbatim, grouped by lens. `--reviewed` SHALL refuse a record whose verdict is OKAY while its `## Blockers` section is neither `none` nor empty.
 
 #### Scenario: One rejecting lens rejects the round
 - **WHEN** the correctness and checks lenses return OKAY and the verification lens returns REJECT with two blockers
@@ -37,15 +37,15 @@ A round SHALL be OKAY only when all three lenses return OKAY. Otherwise it SHALL
 - **THEN** `validate-openspec-change.mjs --reviewed` MUST fail and name the Blockers section
 
 ### Requirement: Incomplete round
-A lens that returns no structured verdict (failure, timeout, unparsable output) SHALL get one fresh retry with the same brief. When the retry also returns none, the round SHALL be incomplete: no `review.md` is written or updated for it, and the agent SHALL tell the user which lens failed.
+A lens that returns no structured verdict (failure, timeout, unparsable output) SHALL get one fresh retry with the same brief. When the retry also returns none, the round SHALL be incomplete: the agent writes and edits no `review.md` for it and SHALL tell the user which lens failed. A record of an earlier complete round stays as it was.
 
 #### Scenario: Retry recovers the lens
 - **WHEN** the checks lens fails and its fresh retry returns REJECT
 - **THEN** the round's verdict is computed from the two first results and the retry, and the record lists the retry's subagent id for the checks lens
 
 #### Scenario: Negative control
-- **WHEN** a lens has no structured verdict after its retry
-- **THEN** producing a review record for that round MUST fail, and `--reviewed` keeps failing as missing or stale until a complete round is recorded
+- **WHEN** a lens of the first round of a change has no structured verdict after its retry
+- **THEN** producing a review record for that round MUST fail: no `review.md` exists afterwards, so `--reviewed` keeps failing as missing
 
 ### Requirement: Reviewer record
 `review.md` SHALL name the reviewers of the recorded round as `plan-reviewer` followed by the subagent ids the `task` tool returned, comma-separated; a three-lens round lists its correctness, verification and checks ids in that order. `--reviewed` SHALL accept one or more ids and SHALL refuse an empty id, a template placeholder or a duplicate id.
