@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: Once a provider-executed proposal starts review, that request cannot execute another host tool and every downstream handoff consumes the captured reviewed snapshot
+  positive_witness: A late Cursor write is refused before tool start, ACP/plan-yolo consume snapshot A, and audit hash equals handoff bytes
+  negative_control: Proposal reviews snapshot A, a later frame writes B, and execution observes B while audit still records A; this MUST fail
+  observable: bridge tool-start events, handler invocation count, plan-review audit hash, and captured ACP/plan-yolo handoff bytes
+  boundary: request-bound CursorExecHandlers dispatch and AgentSession.submitPlanProposal snapshot handoff
+END-REVIEW-TRAILER

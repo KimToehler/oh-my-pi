@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+Blocker B1: **High** — `packages/coding-agent/src/async/job-control.ts:185-194,219-222`. In an ordinary multi-agent spawn, each job’s progress array contains the whole batch. If a job ID collides with an existing job, the manager suffixes that job ID while its `agentId` remains unchanged (`task/index.ts:1129-1145,1199-1207,1585-1590`; `async/job-manager.ts:895-913`). The selector matches the suffixed job ID rather than the agent ID and falls back to the first batch record. The newly displayed requests, cost and context can therefore belong to another agent, causing the parent to misidentify which agent is looping. This violates the latest-progress invariant; the misleading display is reversible. Fix by selecting the record for the job’s actual agent identity, and add a multi-agent collision regression covering wait and proc output. **class:** progress-record identity mismatch. **sites:** the repository search `candidate\.id ===|progressRecord|\.progress\.find\(` over coding-agent and TUI source found the relevant selector only at `job-control.ts:185-194`; all four new numeric fields consume that selected record at `:219-222`. The class is **not closed** at that site. The selector pre-existed, but this change exposes its incorrect selection through the new model-facing progress fields.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+**Non-blocking note:** `job-control.ts:278` renders a positive cost below half a cent as `$0.00`, and `:286` renders a valid zero completion estimate as `~0%`. Both conflict with the brief’s “no 0-valued parts” constraint; the plan separately specifies displaying completion whenever present. The small-cost display is misleading but does not, by itself, defeat the loop-identification goal or a stated merge-gate criterion. Consider a nonzero representation such as `<$0.01` and resolve the zero-percent wording.
+
+The suffix is centralized and guarded by task type and running status. Snapshot fields are optional, and the proc listing avoids duplicating duration.
+
+## 3. Security and privacy delta
+
+No changed credential, authentication or authorization path, third-party personal data, or weakened access to a protected asset identified. Existing owner filtering remains in the proc path; the change adds no broker call.
+
+## 4. Verification adequacy
+
+The supplied QA matrix reports real-surface wait, proc and bash coverage, plus RED and GREEN results. The new tests exercise registered jobs rather than only formatting mocks. They use a single matching progress record, however, so they do not discriminate the batch-and-collision failure in B1. They also do not cover the zero-formatting cases noted above. This review did not run tests or independently verify the supplied QA artifacts.
+
+## 5. Final
+
+The progress identity defect blocks the stated goal for a realistic collision in a batch.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A disambiguated job in a multi-agent batch must display metrics belonging to its own agent, not another batch member.
+  positive_witness: A job whose job ID is suffixed after collision but whose agent ID is Beta displays Beta's requests and stage even when Alpha is the first progress record.
+  negative_control: The same job displays Alpha's requests or stage because selection falls back to the first record.
+  observable: Wait and proc row text for the disambiguated job, compared with both batch progress records.
+  boundary: snapshotJobs progress-record selection as consumed by wait and proc rendering.
+END-REVIEW-TRAILER

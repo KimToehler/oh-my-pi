@@ -1,0 +1,21 @@
+source: bg_cf6f57b4 / opencode:ses_ebb336badffeoO4s4lNV9m9hXl (auditor), reviewed f2-diff.txt sha256 prefix e569d9cf88ea673e, plan sha256 f2a6a185a435d7e22b14514027e2517d0a6ab4b79c402d5d5658369a81117d5e
+verbatim trailer:
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: the reviewer family differs from the family of the model that produced the proposing tool call, even when the previous assistant message_end is a failed turn from another family
+  positive_witness: stored Claude message_end with stopReason "error", ctx.model = onara/cx/gpt-5.6-sol at tool_call; ReviewInput resolves planner family openai and the role picked is @deep
+  negative_control: current code passes the stale Claude identity, picks @review (GPT terra), and logs outcome okay with plannerFamily anthropic
+  observable: plan-review.jsonl plannerFamily and reviewerRole fields, or merge-gate.test spy capture of ReviewInput.plannerModel
+  boundary: merge-gate tool_call handler with ctx.model set (plan-review-gate.ts message_end listener into runner plannerFamily)
+- invariant: the plan text the reviewer judges equals the plan content the approval screen shows when the planner edits the plan and proposes in the same turn
+  positive_witness: same-turn edit of local://x-plan.md + xd://propose; the reviewer receives the post-edit text, or the propose is deferred or blocked until the edit lands
+  negative_control: the reviewer reads the pre-edit on-disk file and the OKAY cache stores the stale text while the overlay shows the edited plan
+  observable: planSha256 in plan-review.jsonl vs sha256 of the plan file at approval
+  boundary: merge-gate.ts pendingPlans capture (write-only) at the tool_call prepare phase
+END-REVIEW-TRAILER

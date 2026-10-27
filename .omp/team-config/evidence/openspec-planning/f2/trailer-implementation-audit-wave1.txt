@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+Blocker B1: **Medium — incomplete reviewer identity validation.** Trigger: an agent fills a review record but accidentally leaves the template’s `plan-reviewer, <subagent id>` unchanged. Preconditions: the other fields contain an OKAY verdict and the current digest. `validate-openspec-change.mjs:378-380` accepts any non-whitespace character after the comma, so the literal placeholder passes and `--reviewed` can authorize apply without the subagent ID needed to inspect the review transcript. This violates the malformed-field negative control and the required reviewer identity. The local damage is reversible by correcting or re-running the review. **Fix:** reject placeholders and require a complete, syntactically valid subagent ID; add a CLI regression test using the unchanged template value. **class:** incomplete provenance-field validation. **sites:** `checkReview` at `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs:378-380`, the single validation instance; the template exposing the ordinary omission is `team-config/agent/skills/review-work/openspec/schemas/omp-gated/templates/review.md:5`. Search: `plan-reviewer.*(Reviewer|subagent|id)|Reviewer.*plan-reviewer|checkReview\(` across the worktree. The class is **not closed** at the validation site.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+The digest implementation excludes the review record and normalizes tracked task checkboxes before bundling; the tests cover the requested artifact edits and task ticking. The apply schema invokes the reviewed check before source edits.
+
+**Note:** `checkReview` does not require a `## Blockers` section or check its contents against the verdict. That is a record-quality gap, but the specified CLI failure conditions do not require that section to be validated, and the plan accepts model transcription as a residual risk.
+
+## 3. Security and privacy delta
+
+No changed path identified touches a real credential, authentication or authorization path, third-party personal data, or protected asset. The validator cannot authenticate the reviewer’s verdict or user override; the plan explicitly accepts that limitation.
+
+## 4. Verification adequacy
+
+Reviewed the validator and its tests, folder snapshot and field parser, schema and template, proposal/apply command flows, bundled reviewer definition, and supplied QA matrix and rejection artifact. The QA includes real-session stale-review and rejection paths. The malformed-reviewer test checks `me`, but not the template placeholder accepted by the implementation. I did not run checks.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A review record must retain an actionable reviewer identity rather than an unfilled template placeholder.
+  positive_witness: A record naming `plan-reviewer, ReviewAddRecordPatchR3` with otherwise valid fields passes identity validation.
+  negative_control: The same record with `plan-reviewer, <subagent id>` MUST fail identity validation.
+  observable: The CLI exits nonzero and reports a Reviewer defect for the placeholder.
+  boundary: validate-openspec-change.mjs --reviewed
+END-REVIEW-TRAILER

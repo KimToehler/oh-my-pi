@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: The planner identity a propose is reviewed against is the identity recorded for that propose's own toolCallId, unchanged by any other tool_call event in the same session that arrives while the gate awaits the plan read or validator.
+  positive_witness: GPT-served propose message; an advisor `read` tool_call fires during the validator exec; review runs with plannerFamily openai, reviewerRole `@deep`, log `planner` equals the proposing message's provider/model.
+  negative_control: Same sequence produces log line `outcome: unreviewed`, `category: planner-unknown`, `planner: null`, and the planner receives the "planner model is unknown" additionalContext.
+  observable: `~/.omp/agent/cache/plan-review.jsonl` fields `planner`/`category` for that session, or the spied `ReviewInput.plannerModel` in merge-gate.test.ts.
+  boundary: ~/.omp/agent/extensions/lib/plan-review-gate.ts registerPlanReview returned review function (line 171) called from merge-gate.ts tool_call handler checkPlan (line 198).
+END-REVIEW-TRAILER

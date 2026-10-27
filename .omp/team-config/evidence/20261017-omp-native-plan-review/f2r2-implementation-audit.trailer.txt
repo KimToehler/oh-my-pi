@@ -1,0 +1,18 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: After ACP approval, the path the approval tool result tells the agent to implement and the plan-mode reference path re-injected on later turns resolve to files with identical bytes, even when the agent-chosen plan file changes between approval and the next turn
+  positive_witness: approve, edit local://<slug>-plan.md, prompt again; the approval result text names the same URL as getPlanReferencePath(), and both files hash to the audit planSha256
+  negative_control: HEAD result text "Plan approved at local://<slug>-plan.md" while the reference is local://approved/<sha>-<slug>-plan.md; after the edit the two hashes differ, and this MUST fail
+  observable: propose tool result text path, session.getPlanReferencePath(), sha256 of both resolved files
+  boundary: AcpAgent#handleAcpPlanProposal in packages/coding-agent/src/modes/acp/acp-agent.ts and AgentSession.adoptApprovedPlan
+- invariant: A file pre-planted by the agent at local://approved/<sha>-<name> with bytes different from the approved plan makes approval fail closed and is never adopted as the plan reference
+  positive_witness: no pre-existing file; adoptApprovedPlan creates the snapshot with the exact planContent and returns its URL
+  negative_control: an implementation that overwrites or trusts an existing file on EEXIST adopts the planted bytes as the reference; this MUST fail with ToolError "does not hold the approved bytes" and leave the plan reference unchanged
+  observable: thrown ToolError text, getPlanReferencePath() before and after, snapshot file bytes
+  boundary: AgentSession.adoptApprovedPlan in packages/coding-agent/src/session/agent-session.ts
+END-REVIEW-TRAILER

@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: A review whose answering models mix a cross-family model with any model of the planner's class (fallback partway through the review) never counts as reviewed and never binds the approval to the reviewed plan bytes
+  positive_witness: answeringModels=[openai/gpt-x] with an anthropic planner gives outcome okay, status "OKAY", and details.planSha256 equal to planContentSha256(plan)
+  negative_control: answeringModels=[openai/gpt-x, anthropic/claude-y] must give unreviewed/family-unverified, status "not reviewed", details.planSha256 undefined, and the audit outcome "unreviewed"; a mutation that checks only answeringModels[0] must fail
+  observable: submitPlanProposal result details.planSha256 presence, plus the plan-review custom entry outcome/reason
+  boundary: interpretResult in packages/coding-agent/src/plan-mode/plan-review.ts and the bindsBytes logic in AgentSession.#applyPlanReview
+END-REVIEW-TRAILER

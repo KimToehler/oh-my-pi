@@ -1,0 +1,16 @@
+source: bg_31ad3c73 / opencode:ses_eb75b46c7ffe22s0pgGxyJZ6ov (oracle), reviewed f2r2-diff.txt sha256 prefix b3af1d381b4a97dc, plan sha256 d3ab8748db77a26addcc5ff44143f338c5a30b8083c67006b96138d5ab49cf84
+verbatim trailer:
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: yes
+verdict: FAIL
+adversarial_criteria:
+- invariant: Every accepted reviewed proposal binds reviewer independence to current proposing turn's concrete producer and current workspace snapshot.
+  positive_witness: Current GPT producer receives fresh Claude-family review against same workspace state, then approval records both identities.
+  negative_control: Previous turn used Claude upstream, proposing turn falls back to GPT under same requested model, and cached GPT review attempts approval; this MUST fail or become unreviewed.
+  observable: Review record contains current producer identity, distinct reviewer family, workspace snapshot identity, and cache miss for changed producer or workspace.
+  boundary: write xd://propose tool_call gate immediately before host plan approval
+END-REVIEW-TRAILER

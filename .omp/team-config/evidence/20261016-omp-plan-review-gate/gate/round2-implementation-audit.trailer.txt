@@ -1,0 +1,21 @@
+source: bg_bdd980c9 / opencode:ses_eb79e37cfffedLfvaYe5l82DM6 (auditor, retry after INCONCLUSIVE bg_dfe0e78a), reviewed f2r2-diff.txt sha256 prefix b3af1d381b4a97dc, plan sha256 d3ab8748db77a26addcc5ff44143f338c5a30b8083c67006b96138d5ab49cf84
+verbatim trailer:
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1, 2, 3, 4, 5
+model_id: onara/cc/claude-opus-5-5
+security_delta: yes
+verdict: PASS
+adversarial_criteria:
+- invariant: When the first `write xd://propose` of one assistant message is allowed, a second propose in that same message never spawns a reviewer child and is refused with the after-propose reason.
+  positive_witness: Message [propose x, propose x]; first returns undefined, second returns block with "The plan was proposed earlier in this same message..."; stub marker count 1.
+  negative_control: A gate that resets `allowedPropose` per propose or checks only `mutations` lets the second propose run a second review; the stub marker count is 2.
+  observable: Stub `omp` invocation marker count plus the second call's tool_result text in the planner JSONL.
+  boundary: merge-gate.ts `pi.on("tool_call")` handler, lines 199-213.
+- invariant: A propose whose turn is aborted (Esc) while the reviewer runs never changes the session's REJECT round counter.
+  positive_witness: Stub sleeps 20 s then REJECTs; Esc at 5 s; the next propose in the session, rejected by the stub, reports "(round 1/2)".
+  negative_control: The current code bumps the round inside the orphaned handler; the next rejected propose reports "(round 2/2)" and the third is allowed with CAP_CONTEXT.
+  observable: Round number in the next REJECT tool-result text plus the `round` field of the review-log lines.
+  boundary: lib/plan-review-gate.ts mapOutcome `rounds.bump` (line 85), reached after runner.ts `raceHandlerWithTimeout` returns ABORTED.
+END-REVIEW-TRAILER
