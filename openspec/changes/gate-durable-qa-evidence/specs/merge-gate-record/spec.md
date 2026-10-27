@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: QA artifact binding
-For every `qa[]` row, the record validator SHALL require `artifact` to name a regular file inside the repository, tracked in the index, and `artifact_sha256` to be the SHA-256 of its bytes. A row that fails this SHALL fail validation. The finding names `qa.<n>.artifact` for a path that is missing, a directory, outside the repository, ignored or untracked. It names `qa.<n>.artifact_sha256` for a digest that is absent, malformed or mismatched.
+For every `qa[]` row, the record validator SHALL require `artifact` to name a regular file inside the repository, tracked in the index, and `artifact_sha256` to be the SHA-256 of its bytes. A row that fails this SHALL fail validation. The finding names `qa.<n>.artifact` for a path that is missing, a directory, outside the repository, ignored or untracked, and for working-tree bytes that disagree with the index or `HEAD` blob (requirement "Validated bytes are the committed bytes"). It names `qa.<n>.artifact_sha256` for a digest that is absent, malformed or mismatched. The path checks run first and stop validation, so a digest mismatch is reported only for bytes that passed them.
 
 #### Scenario: QA artifact committed in the reviewed tree
 - **WHEN** an otherwise valid record's every `qa[]` row names a file committed at `reviewed_sha`, with `artifact_sha256` matching its bytes
@@ -26,7 +26,7 @@ For every `qa[]` row, the record validator SHALL require `artifact` to name a re
 - **THEN** the validator exits non-zero with a `qa.<n>.artifact_sha256` finding for that row
 
 #### Scenario: QA artifact changed after the record was written
-- **WHEN** a `qa[]` row's tracked file no longer hashes to its `artifact_sha256`
+- **WHEN** a `qa[]` row's tracked file is edited and staged again after the record was written, so its working-tree and index bytes agree but no longer hash to its `artifact_sha256`
 - **THEN** the validator exits non-zero with a `qa.<n>.artifact_sha256` finding for that row
 
 #### Scenario: QA artifact missing
