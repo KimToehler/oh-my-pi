@@ -1,0 +1,36 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4513 | 
+4514 | 			const result = await ctx.askDialog!([
+4515 | 				{ id: "proof", question: "Belege?", options: [{ label: "Proof-Branch" }, { label: "Lokales Docker" }] },
+4516 | 			]);
+4517 | 
+4518 | 			expect(result?.kind === "submit" ? result.results[0] : undefined).toMatchObject({
+                                                                            ^
+error: expect(received).toMatchObject(expected)
+
+@@ -1,3 +1,10 @@
+  {
+-   "customInput": "klar läuft hier docker",
++   "customInput": undefined,
++   "id": "proof",
++   "multi": false,
++   "options": [
++     "Proof-Branch",
++     "Lokales Docker",
++   ],
++   "question": "Belege?",
+    "selectedOptions": [],
+
+- Expected  - 1
++ Received  + 8
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4518:70)
+(fail) ACP agent > ACP elicitation bridge > ask free text: a single-select value outside the options is the free-text answer [3.75ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [532.00ms]

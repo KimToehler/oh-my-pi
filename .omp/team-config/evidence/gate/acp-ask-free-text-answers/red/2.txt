@@ -1,0 +1,37 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-agent.test.ts:
+4553 | 			]);
+4554 | 			return result?.kind === "submit" ? result.results[0] : undefined;
+4555 | 		}
+4556 | 
+4557 | 		it("ask free text: multi-select items outside the options become free text beside the selections", async () => {
+4558 | 			expect(await askMulti({ q0: ["A", "my own idea", "C"] })).toMatchObject({
+                                                                    ^
+error: expect(received).toMatchObject(expected)
+
+@@ -1,3 +1,11 @@
+  {
+-   "customInput": "my own idea",
++   "customInput": undefined,
++   "id": "features",
++   "multi": true,
++   "options": [
++     "A",
++     "B",
++     "C",
++   ],
++   "question": "Which?",
+    "selectedOptions": [
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/test/acp-agent.test.ts:4558:62)
+(fail) ACP agent > ACP elicitation bridge > ask free text: multi-select items outside the options become free text beside the selections [3.94ms]
+
+ 0 pass
+ 188 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [499.00ms]

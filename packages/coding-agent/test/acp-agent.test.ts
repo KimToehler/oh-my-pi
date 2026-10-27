@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, spyOn, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AgentBusyError } from "@oh-my-pi/pi-agent-core";
+import { AgentBusyError, type AgentToolContext } from "@oh-my-pi/pi-agent-core";
 import { Database } from "bun:sqlite";
 import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -11,6 +11,10 @@ import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp
 import type { AgentSessionEvent, RoleModelCycle } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SILENT_ABORT_MARKER, USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
+import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 import type {
 	AgentSideConnection,
 	ClientCapabilities,
@@ -4499,16 +4503,158 @@ describe("ACP agent", () => {
 			]);
 		});
 
-		it("drops ask values the client was never offered", async () => {
+		it("ask free text: a single-select value outside the options is the free-text answer", async () => {
+			// JetBrains Air folds `q0__other` into the select and returns the typed text as `q0`.
 			const { connection } = createElicitConnection(async () => ({
 				action: "accept",
-				content: { q0: "Nonexistent" },
+				content: { q0: "  klar läuft hier docker  ", q0__other: "" },
 			}));
-			const ctx = createAcpExtensionUiContext(connection, () => "session-ask-invalid", FORM_CAPABILITIES);
+			const ctx = createAcpExtensionUiContext(connection, () => "session-ask-folded-other", FORM_CAPABILITIES);
 
-			const result = await ctx.askDialog!([{ id: "choice", question: "Choose", options: [{ label: "Existing" }] }]);
+			const result = await ctx.askDialog!([
+				{ id: "proof", question: "Belege?", options: [{ label: "Proof-Branch" }, { label: "Lokales Docker" }] },
+			]);
 
-			expect(result?.kind === "submit" ? result.results[0]?.selectedOptions : undefined).toEqual([]);
+			expect(result?.kind === "submit" ? result.results[0] : undefined).toMatchObject({
+				selectedOptions: [],
+				customInput: "klar läuft hier docker",
+			});
+		});
+
+		it("ask free text: a blank or non-string single-select value is no answer", async () => {
+			for (const value of ["   ", 42]) {
+				const { connection } = createElicitConnection(async () => ({ action: "accept", content: { q0: value } }));
+				const ctx = createAcpExtensionUiContext(connection, () => "session-ask-blank", FORM_CAPABILITIES);
+
+				const result = await ctx.askDialog!([
+					{ id: "choice", question: "Choose", options: [{ label: "A" }, { label: "B" }] },
+				]);
+
+				expect(result?.kind === "submit" ? result.results[0] : undefined).toMatchObject({
+					selectedOptions: [],
+					customInput: undefined,
+				});
+			}
+		});
+
+		async function askMulti(content: Record<string, unknown>) {
+			// `content` may carry items outside the declared wire type (`7`, `null`): a misbehaving client's answer.
+			const { connection } = createElicitConnection(
+				async () => ({ action: "accept", content }) as CreateElicitationResponse,
+			);
+			const ctx = createAcpExtensionUiContext(connection, () => "session-ask-multi-free", FORM_CAPABILITIES);
+			const result = await ctx.askDialog!([
+				{
+					id: "features",
+					question: "Which?",
+					options: [{ label: "A" }, { label: "B" }, { label: "C" }],
+					multi: true,
+				},
+			]);
+			return result?.kind === "submit" ? result.results[0] : undefined;
+		}
+
+		it("ask free text: multi-select items outside the options become free text beside the selections", async () => {
+			expect(await askMulti({ q0: ["A", "my own idea", "C"] })).toMatchObject({
+				selectedOptions: ["A", "C"],
+				customInput: "my own idea",
+			});
+		});
+
+		it("ask free text: multi-select with only typed items joins them by newline", async () => {
+			expect(await askMulti({ q0: [" first ", "second"] })).toMatchObject({
+				selectedOptions: [],
+				customInput: "first\nsecond",
+			});
+		});
+
+		it("ask free text: multi-select keeps a repeated typed item once", async () => {
+			expect(await askMulti({ q0: ["x", " x ", "y"] })).toMatchObject({
+				selectedOptions: [],
+				customInput: "x\ny",
+			});
+		});
+
+		it("ask free text: multi-select ignores blank and non-string items", async () => {
+			expect(await askMulti({ q0: ["A", "   ", 7, null, "typed"] })).toMatchObject({
+				selectedOptions: ["A"],
+				customInput: "typed",
+			});
+		});
+
+		it("ask free text: select text and companion text are both kept", async () => {
+			const cases: [Record<string, string>, string][] = [
+				[{ q0: "typed in the select", q0__other: "typed in the field" }, "typed in the select\ntyped in the field"],
+				[{ q0: "same", q0__other: " same " }, "same"],
+			];
+			for (const [content, customInput] of cases) {
+				const { connection } = createElicitConnection(async () => ({ action: "accept" as const, content }));
+				const ctx = createAcpExtensionUiContext(connection, () => "session-ask-both", FORM_CAPABILITIES);
+
+				const result = await ctx.askDialog!([
+					{ id: "widget", question: "Which widget?", options: [{ label: "Standard" }] },
+				]);
+
+				expect(result?.kind === "submit" ? result.results[0] : undefined).toMatchObject({
+					selectedOptions: [],
+					customInput,
+				});
+			}
+		});
+
+		it("ask free text: the ask tool reports a folded Other answer instead of cancelling", async () => {
+			// AskTool builds its dialog labels from the theme.
+			await initTheme(false);
+			// The reported failure: Air's folded Other answer ended the turn with "Ask tool was cancelled by the user".
+			const { connection } = createElicitConnection(async () => ({
+				action: "accept",
+				content: { q0: "klar läuft hier docker", q0__other: "" },
+			}));
+			const session: ToolSession = {
+				cwd: "/tmp/test",
+				hasUI: true,
+				canPromptUser: true,
+				settings: Settings.isolated(),
+				getSessionFile: () => null,
+				getSessionSpawns: () => "*",
+			};
+			const abort = vi.fn();
+			const context = {
+				hasUI: true,
+				ui: createAcpExtensionUiContext(connection, () => "session-ask-tool-folded", FORM_CAPABILITIES),
+				abort,
+			} as unknown as AgentToolContext;
+
+			const outcome = await new AskTool(session)
+				.execute(
+					"call-ask-folded",
+					{
+						questions: [
+							{
+								id: "proof",
+								question: "Belege?",
+								options: [{ label: "Proof-Branch" }, { label: "Lokales Docker" }],
+							},
+						],
+					},
+					undefined,
+					undefined,
+					context,
+				)
+				.then(
+					result => ({ result }),
+					(error: unknown) => ({ error }),
+				);
+
+			// Pre-fix, the off-list `q0` is dropped and AskTool ends the turn with `ToolAbortError`.
+			expect("error" in outcome ? outcome.error : outcome.result).not.toBeInstanceOf(ToolAbortError);
+			if ("error" in outcome) throw outcome.error;
+			expect(outcome.result.content[0]).toMatchObject({
+				type: "text",
+				text: "User provided custom input: klar läuft hier docker",
+			});
+			expect(outcome.result.details?.customInput).toBe("klar läuft hier docker");
+			expect(abort).not.toHaveBeenCalled();
 		});
 
 		it("packs multiple ask questions into one ordered form", async () => {

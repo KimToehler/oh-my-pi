@@ -21,7 +21,7 @@ import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import type { ExtensionAskDialogResult, ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
 import * as skillsModule from "@oh-my-pi/pi-coding-agent/extensibility/skills";
 import * as availableCommandsModule from "@oh-my-pi/pi-coding-agent/slash-commands/available-commands";
@@ -1521,6 +1521,57 @@ describe("requires_action (plan 6)", () => {
 			"running",
 			"idle",
 		]);
+	});
+
+	it("ask free text: a v2 client's select value outside the options reaches the tool as free text", async () => {
+		// Guards: a v2 client that folds the `__other` companion into the select returns the typed text as `q0`.
+		const toolUi: { current?: ExtensionUIContext } = {};
+		const answers: ExtensionAskDialogResult[] = [];
+		const asker: AgentTool = {
+			name: "asker",
+			label: "asker",
+			description: "Asks the user a question",
+			parameters: type({}),
+			async execute() {
+				const result = await toolUi.current?.askDialog?.([
+					{ id: "proof", question: "How?", options: [{ label: "A" }, { label: "B" }] },
+				]);
+				if (result) answers.push(result);
+				return { content: [{ type: "text" as const, text: "asked" }] };
+			},
+		};
+		const requests: unknown[] = [];
+		const { client, sessionId } = await startReal(
+			{
+				tools: [asker],
+				toolUi,
+				script: { 0: { content: [{ type: "toolCall", id: "call-ask", name: "asker", arguments: {} }] } },
+			},
+			async (method, params) => {
+				if (method !== "elicitation/create") throw new Error(`unexpected agent request ${method}`);
+				requests.push(params);
+				return { action: "accept", content: { q0: "typed text" } };
+			},
+			{ elicitation: { form: {} } },
+		);
+		await sendPrompt(client, sessionId, "ask me");
+		await waitForIdle(client, sessionId);
+
+		expect(requests).toHaveLength(1);
+		const request = requests[0];
+		const requestedSchema = isRecord(request) ? request.requestedSchema : undefined;
+		if (!isRecord(requestedSchema) || !isRecord(requestedSchema.properties)) {
+			throw new Error("expected a form elicitation with requestedSchema.properties");
+		}
+		expect(Object.keys(requestedSchema.properties)).toEqual(["q0", "q0__other"]);
+		expect(requestedSchema.properties.q0__other).toEqual({ type: "string", title: "Other (type your own)" });
+		expect(requestedSchema.required ?? []).not.toContain("q0__other");
+		expect(answers).toHaveLength(1);
+		expect(answers[0]?.kind === "submit" ? answers[0].results[0] : undefined).toMatchObject({
+			selectedOptions: [],
+			customInput: "typed text",
+		});
+		expect(client.schemaIssues).toEqual([]);
 	});
 
 	it("counts a plan-approval elicitation as an open interaction, live and on resume", async () => {
