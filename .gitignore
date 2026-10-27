@@ -46,14 +46,18 @@ packages/ai/test/.temp-images/
 
 # Project specific
 !.omp/
-# team-config state: only gate records (evidence/gate) and reviewer trailers (*trailer*) stay addable;
+# team-config state: only gate records (evidence/gate) and reviewer trailers (*trailer*.txt/.md) stay addable;
 # ledger, gate-deltas, frontend-design state and QA output are local.
 /.omp/team-config/*
 !/.omp/team-config/evidence/
 /.omp/team-config/evidence/**/*
 !/.omp/team-config/evidence/**/
 !/.omp/team-config/evidence/gate/**
-!/.omp/team-config/evidence/**/*trailer*
+!/.omp/team-config/evidence/**/*trailer*.txt
+!/.omp/team-config/evidence/**/*trailer*.md
+/.omp/team-config/evidence/**/gate-deltas/
+# plan-mode autosaves (<TOPIC>_PLAN.md) are session-local; commit a plan under a slug name instead
+/.omp/plans/*_PLAN.md
 .omp/plugins/
 .pi_config/
 .opencode/
