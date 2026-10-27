@@ -24,7 +24,6 @@ import type {
 } from "@oh-my-pi/pi-tui/tools/wait";
 
 import { isWaitingPollDetails } from "@oh-my-pi/pi-tui/tools/wait";
-import { formatArtifactErrorNotice } from "@oh-my-pi/pi-tui/tools/output-meta";
 
 /**
  * Resolve a list of job ids to job records visible to the calling agent.
@@ -158,11 +157,7 @@ interface TrackedJobLike {
 	structured?: StructuredSubagentOutput;
 }
 
-export function snapshotJobs(
-	session: ToolSession,
-	jobs: TrackedJobLike[],
-	options: { includeResults?: boolean } = {},
-): JobSnapshot[] {
+export function snapshotJobs(session: ToolSession, jobs: TrackedJobLike[]): JobSnapshot[] {
 	const now = Date.now();
 	return jobs.map(j => {
 		const current = session.asyncJobManager?.getJob(j.id);
@@ -245,18 +240,10 @@ export function snapshotJobs(
 			...(contextTokens !== undefined && running ? { contextTokens } : {}),
 			...(contextWindow !== undefined && running ? { contextWindow } : {}),
 			...(widget ? { widget } : {}),
-			...(!resultConsumed && options.includeResults !== false && latest.resultText
-				? { resultText: latest.resultText }
-				: {}),
-			...(!resultConsumed && options.includeResults !== false && latest.errorText
-				? { errorText: latest.errorText }
-				: {}),
-			...((options.includeResults === false || !resultConsumed) && latest.latestDetails?.meta
-				? { meta: latest.latestDetails.meta }
-				: {}),
-			...(!resultConsumed && options.includeResults !== false && latest.structured
-				? { structured: latest.structured }
-				: {}),
+			...(!resultConsumed && latest.resultText ? { resultText: latest.resultText } : {}),
+			...(!resultConsumed && latest.errorText ? { errorText: latest.errorText } : {}),
+			...(!resultConsumed && latest.latestDetails?.meta ? { meta: latest.latestDetails.meta } : {}),
+			...(!resultConsumed && latest.structured ? { structured: latest.structured } : {}),
 			...(latest.type === "task" ? { agentUrlId: current?.agentId ?? latest.id } : {}),
 		};
 	});
@@ -296,7 +283,7 @@ export function runningTaskProgressSuffix(job: JobSnapshot, options: { duration:
 export function buildJobResult(
 	session: ToolSession,
 	manager: AsyncJobManager,
-	op: "wait" | "cancel" | "jobs",
+	op: "wait" | "cancel",
 	jobs: TrackedJobLike[],
 	cancelOutcomes: CancelOutcome[],
 	agents: AgentActivitySnapshot[] = [],
@@ -308,12 +295,17 @@ export function buildJobResult(
 		seen.add(j.id);
 		return true;
 	});
-	const jobResults = snapshotJobs(session, uniqueJobs, { includeResults: op !== "jobs" });
+	const jobResults = snapshotJobs(session, uniqueJobs);
 	const alreadyConsumed = new Set(jobResults.filter(job => manager.isJobResultConsumed(job.id)).map(job => job.id));
+	const watchedByWait = new Set(
+		op === "wait"
+			? jobResults
+					.filter(job => !alreadyConsumed.has(job.id) && manager.isDeliverySuppressed(job.id))
+					.map(job => job.id)
+			: [],
+	);
 
-	if (op !== "jobs") {
-		manager.consumeJobResults(jobResults.filter(j => j.status !== "running").map(j => j.id));
-	}
+	manager.consumeJobResults(jobResults.filter(j => j.status !== "running").map(j => j.id));
 
 	const completed = jobResults.filter(j => j.status !== "running");
 	const running = jobResults.filter(j => j.status === "running");
@@ -326,24 +318,7 @@ export function buildJobResult(
 		lines.push("");
 	}
 
-	if (op === "jobs" && jobResults.length > 0) {
-		lines.push(`## Jobs (${jobResults.length})\n`);
-		for (const j of jobResults) {
-			const exit = j.exitCode === undefined ? "" : ` — exit ${j.exitCode}`;
-			const artifactId = j.meta?.truncation?.artifactId;
-			const artifact = artifactId ? ` — artifact://${artifactId}` : "";
-			const capture =
-				j.meta?.artifactError === undefined ? "" : ` — ${formatArtifactErrorNotice(j.meta.artifactError)}`;
-			const delivery =
-				j.status === "running" || j.status === "cancelled"
-					? ""
-					: ` — delivery ${alreadyConsumed.has(j.id) ? "delivered" : "pending"}`;
-			const agent = j.agentUrlId ? ` — agent://${j.agentUrlId}` : "";
-			lines.push(
-				`- \`${j.id}\` [${j.type}] — ${j.status} — ${j.label.replace(/\s+/g, " ")}${runningTaskProgressSuffix(j, { duration: true })}${exit}${artifact}${capture}${delivery}${agent}`,
-			);
-		}
-	} else if (completed.length > 0) {
+	if (completed.length > 0) {
 		lines.push(`## Completed (${completed.length})\n`);
 		for (const j of completed) {
 			lines.push(`### ${j.id} [${j.type}] — ${j.status}`);
@@ -352,7 +327,9 @@ export function buildJobResult(
 				lines.push(
 					alreadyConsumed.has(j.id)
 						? "Delivery: already delivered or recovered."
-						: "Delivery: not auto-delivered; recovered by this snapshot.",
+						: watchedByWait.has(j.id)
+							? "Delivery: delivered directly to wait."
+							: "Delivery: not auto-delivered; recovered by this snapshot.",
 				);
 			}
 			if (j.resultText) {
@@ -381,7 +358,7 @@ export function buildJobResult(
 		}
 	}
 
-	if (op !== "jobs" && running.length > 0) {
+	if (running.length > 0) {
 		lines.push(`## Still Running (${running.length})\n`);
 		for (const j of running) {
 			lines.push(`- \`${j.id}\` [${j.type}] — ${j.label}${runningTaskProgressSuffix(j, { duration: true })}`);

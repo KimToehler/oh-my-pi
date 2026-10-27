@@ -673,10 +673,10 @@ describe("skill command stop (F3 wave 3)", () => {
 	it("runs nothing and sends no frame after idle(cancelled) when Stop arrives during the skill read", async () => {
 		// Guards: a skill whose file read was in flight at Stop still calls the model and persists its message.
 		const { rig, client, sessionId, session } = await startReal({ skill: "reviewer" });
-		const original = skillsModule.buildSkillPromptMessage;
+		const original = skillsModule.loadSkillPromptBody;
 		const reading = Promise.withResolvers<void>();
 		const release = Promise.withResolvers<void>();
-		const spy = vi.spyOn(skillsModule, "buildSkillPromptMessage").mockImplementation(async (...args) => {
+		const spy = vi.spyOn(skillsModule, "loadSkillPromptBody").mockImplementation(async (...args) => {
 			reading.resolve();
 			await release.promise;
 			return original(...args);
@@ -716,10 +716,10 @@ describe("skill command stop (F3 wave 3)", () => {
 	it("runs nothing and sends no frame after the close response when the session closes during the skill read", async () => {
 		// Guards: a v2 close never cancels in-flight work, so the released skill read persists a message on the closed session.
 		const { h, rig, client, sessionId, session } = await startReal({ skill: "reviewer" });
-		const original = skillsModule.buildSkillPromptMessage;
+		const original = skillsModule.loadSkillPromptBody;
 		const reading = Promise.withResolvers<void>();
 		const release = Promise.withResolvers<void>();
-		const spy = vi.spyOn(skillsModule, "buildSkillPromptMessage").mockImplementation(async (...args) => {
+		const spy = vi.spyOn(skillsModule, "loadSkillPromptBody").mockImplementation(async (...args) => {
 			reading.resolve();
 			await release.promise;
 			return original(...args);

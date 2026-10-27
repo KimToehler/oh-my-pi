@@ -23,6 +23,7 @@ import type {
 	SessionModeState,
 	SessionNotification,
 	v2,
+	RequestError,
 	CreateElicitationResponse,
 	ElicitationPropertySchema,
 } from "@oh-my-pi/pi-utils/acp";
@@ -61,8 +62,6 @@ export type PromptQueueState = {
 	promise: Promise<void>;
 	release: (() => void) | undefined;
 };
-
-export type PromptLifecycleError = Error & { readonly code: "ACP_SESSION_CLOSED" };
 
 /**
  * Cancellation carrier for a client prompt accepted on the wire whose turn has
@@ -109,7 +108,7 @@ export type ManagedSessionRecord = {
 	// Installed inside `#scheduleBootstrapUpdates` (post-race-guard); released
 	// in `#disposeSessionRecord`. Lives independent of any prompt turn.
 	lifetimeUnsubscribe: (() => void) | undefined;
-	closedError: PromptLifecycleError | undefined;
+	closedError: RequestError | undefined;
 	/**
 	 * In-flight prompt-event handlers and lifetime deliveries, keyed by a token
 	 * per handler so the finishing `agent_end` handler can wait on every other

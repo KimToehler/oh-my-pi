@@ -270,8 +270,7 @@ describe.each([1, 2] as const)("ACP /session delete on protocol v%d", surface =>
 		expect(chunkTexts(client, sessionId).some(text => text.startsWith("Session deleted:"))).toBe(true);
 
 		const refused = await startTurn(rig, "after delete").ack;
-		// The wire message is a generic internal error; the cause travels in `data`.
-		expect(JSON.stringify(refused.error ?? null)).toContain(`Unsupported ACP session: ${sessionId}`);
+		expect(refused.error).toMatchObject({ code: -32002, message: `Resource not found: ${sessionId}` });
 		const listed = resultOf(await client.request("session/list", { cwd: rig.h.cwd }));
 		const ids = (Array.isArray(listed.sessions) ? listed.sessions : []).map(entry =>
 			isRecord(entry) ? entry.sessionId : undefined,
@@ -497,7 +496,7 @@ describe.each([1, 2] as const)("ACP fatal relocation on protocol v%d", surface =
 		expect(chunkTexts(client, sessionId).some(text => text.includes("rollback failed (forced)"))).toBe(true);
 
 		const refused = await startTurn(rig, "after the failed move").ack;
-		expect(JSON.stringify(refused.error ?? null)).toContain(`Unsupported ACP session: ${sessionId}`);
+		expect(refused.error).toMatchObject({ code: -32002, message: `Resource not found: ${sessionId}` });
 		await until(() => session.sessionRelocator === undefined, "the record's relocator to be released");
 		expect(session.disposed).toBe(true);
 		expect(session.promptCalls).not.toContain("after the failed move");
@@ -513,7 +512,7 @@ describe.each([1, 2] as const)("ACP fatal relocation on protocol v%d", surface =
 		expect(await relocate(moveTarget(rig))).toEqual({ ok: false, reason: "rollback failed (forced)" });
 
 		const refused = await startTurn(rig, "after the failed move").ack;
-		expect(JSON.stringify(refused.error ?? null)).toContain(`Unsupported ACP session: ${sessionId}`);
+		expect(refused.error).toMatchObject({ code: -32002, message: `Resource not found: ${sessionId}` });
 		await until(() => session.sessionRelocator === undefined, "the record's relocator to be released");
 		expect(session.disposed).toBe(true);
 		expect(session.promptCalls).not.toContain("after the failed move");

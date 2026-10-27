@@ -108,6 +108,8 @@ class ReplayTestSession {
 	setClientBridge(_bridge: unknown): void {}
 	setSessionRelocator(_relocator: unknown): void {}
 
+	setMcpServerInstructionsSource(_source: unknown): void {}
+
 	subscribe(_listener: (event: AgentSessionEvent) => void): () => void {
 		return () => {};
 	}

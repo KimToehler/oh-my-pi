@@ -53,7 +53,8 @@ import {
 } from "../../extensibility/extensions";
 import { runExtensionCompact } from "../../extensibility/extensions/compact-handler";
 import { getSessionSlashCommands } from "../../extensibility/extensions/get-commands-handler";
-import { buildSkillPromptMessage, parseSkillInvocation } from "../../extensibility/skills";
+import { parseSkillInvocation } from "../../extensibility/skills";
+import { PYTHON_KERNEL_CANCEL_BUDGET_MS } from "../../eval/py/kernel";
 import { MCPManager } from "../../mcp/manager";
 import { reconnectMcpManagerServer } from "../../mcp/oauth-reauth";
 import type { MCPServerConfig } from "../../mcp/types";
@@ -129,7 +130,6 @@ import {
 	type FormElicitationTransport,
 	isJetBrainsClient,
 	type ManagedSessionRecord,
-	type PromptLifecycleError,
 } from "./acp-surface";
 import { AcpSurfaceV1, sendV1FormElicitation } from "./acp-surface-v1";
 import { AcpSurfaceV2, rejectBatchedPrompt } from "./acp-surface-v2";
@@ -181,7 +181,7 @@ const SESSION_STEERING_METHOD = "_session/steering";
  * wait past this guard without hard-coding the literal.
  */
 export const ACP_BOOTSTRAP_RACE_GUARD_MS = 50;
-const ACP_CANCEL_CLEANUP_TIMEOUT_MS = 5_000;
+const ACP_CANCEL_CLEANUP_TIMEOUT_MS = PYTHON_KERNEL_CANCEL_BUDGET_MS + 1_000;
 
 function uniqueSelectOptions<T extends { value: string }>(options: T[]): T[] {
 	const seen = new Set<string>();
@@ -1052,10 +1052,6 @@ export class AcpAgent implements Agent {
 		}
 	}
 
-	#createPromptLifecycleError(message: string): PromptLifecycleError {
-		return Object.assign(new Error(message), { code: "ACP_SESSION_CLOSED" as const });
-	}
-
 	#trackPromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent): void {
 		const token = Symbol("acp-prompt-event");
 		const handling = this.#handlePromptEvent(record, event, token).catch((error: unknown) => {
@@ -1367,7 +1363,7 @@ export class AcpAgent implements Agent {
 		}
 		onSubmissionOutcome?.({ kind: "command" });
 		const turn = this.#turnOf(record);
-		const built = await buildSkillPromptMessage(skill, parsed, "user");
+		const built = await record.session.buildUserSkillPrompt(skill, parsed);
 		// Stop (or a replacing prompt) during the skill read: the skill must not run afterwards.
 		if (this.#isClosed(record)) return true;
 		if (turn && (turn.work.cancelRequested || turn.settled || this.#turnOf(record) !== turn)) return true;
@@ -1425,7 +1421,7 @@ export class AcpAgent implements Agent {
 		// dropping it.
 		const timeoutGate = Promise.withResolvers<never>();
 		const timer = setTimeout(
-			() => timeoutGate.reject(new Error("ACP cancel cleanup timed out")),
+			() => timeoutGate.reject(RequestError.resourceNotFound(record.session.sessionId)),
 			this.#cancelCleanupTimeoutMs,
 		);
 		try {
@@ -1477,7 +1473,10 @@ export class AcpAgent implements Agent {
 			}
 		})();
 		const timeout = new Promise<never>((_, reject) => {
-			timer = setTimeout(() => reject(new Error("ACP cancel cleanup timed out")), this.#cancelCleanupTimeoutMs);
+			timer = setTimeout(
+				() => reject(RequestError.resourceNotFound(record.session.sessionId)),
+				this.#cancelCleanupTimeoutMs,
+			);
 		});
 		try {
 			await Promise.race([abort, timeout]);
@@ -1623,8 +1622,6 @@ export class AcpAgent implements Agent {
 		try {
 			record = this.#getSessionRecord(sessionId);
 		} catch {
-			// Map unknown sessions to the method's error contract instead of
-			// the generic internal error a plain `Error` would surface as.
 			throw RequestError.invalidParams({ method: SESSION_STEERING_METHOD }, `unknown session: ${sessionId}`);
 		}
 		this.#throwIfRecordClosed(record);
@@ -1980,6 +1977,10 @@ export class AcpAgent implements Agent {
 					),
 			),
 		);
+		// Client-declared servers live in `record.mcpManager`, not the session's
+		// own (ACP sessions run with `enableMCP: false`); read it live so every
+		// reconfiguration's `refreshMCPTools` rebuild renders its instructions.
+		session.setMcpServerInstructionsSource(() => record.mcpManager?.getServerInstructions());
 		// Before any prompt subscriber: a continuation decided at agent_end is already
 		// pending when the open prompt checks whether the session is quiet.
 		record.goalUnsubscribe = session.subscribe(event => record.goal.observe(event));
@@ -2110,7 +2111,7 @@ export class AcpAgent implements Agent {
 	#getSessionRecord(sessionId: string): ManagedSessionRecord {
 		const record = this.#sessions.get(sessionId);
 		if (!record) {
-			throw new Error(`Unsupported ACP session: ${sessionId}`);
+			throw RequestError.resourceNotFound(sessionId);
 		}
 		return record;
 	}
@@ -3480,7 +3481,7 @@ export class AcpAgent implements Agent {
 		entry: ClosingSession,
 		disposal: { reason?: postmortem.Reason } | undefined,
 	): Promise<void> {
-		record.closedError ??= this.#createPromptLifecycleError("ACP session closed before queued prompt could run");
+		record.closedError ??= RequestError.resourceNotFound(sessionId);
 		try {
 			await this.#cancelPromptForClose(record);
 			// The close response is the session's last frame (v2: queued and in-flight updates are written first).
@@ -3576,9 +3577,7 @@ export class AcpAgent implements Agent {
 			await Promise.all(
 				records.map(async ([sessionId, record]) => {
 					try {
-						record.closedError ??= this.#createPromptLifecycleError(
-							"ACP agent disposed before queued prompt could run",
-						);
+						record.closedError ??= RequestError.resourceNotFound(sessionId);
 						await this.#cancelPromptForClose(record);
 						await this.#disposeSessionRecord(record, reason);
 					} catch (error) {

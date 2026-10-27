@@ -39,7 +39,13 @@ import {
 import { sanitizeText } from "@oh-my-pi/pi-utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
 import type { MCPResourceReadResult } from "./mcp/types";
-import { resolveApproval, resolveApprovalFromContext } from "./tools/approval";
+import {
+	approvalRestrictions,
+	resolveApproval,
+	resolveApprovalFromContext,
+	restrictedFolderReason,
+} from "./tools/approval";
+import { approvalTargetKey } from "./tools/approval-targets";
 import { getApprovalGrants } from "./tools/approval-cache";
 import { isProposeToolCall, writeDeviceDispatch } from "./tools/resolve";
 import {
@@ -415,6 +421,20 @@ interface ExecuteToolExtras {
 	message?: AssistantMessage;
 }
 
+function buildUnavailableToolResult(
+	options: CursorExecBridgeOptions,
+	toolCallId: string,
+	toolName: string,
+): ToolResultMessage {
+	const names = [...options.tools.keys()];
+	const shown = names.slice(0, 12).join(", ") || "none";
+	const extra = names.length > 12 ? ` and ${names.length - 12} more` : "";
+	const result = buildToolErrorResult(
+		`Tool "${toolName}" not available to this agent; calling it again fails the same way. Use one of: ${shown}${extra}.`,
+	);
+	return createToolResultMessage(toolCallId, toolName, result, true);
+}
+
 async function executeTool(
 	options: CursorRequestScope,
 	toolName: string,
@@ -424,8 +444,7 @@ async function executeTool(
 ): Promise<ToolResultMessage> {
 	const tool = extras.tool ?? options.getExecutableTool?.(toolName) ?? options.tools.get(toolName);
 	if (!tool) {
-		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
-		return createToolResultMessage(toolCallId, toolName, result, true);
+		return buildUnavailableToolResult(options, toolCallId, toolName);
 	}
 	if (options.signal?.aborted) return refuseAbortedCall(options.signal, toolCallId, toolName);
 	const sealed = options.barrier.refusal(toolCallId, toolName);
@@ -509,7 +528,17 @@ function refuseByWritePolicy(options: CursorExecBridgeOptions, toolName: string,
 		userPolicies,
 		getApprovalGrants(context?.settings?.getAgentDir(), context?.sessionManager?.getSessionId()),
 	);
-	if (approval.policy === "allow") return null;
+	if (approval.policy === "allow") {
+		// The frame names its file only in `pathArg`, so the restriction check keys it here.
+		const cwd = options.getCwd?.() ?? options.cwd;
+		const target = approvalTargetKey(cwd, pathArg);
+		const restriction = restrictedFolderReason(
+			{ name: toolName, approvalCacheTargets: () => (target === undefined ? undefined : [target]) },
+			undefined,
+			approvalRestrictions(context?.settings, cwd),
+		);
+		if (restriction === undefined) return null;
+	}
 	return approval.policy === "deny"
 		? `Tool "${toolName}" is blocked by user policy.`
 		: `Tool "${toolName}" requires approval, which this channel cannot request.`;
@@ -519,8 +548,7 @@ async function executeDelete(options: CursorRequestScope, pathArg: string, toolC
 	const toolName = "delete";
 
 	if (!allowsDirectFileMutation(options)) {
-		const result = buildToolErrorResult(`Tool "${toolName}" not available`);
-		return createToolResultMessage(toolCallId, toolName, result, true);
+		return buildUnavailableToolResult(options, toolCallId, toolName);
 	}
 	const sealed = options.barrier.refusal(toolCallId, toolName);
 	if (sealed) return sealed;
@@ -783,8 +811,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		const toolName = "bash";
 		const tool = this.options.tools.get(toolName);
 		if (!tool) {
-			const result = buildToolErrorResult(`Tool "${toolName}" not available`);
-			return createToolResultMessage(toolCallId, toolName, result, true);
+			return buildUnavailableToolResult(this.options, toolCallId, toolName);
 		}
 		const signal = this.options.signal;
 		if (signal?.aborted) return refuseAbortedCall(signal, toolCallId, toolName);
@@ -1275,6 +1302,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			approvalMode,
 			userPolicies,
 			getApprovalGrants(context?.settings?.getAgentDir(), context?.sessionManager?.getSessionId()),
+			approvalRestrictions(context?.settings, this.options.getCwd?.() ?? this.options.cwd),
 		);
 		return approval.policy === "allow";
 	}

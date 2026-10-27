@@ -319,7 +319,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 		async function installPlanYolo(
 			harness: Harness,
 		): Promise<{ handled: ResolvedApprovedPlan[]; switches: string[]; targetId: string }> {
-			const target = getBundledModel("anthropic", "claude-opus-4-1");
+			const target = getBundledModel("anthropic", "claude-opus-4-5");
 			if (!target) throw new Error("Expected bundled anthropic target model to exist");
 			const live = harness.session;
 			const switches: string[] = [];

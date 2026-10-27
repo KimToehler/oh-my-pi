@@ -9,10 +9,12 @@ declare module "@oh-my-pi/pi-agent-core" {
 		hasUI?: boolean;
 		toolNames?: string[];
 		toolCall?: ToolCallContext;
-		/** Set after the write tool's outer gate approves an `xd://` device call
-		 *  at the mounted tool's tier. The inner wrapper skips its tier-only
-		 *  prompt, while explicit policies and overrides still apply. */
-		xdevApproved?: boolean;
+		/** Set after the write tool's outer gate approves an `xd://` device call:
+		 *  the `tools.approval` key that gate resolved (the device name). While the
+		 *  input flows through unchanged, the inner wrapper skips its tier-only
+		 *  prompt and an explicit prompt policy under this same key; overrides and
+		 *  policies under other keys still apply. */
+		xdevPolicyKey?: string;
 		/** Reports the approval tier resolved after an extension rewrites an
 		 *  xd:// device call, so dispatch metadata describes the input that ran. */
 		xdevTierResolved?(tier: "read" | "write" | "exec"): void;

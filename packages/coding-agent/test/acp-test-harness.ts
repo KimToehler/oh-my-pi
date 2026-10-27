@@ -9,6 +9,11 @@ import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-regis
 import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import { ExtensionRuntime } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import {
+	type BuiltSkillPromptMessage,
+	buildSkillPromptMessage,
+	type SkillPromptInput,
+} from "@oh-my-pi/pi-coding-agent/extensibility/skills";
 import { type AcpSessionFactory, createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { ACP_BOOTSTRAP_RACE_GUARD_MS, AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import {
@@ -165,6 +170,13 @@ export class FakeAgentSession {
 	customMessageOptions: Array<{ streamingBehavior?: "steer" | "followUp"; queueChipText?: string } | undefined> = [];
 	skillsSettings = { enableSkillCommands: true };
 	skills: Array<{ name: string; description: string; filePath: string; baseDir: string; source: string }> = [];
+	/** Reads the module binding per call so a test's `vi.spyOn(skills, "buildSkillPromptMessage")` still applies. */
+	buildUserSkillPrompt(
+		skill: { name: string; filePath: string; baseDir: string },
+		input: SkillPromptInput,
+	): Promise<BuiltSkillPromptMessage> {
+		return buildSkillPromptMessage(skill, input);
+	}
 	async refreshSkillsAndCommands(): Promise<void> {}
 	subscribeCommandMetadataChanged(_listener: () => void): () => void {
 		return () => {};
@@ -502,6 +514,8 @@ export class FakeAgentSession {
 	setClientBridge(bridge: ClientBridge | undefined): void {
 		this.clientBridge = bridge;
 	}
+
+	setMcpServerInstructionsSource(_source: unknown): void {}
 
 	getPlanModeState(): PlanModeState | undefined {
 		return this.planModeState;
