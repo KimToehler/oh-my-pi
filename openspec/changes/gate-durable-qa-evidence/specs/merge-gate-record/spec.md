@@ -25,6 +25,22 @@ For every `qa[]` row, the record validator SHALL require `artifact` to name a re
 - **WHEN** a `qa[]` row's tracked file no longer hashes to its `artifact_sha256`
 - **THEN** the validator exits non-zero with a `qa.<n>.artifact_sha256` finding for that row
 
+#### Scenario: QA artifact missing
+- **WHEN** a `qa[]` row names a path that does not exist, with a well-formed `artifact_sha256`
+- **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
+
+#### Scenario: QA artifact outside the repository
+- **WHEN** a `qa[]` row names `../outside.md`, or a tracked symlink whose target lies outside the repository, with a matching `artifact_sha256`
+- **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
+
+#### Scenario: QA artifact with a malformed digest
+- **WHEN** a `qa[]` row names a tracked file and carries `artifact_sha256` `"abc"`
+- **THEN** the validator exits non-zero with a `qa.<n>.artifact_sha256` finding for that row
+
+#### Scenario: QA artifact invalid in a later row
+- **WHEN** a record's first `qa[]` row is valid and its second row names a git-ignored file
+- **THEN** the validator exits non-zero with a `qa.1.artifact` finding
+
 #### Scenario: Negative control
 - **WHEN** the record's only `qa[]` row names a file under the git-ignored `.omp/team-config/evidence/demo/wave-1/`, present on disk with a matching `artifact_sha256`, as the guidance before this change directed
 - **THEN** validation MUST fail with a `qa.0.artifact` finding; an exit 0 is a defect
@@ -34,6 +50,10 @@ Commits after `reviewed_sha` MAY add a QA artifact without voiding the record on
 
 #### Scenario: QA artifacts committed with the record after the review
 - **WHEN** the record and the QA artifacts it names under `.omp/team-config/evidence/gate/demo/wave-2/` are committed together on top of `reviewed_sha`, each file absent at `reviewed_sha` and matching its digest
+- **THEN** the validator exits 0
+
+#### Scenario: QA artifacts below a non-default record's evidence directory
+- **WHEN** the record is `docs/evidence/demo/merge-gate.json`, and it is committed on top of `reviewed_sha` together with the QA artifacts it names under `docs/evidence/demo/merge-gate/wave-1/`, each absent at `reviewed_sha` and matching its digest
 - **THEN** the validator exits 0
 
 #### Scenario: QA artifact added outside the record's evidence directory
