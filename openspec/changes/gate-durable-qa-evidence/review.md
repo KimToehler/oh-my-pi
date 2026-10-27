@@ -1,42 +1,37 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 51912bc96f487492af1517d4e1a004366783a62ed755639c5384b97e05911844
-- **Reviewer**: plan-reviewer, GdqeCorrectnessR7, GdqeVerificationR7, GdqeChecksR7
-- **Round**: 7
+- **Reviewed digest**: f9da04d03338714eb6efef591c9c129d8537305591458dbd95a59eaaea34d7df
+- **Reviewer**: plan-reviewer, GdqeCorrectnessR8, GdqeVerificationR8, GdqeChecksR8
+- **Round**: 8
 - **Override**: none
 
 ## Blockers
 
-### Correctness (GdqeCorrectnessR7)
+### Verification (GdqeVerificationR8)
 
 [
   {
-    "area": "Correctness and lifecycle",
-    "defect": "The F1 evidence commit is made after the F3 baseline, but the plan does not account for it in the convergence ledger before starting F2. In the ordinary planned sequence, F2 reports the commit as unreviewed and refuses to proceed. This is recoverable by recording the appropriate review, but blocks the stated merge path.",
-    "evidence": "tasks.md:15-21 runs F3, commits the four F1 files in their own commit, then starts F2 without covering that commit. gate-convergence.mjs:181-200 marks every commit after the existing baseline unreviewed unless a delta verdict or exemption covers it; review-work/SKILL.md:409-413 reuses F3's baseline and requires GC ready before GC snapshot. The F1 artifacts are review input, so the skill's exemption for commits changing neither behavior nor review input does not apply (review-work/SKILL.md:429-435).",
-    "change": "Add the applicable delta-review and ledger-recording step for the F1 evidence commit before F2 readiness, or redesign the sequence so the evidence commit is included in the F3 baseline without weakening the stated review requirements."
+    "area": "Verification — task 1.2 RED evidence",
+    "defect": "The RED check records and verifies only a nonzero `bun test` exit, not that the selected test ran and failed on the intended behavioral assertion. A scratch validator copy that cannot resolve its relative imports, or another setup failure, can produce all required nonzero exits while the unmodified implementation remains undetected. The final green run does not distinguish that situation. This makes the claimed regression proof unreliable; the damage is reversible by rerunning the controls correctly.",
+    "evidence": "tasks.md:6 requires 22 lines containing only the test title, mutation name and exit code, and its Verify command accepts any positive exit. The test harness fixes the validator path relative to the test module at team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:49-50; the validator imports sibling modules at team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:7-10, so running a copy from an unsuitable scratch location is a concrete setup-failure case.",
+    "change": "Capture each RED run's output and require that exactly the named test ran and failed with the expected behavioral assertion or finding, rather than an import, setup, selection or runner error. Preserve the output alongside the generated summary."
   }
 ]
 
-### Verification (GdqeVerificationR7)
+### Checks (GdqeChecksR8)
 
 [
   {
-    "area": "Quality and verification — QA artifact byte binding",
-    "defect": "Task 1.2 does not require a QA-specific test using non-UTF-8 bytes or a mutation that corrupts them through text decoding. An implementation that mishandles PNG or terminal-stream bytes only on the new QA path could pass the named scenarios and F1 while rejecting valid evidence, breaking the durable-QA goal. The failure is reversible by fixing the validator, but it can block an ordinary gate.",
-    "evidence": "specs/merge-gate-record/spec.md:5-6 requires the SHA-256 of artifact bytes; design.md:27 explicitly includes PNG and JSONL artifacts. tasks.md:6 requires only the 18 listed scenarios and their specified mutations; tasks.md:16 exercises four Markdown captures. The existing suite documents this exact blind spot at team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:1670-1683: ASCII fixtures previously allowed a byte-versus-text regression to ship, and its binary test covers trailers, not QA rows.",
-    "change": "Add a QA-row positive test with invalid UTF-8 bytes and a digest computed independently from raw bytes, plus a QA-only UTF-8 round-trip mutation that makes that test fail. Include it in task 1.2's test count and RED evidence checks."
-  }
-]
-
-### Checks (GdqeChecksR7)
-
-[
+    "area": "CHECK 1 — design.md decision 6; tasks.md 2.1–2.2",
+    "defect": "The new publication sink has no sentinel negative control, and the inventory does not trace protected values through the processes and intermediate outputs that hold or print them. Procedural inspection alone is the proposed chokepoint, but the plan explicitly provides no control demonstrating that it prevents publication.",
+    "evidence": "design.md:43-46 identifies credentials or personal data in command stdout/stderr, terminal streams, screenshots, metadata, HTTP transcripts and logs, and makes the cited artifact's commit a new public sink. gate.md:7 states that no sentinel control guards cited files. review-work/SKILL.md:337 prohibits raw credentials and PII; visual-qa/SKILL.md:68-70 captures raw terminal streams and screenshots. In an ordinary QA run, a captured token or third-party datum can be committed and published; removing it later does not erase exposed history or revoke the credential.",
+    "change": "Inventory the producing processes, their inputs and stdout/stderr, intermediate files and every publication or handoff sink; identify the common protection inherited by each new path. Add a negative control planting sentinels in every applicable input field and scanning every resulting artifact and publication sink for zero hits, including a defined approach for non-text captures."
+  },
   {
-    "area": "CHECK 1 — protected-data holders and sinks",
-    "defect": "The plan introduces publication of QA captures containing possible credentials or third-party personal data, but provides no sentinel control demonstrating that those values are excluded from every published artifact. A normal QA capture can include a real cookie, token, or personal data despite the synthetic-data instruction; committing it to the public repository can irreversibly disclose it.",
-    "evidence": "design.md:44–46 identifies stdout/stderr, terminal streams, screenshots, metadata, HTTP headers/cookies/bodies and logs, then relies on manual inspection and redaction before digesting. gate.md:7 explicitly states that no sentinel control guards cited QA files. The existing capture procedure writes raw terminal streams and metadata (team-config/agent/skills/visual-qa/SKILL.md:68–70).",
-    "change": "Add a negative control that plants distinct synthetic sentinels in each applicable capture input, exercises the actual inspection/redaction and publication workflow, and scans every resulting published artifact and other applicable sink for zero hits. Include an appropriate image-aware check or explicitly prevent an uninspectable capture from being published."
+    "area": "CHECK 5 — design.md decision 1; tasks.md 1.2",
+    "defect": "The plan reuses an artifact checker that reads the working file separately for byte agreement and for hashing, without pinning those reads to the same bytes or testing a change between them.",
+    "evidence": "validate-gate-record.mjs:335-357 reads and compares the working file with the index or HEAD; validate-gate-record.mjs:247-250 then reads it again and hashes that second read. design.md:27 and tasks.md:6 propose using this path for QA artifacts. If a still-running capture updates a file between those reads, the validated digest can describe different bytes from the committed blob, defeating the stated durable-evidence binding; the audit record can be corrected later, but it can initially misrepresent the evidence.",
+    "change": "Read and pin one byte snapshot, compare that same snapshot to the index/HEAD blob and hash it, or bind directly to an immutable staged blob. Add a control that changes the source between check and use and requires rejection or use of the originally verified bytes."
   }
 ]
