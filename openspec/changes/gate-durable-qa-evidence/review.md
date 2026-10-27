@@ -1,55 +1,42 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 479c8a40e8aa99b6cb453b14002631b5b78c0d7fd516a50008e3d6862d9a7e07
-- **Reviewer**: plan-reviewer, GdqeCorrectnessR6, GdqeVerificationR6, GdqeChecksR6
-- **Round**: 6
+- **Reviewed digest**: 51912bc96f487492af1517d4e1a004366783a62ed755639c5384b97e05911844
+- **Reviewer**: plan-reviewer, GdqeCorrectnessR7, GdqeVerificationR7, GdqeChecksR7
+- **Round**: 7
 - **Override**: none
 
 ## Blockers
 
-### Verification (GdqeVerificationR6)
+### Correctness (GdqeCorrectnessR7)
 
 [
   {
-    "area": "Task 1.1 / 1.2 order and 1.1 Verify",
-    "defect": "1.1's tests need a scratch harness that only 1.2 migrates, so they cannot pass, or pass for the wrong reason, when 1.1 is verified. The pre-1.2 harness gives every record a default QA row that points at an untracked, nonexistent path with no digest. The migration is assigned to 1.2 (\"Migrate every fixture ... and every scratch record\"), after the 1.1 Verify.",
-    "evidence": "fixtures/pass.json:39 gives `artifact: .omp/team-config/evidence/review-work/validator-tests.txt` and no digest. test.mjs:989-1014 `scratchArtifacts` creates no QA file and no digest, and `scratchRepo` (974-987) has no .gitignore. Without migration, the positive scenarios (reviewed tree, committed with the record after the review, non-default evidence directory) cannot exit 0. The negative scenarios (directory, missing digest, malformed digest, digest mismatch) would all fail on the harness's own `qa.0.artifact` (nonexistent path), not on the field under test. The plan's rule that each scenario \"must be seen failing against the unchanged validator\" therefore proves nothing about the cause.",
-    "change": "Move the shared-helper migration (`scratchArtifacts`, `rebind`, a way to set the record path and a `.gitignore` for ignored-path scenarios) into a task that runs before 1.1's scenario tests, or put it into 1.1 and keep only the per-fixture JSON migration in 1.2. 1.1's Verify must run on a harness whose default QA row is valid."
-  },
-  {
-    "area": "Task 1.1 Verify",
-    "defect": "The only Verify is `bun test ... -t \"QA artifact\"`. Nothing in it fails if one of the 18 scenario tests is missing, misnamed, or has a weak assertion. The per-scenario discrimination, including the 7 scratch mutations, exists only as prose \"recorded in the commit message\", which no command checks.",
-    "evidence": "tasks.md 1.1: the command ends at `-t \"QA artifact\"`. A run with 17 of 18 tests, or with none (a filter that matches nothing), still reports passes. The task lists 14 'seen failing on the unchanged validator' scenarios, 4 scratch-mutation scenarios and 3 byte-comparison mutations, yet the command asserts no count or title list.",
-    "change": "Add a mechanical check to Verify: for example, assert that the 18 expected scenario titles each appear in the test file (`grep -c '^test(\"QA artifact'` equals 18) and in the `-t` output. Make the mutation evidence checkable, for example a committed evidence file listing each mutation and its failing test, or drop the claim from Verify."
-  },
-  {
-    "area": "Task 2.1 Verify",
-    "defect": "The 2.1 Verify does not check two of the edits it lists, (a) and (f), and has no positive check for (h). A stale copy there passes Verify, and the design says a stale guidance text fails only at Phase 5, after the reviewers have already run.",
-    "evidence": "(a) is the opening notes. SKILL.md:16 says \"The record and every trailer must be staged before validating\", and the Verify has no grep for it. (f) is the field-rules paragraph; SKILL.md:483 says \"every row must name a non-empty `artifact`\" with no digest, and the Verify has no grep for it. (h) is only a negative grep for 'binds the plan and every trailer artifact', so any other wording passes. design.md decision 4 says a stale text 'now fails only at Phase 5'.",
-    "change": "Add Verify clauses that fail on the old text and pass only on the new one: (a) the notes name the record's evidence directory or `artifact_sha256`; (f) the field-rules paragraph requires `artifact_sha256` per row; (h) a positive grep for QA artifacts in the validator summary."
-  },
-  {
-    "area": "Task 3.1 Verify",
-    "defect": "3.1 is F3 'fixes delta-reviewed'. Its Verify checks only the report's first line. A report that ends in FAIL, or one never recorded with `GC wave`, still passes.",
-    "evidence": "tasks.md 3.1 Verify: `test \"$(head -n 1 .../f3-integration-review-report.md)\" = INTEGRATION-REVIEW-REPORT-v1`. integration-review SKILL, Step 4: the verdict is the last line of the report, bare PASS or FAIL, and `FAIL` means a Must-fix remains. The 3.2 Verify, by contrast, does check `RESULT PASS`.",
-    "change": "Extend the Verify: `test \"$(tail -n 1 report)\" = PASS`, and ideally `GC ready --lane F3` / the ledger showing `f3=PASS` for the final head."
+    "area": "Correctness and lifecycle",
+    "defect": "The F1 evidence commit is made after the F3 baseline, but the plan does not account for it in the convergence ledger before starting F2. In the ordinary planned sequence, F2 reports the commit as unreviewed and refuses to proceed. This is recoverable by recording the appropriate review, but blocks the stated merge path.",
+    "evidence": "tasks.md:15-21 runs F3, commits the four F1 files in their own commit, then starts F2 without covering that commit. gate-convergence.mjs:181-200 marks every commit after the existing baseline unreviewed unless a delta verdict or exemption covers it; review-work/SKILL.md:409-413 reuses F3's baseline and requires GC ready before GC snapshot. The F1 artifacts are review input, so the skill's exemption for commits changing neither behavior nor review input does not apply (review-work/SKILL.md:429-435).",
+    "change": "Add the applicable delta-review and ledger-recording step for the F1 evidence commit before F2 readiness, or redesign the sequence so the evidence commit is included in the F3 baseline without weakening the stated review requirements."
   }
 ]
 
-### Checks (GdqeChecksR6)
+### Verification (GdqeVerificationR7)
 
 [
   {
-    "area": "CHECK 1 — QA publication boundary",
-    "defect": "The new public-history sink has no negative control demonstrating that protected data is removed from every cited artifact before publication.",
-    "evidence": "design.md:44-46 makes manual inspection and redaction the publication boundary for command output, screenshots, terminal streams, metadata, HTTP transcripts and logs; gate.md:7 explicitly says no sentinel control guards cited QA content. A normal capture can contain a real credential or third-party data, and publishing it in repository history can cause irreversible disclosure.",
-    "change": "Add a sentinel-based negative control covering each applicable capture/input type and all publication artifacts, including image and terminal evidence; demonstrate that the actual inspection/redaction procedure prevents every planted value from reaching the commit."
-  },
+    "area": "Quality and verification — QA artifact byte binding",
+    "defect": "Task 1.2 does not require a QA-specific test using non-UTF-8 bytes or a mutation that corrupts them through text decoding. An implementation that mishandles PNG or terminal-stream bytes only on the new QA path could pass the named scenarios and F1 while rejecting valid evidence, breaking the durable-QA goal. The failure is reversible by fixing the validator, but it can block an ordinary gate.",
+    "evidence": "specs/merge-gate-record/spec.md:5-6 requires the SHA-256 of artifact bytes; design.md:27 explicitly includes PNG and JSONL artifacts. tasks.md:6 requires only the 18 listed scenarios and their specified mutations; tasks.md:16 exercises four Markdown captures. The existing suite documents this exact blind spot at team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:1670-1683: ASCII fixtures previously allowed a byte-versus-text regression to ship, and its binary test covers trailers, not QA rows.",
+    "change": "Add a QA-row positive test with invalid UTF-8 bytes and a digest computed independently from raw bytes, plus a QA-only UTF-8 round-trip mutation that makes that test fail. Include it in task 1.2's test count and RED evidence checks."
+  }
+]
+
+### Checks (GdqeChecksR7)
+
+[
   {
-    "area": "CHECK 8 — Visual QA storage default",
-    "defect": "The new visual QA storage path relies on RECORD_EVIDENCE_DIR without specifying how it is set or what standalone visual QA should do when there is no gate record.",
-    "evidence": "tasks.md:11 replaces both storage and the tui-check input with $RECORD_EVIDENCE_DIR but defines only what the variable means. team-config/agent/skills/visual-qa/SKILL.md:2-14 makes visual QA applicable to any UI change or requested visual check, not only a merge-gate run. In a normal standalone invocation with the variable unset, the prescribed path becomes /tui-web-terminal/, potentially failing at the filesystem root and breaking evidence capture; the failure is reversible.",
-    "change": "Define an explicit, reported evidence directory for standalone visual QA and provide a safe local default or require and validate an explicit choice before capture; retain the record-derived directory for gate runs."
+    "area": "CHECK 1 — protected-data holders and sinks",
+    "defect": "The plan introduces publication of QA captures containing possible credentials or third-party personal data, but provides no sentinel control demonstrating that those values are excluded from every published artifact. A normal QA capture can include a real cookie, token, or personal data despite the synthetic-data instruction; committing it to the public repository can irreversibly disclose it.",
+    "evidence": "design.md:44–46 identifies stdout/stderr, terminal streams, screenshots, metadata, HTTP headers/cookies/bodies and logs, then relies on manual inspection and redaction before digesting. gate.md:7 explicitly states that no sentinel control guards cited QA files. The existing capture procedure writes raw terminal streams and metadata (team-config/agent/skills/visual-qa/SKILL.md:68–70).",
+    "change": "Add a negative control that plants distinct synthetic sentinels in each applicable capture input, exercises the actual inspection/redaction and publication workflow, and scans every resulting published artifact and other applicable sink for zero hits. Include an appropriate image-aware check or explicitly prevent an uninspectable capture from being published."
   }
 ]
