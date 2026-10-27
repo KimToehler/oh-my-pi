@@ -9,6 +9,10 @@ For every `qa[]` row, the record validator SHALL require `artifact` to name a re
 - **WHEN** an otherwise valid record's every `qa[]` row names a file committed at `reviewed_sha`, with `artifact_sha256` matching its bytes
 - **THEN** the validator exits 0
 
+#### Scenario: QA artifact with binary bytes
+- **WHEN** a `qa[]` row names a tracked file in the reviewed tree whose bytes are not valid UTF-8, such as a PNG, and its `artifact_sha256` is the SHA-256 of those raw bytes
+- **THEN** the validator exits 0
+
 #### Scenario: QA artifact that was never added
 - **WHEN** a `qa[]` row names a file that exists on disk at a path that is not ignored but was never added to the index, with a matching `artifact_sha256`
 - **THEN** the validator exits non-zero with a `qa.<n>.artifact` finding for that row
