@@ -52,7 +52,7 @@
 
 ## 3. Final verification
 
-- [ ] 3.1 Integration check over the touched suites and their neighbours. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text && bun check && cd packages/coding-agent && bun test test/acp-agent.test.ts test/acp-v2.test.ts test/acp-v1-golden.test.ts test/tools/ask.test.ts`
+- [x] 3.1 Integration check over the touched suites and their neighbours. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text && bun check && cd packages/coding-agent && bun test test/acp-agent.test.ts test/acp-v2.test.ts test/acp-v1-golden.test.ts test/tools/ask.test.ts`
 - [ ] 3.2 F1. Manual QA on the real surface (JetBrains Air in IntelliJ, ACP v1), on the final head. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/.omp/team-config/evidence/gate/acp-ask-free-text-answers/f1 && test "$(grep -lx 'RESULT PASS' a.md b.md c.md | wc -l | tr -d ' ')" = 3 && cmp ~/.jetbrains/acp.json ~/.jetbrains/acp.json.bak-acp-ask-free-text`
   - Setup: back up `~/.jetbrains/acp.json` to `~/.jetbrains/acp.json.bak-acp-ask-free-text`. Add the agent entry `"omp (worktree acp-ask-free-text)"` with command `bun`, args `["/Users/tim/git/oh-my-pi/.worktrees/acp-ask-free-text/packages/coding-agent/src/cli.ts", "acp"]`, and the existing omp entry's `PATH` env. It uses the real agent directory.
   - Run: in a new Air chat with that agent in `/Users/tim/git/oh-my-pi`, prompt the agent to call `ask` once per scenario. The user answers in Air:
