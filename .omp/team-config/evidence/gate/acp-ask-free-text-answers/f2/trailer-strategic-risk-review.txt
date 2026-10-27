@@ -1,0 +1,35 @@
+**Bottom line:** No blocking strategic risk found in the supplied diff. The fix belongs at the shared ACP answer-decoding boundary, and its limited production scope is preferable to client-specific handling or changes to `AskTool` cancellation semantics.
+
+### Action plan / answers
+
+1. **Architecture: retain the current boundary.**  
+   `packages/coding-agent/src/modes/acp/acp-agent.ts::decodeAskAnswer` converts accepted wire content into the existing answer representation; `createAcpExtensionUiContext().askDialog` remains responsible for assembling question results. There is no exported API change, client-profile subsystem, or transport-specific decoding fork. The supplied v2 test checks the answer received through `startReal`, complementing the bridge-level tests.
+
+2. **What the line-level audit structurally misses: distinguish product correctness from proof-harness correctness.**  
+   **Note:** In `.omp/team-config/evidence/gate/acp-ask-free-text-answers/mutation-check.sh`, `run_one` discards the test process’s exit status with `|| true`, while `passed_clean` checks only the `1 pass` / `0 fail` summary lines. Consequently, the script does not independently require successful process completion for its clean runs. Optional hardening should retain the exit status and require zero for those runs, while allowing expected failures for mutations.  
+   **Why this does not block:** The supplied clean transcripts contain completed one-test runs without reported errors; this is a weakness in future evidence classification, not evidence that the current product behavior or recorded results failed.
+
+3. **Most consequential production failure: silent corruption of user intent.**  
+   A conspicuous cancellation is less dangerous than a successful-looking answer that omits, replaces, or attributes text incorrectly: the model can continue on the wrong understanding. The submitted implementation and evidence address the concrete loss mechanism, including simultaneous selections and text and the two-question Air scenario in `.omp/team-config/evidence/gate/acp-ask-free-text-answers/f1/c.md`.  
+   The remaining ambiguity is semantic, not algorithmic: an off-list value supplied accidentally by a client is indistinguishable from deliberately typed text. `openspec/changes/acp-ask-free-text-answers/gate.md` explicitly accepts that limitation. Additional decoding machinery cannot establish intent from the same payload.
+
+4. **Auditor false positives: none identified.**  
+   The auditor reported no defect that needs overturning. In particular, the instruction-like text in the Air QA artifacts does not establish a new prompt-injection capability: the existing companion-field path already delivered user-authored text to the model. Moving equivalent text through `q0` changes decoding coverage, not the user’s authority or the recipient’s privilege.
+
+**Effort:** Quick (<1h) for optional proof-script hardening; no blocking implementation work identified.  
+**Confidence:** Medium—this review is grounded in the supplied diff, plan, and artifacts; neighboring transport implementations and final integration execution were not independently inspected. No commands or checks were run.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Renaming caller-facing question IDs, without changing question order or accepted wire content, must not change the answers attributed to those question positions.
+  positive_witness: Rename two question IDs while keeping q0 and q1 content fixed; the resulting selections and custom text remain unchanged, and only the result IDs change.
+  negative_control: Looking up accepted content by question.id instead of the positional wire key loses or swaps answers after the rename and must fail the comparison.
+  observable: Compare ordered result payloads before and after renaming; after excluding result.id, each corresponding payload is identical.
+  boundary: createAcpExtensionUiContext.askDialog maps accepted ACP form content into ExtensionAskDialogResult.
+END-REVIEW-TRAILER
