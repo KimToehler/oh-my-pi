@@ -75,7 +75,7 @@ Commits after `reviewed_sha` MAY add a QA artifact without voiding the record on
 ## MODIFIED Requirements
 
 ### Requirement: Validated bytes are the committed bytes
-For every tracked artifact (the record, each trailer, the whole-diff report, each QA artifact), the record validator SHALL require the working-tree and index bytes to equal the file's `HEAD` blob when the record itself equals its `HEAD` blob, and the working-tree bytes to equal the index blob otherwise, failing with a finding on that artifact's path field when they differ. The validator SHALL read the working-tree file once and compute the artifact's digest over the same bytes it compared, so a file changing during validation cannot pass with a digest of bytes that were never compared.
+For every tracked artifact (the record, each trailer, the whole-diff report, each QA artifact), the record validator SHALL require the working-tree and index bytes to equal the file's `HEAD` blob when the record itself equals its `HEAD` blob, and the working-tree bytes to equal the index blob otherwise, failing with a finding on that artifact's path field when they differ. For every artifact whose digest the record carries (each trailer, the whole-diff report, each QA artifact), the validator SHALL compute that digest over the same bytes it compared; the record itself carries no digest of its own and is outside this rule.
 
 #### Scenario: Trailer differs from its staged blob
 - **WHEN** the record is not yet committed, a trailer is staged, then edited in the working tree, and the record carries the digest of the edited bytes
