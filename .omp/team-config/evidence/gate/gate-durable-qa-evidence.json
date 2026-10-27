@@ -1,0 +1,78 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/gate-durable-qa-evidence",
+  "plan_sha256": "fc4faea8de8593348aa80d44fe7fdce5239c194c1adcc0977b0ef125f1934ea5",
+  "reviewed_sha": "0151662754b682dbfcfe4b9e6247a6b140eed0c7",
+  "diff_base": "1039e21107923f5db7970e0e218f24af60555e3b",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class schema-migration (gate record qa[] shape) requires both invocations.",
+  "mandatory_class": "schema-migration",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 a: New guidance: QA written untracked below the record evidence directory, GC snapshot, record + QA committed after reviewed_sha",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-durable-qa-evidence/f1/a-new-guidance.md",
+      "artifact_sha256": "f213b2a8a0e075e6cb9bf79c1f676e192133157aac8d2fc2e8b3eb241499ed84"
+    },
+    {
+      "name": "F1 b: Old guidance: QA cited from the ignored evidence/demo/wave-1/",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-durable-qa-evidence/f1/b-old-ignored-path.md",
+      "artifact_sha256": "273ea4c067595f9d352cbffff28a98096aa22813e71bd1987a4d0645284d6112"
+    },
+    {
+      "name": "F1 c: Post-review edit of a file that existed at reviewed_sha below evidence/gate/demo/, cited with its new digest",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-durable-qa-evidence/f1/c-post-review-edit.md",
+      "artifact_sha256": "fc2215d61da580bf210a020c15bcad299a28ada1ca013cb86222c7f65a7083c5"
+    },
+    {
+      "name": "F1 d: QA committed under docs/evidence/demo/f1/ inside the reviewed tree",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-durable-qa-evidence/f1/d-reviewed-tree.md",
+      "artifact_sha256": "0660b48f5b8da43b36e801587339d78281021d10d32ce3828cac1f41ad4b9128"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/gate-durable-qa-evidence/f3-integration-review-report.md",
+    "report_sha256": "d6de994a2f425902bc75526b1b8f9e71cf9c7ab98deb6804cb95ef2677b2293f"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate-durable-qa-evidence/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "9e6c8faec76f1e7a3b488d4305fe9a3190ca2bdeab0c35b7c4172b0a7f5fa14a",
+      "note": "No blocker; non-blocking notes on ignore-policy wording and symlink RED discrimination"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate-durable-qa-evidence/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "a961c896bfed716859a98d8034b2f94d5315d3afbf9a2408955450fe27ecd18a",
+      "note": "No strategic blocker; rollout and publication constraints documented in design.md"
+    }
+  ],
+  "blockers": []
+}

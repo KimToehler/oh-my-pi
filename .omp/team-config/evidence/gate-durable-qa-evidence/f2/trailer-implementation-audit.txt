@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+The implementation routes each QA row through the existing tracked-artifact verifier and binds its digest to the bytes compared against Git. The post-review exemption is limited to newly added files beneath the record’s evidence directory.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocker found. I traced the changed validator through artifact reading, digest verification, conditional pinning and the post-review diff scan, and reviewed the migrated fixture and scratch-record producers.
+
+**Note — ignore-policy wording:** The changed spec and guidance overstate which paths are addable: `.gitignore:56–58` limits trailer exceptions to `.txt` and `.md` and separately ignores `gate-deltas/` directories. This fails closed and is recoverable by choosing another path, so it is non-blocking. The F3 report also identifies it.
+
+## 3. Security and privacy delta
+
+No qualifying security delta found under the brief’s definition. Published QA captures introduce a disclosure risk; the guidance requires synthetic data and inspection and redaction before publication. That procedural boundary is an accepted residual risk, not a content guarantee from the validator.
+
+## 4. Verification adequacy
+
+I reviewed the 19 scenario tests, the 22 captured RED-result headers and failure output, the four manual-QA captures, and the F3 report. The supplied brief reports the full team-config suite passing; I did not run checks or independently recompute the captured digests.
+
+**Note — symlink discrimination:** The outside-repository test checks the relative escape before the symlink case. Its RED capture against the old validator fails at the first assertion, so that capture alone does not demonstrate that the symlink assertion discriminates independently. The test still exercises both cases on the fixed validator; this is non-blocking.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A gate must not hide the removal of reviewed source by presenting its renamed destination as a newly stored QA capture.
+  positive_witness: A post-review commit adds only a new cited capture without removing any reviewed file.
+  negative_control: A post-review commit moves a reviewed source file into the record evidence directory and cites the destination as QA.
+  observable: The first record passes; the second is blocked on reviewed_sha because the original source path is also changed.
+  boundary: Validator post-review Git diff and authenticated exemption set.
+END-REVIEW-TRAILER

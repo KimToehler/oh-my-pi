@@ -1,0 +1,31 @@
+**Bottom line:** No strategic blocker found. The change reuses the existing artifact-authentication boundary and confines QA exemptions to individual authenticated files, rather than directories or entire commits. I recommend passing this strategic-risk review, retaining the explicitly accepted publication and executable-evidence risks.
+
+## Action plan / answers
+
+1. **Architecture — holds up.** In `team-config/agent/skills/review-work/scripts/validate-gate-record.mjs`, `validateRecord` routes QA through `verifyAndPinArtifact`; `assertTracked` now returns the exact bytes used for comparison and hashing. `qaMayBePinned` controls exemption separately from authentication, preserving support for previously reviewed evidence without exempting subsequent edits. The unstaged-capture workflow also matches `gate-convergence.mjs::trackedChanges`, which excludes untracked files from snapshot cleanliness checks.
+
+2. **Structural considerations beyond the line-level audit — rollout and publication.** The source validator, deployed validator, loaded skill text, and installed OpenSpec template must move together. `team-config/agent/extensions/merge-gate.ts` invokes the deployed `VALIDATOR`, not automatically the validator on this branch; `design.md`’s Migration Plan and this change’s pre-snapshot F1 evidence address that bootstrap constraint. Separately, durable capture storage creates a permanent publication sink. The inspection/redaction procedure is a real operational dependency, not something a passing digest check guarantees. These are documented constraints, not additional blockers.
+
+3. **Highest-consequence failure — laundering an unreviewed source change through an evidence commit.** The implementation addresses this through `qaMayBePinned` and `commitsTouchOnlyEvidence`: an existing reviewed path receives no QA exemption, and another path does not inherit exemption merely by sharing the commit. The captured failures in `red/14-…--admit-always.txt`, `red/15-…--scan-accepts-qa-commit.txt`, and `red/16-…--admit-ignores-reviewed-sha.txt` discriminate the corresponding weakened controls. The F1 captures independently show valid post-review evidence passing and an edited pre-existing evidence file blocking. Newly added executable evidence remains an explicit accepted residual, not a guarantee supplied by the validator.
+
+4. **Auditor false positives on unchanged behavior — no escalation warranted.** The broad trailer-addability wording already appears in the supplied pre-change `review-work/SKILL.md` diff; it should not be attributed to a newly introduced validator defect. The auditor correctly kept it non-blocking. The symlink observation concerns the strength of the new captured RED proof, rather than asserting broken production behavior; its qualification is appropriate.
+
+**Effort:** Quick (<1h); no additional implementation requested.  
+**Confidence:** Medium — reviewed the supplied diff, pinned plan, surrounding validation/enforcement code, all four F1 captures, and all 22 RED captures; did not execute checks or independently recompute digests.
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: One authenticated capture cannot launder the rest of its commit.
+  positive_witness: A commit containing the record, required review artifacts and authenticated new QA captures validates successfully.
+  negative_control: Adding an unrelated source modification to that same commit must block even though every capture remains authentic.
+  observable: The valid F1 a capture records exit 0 and passed; the mixed-commit scenario requires exit 1 with reviewed_sha, and RED capture 15 shows its assertion failing when the scan improperly accepts the commit.
+  boundary: validate-gate-record.mjs per-path exemption set consumed by commitsTouchOnlyEvidence.
+END-REVIEW-TRAILER

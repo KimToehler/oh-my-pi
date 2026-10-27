@@ -230,7 +230,9 @@ function tryRealpath(target) {
 // `pathField` names the field that supplied the path and `digestField` the one that pinned it, so a
 // path problem and a digest mismatch stay distinguishable to the operator reading stderr.
 // `admit` is the one extra gate on pinning: a verified artifact is pinned only when it returns true for
-// the artifact's bytes. Only the whole-diff report passes one, because it alone has a free-form path.
+// the artifact's bytes. The whole-diff report and QA artifacts pass one, because their paths are free-form.
+// The digest is taken over the bytes `assertTracked` compared with the index or HEAD, never over a
+// second read: a file still being written could otherwise pass with a digest of bytes nobody compared.
 //
 // A folder plan is bound by the digest of the bundle rebuilt from the one snapshot `main` took, and
 // every snapshot file is admitted to the exemption. The single `pin` call below serves both shapes,
@@ -244,9 +246,12 @@ function verifyAndPinArtifact(context, absolutePath, pathField, digestField, exp
     digest = folder.digest
     targets = [...folder.snapshot.keys()].map((file) => path.join(absolutePath, file))
   } else {
-    if (requireTracked) assertTracked(context, absolutePath, pathField)
-    else assertInsideRepo(context.repo, absolutePath, pathField)
-    bytes = readBytes(absolutePath, pathField)
+    if (requireTracked) {
+      bytes = assertTracked(context, absolutePath, pathField)
+    } else {
+      assertInsideRepo(context.repo, absolutePath, pathField)
+      bytes = readBytes(absolutePath, pathField)
+    }
     digest = createHash("sha256").update(bytes).digest("hex")
   }
   if (typeof expectedDigest !== "string" || !/^[0-9a-f]{64}$/.test(expectedDigest)) {
@@ -356,9 +361,15 @@ function assertTracked(context, file, field) {
   } else if (staged === null || !working.equals(staged)) {
     block(field, `${relative} differs from its staged blob; stage the bytes that were validated, since the commit stores the index`)
   }
+  return working
 }
 
 const REPORT_MARKER = "INTEGRATION-REVIEW-REPORT-v1"
+
+function absentAtReviewedSha(context, reviewedSha, relative) {
+  const existed = spawnSync("git", ["-C", context.repo, "cat-file", "-e", `${reviewedSha}:${relative}`], { encoding: "utf8" })
+  return existed.status !== 0
+}
 
 // The only way the whole-diff report enters the exemption; see the exemption comment below.
 function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
@@ -367,8 +378,17 @@ function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
   if (bytes.toString("utf8").split("\n", 1)[0] !== REPORT_MARKER) return false
   const insideRecordDir = path.relative(path.dirname(context.recordPath), absolutePath)
   if (insideRecordDir === ".." || insideRecordDir.startsWith(`..${path.sep}`) || path.isAbsolute(insideRecordDir)) return false
-  const existed = spawnSync("git", ["-C", context.repo, "cat-file", "-e", `${reviewedSha}:${relative}`], { encoding: "utf8" })
-  return existed.status !== 0
+  return absentAtReviewedSha(context, reviewedSha, relative)
+}
+
+// The only way a QA artifact enters the exemption; see the exemption comment below. The record's
+// evidence directory is the record path without `.json`; a record path without `.json` has none.
+function qaMayBePinned(context, reviewedSha, absolutePath) {
+  if (!context.recordPath.endsWith(".json")) return false
+  const insideEvidenceDir = path.relative(context.recordPath.slice(0, -".json".length), absolutePath)
+  if (insideEvidenceDir === "" || insideEvidenceDir === ".." || insideEvidenceDir.startsWith(`..${path.sep}`) || path.isAbsolute(insideEvidenceDir)) return false
+  const relative = path.relative(context.repo, absolutePath).split(path.sep).join("/")
+  return absentAtReviewedSha(context, reviewedSha, relative)
 }
 
 // The gate demands two things that collide head-on: the evidence must be durable in the repository,
@@ -378,7 +398,8 @@ function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
 // The reviewed target is therefore the CODE: HEAD counts as unchanged while every commit on top of
 // `reviewed_sha` touches evidence paths only. A single source file in those commits fails it.
 // The exemption covers ONLY files whose existence is caused by storing the record: the record, the
-// reviewer trailers it cites, the plan, and the whole-diff report under the conditions below.
+// reviewer trailers it cites, the plan, the whole-diff report and the QA artifacts under the
+// conditions below.
 // The report is the one artifact whose path is free-form AND whose bytes are not a parsed format, so
 // a path-only rule would let the record name any new file in a post-review commit and exempt it. It
 // is pinned only when `reportMayBePinned` holds: `.md` path, first line `INTEGRATION-REVIEW-REPORT-v1`,
@@ -390,10 +411,11 @@ function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
 // review with the gate still passing. What constrains an exempt path is CONTENT: the plan is bound
 // by `plan_sha256` and each trailer by `verdicts[].trailer_sha256`, so an exempt file whose bytes
 // move at all stops matching the record.
-// `qa[].artifact` is deliberately NOT exempt. It is orchestrator-typed JSON that nothing else
-// validates, so honouring it would let one free-form string decide which code counts as reviewed -
-// and a QA row pointing at the file its QA exercised would silently disable the binding for that
-// path. QA artifacts are written before validation, so the normal flow never needs them exempt.
+// A QA artifact is bound by `qa[].artifact_sha256` and pinned only when `qaMayBePinned` holds:
+// absent from the `reviewed_sha` tree and below the record's evidence directory. QA runs inside the
+// wave, after the snapshot, so its captures are written after the review and must be storable then.
+// A QA row is orchestrator-typed, so a row naming a file that existed at `reviewed_sha` - the source
+// file its QA exercised, say - is verified but never pinned, and a later change to it voids the record.
 function commitsTouchOnlyEvidence(repo, reviewedSha, head, context) {
   const evidencePaths = context.pinned
   // `-z` is the whole mechanism, and it does three things the default output cannot. git's
@@ -594,6 +616,13 @@ function validateRecord(record, context) {
     if (typeof row.artifact !== "string" || row.artifact.trim() === "") {
       block(`qa.${index}.artifact`, "must be a non-empty string")
     }
+    // QA evidence is authenticated like a trailer: tracked, its bytes agreeing with what the commit
+    // stores, and bound by digest. Its pin is conditional (`qaMayBePinned`), so a row never exempts
+    // a file that existed at `reviewed_sha`.
+    const artifactPath = path.resolve(context.repo, row.artifact)
+    verifyAndPinArtifact(context, artifactPath, `qa.${index}.artifact`, `qa.${index}.artifact_sha256`, row.artifact_sha256, {
+      admit: () => qaMayBePinned(context, record.reviewed_sha, artifactPath),
+    })
   }
 
   const mandatoryClasses = new Set(["none", "auth-secrets-pii", "schema-migration", "wire-contract-api", "concurrency-state"])

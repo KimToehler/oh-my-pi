@@ -1,0 +1,41 @@
+Test: QA artifact: QA artifact without a digest
+Against: unchanged
+Tests sha256: 173e9d0941079c3b35aed951ada44a8a7bce088617db805686a6cbd9ddf57015
+Exit: 1
+
+bun test v1.4.4 (5d9cc0f4f)
+
+validate-gate-record.test.mjs:
+2376 |   repository.git("add", "-A")
+2377 |   repository.git("commit", "-q", "-m", message)
+2378 | }
+2379 | 
+2380 | function expectFinding(result, field) {
+2381 |   assert.equal(result.status, 1, `expected a ${field} finding, got: ${result.stdout}${result.stderr}`)
+                ^
+AssertionError: expected a qa.0.artifact_sha256 finding, got: passed
+
+
+0 !== 1
+
+ generatedMessage: false,
+     actual: 0,
+   expected: 1,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectFinding (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2381:10)
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2641:5
+      at withScratch (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2389:12)
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2639:3
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) QA artifact: QA artifact without a digest [352.65ms]
+
+ 0 pass
+ 312 filtered out
+ 1 fail
+Ran 1 test across 1 file. [574.00ms]

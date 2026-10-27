@@ -36,7 +36,8 @@
     {
       "name": "health endpoint load bound",
       "passed": true,
-      "artifact": "docs/evidence/m12-health-load-bound-semantics/qa-01.txt"
+      "artifact": ".omp/team-config/evidence/review-work/validator-tests.txt",
+      "artifact_sha256": "7caf1e718d38b2a5531463c4aa2cab756dafb1c98a86a298ce77fd59ecffe2d3"
     }
   ]
 }
