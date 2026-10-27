@@ -247,8 +247,13 @@ and in Provenance, install the new CLI, and redeploy. Hand-edit the command file
 ## Changing the team config
 
 Edit files under `team-config/`, then run `bun run test:team-config`. It covers the merge-gate
-extension, the gate validator, the OpenSpec checks, the project installer and the deploy's OpenSpec CLI check. Rules
-carry no repo-private paths or evidence: this repository is public.
+extension, the gate validator, the OpenSpec checks, the project installer, the deploy's OpenSpec CLI check and the
+context-review measurement. Rules carry no repo-private paths or evidence: this repository is public.
+
+Keep the always-on part small: `AGENTS.md`, `alwaysApply` rules and every rule or skill description reach every
+request. The `context-review` skill measures what the agent dir and a project add
+(`bun ~/.omp/agent/skills/context-review/scripts/measure-context.ts --repo <repo>`, no model call) and walks
+through trimming it; run it monthly per repository and after adding rules or lessons.
 
 ## Provenance
 
