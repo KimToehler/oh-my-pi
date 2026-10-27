@@ -362,7 +362,13 @@ export class GoalRuntime {
 	}): Promise<void> {
 		const op = this.#reserve("transcript");
 		if (!this.#hasAccountingState()) {
-			await this.#absorbStale(async () => this.#commit(op, () => void (this.#turnSnapshot = undefined)));
+			// Synchronous like the pre-gate path: an await here delays the session's settle past
+			// the prompt's unwind, so an interrupt resumed by a queued steer would read as a stop.
+			try {
+				this.#commit(op, () => void (this.#turnSnapshot = undefined));
+			} catch (error) {
+				if (!(error instanceof GoalOwnerStale)) throw error;
+			}
 			return;
 		}
 		const currentUsage = options?.currentUsage;
