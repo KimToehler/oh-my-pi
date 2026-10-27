@@ -26,6 +26,12 @@ directory with the same agent dir. The difference is the project share, attribut
 The agent-dir lists (team and personal rules and skills) are printed too. Token figures are estimates;
 write the numbers down, the result is compared against them.
 
+Measuring in a worktree nested in the main checkout (`<repo>/.worktrees/<name>`): omp walks up past the
+git root, so it also loads the main checkout's `AGENTS.md` and drops it only when the worktree's copy
+contains it unchanged. After editing `AGENTS.md` in such a worktree, both copies show up as context files;
+subtract the main checkout's copy for the after figure. The same double load hits every agent working in
+that worktree until the change is merged.
+
 Findings on project rule files: `ALWAYS_APPLY` (body in every request), `NOT_LISTED` (no description and no
 `alwaysApply`: omp never offers it), `LONG_DESCRIPTION` (over 250 characters, listed every request),
 `DEAD_GLOB` (no tracked file matches its globs, so the model never has a reason to read it). A finding is a
@@ -38,7 +44,7 @@ One line each, in a table with its token estimate:
 | Verdict | When | Action |
 |---|---|---|
 | keep | needed for almost every task in this repo and stated nowhere else | stays; tighten wording |
-| on demand | needed only for some files or tasks | rule with `description` (+ `globs`) in `<repo>/.agents/rules/`; a multi-step procedure becomes a skill |
+| on demand | needed only for some files or tasks | rule with `description` (+ `globs`) in the repo's rules directory (`.omp/rules/` or `.agents/rules/`, whichever it uses); a multi-step procedure becomes a skill |
 | duplicate | omp's system prompt, the team config or another loaded file already says it | delete |
 | stale | names paths, tools, commands or workflows that no longer exist (check with `grep`/`git log`) | delete or correct |
 | contradiction | conflicts with another loaded instruction | resolve with the user; never keep both |
