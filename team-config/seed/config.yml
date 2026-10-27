@@ -149,6 +149,9 @@ plan:
   review:
     enabled: true
 steeringMode: one-at-a-time
+startup:
+  # The team updates when the fork is updated, not when npm publishes a release.
+  checkUpdate: false
 contextFiles:
   extra:
     - AGENTS.local.md
