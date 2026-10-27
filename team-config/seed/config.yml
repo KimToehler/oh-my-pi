@@ -4,13 +4,13 @@ modelRoles:
   slow: onara/cc/claude-opus-5-5:xhigh
   plan: onara/cc/claude-opus-5-5:xhigh
   task: onara/cc/claude-sonnet-5-5:medium
-  smol: onara/cx/gpt-5.6-luna:low
+  smol: onara/cx/gpt-6-luna:low
   tiny: onara/cc/claude-haiku-5-5
   commit: onara/cc/claude-haiku-5-5
   judge: onara/cc/claude-haiku-5-5
-  advisor: onara/cx/gpt-5.6-terra:medium
-  oracle: onara/cx/gpt-5.6-sol:xhigh
-  review: onara/cx/gpt-5.6-terra:high
+  advisor: onara/cx/gpt-6.1-terra:medium
+  oracle: onara/cx/gpt-6.1-sol:xhigh
+  review: onara/cx/gpt-6.1-terra:high
   deep: onara/cc/claude-opus-5-5:high
 cycleOrder:
   - task
@@ -21,15 +21,15 @@ retry:
   fallbackChains:
     onara/cc/claude-opus-5-5:
       - onara/cc/claude-opus-5
-      - onara/cx/gpt-5.6-sol
+      - onara/cx/gpt-6.1-sol
     onara/cc/claude-sonnet-5-5:
       - onara/cc/claude-sonnet-5
-      - onara/cx/gpt-5.6-terra
-    onara/cx/gpt-5.6-sol:
+      - onara/cx/gpt-6.1-terra
+    onara/cx/gpt-6.1-sol:
       - onara/cc/claude-opus-5
-    onara/cx/gpt-5.6-terra:
+    onara/cx/gpt-6.1-terra:
       - onara/cc/claude-sonnet-5-5
-    onara/cx/gpt-5.6-luna:
+    onara/cx/gpt-6-luna:
       - onara/cc/claude-haiku-5-5
 modelProviderOrder:
   - onara
