@@ -65,14 +65,60 @@ def drop_middle_sentence(paragraph):
     return ". ".join(sentences[:1] + sentences[2:])
 
 
+CONTEXT = "Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet)."
+
+
+def dispatch_problems(call, root, change_dir, brief, lenses):
+    """`call` is the `task` tool arguments of one review dispatch: {"context", "tasks": [{"agent", "task"}]}."""
+    out = []
+    if norm(call.get("context", "")) != CONTEXT:
+        out.append("context is not the fixed context line")
+    tasks = call.get("tasks", [])
+    if len(tasks) != 3:
+        return out + [f"{len(tasks)} tasks dispatched, expected 3"]
+    head = norm(f"Repository root: {root} Change directory: {change_dir}")
+    for i, (item, lens) in enumerate(zip(tasks, lenses)):
+        if item.get("agent") != "plan-reviewer":
+            out.append(f"task {i + 1} agent is {item.get('agent')!r}")
+        if norm(item.get("task", "")) != f"{head} {brief} {lens}":
+            out.append(f"task {i + 1} brief is not the fixed brief plus lens paragraph {i + 1}")
+    return out
+
+
+def check_dispatch(path, root, change_dir, brief, lenses):
+    with open(path, encoding="utf-8") as f:
+        call = json.load(f)
+    real = dispatch_problems(call, root, change_dir, brief, lenses)
+    if real:
+        print("FAIL dispatch:", *real, sep="\n  ")
+        return 1
+    tasks = call["tasks"]
+    mutations = {
+        "two lenses": {**call, "tasks": tasks[:2]},
+        "planner focus added": {**call, "tasks": [{**tasks[0], "task": tasks[0]["task"] + "\nPay special attention to the validator."}, *tasks[1:]]},
+        "lenses swapped": {**call, "tasks": [tasks[0], tasks[2], tasks[1]]},
+        "context changed": {**call, "context": CONTEXT + " Focus on tasks.md."},
+    }
+    survivors = [name for name, m in mutations.items() if not dispatch_problems(m, root, change_dir, brief, lenses)]
+    if survivors:
+        print("FAIL negative control not detected:", ", ".join(survivors))
+        return 1
+    print(f"passed dispatch ({len(mutations)} negative controls rejected)")
+    return 0
+
+
 def main():
+    brief, lenses = fixed_brief(), lens_paragraphs()
+    if sys.argv[1:2] == ["--dispatch"]:
+        if len(sys.argv) != 5:
+            sys.exit("usage: verify-review-instruction.py [--dispatch <call.json> <repository root> <change directory>]")
+        return check_dispatch(*sys.argv[2:5], brief, lenses)
     raw = subprocess.run(
         ["openspec", "instructions", "review", "--change", "plan-review-lenses", "--json"],
         check=True, capture_output=True, text=True,
         env={**os.environ, "DO_NOT_TRACK": "1", "OPENSPEC_TELEMETRY": "0"},
     ).stdout
     text = norm(json.loads(raw)["instruction"])
-    brief, lenses = fixed_brief(), lens_paragraphs()
     real = problems(text, brief, lenses)
     if real:
         print("FAIL real instruction:", *real, sep="\n  ")

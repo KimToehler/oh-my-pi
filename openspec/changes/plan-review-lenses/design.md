@@ -15,7 +15,7 @@ See proposal.md - Why. Current state (paths relative to `team-config/agent/skill
 
 **Goals:**
 - Raise the share of existing plan defects one review round finds, with the lens split that the replay measured.
-- Keep every existing valid review record valid.
+- Keep every existing valid review record valid, except an OKAY record whose `## Blockers` section lists blockers, which the new guard refuses (D5); no such record exists in an open change today.
 
 **Non-Goals:**
 - Verifying blockers before they are fixed, deduplicating them across lenses, or changing what counts as a blocker.
