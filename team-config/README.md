@@ -8,7 +8,7 @@ directory into the omp agent dir (`~/.omp/agent`) from the same commit as the bi
 
 Prerequisites: [bun](https://bun.sh), Node.js 20.19+, a Rust toolchain ([rustup](https://rustup.rs)),
 `git`, and the OpenSpec CLI at the version pinned in `team-config/openspec-version`
-(`npm install -g @fission-ai/openspec@1.14.3`). On NixOS, `nix` replaces bun/rust; the deploy script re-enters the
+(`npm install -g @fission-ai/openspec@1.15.0`). On NixOS, `nix` replaces bun/rust; the deploy script re-enters the
 flake dev shell.
 
 ```sh
@@ -264,4 +264,4 @@ which is published under the Sustainable Use License: free internal and non-comm
 redistribution only free of charge for non-commercial purposes. `frontend` additionally carries
 its own Apache-2.0 notice (`agent/skills/frontend/ATTRIBUTION.md`). `angular-developer` is
 [angular/skills](https://github.com/angular/skills) (MIT, Google LLC).
-The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.14.3 (MIT).
+The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.15.0 (MIT).

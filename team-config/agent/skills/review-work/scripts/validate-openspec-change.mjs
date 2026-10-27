@@ -112,7 +112,7 @@ function validateSpecs(files, texts, skipSpecs, errors) {
 	return requirementCount > 0;
 }
 
-// Mirrors OpenSpec 1.14.3 utils/task-progress.js TASK_LINE_PATTERN: any checkbox it counts as a tracked task must satisfy the team contract.
+// Mirrors OpenSpec 1.15.0 utils/task-progress.js TASK_LINE_PATTERN: any checkbox it counts as a tracked task must satisfy the team contract.
 const TASK_LINE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[(?:\s*([^\]\s]?)\s*\](?![([])|\s+\])\s*(.*)/;
 
 function validateTasks(text, errors) {

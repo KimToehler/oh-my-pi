@@ -179,7 +179,7 @@ describe("validate-openspec-change", () => {
 		});
 	}
 
-	// Exact bytes `openspec new change` (1.14.3, schema omp-gated) writes, plus the appended `skip_specs: true`; `openspec validate --strict` accepts it without specs.
+	// Exact bytes `openspec new change` (1.15.0, schema omp-gated) writes, plus the appended `skip_specs: true`; `openspec validate --strict` accepts it without specs.
 	const GENERATED_METADATA = "schema: omp-gated\ncreated: 2026-10-22\nskip_specs: true\n";
 
 	async function skippedSpecsFixture(metadata: string): Promise<string> {
