@@ -81,7 +81,13 @@ execFileSync("cp", ["-R", `${path.join(scriptsDir, "fixtures", "trailers")}/.`, 
 const fixtureReportRoot = path.join(sandboxRepo, reportRoot)
 execFileSync("mkdir", ["-p", fixtureReportRoot], { encoding: "utf8" })
 execFileSync("cp", ["-R", `${path.join(scriptsDir, "fixtures", "reports")}/.`, fixtureReportRoot], { encoding: "utf8" })
-execFileSync("git", ["-C", sandboxRepo, "add", "--", trailerRoot, reportRoot], { encoding: "utf8" })
+// The fixtures' QA row names one synthetic capture, committed with the trailers so it lies in the
+// reviewed tree: tracked, unchanged since `reviewed_sha`, and bound by the digest `rebind` derives.
+const qaFixture = ".omp/team-config/evidence/review-work/validator-tests.txt"
+const qaBody = "validator tests: synthetic QA capture for the gate-record suite\n"
+mkdirSync(path.dirname(path.join(sandboxRepo, qaFixture)), { recursive: true })
+writeFileSync(path.join(sandboxRepo, qaFixture), qaBody)
+execFileSync("git", ["-C", sandboxRepo, "add", "--", trailerRoot, reportRoot, qaFixture], { encoding: "utf8" })
 execFileSync("git", ["-C", sandboxRepo, "commit", "-q", "-m", "fixture trailers"], { encoding: "utf8" })
 const sandboxHead = execFileSync("git", ["-C", sandboxRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim()
 const sandboxBase = execFileSync("git", ["-C", sandboxRepo, "rev-parse", "HEAD~1"], { encoding: "utf8" }).trim()
@@ -141,6 +147,14 @@ function rebind(record) {
     const artifact = path.resolve(sandboxRepo, verdict.trailer_artifact)
     return existsSync(artifact) ? { ...verdict, trailer_sha256: planDigest(artifact) } : verdict
   })
+  // QA rows likewise: the digest comes from the committed sandbox file the row names.
+  if (Array.isArray(bound.qa)) {
+    bound.qa = bound.qa.map((row) => {
+      if (typeof row?.artifact !== "string" || row.artifact.trim() === "") return row
+      const artifact = path.resolve(sandboxRepo, row.artifact)
+      return existsSync(artifact) ? { ...row, artifact_sha256: planDigest(artifact) } : row
+    })
+  }
   return bound
 }
 
@@ -971,7 +985,22 @@ test("#given prose mentioning only the close marker #when validated #then exits 
 // those two demands collide unless the reviewed target ignores the evidence paths themselves.
 // These cases run against a scratch repository because they turn on real commits.
 
-function scratchRepo() {
+// The repository's `.omp/team-config/` block, for the cases that turn on which QA paths are ignored.
+const teamConfigIgnoreRules = [
+  "/.omp/team-config/*",
+  "!/.omp/team-config/evidence/",
+  "/.omp/team-config/evidence/**/*",
+  "!/.omp/team-config/evidence/**/",
+  "!/.omp/team-config/evidence/gate/**",
+  "!/.omp/team-config/evidence/**/*trailer*.txt",
+  "!/.omp/team-config/evidence/**/*trailer*.md",
+  "/.omp/team-config/evidence/**/gate-deltas/",
+].join("\n")
+
+// The default QA capture of a scratch record, committed with the change under review.
+const scratchQa = "qa/validator-tests.txt"
+
+function scratchRepo({ ignoreRules = false } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), "gate-repo-"))
   const git = (...args) => execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
   git("init", "-q", "-b", "main")
@@ -981,14 +1010,22 @@ function scratchRepo() {
   git("add", "source.txt")
   git("commit", "-q", "-m", "base")
   writeFileSync(path.join(directory, "source.txt"), "reviewed change\n")
-  git("add", "source.txt")
+  mkdirSync(path.join(directory, path.dirname(scratchQa)), { recursive: true })
+  writeFileSync(path.join(directory, scratchQa), qaBody)
+  git("add", "source.txt", scratchQa)
+  if (ignoreRules) {
+    writeFileSync(path.join(directory, ".gitignore"), `${teamConfigIgnoreRules}\n`)
+    git("add", ".gitignore")
+  }
   git("commit", "-q", "-m", "the change under review")
   return { directory, git }
 }
 
-function scratchArtifacts({ directory, git }, overrides = {}) {
-  const evidence = path.join(directory, "evidence")
-  execFileSync("mkdir", ["-p", evidence])
+// `record` places the record, and the trailer and report beside it, at a repository-relative path.
+function scratchArtifacts({ directory, git }, overrides = {}, { record: recordRelative = "evidence/merge-gate.json" } = {}) {
+  const recordPath = path.join(directory, recordRelative)
+  const evidence = path.dirname(recordPath)
+  mkdirSync(evidence, { recursive: true })
   const planPath = path.join(directory, "plan.md")
   writeFileSync(planPath, buildPlanSkeleton("gate-lifecycle", "exercise the evidence lifecycle"))
   const trailerPath = path.join(evidence, "trailer.txt")
@@ -1002,11 +1039,11 @@ function scratchArtifacts({ directory, git }, overrides = {}) {
     reviewed_sha: git("rev-parse", "HEAD"),
     diff_base: git("rev-parse", "HEAD~1"),
     whole_diff: { run: true, report: path.relative(directory, reportPath), report_sha256: planDigest(reportPath), reason: null },
+    qa: [{ name: "validator tests", passed: true, artifact: scratchQa, artifact_sha256: planDigest(path.join(directory, scratchQa)) }],
     ...overrides,
   }
   record.verdicts[0].trailer_artifact = path.relative(directory, trailerPath)
   record.verdicts[0].trailer_sha256 = planDigest(trailerPath)
-  const recordPath = path.join(evidence, "merge-gate.json")
   writeFileSync(recordPath, JSON.stringify(record, null, 2))
   // Staged, not yet committed: the state an operator is in when running the validator before merge.
   git("add", "--", path.relative(directory, planPath), path.relative(directory, trailerPath), path.relative(directory, reportPath), path.relative(directory, recordPath))
@@ -1088,7 +1125,9 @@ test("#given a qa artifact naming a source path #when that source changes after 
     // the trailer is real and the verdict honest. Only the declared evidence path is chosen badly,
     // which is what a QA row pointing at the file the QA exercised looks like in practice.
     const artifacts = scratchArtifacts(repository, {
-      qa: [{ name: "suite", passed: true, artifact: "source.txt" }],
+      // The digest is that of the bytes the later source commit writes, so the row stays bound and
+      // the check that has to catch this is the SHA binding, not the QA digest.
+      qa: [{ name: "suite", passed: true, artifact: "source.txt", artifact_sha256: createHash("sha256").update("unreviewed change\n").digest("hex") }],
     })
     repository.git("add", "-A")
     repository.git("commit", "-q", "-m", "gate evidence")
@@ -1889,7 +1928,7 @@ function folderScenario(options = {}) {
     whole_diff: whole === "needed"
       ? { run: true, report: path.relative(directory, reportPath), report_sha256: planDigest(reportPath), reason: null }
       : { run: false, reason: "one module" },
-    qa: [{ name: "validator tests", passed: true, artifact: "evidence/qa.txt" }],
+    qa: [{ name: "validator tests", passed: true, artifact: "evidence/qa.txt", artifact_sha256: planDigest(path.join(evidence, "qa.txt")) }],
     reviewers_run: invocations,
     resolution: invocations.map((invocation) => ({ invocation, agent: invocation === "implementation-audit" ? "auditor" : "oracle", model: "onara/cc/claude-opus-5", independence: "same-model" })),
     verdicts: invocations.map((invocation) => {
@@ -2530,6 +2569,237 @@ test("committed bytes: a clean committed record with its artifacts passes", () =
     commitAll(repository)
     const result = runScratch(repository, artifacts)
     assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// QA artifacts: every `qa[]` row names a tracked file bound by `artifact_sha256`. A post-review
+// commit may add one only below the record's evidence directory (the record path without `.json`)
+// and only when it is absent from the `reviewed_sha` tree. One test per spec scenario.
+// ---------------------------------------------------------------------------------------------
+
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex")
+
+// Writes `bytes` at a repository-relative path and returns the QA row that cites it.
+function qaRow(repository, relative, bytes, name = "scenario") {
+  const file = path.join(repository.directory, relative)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFileSync(file, bytes)
+  return { name, passed: true, artifact: relative, artifact_sha256: sha256(bytes) }
+}
+
+function withScratchRepo(options, body) {
+  const repository = scratchRepo(options)
+  try {
+    return body(repository)
+  } finally {
+    rmSync(repository.directory, { recursive: true, force: true })
+  }
+}
+
+test("QA artifact: QA artifact committed in the reviewed tree", () => {
+  withScratch((repository, artifacts) => {
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
+  })
+})
+
+test("QA artifact: QA artifact with binary bytes", () => {
+  withScratchRepo({}, (repository) => {
+    // A PNG signature plus bytes that are not valid UTF-8; the digest is taken over the raw buffer.
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0xc3, 0x28])
+    const row = qaRow(repository, "docs/evidence/demo/f1/terminal.png", bytes)
+    commitAll(repository, "binary QA capture in the reviewed tree")
+    const artifacts = scratchArtifacts(repository, { qa: [row] })
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
+  })
+})
+
+test("QA artifact: QA artifact that was never added", () => {
+  withScratchRepo({}, (repository) => {
+    const row = qaRow(repository, "evidence/merge-gate/wave-1/never-added.txt", "never staged\n")
+    const artifacts = scratchArtifacts(repository, { qa: [row] })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: QA artifact names a directory", () => {
+  withScratchRepo({}, (repository) => {
+    const row = qaRow(repository, ".omp/team-config/evidence/gate/demo/f1/a.md", "scenario a\n")
+    repository.git("add", "--", row.artifact)
+    const artifacts = scratchArtifacts(repository, { qa: [{ ...row, artifact: ".omp/team-config/evidence/gate/demo/f1" }] })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: QA artifact without a digest", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { delete r.qa[0].artifact_sha256 })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact_sha256")
+  })
+})
+
+test("QA artifact: QA artifact changed after the record was written", () => {
+  withScratch((repository, artifacts) => {
+    writeFileSync(path.join(repository.directory, scratchQa), "edited after the record\n")
+    repository.git("add", "--", scratchQa)
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact_sha256")
+  })
+})
+
+test("QA artifact: QA artifact missing", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { r.qa[0].artifact = "evidence/merge-gate/wave-1/missing.txt" })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: QA artifact outside the repository", () => {
+  withScratch((repository, artifacts) => {
+    const outside = mkdtempSync(path.join(tmpdir(), "gate-outside-"))
+    try {
+      const bytes = "outside the repository\n"
+      // `../outside.md` from the repository root, next to the scratch repository.
+      const sibling = path.join(path.dirname(repository.directory), "outside.md")
+      writeFileSync(sibling, bytes)
+      try {
+        rewriteRecord(repository, artifacts, (r) => { r.qa[0] = { ...r.qa[0], artifact: "../outside.md", artifact_sha256: sha256(bytes) } })
+        expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+      } finally {
+        rmSync(sibling, { force: true })
+      }
+      const target = path.join(outside, "target.md")
+      writeFileSync(target, bytes)
+      const link = "evidence/merge-gate/wave-1/link.md"
+      mkdirSync(path.dirname(path.join(repository.directory, link)), { recursive: true })
+      symlinkSync(target, path.join(repository.directory, link))
+      repository.git("add", "--", link)
+      rewriteRecord(repository, artifacts, (r) => { r.qa[0] = { ...r.qa[0], artifact: link, artifact_sha256: sha256(bytes) } })
+      expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
+
+test("QA artifact: QA artifact with a malformed digest", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { r.qa[0].artifact_sha256 = "abc" })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact_sha256")
+  })
+})
+
+test("QA artifact: QA artifact invalid in a later row", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    const ignored = qaRow(repository, ".omp/team-config/evidence/demo/wave-1/terminal.txt", "ignored capture\n")
+    const artifacts = scratchArtifacts(repository)
+    rewriteRecord(repository, artifacts, (r) => { r.qa.push(ignored) })
+    expectFinding(runScratch(repository, artifacts), "qa.1.artifact")
+  })
+})
+
+test("QA artifact: binding negative control", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    // Where the guidance before this change sent wave QA: present on disk, digest matching, ignored.
+    const row = qaRow(repository, ".omp/team-config/evidence/demo/wave-1/terminal.txt", "wave 1 capture\n")
+    const artifacts = scratchArtifacts(repository, { qa: [row] })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: QA artifacts committed with the record after the review", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    const artifacts = scratchArtifacts(repository, {}, { record: ".omp/team-config/evidence/gate/demo.json" })
+    const rows = [
+      qaRow(repository, ".omp/team-config/evidence/gate/demo/wave-2/terminal.txt", "wave 2 terminal\n"),
+      qaRow(repository, ".omp/team-config/evidence/gate/demo/wave-2/http.txt", "wave 2 http\n"),
+    ]
+    rewriteRecord(repository, artifacts, (r) => { r.qa = rows })
+    commitAll(repository)
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
+  })
+})
+
+test("QA artifact: QA artifacts below a non-default record's evidence directory", () => {
+  withScratchRepo({}, (repository) => {
+    const artifacts = scratchArtifacts(repository, {}, { record: "docs/evidence/demo/merge-gate.json" })
+    const row = qaRow(repository, "docs/evidence/demo/merge-gate/wave-1/terminal.txt", "wave 1 terminal\n")
+    rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
+    commitAll(repository)
+    const result = runScratch(repository, artifacts)
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, "passed\n")
+  })
+})
+
+test("QA artifact: QA artifact added outside the record's evidence directory", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    const artifacts = scratchArtifacts(repository, {}, { record: ".omp/team-config/evidence/gate/demo.json" })
+    const row = qaRow(repository, ".omp/team-config/evidence/gate/other/demo.md", "another plan's directory\n")
+    rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
+    commitAll(repository)
+    expectFinding(runScratch(repository, artifacts), "reviewed_sha")
+  })
+})
+
+test("QA artifact: Source change committed beside a QA artifact", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    const artifacts = scratchArtifacts(repository, {}, { record: ".omp/team-config/evidence/gate/demo.json" })
+    const row = qaRow(repository, ".omp/team-config/evidence/gate/demo/wave-1/terminal.txt", "wave 1 terminal\n")
+    rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
+    writeFileSync(path.join(repository.directory, "source.txt"), "unreviewed change\n")
+    commitAll(repository)
+    expectFinding(runScratch(repository, artifacts), "reviewed_sha")
+  })
+})
+
+test("QA artifact: post-review negative control", () => {
+  withScratchRepo({ ignoreRules: true }, (repository) => {
+    // The file exists at `reviewed_sha` below the evidence directory, so editing it is a source change.
+    qaRow(repository, ".omp/team-config/evidence/gate/demo/notes.md", "reviewed bytes\n")
+    commitAll(repository, "a file below the evidence directory at the reviewed commit")
+    const artifacts = scratchArtifacts(repository, {}, { record: ".omp/team-config/evidence/gate/demo.json" })
+    const row = qaRow(repository, ".omp/team-config/evidence/gate/demo/notes.md", "edited after the review\n")
+    rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
+    commitAll(repository)
+    expectFinding(runScratch(repository, artifacts), "reviewed_sha")
+  })
+})
+
+test("QA artifact: QA artifact differs from its staged blob", () => {
+  withScratch((repository, artifacts) => {
+    const file = path.join(repository.directory, scratchQa)
+    writeFileSync(file, "bytes A\n")
+    repository.git("add", "--", scratchQa)
+    writeFileSync(file, "bytes B\n")
+    rewriteRecord(repository, artifacts, (r) => { r.qa[0].artifact_sha256 = sha256("bytes B\n") })
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: Committed QA artifact edited in the working tree", () => {
+  withScratch((repository, artifacts) => {
+    rewriteRecord(repository, artifacts, (r) => { r.qa[0].artifact_sha256 = sha256("bytes B\n") })
+    commitAll(repository)
+    writeFileSync(path.join(repository.directory, scratchQa), "bytes B\n")
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
+  })
+})
+
+test("QA artifact: Committed QA artifact staged differently from HEAD", () => {
+  withScratch((repository, artifacts) => {
+    commitAll(repository)
+    const file = path.join(repository.directory, scratchQa)
+    const committed = readFileSync(file)
+    writeFileSync(file, "bytes B\n")
+    repository.git("add", "--", scratchQa)
+    writeFileSync(file, committed)
+    expectFinding(runScratch(repository, artifacts), "qa.0.artifact")
   })
 })
 

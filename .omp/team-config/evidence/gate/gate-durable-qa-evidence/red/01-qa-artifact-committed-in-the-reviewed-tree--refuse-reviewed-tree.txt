@@ -1,0 +1,40 @@
+Test: QA artifact: QA artifact committed in the reviewed tree
+Against: refuse-reviewed-tree
+Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Exit: 1
+
+bun test v1.4.4 (5d9cc0f4f)
+
+validate-gate-record.test.mjs:
+2598 | }
+2599 | 
+2600 | test("QA artifact: QA artifact committed in the reviewed tree", () => {
+2601 |   withScratch((repository, artifacts) => {
+2602 |     const result = runScratch(repository, artifacts)
+2603 |     assert.equal(result.status, 0, result.stderr)
+                  ^
+AssertionError: qa.0.artifact: present at reviewed_sha
+
+
+1 !== 0
+
+ generatedMessage: false,
+     actual: 1,
+   expected: 0,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2603:12
+      at withScratch (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2389:12)
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2601:3
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) QA artifact: QA artifact committed in the reviewed tree [395.94ms]
+
+ 0 pass
+ 312 filtered out
+ 1 fail
+Ran 1 test across 1 file. [663.00ms]

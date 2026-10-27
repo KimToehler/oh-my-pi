@@ -1,0 +1,40 @@
+Test: QA artifact: QA artifacts committed with the record after the review
+Against: unchanged
+Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Exit: 1
+
+bun test v1.4.4 (5d9cc0f4f)
+
+validate-gate-record.test.mjs:
+2718 |       qaRow(repository, ".omp/team-config/evidence/gate/demo/wave-2/http.txt", "wave 2 http\n"),
+2719 |     ]
+2720 |     rewriteRecord(repository, artifacts, (r) => { r.qa = rows })
+2721 |     commitAll(repository)
+2722 |     const result = runScratch(repository, artifacts)
+2723 |     assert.equal(result.status, 0, result.stderr)
+                  ^
+AssertionError: reviewed_sha: b0842d4ef3ec6ed77c86ea0cef7c55150768f551 does not equal current HEAD 0eff5407c357f95c5f6da1c0196b9df4489b4d94, and the commits between them change more than the gate evidence
+
+
+1 !== 0
+
+ generatedMessage: false,
+     actual: 1,
+   expected: 0,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2723:12
+      at withScratchRepo (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2594:12)
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2714:3
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) QA artifact: QA artifacts committed with the record after the review [451.09ms]
+
+ 0 pass
+ 312 filtered out
+ 1 fail
+Ran 1 test across 1 file. [680.00ms]
