@@ -67,8 +67,8 @@ The team config follows omp's own locations; omp does not load `.omp/team-config
 
 - Plans: `.omp/plans/<slug>.md`.
 - `.omp/team-config/` holds the team-config state of a project:
-  - `evidence/`: QA artifacts and reviewer trailers, `evidence/<plan basename>/…`;
-  - `evidence/gate/`: gate records (`<plan basename>.json`) and the F3 integration-review reports (`<plan basename>/f3-integration-review-report.md`);
+  - `evidence/`: local scratch and reviewer trailers, `evidence/<plan basename>/…`;
+  - `evidence/gate/`: gate records (`<plan basename>.json`) and the record's evidence directory (the record path without `.json`, `<plan basename>/`), which holds the F3 integration-review report (`f3-integration-review-report.md`) and the QA artifacts the record cites (`wave-<n>/`, `f1/`);
   - `ledger.jsonl`: the gate-convergence ledger;
   - `gate-deltas/`: delta-review artifacts;
   - `frontend-design/`: the design state ledger (`state.md`).

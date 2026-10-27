@@ -15,7 +15,8 @@ export const MAX_ARTIFACT_BYTES = 1024 * 1024
 
 // All paths are relative to the checkout root.
 export const STATE_DIR = path.join(".omp", "team-config")
-// QA artifacts and reviewer trailers, one directory per plan basename.
+// Ignored local scratch and reviewer trailers, one directory per plan basename. QA artifacts a
+// record cites live below the record's evidence directory (the record path without `.json`).
 export const EVIDENCE_DIR = path.join(STATE_DIR, "evidence")
 // Default home of gate records; the validator accepts a record at any tracked path.
 export const GATE_RECORD_DIR = path.join(EVIDENCE_DIR, "gate")

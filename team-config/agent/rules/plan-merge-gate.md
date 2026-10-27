@@ -12,7 +12,7 @@ time, after reviewers were paid for, so get it right at plan time.
 ```
 ## Final verification wave
 - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
-- [ ] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit
+- [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`), on the head after F3's last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
 
 ## Merge gate
