@@ -1,6 +1,6 @@
 Test: QA artifact: QA artifact committed in the reviewed tree
 Against: refuse-reviewed-tree
-Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Tests sha256: 173e9d0941079c3b35aed951ada44a8a7bce088617db805686a6cbd9ddf57015
 Exit: 1
 
 bun test v1.4.4 (5d9cc0f4f)
@@ -32,9 +32,9 @@ AssertionError: qa.0.artifact: present at reviewed_sha
       at node:test:1445:26
       at executeTestNode (node:test:1448:45)
       at node:test:1591:20
-(fail) QA artifact: QA artifact committed in the reviewed tree [395.94ms]
+(fail) QA artifact: QA artifact committed in the reviewed tree [369.78ms]
 
  0 pass
  312 filtered out
  1 fail
-Ran 1 test across 1 file. [663.00ms]
+Ran 1 test across 1 file. [716.00ms]

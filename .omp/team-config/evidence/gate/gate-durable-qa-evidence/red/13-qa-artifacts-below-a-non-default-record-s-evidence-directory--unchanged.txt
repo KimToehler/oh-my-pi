@@ -1,19 +1,19 @@
 Test: QA artifact: QA artifacts below a non-default record's evidence directory
 Against: unchanged
-Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Tests sha256: 173e9d0941079c3b35aed951ada44a8a7bce088617db805686a6cbd9ddf57015
 Exit: 1
 
 bun test v1.4.4 (5d9cc0f4f)
 
 validate-gate-record.test.mjs:
-2730 |     const artifacts = scratchArtifacts(repository, {}, { record: "docs/evidence/demo/merge-gate.json" })
-2731 |     const row = qaRow(repository, "docs/evidence/demo/merge-gate/wave-1/terminal.txt", "wave 1 terminal\n")
-2732 |     rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
-2733 |     commitAll(repository)
-2734 |     const result = runScratch(repository, artifacts)
-2735 |     assert.equal(result.status, 0, result.stderr)
+2726 |     const artifacts = scratchArtifacts(repository, {}, { record: "docs/evidence/demo/merge-gate.json" })
+2727 |     const row = qaRow(repository, "docs/evidence/demo/merge-gate/wave-1/terminal.txt", "wave 1 terminal\n")
+2728 |     rewriteRecord(repository, artifacts, (r) => { r.qa = [row] })
+2729 |     commitAll(repository)
+2730 |     const result = runScratch(repository, artifacts)
+2731 |     assert.equal(result.status, 0, result.stderr)
                   ^
-AssertionError: reviewed_sha: 420f4d47f9e8e9891d25019693620996d6c212e9 does not equal current HEAD 69f65ab072329c8442a0c2d499b8b47630026b63, and the commits between them change more than the gate evidence
+AssertionError: reviewed_sha: dc6068c17ef0480158c4f7eb8106d92fc9de5e25 does not equal current HEAD 9839b599ce90d1da1d1d5122ac7423b9b0500703, and the commits between them change more than the gate evidence
 
 
 1 !== 0
@@ -25,16 +25,16 @@ AssertionError: reviewed_sha: 420f4d47f9e8e9891d25019693620996d6c212e9 does not 
        diff: "simple",
        code: "ERR_ASSERTION"
 
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2735:12
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2731:12
       at withScratchRepo (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2594:12)
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2729:3
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2725:3
       at run (node:async_hooks:144:29)
       at node:test:1445:26
       at executeTestNode (node:test:1448:45)
       at node:test:1591:20
-(fail) QA artifact: QA artifacts below a non-default record's evidence directory [453.08ms]
+(fail) QA artifact: QA artifacts below a non-default record's evidence directory [453.73ms]
 
  0 pass
  312 filtered out
  1 fail
-Ran 1 test across 1 file. [683.00ms]
+Ran 1 test across 1 file. [675.00ms]

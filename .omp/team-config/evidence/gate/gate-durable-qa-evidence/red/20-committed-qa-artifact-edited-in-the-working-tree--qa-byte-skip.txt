@@ -1,6 +1,6 @@
 Test: QA artifact: Committed QA artifact edited in the working tree
 Against: qa-byte-skip
-Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Tests sha256: 173e9d0941079c3b35aed951ada44a8a7bce088617db805686a6cbd9ddf57015
 Exit: 1
 
 bun test v1.4.4 (5d9cc0f4f)
@@ -26,16 +26,16 @@ AssertionError: expected a qa.0.artifact finding, got: passed
        code: "ERR_ASSERTION"
 
       at expectFinding (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2381:10)
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2790:5
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2786:5
       at withScratch (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2389:12)
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2786:3
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2782:3
       at run (node:async_hooks:144:29)
       at node:test:1445:26
       at executeTestNode (node:test:1448:45)
       at node:test:1591:20
-(fail) QA artifact: Committed QA artifact edited in the working tree [492.30ms]
+(fail) QA artifact: Committed QA artifact edited in the working tree [503.95ms]
 
  0 pass
  312 filtered out
  1 fail
-Ran 1 test across 1 file. [719.00ms]
+Ran 1 test across 1 file. [756.00ms]

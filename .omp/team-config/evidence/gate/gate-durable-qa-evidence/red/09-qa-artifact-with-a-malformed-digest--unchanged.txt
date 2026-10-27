@@ -1,6 +1,6 @@
 Test: QA artifact: QA artifact with a malformed digest
 Against: unchanged
-Tests sha256: 6c0e0f6f94f2f791b4f51a2de1b7d7ba8fb1828b22cc43c70c0ec8b9561319c6
+Tests sha256: 173e9d0941079c3b35aed951ada44a8a7bce088617db805686a6cbd9ddf57015
 Exit: 1
 
 bun test v1.4.4 (5d9cc0f4f)
@@ -26,16 +26,16 @@ AssertionError: expected a qa.0.artifact_sha256 finding, got: passed
        code: "ERR_ASSERTION"
 
       at expectFinding (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2381:10)
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2691:5
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2687:5
       at withScratch (<scratch>/review-work/scripts/validate-gate-record.test.mjs:2389:12)
-      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2689:3
+      at <scratch>/review-work/scripts/validate-gate-record.test.mjs:2685:3
       at run (node:async_hooks:144:29)
       at node:test:1445:26
       at executeTestNode (node:test:1448:45)
       at node:test:1591:20
-(fail) QA artifact: QA artifact with a malformed digest [327.73ms]
+(fail) QA artifact: QA artifact with a malformed digest [404.54ms]
 
  0 pass
  312 filtered out
  1 fail
-Ran 1 test across 1 file. [560.00ms]
+Ran 1 test across 1 file. [630.00ms]
