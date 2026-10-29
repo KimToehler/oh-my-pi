@@ -18,13 +18,23 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 #### Scenario: Round with a blocking finding keeps the existing path
 
-- **WHEN** a rejecting round holds at least one blocker that is not Accept-eligible, including the ambiguous and incomplete-round cases
+- **WHEN** a complete rejecting round holds at least one blocker that is not Accept-eligible, including the ambiguous and no-stated-consequence cases
 - **THEN** the instruction directs a fix of the non-eligible blockers and a new round, and the user is asked after the third REJECT as before
+
+#### Scenario: Incomplete round keeps its stop
+
+- **WHEN** a lens still returns no structured verdict after its retry
+- **THEN** the round is incomplete: as today, no `review.md` is written, the user is told which lens failed, and the review stops; no fix and no ask follow from it
 
 #### Scenario: Eligible blockers inside a mixed round
 
 - **WHEN** a rejecting round before the third REJECT holds both eligible and non-eligible blockers
-- **THEN** the non-eligible ones are fixed, the eligible ones stay open without a mechanism fix and are listed in `review.md` as carried, and the user is asked at the first complete round in which only eligible blockers remain
+- **THEN** the non-eligible ones are fixed, the eligible ones stay open without a mechanism fix in the orchestrator's own list of carried blockers, the brief stays unchanged, and every later ask includes the carried blockers with their stated consequences
+
+#### Scenario: OKAY while blockers are carried
+
+- **WHEN** a later complete round returns OKAY or holds only eligible blockers while carried blockers remain
+- **THEN** the orchestrator asks the user about every carried and open eligible blocker, with Accept recommended, before it writes `review.md`; a carried blocker is never dropped silently
 
 #### Scenario: Third REJECT with mixed blockers
 
@@ -38,7 +48,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 ### Requirement: Early ask stays inside plan review
 
-The early-ask rule SHALL apply to plan-review rounds only. The post-implementation lanes SHALL keep their existing convergence decisions and record vocabulary unchanged, and SHALL state only the eligibility definition, the ambiguity default, the accept-path rule, the no-unrequested-mechanism rule and the exemption allow-set of `review-blocker-disposition`.
+The early-ask rule SHALL apply to plan-review rounds only. The post-implementation lanes SHALL keep their existing convergence decisions and record vocabulary unchanged, and SHALL apply only the eligibility definition, the ambiguity default, the accept-path and coverage rules and the no-unrequested-mechanism rule of `review-blocker-disposition`.
 
 #### Scenario: F2 wave with only eligible blockers
 

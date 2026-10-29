@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines which reviewer blockers must be fixed before a review or gate proceeds, which the orchestrator may recommend the user accept, and which commits between fix waves need no review.
+Defines which reviewer blockers must be fixed before a review or gate proceeds, and which the orchestrator may recommend the user accept.
 
 ## ADDED Requirements
 
@@ -26,7 +26,7 @@ The definition SHALL make a blocker Accept-eligible only when it misses both lim
 
 #### Scenario: Weaker proof of an unaffected path
 
-- **WHEN** a blocker's stated consequence is a weaker proof, a stale cross-reference or evidence bookkeeping, and no merge-gate criterion, existing consumer or protected asset is in its path
+- **WHEN** a blocker's stated consequence is a weaker proof, a stale cross-reference or bookkeeping of evidence outside the gate record, and no merge-gate criterion, existing consumer or protected asset is in its path
 - **THEN** it is Accept-eligible and the instruction may recommend Accept for it
 
 #### Scenario: Verify gap that leaves a criterion unproven
@@ -46,7 +46,7 @@ The definition SHALL make a blocker Accept-eligible only when it misses both lim
 
 ### Requirement: Security, gate and consumer blockers are never eligible
 
-The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer, whatever the immediate observer is. The exclusions SHALL also cover every blocker filed under review_scope item 4 (security and privacy) or CHECK 1 (credential and personal-data holders and sinks), every blocker from a `security_delta: yes` trailer, and every blocker on a change whose mandatory class is not `none`.
+The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer, whatever its immediate observer. The exclusions SHALL also cover the audit trail (gate record, trailers, QA artifacts the validator binds), every blocker filed under review_scope item 4 or CHECK 1, every blocker from a `security_delta: yes` trailer, and every blocker on a change whose mandatory class is not `none`.
 
 #### Scenario: Review or release mechanism as the subject
 
@@ -58,9 +58,14 @@ The definition SHALL state that a blocker is never Accept-eligible when it names
 - **WHEN** a blocker reads as evidence bookkeeping but is filed under review_scope item 4 or CHECK 1, comes from a `security_delta: yes` trailer, or concerns a change whose mandatory class is not `none`
 - **THEN** it is not Accept-eligible, because the exclusion takes precedence over the threshold test
 
+#### Scenario: Gate-record evidence
+
+- **WHEN** a blocker says the gate record, a trailer or a QA artifact the validator binds is not bound to the reviewed bytes
+- **THEN** it is not Accept-eligible, because the audit trail is a protected asset
+
 #### Scenario: Other mechanical check
 
-- **WHEN** a checks-lens blocker under CHECK 5 says an evidence file is not digest-bound and no criterion, consumer or protected asset is in its path
+- **WHEN** a checks-lens blocker under CHECK 5 says an input outside the gate record, such as a measurement file, is not digest-bound, and no criterion, consumer or protected asset is in its path
 - **THEN** it is Accept-eligible
 
 #### Scenario: Negative control
@@ -70,7 +75,7 @@ The definition SHALL state that a blocker is never Accept-eligible when it names
 
 ### Requirement: Ambiguity and incompleteness default to blocking
 
-The definition SHALL treat as not eligible, and SHALL NOT count as a round free of blocking findings: a blocker that states no consequence, a blocker whose consequence is ambiguous or mixes a process gap with a code or design path, and any round in which a dispatched reviewer returned no verdict. A round is complete only when every dispatched reviewer of that round returned a structured verdict.
+The definition SHALL treat as not eligible a blocker that states no consequence, and a blocker whose consequence is ambiguous or mixes a process gap with a code or design path. A round is complete only when every dispatched reviewer returned a structured verdict; an incomplete round SHALL keep the lane's existing stop and SHALL never count as free of blocking findings or trigger an ask.
 
 #### Scenario: Blocker without a stated consequence
 
@@ -82,6 +87,11 @@ The definition SHALL treat as not eligible, and SHALL NOT count as a round free 
 - **WHEN** a blocker names both an evidence gap and a code or design path
 - **THEN** it is handled as blocking
 
+#### Scenario: Reviewer without a verdict
+
+- **WHEN** a dispatched reviewer still returns no structured verdict after its retry
+- **THEN** the round is incomplete and the lane stops and tells the user as today; no fix wave and no ask follow from it
+
 #### Scenario: Negative control
 
 - **WHEN** an instruction treats a round with a missing or unparsed reviewer verdict as free of blocking findings, or defaults an unclear blocker to Accept-eligible
@@ -89,7 +99,7 @@ The definition SHALL treat as not eligible, and SHALL NOT count as a round free 
 
 ### Requirement: Every accept path recommends only eligible blockers
 
-Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-review Accept and Override, the F2 Phase 4 override, F2 and F3 freeze, and delta accept. There the orchestrator SHALL recommend and offer accept or freeze only when every blocker left unfixed is eligible, or is covered by an entry of the plan-reviewed `gate.md`; otherwise it SHALL offer fix, re-plan or stop and name each such blocker with its stated consequence.
+Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-review Accept and Override, the F2 Phase 4 override, F2 and F3 freeze, and delta accept. Accept or freeze SHALL be recommended and offered only for blockers that are eligible or covered; a decision leaving several blockers at once needs every one so. Otherwise the orchestrator SHALL offer fix, re-plan or stop, naming each blocker and its stated consequence.
 
 #### Scenario: F3 STOP with a non-eligible Must-fix
 
@@ -104,6 +114,20 @@ Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-r
 #### Scenario: Negative control
 
 - **WHEN** an instruction offers or recommends accept, freeze or Override for a non-eligible, uncovered blocker without the user's explicit request
+- **THEN** review of that instruction MUST fail
+
+### Requirement: Coverage by gate.md is specific
+
+A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan-reviewed `gate.md` names the same defect class and consequence. Coverage SHALL never apply to a blocker the exclusions make ineligible, except on the user's explicit request recorded as below.
+
+#### Scenario: Broad entry and an excluded blocker
+
+- **WHEN** an F2 blocker names a security path and a broad `gate.md` Out of scope entry mentions its area
+- **THEN** it is not covered, and the orchestrator offers no override for it
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction treats a `gate.md` entry as covering a blocker whose defect class or consequence it does not name, or lets coverage admit an excluded blocker
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The user's explicit acceptance is recorded
@@ -138,27 +162,3 @@ The definition SHALL forbid answering an Accept-eligible blocker by adding a mec
 
 - **WHEN** an instruction permits adding an unrequested mechanism for an Accept-eligible blocker because it is small, or refuses a check needed to fix a blocking defect
 - **THEN** review of that instruction MUST fail
-
-### Requirement: Behaviour-neutral commits between waves
-
-The fix-wave instructions SHALL exempt a commit between waves only when it ticks a final-verification checkbox, or when every changed line is a comment or prose in a file that no reviewer brief, plan bundle, merge-gate criterion, agent-loaded instruction, or build, lint, codegen or documentation generator reads and no changed comment carries a compiler, linter or build directive. Every other commit SHALL be delta-reviewed. The exemption SHALL be recorded with a reason, as today.
-
-#### Scenario: Comment-only commit in unread source
-
-- **WHEN** a commit between two waves changes only comment text in a source file, and no brief, criterion, instruction or tool reads that text
-- **THEN** the instruction directs the orchestrator to exempt it with `GC exempt` and a reason naming what changed, rather than dispatch a delta review
-
-#### Scenario: Final-verification checkbox
-
-- **WHEN** a commit only ticks a final-verification checkbox
-- **THEN** it is exempt with its reason, as today
-
-#### Scenario: Directive or generated-doc comment
-
-- **WHEN** a comment-only commit changes a doc comment a documentation generator consumes, or a comment carrying a compiler, linter or build directive
-- **THEN** it is delta-reviewed
-
-#### Scenario: Negative control
-
-- **WHEN** an instruction exempts a commit that changes any other prose in an agent-loaded instruction file or a plan artifact bound by `plan_sha256`, or exempts any commit without a recorded reason
-- **THEN** exempting it MUST fail the instruction's rule and a delta review is required
