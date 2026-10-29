@@ -15,6 +15,11 @@ The disposition rules SHALL be stated once, in a `Blocker disposition` section o
 - **WHEN** the `omp-gated` review instruction decides whether a blocker is Accept-eligible, in the default agent directory or a profile
 - **THEN** it applies the `Blocker disposition` section of the `review-work` skill installed in the active agent directory
 
+#### Scenario: Section cannot be read
+
+- **WHEN** plan review or the F3 STOP cannot read the `Blocker disposition` section
+- **THEN** every blocker is handled as not eligible: plan review fixes them without an early ask, and F3 offers no freeze
+
 #### Scenario: Negative control
 
 - **WHEN** the schema or `integration-review/SKILL.md` states its own eligibility test, exclusion list or ambiguity default
@@ -22,22 +27,17 @@ The disposition rules SHALL be stated once, in a `Blocker disposition` section o
 
 ### Requirement: Accept eligibility is the negation of the blocking threshold
 
-The definition SHALL make a blocker Accept-eligible only when it misses both limbs of the blocking threshold in `review-work/SKILL.md` and no exclusion applies; a severity label, the lens, the wording or any other predicate SHALL never make it eligible, and exclusions take precedence. In plan review only, a gap in the plan's own Verify commands or evidence SHALL count as weaker proof unless it leaves a merge-gate criterion wholly unproven.
+The definition SHALL make a blocker Accept-eligible only when it misses both limbs of the blocking threshold in `review-work/SKILL.md` and no exclusion applies; a severity label, the lens, the wording or any other predicate SHALL never make it eligible, and exclusions take precedence. A missing proof of any material behaviour or failure mode SHALL break the value proof; only a gap in the form of evidence for a behaviour that stays proven SHALL count as weaker proof.
 
 #### Scenario: Weaker proof of an unaffected path
 
-- **WHEN** a blocker's stated consequence is a weaker proof, a stale cross-reference or bookkeeping of evidence outside the gate record, and no merge-gate criterion, existing consumer or protected asset is in its path
+- **WHEN** a blocker's stated consequence is a gap in how evidence is bound, worded or kept outside the gate record, a stale cross-reference, or bookkeeping, while every behaviour it concerns stays proven by a check that can fail, and no merge-gate criterion, existing consumer or protected asset is in its path
 - **THEN** it is Accept-eligible and the instruction may recommend Accept for it
 
-#### Scenario: Verify gap that leaves a criterion unproven
+#### Scenario: Partial proof of a criterion
 
-- **WHEN** a blocker says no Verify command or evidence of the plan can fail when a named merge-gate criterion is broken
-- **THEN** it is not Accept-eligible, because that criterion would stay wholly unproven
-
-#### Scenario: Test gap after implementation
-
-- **WHEN** an F2, F3 or delta blocker says a test cannot fail for the implemented behaviour
-- **THEN** the plan-review reading does not apply, and the blocker is judged by the threshold as today
+- **WHEN** a blocker says a criterion covers creation and deletion, and no planned Verify command or test can fail when deletion breaks
+- **THEN** it is not Accept-eligible, because a material behaviour stays unproven, even though the criterion is partly proven
 
 #### Scenario: Minor label on a consumer break
 
@@ -124,6 +124,16 @@ Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-r
 ### Requirement: Coverage by gate.md is specific
 
 A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence. Coverage SHALL never apply to a blocker the exclusions make ineligible, except on the user's explicit request recorded as below.
+
+#### Scenario: Exact match
+
+- **WHEN** a non-excluded F2 blocker's defect class and consequence are both named by an Accepted residual risks entry
+- **THEN** it is covered and may be recorded with an `accepted-residual` downgrade
+
+#### Scenario: Same class, other consequence, or broad entry
+
+- **WHEN** a non-excluded blocker meets an entry that names its defect class but a different consequence, or only a broad area list
+- **THEN** it is not covered, and no override is offered for it unless it is eligible
 
 #### Scenario: Broad entry and an excluded blocker
 
