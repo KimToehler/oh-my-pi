@@ -2041,6 +2041,7 @@ export class AcpAgent implements Agent {
 			liveMessageId: undefined,
 			liveMessageProgress: undefined,
 			toolArgsById: new Map(),
+			lastToolUpdateHashById: new Map(),
 			extensionsConfigured: false,
 			closedError: undefined,
 			promptEventHandlers: new Map(),
@@ -2182,6 +2183,11 @@ export class AcpAgent implements Agent {
 	}
 
 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
+		if (event.type === "tool_execution_end") {
+			// Reset in event order, before any early return or `await`: progress the call's background job reports
+			// after the call returned is compared afresh, however long the end frame's delivery takes.
+			record.lastToolUpdateHashById.delete(event.toolCallId);
+		}
 		let work = this.#surface.activeWork(record);
 		if (!work && event.type === "agent_start") {
 			work = this.#surface.beginForeground(record, "agent");
@@ -2217,6 +2223,13 @@ export class AcpAgent implements Agent {
 		})) {
 			// A cancel or close between two notifications of one event ends `work`; v2 then drops the rest.
 			if (!this.#surface.acceptsUpdates(record, work)) break;
+			if (event.type === "tool_execution_update") {
+				// Skip a frame identical to the last one sent for this call. Check and store happen before the
+				// first `await`, so concurrent handlers compare in event order.
+				const hash = Bun.hash(JSON.stringify(notification));
+				if (record.lastToolUpdateHashById.get(event.toolCallId) === hash) continue;
+				record.lastToolUpdateHashById.set(event.toolCallId, hash);
+			}
 			const delivery = this.#surface.sendMapped(notification);
 			if (streamedAssistantError) {
 				// Resolves true only once the error chunk actually reached the
