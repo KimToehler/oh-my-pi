@@ -152,6 +152,96 @@ function emitter(session: FakeAgentSession): (event: AgentSessionEvent) => void 
 	};
 }
 
+function progress(text: string, extraDetails: Record<string, unknown> = {}) {
+	return {
+		content: [{ type: "text", text }],
+		details: { progress: [{ task: "brief" }], ...extraDetails },
+	};
+}
+
+/**
+ * Two tool calls reporting progress inside one prompt: repeats, a change of locations, a call end followed by a
+ * background job's progress and its two final frames (the second differs only in raw output).
+ */
+function installToolProgressPrompt(session: FakeAgentSession): void {
+	const emit = emitter(session);
+	const update = (toolCallId: string, toolName: string, args: unknown, partialResult: unknown) =>
+		emit({ type: "tool_execution_update", toolCallId, toolName, args, partialResult } as AgentSessionEvent);
+	const end = (toolCallId: string, toolName: string, text: string) =>
+		emit({
+			type: "tool_execution_end",
+			toolCallId,
+			toolName,
+			isError: false,
+			result: { content: [{ type: "text", text }], details: {} },
+		} as AgentSessionEvent);
+	const jobDone = { async: { state: "completed", jobId: "bg_1", type: "task" } };
+	session.prompt = async text => {
+		session.promptCalls.push(text);
+		session.isStreaming = true;
+		emit({
+			type: "tool_execution_start",
+			toolCallId: "call_task_1",
+			toolName: "task",
+			args: {},
+		} as AgentSessionEvent);
+		for (let i = 0; i < 3; i++) update("call_task_1", "task", {}, progress("A"));
+		emit({
+			type: "tool_execution_start",
+			toolCallId: "call_task_2",
+			toolName: "read",
+			args: { path: "a.ts" },
+		} as AgentSessionEvent);
+		update("call_task_2", "read", { path: "a.ts" }, progress("A"));
+		update("call_task_1", "task", {}, progress("A"));
+		update("call_task_2", "read", { path: "b.ts" }, progress("A"));
+		for (let i = 0; i < 2; i++) update("call_task_1", "task", {}, progress("B"));
+		end("call_task_1", "task", "done");
+		for (let i = 0; i < 2; i++) update("call_task_1", "task", {}, progress("B"));
+		update("call_task_1", "task", {}, progress("B", jobDone));
+		update("call_task_1", "task", {}, progress("B", { ...jobDone, result: "second" }));
+		end("call_task_2", "read", "read done");
+		const reply = makeAssistantMessage("Done.");
+		session.sessionManager.appendMessage(reply);
+		emit({ type: "agent_end", messages: [reply] } as AgentSessionEvent);
+		session.isStreaming = false;
+		return true;
+	};
+}
+
+interface RecordedToolUpdate {
+	toolCallId?: string;
+	status?: string;
+	rawOutput?: { details?: { result?: unknown } };
+	content?: Array<{ content?: { type?: string; text?: string } }>;
+	locations?: Array<{ path: string }>;
+}
+
+/** The `tool_call_update` frames the agent wrote for `toolCallId`, in wire order. */
+function toolUpdates(harness: WireHarness, toolCallId: string): RecordedToolUpdate[] {
+	const updates: RecordedToolUpdate[] = [];
+	for (const frame of harness.recorder.frames()) {
+		const record = frame as {
+			method?: string;
+			params?: { update?: RecordedToolUpdate & { sessionUpdate?: string } };
+		};
+		const update = record.params?.update;
+		if (record.method !== "session/update" || update?.sessionUpdate !== "tool_call_update") continue;
+		if (update.toolCallId === toolCallId) updates.push(update);
+	}
+	return updates;
+}
+
+function summarize(update: RecordedToolUpdate): [string | undefined, boolean, string | undefined, string[]] {
+	const texts = (update.content ?? []).filter(block => block.content?.type === "text");
+	return [
+		update.status,
+		Object.hasOwn(update, "rawOutput"),
+		texts.at(-1)?.content?.text,
+		(update.locations ?? []).map(location => location.path),
+	];
+}
+
 afterEach(cleanupHarnessState);
 
 describe("ACP v1 golden transcripts", () => {
@@ -385,5 +475,44 @@ describe("ACP v1 golden transcripts", () => {
 		expect((await response).stopReason).toBe("end_turn");
 		await finish(harness);
 		expectGolden("background-wake-inside-open-prompt", harness);
+	});
+
+	it("prompt-tool-progress", async () => {
+		const harness = await createWireHarness();
+		const { sessionId, session } = await startSession(harness);
+		installToolProgressPrompt(session);
+		const response = await harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "run tools" }] });
+		expect(response.stopReason).toBe("end_turn");
+		await finish(harness);
+		expectGolden("prompt-tool-progress", harness);
+	});
+});
+
+describe("tool progress updates", () => {
+	it("tool progress updates: unchanged progress is sent once per call", async () => {
+		// Guards: every progress tick is resent although nothing changed, and a running call's frame carries the whole
+		// details as rawOutput; a client journalling each frame then grows by the details' size per tick.
+		const harness = await createWireHarness();
+		const { sessionId, session } = await startSession(harness);
+		installToolProgressPrompt(session);
+		const response = await harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "run tools" }] });
+		expect(response.stopReason).toBe("end_turn");
+		await finish(harness);
+
+		const task = toolUpdates(harness, "call_task_1");
+		expect(task.map(summarize)).toEqual([
+			["in_progress", false, "A", []],
+			["in_progress", false, "B", []],
+			["completed", true, "done", []],
+			["in_progress", false, "B", []],
+			["completed", true, "B", []],
+			["completed", true, "B", []],
+		]);
+		expect(task.slice(-2).map(update => update.rawOutput?.details?.result)).toEqual([undefined, "second"]);
+		expect(toolUpdates(harness, "call_task_2").map(summarize)).toEqual([
+			["in_progress", false, "A", [path.join(harness.cwdA, "a.ts")]],
+			["in_progress", false, "A", [path.join(harness.cwdA, "b.ts")]],
+			["completed", true, "read done", []],
+		]);
 	});
 });

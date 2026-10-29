@@ -1984,6 +1984,49 @@ describe("resource links (plan 10)", () => {
 	});
 });
 
+describe("tool progress updates", () => {
+	it("tool progress updates: v2 progress frames carry no rawOutput and unchanged ones are sent once", async () => {
+		// Guards: a v2 client receives every repeated progress tick, each carrying the call's whole details as rawOutput.
+		const tick = (text: string) => ({
+			content: [{ type: "text" as const, text }],
+			details: { progress: [{ task: "brief" }] },
+		});
+		const progressTool: AgentTool = {
+			name: "progress",
+			label: "progress",
+			description: "Reports progress",
+			parameters: type({}),
+			async execute(_id, _params, _signal, onUpdate) {
+				for (let i = 0; i < 3; i++) onUpdate?.(tick("A"));
+				onUpdate?.(tick("B"));
+				return { content: [{ type: "text" as const, text: "done" }], details: { brief: "x" } };
+			},
+		};
+		const { client, sessionId } = await startReal({
+			tools: [progressTool],
+			script: { 0: { content: [{ type: "toolCall", id: "call-progress", name: "progress", arguments: {} }] } },
+		});
+		await sendPrompt(client, sessionId, "report progress");
+		await waitForIdle(client, sessionId);
+
+		const calls = client
+			.updates(sessionId)
+			.map(entry => entry.update)
+			.filter(update => kindOf(update) === "tool_call_update" && update.toolCallId === "call-progress");
+		const running = calls.filter(update => update.status === "in_progress");
+		// Tool call content blocks wrap the text block: `{ type: "content", content: { type: "text", text } }`.
+		const texts = running.map(update =>
+			(Array.isArray(update.content) ? update.content : [])
+				.map(block => contentText(isRecord(block) ? block.content : undefined))
+				.join(""),
+		);
+		expect(texts).toEqual(["A", "B"]);
+		expect(running.filter(update => Object.hasOwn(update, "rawOutput"))).toEqual([]);
+		expect(calls.find(update => update.status === "completed")?.rawOutput).toMatchObject({ details: { brief: "x" } });
+		expect(client.schemaIssues).toEqual([]);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Plan 7: suite-wide mapping conformance. Must stay the last test in the file.
 // ---------------------------------------------------------------------------

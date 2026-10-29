@@ -1,0 +1,23 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-event-mapper.test.ts:
+549 | 		const update = updates[0]!.update as { status?: string; content?: unknown };
+550 | 		expect(update.status).toBe("in_progress");
+551 | 		expect(update.content).toEqual([
+552 | 			{ type: "content", content: { type: "text", text: "Running agent Reviewer..." } },
+553 | 		]);
+554 | 		expect(Object.hasOwn(update, "rawOutput")).toBe(false);
+                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-event-mapper.test.ts:554:46)
+(fail) ACP event mapper > progress updates: a running call's update carries no rawOutput [0.49ms]
+
+ 0 pass
+ 43 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [450.00ms]

@@ -1,0 +1,29 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-v2.test.ts:
+2018 | 		const texts = running.map(update =>
+2019 | 			(Array.isArray(update.content) ? update.content : [])
+2020 | 				.map(block => contentText(isRecord(block) ? block.content : undefined))
+2021 | 				.join(""),
+2022 | 		);
+2023 | 		expect(texts).toEqual(["A", "B"]);
+                       ^
+error: expect(received).toEqual(expected)
+
+@@ -2,2 +2,4 @@
+    "A",
++   "A",
++   "A",
+    "B",
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-v2.test.ts:2023:17)
+(fail) tool progress updates > tool progress updates: v2 progress frames carry no rawOutput and unchanged ones are sent once [96.39ms]
+
+ 0 pass
+ 56 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [579.00ms]
