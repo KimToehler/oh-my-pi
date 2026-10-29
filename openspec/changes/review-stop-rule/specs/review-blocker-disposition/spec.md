@@ -8,12 +8,12 @@ Defines which reviewer blockers must be fixed before a review or gate proceeds, 
 
 ### Requirement: One authoritative disposition definition
 
-The disposition rules SHALL be stated once, in a `Blocker disposition` section of `review-work/SKILL.md`. The `omp-gated` review instruction and `integration-review/SKILL.md` SHALL reference that section by name and SHALL add only their lane's decision points, never a restated or divergent definition.
+The disposition rules SHALL be stated once, in a `Blocker disposition` section of the `review-work` skill. The `omp-gated` review instruction and `integration-review/SKILL.md` SHALL reference that section through the skill (`skill://review-work`), so it resolves from the active agent directory, SHALL treat every blocker as not eligible when the section cannot be read, and SHALL add only their lane's decision points, never a restated or divergent definition.
 
 #### Scenario: Plan review reads the shared definition
 
-- **WHEN** the `omp-gated` review instruction decides whether a blocker is Accept-eligible
-- **THEN** it applies the `Blocker disposition` section of `review-work/SKILL.md`
+- **WHEN** the `omp-gated` review instruction decides whether a blocker is Accept-eligible, in the default agent directory or a profile
+- **THEN** it applies the `Blocker disposition` section of the `review-work` skill installed in the active agent directory
 
 #### Scenario: Negative control
 
@@ -22,7 +22,7 @@ The disposition rules SHALL be stated once, in a `Blocker disposition` section o
 
 ### Requirement: Accept eligibility is the negation of the blocking threshold
 
-The definition SHALL make a blocker Accept-eligible only when it misses both limbs of the blocking threshold in `review-work/SKILL.md` and no exclusion applies. A severity label, the lens, the reviewer's wording or any other predicate SHALL never make a blocker eligible, and the exclusions SHALL take precedence. A gap in the plan's own Verify commands or evidence SHALL count as weaker proof, not a broken value proof, unless it leaves a merge-gate criterion wholly unproven.
+The definition SHALL make a blocker Accept-eligible only when it misses both limbs of the blocking threshold in `review-work/SKILL.md` and no exclusion applies; a severity label, the lens, the wording or any other predicate SHALL never make it eligible, and exclusions take precedence. In plan review only, a gap in the plan's own Verify commands or evidence SHALL count as weaker proof unless it leaves a merge-gate criterion wholly unproven.
 
 #### Scenario: Weaker proof of an unaffected path
 
@@ -33,6 +33,11 @@ The definition SHALL make a blocker Accept-eligible only when it misses both lim
 
 - **WHEN** a blocker says no Verify command or evidence of the plan can fail when a named merge-gate criterion is broken
 - **THEN** it is not Accept-eligible, because that criterion would stay wholly unproven
+
+#### Scenario: Test gap after implementation
+
+- **WHEN** an F2, F3 or delta blocker says a test cannot fail for the implemented behaviour
+- **THEN** the plan-review reading does not apply, and the blocker is judged by the threshold as today
 
 #### Scenario: Minor label on a consumer break
 
@@ -46,7 +51,7 @@ The definition SHALL make a blocker Accept-eligible only when it misses both lim
 
 ### Requirement: Security, gate and consumer blockers are never eligible
 
-The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer, whatever its immediate observer. The exclusions SHALL also cover the audit trail (gate record, trailers, QA artifacts the validator binds), every blocker filed under review_scope item 4 or CHECK 1, every blocker from a `security_delta: yes` trailer, and every blocker on a change whose mandatory class is not `none`.
+The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer, whatever its immediate observer. The exclusions SHALL also cover the audit trail (gate record, trailers, QA artifacts the validator binds), every blocker whose area names review_scope item 4 or CHECK 1, every blocker from a `security_delta: yes` trailer, and every blocker on a change whose mandatory class is not `none`.
 
 #### Scenario: Review or release mechanism as the subject
 
@@ -99,7 +104,7 @@ The definition SHALL treat as not eligible a blocker that states no consequence,
 
 ### Requirement: Every accept path recommends only eligible blockers
 
-Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-review Accept and Override, the F2 Phase 4 override, F2 and F3 freeze, and delta accept. Accept or freeze SHALL be recommended and offered only for blockers that are eligible or covered; a decision leaving several blockers at once needs every one so. Otherwise the orchestrator SHALL offer fix, re-plan or stop, naming each blocker and its stated consequence.
+Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-review Accept and Override, the F2 Phase 4 override, F2 and F3 freeze, and delta accept. Accept or freeze SHALL be recommended and offered only for blockers that are eligible or covered; a decision leaving several blockers at once needs every one so. Otherwise the orchestrator SHALL offer fix, re-plan or stop (or the options the lane's tier still allows), naming each blocker and its stated consequence.
 
 #### Scenario: F3 STOP with a non-eligible Must-fix
 
@@ -108,8 +113,8 @@ Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-r
 
 #### Scenario: F2 override without a covering entry
 
-- **WHEN** an F2 wave fails on a non-eligible blocker that no Accepted residual risks or Out of scope entry of `gate.md` covers
-- **THEN** the instruction offers no override for it, and `below-threshold` is used only for eligible blockers
+- **WHEN** an F2 wave fails on a non-eligible blocker that no Accepted residual risks or Out of scope entry of the plan's merge-gate section covers
+- **THEN** the instruction offers no override for it, even on the user's request, and `below-threshold` is used only for eligible blockers
 
 #### Scenario: Negative control
 
@@ -118,7 +123,7 @@ Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-r
 
 ### Requirement: Coverage by gate.md is specific
 
-A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan-reviewed `gate.md` names the same defect class and consequence. Coverage SHALL never apply to a blocker the exclusions make ineligible, except on the user's explicit request recorded as below.
+A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence. Coverage SHALL never apply to a blocker the exclusions make ineligible, except on the user's explicit request recorded as below.
 
 #### Scenario: Broad entry and an excluded blocker
 
@@ -132,16 +137,21 @@ A blocker SHALL count as covered only when an Accepted residual risks or Out of 
 
 ### Requirement: The user's explicit acceptance is recorded
 
-Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker possible, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence.
+Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker possible at plan-review Accept and Override, F2 and F3 freeze, and delta accept, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence. The F2 Phase 4 override SHALL NOT accept a non-eligible, uncovered blocker; the user's options there are fix, another wave or re-plan.
 
 #### Scenario: User insists on accepting
 
-- **WHEN** the user explicitly asks to accept or freeze a non-eligible blocker
-- **THEN** the orchestrator records it in that path's existing record (`gate.md` Override, the `downgrades` entry, the F3 report follow-up list or `GC accept --reason`) with the user's reason and the blocker's stated consequence
+- **WHEN** the user explicitly asks to accept or freeze a non-eligible blocker at one of those paths
+- **THEN** the orchestrator records it in that path's existing record (`gate.md` Override, the `downgrades` entry with rule `frozen`, the F3 report follow-up list or `GC accept --reason`) with the user's reason and the blocker's stated consequence
+
+#### Scenario: Insisting at the F2 Phase 4 override
+
+- **WHEN** the user asks to accept a non-eligible, uncovered blocker at an ordinary F2 Phase 4 override, outside a convergence STOP
+- **THEN** the orchestrator writes no override for it and offers fix, another wave or re-plan, because no `downgrades` rule would describe it truthfully
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction records the user's acceptance of a non-eligible blocker without their reason and the stated consequence, or refuses it outright
+- **WHEN** an instruction records the user's acceptance of a non-eligible blocker without their reason and the stated consequence, refuses it at a path that allows it, or accepts it at the F2 Phase 4 override
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixes add no unrequested mechanism

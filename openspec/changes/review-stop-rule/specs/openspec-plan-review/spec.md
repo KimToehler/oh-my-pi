@@ -29,12 +29,12 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 #### Scenario: Eligible blockers inside a mixed round
 
 - **WHEN** a rejecting round before the third REJECT holds both eligible and non-eligible blockers
-- **THEN** the non-eligible ones are fixed, the eligible ones stay open without a mechanism fix in the orchestrator's own list of carried blockers, the brief stays unchanged, and every later ask includes the carried blockers with their stated consequences
+- **THEN** the non-eligible ones are fixed, the eligible ones stay open without a mechanism fix in the orchestrator's own list of carried blockers, the brief stays unchanged, a later lens that re-raises a carried blocker adds no second entry, and every later ask includes the carried blockers with their stated consequences
 
 #### Scenario: OKAY while blockers are carried
 
 - **WHEN** a later complete round returns OKAY or holds only eligible blockers while carried blockers remain
-- **THEN** the orchestrator asks the user about every carried and open eligible blocker, with Accept recommended, before it writes `review.md`; a carried blocker is never dropped silently
+- **THEN** the orchestrator asks the user about every carried and open eligible blocker, with Accept recommended, and writes `review.md` only after the answers: an Accept edits `gate.md` and a fresh round follows as today, an Override records the user's reason naming the carried blockers it covers, and a carried blocker is never dropped silently
 
 #### Scenario: Third REJECT with mixed blockers
 
