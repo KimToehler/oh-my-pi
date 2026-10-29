@@ -46,7 +46,7 @@
 
 ## 4. Final verification
 
-- [ ] 4.1 Integration check over the touched suites and their neighbours. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size && bun check && cd packages/coding-agent && bun test test/acp-event-mapper.test.ts test/acp-v1-golden.test.ts test/acp-v2.test.ts test/acp-agent.test.ts`
+- [x] 4.1 Integration check over the touched suites and their neighbours. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size && bun check && cd packages/coding-agent && bun test test/acp-event-mapper.test.ts test/acp-v1-golden.test.ts test/acp-v2.test.ts test/acp-agent.test.ts`
 - [ ] 4.2 F1. Manual QA on the real surface (JetBrains Air in IntelliJ, ACP v1), on the final head. Verify: `cd /Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/.omp/team-config/evidence/gate/acp-progress-update-size/f1 && for f in a.md b.md; do grep -qx 'RESULT PASS' "$f" && grep -qE '^IN_PROGRESS_COUNT [1-9][0-9]*$' "$f" && grep -qx 'IN_PROGRESS_WITH_RAWOUTPUT 0' "$f" && grep -qx 'CONSECUTIVE_DUPLICATES 0' "$f" || exit 1; done && grep -qx 'END_WITH_RAWOUTPUT 1' a.md && grep -qx 'JOB_FINAL_AFTER_END_WITH_RAWOUTPUT 1' b.md && cmp ~/.jetbrains/acp.json ~/.jetbrains/acp.json.bak-acp-progress-update-size`
   - Setup: back up `~/.jetbrains/acp.json` to `~/.jetbrains/acp.json.bak-acp-progress-update-size`. Add the agent entry `"omp (worktree acp-progress-update-size)"` with command `bun`, args `["/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/src/cli.ts", "acp"]`, and the existing omp entry's `PATH` env.
   - Run, in a new Air chat with that agent in `/Users/tim/git/oh-my-pi`:
