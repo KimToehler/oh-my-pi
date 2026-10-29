@@ -6,10 +6,11 @@ The end-to-end measurement of 22 gated changes (`runs/gate-e2e-20261029/RESULT.m
 
 ## What Changes
 
-- A blocker's disposition follows its kind. A consumer-visible product defect is fixed. A blocker about verification depth, artifact wording or evidence mechanics is eligible to be recorded as an accepted residual risk once a complete round found no consumer-visible defect.
-- A fix that would add a mechanism, script, procedure or check the proposal did not ask for is never implemented inside the plan under review: it goes to the user as Accept, or becomes its own plan.
-- The user decision moves earlier: the `omp-gated` review instruction asks at the first complete round with no consumer-visible defect, instead of after the third REJECT.
-- Between F2 fix waves, a commit that changes no behaviour and no review input is exempted rather than delta-reviewed; the existing "when in doubt, review" keeps its meaning for everything else.
+- A blocker's disposition follows the existing blocking threshold. A blocker that misses both of its limbs — no broken goal, value proof, merge-gate criterion or existing consumer, and no protected asset in its path — is eligible to be recorded as an accepted residual risk. Security and privacy blockers, blockers on a change with a mandatory class, and blockers about a review, gate or release mechanism are never eligible, whatever their immediate observer is.
+- A blocker with no stated consequence, an ambiguous one, and any round with a lens that returned no verdict are handled as blocking.
+- A fix for an eligible blocker never adds a mechanism, script, procedure or check the proposal did not ask for: it goes to the user as Accept, or becomes its own plan. A blocker that is not eligible is fixed with whatever the correct fix needs.
+- The user decision moves earlier, in plan review only: the `omp-gated` review instruction asks at the first complete round whose open blockers are all eligible, instead of after the third REJECT. F2, F3 and delta waves keep their convergence decisions and record an accepted blocker through the existing `downgrades` vocabulary.
+- Between waves, a commit is exempt from delta review only when every changed line is a comment or prose that no brief, plan bundle, criterion, agent-loaded instruction or build, lint, codegen or doc generator reads.
 - No validator, record schema, ledger, script or CLI behaviour changes. The shipped instruction text changes.
 
 ## Capabilities
@@ -22,6 +23,6 @@ The end-to-end measurement of 22 gated changes (`runs/gate-e2e-20261029/RESULT.m
 
 ## Impact
 
-- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction), `team-config/agent/skills/review-work/SKILL.md` (fix waves), `team-config/README.md`.
-- Installed through the existing team-config installer; running sessions load the new text after a restart.
+- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction) and `team-config/agent/skills/review-work/SKILL.md` (fix waves, which F3 and delta reviews read).
+- Installed through the existing team-config installer; projects holding their own copy of the schema are re-installed with `install-openspec-workflow.mjs`; running sessions load the new text after a restart.
 - Out of scope, each its own plan if wanted: admitting the human-readable gate summary into the record's evidence directory (needs `validate-gate-record.mjs` and the v3 record), and a delta-review path for a commit after the final verdict.
