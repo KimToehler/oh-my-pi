@@ -4,7 +4,7 @@
 
 ### Requirement: Early ask when a complete round holds only eligible blockers
 
-The `omp-gated` review instruction SHALL apply the disposition rules of `review-blocker-disposition` to every rejecting round, and SHALL ask the user at the first complete round whose open blockers are all Accept-eligible, instead of only after a third REJECT. The question SHALL offer Fix, Accept and Stop per open blocker, SHALL recommend Accept for the eligible ones, and SHALL report for each the consequence the reviewer stated.
+The `omp-gated` review instruction SHALL apply the `Blocker disposition` section of `review-work/SKILL.md` to every rejecting round, and SHALL ask the user at the first complete round whose open blockers are all Accept-eligible, instead of only after a third REJECT. The question SHALL offer Fix, Accept and Stop per open blocker, SHALL recommend Accept for the eligible ones, and SHALL report for each the consequence the reviewer stated.
 
 #### Scenario: First round without a blocking finding asks
 
@@ -19,7 +19,12 @@ The `omp-gated` review instruction SHALL apply the disposition rules of `review-
 #### Scenario: Round with a blocking finding keeps the existing path
 
 - **WHEN** a rejecting round holds at least one blocker that is not Accept-eligible, including the ambiguous and incomplete-round cases
-- **THEN** the instruction directs a fix and a new round, and the user is asked after the third REJECT as before
+- **THEN** the instruction directs a fix of the non-eligible blockers and a new round, and the user is asked after the third REJECT as before
+
+#### Scenario: Eligible blockers inside a mixed round
+
+- **WHEN** a rejecting round before the third REJECT holds both eligible and non-eligible blockers
+- **THEN** the non-eligible ones are fixed, the eligible ones stay open without a mechanism fix and are listed in `review.md` as carried, and the user is asked at the first complete round in which only eligible blockers remain
 
 #### Scenario: Third REJECT with mixed blockers
 
