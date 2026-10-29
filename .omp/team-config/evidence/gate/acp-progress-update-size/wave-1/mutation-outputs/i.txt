@@ -1,0 +1,40 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-event-mapper.test.ts:
+570 | 					partialResult,
+571 | 				} as AgentSessionEvent,
+572 | 				"session-1",
+573 | 			);
+574 | 			const update = notification!.update;
+575 | 			expect("rawOutput" in update ? update.rawOutput : undefined).toEqual(partialResult);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+- {
+-   "content": [
+-     {
+-       "text": "Benchmark 1",
+-       "type": "text",
+-     },
+-   ],
+-   "details": {
+-     "async": {
+-       "jobId": "bg_2",
+-       "state": "completed",
+-       "type": "bash",
+-     },
+-   },
+- }
++ undefined
+
+- Expected  - 15
++ Received  + 1
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-event-mapper.test.ts:575:65)
+(fail) ACP event mapper > progress updates: a background job's final frame keeps rawOutput [0.71ms]
+
+ 0 pass
+ 43 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [481.00ms]

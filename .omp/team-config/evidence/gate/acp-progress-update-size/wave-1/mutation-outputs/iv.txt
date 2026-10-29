@@ -1,0 +1,39 @@
+bun test v1.4.4 (5d9cc0f4f)
+
+test/acp-v1-golden.test.ts:
+501 | 		const response = await harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "run tools" }] });
+502 | 		expect(response.stopReason).toBe("end_turn");
+503 | 		await finish(harness);
+504 | 
+505 | 		const task = toolUpdates(harness, "call_task_1");
+506 | 		expect(task.map(summarize)).toEqual([
+                                    ^
+error: expect(received).toEqual(expected)
+
+@@ -25,14 +25,2 @@
+    ],
+-   [
+-     "completed",
+-     true,
+-     "B",
+-     [],
+-   ],
+-   [
+-     "completed",
+-     true,
+-     "B",
+-     [],
+-   ],
+  ]
+
+- Expected  - 12
++ Received  + 0
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-v1-golden.test.ts:506:31)
+(fail) tool progress updates > tool progress updates: unchanged progress is sent once per call [72.11ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [574.00ms]

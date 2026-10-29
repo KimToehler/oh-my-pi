@@ -1,0 +1,9 @@
+HEAD 03eac59234accc3be985e1fc5dd4e9bf5d29bd62
+$ bash .omp/team-config/evidence/gate/acp-progress-update-size/mutation-check.sh
+MUTATION i caught by: progress updates: a background job's final frame keeps rawOutput
+MUTATION ii caught by: tool progress updates: unchanged progress is sent once per call
+MUTATION iii caught by: tool progress updates: unchanged progress is sent once per call
+MUTATION iv caught by: tool progress updates: unchanged progress is sent once per call
+MUTATION v caught by: tool progress updates: unchanged progress is sent once per call
+CLEAN ok: both named tests pass on packages/coding-agent/src/modes/acp
+exit=0

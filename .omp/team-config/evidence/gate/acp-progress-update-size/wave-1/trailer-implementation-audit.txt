@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+The implementation addresses the journal-growth mechanism at the shared ACP mapper and the prompt-event send path. Running updates omit `rawOutput`; settled progress updates and call-end frames retain it. The comparison is per session and per call, and the end event clears it before early returns or awaits.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocking defect found. I reviewed the complete supplied diff, plan snapshot, v1 and v2 surfaces, v2 conversion, session-record construction, replay path, and the new tests and fixture. The synchronous comparison and reset follow the specified event-order constraint.
+
+**Note — accepted compatibility risk:** A client relying on running-frame `rawOutput`, or a v2 extension relying on edit-shaped progress details, loses that information during progress. The plan explicitly accepts this breaking change; settling frames retain their output.
+
+## 3. Security and privacy delta
+
+No qualifying security delta found. The change removes repeated progress data from wire frames; it does not change authentication, authorisation, credential handling, or access to a protected asset.
+
+## 4. Verification adequacy
+
+The supplied evidence covers real JetBrains Air v1 task and background-job flows, v1 wire transcripts, a v2 real-client test, and five mutation controls. The merged-head suite artifact reports 301 passing tests; mutation evidence reports all five mutations caught.
+
+**Note — verification boundary:** The Air captures predate the merge from main, while the suite and mutation captures are from the merged head. The brief identifies that merge as a v2 initialize change, so this does not block the v1 evidence. Cross-session reuse of the same tool-call ID is not explicitly exercised by the new tests; the implementation allocates the comparison map per session record.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Comparison state in one ACP session must not suppress a progress update in another session, even when both use the same tool-call ID.
+  positive_witness: Two concurrent sessions each send their first progress frame for the same tool-call ID.
+  negative_control: The second session's first progress frame is suppressed because the first session previously sent an identical update.
+  observable: Both session IDs have their own first progress notification in the client wire transcript.
+  boundary: ACP session/update wire across independently managed sessions.
+END-REVIEW-TRAILER

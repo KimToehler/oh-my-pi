@@ -1,0 +1,77 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/acp-progress-update-size",
+  "plan_sha256": "473127805daa04fe77274912eecda598d2b18f5502639b7330ddbef503cbf26e",
+  "reviewed_sha": "03eac59234accc3be985e1fc5dd4e9bf5d29bd62",
+  "diff_base": "6e2bd522ee3b9f365506f5b4e7bf06c2d18ca9d2",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Changes ACP session/update tool_call_update frames read by independently released clients (wire-contract-api), so both invocations run.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 real surface: task subagent in JetBrains Air (ACP v1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/f1/a.md",
+      "artifact_sha256": "09f370338ec4f4d5fe003623514a87eb6957acab1c8a89d62bd527838ed757b1"
+    },
+    {
+      "name": "QA2 real surface: background bash job final frame after call end in JetBrains Air (ACP v1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/f1/b.md",
+      "artifact_sha256": "31596c80dacb084f53e183952b9fec32c7c64cad3235cbd18ad5181444b84e2a"
+    },
+    {
+      "name": "QA3 regression: ACP mapper, v1 golden, v2 and agent suites on merged head",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/wave-1/qa-suites.txt",
+      "artifact_sha256": "ed57180f9dfacf633af0f40b4a15e9baa9e9993ac245c7be5d80f770e4af493d"
+    },
+    {
+      "name": "QA4 negative controls: mutations i-v on merged head",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/wave-1/qa-mutations.txt",
+      "artifact_sha256": "a127c44b0c8c580f9fce3d1e124452f6feffda3b19e52a6cc8bfa2ebd99ed8f9"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "the change spans one module, the ACP mode in packages/coding-agent/src/modes/acp/ \u2014 one mapper case in acp-event-mapper.ts, one handler in acp-agent.ts, one record field in acp-surface.ts \u2014 plus tests and one changelog line; the wire-contract class already runs both F2 reviewers"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/wave-1/trailer-implementation-audit.txt",
+      "trailer_sha256": "787155b5c0128c1ff57d42ad0413ddc243d102e316c9dea5da2882b08f260610",
+      "note": "no blockers; notes: accepted compatibility risk, Air captures predate merge of main"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/acp-progress-update-size/wave-1/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "45fba37dacea0bc59a155c017a252c90d6daf864adc6cf8f2af8bc24d805873f",
+      "note": "no blockers; notes: map entries recreated by post-end background progress (accepted D2 lifetime), memory proof mechanism-specific"
+    }
+  ],
+  "blockers": []
+}
