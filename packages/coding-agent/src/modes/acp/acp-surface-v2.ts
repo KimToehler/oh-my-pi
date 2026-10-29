@@ -132,6 +132,9 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 					mcp: { stdio: {}, http: {} },
 				},
 			},
+			// A v2 `session/prompt` on a running session is itself the steer (inserted into the open run), so the
+			// `_session/steering` method stays v1-only. JetBrains Air still gates mid-run prompts on this flag.
+			_meta: { steering: { supported: true } },
 		};
 	}
 

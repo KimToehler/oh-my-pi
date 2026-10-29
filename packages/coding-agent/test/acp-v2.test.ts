@@ -409,8 +409,8 @@ describe("negotiation (plan 1)", () => {
 		expect(result.protocolVersion).toBe(2);
 		expect(isRecord(result.info) && result.info.name).toBe("omp");
 		expect(result.authMethods).toContainEqual(expect.objectContaining({ methodId: "agent", type: "agent" }));
-		// v2 initialize omits the v1 steering extension.
-		expect(isRecord(result._meta) && "steering" in result._meta).toBe(false);
+		// Air sends a mid-run v2 `session/prompt` as a steer only when initialize advertises steering.
+		expect(result._meta).toEqual({ steering: { supported: true } });
 		expect(h.client.schemaIssues).toEqual([]);
 	});
 
