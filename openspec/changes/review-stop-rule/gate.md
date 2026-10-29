@@ -1,0 +1,8 @@
+# Gate
+
+- **Mandatory class**: none
+- **Risk tier**: product
+- **Author's risk assessment**: The change alters instructions that decide when product code stops being reviewed. Too permissive, a real defect is recorded as an accepted residual risk and can reach a release; too narrow, nothing improves. It changes no executable code, credential handling, data, validator, record, wire contract or schema, and instruction text is revertible, but a released defect need not be. Class is `none`: the edited artifacts implement no auth/PII, migration, external API or concurrency/state behaviour.
+- **Whole-diff review**: not needed (one policy stated in two static instruction files plus README prose; no third independently testable module or runtime layer)
+- **Accepted residual risks**: Whether the earlier ask reduces complete rounds without losing defects is not established by this plan; the measurement is observational and its blocker classification is an LLM judge estimate. "Consumer-visible" remains a human judgement per blocker, and an Accept can let a weaker verification plan through; the post-implementation gates stay unchanged.
+- **Out of scope for blocking**: The gate-summary admission and the post-verdict delta path (each named in proposal.md as its own plan), changing the blocking threshold, reviewer selection, lens count, validators, records or the ledger, repairing historical gate records, and proving a causal round reduction from the baseline. Newly caused loss of review scope, a weakened blocking threshold, an instruction that permits accepting a consumer-visible defect, or a broken exemption boundary remain in scope.
