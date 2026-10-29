@@ -8,7 +8,7 @@ Defines which reviewer blockers must be fixed before a review or gate proceeds, 
 
 ### Requirement: One authoritative disposition definition
 
-The disposition rules SHALL be stated once, in a `Blocker disposition` section of the `review-work` skill. The `omp-gated` review instruction and `integration-review/SKILL.md` SHALL reference that section through the skill (`skill://review-work`), so it resolves from the active agent directory, SHALL treat every blocker as not eligible when the section cannot be read, and SHALL add only their lane's decision points, never a restated or divergent definition.
+The disposition rules SHALL be stated once, in a `Blocker disposition` section of the `review-work` skill. The `omp-gated` review instruction and `integration-review/SKILL.md` SHALL reference that section through the skill (`skill://review-work`), so it resolves from the active agent directory, SHALL treat every blocker as not eligible when the section cannot be read and tell the user so once per review, and SHALL add only their lane's decision points, never a restated or divergent definition.
 
 #### Scenario: Plan review reads the shared definition
 
@@ -18,7 +18,7 @@ The disposition rules SHALL be stated once, in a `Blocker disposition` section o
 #### Scenario: Section cannot be read
 
 - **WHEN** plan review or the F3 STOP cannot read the `Blocker disposition` section
-- **THEN** every blocker is handled as not eligible: plan review fixes them without an early ask, and F3 offers no freeze
+- **THEN** every blocker is handled as not eligible, plan review fixes them without an early ask and F3 offers no freeze, and the instruction tells the user once per review that the section was unreadable and Accept is off
 
 #### Scenario: Negative control
 
@@ -51,17 +51,12 @@ The definition SHALL make a blocker Accept-eligible only when it misses both lim
 
 ### Requirement: Security, gate and consumer blockers are never eligible
 
-The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer, whatever its immediate observer. The exclusions SHALL also cover the audit trail (gate record, trailers, QA artifacts the validator binds), every blocker whose area names review_scope item 4 or CHECK 1, every blocker from a `security_delta: yes` trailer, and every blocker on a change whose mandatory class is not `none`.
+The definition SHALL state that a blocker is never Accept-eligible when it names a security or privacy path, a protected asset, a merge-gate criterion, an existing consumer or the audit trail (gate record, trailers, QA artifacts the validator binds), whatever its immediate observer.
 
 #### Scenario: Review or release mechanism as the subject
 
 - **WHEN** a blocker says the change under review alters a review, gate or release mechanism so that it would admit unreviewed or failing work
 - **THEN** it is not Accept-eligible, because that mechanism is an existing consumer of the change
-
-#### Scenario: Bookkeeping blocker from a security source
-
-- **WHEN** a blocker reads as evidence bookkeeping but is filed under review_scope item 4 or CHECK 1, comes from a `security_delta: yes` trailer, or concerns a change whose mandatory class is not `none`
-- **THEN** it is not Accept-eligible, because the exclusion takes precedence over the threshold test
 
 #### Scenario: Gate-record evidence
 
@@ -76,6 +71,25 @@ The definition SHALL state that a blocker is never Accept-eligible when it names
 #### Scenario: Negative control
 
 - **WHEN** an instruction recommends recording an excluded blocker as an accepted residual risk because a round found nothing else, or because its damage is reversible
+- **THEN** review of that instruction MUST fail
+
+### Requirement: Security sources and gate classification are never eligible
+
+The exclusions SHALL also cover every blocker whose area names review_scope item 4 or CHECK 1, every blocker from a `security_delta: yes` trailer, every blocker on a change whose mandatory class is not `none`, and every blocker that disputes the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision.
+
+#### Scenario: Bookkeeping blocker from a security source
+
+- **WHEN** a blocker reads as evidence bookkeeping but is filed under review_scope item 4 or CHECK 1, comes from a `security_delta: yes` trailer, or concerns a change whose mandatory class is not `none`
+- **THEN** it is not Accept-eligible, because the exclusion takes precedence over the threshold test
+
+#### Scenario: Disputed gate classification
+
+- **WHEN** a blocker says the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision is wrong
+- **THEN** it is not Accept-eligible, because it decides how much review the change gets, even though it reads as wording of a `gate.md` field
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction treats a blocker from one of these sources, or a dispute of the plan's gate classification, as bookkeeping
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Ambiguity and incompleteness default to blocking
@@ -123,12 +137,12 @@ Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-r
 
 ### Requirement: Coverage by gate.md is specific
 
-A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence. Coverage SHALL never apply to a blocker the exclusions make ineligible, except on the user's explicit request recorded as below.
+A blocker SHALL count as covered only when an Accepted residual risks or Out of scope entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence. This is today's `accepted-residual` path: the entry was reviewed with the plan, so a covered blocker may be recorded as accepted even when it breaks the threshold. Coverage SHALL never apply to a blocker the exclusions make ineligible.
 
 #### Scenario: Exact match
 
-- **WHEN** a non-excluded F2 blocker's defect class and consequence are both named by an Accepted residual risks entry
-- **THEN** it is covered and may be recorded with an `accepted-residual` downgrade
+- **WHEN** a non-excluded F2 blocker says a material failure mode has no proof that can fail, and a reviewed Accepted residual risks entry names that same proof gap and consequence
+- **THEN** it is covered and may be recorded with an `accepted-residual` downgrade, as today
 
 #### Scenario: Same class, other consequence, or broad entry
 
@@ -147,7 +161,7 @@ A blocker SHALL count as covered only when an Accepted residual risks or Out of 
 
 ### Requirement: The user's explicit acceptance is recorded
 
-Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker possible at plan-review Accept and Override, F2 and F3 freeze, and delta accept, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence. The F2 Phase 4 override SHALL NOT accept a non-eligible, uncovered blocker; the user's options there are fix, another wave or re-plan.
+Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker that no exclusion names possible at plan-review Accept and Override, F2 and F3 freeze, and delta accept, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence. The F2 Phase 4 override SHALL NOT accept a non-eligible, uncovered blocker; the user's options there are fix, another wave or re-plan.
 
 #### Scenario: User insists on accepting
 
@@ -162,6 +176,20 @@ Instructions SHALL keep the user's explicit request to accept or freeze a non-el
 #### Scenario: Negative control
 
 - **WHEN** an instruction records the user's acceptance of a non-eligible blocker without their reason and the stated consequence, refuses it at a path that allows it, or accepts it at the F2 Phase 4 override
+- **THEN** review of that instruction MUST fail
+
+### Requirement: Excluded blockers are never accepted
+
+A blocker an exclusion names SHALL never be accepted, frozen or overridden at any path, even on the user's request; the options SHALL be fix, re-plan or stop, because an accepted entry would make later reviewers treat the security, audit-trail, gate or classification defect as settled.
+
+#### Scenario: Insisting on an excluded blocker
+
+- **WHEN** the user asks to accept a blocker that names a security path at plan review
+- **THEN** the orchestrator writes no `gate.md` entry for it and offers fix, re-plan or stop
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction accepts, freezes or overrides an excluded blocker at any path, on request or not
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixes add no unrequested mechanism

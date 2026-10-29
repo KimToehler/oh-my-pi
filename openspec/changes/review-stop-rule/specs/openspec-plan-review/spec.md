@@ -41,6 +41,25 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 - **WHEN** an instruction defers an eligible blocker of a complete round to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
 - **THEN** review of that instruction MUST fail
 
+### Requirement: The early ask is recorded first and quotes blockers verbatim
+
+Before an early ask, the instruction SHALL write `review.md` for that round with its digest, REJECT and the blockers verbatim, so a Stop or an interrupted session leaves no earlier OKAY current. The ask SHALL quote each blocker's area, defect and stated consequence verbatim from the lens output and name the exclusions checked for it.
+
+#### Scenario: Earlier OKAY stays superseded
+
+- **WHEN** a plan with a current OKAY `review.md` is reviewed again unchanged, the round rejects with an eligible blocker, and the user answers Stop
+- **THEN** `review.md` already records that round's REJECT, so `--reviewed` fails and apply is not authorized
+
+#### Scenario: Verbatim ask
+
+- **WHEN** a lens reports an eligible blocker whose consequence names a stale cross-reference
+- **THEN** the ask shows its area, defect and consequence as the lens wrote them, with the exclusions that were checked and did not apply
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction paraphrases a blocker in the ask, or asks before recording the round's REJECT
+- **THEN** review of that instruction MUST fail
+
 ### Requirement: Early ask stays inside plan review
 
 The early-ask rule SHALL apply to plan-review rounds only. The post-implementation lanes SHALL keep their existing convergence decisions and record vocabulary unchanged, and SHALL apply only the eligibility definition, the ambiguity default, the accept-path and coverage rules and the no-unrequested-mechanism rule of `review-blocker-disposition`.
