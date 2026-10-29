@@ -14,10 +14,10 @@ Expected: false
 Received: true
 
       at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-event-mapper.test.ts:502:48)
-(fail) ACP event mapper > resolves live image blob refs for ACP content without expanding rawOutput [0.53ms]
+(fail) ACP event mapper > resolves live image blob refs for ACP content without expanding rawOutput [0.52ms]
 
  0 pass
  43 filtered out
  1 fail
  3 expect() calls
-Ran 1 test across 1 file. [451.00ms]
+Ran 1 test across 1 file. [445.00ms]

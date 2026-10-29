@@ -14,10 +14,10 @@ Expected: false
 Received: true
 
       at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-event-mapper.test.ts:554:46)
-(fail) ACP event mapper > progress updates: a running call's update carries no rawOutput [0.49ms]
+(fail) ACP event mapper > progress updates: a running call's update carries no rawOutput [0.51ms]
 
  0 pass
  43 filtered out
  1 fail
  4 expect() calls
-Ran 1 test across 1 file. [450.00ms]
+Ran 1 test across 1 file. [527.00ms]

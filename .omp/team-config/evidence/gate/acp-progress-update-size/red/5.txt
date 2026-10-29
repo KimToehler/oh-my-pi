@@ -20,10 +20,10 @@ error: expect(received).toEqual(expected)
 + Received  + 2
 
       at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/acp-progress-update-size/packages/coding-agent/test/acp-v2.test.ts:2023:17)
-(fail) tool progress updates > tool progress updates: v2 progress frames carry no rawOutput and unchanged ones are sent once [96.39ms]
+(fail) tool progress updates > tool progress updates: v2 progress frames carry no rawOutput and unchanged ones are sent once [95.48ms]
 
  0 pass
  56 filtered out
  1 fail
  1 expect() calls
-Ran 1 test across 1 file. [579.00ms]
+Ran 1 test across 1 file. [572.00ms]

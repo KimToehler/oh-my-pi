@@ -161,9 +161,12 @@ function progress(text: string, extraDetails: Record<string, unknown> = {}) {
 
 /**
  * Two tool calls reporting progress inside one prompt: repeats, a change of locations, a call end followed by a
- * background job's progress and its two final frames (the second differs only in raw output).
+ * background job's progress and its two final frames (the second differs only in raw output). `read` publishes only
+ * existing files as locations, so both read targets are created in `cwd`.
  */
-function installToolProgressPrompt(session: FakeAgentSession): void {
+function installToolProgressPrompt(session: FakeAgentSession, cwd: string): void {
+	fs.writeFileSync(path.join(cwd, "a.ts"), "a\n");
+	fs.writeFileSync(path.join(cwd, "b.ts"), "b\n");
 	const emit = emitter(session);
 	const update = (toolCallId: string, toolName: string, args: unknown, partialResult: unknown) =>
 		emit({ type: "tool_execution_update", toolCallId, toolName, args, partialResult } as AgentSessionEvent);
@@ -480,7 +483,7 @@ describe("ACP v1 golden transcripts", () => {
 	it("prompt-tool-progress", async () => {
 		const harness = await createWireHarness();
 		const { sessionId, session } = await startSession(harness);
-		installToolProgressPrompt(session);
+		installToolProgressPrompt(session, harness.cwdA);
 		const response = await harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "run tools" }] });
 		expect(response.stopReason).toBe("end_turn");
 		await finish(harness);
@@ -494,7 +497,7 @@ describe("tool progress updates", () => {
 		// details as rawOutput; a client journalling each frame then grows by the details' size per tick.
 		const harness = await createWireHarness();
 		const { sessionId, session } = await startSession(harness);
-		installToolProgressPrompt(session);
+		installToolProgressPrompt(session, harness.cwdA);
 		const response = await harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "run tools" }] });
 		expect(response.stopReason).toBe("end_turn");
 		await finish(harness);

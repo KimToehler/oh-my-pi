@@ -4,4 +4,4 @@ bun test v1.4.4 (5d9cc0f4f)
  43 filtered out
  0 fail
  3 expect() calls
-Ran 1 test across 1 file. [466.00ms]
+Ran 1 test across 1 file. [452.00ms]
