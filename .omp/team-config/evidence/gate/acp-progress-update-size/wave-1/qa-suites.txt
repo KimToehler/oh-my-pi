@@ -1,0 +1,5 @@
+HEAD 03eac59234accc3be985e1fc5dd4e9bf5d29bd62
+$ cd packages/coding-agent && bun test test/acp-event-mapper.test.ts test/acp-v1-golden.test.ts test/acp-v2.test.ts test/acp-agent.test.ts
+ 301 pass
+ 0 fail
+Ran 301 tests across 4 files. [3.57s]

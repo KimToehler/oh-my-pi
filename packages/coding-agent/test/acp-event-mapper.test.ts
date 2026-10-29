@@ -496,7 +496,11 @@ describe("ACP event mapper", () => {
 				{ type: "content", content: { type: "image", data: resolvedImageData, mimeType: "image/webp" } },
 			]);
 			expect(JSON.stringify(update.content)).not.toContain("blob:sha256:");
-			expect(JSON.stringify(update.rawOutput)).toContain(blobRef);
+			if (event.type === "tool_execution_end") {
+				expect(JSON.stringify(update.rawOutput)).toContain(blobRef);
+			} else {
+				expect(Object.hasOwn(update, "rawOutput")).toBe(false);
+			}
 		}
 	});
 
@@ -522,6 +526,54 @@ describe("ACP event mapper", () => {
 		expect(status("completed")).toBe("completed");
 		expect(status("failed")).toBe("failed");
 		expect(status("cancelled")).toBe("failed");
+	});
+
+	it("progress updates: a running call's update carries no rawOutput", () => {
+		// Guards: every progress frame of a running call repeats its whole details (subagent briefs) as rawOutput,
+		// so a client that journals each frame grows by tens of KB per progress tick.
+		const updates = mapAgentSessionEventToAcpSessionUpdates(
+			{
+				type: "tool_execution_update",
+				toolCallId: "tc-task",
+				toolName: "task",
+				args: {},
+				partialResult: {
+					content: [{ type: "text", text: "Running agent Reviewer..." }],
+					details: { progress: [{ id: "Reviewer", task: "b".repeat(2000) }] },
+				},
+			} as AgentSessionEvent,
+			"session-1",
+		);
+
+		expect(updates).toHaveLength(1);
+		const update = updates[0]!.update as { status?: string; content?: unknown };
+		expect(update.status).toBe("in_progress");
+		expect(update.content).toEqual([
+			{ type: "content", content: { type: "text", text: "Running agent Reviewer..." } },
+		]);
+		expect(Object.hasOwn(update, "rawOutput")).toBe(false);
+	});
+
+	it("progress updates: a background job's final frame keeps rawOutput", () => {
+		// Guards: the frame that settles a backgrounded call loses the job's result.
+		for (const state of ["completed", "failed", "cancelled"]) {
+			const partialResult = {
+				content: [{ type: "text", text: "Benchmark 1" }],
+				details: { async: { state, jobId: "bg_2", type: "bash" } },
+			};
+			const [notification] = mapAgentSessionEventToAcpSessionUpdates(
+				{
+					type: "tool_execution_update",
+					toolCallId: "tc-bg",
+					toolName: "bash",
+					args: { command: "hyperfine bench" },
+					partialResult,
+				} as AgentSessionEvent,
+				"session-1",
+			);
+			const update = notification!.update;
+			expect("rawOutput" in update ? update.rawOutput : undefined).toEqual(partialResult);
+		}
 	});
 
 	it("emits locations on tool_execution_update from args", () => {
@@ -627,8 +679,8 @@ describe("ACP event mapper", () => {
 			rawOutput?: unknown;
 		};
 		expect(update.sessionUpdate).toBe("tool_call_update");
-		// The job details already ride the frame as structured rawOutput.
-		expect(update.rawOutput).toEqual(partialResult);
+		// A running call's frame carries no rawOutput; the job details stay out of the frame.
+		expect(Object.hasOwn(update, "rawOutput")).toBe(false);
 		// An empty-text envelope must not be dumped as a JSON blob display row.
 		expect(update.content).toBeUndefined();
 		expect(JSON.stringify(update.content ?? [])).not.toContain('"op":"wait"');

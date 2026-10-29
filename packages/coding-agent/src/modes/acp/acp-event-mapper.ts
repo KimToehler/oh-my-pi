@@ -212,12 +212,18 @@ export function mapAgentSessionEventToAcpSessionUpdates(
 				buildToolStartContent(event.toolName, event.args),
 				extractToolCallContent(event.partialResult, options),
 			);
+			const status = toolUpdateStatus(event.partialResult);
 			const update: SessionUpdate = {
 				sessionUpdate: "tool_call_update",
 				toolCallId: event.toolCallId,
-				status: toolUpdateStatus(event.partialResult),
-				rawOutput: event.partialResult,
+				status,
 			};
+			// A running call's frame carries no rawOutput: progress details (e.g. subagent briefs) repeat in full on
+			// every tick, and clients that journal each frame grow by their size. A settled frame (a background job's
+			// final frame) carries the result like the call's end frame.
+			if (status !== "in_progress") {
+				update.rawOutput = event.partialResult;
+			}
 			if (content.length > 0) {
 				update.content = content;
 			}

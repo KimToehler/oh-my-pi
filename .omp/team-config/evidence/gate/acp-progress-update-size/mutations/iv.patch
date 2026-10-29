@@ -1,0 +1,13 @@
+diff --git a/packages/coding-agent/src/modes/acp/acp-agent.ts b/packages/coding-agent/src/modes/acp/acp-agent.ts
+index 0e866c91cb..4b3117422f 100644
+--- a/packages/coding-agent/src/modes/acp/acp-agent.ts
++++ b/packages/coding-agent/src/modes/acp/acp-agent.ts
+@@ -2226,7 +2226,7 @@ export class AcpAgent implements Agent {
+ 			if (event.type === "tool_execution_update") {
+ 				// Skip a frame identical to the last one sent for this call. Check and store happen before the
+ 				// first `await`, so concurrent handlers compare in event order.
+-				const hash = Bun.hash(JSON.stringify(notification));
++				const hash = Bun.hash(JSON.stringify(notification.update.content));
+ 				if (record.lastToolUpdateHashById.get(event.toolCallId) === hash) continue;
+ 				record.lastToolUpdateHashById.set(event.toolCallId, hash);
+ 			}

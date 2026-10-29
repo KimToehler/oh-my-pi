@@ -104,6 +104,12 @@ export type ManagedSessionRecord = {
 	liveMessageId: string | undefined;
 	liveMessageProgress: { textEmitted: boolean; thoughtEmitted: boolean } | undefined;
 	toolArgsById: Map<string, unknown>;
+	/**
+	 * Per tool call, the `Bun.hash` of the last `tool_call_update` sent for a progress event, so an identical frame
+	 * is not resent. Read and written only in a prompt-event handler's synchronous prefix, so it follows event order;
+	 * the call's `tool_execution_end` deletes the entry.
+	 */
+	lastToolUpdateHashById: Map<string, number | bigint>;
 	extensionsConfigured: boolean;
 	// Installed inside `#scheduleBootstrapUpdates` (post-race-guard); released
 	// in `#disposeSessionRecord`. Lives independent of any prompt turn.

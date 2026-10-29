@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Fixed ACP clients such as JetBrains Air running out of memory on long sessions: progress updates of running tool calls no longer carry the full raw tool output, and unchanged progress updates are no longer resent
 - Fixed typed "Other" answers to the ask tool being lost over ACP: clients such as JetBrains Air that return the typed text in the select field no longer end the turn as cancelled or drop the answer
 - Fixed JetBrains IDEs failing ACP session setup with "Couldn't load session settings": thinking no longer advertises OMP-only `auto` to any client, and each select's current value is always one of its options
 - Fixed JetBrains IDEs no longer being recognized over ACP after the Air plugin stopped sending `clientInfo._meta`, which had disabled their session-resume and config-option handling

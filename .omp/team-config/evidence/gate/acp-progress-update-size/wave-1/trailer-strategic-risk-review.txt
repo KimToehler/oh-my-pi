@@ -1,0 +1,41 @@
+**Bottom line:** The change holds up architecturally within the supplied diff and immutable plan snapshot; I found no substantiated blocker. Keep the implementation, but interpret its value proof as removing the measured progress-amplification mechanism—not guaranteeing bounded memory for every long ACP session.
+
+### Action plan / answers
+
+1. **Architecture — retain the current separation.**  
+   `mapAgentSessionEventToAcpSessionUpdates` in `packages/coding-agent/src/modes/acp/acp-event-mapper.ts` owns payload shaping, while `AcpAgent.#handlePromptEvent` in `acp-agent.ts` owns stateful suppression. `ManagedSessionRecord` in `acp-surface.ts` owns the comparison state. This is a small adapter-local change rather than a second progress scheduler, and the supplied v2 test exercises the other protocol surface. No additional abstraction is warranted.
+
+2. **Structural blind spots — distinguish wire correctness from lifecycle and scaling.**  
+   The auditor’s frame-level analysis establishes which updates survive; it does not establish long-session heap behavior or the cumulative lifetime of comparison entries. The two concrete limitations are recorded below. Neither invalidates the stated wire contract or supplied value proof.
+
+3. **Highest-consequence production failure — silently suppressing meaningful results.**  
+   Another redundant frame wastes memory; a missing changed result can leave the client presenting an incorrect outcome. The relevant safeguards are present: suppression is restricted to progress events, the comparison includes the mapped notification rather than just display text, and call-end handling remains separate. The supplied exact-wire tests and mutation evidence address that risk. I found no additional unaddressed result-loss mechanism in the supplied changes.
+
+4. **Auditor false positives — none to reverse.**  
+   The auditor raised no blocker. Its compatibility note concerns an intentional change, not unchanged behavior. Background notifications dropped after foreground work ends must not be attributed to this patch: the immutable plan’s `gate.md` expressly identifies that behavior as pre-existing and outside this change’s delivery contract.
+
+### Watch out for
+
+- **Note — completed background jobs can leave comparison entries behind.**  
+  In `AcpAgent.#handlePromptEvent`, an end event deletes the entry, but subsequent background progress recreates it; a terminal progress frame does not delete it again. Consequently, cache cardinality can track historical background calls, not merely active calls. **Non-blocking:** entries retain scalar hashes rather than results, and design D2 explicitly accepts their session-record lifetime.
+
+- **Note — the memory proof is mechanism-specific.**  
+  QA1/QA2 demonstrate compact, nonduplicate progress on real Air flows, but their three and five running frames do not demonstrate long-session heap or reopening behavior. Changing `content` and full terminal results still pass through; this is not a general byte ceiling. **Non-blocking:** the implementation addresses the measured repeated-`rawOutput` mechanism, and the plan excludes Air’s journal/projection implementation and existing oversized journals.
+
+**Effort:** Quick (<1h). No corrective implementation requested.  
+**Confidence:** Medium — grounded in the supplied package diff and immutable plan; runtime results are assessed as supplied evidence, not independently reproduced.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: The deduplication cache must not become an additional owner of completed background-job result payloads.
+  positive_witness: After large terminal background updates, the cache retains tool-call IDs and scalar hashes only.
+  negative_control: Wire behavior remains correct, but the cache retains serialized rawOutput or result objects for completed background jobs.
+  observable: A runtime heap retaining-path inspection shows no completed result payload reachable through lastToolUpdateHashById; cache values are numbers or bigints.
+  boundary: ManagedSessionRecord.lastToolUpdateHashById object reachability in the ACP agent.
+END-REVIEW-TRAILER
