@@ -1,0 +1,14 @@
+diff --git a/packages/coding-agent/src/modes/acp/acp-event-mapper.ts b/packages/coding-agent/src/modes/acp/acp-event-mapper.ts
+index 995f39e31c..801f61583a 100644
+--- a/packages/coding-agent/src/modes/acp/acp-event-mapper.ts
++++ b/packages/coding-agent/src/modes/acp/acp-event-mapper.ts
+@@ -221,9 +221,6 @@ export function mapAgentSessionEventToAcpSessionUpdates(
+ 			// A running call's frame carries no rawOutput: progress details (e.g. subagent briefs) repeat in full on
+ 			// every tick, and clients that journal each frame grow by their size. A settled frame (a background job's
+ 			// final frame) carries the result like the call's end frame.
+-			if (status !== "in_progress") {
+-				update.rawOutput = event.partialResult;
+-			}
+ 			if (content.length > 0) {
+ 				update.content = content;
+ 			}

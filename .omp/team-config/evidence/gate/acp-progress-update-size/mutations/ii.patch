@@ -1,0 +1,24 @@
+diff --git a/packages/coding-agent/src/modes/acp/acp-agent.ts b/packages/coding-agent/src/modes/acp/acp-agent.ts
+index 0e866c91cb..cddec3698b 100644
+--- a/packages/coding-agent/src/modes/acp/acp-agent.ts
++++ b/packages/coding-agent/src/modes/acp/acp-agent.ts
+@@ -2183,11 +2183,6 @@ export class AcpAgent implements Agent {
+ 	}
+ 
+ 	async #handlePromptEvent(record: ManagedSessionRecord, event: AgentSessionEvent, token: symbol): Promise<void> {
+-		if (event.type === "tool_execution_end") {
+-			// Reset in event order, before any early return or `await`: progress the call's background job reports
+-			// after the call returned is compared afresh, however long the end frame's delivery takes.
+-			record.lastToolUpdateHashById.delete(event.toolCallId);
+-		}
+ 		let work = this.#surface.activeWork(record);
+ 		if (!work && event.type === "agent_start") {
+ 			work = this.#surface.beginForeground(record, "agent");
+@@ -2245,6 +2240,7 @@ export class AcpAgent implements Agent {
+ 		}
+ 		if (event.type === "tool_execution_end") {
+ 			record.toolArgsById.delete(event.toolCallId);
++			record.lastToolUpdateHashById.delete(event.toolCallId);
+ 		}
+ 		if (event.type === "turn_end") {
+ 			// One model turn finished: refresh the client's context meter mid-prompt.

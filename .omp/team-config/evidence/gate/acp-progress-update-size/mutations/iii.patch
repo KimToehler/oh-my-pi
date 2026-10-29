@@ -1,0 +1,15 @@
+diff --git a/packages/coding-agent/src/modes/acp/acp-agent.ts b/packages/coding-agent/src/modes/acp/acp-agent.ts
+index 0e866c91cb..938bf428dc 100644
+--- a/packages/coding-agent/src/modes/acp/acp-agent.ts
++++ b/packages/coding-agent/src/modes/acp/acp-agent.ts
+@@ -2227,8 +2227,8 @@ export class AcpAgent implements Agent {
+ 				// Skip a frame identical to the last one sent for this call. Check and store happen before the
+ 				// first `await`, so concurrent handlers compare in event order.
+ 				const hash = Bun.hash(JSON.stringify(notification));
+-				if (record.lastToolUpdateHashById.get(event.toolCallId) === hash) continue;
+-				record.lastToolUpdateHashById.set(event.toolCallId, hash);
++				if (record.lastToolUpdateHashById.get("constant") === hash) continue;
++				record.lastToolUpdateHashById.set("constant", hash);
+ 			}
+ 			const delivery = this.#surface.sendMapped(notification);
+ 			if (streamedAssistantError) {
