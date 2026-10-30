@@ -1,0 +1,6 @@
+row: mixed-between-waves
+case: Between waves a commit rewords one informative comment and changes one code line in the same file.
+sentence: a behaviour-changing comment, or a comment committed with any change that is not itself exemptible, is delta-reviewed like code.
+decision: delta-review
+
+The code line is not itself exemptible, so the comment is committed with a non-exemptible change; the commit is delta-reviewed like code.

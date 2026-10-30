@@ -1,0 +1,2 @@
+$ Verify of task 1.2 (tasks.md), before editing F
+exit 1

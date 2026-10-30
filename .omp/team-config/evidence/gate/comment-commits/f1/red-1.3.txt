@@ -1,0 +1,28 @@
+Variant: both merges dropped; the comment commit is cherry-picked onto the main checkout (`git cherry-pick -X theirs feature`), so the record never reaches the default branch.
+$ bun test team-config/tests/merge-gate.test.ts -t "keeps a merged record settled after a later comment commit on the default branch"
+bun test v1.4.4 (5d9cc0f4f)
+
+team-config/tests/merge-gate.test.ts:
+784 | 
+785 | 		// When
+786 | 		const result = await stop(gateProof(fixture.reviewedSha, fixture.record));
+787 | 
+788 | 		// Then
+789 | 		expect(result).toBeUndefined();
+                       ^
+error: expect(received).toBeUndefined()
+
+Received: {
+  decision: "block",
+  reason: "Merge gate: validate-gate-record.mjs rejected .omp/team-config/evidence/gate/worktree.json (plan openspec/changes/worktree-gate) in /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/mg-test-iDh8Om/worktrees/feature:\nplan has no ## Merge gate section\nline2\nFix the cause (re-review after code commits, store trailers verbatim, stage the artifacts), or state plainly that the gate is not passed and do not ask for merge approval.",
+}
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/comment-commits/team-config/tests/merge-gate.test.ts:789:18)
+(fail) worktree gate binding > keeps a merged record settled after a later comment commit on the default branch [322.79ms]
+
+ 0 pass
+ 56 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [605.00ms]
+exit 1

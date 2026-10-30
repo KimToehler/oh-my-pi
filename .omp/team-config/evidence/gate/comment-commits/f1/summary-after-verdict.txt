@@ -1,0 +1,6 @@
+row: summary-after-verdict
+case: The record validates and the orchestrator considers writing a merge-gate.md summary for the plan.
+sentence: Write no human-readable summary of the gate: the record, the trailers, the QA artifacts, the F3 report when it ran and `review.md` for an OpenSpec change carry it.
+decision: no-summary
+
+Phase 5 says to write no human-readable summary of the gate; the record, trailers, QA artifacts, F3 report and review.md carry it.

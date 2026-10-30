@@ -1,0 +1,6 @@
+row: go-build-between-waves
+case: Between waves a commit adds `//go:build linux` to the top of cmd/run.go.
+sentence: A comment is behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it; a tool that only shows, diffs or keeps the text does not count.
+decision: delta-review
+
+The Go toolchain acts on the build constraint and changes what it builds. Behaviour-changing; delta review.

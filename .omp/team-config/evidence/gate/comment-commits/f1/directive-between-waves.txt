@@ -1,0 +1,6 @@
+row: directive-between-waves
+case: Between waves a commit adds `// @ts-expect-error` above a call in src/api.ts.
+sentence: A comment is behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it; a tool that only shows, diffs or keeps the text does not count.
+decision: delta-review
+
+The TypeScript checker acts on the text: it suppresses the next diagnostic, changing what the checker decides. Behaviour-changing, so not exemptible; the commit is delta-reviewed.

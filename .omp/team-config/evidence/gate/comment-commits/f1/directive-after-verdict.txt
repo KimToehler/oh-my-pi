@@ -1,0 +1,6 @@
+row: directive-after-verdict
+case: After a PASS wave a needed fix adds `# type: ignore[arg-type]` to a call.
+sentence: after a PASS wave, a behaviour-changing comment is code: commit it on the branch, and the merge waits for a new wave that passes
+decision: code-on-branch
+
+The type checker acts on the comment: behaviour-changing. After PASS it is code: committed on the branch, and the merge waits for a new wave that passes.

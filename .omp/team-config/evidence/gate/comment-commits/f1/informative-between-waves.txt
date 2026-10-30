@@ -1,0 +1,6 @@
+row: informative-between-waves
+case: A CONTINUE wave is pending; a commit rewords one informative comment ("retry once, then give up") in src/retry.ts and ticks a final-verification checkbox.
+sentence: every other comment is informative, including one a parser only skips. But when you cannot tell whether anything reads a comment, it is behaviour-changing. Between waves, a commit whose only changes are informative comments and other exemptible changes may be exempted, with a reason naming the comments as informative
+decision: exempt
+
+No tool acts on the reworded text and no reviewer brief, criterion or instruction reads it, so it is informative; the checkbox is exemptible. A commit of informative comments and other exemptible changes may be exempted with GC exempt, the reason naming the comment as informative.
