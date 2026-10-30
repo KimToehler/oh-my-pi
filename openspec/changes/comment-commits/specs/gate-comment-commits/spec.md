@@ -27,7 +27,7 @@ The `review-work` instruction SHALL define a comment as behaviour-changing when 
 
 ### Requirement: Informative comment commits between waves are exempt
 
-Between fix waves, the instruction SHALL allow a commit that changes only informative comments to be exempted with `GC exempt`, with a reason that names the comment as informative. A commit with a behaviour-changing comment, or with comments and any other change, SHALL be delta-reviewed like code.
+Between fix waves, the instruction SHALL allow a commit that changes only informative comments to be exempted with `GC exempt`, with a reason that names the comment as informative. A commit with a behaviour-changing comment, or with comments and any change that is not itself exemptible, SHALL be delta-reviewed like code.
 
 #### Scenario: Informative comment between waves
 
@@ -46,7 +46,7 @@ Between fix waves, the instruction SHALL allow a commit that changes only inform
 
 ### Requirement: Informative comments after the final verdict land after the merge
 
-After the final F2 verdict, the instruction SHALL keep an informative-comment commit off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate.
+The final F2 verdict is the F2 wave that printed `DECISION: PASS`. After it, the instruction SHALL keep an informative-comment commit off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate.
 
 #### Scenario: Comment fix after PASS
 
@@ -74,7 +74,7 @@ After the final F2 verdict, the instruction SHALL treat a behaviour-changing com
 
 ### Requirement: No human-readable gate summary
 
-The `review-work` gate record phase SHALL NOT ask for a human-readable Markdown summary of the gate. The record and the reviewer trailers, plus `review.md` for an OpenSpec change, SHALL be the gate's only written evidence.
+The `review-work` gate record phase SHALL NOT ask for a human-readable Markdown summary of the gate. The record, the reviewer trailers, the QA artifacts, the F3 report when it ran and `review.md` for an OpenSpec change SHALL carry the gate.
 
 #### Scenario: Record phase after PASS
 

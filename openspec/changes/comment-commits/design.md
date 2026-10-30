@@ -29,4 +29,4 @@ See proposal.md - Why. `review-work/SKILL.md` Fix waves step 5 lets the orchestr
 
 ## Migration Plan
 
-Edit the skill in the task worktree, merge, run `scripts/deploy-local.sh`; running sessions load the new text after a restart. The `omp-gated` schema is not touched, so project copies need no re-install. Roll back by reverting the commit and redeploying.
+Edit the skill in the task worktree, merge, run `scripts/deploy-local.sh` (default agent directory only; a profile, `PI_CONFIG_DIR` root or custom `PI_CODING_AGENT_DIR` needs its own `bun scripts/install-team-config.ts`); running sessions load the new text after a restart. The `omp-gated` schema is not touched, so project copies need no re-install. Roll back by reverting the commit and redeploying.
