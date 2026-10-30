@@ -1,0 +1,19 @@
+row: validator-branch-comment
+case: disposable clone at 8f36028ea6 (stores the validated review-stop-rule record, reviewed_sha 2903a903f9); one informative comment line committed to F after the record
+sentence: 
+decision: blocked
+
+$ git show --stat HEAD
+commit 2a0b7d4946d35301f2b2f2f34df2e7f22b596a60
+Author: F1 <f1@test>
+Date:   Fri Oct 30 11:10:04 2026 +0100
+
+    docs: informative comment only
+
+ team-config/agent/skills/review-work/SKILL.md | 2 ++
+ 1 file changed, 2 insertions(+)
+
+$ node team-config/agent/skills/review-work/scripts/validate-gate-record.mjs --record .omp/team-config/evidence/gate/review-stop-rule.json --plan openspec/changes/review-stop-rule
+blocked
+reviewed_sha: 2903a903f99eee7884984e1d3054c13eefc949a9 does not equal current HEAD 2a0b7d4946d35301f2b2f2f34df2e7f22b596a60, and the commits between them change more than the gate evidence
+exit 1

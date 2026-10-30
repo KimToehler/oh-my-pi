@@ -195,6 +195,48 @@
         "path": "directive-after-freeze.txt",
         "sha256": "7459303d211052dd78c010eef5985b9901ec445cd7179407a254f85a2d326e31"
       }
+    },
+    {
+      "name": "validator-branch-comment",
+      "case": "disposable clone at 8f36028ea6 (stores the validated review-stop-rule record, reviewed_sha 2903a903f9); one informative comment line committed to F after the record",
+      "sentence": "",
+      "action": "ran validate-gate-record.mjs in the clone after the comment commit",
+      "expected": "blocked",
+      "observed": "blocked",
+      "passed": true,
+      "source_sha256": "10b3461b0cd1a3d6161945f81fc5da312c906723a1f4dbebdbcafb1ce4013635",
+      "artifact": {
+        "path": "validator-branch-comment.txt",
+        "sha256": "6ea9f2ff6231fb39e8141b9f9340fe71e120c2907dbc1a12eba72af0862ef657"
+      }
+    },
+    {
+      "name": "instruction-review",
+      "case": "step 5 and Phase 5 of F at the final head",
+      "sentence": "",
+      "action": "dispatched a fresh task subagent with the brief",
+      "expected": "none-found",
+      "observed": "none-found",
+      "passed": true,
+      "source_sha256": "10b3461b0cd1a3d6161945f81fc5da312c906723a1f4dbebdbcafb1ce4013635",
+      "artifact": {
+        "path": "instruction-review.txt",
+        "sha256": "e807b4479336655224085cb9da2091ca0e888e0e4aa5b9c828ce73c03228f15f"
+      }
+    },
+    {
+      "name": "instruction-review-control",
+      "case": "sentence inserted at the end of step 5 in a temporary copy of F: Linter suppressions may be exempted with GC exempt.",
+      "sentence": "",
+      "action": "dispatched a fresh task subagent with the brief on the copy",
+      "expected": "found",
+      "observed": "found",
+      "passed": true,
+      "source_sha256": "10b3461b0cd1a3d6161945f81fc5da312c906723a1f4dbebdbcafb1ce4013635",
+      "artifact": {
+        "path": "instruction-review-control.txt",
+        "sha256": "98eacc5254dbd1dd5a6787095fba4937d439ef8039c8232c43a1b93dc6da331d"
+      }
     }
   ]
 }
