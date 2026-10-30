@@ -1,0 +1,38 @@
+## 1. Goal and behavioural contract
+
+The changed instructions distinguish informative comments from comments that affect tools or review inputs, route uncertainty to review, and address both between-wave and post-verdict commits. Phase 5 no longer asks for a human-readable gate summary.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+I traced the post-verdict route against the convergence readiness logic and the stop hook’s settled-record check. The instructions are consistent with the supplied contract: a behaviour-changing comment after PASS requires another wave, while a frozen lane cannot take another wave. No blocker found.
+
+## 3. Security and privacy delta
+
+No changed credential, authentication or authorisation path, third-party personal data, or weakened access to a protected asset identified. The accepted residual risk remains that the orchestrator misclassifies a behaviour-changing comment.
+
+## 4. Verification adequacy
+
+Reviewed the new hook-level test, its fixture and settlement logic, the supplied QA matrix, the validator-branch-comment capture, and the instruction-review control.
+
+**Note:** The captured RED variant removes both merges, so it establishes that the test rejects an unmerged record; it does not independently demonstrate that the later comment merge is necessary to the test’s outcome. This does not block: the positive test exercises the real hook after that merge, and the task explicitly specifies this RED variant.
+
+I did not run tests or independently verify the reported full-suite result.
+
+## 5. Final verdict
+
+No substantiated blockers. Residual risk is the explicitly accepted human classification judgment and the limits of instruction-replay evidence.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Settlement of a previously reviewed change must not accept a different gate record merely because it has the same path and reviewed SHA.
+  positive_witness: An identical matching record is present on the default branch alongside the reviewed commit, and the stop hook treats it as settled.
+  negative_control: A linked checkout holds different record bytes at the same path and reviewed SHA, but the stop hook treats the binding as settled.
+  observable: The stop-hook result is undefined for the matching record and blocks with an ambiguous-binding reason for conflicting record bytes.
+  boundary: Merge-gate stop hook and linked-worktree record binding.
+END-REVIEW-TRAILER
