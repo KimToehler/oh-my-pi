@@ -1865,7 +1865,8 @@ function writeFolder(folder, { cls, tier, whole, assessment, specs, skipSpecs, g
   }), [
     [/<base>/g, "main"],
     [/<change>/g, "fixture"],
-    [/<command that checks every scenario's recorded result>/, "grep -c RESULT qa.txt"],
+    [/<the scenarios, their evidence paths and the observation each must show>/, "scenario A in f1/a.txt shows the update applied"],
+    [/<command that checks every scenario's evidence path exists>/, "grep -c RESULT qa.txt"],
   ]))
   write("gate.md", gateText({ cls, tier, whole, assessment, extra: gateExtra, example }))
   write(".openspec.yaml", skipSpecs ? "schema: omp-gated\nskip_specs: true\n" : "schema: omp-gated\n")

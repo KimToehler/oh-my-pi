@@ -25,6 +25,7 @@
 - Deleting or moving files through `edit` now asks for approval every time outside `yolo` mode, in the TUI and in ACP
 - ACP permission requests now offer the same choices as the TUI prompt (approve for this session, always-ask-cached grants, reject for this session) and reach clients without form elicitation
 - Under ACP, extension commands calling `newSession`, `switchSession` or `branch` now get `{ cancelled: true }` and the session stays unchanged, instead of switching to a transcript the client never learns about; `navigateTree` and `reload` still work
+- The plan-reviewer agent no longer asks for a credential inventory when a plan only runs ordinary agent sessions on their existing provider login; copying, logging or storing a credential, or code that handles one, still gets the full check
 
 ### Fixed
 

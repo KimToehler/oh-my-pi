@@ -8,7 +8,7 @@ rules:
   specs:
     - Every requirement has exactly one Scenario named "Negative control" with a plausible broken input or state whose outcome MUST fail.
   gate:
-    - Classify risk from realistic consequence and a real trust, process or release boundary, never filenames or an internal export keyword alone.
+    - Classify risk of the delivered change from realistic consequence and a real trust, process or release boundary, never filenames, an internal export keyword or the tools used to verify it.
     - Use full review for auth/secrets/PII, schema/migration, externally supported wire/API, or concurrency/state-machine changes.
 
 operations:
