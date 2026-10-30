@@ -1,0 +1,9 @@
+{
+  "row": "f2-freeze-excluded-insisted",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 convergence STOP; remaining blocker names a privacy path; the user asks to freeze anyway.",
+  "sentence": "An excluded blocker is never accepted, frozen or overridden at any path, even on the user's request:",
+  "action": "Excluded: never frozen; offer fix, re-plan or stop.",
+  "decision": "ask-accept-withheld"
+}

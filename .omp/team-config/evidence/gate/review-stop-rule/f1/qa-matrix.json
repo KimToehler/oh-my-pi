@@ -1,0 +1,537 @@
+{
+  "qa": [
+    {
+      "name": "minor-label-consumer-break",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A severity label, the lens, the wording or any other predicate never makes a blocker eligible, and an exclusion always makes it ineligible.",
+      "action": "Apply eligibility: the stated consequence breaks an existing consumer; the label does not make it eligible.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "minor-label-consumer-break.json",
+        "sha256": "5778a418e5fc8731f7e2121077a65c4557edf9e25d16bf1b3330454c0536c215"
+      }
+    },
+    {
+      "name": "item4-bookkeeping",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "its area names review_scope item 4 or CHECK 1;",
+      "action": "Apply exclusions: the area names review_scope item 4.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "item4-bookkeeping.json",
+        "sha256": "a0fb949d054ca49651d94618b89bb586c5b2ef353b758ccd093359262ad9711e"
+      }
+    },
+    {
+      "name": "security-weaker-proof",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer;",
+      "action": "Apply exclusions: it names a security path (credential), so the weaker-proof reading never applies.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "security-weaker-proof.json",
+        "sha256": "c4aecdf223cc6d9fe6e7f8132d1622b78e491ee0ce4dd295e69af4b5a954c600"
+      }
+    },
+    {
+      "name": "classification-dispute",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "it disputes the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision;",
+      "action": "Apply exclusions: the blocker disputes the plan's Mandatory class.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "classification-dispute.json",
+        "sha256": "0b9d7b8b13407ca63efe5f80a1e78a2cbabea2332f6939d80b8d0c85ada85fe1"
+      }
+    },
+    {
+      "name": "gate-record-evidence",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "it concerns the audit trail: the gate record, its trailers, or a QA artifact the validator binds;",
+      "action": "Apply exclusions: the audit trail (QA artifact the validator binds).",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "gate-record-evidence.json",
+        "sha256": "cdbd754311284c5a477bb16ae7a069fa71c977c75193070d527090fae090f9f0"
+      }
+    },
+    {
+      "name": "check5-evidence-binding",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A blocker is Accept-eligible only when it misses both limbs of the blocking threshold in the Phase 2 briefs",
+      "action": "Apply eligibility: misses both limbs, no exclusion; recommend Accept.",
+      "expected": "ask-accept-recommended",
+      "observed": "ask-accept-recommended",
+      "passed": true,
+      "artifact": {
+        "path": "check5-evidence-binding.json",
+        "sha256": "bc491db9c9d6b611453fca3b4f5c4f1c1ac805f2963ca5cec385bcab0d08ab91"
+      }
+    },
+    {
+      "name": "verify-gap-material-behaviour",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A missing proof of any material behaviour or failure mode breaks the value proof, even when the criterion is partly proven;",
+      "action": "Apply the value-proof reading: the Verify command cannot fail when the German translations break, a material behaviour stays unproven.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "verify-gap-material-behaviour.json",
+        "sha256": "1a3d1a16092c37e3bbf934279e9c3e8bc6aec94d15245116e87cb07e48d47c12"
+      }
+    },
+    {
+      "name": "evidence-form-gap",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "only a gap in the form of evidence (binding, wording, bookkeeping outside the audit trail) for a behaviour that stays proven by a check that can fail is weaker proof.",
+      "action": "Apply the value-proof reading: the test itself still runs and can fail; only the RED/GREEN evidence record for task 6.1 is missing, a gap in the form of evidence. Assumes no criterion names the RED evidence.",
+      "expected": "ask-accept-recommended",
+      "observed": "ask-accept-recommended",
+      "passed": true,
+      "artifact": {
+        "path": "evidence-form-gap.json",
+        "sha256": "ae31bf38842379d1aa7e3835f979ec2363ce986139775f3128158ae4368100c1"
+      }
+    },
+    {
+      "name": "mandatory-class-bookkeeping",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "the change's mandatory class is not `none`;",
+      "action": "Apply exclusions: mandatory class is not none.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "mandatory-class-bookkeeping.json",
+        "sha256": "0295132eb5b6d17de3c5b84ba2f803f621f7700dac5c6abd30f7b4d415083d3d"
+      }
+    },
+    {
+      "name": "unstated-consequence",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A blocker with no stated consequence, an ambiguous one, or one that mixes a process gap with a code or design path is not eligible.",
+      "action": "Apply the ambiguity default.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "unstated-consequence.json",
+        "sha256": "fd679ad33c968de732497caa082ba76a1b72c3c494d5f1f65be5e02e931691a4"
+      }
+    },
+    {
+      "name": "mixed-consequence",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A blocker with no stated consequence, an ambiguous one, or one that mixes a process gap with a code or design path is not eligible.",
+      "action": "Apply the ambiguity default: mixes an evidence gap with a code path.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "mixed-consequence.json",
+        "sha256": "42900ce2582e334ce7f7fb0c2846ea9e5cdb905d98507f053153d6781e6ec08f"
+      }
+    },
+    {
+      "name": "unrequested-checker",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "Never answer an eligible blocker by adding a mechanism, script, procedure or check the proposal did not ask for: it goes to the user as Accept, or becomes its own plan,",
+      "action": "Apply the no-unrequested-mechanism rule: present Accept or a separate plan.",
+      "expected": "ask-accept-recommended",
+      "observed": "ask-accept-recommended",
+      "passed": true,
+      "artifact": {
+        "path": "unrequested-checker.json",
+        "sha256": "d216e34e24547676d6a0493b26916ca9fc9034946678ecb37765983d61326943"
+      }
+    },
+    {
+      "name": "authorization-fix",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A non-eligible blocker is fixed with whatever the correct fix needs, including a new check;",
+      "action": "Not eligible (consumer/security path); fix includes the authorization recheck the proposal did not name.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "authorization-fix.json",
+        "sha256": "33db64591d65f712ea8fd106b2535e1a4b6c5ac9f767bc3c69efe55aae498d69"
+      }
+    },
+    {
+      "name": "f2-eligible-blocker",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "`below-threshold` only for an eligible blocker, `accepted-residual` and `out-of-scope` only for a covered one.",
+      "action": "Phase 4 override with `below-threshold` for an eligible blocker, user agreed.",
+      "expected": "downgrade-recorded",
+      "observed": "downgrade-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "f2-eligible-blocker.json",
+        "sha256": "8c4a3961f5d99fef839cda63c1a063b96f9147539e6814254bacc5c9bd312737"
+      }
+    },
+    {
+      "name": "f2-override-uncovered",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "The ordinary override, outside a convergence STOP, never accepts a non-eligible, uncovered blocker, even on the user's request,",
+      "action": "Offer no override; offer fix, another wave or re-plan.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "f2-override-uncovered.json",
+        "sha256": "a4a5204f7dbf87b63265389870be5d294b90f3b245a9e6447db56cb720717d1e"
+      }
+    },
+    {
+      "name": "coverage-exact-match",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "Coverage is the existing `accepted-residual`/`out-of-scope` path: the entry was reviewed with the plan, so a covered blocker may stay unfixed even when it breaks the threshold.",
+      "action": "Covered: record `accepted-residual`.",
+      "expected": "downgrade-recorded",
+      "observed": "downgrade-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "coverage-exact-match.json",
+        "sha256": "ab9c19896a3133a37237eb0b937903daeb4b10f17f02cb4d91cffcc210c7f393"
+      }
+    },
+    {
+      "name": "coverage-other-consequence",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A blocker is covered only when an `Accepted residual risks` or `Out of scope for blocking` entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence; a broad area list covers no specific blocker.",
+      "action": "Same class, other consequence: not covered, no override.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "coverage-other-consequence.json",
+        "sha256": "37f58660dbfeed87df19ca0b7955fb8f0b8bad7968c22a6920e87d7095bf1661"
+      }
+    },
+    {
+      "name": "coverage-broad-entry",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A blocker is covered only when an `Accepted residual risks` or `Out of scope for blocking` entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence; a broad area list covers no specific blocker.",
+      "action": "Broad area list: not covered.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "coverage-broad-entry.json",
+        "sha256": "d6ebfbe88169a147a4622b52abc0d16f0f83daced5224fa07304953b6e6c6c02"
+      }
+    },
+    {
+      "name": "covered-security-broad-entry",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "Coverage never applies to an excluded blocker.",
+      "action": "Excluded blocker: coverage never applies.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "covered-security-broad-entry.json",
+        "sha256": "e930fae6fcb6fe8c68306d494cf8c6b5460a4286792c85e58bfcf5c1697657f8"
+      }
+    },
+    {
+      "name": "f2-freeze-security-delta",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "it comes from a `security_delta: yes` trailer;",
+      "action": "Exclusion: freeze not offered.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "f2-freeze-security-delta.json",
+        "sha256": "4b4364d4af1e083b9a945505542ce5fe12a67f6f14e7d97acc593805265ac879"
+      }
+    },
+    {
+      "name": "delta-accept-noneligible",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "Recommend and offer accept only when every open blocker of the delta is eligible or covered under [Blocker disposition](#blocker-disposition);",
+      "action": "Accept not recommended or offered; amend or re-plan, naming the consequence.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "delta-accept-noneligible.json",
+        "sha256": "c82ca5fd6bbbeff2237b1cfb7d6920d8ebb52cb3491875d4aa146f5ed979ea79"
+      }
+    },
+    {
+      "name": "delta-accept-insisted",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "An accept the user asks for anyway, for blockers no exclusion names, puts the user's reason and each blocker's stated consequence in `--reason`.",
+      "action": "Record `GC accept --reason` with the user's reason and the stated consequence.",
+      "expected": "user-accept-recorded",
+      "observed": "user-accept-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "delta-accept-insisted.json",
+        "sha256": "8391abea274478f6804fe8460f5d1918ae9090896d8d57f433c6af8dbd78b4b6"
+      }
+    },
+    {
+      "name": "f2-override-insisted",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "The ordinary override, outside a convergence STOP, never accepts a non-eligible, uncovered blocker, even on the user's request,",
+      "action": "No override; offer fix, another wave or re-plan.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "f2-override-insisted.json",
+        "sha256": "4e59c0ecde7bfd4c5953879a94c32aee829674e75a482d2f727a5cd35ed63461"
+      }
+    },
+    {
+      "name": "f2-freeze-insisted",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "A freeze the user asks for anyway, for blockers no exclusion names, carries the user's reason and each blocker's stated consequence in the `frozen` entries;",
+      "action": "Freeze with `frozen` entries carrying the user's reason and stated consequence.",
+      "expected": "user-accept-recorded",
+      "observed": "user-accept-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "f2-freeze-insisted.json",
+        "sha256": "dd3be6bb6f1f7dfe81abd49ea2e2885bbd77f47b9129074a72b2fec986e2e1f1"
+      }
+    },
+    {
+      "name": "f2-freeze-excluded-insisted",
+      "file": "team-config/agent/skills/review-work/SKILL.md",
+      "sentence": "An excluded blocker is never accepted, frozen or overridden at any path, even on the user's request:",
+      "action": "Excluded: never frozen; offer fix, re-plan or stop.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "f2-freeze-excluded-insisted.json",
+        "sha256": "9e099e917db5c0b34797f9b791ef6e2203a7519ea8bec70cbbd6f12c3cdc6b14"
+      }
+    },
+    {
+      "name": "all-eligible-round",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "At least one eligible blocker: ask in this round, before any fix.",
+      "action": "Write review.md, ask now with Accept recommended.",
+      "expected": "ask-accept-recommended",
+      "observed": "ask-accept-recommended",
+      "passed": true,
+      "artifact": {
+        "path": "all-eligible-round.json",
+        "sha256": "8810256b1e66a4b018fc2a1b8c8c023ac03ad6a7b1298b552b138a821bf847eb"
+      }
+    },
+    {
+      "name": "blocking-defect-round",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "No eligible blocker: fix each blocker of every rejecting lens in the artifacts (never in source code), then repeat from step 1 as a new round with three fresh lenses.",
+      "action": "Fix and new round without an ask.",
+      "expected": "fix-blocking",
+      "observed": "fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "blocking-defect-round.json",
+        "sha256": "5cf7a7562e3ca3c087ec960e3c1e04ee0e34908820597e05d85f04d2f2904a3d"
+      }
+    },
+    {
+      "name": "incomplete-round",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "If the retry also has no structured verdict, the round is incomplete: write no review.md and edit no existing one, tell the user which lens failed, and stop.",
+      "action": "Incomplete: existing stop.",
+      "expected": "stop-incomplete",
+      "observed": "stop-incomplete",
+      "passed": true,
+      "artifact": {
+        "path": "incomplete-round.json",
+        "sha256": "a9ab2536bece9a3e0fadf99c7d356dd3c1e9aed1ee6c80f653ef1d44ee8ff5d1"
+      }
+    },
+    {
+      "name": "mixed-round-ask",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "Then ask as in step 6, one question per open blocker. Next fix the non-eligible blockers and those the user chose to fix, write each Accept into gate.md, and repeat from step 1.",
+      "action": "Ask per blocker in this round, fix non-eligible, new round.",
+      "expected": "ask-per-blocker",
+      "observed": "ask-per-blocker",
+      "passed": true,
+      "artifact": {
+        "path": "mixed-round-ask.json",
+        "sha256": "8b56f820edce78af8d3928fc11d62178cb3efe2e65f8211740a4a0ddc488ff6e"
+      }
+    },
+    {
+      "name": "third-reject-mixed",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "For a non-eligible blocker offer only Fix and Stop.",
+      "action": "Ask per blocker; non-eligible gets only Fix and Stop.",
+      "expected": "ask-per-blocker",
+      "observed": "ask-per-blocker",
+      "passed": true,
+      "artifact": {
+        "path": "third-reject-mixed.json",
+        "sha256": "fe7b4b9f2553b392917fcec8e645ab4df96af118ffb6ecfcf24c9e68fb260ff1"
+      }
+    },
+    {
+      "name": "plan-accept-effect",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "the user's reason, in their words, goes into gate.md as an Accepted residual risk or an Out of scope area",
+      "action": "Reason enters gate.md as Accepted residual risk; new round.",
+      "expected": "residual-recorded",
+      "observed": "residual-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "plan-accept-effect.json",
+        "sha256": "e11ce1f749caee03af0c3ec87d42cf2701913179e6c381e64da646a325d20879"
+      }
+    },
+    {
+      "name": "plan-override-insisted",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "If the user asks to accept one anyway and no exclusion names it, record their reason and the blocker's stated consequence in gate.md;",
+      "action": "Record the user's reason and the stated consequence in gate.md.",
+      "expected": "user-accept-recorded",
+      "observed": "user-accept-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "plan-override-insisted.json",
+        "sha256": "0560f89c0f89ac43b07c74b9b7033a0f32f3848d373a9c77af2ce8bff0e4a2e3"
+      }
+    },
+    {
+      "name": "section-unreadable-plan",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "If that section cannot be read, every blocker is not eligible: tell the user once in this review that Accept is off.",
+      "action": "No eligible blocker; tell the user once that Accept is off; fix.",
+      "expected": "notice-fix-blocking",
+      "observed": "notice-fix-blocking",
+      "passed": true,
+      "artifact": {
+        "path": "section-unreadable-plan.json",
+        "sha256": "d410024c9ca4b3ec89210cb275ddfbe938446e48071b6e26d3d4b7cda2b6d24c"
+      }
+    },
+    {
+      "name": "ask-quotes-verbatim",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "Each question quotes the blocker's area, defect and stated consequence verbatim from the lens output and names the exclusions you checked for it.",
+      "action": "Ask quotes area, defect and consequence verbatim and names the exclusions checked.",
+      "expected": "ask-verbatim",
+      "observed": "ask-verbatim",
+      "passed": true,
+      "artifact": {
+        "path": "ask-quotes-verbatim.json",
+        "sha256": "b0e33f71ddd4d7a3be7ec3ed0e1fe84d2c3d7bcfb628c52861c6c13856bd23ef"
+      }
+    },
+    {
+      "name": "stale-okay-superseded",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "First write review.md for this round (step 5), so a Stop or an interrupted session leaves no earlier OKAY current.",
+      "action": "review.md records the REJECT before the ask; --reviewed fails.",
+      "expected": "review-recorded-before-ask",
+      "observed": "review-recorded-before-ask",
+      "passed": true,
+      "artifact": {
+        "path": "stale-okay-superseded.json",
+        "sha256": "c8d4926480e8f80f4846812de3800946e1af062c0345b574bc0c989edcd95a01"
+      }
+    },
+    {
+      "name": "plan-excluded-insisted",
+      "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "sentence": "an excluded blocker gets no gate.md entry, only Fix, re-plan or Stop.",
+      "action": "No gate.md entry; Fix, re-plan or Stop.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "plan-excluded-insisted.json",
+        "sha256": "f228bb6dcbd6550f3bcc7cb834cc65fd9c031a939b8a6e33e3d73ec6f3ae1ea9"
+      }
+    },
+    {
+      "name": "f3-freeze-eligible",
+      "file": "team-config/agent/skills/integration-review/SKILL.md",
+      "sentence": "Recommend and offer freeze only when every remaining Must-fix class is eligible or covered;",
+      "action": "Recommend freeze.",
+      "expected": "ask-accept-recommended",
+      "observed": "ask-accept-recommended",
+      "passed": true,
+      "artifact": {
+        "path": "f3-freeze-eligible.json",
+        "sha256": "715c34bbf5fce5d787aa72542788b575e2a4d20d69c044732e952eaeb58d8eca"
+      }
+    },
+    {
+      "name": "f3-freeze-noneligible",
+      "file": "team-config/agent/skills/integration-review/SKILL.md",
+      "sentence": "otherwise offer re-plan or continue (re-plan only under Risk tier `internal-tooling` at wave 3 or later, where `GC decide` refuses continue) and name each such class with its stated consequence.",
+      "action": "Offer re-plan or continue, not freeze, naming the class and consequence.",
+      "expected": "ask-accept-withheld",
+      "observed": "ask-accept-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "f3-freeze-noneligible.json",
+        "sha256": "83d93e0af636a43e3bc151113615f954494292e81b44b96a0910737ca618837c"
+      }
+    },
+    {
+      "name": "f3-freeze-insisted",
+      "file": "team-config/agent/skills/integration-review/SKILL.md",
+      "sentence": "the class goes to the report's follow-up list as today, and `GC decide --lane F3 --reason` carries the user's reason and the class's stated consequence;",
+      "action": "Follow-up list as today; GC decide --reason carries reason and consequence.",
+      "expected": "user-accept-recorded",
+      "observed": "user-accept-recorded",
+      "passed": true,
+      "artifact": {
+        "path": "f3-freeze-insisted.json",
+        "sha256": "58c282dd7b2bee208db405fbf8e1bdcdd8765c1814d26979a016e89bc8249226"
+      }
+    },
+    {
+      "name": "section-unreadable-f3",
+      "file": "team-config/agent/skills/integration-review/SKILL.md",
+      "sentence": "If that section cannot be read, no class is eligible and no freeze is offered: tell the user so once.",
+      "action": "No freeze offered; tell the user once.",
+      "expected": "notice-freeze-withheld",
+      "observed": "notice-freeze-withheld",
+      "passed": true,
+      "artifact": {
+        "path": "section-unreadable-f3.json",
+        "sha256": "d22fbe4407a0e06785a9bbe00a8f35d493f6c7e6f21b9d8816d4e1d96f36c5b4"
+      }
+    },
+    {
+      "name": "sandbox-install",
+      "file": "",
+      "sentence": "",
+      "action": "bun probe: installTeamConfig into a disposable agentDir, hash the three edited files",
+      "expected": "install-identical",
+      "observed": "install-identical",
+      "passed": true,
+      "artifact": {
+        "path": "sandbox-install.json",
+        "sha256": "918f73a82db53f15217fedd59498cc0ec9640fdebc1ef796bd596ba88f77a489"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "row": "f2-freeze-security-delta",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 convergence STOP; one remaining blocker comes from a trailer with `security_delta: yes`.",
+  "sentence": "it comes from a `security_delta: yes` trailer;",
+  "action": "Exclusion: freeze not offered.",
+  "decision": "ask-accept-withheld"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "f3-freeze-insisted",
+  "file": "team-config/agent/skills/integration-review/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F3 STOP; non-eligible, non-excluded class (untested failure mode); user asks to freeze.",
+  "sentence": "the class goes to the report's follow-up list as today, and `GC decide --lane F3 --reason` carries the user's reason and the class's stated consequence;",
+  "action": "Follow-up list as today; GC decide --reason carries reason and consequence.",
+  "decision": "user-accept-recorded"
+}

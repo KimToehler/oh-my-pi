@@ -1,0 +1,9 @@
+{
+  "row": "minor-label-consumer-break",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan-review blocker labelled \"minor, process-only\": renaming the `--reviewed` flag in the proposal breaks `/opsx-apply`, which calls it.",
+  "sentence": "A severity label, the lens, the wording or any other predicate never makes a blocker eligible, and an exclusion always makes it ineligible.",
+  "action": "Apply eligibility: the stated consequence breaks an existing consumer; the label does not make it eligible.",
+  "decision": "fix-blocking"
+}

@@ -1,0 +1,25 @@
+{
+  "row": "sandbox-install",
+  "probe": "installTeamConfig into a disposable agentDir (mkdtemp), removed after hashing",
+  "files": [
+    {
+      "path": "team-config/agent/skills/review-work/SKILL.md",
+      "source_sha256": "43cd4b7413bcb38df618f27ec6c42ad64a94c771255088e35693a79a07b64a44",
+      "installed_sha256": "43cd4b7413bcb38df618f27ec6c42ad64a94c771255088e35693a79a07b64a44",
+      "installed_path": "mkdtemp agentDir/skills/review-work/SKILL.md"
+    },
+    {
+      "path": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+      "source_sha256": "5c6b499a97a90c7ce1007c09884f78b7411f582730bc3c71c572aaddb2def315",
+      "installed_sha256": "5c6b499a97a90c7ce1007c09884f78b7411f582730bc3c71c572aaddb2def315",
+      "installed_path": "mkdtemp agentDir/skills/review-work/openspec/schemas/omp-gated/schema.yaml"
+    },
+    {
+      "path": "team-config/agent/skills/integration-review/SKILL.md",
+      "source_sha256": "2954a19e39e6ec6800c505b447e89ba6b6b6e56e040579fa614f5aa03bed335b",
+      "installed_sha256": "2954a19e39e6ec6800c505b447e89ba6b6b6e56e040579fa614f5aa03bed335b",
+      "installed_path": "mkdtemp agentDir/skills/integration-review/SKILL.md"
+    }
+  ],
+  "decision": "install-identical"
+}

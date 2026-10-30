@@ -1,0 +1,9 @@
+{
+  "row": "f2-freeze-insisted",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 convergence STOP; remaining blocker non-eligible (untested failure mode), no exclusion; the user asks to freeze.",
+  "sentence": "A freeze the user asks for anyway, for blockers no exclusion names, carries the user's reason and each blocker's stated consequence in the `frozen` entries;",
+  "action": "Freeze with `frozen` entries carrying the user's reason and stated consequence.",
+  "decision": "user-accept-recorded"
+}

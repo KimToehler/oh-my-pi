@@ -1,0 +1,9 @@
+{
+  "row": "section-unreadable-plan",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Profile session without the updated review-work skill: `skill://review-work` has no Blocker disposition section; round REJECTs with an otherwise eligible blocker.",
+  "sentence": "If that section cannot be read, every blocker is not eligible: tell the user once in this review that Accept is off.",
+  "action": "No eligible blocker; tell the user once that Accept is off; fix.",
+  "decision": "notice-fix-blocking"
+}

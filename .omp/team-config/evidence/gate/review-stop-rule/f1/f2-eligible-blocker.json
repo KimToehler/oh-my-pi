@@ -1,0 +1,9 @@
+{
+  "row": "f2-eligible-blocker",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 FAIL trailer blocker: a doc comment cites the old function name; no criterion, consumer or asset in its path.",
+  "sentence": "`below-threshold` only for an eligible blocker, `accepted-residual` and `out-of-scope` only for a covered one.",
+  "action": "Phase 4 override with `below-threshold` for an eligible blocker, user agreed.",
+  "decision": "downgrade-recorded"
+}

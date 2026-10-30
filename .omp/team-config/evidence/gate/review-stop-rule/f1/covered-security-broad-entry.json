@@ -1,0 +1,9 @@
+{
+  "row": "covered-security-broad-entry",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 blocker names a session-token leak into logs; gate.md Out of scope: \"logging\".",
+  "sentence": "Coverage never applies to an excluded blocker.",
+  "action": "Excluded blocker: coverage never applies.",
+  "decision": "ask-accept-withheld"
+}

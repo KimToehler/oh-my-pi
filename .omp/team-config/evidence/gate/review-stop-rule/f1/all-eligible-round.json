@@ -1,0 +1,9 @@
+{
+  "row": "all-eligible-round",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan-review round 2 complete, REJECT; both blockers are eligible (stale cross-reference; measurement input not digest-bound).",
+  "sentence": "At least one eligible blocker: ask in this round, before any fix.",
+  "action": "Write review.md, ask now with Accept recommended.",
+  "decision": "ask-accept-recommended"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "delta-accept-noneligible",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Second delta REJECT: the amended fix still breaks the CLI exit code an existing script reads.",
+  "sentence": "Recommend and offer accept only when every open blocker of the delta is eligible or covered under [Blocker disposition](#blocker-disposition);",
+  "action": "Accept not recommended or offered; amend or re-plan, naming the consequence.",
+  "decision": "ask-accept-withheld"
+}

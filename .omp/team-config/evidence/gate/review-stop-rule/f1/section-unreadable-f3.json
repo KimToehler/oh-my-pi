@@ -1,0 +1,9 @@
+{
+  "row": "section-unreadable-f3",
+  "file": "team-config/agent/skills/integration-review/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F3 STOP in a session whose review-work skill lacks the section.",
+  "sentence": "If that section cannot be read, no class is eligible and no freeze is offered: tell the user so once.",
+  "action": "No freeze offered; tell the user once.",
+  "decision": "notice-freeze-withheld"
+}

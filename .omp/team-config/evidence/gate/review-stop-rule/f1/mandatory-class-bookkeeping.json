@@ -1,0 +1,9 @@
+{
+  "row": "mandatory-class-bookkeeping",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Bookkeeping blocker (stale cross-reference in tasks.md) on a change whose gate.md declares Mandatory class `auth-secrets-pii`.",
+  "sentence": "the change's mandatory class is not `none`;",
+  "action": "Apply exclusions: mandatory class is not none.",
+  "decision": "fix-blocking"
+}
