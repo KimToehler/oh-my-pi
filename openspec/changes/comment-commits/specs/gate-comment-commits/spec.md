@@ -8,7 +8,7 @@ Decides how a commit that changes only comments is handled during the post-imple
 
 ### Requirement: Comment kind is the orchestrator's decision
 
-The `review-work` instruction SHALL define a comment as behaviour-changing when a tool or review input reads it, and every other comment as informative, and SHALL let the orchestrator decide the kind of each comment-only commit. Uncertainty SHALL count as behaviour-changing.
+The `review-work` instruction SHALL define a comment as behaviour-changing when its text changes what a tool outputs or decides, or when a review input reads it, and every other comment as informative, including one a parser only skips. The orchestrator SHALL decide the kind; uncertainty SHALL count as behaviour-changing.
 
 #### Scenario: Directive comment
 
@@ -17,7 +17,7 @@ The `review-work` instruction SHALL define a comment as behaviour-changing when 
 
 #### Scenario: Explanatory comment
 
-- **WHEN** a commit only rewords, adds or removes comments that explain code and that no tool, reviewer brief, criterion or agent-loaded instruction reads
+- **WHEN** a commit only rewords, adds or removes comments that explain code, whose text no tool acts on (a parser or lexer that only skips comments does not count) and that no reviewer brief, criterion or agent-loaded instruction reads
 - **THEN** the instruction classifies it as informative
 
 #### Scenario: Negative control
@@ -46,12 +46,17 @@ Between fix waves, the instruction SHALL allow a commit that changes only inform
 
 ### Requirement: Informative comments after the final verdict land after the merge
 
-The final F2 verdict is the F2 wave that printed `DECISION: PASS`. After it, the instruction SHALL keep an informative-comment commit off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate.
+The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP the user resolved with freeze. After it, the instruction SHALL keep an informative-comment commit off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate.
 
 #### Scenario: Comment fix after PASS
 
 - **WHEN** the record validates and the orchestrator wants to reword an informative comment in reviewed source
-- **THEN** the instruction directs it to commit the change on the default branch after the merge, and the record stays valid for the merge
+- **THEN** the instruction directs it to commit the change on the default branch after the merge, and the merged record stays settled for the stop hook after that commit
+
+#### Scenario: Comment fix after an authorized freeze
+
+- **WHEN** the user resolved an F2 STOP with freeze, the record validates, and the orchestrator wants to reword an informative comment
+- **THEN** the instruction routes it exactly as after a PASS wave
 
 #### Scenario: Negative control
 
@@ -60,11 +65,16 @@ The final F2 verdict is the F2 wave that printed `DECISION: PASS`. After it, the
 
 ### Requirement: Behaviour-changing comments after the final verdict are code
 
-After the final F2 verdict, the instruction SHALL treat a behaviour-changing comment as code: it is committed on the branch and the gate continues as for any code commit after `reviewed_sha`. It SHALL never be deferred to the default branch after the merge.
+After the final F2 verdict (PASS or an authorized freeze), the instruction SHALL treat a behaviour-changing comment as code: it is committed on the branch and the gate continues as for any code commit after `reviewed_sha`. It SHALL never be deferred to the default branch after the merge.
 
 #### Scenario: Directive after PASS
 
 - **WHEN** after the final verdict a needed change adds a type-checker suppression comment
+- **THEN** the instruction treats it as a code commit on the branch, and the merge waits for the gate on that commit
+
+#### Scenario: Directive after an authorized freeze
+
+- **WHEN** after an F2 STOP resolved with freeze a needed change adds a linter suppression comment
 - **THEN** the instruction treats it as a code commit on the branch, and the merge waits for the gate on that commit
 
 #### Scenario: Negative control

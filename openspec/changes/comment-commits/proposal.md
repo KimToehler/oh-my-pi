@@ -8,11 +8,11 @@ The same post-verdict trap is set by Phase 5 itself: it opens with "Write review
 
 ## What Changes
 
-- `review-work` names the two kinds of comment. A comment is **behaviour-changing** when a tool or a review input reads it: a compiler, interpreter, build or code-generation directive, a linter, formatter or type-checker suppression, a doc comment that runs as a test or generates a shipped API document, or text a reviewer brief, criterion or agent-loaded instruction reads. Every other comment is **informative**.
+- `review-work` names the two kinds of comment. A comment is **behaviour-changing** when its text changes what a tool outputs or decides, or a review input reads it: a compiler, interpreter, build or code-generation directive, a linter, formatter or type-checker suppression, a doc comment that runs as a test or generates a shipped API document, or text a reviewer brief, criterion or agent-loaded instruction reads. Every other comment is **informative**, including one a parser only skips.
 - The orchestrator decides the kind per commit and names it in the exemption reason. Between waves, a commit that changes only informative comments may be exempted with `GC exempt`; a behaviour-changing comment, or a commit mixing comments with anything else, is delta-reviewed like code. When in doubt, review.
-- After the final F2 verdict, an informative-comment commit is not added to the branch: it is committed on the default branch after the merge (with the archive commit, where there is one) and needs no gate. A behaviour-changing comment after the verdict is code: it goes on the branch and the gate continues as for any code commit after `reviewed_sha`.
+- After the final F2 verdict (the wave that printed `DECISION: PASS`, or a STOP the user resolved with freeze), an informative-comment commit is not added to the branch: it is committed on the default branch after the merge (with the archive commit, where there is one) and needs no gate. A behaviour-changing comment after the verdict is code: it goes on the branch and the gate continues as for any code commit after `reviewed_sha`.
 - Phase 5 no longer asks for a human-readable Markdown summary; the gate record, the trailers, the QA artifacts, the F3 report when it ran and `review.md` for an OpenSpec change carry the gate.
-- No validator, record, ledger or script change.
+- No validator, record, ledger, extension or script change.
 
 ## Capabilities
 
@@ -24,5 +24,6 @@ The same post-verdict trap is set by Phase 5 itself: it opens with "Write review
 ## Impact
 
 - `team-config/agent/skills/review-work/SKILL.md`: Fix waves step 5 (exemption) and Phase 5 (after the record).
+- `team-config/tests/merge-gate.test.ts`: one test that a merged record stays settled after a later default-branch commit, the contract the after-merge route relies on.
 - Installed through the existing team-config installer (`scripts/deploy-local.sh`); running sessions load the new text after a restart. The `omp-gated` schema is not edited, so project copies need no re-install.
 - Out of scope, each its own plan if wanted: a validator path that admits post-verdict comment commits on the branch, and automatic comment classification by a script.
