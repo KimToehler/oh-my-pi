@@ -1,0 +1,9 @@
+{
+  "row": "verify-gap-material-behaviour",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "runs/gate-e2e-20261029/data.json blockers[104] (onara/strength-progression-targets, PlanReviewR4, lane plan-review)",
+  "case": "{\"area\": \"Executability — tasks.md §6.4\", \"defect\": \"The verification command overwrites the hand-maintained German catalog immediately before asserting the German translations.\", \"evidence\": \"tasks.md:38 runs `npm run i18n` and then reads `public/i18n/messages.de.json`. That script is `ng extract-i18n --format json --output-path public/i18n --out-file messages.de.json` (nutritrain/package.json:22), i.e. it writes the extraction output to the German catalog being asserted. The repository Angular convention explicitly requires German entries to be hand-maintained and says not to run this command for that purpose.\", \"change\": \"Do not run `npm run i18n` against `messages.de.json`. Add the six German entries directly, then verify their exact keys/values with the node assertion; use extraction only with a separate temporary/output catalog if source-key discovery is required.\"}",
+  "sentence": "A missing proof of any material behaviour or failure mode breaks the value proof, even when the criterion is partly proven;",
+  "action": "Apply the value-proof reading: the Verify command cannot fail when the German translations break, a material behaviour stays unproven.",
+  "decision": "fix-blocking"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "f2-override-insisted",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Ordinary F2 Phase 4; user asks to override a non-eligible, uncovered consumer-break blocker.",
+  "sentence": "The ordinary override, outside a convergence STOP, never accepts a non-eligible, uncovered blocker, even on the user's request,",
+  "action": "No override; offer fix, another wave or re-plan.",
+  "decision": "ask-accept-withheld"
+}

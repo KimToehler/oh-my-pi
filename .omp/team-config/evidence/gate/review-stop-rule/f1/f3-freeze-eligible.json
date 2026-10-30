@@ -1,0 +1,9 @@
+{
+  "row": "f3-freeze-eligible",
+  "file": "team-config/agent/skills/integration-review/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F3 STOP; the only remaining Must-fix class is doc drift with no consumer or asset in its path.",
+  "sentence": "Recommend and offer freeze only when every remaining Must-fix class is eligible or covered;",
+  "action": "Recommend freeze.",
+  "decision": "ask-accept-recommended"
+}

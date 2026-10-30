@@ -1,0 +1,9 @@
+{
+  "row": "ask-quotes-verbatim",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Eligible blocker area \"Artifact consistency\", defect \"design.md D3 cites schema.yaml:224, now :231\", consequence \"a reader follows a stale line\".",
+  "sentence": "Each question quotes the blocker's area, defect and stated consequence verbatim from the lens output and names the exclusions you checked for it.",
+  "action": "Ask quotes area, defect and consequence verbatim and names the exclusions checked.",
+  "decision": "ask-verbatim"
+}

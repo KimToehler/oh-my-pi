@@ -1,0 +1,9 @@
+{
+  "row": "classification-dispute",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "runs/gate-e2e-20261029/data.json blockers[58] (onara/strength-progression-targets, PlanReviewR9, lane plan-review)",
+  "case": "{\"area\": \"Gate classification\", \"defect\": \"The mandatory class is incomplete: the change adds a user-scoped coach read of logged exercise performance and an ownership decision, which is an authorization and third-party personal-data surface, but gate.md classifies it only as a wire contract.\", \"evidence\": \"gate.md:3 declares `wire-contract-api`, while gate.md:8 explicitly identifies that a missing ownership check would leak one user's training history to another user's coach. The applicable gate rule states at rule://plan-merge-gate:36 that `auth-secrets-pii` applies when a change touches an authentication or authorisation path or third-party personal data. The new `getExerciseHistory` design is precisely such a path.\", \"change\": \"Classify the change as `auth-secrets-pii` (the gate's supported single mandatory class for this protected-data authorization change), while retaining the wire-contract release-boundary reasoning in the risk assessment.\"}",
+  "sentence": "it disputes the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision;",
+  "action": "Apply exclusions: the blocker disputes the plan's Mandatory class.",
+  "decision": "fix-blocking"
+}

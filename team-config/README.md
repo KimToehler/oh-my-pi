@@ -187,11 +187,15 @@ The last artifact `/opsx-propose` creates is `review.md`. A review round is thre
 `advisor` model, another family than the planner) in one batch over the whole change folder: each gets the same fixed
 brief plus one fixed lens paragraph (correctness, verification, or security and the mechanical checks), and the planner
 adds no focus. The round is OKAY only when all three lenses return OKAY; a lens without a structured verdict is
-retried once, and if the retry has none either the round is incomplete and no record is written. The agent fixes blockers in the
-artifacts for at most two fix rounds and records the verdict with the digest of the folder it reviewed; the record's
-`Reviewer` lists every subagent id of the round, in lens order. If the round still rejects, the agent asks per blocker:
-fix it, accept it in `gate.md` as a residual risk or out-of-scope area in your words (the next round does not block on
-it), or stop. OpenSpec reports apply as `blocked` while `review.md` is missing, and `/opsx-apply` runs this before the
+retried once, and if the retry has none either the round is incomplete and no record is written. Each blocker of a
+complete rejecting round is decided by review-work's `Blocker disposition` section: it is Accept-eligible only when it
+misses the blocking threshold and no exclusion (security, audit trail, gate classification, review mechanism, a
+mandatory class) applies. A round with an eligible blocker records its REJECT and asks you at once, per blocker, quoting
+each verbatim: Accept is recommended for eligible blockers and offered only for them (your reason goes into `gate.md`
+as a residual risk or out-of-scope area, and the next round does not block on it); the rest offer fix or stop. A round
+with only non-eligible blockers is fixed for at most two fix rounds, then you are asked per blocker. The record carries
+the digest of the folder it reviewed and the round's subagent ids, in lens order. OpenSpec reports apply as `blocked`
+while `review.md` is missing, and `/opsx-apply` runs this before the
 first source edit:
 
 ```sh

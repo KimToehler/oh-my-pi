@@ -1,0 +1,9 @@
+{
+  "row": "blocking-defect-round",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan-review round 1 complete, REJECT; only blocker: the design drops the existing migration path (consumer break).",
+  "sentence": "No eligible blocker: fix each blocker of every rejecting lens in the artifacts (never in source code), then repeat from step 1 as a new round with three fresh lenses.",
+  "action": "Fix and new round without an ask.",
+  "decision": "fix-blocking"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "plan-accept-effect",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "User answers Accept for an eligible blocker (stale cross-reference).",
+  "sentence": "the user's reason, in their words, goes into gate.md as an Accepted residual risk or an Out of scope area",
+  "action": "Reason enters gate.md as Accepted residual risk; new round.",
+  "decision": "residual-recorded"
+}

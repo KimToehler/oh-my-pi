@@ -1,0 +1,9 @@
+{
+  "row": "gate-record-evidence",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 blocker: the QA artifact the record cites is not bound by `artifact_sha256` to the bytes the reviewer saw.",
+  "sentence": "it concerns the audit trail: the gate record, its trailers, or a QA artifact the validator binds;",
+  "action": "Apply exclusions: the audit trail (QA artifact the validator binds).",
+  "decision": "fix-blocking"
+}

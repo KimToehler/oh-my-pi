@@ -1,0 +1,63 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/review-stop-rule",
+  "plan_sha256": "2056a6e7992139f34ef551cbdf81f0d3fbddac65a5056cecf345ce8d0d9b2248",
+  "reviewed_sha": "2903a903f99eee7884984e1d3054c13eefc949a9",
+  "diff_base": "7b6b4bfe7550847fe144fb00e703b40ba06d81c4",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Instruction-only policy change, Risk tier product, Mandatory class none: one implementation-audit; wave 1 FAIL (B1 fixed in 2903a903f9, delta OKAY), wave 2 PASS.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 replay: 41 replay rows of tasks 1.1-1.3 plus sandbox install (task 2.1/3.1 Verify command)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-stop-rule/wave-2/f1-replay-verify.txt",
+      "artifact_sha256": "dee3be546f1528d1e97b628b9a63d352e02baa15e7d43064236545933e81f894"
+    },
+    {
+      "name": "F1 replay matrix (row name, edited file, quoted sentence, expected/observed decision, evidence hash)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-stop-rule/f1/qa-matrix.json",
+      "artifact_sha256": "f1a4582a74b5c63d969f38c3b620662e04678705a7a644285f9ce739ea06d5ae"
+    },
+    {
+      "name": "Disposable install: the three edited files installed byte-identical by installTeamConfig",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-stop-rule/f1/sandbox-install.json",
+      "artifact_sha256": "2f15e2007d26ad3256c298ea62e0342d7225d3e538a9527f5d9b7be05a0e92a7"
+    },
+    {
+      "name": "Regression: bun run test:team-config, 686 pass 0 fail",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-stop-rule/wave-2/team-config-tests.txt",
+      "artifact_sha256": "d73bf87e88488e26ff82969453c90313386a653c3bd0e5fff248b67d3da6df64"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "one policy stated in three static instruction files; none is an independently testable module or runtime layer"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/review-stop-rule/wave-2/trailer-implementation-audit.txt",
+      "trailer_sha256": "17c080960c7d5231021ba16690b1eb07b000088adc1aeedceaeb7e07a53384cd",
+      "note": "wave 2 on 2903a903f9"
+    }
+  ],
+  "blockers": []
+}

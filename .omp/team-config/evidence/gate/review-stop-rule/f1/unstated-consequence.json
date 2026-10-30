@@ -1,0 +1,9 @@
+{
+  "row": "unstated-consequence",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Blocker: \"tasks.md 3.2 and design D4 disagree on the file name.\" No consequence stated.",
+  "sentence": "A blocker with no stated consequence, an ambiguous one, or one that mixes a process gap with a code or design path is not eligible.",
+  "action": "Apply the ambiguity default.",
+  "decision": "fix-blocking"
+}

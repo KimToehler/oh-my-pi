@@ -1,0 +1,9 @@
+{
+  "row": "coverage-exact-match",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 blocker: no test can fail when retry exhaustion is mis-reported; gate.md Accepted residual risks: \"retry-exhaustion reporting has no failing test; a wrong count may reach the UI\". Same class and consequence, no exclusion.",
+  "sentence": "Coverage is the existing `accepted-residual`/`out-of-scope` path: the entry was reviewed with the plan, so a covered blocker may stay unfixed even when it breaks the threshold.",
+  "action": "Covered: record `accepted-residual`.",
+  "decision": "downgrade-recorded"
+}

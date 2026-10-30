@@ -1,0 +1,9 @@
+{
+  "row": "mixed-round-ask",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan-review round 2 complete, REJECT; one eligible blocker (wording), one non-eligible (consumer break). Answers: Accept for the eligible one, Fix for the non-eligible one; variant: Stop on either.",
+  "sentence": "Then ask as in step 6, one question per open blocker. If any answer is Stop, stop: no fix and no new round; apply stays blocked. Otherwise fix the blockers answered Fix, write each Accept, and each accept the user asked for as step 6 allows, into gate.md, and repeat from step 1.",
+  "action": "Ask per blocker in this round; on Accept+Fix fix the non-eligible one, record the Accept, new round; on any Stop no fix and no new round.",
+  "decision": "ask-per-blocker"
+}

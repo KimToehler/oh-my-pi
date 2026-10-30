@@ -1,0 +1,9 @@
+{
+  "row": "plan-override-insisted",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "User asks to accept a non-eligible, non-excluded blocker (an untested failure mode) at plan review.",
+  "sentence": "If the user asks to accept one anyway and no exclusion names it, record their reason and the blocker's stated consequence in gate.md;",
+  "action": "Record the user's reason and the stated consequence in gate.md.",
+  "decision": "user-accept-recorded"
+}

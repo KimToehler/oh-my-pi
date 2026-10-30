@@ -1,0 +1,9 @@
+{
+  "row": "plan-excluded-insisted",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "User asks to accept a plan-review blocker that names a security path.",
+  "sentence": "an excluded blocker gets no gate.md entry, only Fix, re-plan or Stop.",
+  "action": "No gate.md entry; Fix, re-plan or Stop.",
+  "decision": "ask-accept-withheld"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "stale-okay-superseded",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan with a current OKAY review.md re-reviewed unchanged; round REJECTs with an eligible blocker; user answers Stop.",
+  "sentence": "First write review.md for this round (step 5), so a Stop or an interrupted session leaves no earlier OKAY current.",
+  "action": "review.md records the REJECT before the ask; --reviewed fails.",
+  "decision": "review-recorded-before-ask"
+}

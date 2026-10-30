@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+No blocker found. I reviewed the wave-2 plan bundle against the shared disposition definition and the plan-review, F2, delta and F3 decision points. The early plan-review ask records the rejecting round first; post-implementation lanes retain their convergence decision points.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocker found. The prior wave’s mixed-round issue is addressed at `schema.yaml:403–407`: any Stop ends the round without fixes or another dispatch; otherwise only Fix answers are fixed and allowed acceptances are recorded.
+
+**Non-blocking note:** The pre-existing unconditional option lists at `review-work/SKILL.md:452–457` and `integration-review/SKILL.md:147` remain alongside the new restrictions, and the convergence script still prints its generic accept prompt. The adjacent new instructions constrain what the orchestrator offers, so I did not identify a demonstrated contract violation; the duplicate wording remains a possible source of confusion.
+
+## 3. Security and privacy delta
+
+No change to a real credential, authentication or authorisation path, third-party personal data, or access to a protected asset identified in the supplied diff. The policy explicitly excludes security, privacy and audit-trail blockers from acceptance.
+
+## 4. Verification adequacy
+
+I inspected the replay matrix output, representative replay artifacts, disposable-install hash artifact and regression-suite output. The supplied suite artifact reports **686 passed, 0 failed**. The replay checker binds recorded decisions and quoted instruction text, but does not independently demonstrate that the instructions cause those decisions; the plan explicitly accepts that limitation. I did not run checks.
+
+## 5. Final assessment
+
+No substantiated blocker. Residual risk is the judgement-dependent interpretation of instruction text and its replay evidence.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A convergence freeze cannot turn a failed manual QA wave into an authorized merge.
+  positive_witness: A wave with passing QA and complete reviewer trailers may reach the freeze decision when the applicable disposition policy permits it.
+  negative_control: A wave with a failed QA row is frozen and recorded as an authorized override.
+  observable: The convergence decision and resulting gate-record validation distinguish the failed-QA wave from a permitted freeze.
+  boundary: F2 convergence and gate-record validation
+END-REVIEW-TRAILER

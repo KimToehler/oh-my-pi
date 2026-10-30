@@ -1,0 +1,9 @@
+{
+  "row": "third-reject-mixed",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Third REJECT holds one eligible and one non-eligible blocker.",
+  "sentence": "For a non-eligible blocker offer only Fix and Stop.",
+  "action": "Ask per blocker; non-eligible gets only Fix and Stop.",
+  "decision": "ask-per-blocker"
+}

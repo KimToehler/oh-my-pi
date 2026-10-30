@@ -1,0 +1,9 @@
+{
+  "row": "evidence-form-gap",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "runs/gate-e2e-20261029/data.json blockers[64] (onara/strength-progression-targets, PlanReviewR26, lane plan-review)",
+  "case": "{\"area\": \"Correctness / RED-GREEN evidence\", \"defect\": \"Final verification does not actually confirm RED and GREEN evidence for every test-bearing task: task 6.1 adds `rir.util.spec.ts`, but 7.1's exhaustive-looking evidence loop excludes `6.1`.\", \"evidence\": \"`openspec/changes/strength-progression-targets/tasks.md:37` says task 6.1 adds a spec for `rirFromRpe` / `rpeFromRir`; the preamble at `tasks.md:3` requires every task that adds or changes tests to produce `red-<task>.md`; but `tasks.md:45` checks only `1.1 2.1 3.1 3.2 4.1 4.2 4.4 5.1 5.2 5.3 6.2 6.3 6.4`, omitting 6.1. Thus normal implementation can complete 7.1 without any RED proof for the new RIR utility test.\", \"change\": \"Add `6.1` to task 7.1's evidence loop (and require `docs/evidence/strength-progression-targets/red-6.1.md` under the stated per-task contract).\"}",
+  "sentence": "only a gap in the form of evidence (binding, wording, bookkeeping outside the audit trail) for a behaviour that stays proven by a check that can fail is weaker proof.",
+  "action": "Apply the value-proof reading: the test itself still runs and can fail; only the RED/GREEN evidence record for task 6.1 is missing, a gap in the form of evidence. Assumes no criterion names the RED evidence.",
+  "decision": "ask-accept-recommended"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "security-weaker-proof",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Blocker with area \"CHECK 1\": the plan proves the token is redacted in logs only by a grep, a weaker proof; the token path is a credential path.",
+  "sentence": "it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer;",
+  "action": "Apply exclusions: it names a security path (credential), so the weaker-proof reading never applies.",
+  "decision": "fix-blocking"
+}

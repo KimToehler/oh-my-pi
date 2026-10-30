@@ -1,0 +1,9 @@
+{
+  "row": "mixed-consequence",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Blocker: the evidence file lacks a hash, and the same task leaves the cache invalidation path untested in code.",
+  "sentence": "A blocker with no stated consequence, an ambiguous one, or one that mixes a process gap with a code or design path is not eligible.",
+  "action": "Apply the ambiguity default: mixes an evidence gap with a code path.",
+  "decision": "fix-blocking"
+}

@@ -1,0 +1,9 @@
+{
+  "row": "coverage-other-consequence",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 blocker: retry exhaustion corrupts the persisted counter; the gate.md entry names retry-exhaustion reporting with the consequence \"wrong UI count\".",
+  "sentence": "A blocker is covered only when an `Accepted residual risks` or `Out of scope for blocking` entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence; a broad area list covers no specific blocker.",
+  "action": "Same class, other consequence: not covered, no override.",
+  "decision": "ask-accept-withheld"
+}

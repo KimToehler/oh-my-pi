@@ -1,0 +1,9 @@
+{
+  "row": "item4-bookkeeping",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Checks-lens blocker with area \"review_scope item 4\": the evidence index omits one capture path; consequence stated as bookkeeping only.",
+  "sentence": "its area names review_scope item 4 or CHECK 1;",
+  "action": "Apply exclusions: the area names review_scope item 4.",
+  "decision": "fix-blocking"
+}

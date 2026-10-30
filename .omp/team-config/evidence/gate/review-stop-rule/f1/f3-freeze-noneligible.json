@@ -1,0 +1,9 @@
+{
+  "row": "f3-freeze-noneligible",
+  "file": "team-config/agent/skills/integration-review/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F3 STOP; a remaining Must-fix class names a security path.",
+  "sentence": "otherwise offer re-plan or continue (re-plan only under Risk tier `internal-tooling` at wave 3 or later, where `GC decide` refuses continue) and name each such class with its stated consequence.",
+  "action": "Offer re-plan or continue, not freeze, naming the class and consequence.",
+  "decision": "ask-accept-withheld"
+}

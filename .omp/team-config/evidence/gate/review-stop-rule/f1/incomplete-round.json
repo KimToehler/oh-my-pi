@@ -1,0 +1,9 @@
+{
+  "row": "incomplete-round",
+  "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Plan-review round 3: the checks lens returns no structured verdict after its retry; the other lenses REJECT.",
+  "sentence": "If the retry also has no structured verdict, the round is incomplete: write no review.md and edit no existing one, tell the user which lens failed, and stop.",
+  "action": "Incomplete: existing stop.",
+  "decision": "stop-incomplete"
+}

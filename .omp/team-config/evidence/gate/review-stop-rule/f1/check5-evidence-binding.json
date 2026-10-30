@@ -1,0 +1,9 @@
+{
+  "row": "check5-evidence-binding",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Checks-lens blocker under CHECK 5: `runs/.../data.json`, a measurement input outside the gate record, is not digest-bound; no criterion, consumer or protected asset in its path; every behaviour stays proven.",
+  "sentence": "A blocker is Accept-eligible only when it misses both limbs of the blocking threshold in the Phase 2 briefs",
+  "action": "Apply eligibility: misses both limbs, no exclusion; recommend Accept.",
+  "decision": "ask-accept-recommended"
+}

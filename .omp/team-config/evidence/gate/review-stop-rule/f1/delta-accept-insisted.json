@@ -1,0 +1,9 @@
+{
+  "row": "delta-accept-insisted",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Second delta REJECT on a non-eligible, non-excluded blocker (value proof: a failure mode untested); the user insists on accepting.",
+  "sentence": "An accept the user asks for anyway, for blockers no exclusion names, puts the user's reason and each blocker's stated consequence in `--reason`.",
+  "action": "Record `GC accept --reason` with the user's reason and the stated consequence.",
+  "decision": "user-accept-recorded"
+}

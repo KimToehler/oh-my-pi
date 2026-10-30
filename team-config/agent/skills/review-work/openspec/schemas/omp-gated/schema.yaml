@@ -392,28 +392,44 @@ artifacts:
          The round is OKAY only when all three lenses return OKAY. Otherwise it is REJECT, with
          the blockers of every rejecting lens.
 
-      4. On REJECT, fix each blocker of every rejecting lens in the artifacts (never in source
-         code), then repeat from step 1 as a new round with three fresh lenses. At most two fix
-         rounds: after a third REJECT, or a REJECT whose fix needs a user decision, stop and ask
-         the user (step 6).
+      4. On REJECT of a complete round, decide each blocker by the `Blocker disposition` section
+         of the review-work skill (read `skill://review-work`; do not restate it here). If that
+         section cannot be read, every blocker is not eligible: tell the user once in this review
+         that Accept is off.
+         - No eligible blocker: fix each blocker of every rejecting lens in the artifacts (never
+           in source code), then repeat from step 1 as a new round with three fresh lenses. At
+           most two fix rounds: after a third REJECT, or a REJECT whose fix needs a user
+           decision, stop and ask the user (step 6).
+         - At least one eligible blocker: ask in this round, before any fix. First write
+           review.md for this round (step 5), so a Stop or an interrupted session leaves no
+           earlier OKAY current. Then ask as in step 6, one question per open blocker. If any
+           answer is Stop, stop: no fix and no new round; apply stays blocked. Otherwise fix the
+           blockers answered Fix, write each Accept, and each accept the user asked for as step 6
+           allows, into gate.md, and repeat from step 1. No blocker waits for a later round.
       5. Write review.md from the template with the last round's verdict, the digest from step 2
          of that round, `plan-reviewer` and the three subagent ids in lens order (correctness,
          verification, checks; a retried lens is listed with its retry's id), the round number
          (first dispatch is 1) and the blockers: `none` for OKAY; for REJECT one
          `### <Lens> (<subagent id>)` subsection per rejecting lens with that lens's blockers
          verbatim. Override is `none`.
-      6. Run `V --reviewed <change-dir>`. After a final REJECT it fails. Ask the user with one
-         `ask` question per open blocker, each with these options:
+      6. Run `V --reviewed <change-dir>`. After a REJECT it fails. Ask the user with one `ask`
+         question per open blocker. Each question quotes the blocker's area, defect and stated
+         consequence verbatim from the lens output and names the exclusions you checked for it.
+         Options:
          - Fix: you change the artifacts; a new round follows.
-         - Accept: the user's reason, in their words, goes into gate.md as an Accepted residual
-           risk or an Out of scope area (and a requirement that claims the opposite is narrowed);
-           a new round follows, and its reviewer does not block on it.
+         - Accept, recommended for an eligible blocker and offered only for one: the user's
+           reason, in their words, goes into gate.md as an Accepted residual risk or an Out of
+           scope area (and a requirement that claims the opposite is narrowed); a new round
+           follows, and its reviewer does not block on it.
          - Stop: apply stays blocked.
-         Recommend Accept when the fix would add a mechanism, procedure or check the proposal did
-         not ask for: such fixes widen the plan, and the next round reviews the new surface.
+         For a non-eligible blocker offer only Fix and Stop. If the user asks to accept one
+         anyway and no exclusion names it, record their reason and the blocker's stated
+         consequence in gate.md; an excluded blocker gets no gate.md entry, only Fix, re-plan or
+         Stop. Never answer an eligible blocker with a mechanism, procedure or check the
+         proposal did not ask for (the section's no-unrequested-mechanism rule).
          Override is the remaining path when the user accepts the blockers and the artifacts stay
-         exactly as reviewed (any edit makes the review stale): write the user's own reason as
-         Override and run `V --reviewed` again.
+         exactly as reviewed (any edit makes the review stale): it follows the same eligibility
+         rule; write the user's own reason as Override and run `V --reviewed` again.
 
       Editing any artifact after the review (other than ticking tasks) makes it stale; re-run
       this review before apply.

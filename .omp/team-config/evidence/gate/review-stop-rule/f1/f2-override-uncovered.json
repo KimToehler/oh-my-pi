@@ -1,0 +1,9 @@
+{
+  "row": "f2-override-uncovered",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "F2 FAIL blocker: cache key ignores the tenant id, breaking an existing consumer; no gate.md entry covers it; ordinary Phase 4, no STOP.",
+  "sentence": "The ordinary override, outside a convergence STOP, never accepts a non-eligible, uncovered blocker, even on the user's request,",
+  "action": "Offer no override; offer fix, another wave or re-plan.",
+  "decision": "ask-accept-withheld"
+}

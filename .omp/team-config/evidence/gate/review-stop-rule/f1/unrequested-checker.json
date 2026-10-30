@@ -1,0 +1,9 @@
+{
+  "row": "unrequested-checker",
+  "file": "team-config/agent/skills/review-work/SKILL.md",
+  "source": "constructed (no matching recorded case found in the cohort by keyword search)",
+  "case": "Eligible blocker: evidence rows could be mis-transcribed; fix proposed by the lens: add a new `verify-evidence.ts` script that re-parses all rows. The proposal asked for no such script.",
+  "sentence": "Never answer an eligible blocker by adding a mechanism, script, procedure or check the proposal did not ask for: it goes to the user as Accept, or becomes its own plan,",
+  "action": "Apply the no-unrequested-mechanism rule: present Accept or a separate plan.",
+  "decision": "ask-accept-recommended"
+}
