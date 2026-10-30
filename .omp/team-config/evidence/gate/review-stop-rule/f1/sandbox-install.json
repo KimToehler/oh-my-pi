@@ -10,8 +10,8 @@
     },
     {
       "path": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
-      "source_sha256": "5c6b499a97a90c7ce1007c09884f78b7411f582730bc3c71c572aaddb2def315",
-      "installed_sha256": "5c6b499a97a90c7ce1007c09884f78b7411f582730bc3c71c572aaddb2def315",
+      "source_sha256": "2f36ed8553eb7292d82640a2075004be48c8d0d70b15c678904a620b6b8950f3",
+      "installed_sha256": "2f36ed8553eb7292d82640a2075004be48c8d0d70b15c678904a620b6b8950f3",
       "installed_path": "mkdtemp agentDir/skills/review-work/openspec/schemas/omp-gated/schema.yaml"
     },
     {

@@ -367,14 +367,14 @@
     {
       "name": "mixed-round-ask",
       "file": "team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
-      "sentence": "Then ask as in step 6, one question per open blocker. Next fix the non-eligible blockers and those the user chose to fix, write each Accept into gate.md, and repeat from step 1.",
-      "action": "Ask per blocker in this round, fix non-eligible, new round.",
+      "sentence": "Then ask as in step 6, one question per open blocker. If any answer is Stop, stop: no fix and no new round; apply stays blocked. Otherwise fix the blockers answered Fix, write each Accept, and each accept the user asked for as step 6 allows, into gate.md, and repeat from step 1.",
+      "action": "Ask per blocker in this round; on Accept+Fix fix the non-eligible one, record the Accept, new round; on any Stop no fix and no new round.",
       "expected": "ask-per-blocker",
       "observed": "ask-per-blocker",
       "passed": true,
       "artifact": {
         "path": "mixed-round-ask.json",
-        "sha256": "8b56f820edce78af8d3928fc11d62178cb3efe2e65f8211740a4a0ddc488ff6e"
+        "sha256": "2abb1c6a6751bba075237ceb70f5ad56ec54acd8eb096097971932bfc97e8aa6"
       }
     },
     {
@@ -530,7 +530,7 @@
       "passed": true,
       "artifact": {
         "path": "sandbox-install.json",
-        "sha256": "918f73a82db53f15217fedd59498cc0ec9640fdebc1ef796bd596ba88f77a489"
+        "sha256": "2f15e2007d26ad3256c298ea62e0342d7225d3e538a9527f5d9b7be05a0e92a7"
       }
     }
   ]

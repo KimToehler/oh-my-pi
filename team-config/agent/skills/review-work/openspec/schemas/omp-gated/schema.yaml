@@ -402,9 +402,10 @@ artifacts:
            decision, stop and ask the user (step 6).
          - At least one eligible blocker: ask in this round, before any fix. First write
            review.md for this round (step 5), so a Stop or an interrupted session leaves no
-           earlier OKAY current. Then ask as in step 6, one question per open blocker. Next fix
-           the non-eligible blockers and those the user chose to fix, write each Accept into
-           gate.md, and repeat from step 1. No blocker waits for a later round.
+           earlier OKAY current. Then ask as in step 6, one question per open blocker. If any
+           answer is Stop, stop: no fix and no new round; apply stays blocked. Otherwise fix the
+           blockers answered Fix, write each Accept, and each accept the user asked for as step 6
+           allows, into gate.md, and repeat from step 1. No blocker waits for a later round.
       5. Write review.md from the template with the last round's verdict, the digest from step 2
          of that round, `plan-reviewer` and the three subagent ids in lens order (correctness,
          verification, checks; a retried lens is listed with its retry's id), the round number
