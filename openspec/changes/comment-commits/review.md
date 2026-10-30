@@ -1,20 +1,20 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 362fb32682aad7ce4b5d4739dcb0136cfecc8fd9257404d350678191695f1412
-- **Reviewer**: plan-reviewer, CCCorrectness3, CCVerification3, CCChecks3
-- **Round**: 3
+- **Reviewed digest**: e5029bbf5703acdee8b9a5c8c2ba389c4bd1fab0a6e2d4466a6d4908cde5bed8
+- **Reviewer**: plan-reviewer, CCCorrectness4, CCVerification4, CCChecks4
+- **Round**: 4
 - **Override**: none
 
 ## Blockers
 
-### Correctness (CCCorrectness3)
+### Verification (CCVerification4)
 
 [
   {
-    "area": "Correctness and lifecycle",
-    "defect": "A behaviour-changing comment discovered after an authorized freeze is committed to the reviewed branch, but the plan gives no viable route to review the new commit: the frozen F2 lane cannot start another wave. This leaves the merge blocked rather than satisfying the specified post-freeze behavior; the commit can be reverted, so the damage is reversible.",
-    "evidence": "specs/gate-comment-commits/spec.md:68-78 requires a branch commit and a gate on it after freeze; design.md:19 and tasks.md:14 say to continue as for any code commit. However, team-config/agent/skills/review-work/scripts/gate-convergence.mjs:209-210 rejects any further wave when the recorded decision is freeze, while validate-gate-record.mjs:742-743 rejects a record when subsequent commits change more than authenticated evidence.",
-    "change": "Specify an executable post-freeze recovery path that re-gates the changed tree under a new plan or another supported lifecycle, and align the requirement and instructions with that path."
+    "area": "Quality and verification — task 1.2 and F1",
+    "defect": "The post-verdict directive replays do not verify that either the new branch commit or the follow-up actually receives a gate. An instruction can satisfy all checked clauses while omitting the new wave after PASS or explicitly allowing the follow-up after freeze to land without review. A normal suppression needed after a final verdict could then escape the review required by the specification; the instruction change is reversible, but what it permits may already have shipped.",
+    "evidence": "specs/gate-comment-commits/spec.md:62-77 requires a new wave after PASS, a separately gated follow-up after freeze, and a negative control for an unreviewed default-branch commit. tasks.md:5 and tasks.md:15 check K7 only through “commit it on the branch” and K10 only through “becomes a follow-up change after the merge, never a commit on the frozen branch”; the corresponding rows assert only `code-on-branch` and `follow-up`. The built-in mutations delete K7 or redirect K10 to the frozen branch, but do not remove the new-wave requirement or allow an ungated follow-up. Task 2.1 repeats the same checker.",
+    "change": "Bind the PASS replay to an explicit instruction that a new gate wave must pass before merge, and the freeze replay to an explicitly gated follow-up. Add negative mutations for omitting the new wave and for allowing the follow-up to land without review."
   }
 ]
