@@ -1,0 +1,6 @@
+row: informative-after-freeze
+case: The user resolved an F2 STOP with freeze and the record validates; the orchestrator wants to reword an informative comment.
+sentence: The final verdict is the F2 wave that printed DECISION: PASS, or the STOP the user resolved with freeze (Fix waves step 3); a commit after a CONTINUE wave stays under Fix waves step 5. Classify each comment as in step 5. Then, after the final verdict, a commit whose only changes are informative comments never goes on the reviewed branch before the merge: after the merge, commit it alone in the task worktree and merge it into the default branch without a gate, before the worktree is removed; a commit that also changes anything else follows the route of that other change.
+decision: after-merge
+
+A STOP resolved with freeze is a final verdict. The informative-comment commit is routed exactly as after PASS: alone in the task worktree after the merge, merged without a gate.

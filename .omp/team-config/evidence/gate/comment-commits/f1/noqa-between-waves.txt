@@ -1,0 +1,6 @@
+row: noqa-between-waves
+case: Between waves a commit adds `# noqa: E501` to a long line in tools/gen.py.
+sentence: A comment is behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it; a tool that only shows, diffs or keeps the text does not count.
+decision: delta-review
+
+The linter acts on the suppression and changes what it checks. Behaviour-changing; delta review.

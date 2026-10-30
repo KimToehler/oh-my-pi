@@ -1,0 +1,6 @@
+row: doctest-between-waves
+case: Between waves a commit edits the example inside a Rust `///` doc comment on a public function; cargo test runs it as a doctest.
+sentence: A comment is behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it; a tool that only shows, diffs or keeps the text does not count.
+decision: delta-review
+
+The doc comment runs as a test, so the test tool acts on its text. Behaviour-changing; delta review.

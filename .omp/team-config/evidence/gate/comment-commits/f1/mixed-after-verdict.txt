@@ -1,0 +1,6 @@
+row: mixed-after-verdict
+case: After a PASS wave a needed code fix also rewords an informative comment in the same commit.
+sentence: after the final verdict, a commit whose only changes are informative comments never goes on the reviewed branch before the merge: after the merge, commit it alone in the task worktree and merge it into the default branch without a gate, before the worktree is removed; a commit that also changes anything else follows the route of that other change. Its subject says it changes informative comments only, and it is never committed directly on the default branch (worktrees rule). A behaviour-changing comment is never landed unreviewed: after a PASS wave, a behaviour-changing comment is code: commit it on the branch, and the merge waits for a new wave that passes
+decision: code-on-branch
+
+The commit changes more than informative comments, so it follows the route of the code change: code on the branch after PASS, and the merge waits for a new passing wave.

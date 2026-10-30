@@ -1,0 +1,10 @@
+row: instruction-review
+case: step 5 and Phase 5 of F at the final head
+sentence: 
+decision: none-found
+
+agent: CCInstrReviewT
+source_sha256: 10b3461b0cd1a3d6161945f81fc5da312c906723a1f4dbebdbcafb1ce4013635
+brief: Read Fix waves step 5 and Phase 5 of `/Users/tim/git/oh-my-pi/.worktrees/comment-commits/team-config/agent/skills/review-work/SKILL.md` and every requirement with its scenarios in `/Users/tim/git/oh-my-pi/.worktrees/comment-commits/openspec/changes/comment-commits/specs/gate-comment-commits/spec.md`. Quote every sentence of the two sections that permits a route a requirement or a Negative control forbids, one line each as `permits: SENTENCE`; if there is none, write the single line `permits: none`.
+
+permits: none

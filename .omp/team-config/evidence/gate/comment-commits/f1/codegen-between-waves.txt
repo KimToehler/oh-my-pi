@@ -1,0 +1,6 @@
+row: codegen-between-waves
+case: Between waves a commit edits a `//go:generate stringer -type=Kind` line in pkg/kind.go.
+sentence: A comment is behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it; a tool that only shows, diffs or keeps the text does not count.
+decision: delta-review
+
+go generate acts on the directive and changes what it generates. Behaviour-changing; delta review.

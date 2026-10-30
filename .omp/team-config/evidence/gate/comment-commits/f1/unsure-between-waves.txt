@@ -1,0 +1,6 @@
+row: unsure-between-waves
+case: Between waves a commit edits a `/* webpackChunkName: "admin" */` marker inside a dynamic import; the orchestrator cannot tell whether the bundler in this project reads it.
+sentence: But when you cannot tell whether anything reads a comment, it is behaviour-changing.
+decision: delta-review
+
+Unclear whether a tool reads the comment, so it counts as behaviour-changing and is delta-reviewed.
