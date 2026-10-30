@@ -1,0 +1,4 @@
+ 686 pass
+ 0 fail
+Ran 686 tests across 9 files. [106.61s]
+exit=0
