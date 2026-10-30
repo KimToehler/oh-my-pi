@@ -46,12 +46,17 @@ Between fix waves, the instruction SHALL allow a commit that changes only inform
 
 ### Requirement: Informative comments after the final verdict land after the merge
 
-The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP the user resolved with freeze. After it, the instruction SHALL keep an informative-comment commit off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate.
+The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP the user resolved with freeze. After it, the instruction SHALL keep a commit whose only changes are informative comments off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate. A commit that also changes anything else SHALL follow the route of that other change; between waves, step 5 stays unchanged.
 
 #### Scenario: Comment fix after PASS
 
 - **WHEN** the record validates and the orchestrator wants to reword an informative comment in reviewed source
 - **THEN** the instruction directs it to commit the change on the default branch after the merge, and the merged record stays settled for the stop hook after that commit
+
+#### Scenario: Code fix that also rewords a comment after PASS
+
+- **WHEN** after a PASS wave a needed code fix also rewords an informative comment in the same commit
+- **THEN** the instruction routes the commit as code on the branch, and the merge waits for a new wave that passes
 
 #### Scenario: Comment fix after an authorized freeze
 
