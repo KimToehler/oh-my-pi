@@ -8,7 +8,7 @@ Decides how a commit that changes only comments is handled during the post-imple
 
 ### Requirement: Comment kind is the orchestrator's decision
 
-The `review-work` instruction SHALL define a comment as behaviour-changing when its text changes what a tool outputs or decides, or when a review input reads it, and every other comment as informative, including one a parser only skips. The orchestrator SHALL decide the kind; uncertainty SHALL count as behaviour-changing.
+The `review-work` instruction SHALL define a comment as behaviour-changing when a tool acts on its text, changing what the tool builds, checks, generates or decides, or when a review input reads it, and every other comment as informative, including one a parser only skips and one a tool only shows, diffs or keeps. The orchestrator SHALL decide the kind; uncertainty SHALL count as behaviour-changing.
 
 #### Scenario: Directive comment
 
@@ -46,12 +46,12 @@ Between fix waves, the instruction SHALL allow a commit that changes only inform
 
 ### Requirement: Informative comments after the final verdict land after the merge
 
-The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP the user resolved with freeze. After it, the instruction SHALL keep a commit whose only changes are informative comments off the reviewed branch and direct it to the default branch after the merge, with the archive commit when there is one, without a gate. A commit that also changes anything else SHALL follow the route of that other change; between waves, step 5 stays unchanged.
+The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP the user resolved with freeze. After it, the instruction SHALL keep a commit whose only changes are informative comments off the reviewed branch until the merge, then make it as its own commit in the task worktree and merge it into the default branch without a gate, never directly on the default branch. A commit that also changes anything else SHALL follow the route of that other change.
 
 #### Scenario: Comment fix after PASS
 
 - **WHEN** the record validates and the orchestrator wants to reword an informative comment in reviewed source
-- **THEN** the instruction directs it to commit the change on the default branch after the merge, and the merged record stays settled for the stop hook after that commit
+- **THEN** the instruction directs it to commit the change alone in the task worktree after the merge and merge it into the default branch, and the merged record stays settled for the stop hook after that merge
 
 #### Scenario: Code fix that also rewords a comment after PASS
 
