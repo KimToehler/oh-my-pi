@@ -120,6 +120,9 @@ Record on the next real changes planned under the new workflow, against the stop
 
 Seven implementation entries above. Append actual F1/F2/F3 fixes here with defect class and site before implementing them.
 
+8. [x] F3 fix, class `contradictory-classification-scenario`, site `openspec/specs/change-verification/spec.md:59-67`: limit the "Instruction-only change" scenario (class `none`) to an instruction change that alters no delivered auth, migration, wire/API or state-machine behaviour, so it no longer contradicts the "Changed review state machine" scenario. Verify: strict spec validation.
+9. [x] F3 fix, class `unreconciled-early-ask-contract`, sites `openspec/specs/openspec-plan-review/spec.md:68-71,99-101` and `team-config/README.md:194-197`: restrict the round-2 eligible-blocker ask scenario and the early-ask Negative control to rounds below the approach-question trigger, and state in the README that the early approach-question trigger (correctness OKAY, only verification blockers) comes before any per-blocker ask. Verify: strict spec validation.
+
 ## Final verification wave
 
 - [ ] F3. Whole-diff review: `integration-review` over `b25d0cd677...HEAD`, report `.omp/team-config/evidence/gate/review-proportionality/f3-integration-review-report.md`; integrate the default branch first as Fix waves step 1 requires.

@@ -67,7 +67,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 #### Scenario: Round with only eligible blockers asks
 
-- **WHEN** round 2 of a change returns REJECT, every dispatched lens returned a verdict, and every open blocker is Accept-eligible
+- **WHEN** round 2 of a change returns REJECT, every dispatched lens returned a verdict, every open blocker is Accept-eligible, and the approach-question trigger is not met
 - **THEN** the instruction directs the orchestrator to ask the user then, with Accept recommended and each blocker's stated consequence shown, rather than to fix them and dispatch round 3
 
 #### Scenario: Mixed round asks per blocker
@@ -97,7 +97,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction defers an eligible blocker of a complete round to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
+- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The early ask is recorded first and quotes blockers verbatim

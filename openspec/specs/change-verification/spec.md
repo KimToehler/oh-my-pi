@@ -58,7 +58,7 @@ The Mandatory class SHALL follow the behaviour and reach of the delivered change
 
 #### Scenario: Instruction-only change
 
-- **WHEN** a change only edits a skill and is verified in ordinary sessions on the developer's existing model configuration
+- **WHEN** a change only rewords guidance in a skill, delivering no auth, migration, wire/API or state-machine behaviour, and is verified in ordinary sessions on the developer's existing model configuration
 - **THEN** its Mandatory class is `none`
 
 #### Scenario: Changed review state machine
