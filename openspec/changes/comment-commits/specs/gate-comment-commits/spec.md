@@ -65,21 +65,21 @@ The final F2 verdict is the F2 wave that printed `DECISION: PASS`, or the STOP t
 
 ### Requirement: Behaviour-changing comments after the final verdict are code
 
-After the final F2 verdict (PASS or an authorized freeze), the instruction SHALL treat a behaviour-changing comment as code: it is committed on the branch and the gate continues as for any code commit after `reviewed_sha`. It SHALL never be deferred to the default branch after the merge.
+After a PASS wave, the instruction SHALL treat a behaviour-changing comment as code: it is committed on the branch and the gate continues with a new wave as for any code commit after `reviewed_sha`. After an authorized freeze, where the lane takes no further wave, it SHALL become a follow-up change after the merge. It SHALL never land unreviewed.
 
 #### Scenario: Directive after PASS
 
-- **WHEN** after the final verdict a needed change adds a type-checker suppression comment
+- **WHEN** after a PASS wave a needed change adds a type-checker suppression comment
 - **THEN** the instruction treats it as a code commit on the branch, and the merge waits for the gate on that commit
 
 #### Scenario: Directive after an authorized freeze
 
 - **WHEN** after an F2 STOP resolved with freeze a needed change adds a linter suppression comment
-- **THEN** the instruction treats it as a code commit on the branch, and the merge waits for the gate on that commit
+- **THEN** the instruction makes it a follow-up change after the merge, gated on its own, and nothing is committed to the frozen branch
 
 #### Scenario: Negative control
 
-- **WHEN** the instruction lets a behaviour-changing comment be committed on the default branch after the merge without review
+- **WHEN** the instruction lets a behaviour-changing comment be committed on the default branch after the merge without review, or onto a frozen branch
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: No human-readable gate summary
