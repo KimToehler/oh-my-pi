@@ -354,7 +354,7 @@ Used as the final gate before a merge, a PR handoff, or a plan's completion, thi
 
 Re-classify `mandatory_class` against the **final diff**, not against the plan. The plan's class was set before the work existed and goes stale the moment a wave adds something. Re-classify when any of these appear anywhere in the final diff, whether or not the plan predicted them: a new external network recipient, a new field in a persisted or transmitted structure, a new data class reaching an existing recipient, a new authentication or authorisation path, a schema or migration step, a changed wire contract, or new shared mutable state. A reviewer reporting a security delta while the record says `none` blocks, and correctly so - the reviewer saw the final diff and the plan did not. Under Risk tier `internal-tooling` that block means re-tier, as in Phase 0.5.
 
-**Downgrades.** A reviewer blocker the gate leaves unfixed ends only in `override` plus exactly one `downgrades` entry per blocker id of every FAIL trailer, never silently. `rule` says why it may stay: `below-threshold` when you judge that the finding misses both (a) and (b) of the blocking threshold, with `reason` naming the missing trigger or asset, and the user agreed; `accepted-residual` when the plan's `Accepted residual risks` covers it; `out-of-scope` when `Out of scope for blocking` covers it; `frozen` when the user chose freeze at a convergence STOP. `disposition` is `residual` or `follow-up`; a follow-up names where it is tracked in `reason`.
+**Downgrades.** A reviewer blocker the gate leaves unfixed ends only in `override` plus exactly one `downgrades` entry per blocker id of every FAIL trailer, never silently. `rule` says why it may stay: `below-threshold` when you judge that the finding misses both (a) and (b) of the blocking threshold, with `reason` naming the missing trigger or asset, and the user agreed; `accepted-residual` when the plan's `Accepted residual risks` covers it; `out-of-scope` when `Out of scope for blocking` covers it; `frozen` when the user chose freeze at a convergence STOP. `disposition` is `residual` or `follow-up`; a follow-up names where it is tracked in `reason`. Apply [Blocker disposition](#blocker-disposition) before you offer an override: `below-threshold` only for an eligible blocker, `accepted-residual` and `out-of-scope` only for a covered one. The ordinary override, outside a convergence STOP, never accepts a non-eligible, uncovered blocker, even on the user's request, because no `rule` would describe it truthfully: offer fix, another wave or re-plan.
 
 **Write and validate the gate record here, as the last step before merging.** Phase 5 defines the record. Write the record and the reviewer trailers, **stage them** with the QA artifacts the record cites, then run the validator: it requires the artifacts to be in the index, because a file nobody added vanishes from every other checkout and takes the evidence with it.
 
@@ -401,6 +401,34 @@ Mandatory class: <none or class>
 [If blocked: exact fixes in priority order. If passed: short non-blocking notes.]
 ```
 
+## Blocker disposition
+
+The one definition of which reviewer blockers may stay unfixed, for every lane: plan review (the `omp-gated` schema's `review` instruction), F2 (Phase 4 and Fix waves), delta reviews and F3 (`integration-review` Step 4). Those lanes reference this section and add only their own decision points; none restates it. A lane that cannot read this section treats every blocker as not eligible and tells the user once per review that Accept is off.
+
+**Eligible.** A blocker is Accept-eligible only when it misses both limbs of the blocking threshold in the Phase 2 briefs - its result (a) breaks no goal, value proof, `## Merge gate` criterion or existing consumer, and (b) reaches no protected asset - and no exclusion below applies. Read eligibility from the blocker's own stated consequence against that threshold. A severity label, the lens, the wording or any other predicate never makes a blocker eligible, and an exclusion always makes it ineligible. A missing proof of any material behaviour or failure mode breaks the value proof, even when the criterion is partly proven; only a gap in the form of evidence (binding, wording, bookkeeping outside the audit trail) for a behaviour that stays proven by a check that can fail is weaker proof. After implementation, a test that cannot fail for the implemented behaviour is judged by the threshold as before.
+
+**Excluded.** Never eligible, whatever the blocker's immediate observer:
+
+- it names a security or privacy path, a protected asset, a merge-gate criterion or an existing consumer;
+- it concerns the audit trail: the gate record, its trailers, or a QA artifact the validator binds;
+- its area names review_scope item 4 or CHECK 1;
+- it comes from a `security_delta: yes` trailer;
+- the change's mandatory class is not `none`;
+- it disputes the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision;
+- it says the change alters a review, gate or release mechanism so that it would admit unreviewed or failing work.
+
+An excluded blocker is never accepted, frozen or overridden at any path, even on the user's request: offer fix, re-plan or stop, because an accepted entry would make later reviewers treat the defect as settled.
+
+**Unclear means blocking.** A blocker with no stated consequence, an ambiguous one, or one that mixes a process gap with a code or design path is not eligible. A round is complete only when every dispatched reviewer returned a structured verdict; an incomplete round keeps the lane's existing stop, never counts as free of blocking findings and never triggers an ask.
+
+**Covered.** A blocker is covered only when an `Accepted residual risks` or `Out of scope for blocking` entry of the plan's reviewed merge-gate section (`gate.md` for an OpenSpec folder) names the same defect class and consequence; a broad area list covers no specific blocker. Coverage is the existing `accepted-residual`/`out-of-scope` path: the entry was reviewed with the plan, so a covered blocker may stay unfixed even when it breaks the threshold. Coverage never applies to an excluded blocker.
+
+**Accept paths.** Wherever a blocker can stay unfixed - plan-review Accept and Override, the Phase 4 override, an F2 or F3 freeze, a delta accept - recommend and offer accept, freeze or override only for blockers that are eligible or covered; a decision that leaves several blockers at once needs every one of them so. Otherwise offer fix, re-plan or stop (under Risk tier `internal-tooling` at wave 3 or later, re-plan or a re-tier, as today) and name each such blocker with its stated consequence.
+
+**The user's explicit request.** For a non-eligible blocker that no exclusion names, the user may still ask to accept it at plan-review Accept or Override, a freeze or a delta accept. Record it in that path's existing record (the `gate.md` entry or Override, a `frozen` `downgrades` entry, the F3 report's follow-up list, `GC accept --reason`) with the user's reason in their words and the blocker's stated consequence. The ordinary Phase 4 override never accepts one (Phase 4, Downgrades).
+
+**No unrequested mechanism.** Never answer an eligible blocker by adding a mechanism, script, procedure or check the proposal did not ask for: it goes to the user as Accept, or becomes its own plan, because the next round would review the new surface. A non-eligible blocker is fixed with whatever the correct fix needs, including a new check; a fix that adds a subsystem is still its own plan (Fix waves step 4).
+
 ## Fix waves: delta review and convergence (F2)
 
 Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts/gate-convergence.mjs --repo <repo root> --plan <plan path>`, with the plan path from Phase 0.6. A wave is Phase 1 plus, when it passes, Phases 2-3, all on the snapshot taken in step 1. `.omp/team-config/gate-deltas/` holds review artifacts; never commit it.
@@ -422,7 +450,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
    - `DECISION: PASS` → Phase 4.
    - `CONTINUE` → step 4.
    - `STOP` (exit 3) → no fix. `ask` the user, showing the ledger numbers. The options:
-     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, with one `downgrades` entry per remaining reviewer blocker (rule `frozen`);
+     - freeze, only when QA passed and every invocation returned PASS or FAIL with a stored trailer: write the Phase 4 record with the validator's `override`, with one `downgrades` entry per remaining reviewer blocker (rule `frozen`). Recommend and offer freeze only when every remaining blocker is eligible or covered under [Blocker disposition](#blocker-disposition); otherwise name each other blocker with its stated consequence and offer re-plan or continue. A freeze the user asks for anyway, for blockers no exclusion names, carries the user's reason and each blocker's stated consequence in the `frozen` entries;
      - re-plan: a separate plan for the affected mechanism;
      - continue: one more fix wave.
 
@@ -433,7 +461,7 @@ Applies when this review is a plan's merge gate. `GC` = `node $SKILL_DIR/scripts
    a. `GC patch --base <base> --head <head> --out .omp/team-config/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path.
    b. Dispatch one `task` item: `agent: "plan-reviewer"`, `solutionSpace: "Review of a fix delta; defects unknown"`, `task:` the delta brief below.
    c. Write the reviewer's structured result verbatim (copy the delivered payload or `read agent://<id>`, never retype it) to `verdict.json` in that directory, then run `GC delta --lane F2 --dir <dir> --row <id> [--row <id>…]`.
-   d. REJECT: amend with new commits, then review the whole range `<base>..<new head>` in a fresh `task` (never `write agent://`). A range holding only the amendment leaves the rejected commits open. `delta` exit 3 (second REJECT on these commits): `ask` the user: amend again, accept (`GC accept --lane F2 --dir <dir> --by <user> --reason <text>`), or re-plan.
+   d. REJECT: amend with new commits, then review the whole range `<base>..<new head>` in a fresh `task` (never `write agent://`). A range holding only the amendment leaves the rejected commits open. `delta` exit 3 (second REJECT on these commits): `ask` the user: amend again, accept (`GC accept --lane F2 --dir <dir> --by <user> --reason <text>`), or re-plan. Recommend and offer accept only when every open blocker of the delta is eligible or covered under [Blocker disposition](#blocker-disposition); otherwise name each other blocker with its stated consequence. An accept the user asks for anyway, for blockers no exclusion names, puts the user's reason and each blocker's stated consequence in `--reason`. Add no early-ask step to these waves.
    e. No structured verdict (failure, timeout): one fresh retry; still none → stop and tell the user. Record nothing; `ready` stays `NOT READY`.
 6. Back to step 1.
 
