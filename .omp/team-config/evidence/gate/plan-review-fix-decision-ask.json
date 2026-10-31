@@ -1,0 +1,45 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/plan-review-fix-decision-ask",
+  "plan_sha256": "c2f4417089547c430257979df7b97b379099899144e9cfba62e1614e5b4e706a",
+  "reviewed_sha": "70f6a9bd4538a17b35cf6ce96cda2bd43008e3e1",
+  "diff_base": "fa6bf72aef2775cd0c2dee71f6a8e52b2f694355",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Risk tier internal-tooling, class none: spec-text-only alignment of two lines, one implementation-audit as the tier requires.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 archive applies exactly the two intended spec lines; all specs valid",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-fix-decision-ask/f1/archive.txt",
+      "artifact_sha256": "8b8e684fe7ece8c8c2bf50c2e485774b7ac95518eb2dd344aa5e14848f73cf83"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "one spec delta, no code"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-fix-decision-ask/implementation-audit-trailer.txt",
+      "trailer_sha256": "545beb7a0e68fc109ce5b5a17e3e1fef1351978b83e20313466c20c5343b337c",
+      "note": "no blockers; accepted round-2 Verify residual noted"
+    }
+  ],
+  "blockers": []
+}
