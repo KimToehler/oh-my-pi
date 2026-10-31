@@ -45,6 +45,10 @@ F2, delta review and F3 reference the section, so the changed decision can occur
 
 The change alters the guard on an existing review-flow transition: which blockers reach the Accept ask instead of the fix loop. The `change-verification` spec classifies a changed transition of an existing review flow as `concurrency-state`, and `review-proportionality` used the same class. Under the rule in force while this change is reviewed, no blocker of this change is Accept-eligible.
 
+### D6. Unchanged scenarios are proven by diff confinement and their earlier evidence
+
+OpenSpec requires a MODIFIED requirement to carry its whole block, so the deltas restate scenarios whose instruction text this change does not touch: the security-source and classification-dispute exclusions, and the approach question's diagnosis, no-counting and no-pre-written-fixes rules. Re-running sessions for them would re-verify behaviour that passed its own gate (`review-stop-rule`, `review-proportionality`) and that this change cannot alter. The proof is therefore (a) deterministic confinement: task 1.1 shows that only the class bullet of the skill changes, and task 1.2 shows that the schema equals its base with only the one parenthetical replaced; and (b) the existing F1 evidence, which task 2.1 lists and its Verify checks for presence. Change verification asks to exercise each changed mechanism, its riskiest branch and adjacent behaviour; F1 does that for the narrowed exclusion and the assignment wording. Alternative: new sessions for every carried scenario. Rejected, because they cannot fail for a reason this change introduces when the confinement check passes.
+
 ## Risks / Trade-offs
 
 - [The orchestrator labels a delivered-change blocker as verification to make it acceptable] → The threshold still applies, unclear or mixed subjects block, the approach question shows the assignment for the user to dispute, and security, credential and audit-trail exclusions precede. F1 exercises a delivered-change control and a mixed control.
