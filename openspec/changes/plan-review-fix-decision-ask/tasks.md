@@ -6,7 +6,7 @@
 
 ## 2. Final verification
 
-- [ ] 2.1 F1. Manual QA on the real surface: in a scratch copy of this worktree, `openspec archive plan-review-fix-decision-ask --yes` applies the delta; `f1/archive.txt` retains the archive output, `git diff --stat` and `git diff` of `openspec/specs/openspec-plan-review/spec.md` (exactly two changed lines: the scenario's THEN and the negative control's WHEN), and `openspec validate --specs --strict --no-interactive` passing. Evidence path `.omp/team-config/evidence/gate/plan-review-fix-decision-ask/f1/archive.txt`, on the head after the last commit; the QA lane judges the observation. Verify: `F=.omp/team-config/evidence/gate/plan-review-fix-decision-ask/f1/archive.txt; test -s $F && grep -q '1 file changed, 2 insertions(+), 2 deletions(-)' $F`
+- [x] 2.1 F1. Manual QA on the real surface: in a scratch copy of this worktree, `openspec archive plan-review-fix-decision-ask --yes` applies the delta; `f1/archive.txt` retains the archive output, `git diff --stat` and `git diff` of `openspec/specs/openspec-plan-review/spec.md` (exactly two changed lines: the scenario's THEN and the negative control's WHEN), and `openspec validate --specs --strict --no-interactive` passing. Evidence path `.omp/team-config/evidence/gate/plan-review-fix-decision-ask/f1/archive.txt`, on the head after the last commit; the QA lane judges the observation. Verify: `F=.omp/team-config/evidence/gate/plan-review-fix-decision-ask/f1/archive.txt; test -s $F && grep -q '1 file changed, 2 insertions(+), 2 deletions(-)' $F`
 
 ## Workflow follow-up
 
