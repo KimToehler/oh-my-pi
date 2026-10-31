@@ -1,6 +1,6 @@
 # Proportional verification and an approach decision in plan review
 
-Status: planning draft, revised three times. Round 1 (`plan-reviewer` REJECT, three blockers; `oracle` assessment) was addressed in full except the oracle's in-gate effectiveness pilot, which became a post-merge observation. Plan-mode review round 1/2 rejected with three blockers; the user decided on 2026-10-30: class `concurrency-state`, and minimal fixes for the F1 credential scan and fixture byte binding. Round 2/2 rejected with two blockers, both confirmed and fixed: the credential inventory now covers every source an ordinary session can resolve (`.env` files, SSO cache) with per-source sentinels, and F1-D runs Continue, Re-plan and Stop each in its own copy through to the fresh dispatch or its absence. Nothing implemented or deployed. The user chose a lean session plan after stopping `plan-adopt-and-cap` at round 11. Worktree prepared: `.worktrees/review-proportionality`, branch `feat/review-proportionality`, base `b25d0cd677`. After approval, the execution copy goes to `.omp/plans/review-proportionality.md` in that worktree.
+Status: approved and implemented on branch `feat/review-proportionality` (base `b25d0cd677`); F3 passed (wave 2), F1 passed, F2 in progress; not deployed. Planning history: round 1 (`plan-reviewer` REJECT, three blockers; `oracle` assessment) was addressed in full except the oracle's in-gate effectiveness pilot, which became a post-merge observation. Plan-mode review round 1/2 rejected with three blockers; the user decided on 2026-10-30: class `concurrency-state`, and minimal fixes for the F1 credential scan and fixture byte binding. Round 2/2 rejected with two blockers, both confirmed and fixed: the credential inventory now covers every source an ordinary session can resolve (`.env` files, SSO cache) with per-source sentinels, and F1-D runs Continue, Re-plan and Stop each in its own copy through to the fresh dispatch or its absence. On 2026-10-31, after F1-D copy 1, the user amended the Continue rule (section 3) to allow asks for fixes that need a user decision.
 
 ## Goal and scope
 
@@ -72,15 +72,15 @@ Split ends the fix loop: revise the plan to the retained scope, name the removed
 
 ## Implementation tasks
 
-All paths in the worktree; absolute paths when a tool runs elsewhere. Unstarted; planning authorizes no edits.
+All paths in the worktree; absolute paths when a tool runs elsewhere. Implemented in `60fb7ef482`, `902ac55f5e` and `a50e798a9f`.
 
-1. [ ] Point 1: `Change verification` section, Phase 1 line, tasks instruction and template, verification lens clause. Verify: diff review of the text; F1-A, F1-B.
-2. [ ] Point 2: class paragraph and its references in Phase 0.5, `plan-merge-gate.md`, schema gate instruction, both config files. Verify: F1-A, F1-C.
-3. [ ] Point 3: approach question in schema steps 4-6. Verify: F1-D.
-4. [ ] Point 4: Split. Verify: F1-E.
-5. [ ] Point 5: CHECK 1 trigger in `packages/coding-agent/src/prompts/agents/plan-reviewer.md`, `plan-review-process.md` paragraph, checks lens clause, eval-domain trigger. Verify: `bun test packages/coding-agent/test/bundled-agent-parsing.test.ts`; F1-B, F1-C.
-6. [ ] Specs: in `openspec/specs/openspec-plan-review/spec.md` reconcile the early-ask and third-REJECT scenarios with the approach question, and add approach-decision and lens-scope requirements; add `openspec/specs/change-verification/spec.md` for the shared boundary and class rule. One Negative control per requirement; early eligible asks, incomplete stops and post-implementation vocabulary preserved. Verify: strict spec validation below.
-7. [ ] Docs: `team-config/README.md` review section (approach question, verification method, consumer config hand-merge); `packages/coding-agent/CHANGELOG.md` Unreleased/Changed: plan-reviewer no longer asks for a credential inventory when a plan only runs ordinary sessions. Commit the coherent unit before final verification.
+1. [x] Point 1: `Change verification` section, Phase 1 line, tasks instruction and template, verification lens clause. Verify: diff review of the text; F1-A, F1-B.
+2. [x] Point 2: class paragraph and its references in Phase 0.5, `plan-merge-gate.md`, schema gate instruction, both config files. Verify: F1-A, F1-C.
+3. [x] Point 3: approach question in schema steps 4-6. Verify: F1-D.
+4. [x] Point 4: Split. Verify: F1-E.
+5. [x] Point 5: CHECK 1 trigger in `packages/coding-agent/src/prompts/agents/plan-reviewer.md`, `plan-review-process.md` paragraph, checks lens clause, eval-domain trigger. Verify: `bun test packages/coding-agent/test/bundled-agent-parsing.test.ts`; F1-B, F1-C.
+6. [x] Specs: in `openspec/specs/openspec-plan-review/spec.md` reconcile the early-ask and third-REJECT scenarios with the approach question, and add approach-decision and lens-scope requirements; add `openspec/specs/change-verification/spec.md` for the shared boundary and class rule. One Negative control per requirement; early eligible asks, incomplete stops and post-implementation vocabulary preserved. Verify: strict spec validation below.
+7. [x] Docs: `team-config/README.md` review section (approach question, verification method, consumer config hand-merge); `packages/coding-agent/CHANGELOG.md` Unreleased/Changed: plan-reviewer no longer asks for a credential inventory when a plan only runs ordinary sessions. Commit the coherent unit before final verification.
 
 ## Real-surface verification
 
@@ -125,9 +125,9 @@ Seven implementation entries above. Append actual F1/F2/F3 fixes here with defec
 
 ## Final verification wave
 
-- [ ] F3. Whole-diff review: `integration-review` over `b25d0cd677...HEAD`, report `.omp/team-config/evidence/gate/review-proportionality/f3-integration-review-report.md`; integrate the default branch first as Fix waves step 1 requires.
-- [ ] F1. Manual QA on the real surface: F1-A through F1-E, one evidence path each under `.omp/team-config/evidence/gate/review-proportionality/f1/`, on the head after F3's last code commit.
-- [ ] F2. Merge gate: `review-work`, SHA-bound `team-config.merge-gate/v3` record validated.
+- [x] F3. Whole-diff review: `integration-review` over `b25d0cd677...HEAD`, report `.omp/team-config/evidence/gate/review-proportionality/f3-integration-review-report.md`; integrate the default branch first as Fix waves step 1 requires.
+- [x] F1. Manual QA on the real surface: F1-A through F1-E, one evidence path each under `.omp/team-config/evidence/gate/review-proportionality/f1/`, on the head after F3's last code commit.
+- [x] F2. Merge gate: `review-work`, SHA-bound `team-config.merge-gate/v3` record validated.
 
 ## Merge gate
 
