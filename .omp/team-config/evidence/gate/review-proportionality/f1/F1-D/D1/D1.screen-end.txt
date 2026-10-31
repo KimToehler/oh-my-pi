@@ -1,0 +1,350 @@
+
+ ● Read openspec/changes/oidc-sign-in/tasks.md:72-98
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md ⟦+14/-14⟧ ────────────────────────────────────────────────────────────────────────────────╮
+│  72│                                                                                                                                                         │
+│ -73│- [ ] 5.1 Android:                                                                                                                                       │
+│   +│- [ ] 5.1 Add `app/AppController.kt` (the process-wide holder in D12) and the `SignInScreen`, and change `App()` to render                               │
+│    │`AppController.get(platform).screen`. `AppControllerTest` builds `AppController` with its constructor (fake store, mock API and Keycloak) and asserts:   │
+│ +74│··- an empty store → `Screen.SignIn` and 0 API requests;                                                                                                 │
+│ +75│··- stored valid tokens → `Screen.Orders` and exactly one `GET /orders` with the bearer token;                                                           │
+│ +76│··- a rejected refresh during the order load → `Screen.SignIn`, store empty, and the order request not sent.                                             │
+│ +77│                                                                                                                                                         │
+│ +78│··`AppScreenTest` (`compose.uiTest`, `runComposeUiTest`) asserts that the sign-in button is shown and the order list node is absent for `Screen.SignIn`. │
+│ +79│                                                                                                                                                         │
+│ +80│··Verify: `T` with `app.AppControllerTest`, `app.ui.AppScreenTest`                                                                                       │
+│ +81│- [ ] 5.2 Android:                                                                                                                                       │
+│  74│  - `BrowserLauncher` actual using an `androidx.browser` Custom Tab;                                                                                     │
+│ -75│··- `OidcRedirectActivity` in `:androidApp` with the D11 intent filter;                                                                                  │
+│ +83│··- `OidcRedirectActivity` in `:androidApp` with the D11 intent filter, forwarding to `AppController.get(applicationContext).auth.completeSignIn`;       │
+│  76│  - `BuildConfig` fields for issuer, client id and redirect URI.                                                                                         │
+│  79│  - starting an implicit `ACTION_VIEW` intent for `APP_ID:/oauth2redirect?code=forged&state=forged&iss=<issuer>` resolves to `OidcRedirectActivity` and  │
+│    │finishes it;                                                                                                                                             │
+│ -80│··- the session stays `SignedOut` with failure `NoPendingAttempt`;                                                                                       │
+│ -81│··- after `startSignIn()`, the same intent gives `StateMismatch` and 0 token requests (the test `AppController` uses the 2.2 mock Keycloak).             │
+│ +88│··- the session stays `SignedOut` with last failure `NoPendingAttempt`;                                                                                  │
+│ +89│··- after `startSignIn()`, the same intent gives last failure `StateMismatch` and the session stays `SignedOut`. Both failures come before any network   │
+│    │request (D4, proven in 2.3).                                                                                                                             │
+│  82│                                                                                                                                                         │
+│ -84│- [ ] 5.2 iOS: `BrowserLauncher` actual using `ASWebAuthenticationSession` (D11) and the `Info.plist` keys (D3); no `CFBundleURLTypes` entry for         │
+│    │`APP_ID`. `RedirectEntryTests` (`iosAppTests`) asserts:                                                                                                  │
+│ +92│- [ ] 5.3 iOS: `BrowserLauncher` actual using `ASWebAuthenticationSession` (D11), forwarding to `AppController.get(platform).auth`, plus the `Info.plist`│
+│    │keys (D3); no `CFBundleURLTypes` entry for `APP_ID`. `RedirectEntryTests` (`iosAppTests`) asserts:                                                       │
+│  85│  - the bundle's `CFBundleURLTypes` lists no `APP_ID` scheme;                                                                                            │
+│ -86│··- the launcher's completion handler with a forged redirect leaves the session unchanged, with 0 token requests;                                        │
+│ +94│··- the launcher's completion handler with a forged redirect leaves the session state unchanged, with last failure `StateMismatch`;                      │
+│  87│  - a `canceledLogin` completion clears the pending attempt, so a following redirect with that attempt's state gives `NoPendingAttempt`.                 │
+│  89│  Verify: `xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 16'                          │
+│    │-only-testing:iosAppTests/RedirectEntryTests`                                                                                                            │
+│ -90│- [ ] 5.3 Add `app/AppController.kt` and the `SignInScreen`, and change `App()` to render `AppController.screen` (D12). `AppControllerTest` (fake store, │
+│    │mock API and Keycloak) asserts:                                                                                                                          │
+│ -91│··- an empty store → `Screen.SignIn` and 0 API requests;                                                                                                 │
+│ -92│··- stored valid tokens → `Screen.Orders` and exactly one `GET /orders` with the bearer token;                                                           │
+│ -93│··- a rejected refresh during the order load → `Screen.SignIn`, store empty, and the order request not sent.                                             │
+│  94│                                                                                                                                                         │
+│… (13 more lines) ⟦⌃O: Expand⟧                                                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/D1/openspec/changes/oidc-sign-in/design.md ⟦+1/-1⟧ ─────────────────────────────────────────────────────────────────────────────────╮
+│ 131│### D12. Order access gate                                                                                                                               │
+│ 132│                                                                                                                                                         │
+│-133│`app.AppController` (commonMain) is created once in `App()`. It owns `AuthSession` , `OidcClient`, the platform `TokenStore`, the API client from D7 and │
+│    │`OrderRepository`, and exposes `screen: StateFlow<Screen>`:                                                                                              │
+│   +│`app.AppController` (commonMain) is one instance per process. `AppController.get(platform)` creates it on first call and returns the same instance       │
+│    │afterwards. It is called by `App()`, by Android `OidcRedirectActivity` (with `applicationContext`) and by the iOS launcher, so the redirect reaches the  │
+│    │session that started the attempt. Tests build their own instance through the constructor. It owns `AuthSession` (with `restore()` started on creation),  │
+│    │`OidcClient`, the platform `TokenStore`, the API client from D7 and `OrderRepository`, and exposes `screen: StateFlow<Screen>`:                          │
+│ 134│- `Restoring` → `Screen.Loading`                                                                                                                         │
+│ 135│- `SignedOut` → `Screen.SignIn(failure)`                                                                                                                 │
+│…                                                                                                                                                             │
+│ 137│                                                                                                                                                         │
+│…                                                                                                                                                             │
+│ 139│                                                                                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I need to fix the task numbering references in D11's table since RedirectEntryTest shifted to 5.2 and RedirectEntryTests to 5.3 — updating "(task 5.1)" and
+ "(task 5.2)" accordingly while leaving the AuthSessionTest reference at 2.3 unchanged.
+
+ D11 still cites the old task numbers for the redirect tests. Updating them:
+
+🔍 Grep: task 5\. 2 matches · 1 file · in openspec/changes/oidc-sign-in
+└─ # openspec/changes/oidc-sign-in/
+   ## design.md#1C27
+   *123│| Android redirect | `OidcRedirectActivity` in `:androidApp`, exported, `VIEW`/`DEFAULT`/`BROWSABLE` filter on scheme `APP_ID` (Android ignores `path` w
+   *124│| iOS redirect | `ASWebAuthenticationSession` with `callbackURLScheme = APP_ID` in `iosMain`; the completion handler calls `completeSignIn` or `cancelSi
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/D1/openspec/changes/oidc-sign-in/design.md ⟦+2/-2⟧ ─────────────────────────────────────────────────────────────────────────────────╮
+│ 121│| Entry path | Platform code | Shared checks | Platform-specific control |                                                                               │
+│ 122│|---|---|---|---|                                                                                                                                        │
+│-123│| Android redirect | `OidcRedirectActivity` in `:androidApp`, exported, `VIEW`/`DEFAULT`/`BROWSABLE` filter on scheme `APP_ID` (Android ignores `path`   │
+│    │without a host, so the path is checked in D4 step 3); forwards `intent.data` to `completeSignIn` and finishes | D4, D5 | `RedirectEntryTest` (task 5.1); │
+│    │F1 `android-forged-redirect` |                                                                                                                           │
+│-124│| iOS redirect | `ASWebAuthenticationSession` with `callbackURLScheme = APP_ID` in `iosMain`; the completion handler calls `completeSignIn` or           │
+│    │`cancelSignIn`. The scheme is not registered in `CFBundleURLTypes`, so `openURL` cannot deliver a redirect | D4, D5 | `RedirectEntryTests` (task 5.2); F1│
+│    │`ios-forged-redirect` |                                                                                                                                  │
+│+123│| Android redirect | `OidcRedirectActivity` in `:androidApp`, exported, `VIEW`/`DEFAULT`/`BROWSABLE` filter on scheme `APP_ID` (Android ignores `path`   │
+│    │without a host, so the path is checked in D4 step 3); forwards `intent.data` to `completeSignIn` and finishes | D4, D5 | `RedirectEntryTest` (task 5.2); │
+│    │F1 `android-forged-redirect` |                                                                                                                           │
+│+124│| iOS redirect | `ASWebAuthenticationSession` with `callbackURLScheme = APP_ID` in `iosMain`; the completion handler calls `completeSignIn` or           │
+│    │`cancelSignIn`. The scheme is not registered in `CFBundleURLTypes`, so `openURL` cannot deliver a redirect | D4, D5 | `RedirectEntryTests` (task 5.3); F1│
+│    │`ios-forged-redirect` |                                                                                                                                  │
+│ 125│| Refresh | shared `AuthSession` | D8, D9 | `AuthSessionTest` on both targets (task 2.3); F1 refresh and rejected-refresh per platform |                 │
+│ 126│| Rejected-refresh sign-out | shared `AuthSession` + platform `TokenStore.clear()` | D9 | store tests (tasks 4.1, 4.2); F1 rejected-refresh per platform │
+│    │|                                                                                                                                                        │
+│ 127│| Cold start with stored tokens | shared `restore()` + platform `TokenStore.load()` | D10 | store tests (tasks 4.1, 4.2); F1 relaunch steps per platform │
+│    │|                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs /private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (2 earlier lines, showing 10 of 12) ⟦⌃O: Expand⟧                                                                                                           │
+│ task 2.3: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 2.4: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 3.1: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 4.1: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 4.2: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 5.1: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 5.2: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 5.3: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 6.1: expected trailing Verify: `<deterministic command>`                                                                                                │
+│ task 7.2: expected trailing Verify: `<deterministic command>`                                                                                                │
+╰─── Wall: 0.04s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I realize the validator requires each checkbox line itself to end with "Verify: command" — multi-line tasks aren't allowed. I need to restructure so every
+ task is a single line containing the full verification command in backticks, even if the lines get long.
+
+ I'll rewrite tasks.md so each task is a single line ending with one backticked Verify: command, replacing the multi-line tasks and T shorthand with full
+ commands.
+
+╭─── 🐍 • Rewriting tasks.md single-line · (142ms) ────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ … 48 earlier lines ⟦⌃O: Expand⟧                                                                                                                              │
+│ - `L` is the staging client's access-token lifespan, read from the Keycloak admin console and written into each file.                                        │
+│ - Each file records the steps, the observation, the screenshots or recording paths, and the Keycloak user events with their timestamps.                      │
+│ - No password is written into evidence.                                                                                                                      │
+│                                                                                                                                                              │
+│ For `p` in `android` and `ios`:                                                                                                                              │
+│ - `p-first-sign-in.md`: fresh install shows the sign-in screen. Sign in → the order list shows the QA user's orders, and a `LOGIN` and a `CODE_TO_TOKEN`     │
+│ event exist. Force-quit and relaunch → the order list appears without the browser. Android only: `adb shell pm clear APP_ID`, then sign in again while       │
+│ Chrome still holds the Keycloak SSO session → the app receives the redirect and shows the order list.                                                        │
+│ - `p-forged-redirect.md`, on the sign-in screen, once with no attempt pending and once after tapping Sign in and backing out:                                │
+│   - Android: `adb shell am start -a android.intent.action.VIEW -d 'APP_ID:/oauth2redirect?code=forged&state=forged&iss=<issuer>'`.                           │
+│   - iOS: `xcrun simctl openurl booted 'APP_ID:/oauth2redirect?code=forged&state=forged'`.                                                                    │
+│                                                                                                                                                              │
+│   Expected: the app stays on the sign-in screen, and no `CODE_TO_TOKEN` event exists for that time. On iOS `openurl` reaches no handler.                     │
+│ - `p-refresh-before-expiry.md`: sign in at time `t0`; at `t0 + L + 10 s`, reload the order list → the orders load, a `REFRESH_TOKEN` event exists between    │
+│ `t0 + L - 60 s` and the reload, and no new `LOGIN` occurs.                                                                                                   │
+│ - `p-rejected-refresh.md`: sign in at `t0`; in the admin console, user → Sessions → Sign out; at `t0 + L + 10 s`, reload the order list → the sign-in screen │
+│ is shown and a `REFRESH_TOKEN_ERROR` event exists. Force-quit and relaunch → the sign-in screen is shown (stored tokens deleted).                            │
+│ - `p-log-scan.md`, after all scenarios on that platform:                                                                                                     │
+│   - Android: `adb logcat -d --uid=<uid>`, where `<uid>` is the `uid:` value printed by `adb shell cmd package list packages -U APP_ID`. This covers every    │
+│ process of the app since boot, including those before force-quits.                                                                                           │
+│   - iOS: `xcrun simctl spawn booted log show --last 2h --info --debug --predicate 'process == "iosApp"'`.                                                    │
+│                                                                                                                                                              │
+│   Count the lines containing `eyJ` (the prefix of Keycloak's JWT access and refresh tokens) and the lines containing `oauth2redirect?` (a logged redirect    │
+│ URI with its code). Expected: 0 for each.                                                                                                                    │
+│                                                                                                                                                              │
+│ `android-pkce-mismatch.md`: tap Sign in; in `chrome://inspect`, read the authorization request URL from the Custom Tab's Network panel; navigate the tab to  │
+│ the same URL with `code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM`; log in → the app shows the sign-in failure and a `CODE_TO_TOKEN_ERROR` event │
+│ exists. Force-quit and relaunch → the sign-in screen is shown.                                                                                               │
+│                                                                                                                                                              │
+│ ## Workflow follow-up                                                                                                                                        │
+│                                                                                                                                                              │
+│ - F2 merge gate (`review-work`), after 7.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the      │
+│ folder is final before the F2 snapshot.                                                                                                                      │
+│ - Merge only after the F2 record validates.                                                                                                                  │
+│ """                                                                                                                                                          │
+│ write("/private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md", tasks)                                                                                 │
+│ import subprocess                                                                                                                                            │
+│ r = subprocess.run(["node", "/Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs",                                                 │
+│ "/private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in"], capture_output=True, text=True)                                                                      │
+│ print(r.returncode, r.stdout, r.stderr)                                                                                                                      │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1  task 3.1: placeholder text is forbidden                                                                                                                   │
+│ task 5.2: placeholder text is forbidden                                                                                                                      │
+│ Status                                                                                                                                                       │
+│ └─ 📄 write 15317 chars · to /private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md                                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I need to replace those placeholder angle brackets with concrete values: the token line should describe carrying "Bearer " plus the current access token, and
+ the issuer line should reference the actual configured test issuer URL rather than a generic placeholder.
+
+ The validator rejects angle-bracket placeholders in task lines (<current token> in 3.1, <issuer> in 5.2). Replacing them with concrete wording:
+
+╭─── 🐍 • Removing placeholders · (57ms) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ p="/private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md"                                                                                             │
+│ s=read(p)                                                                                                                                                    │
+│ a="carries `Bearer <current token>`";                                                                                                                        │
+│ b="carries `Authorization: Bearer` with the current access token"                                                                                            │
+│ c="`APP_ID:/oauth2redirect?code=forged&state=forged&iss=<issuer>`";                                                                                          │
+│ d="`APP_ID:/oauth2redirect?code=forged&state=forged` with `iss` set to the configured issuer"                                                                │
+│ assert s.count(a)==1 and s.count(c)==1                                                                                                                       │
+│ s=s.replace(a,b).replace(c,d)                                                                                                                                │
+│ write(p,s)                                                                                                                                                   │
+│ import subprocess                                                                                                                                            │
+│ V=["node","/Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"]                                                                   │
+│ cd="/private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in"                                                                                                     │
+│ r=subprocess.run(V+[cd],capture_output=True,text=True);                                                                                                      │
+│ print(r.returncode,r.stdout,r.stderr)                                                                                                                        │
+│ r=subprocess.run(V+["--digest",cd],capture_output=True,text=True);                                                                                           │
+│ print(r.stdout)                                                                                                                                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 0 passed                                                                                                                                                     │
+│                                                                                                                                                              │
+│ 4f0ef79194646016612c03e23b1ed24c3cd3cae966498930ec67cfefb822d6b6                                                                                             │
+│ Status                                                                                                                                                       │
+│ ├─ 📄 read 15317 chars · from /private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md                                                                   │
+│ └─ 📄 write 15373 chars · to /private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/tasks.md                                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Moving on to round 4, dispatching the briefs fresh and verbatim again.
+
+ The change validates, and the digest for round 4 is 4f0ef791…. Dispatching three fresh lenses with the verbatim briefs:
+
+╭─── • Task 3 agents ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                              │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • ◑ onara/cx/gpt-6.1-terra CorrectnessR4 ⟦plan-reviewer⟧ · 20 🛠 · 5 req · 12.5%/272K · $0.04                                                                 │
+│   yield[result]: {"verdict":"REJECT","summary":"The planned session lifecycle and requ…                                                                      │
+│ • ◑ onara/cx/gpt-6.1-terra VerificationR4 ⟦plan-reviewer⟧ · 18 🛠 · 6 req · 18.1%/272K · $0.07                                                                │
+│   yield[result]: {"verdict":"REJECT","summary":"The plan’s product/auth gate classific…                                                                      │
+│ • ◑ onara/cc/claude-sonnet-5-5 ChecksR4 ⟦plan-reviewer⟧ · 24 🛠 · 9 req · 8.6%/1M · $0.38                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+• CorrectnessR4 done · 29.3s
+  2 still running
+
+• VerificationR4 done · 33.1s
+  1 still running
+
+• ChecksR4 done · 12m50s
+
+ Round four ends with another complete REJECT, so I need to write review.md first. Since this is round three or later with a complete REJECT, the rule means I
+ should ask the approach question again.
+
+ Round 4 is complete: all three lenses REJECT, with 5, 3 and 2 blockers. As before, review.md has to be written before any question or fix.
+
+╭─── 🐍 • Writing round 4 review.md · (81ms) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ import json, subprocess                                                                                                                                      │
+│ ids=[("Correctness","CorrectnessR4"),("Verification","VerificationR4"),("Checks","ChecksR4")]                                                                │
+│ secs=[];                                                                                                                                                     │
+│ counts=[]                                                                                                                                                    │
+│ for lens,i in ids:                                                                                                                                           │
+│     b=json.loads(read(f"agent://{i}/blockers"));                                                                                                             │
+│     counts.append(len(b))                                                                                                                                    │
+│     secs.append(f"### {lens} ({i})\n\n"+json.dumps(b,indent=2,ensure_ascii=False)+"\n")                                                                      │
+│ body=f"""# Review                                                                                                                                            │
+│                                                                                                                                                              │
+│ - **Verdict**: REJECT                                                                                                                                        │
+│ - **Reviewed digest**: 4f0ef79194646016612c03e23b1ed24c3cd3cae966498930ec67cfefb822d6b6                                                                      │
+│ - **Reviewer**: plan-reviewer, CorrectnessR4, VerificationR4, ChecksR4                                                                                       │
+│ - **Round**: 4                                                                                                                                               │
+│ - **Override**: none                                                                                                                                         │
+│                                                                                                                                                              │
+│ ## Blockers                                                                                                                                                  │
+│                                                                                                                                                              │
+│ """+"\n".join(secs)                                                                                                                                          │
+│ cd="/private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in"                                                                                                     │
+│ write(cd+"/review.md",body)                                                                                                                                  │
+│ V=["node","/Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"]                                                                   │
+│ print(counts)                                                                                                                                                │
+│ for a in (["--digest"],["--reviewed"]):                                                                                                                      │
+│     r=subprocess.run(V+a+[cd],capture_output=True,text=True);                                                                                                │
+│     print(r.returncode,r.stdout.strip(),r.stderr.strip())                                                                                                    │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [5, 3, 2]                                                                                                                                                    │
+│ 0 4f0ef79194646016612c03e23b1ed24c3cd3cae966498930ec67cfefb822d6b6                                                                                           │
+│ 1  review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                │
+│ Status                                                                                                                                                       │
+│ ├─ … 1 earlier                                                                                                                                               │
+│ ├─ 📄 read 2547 chars · from agent://VerificationR4/blockers                                                                                                 │
+│ ├─ 📄 read 4263 chars · from agent://ChecksR4/blockers                                                                                                       │
+│ └─ 📄 write 11837 chars · to /private/tmp/rp-f1/D1/openspec/changes/oidc-sign-in/review.md                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm on round four now, noticing the blockers have shifted from structural issues to finer design-internal inconsistencies — the self-implemented protocol
+ keeps expanding scope because every token-lifecycle edge case becomes our responsibility. The blocker count is staying around ten each round, but they're
+ converging toward narrower, more detailed correctness concerns rather than broad structural ones.
+
+ Classifying each blocker as either delivered (correctness) or verification: the five correctness issues are all delivered, while the three verification items
+ — including the evidence sink and leak test matrix — are properly verification-stage concerns. Since the mandatory auth-secrets-pii class is excluded from
+ Accept and I'm not splitting the work, I'm leaning toward continuing rather than re-planning, since the remaining blockers are concrete with known fixes and
+ the core design has already been reviewed as sound.
+
+ Round 4 is a complete REJECT at round 3 or later, so the instruction requires the approach question again before any fix.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  oidc-sign-in plan review, round 4: REJECT (review.md written, digest 4f0ef791…).                                                                            │
+│                                                                                                                                                              │
+│  Lenses: Correctness REJECT (5 blockers), Verification REJECT (3), Checks REJECT (2).                                                                        │
+│                                                                                                                                                              │
+│  Blockers (area → whether it concerns the delivered change or this change's verification):                                                                   │
+│  - C1 Refresh concurrency: waiters re-refresh when the new token is also short-lived or the refresh failed transiently, so one refresh result is not shared  │
+│    → delivered                                                                                                                                               │
+│  - C2 Rejected-refresh sign-out and restore: if TokenStore.clear() fails, a relaunch restores a revoked session and can send its still-valid access token →  │
+│    delivered                                                                                                                                                 │
+│  - C3 Cold-start order request: the spec forbids a network call before the order request, but an expired stored token needs a refresh first → delivered      │
+│    (spec contradiction)                                                                                                                                      │
+│  - C4 Token-storage requirement: its wording forbids state in the authorization URL and the bearer in the API header, both of which the plan requires →      │
+│    delivered (spec contradiction)                                                                                                                            │
+│  - C5 Refresh persistence: when the store write fails, rotated tokens live only in memory, contrary to the scenario → delivered                              │
+│  - V1 Leak-protection verification: TokenLeakTest scans no log sink; the F1 log scan cannot see a bare code or verifier → verification                       │
+│  - V2 Token-response acceptance: missing or empty access token untested; no session/UI test for incomplete responses → verification                          │
+│  - V3 Refresh-before-expiry F1: the reload runs after expiry, so it cannot show a refresh before expiry → verification                                       │
+│  - K1 CHECK 1, F1 evidence files are an unscanned sink: real staging tokens or codes could be committed with the evidence → verification (consequence: real  │
+│    credential exposure)                                                                                                                                      │
+│  - K2 CHECK 1, TokenLeakTest does not cover the full D6 sink matrix: request bodies and headers per origin, id_token and error bodies, stdout/log →          │
+│    verification                                                                                                                                              │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered token storage, refresh and bearer attachment. Effect: every blocker is excluded, so Accept and      │
+│  Override are off. Each one can only be fixed, re-planned or stopped.                                                                                        │
+│                                                                                                                                                              │
+│  Diagnosis: the blockers changed in kind. Round 3 found missing architecture: no request pipeline, no response validation, no storage design, no build.      │
+│  Round 4 finds no missing component; the Checks lens calls the core design sound. What it finds comes from two sources:                                      │
+│  (a) Precision gaps in the new text I wrote: two spec sentences that contradict the design (C3, C4), and the fallbacks I chose for store failure (C2, C5).   │
+│  (b) Proof depth for the leak and refresh claims (V1 to V3, K1, K2).                                                                                         │
+│  All ten have concrete fixes in the current design: share the in-flight result, fail closed on store failure, correct the two spec sentences, extend the     │
+│  sentinel matrix with log capture, an evidence-file scan, and a pre-expiry F1 step. None of the fixes needs a new decision from you.                         │
+│                                                                                                                                                              │
+│  Recommendation: Continue. The cause that drove round 3, a thin design, is gone. What remains is the precision of one existing design, and re-planning would │
+│  discard it and restart review on a new surface. A Re-plan to AppAuth would remove C1, C2 and C5 only by moving the logic into a library, which still needs  │
+│  the same proofs for V1 to V3, K1 and K2.                                                                                                                    │
+│                                                                                                                                                              │
+│  No Split option: the class-setting part, token handling, is the whole goal.                                                                                 │
+│  ○ Continue                                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ There's no fix and no new round to apply here, so this stays blocked — I'll just report that concisely.
+
+ The review stopped at round 4 with a REJECT, so apply stays blocked. I made no fixes after your Stop and dispatched no further round.
+
+ What happened since the terminal closed:
+ - Round 3 was already recorded as REJECT with 10 blockers. I asked the approach question again and you chose Continue.
+ - Your decision on C1 and V1: the repo has no Gradle build, no Android or iOS app and no order screen, only shared/http/Client.kt. You chose to have a
+   separate change, kmp-app-shell, supply them.
+ - Plan rewrite for round 3: I rewrote all four plan files.
+   - design.md: the prerequisite and what it must provide; the authorization-response checks (state, iss, redirect URI, error, code, attempt age); the token
+     holders and where tokens may be sent; the API-only bearer plugin with redirects off; single-flight refresh with defined failure handling; sign-out
+     ordering; Keystore and Keychain storage; Android and iOS entry paths; the order gate; and why this stays one change.
+   - spec.md: 7 requirements, each with exactly one "Negative control".
+   - tasks.md: one-line tasks with named, discriminating tests on both targets; a real-Keycloak integration test; F3; and 11 F1 scenarios per platform.
+   - gate.md: Whole-diff review set to needed.
+   The validator passed (digest 4f0ef791…).
+ - Round 4: three fresh lenses all returned REJECT, with 5, 3 and 2 blockers. The Checks lens called the core design sound. The blockers are spec
+   contradictions and lifecycle gaps I introduced (refresh results not shared between waiting requests; what happens when the token store fails to write or
+   clear), and proof depth (how leaks, incomplete responses and pre-expiry refresh are tested, and an unscanned F1 evidence directory). review.md holds them
+   verbatim.
+
+ Current state:
+ - review.md: Verdict REJECT, Round 4, digest 4f0ef791…, which matches the current artifacts. --reviewed fails.
+ - The plan files keep the round-4 revision, and none of the round-4 blockers is fixed.
+ - All blockers fall under the auth-secrets-pii class, so none can be accepted or overridden. The only ways forward are to fix them or re-plan.
+
+ To resume: start the review again; it will ask the approach question first, because the REJECT digest still matches. The kmp-app-shell change still needs its
+ own proposal and review, and it must be merged before this change can be applied.
+
+                                                                                                                               🔑 OIDC: Review OIDC sign-in plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/D1 > ⑂ main *6 > $3.99 (+2.09) ▶──────────────15%──────────┃───────────────────────────────────────────────────────────────1M─
+╰─

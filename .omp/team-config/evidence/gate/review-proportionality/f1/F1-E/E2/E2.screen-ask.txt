@@ -1,0 +1,50 @@
+│  ○ Fix: narrow to shared/                                                                                                                                    │
+│    ↳ This change delivers only the shared sign-in, token and HTTP API. The 'shows the order list' outcome and app wiring are named as a separate change to   │
+│      propose and review before implementation. This narrows the user-visible goal and needs your approval.                                                   │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round; apply stays blocked.                                                                                                           │
+├─── [build] · options:2 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Area: "Executable verification commands". Defect: "Both implementation Verify commands depend on a Gradle wrapper and shared build that are absent from the │
+│  supplied repository, and no task creates or identifies them." Consequence: "Following either task as written therefore cannot execute its claimed           │
+│  verification on this checkout." Exclusions checked: Mandatory class auth-secrets-pii, so not eligible: Fix or Stop only. How is the build entry point       │
+│  provided?                                                                                                                                                   │
+│  ○ Fix: task creates the KMP build                                                                                                                           │
+│    ↳ Task 0.1 adds the Gradle wrapper, settings.gradle.kts and a :shared Kotlin Multiplatform module (android + iosSimulatorArm64 targets, Ktor). Its Verify │
+│      runs ./gradlew :shared:allTests on an empty test set.                                                                                                   │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round; apply stays blocked.                                                                                                           │
+├─── [oidclib] · options:3 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Area: "Security: untrusted input on the redirect (CHECK 4, validation predicate)". Defect: the plan hand-rolls the OIDC client and never requires           │
+│  validating state, redirect_uri/issuer, the ID-token iss/aud/nonce/expiry, or using the system browser. Consequence: "A hostile app or link can deliver a    │
+│  crafted redirect into the app, and the plan has no predicate for rejecting it." Exclusions checked: names a security path, review_scope item 4, Mandatory   │
+│  class auth-secrets-pii, so not eligible: Fix or Stop only. Either way I add the validation requirements, each with a negative control. Which client?        │
+│  ○ Fix: use AppAuth                                                                                                                                          │
+│    ↳ AppAuth-Android and AppAuth-iOS behind an expect/actual seam do the authorization request (system browser), PKCE, state and nonce. Shared code keeps    │
+│      the token store, refresh and HTTP. Replaces D1 with an audited library.                                                                                 │
+│  ○ Fix: keep own client                                                                                                                                      │
+│    ↳ Keep D1 and add the requirements in shared/auth. design.md must record why a custom client was chosen over AppAuth: give the reason in 'Other' or I     │
+│      record 'no native dependency in shared/'.                                                                                                               │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round; apply stays blocked.                                                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking decision-dependent blocker fixes                                                                           🔑 OIDC: Review OIDC sign-in OpenSpec plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Correctness B1    Verification B3    Checks B3    Submit                                                                                                    │
+│ Area: "Correctness — sign-in and API integration". Defect: "The implementation tasks never connect sign-in to either mobile app, protect the order-list      │
+│ entry point, or attach tokens to API requests. Completing both implementation tasks can leave the required user-facing flow and authenticated requests       │
+│ unchanged." Exclusions checked: Mandatory class is auth-secrets-pii (not none), so the blocker is not eligible: Fix or Stop only. The repo has no Android or │
+│ iOS app and no order list. Where does the app integration come from?                                                                                         │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Fix: create apps in this change                                                                                                                          │
+│       Tasks add the Android and iOS app shells with a sign-in entry, redirect handling, the signed-out to order-list transition, and the HTTP token          │
+│       attachment. Largest scope; everything can be verified in this repo.                                                                                    │
+│   ○ Fix: narrow to shared/                                                                                                                                   │
+│       This change delivers only the shared sign-in, token and HTTP API. The 'shows the order list' outcome and app wiring are named as a separate change to  │
+│       propose and review before implementation. This narrows the user-visible goal and needs your approval.                                                  │
+│   ○ Stop                                                                                                                                                     │
+│       No fix and no new round; apply stays blocked.                                                                                                          │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⇥/←/→ question · ⎋ cancel · ⌥H hide                                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

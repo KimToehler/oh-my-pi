@@ -1,0 +1,11 @@
+Area: "Correctness — sign-in and API integration". Defect: "The implementation tasks never connect sign-in to either mobile app, protect the order-list entry point, or attach tokens to API requests. Completing both implementation tasks can leave the required user-facing flow and authenticated requests unchanged." Exclusions checked: Mandatory class is auth-secrets-pii (not none), so the blocker is not eligible: Fix or Stop only. The repo has no Android or iOS app and no order list. Where does the app integration come from?
+  - Fix: create apps in this change
+  - Fix: narrow to shared/
+  - Stop
+Area: "Executable verification commands". Defect: "Both implementation Verify commands depend on a Gradle wrapper and shared build that are absent from the supplied repository, and no task creates or identifies them." Consequence: "Following either task as written therefore cannot execute its claimed verification on this checkout." Exclusions checked: Mandatory class auth-secrets-pii, so not eligible: Fix or Stop only. How is the build entry point provided?
+  - Fix: task creates the KMP build
+  - Stop
+Area: "Security: untrusted input on the redirect (CHECK 4, validation predicate)". Defect: the plan hand-rolls the OIDC client and never requires validating `state`, redirect_uri/issuer, the ID-token iss/aud/nonce/expiry, or using the system browser. Consequence: "A hostile app or link can deliver a crafted redirect into the app, and the plan has no predicate for rejecting it." Exclusions checked: names a security path, review_scope item 4, Mandatory class auth-secrets-pii, so not eligible: Fix or Stop only. Either way I add the validation requirements, each with a negative control. Which client?
+  - Fix: use AppAuth
+  - Fix: keep own client
+  - Stop

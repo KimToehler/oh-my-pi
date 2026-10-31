@@ -1,0 +1,250 @@
+│ $ openspec instructions review --change oidc-sign-in --json | jq -r .instruction                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (143 earlier lines, showing 10 of 153) ⟦⌃O: Expand⟧                                                                                                        │
+│    anyway and no exclusion names it, record their reason and the blocker's stated                                                                            │
+│    consequence in gate.md; an excluded blocker gets no gate.md entry, only Fix, re-plan or                                                                   │
+│    Stop. Never answer an eligible blocker with a mechanism, procedure or check the                                                                           │
+│    proposal did not ask for (the section's no-unrequested-mechanism rule).                                                                                   │
+│    Override is the remaining path when the user accepts the blockers and the artifacts stay                                                                  │
+│    exactly as reviewed (any edit makes the review stale): it follows the same eligibility                                                                    │
+│    rule; write the user's own reason as Override and run `V --reviewed` again.                                                                               │
+│                                                                                                                                                              │
+│ Editing any artifact after the review (other than ticking tasks) makes it stale; re-run                                                                      │
+│ this review before apply.                                                                                                                                    │
+╰─── Wall: 0.11s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I see there's already a review.md file, so I need to check the resume rules—if it contains a REJECT at the trigger point with a digest matching the current V
+ --digest output, I should ask the approach question first before proceeding. Let me read the existing review file and run V to compare.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ ls -la openspec/changes/oidc-sign-in; cat openspec/changes/oidc-sign-in/review.md; node                                                                    │
+│ ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/oidc-sign-in                                                           │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (21 earlier lines, showing 10 of 31) ⟦⌃O: Expand⟧                                                                                                          │
+│                                                                                                                                                              │
+│ [                                                                                                                                                            │
+│   {                                                                                                                                                          │
+│     "area": "Correctness",                                                                                                                                   │
+│     "defect": "Token refresh can run twice for one expiry.",                                                                                                 │
+│     "evidence": "design.md:12",                                                                                                                              │
+│     "change": "Single-flight the refresh."                                                                                                                   │
+│   }                                                                                                                                                          │
+│ ]                                                                                                                                                            │
+│ passed                                                                                                                                                       │
+╰─── Wall: 0.05s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I see the previous review was a round 2 rejection, so I'm checking whether the digest matches to determine if we're resuming at that same state. Since
+ correctness rejected it, the trigger condition for skipping ahead isn't met, so I need to proceed to round 3 and address the blockers before continuing.
+
+ I should check whether the blocker was actually fixed by comparing digests, and I notice design.md is suspiciously tiny at just 151 bytes despite being cited
+ as evidence — I need to look at all the files to verify.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --digest openspec/changes/oidc-sign-in; cd openspec/changes/oidc-sign-in && for  │
+│ f in .openspec.yaml proposal.md design.md gate.md tasks.md $(find specs -type f); do echo "=== $f"; cat -n "$f"; done; cat                                   │
+│ /tmp/rp-f1/E1/openspec/config.yaml; ls -la /tmp/rp-f1/E1; git -C /tmp/rp-f1/E1 log --oneline -5                                                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (116 earlier lines, showing 10 of 126) ⟦⌃O: Expand⟧                                                                                                        │
+│       - Run `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs <change-dir>` before editing source and after every planning-artifact │
+│ change.                                                                                                                                                      │
+│ total 0                                                                                                                                                      │
+│ drwxr-xr-x  6 tim wheel  192 Oct 30 23:50 .                                                                                                                  │
+│ drwxr-xr-x 62 tim wheel 1984 Oct 30 23:55 ..                                                                                                                 │
+│ drwxr-xr-x 12 tim wheel  384 Oct 30 23:54 .git                                                                                                               │
+│ drwxr-xr-x  5 tim wheel  160 Oct 30 23:50 .omp                                                                                                               │
+│ drwxr-xr-x  5 tim wheel  160 Oct 30 23:50 openspec                                                                                                           │
+│ drwxr-xr-x  3 tim wheel   96 Oct 30 23:50 shared                                                                                                             │
+│ 2760477 fixture                                                                                                                                              │
+╰─── Wall: 0.07s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The digest no longer matches what was recorded, so the review must be stale — the artifacts likely changed since round 2 when it was rejected. Since the
+ rejection was at round 2 and the approach-question trigger needs round 3 or later (or an earlier okay correctness, which isn't the case here), there's no
+ pending approach question; this is round 3. I still need to check whether that round-2 blocker actually got addressed.
+
+ I'll proceed with round 3 and let the reviewer catch anything unresolved rather than steering it myself. I confirm the repository root and change directory
+ using the absolute path, then prepare the dispatch brief verbatim, filling the required solutionSpace param minimally and neutrally without biasing the
+ review, naming it per convention (F1CorrectnessR3) with plan-reviewer as the agent.
+
+ The recorded round 2 review is a REJECT, but its digest doesn't match the current artifacts, so it's stale and there's no pending approach question to
+ resolve. I'll dispatch round 3 now.
+
+
+ ⚠ Injecting rule: delegation  ↶
+
+ Before spawning subagents with the task tool - pick the agent by reasoning difficulty, serialize overlapping file-sets, isolate concurrent editing tasks,
+ never touch files a running subagent owns, keep reviews small and fresh
+
+
+ The gated review artifact just dispatches its fixed brief, consistent with my plan. Checking resume state: review.md shows a REJECT at round 2, but its digest
+ doesn't match the current digest, meaning the resume condition for matching digests isn't satisfied.
+
+ So I'll proceed with a new round 3, dispatching three plan-reviewers with the verbatim briefs since V passed with digest d9acd9. I'm anchoring on the
+ repository root at /private/tmp/rp-f1/E1, using the paths exactly as printed by openspec.
+
+ Review.md's round 2 rejection is for an outdated digest since the artifacts have since changed, and it doesn't meet the trigger for an approach question yet.
+ V passed, so I'll dispatch round 3 with the fixed briefs.
+
+╭─── • Task 3 agents ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                              │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • ◑ onara/cx/gpt-6.1-terra OidcCorrectnessR3 ⟦plan-reviewer⟧ · 22 🛠 · 5 req · 8.8%/272K · $0.03                                                              │
+│   yield[result]: {"verdict":"REJECT","summary":"The plan does not connect the proposed…                                                                      │
+│ • ◑ onara/cx/gpt-6.1-terra OidcChecksR3 ⟦plan-reviewer⟧ · 17 🛠 · 5 req · 10.3%/272K · $0.05                                                                  │
+│   yield[result]: {"verdict":"REJECT","summary":"The plan leaves security-critical OIDC…                                                                      │
+│ • ◑ onara/cx/gpt-6.1-terra OidcVerificationR3 ⟦plan-reviewer⟧ · 27 🛠 · 7 req · 12.3%/272K · $0.04                                                            │
+│   yield[result]: {"verdict":"REJECT","summary":"The plan classifies authentication ris…                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ While I wait, I should check the Blocker disposition section of the review-work skill in case the result comes back as a REJECT.
+
+🔍 Grep: ^#+  30 matches · 1 file · in /Users/tim/.omp/agent/skills/review-work/SKILL.md
+├─  *18│# Review Work - Gate Review Orchestrator
+│   *32│## Phase 0: Gather Review Context
+│   *54│# 1. Get changed files
+│   *57│# 2. Get diff
+│   *60│# 3. Detect run command
+└─ … 25 more matches
+
+ ● Read ~/.omp/agent/skills/review-work/SKILL.md:404-431
+
+ Since the mandatory class is auth-secrets-pii and not none, every blocker gets excluded, so an Accept isn't possible here. This being round 3 means a REJECT
+ will trigger the approach question, so I'll wait for the results.
+
+• OidcCorrectnessR3 done · 30.6s
+  2 still running
+
+• OidcChecksR3 done · 32.5s
+  1 still running
+
+• OidcVerificationR3 done · 49.5s
+
+ Round 3 is a reject from all reviewers, so now I need to write review.md with the per-lens blockers verbatim, following the same JSON array format as round 2,
+ pulling directly from the agent output. Then I'll rerun verification with the reviewed flag, which should fail again, triggering the round 3 approach question
+ — since the mandatory class involves auth-secrets-pii, all blockers get excluded and Accept stays off, so I need to split the work accordingly.
+
+ I'm considering whether the auth piece can be separated from the trivial httpClient-to-apiClient rename. The rename alone doesn't advance the sign-in goal, so
+ if I split auth out, the remaining rename-only change wouldn't satisfy the original purpose — meaning there's no genuinely useful independent remainder, so
+ Split shouldn't be offered here even though the rename itself is a small, standalone change.
+
+ Now I'm sorting each blocker by whether it relates to the delivered change itself or to verification concerns — correctness and most checks tie back to the
+ delivered change, while the boundary rule issue is more about the gate's ability to verify components.
+
+ Stepping back, the deeper problem is that this plan is written against a repo that only has a shared HTTP client — no Gradle build, no app targets, no order
+ list — and the design simply delegates all security-critical OIDC protocol work to the implementer. That choice balloons the plan into dozens of security
+ checks. My recommendation is to re-plan: adopt a vetted OIDC library instead of building one, specify where the real app/build lives, and add proper API
+ integration before touching this task again.
+
+ I'll keep to a single approach question rather than batching multiple asks, since the instructions call for one ask before any per-blocker ask. Now I'll draft
+ review.md, composing it with the verbatim blockers JSON.
+
+ Round 3 is complete, and all three lenses returned REJECT. Per step 4, I'm writing review.md before any ask or fix.
+
+╭─── 🐍 • Writing round 3 review.md · (148ms) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ import json                                                                                                                                                  │
+│ lenses=[("Correctness","OidcCorrectnessR3"),("Verification","OidcVerificationR3"),("Checks","OidcChecksR3")]                                                 │
+│ parts=[]                                                                                                                                                     │
+│ for name,i in lenses:                                                                                                                                        │
+│     p=json.loads(read(f"agent://{i}"))                                                                                                                       │
+│     assert p["verdict"]=="REJECT"                                                                                                                            │
+│     parts.append(f"### {name} ({i})\n\n"+json.dumps(p["blockers"],indent=2,ensure_ascii=False)+"\n")                                                         │
+│ doc=f"""# Review                                                                                                                                             │
+│                                                                                                                                                              │
+│ - **Verdict**: REJECT                                                                                                                                        │
+│ - **Reviewed digest**: d9acd9ba64169ab1bfb209b3c86b5103ca7a1f68840f35d5b3725b0856df5fe1                                                                      │
+│ - **Reviewer**: plan-reviewer, OidcCorrectnessR3, OidcVerificationR3, OidcChecksR3                                                                           │
+│ - **Round**: 3                                                                                                                                               │
+│ - **Override**: none                                                                                                                                         │
+│                                                                                                                                                              │
+│ ## Blockers                                                                                                                                                  │
+│                                                                                                                                                              │
+│ """+"\n".join(parts)                                                                                                                                         │
+│ write("/private/tmp/rp-f1/E1/openspec/changes/oidc-sign-in/review.md",doc)                                                                                   │
+│ print(len(doc))                                                                                                                                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 13140                                                                                                                                                        │
+│ Status                                                                                                                                                       │
+│ ├─ … 1 earlier                                                                                                                                               │
+│ ├─ 📄 read 4862 chars · from agent://OidcVerificationR3                                                                                                      │
+│ ├─ 📄 read 6828 chars · from agent://OidcChecksR3                                                                                                            │
+│ └─ 📄 write 13140 chars · to /private/tmp/rp-f1/E1/openspec/changes/oidc-sign-in/review.md                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/oidc-sign-in; echo "exit=$?"; node                   │
+│ ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --digest openspec/changes/oidc-sign-in                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                   │
+│ exit=1                                                                                                                                                       │
+│ d9acd9ba64169ab1bfb209b3c86b5103ca7a1f68840f35d5b3725b0856df5fe1                                                                                             │
+╰─── Wall: 0.10s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The digest stays the same since review.md is excluded. For this round, checking whether a Split applies: the class-setting portion is all OIDC-related work,
+ and the rest is just the no-caller rename, which doesn't contribute to the sign-in goal — so there's no meaningful remainder, meaning no Split is warranted.
+ Now I'll compose the ask.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Plan review round 3 (digest d9acd9…) is a complete REJECT with 13 blockers. review.md has been written, and apply stays blocked.                            │
+│                                                                                                                                                              │
+│  Lens verdicts:                                                                                                                                              │
+│  • Correctness: REJECT, 3 blockers                                                                                                                           │
+│  • Verification: REJECT, 4 blockers                                                                                                                          │
+│  • Checks: REJECT, 6 blockers                                                                                                                                │
+│                                                                                                                                                              │
+│  Blockers (area: whether it concerns the delivered change or this change's verification):                                                                    │
+│  1. Correctness, API authentication and refresh: delivered (no task connects the token store and refresher to Client.kt)                                     │
+│  2. Correctness, platform and app integration: delivered (no Android/iOS entry, redirect handler or order list)                                              │
+│  3. Correctness, rejected-refresh lifecycle: delivered (no task covers sign-out and token deletion)                                                          │
+│  4. Security, authorization response: delivered (no state, issuer or token validation, and no replay protection)                                             │
+│  5. Security, token exposure: delivered (no Keystore/Keychain storage and no origin/TLS boundary)                                                            │
+│  6. CHECK 1, credential holders and sinks: delivered (no inventory, redaction chokepoint or sentinels)                                                       │
+│  7. CHECK 4, sign-in and refresh admission: delivered (no fail-closed checks for missing, malformed or partial input)                                        │
+│  8. CHECK 6, platform and flow parity: delivered (no Android/iOS path matrix; first sign-in and refresh are not shown to apply the same checks)              │
+│  9. Merge-gate Boundary rule: verification (no criterion names a code boundary)                                                                              │
+│  10. Executability, tasks 2.1/2.2: verification (no gradlew or Gradle build exists in the repo)                                                              │
+│  11. Scenario and task verification: verification (only wildcard test filters and no named assertions)                                                       │
+│  12. F1 manual QA evidence: verification (checks one file for four scenarios)                                                                                │
+│  13. F3 whole-diff verification: verification (gate.md says it isn't needed, but schema.yaml:224 requires it)                                                │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered OIDC sign-in and token storage/refresh. Because of it, Accept is off: every blocker is excluded and │
+│  can only be fixed, re-planned or stopped. Split is not offered: the only part that could ship without the class is the rename of httpClient (no callers),   │
+│  which meets none of the sign-in goal.                                                                                                                       │
+│                                                                                                                                                              │
+│  Diagnosis: Two causes produce most of these blockers. (a) design.md has one decision, "own OIDC client", and specifies none of the protocol or security     │
+│  details that decision makes the app own (state binding, issuer and token validation, secure storage, origin boundary, fail-closed rules, rejection          │
+│  lifecycle). Blockers 3–8 are all specifications that decision left out. (b) The plan targets a tree that contains only shared/http/Client.kt: no Gradle     │
+│  build, no Android/iOS app and no order list. That causes blockers 1, 2, 9, 10 and 11, and F1 cannot run on a real surface. Fixing these one by one in a     │
+│  fourth round would repeat the cycle. The design itself has to decide where the app and build live and whether to own the protocol. Recommended: Re-plan,    │
+│  because it removes both causes and keeps the goal unchanged.                                                                                                │
+│  ○ Re-plan                                                                                                                                                   │
+│  ○ Continue                                                                                                                                                  │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The user opted to stop here, so no further fixes or rounds are needed. I'll keep the report brief.
+
+ You chose Stop, so the review ends at round 3 with REJECT. I made no fixes and started no new round. Implementation of oidc-sign-in stays blocked: V
+ --reviewed fails with "Verdict: REJECT without a user override".
+
+ What happened
+ - The review.md already in the change folder was a round 2 REJECT for an older version of the files, so round 3 started from scratch.
+ - The structure check passed, and all three reviewers came back with REJECT: correctness found 3 blockers, verification 4, and security/mechanical checks 6.
+ - review.md now records round 3: REJECT, all 13 blockers verbatim, reviewers OidcCorrectnessR3, OidcVerificationR3 and OidcChecksR3.
+
+ Why none of the blockers can be accepted: the change is classed as auth-secrets-pii, and under the review-work rules that rules out accepting any blocker.
+ They can only be fixed, re-planned or stopped. I didn't offer Split, because without the sign-in work the only thing left is the rename of httpClient(), which
+ has no callers and doesn't serve the sign-in goal.
+
+ Main causes, to address if you pick this up again:
+ - Design gap: design.md decides only that the app builds its own OIDC client. It leaves out the security details that choice makes the app responsible for:
+   tying the redirect to the login that started it, checking the issuer and tokens, secure storage on the device, limiting which servers receive tokens,
+   failing closed on bad input, and signing out when Keycloak rejects the refresh token.
+ - Repo gap: the repository holds only shared/http/Client.kt. There is no Gradle build, no Android or iOS app and no order list. So the ./gradlew Verify
+   commands in tasks 2.1 and 2.2 can't run, and the manual QA (F1) has no real app to test on.
+ - Gate gap: gate.md says a whole-diff review isn't needed, but schema.yaml:224 requires one for this many layers, and tasks.md has no task for it (F3).
+
+ Any edit to the change files makes this review out of date. Running the review again starts at round 4, and since that is past round 3, a REJECT asks the
+ approach question again.
+
+                                                                                                                      🔑 OIDC: Review OIDC sign-in OpenSpec plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/E1 > ⑂ main *1 > $0.54 (+0.12) ▶────5%─────────────────────┃───────────────────────────────────────────────────────────────1M─
+╰─

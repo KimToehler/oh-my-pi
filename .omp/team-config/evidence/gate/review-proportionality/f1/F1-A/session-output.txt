@@ -1,0 +1,35 @@
+Working...
+I created the OpenSpec change `group-release-notes` at `openspec/changes/group-release-notes/` with proposal, specs, design, gate and tasks. The validator the instructions name, `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/group-release-notes`, passes. As you asked, I stopped before the review artifact (status shows 5 of 6 done), so the change cannot be implemented until `review.md` exists. I did not run the review step's `--reviewed` check, and `skills/release-notes/SKILL.md` is unchanged.
+
+**What each artifact contains**
+- **`proposal.md`**: adds the sentence word for word, exactly once. It starts a new capability called `release-notes`, because the project had no specs yet.
+- **`specs/release-notes/spec.md`**: two requirements, each with exactly one negative control:
+  - **The skill contains the sentence**: the sentence is present word for word, once, in the right place, and nothing else in the file changes. A reworded sentence, a second copy or an edited step must fail the check.
+  - **Notes are grouped by package**: for a release that touches two packages, the draft has one group per package. A single flat list, or a change filed under the wrong package, must fail.
+- **`design.md`**: the decisions (listed below) and the plan for checking the change.
+- **`gate.md`**: risk tier `internal-tooling`, mandatory class `none`, and no whole-diff review because the change is one paragraph in one file.
+- **`tasks.md`**:
+  - 1.1 inserts the sentence and checks it.
+  - 1.2 proves that check catches a reworded sentence, a duplicate and an edited step.
+  - 2.1 is the manual test: fresh agent sessions on a throwaway two-package git repo, with three runs: the old skill as a control, the new skill, and a release with a breaking change.
+  - F2 is the merge gate after 2.1, and the change is archived after merge.
+
+**Decisions I made (recorded in the artifacts)**
+1. **Where the sentence goes**: as its own paragraph between the `# Release notes` heading and step 1. I rejected making it a new step 2, because renumbering would rewrite three existing lines, and putting it at the end, because the agent would already have been told to write a flat list.
+2. **No definition of "package" in the skill**: you gave the exact sentence, so I added nothing to it. The spec treats a package as the repository's own unit (workspace package, module or top-level component).
+3. **Where `### Breaking` goes relative to the package groups is not decided** by this change, and the gate does not block on it. Step 3 stays unchanged; the manual test only records what the agent does.
+4. **Accepted risks**: repositories without a clear package layout may be grouped inconsistently, and developers keep getting flat notes until their installation syncs the team skills. Releases that touch one package or none are also not blocking.
+5. **Why `internal-tooling` / class `none`**: the skill only reads git history and writes a draft that a person reviews, so it reaches no production data, credentials or other protected assets, and it changes no product gating.
+6. **Base commit** for the before/after comparisons is `27185a9` (the current HEAD).
+
+**Other checks**
+- `openspec validate group-release-notes --strict` passes.
+- `validate-gate-record.mjs --plan-only` passes on the change folder.
+- I tried the `Verify:` commands on a throwaway clone:
+  - 1.1 fails without the sentence and passes once it is inserted.
+  - 1.2 passes on the edited copy, so the check catches all three bad cases.
+  - 2.1 fails until the evidence files exist, then passes.
+
+  I deleted the clone afterwards.
+
+The next step is the review artifact: `openspec instructions review --change "group-release-notes" --json`, which sends the plan to an independent reviewer and writes `review.md`.

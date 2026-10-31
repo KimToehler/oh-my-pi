@@ -1,0 +1,50 @@
+╭─── Ask 1 questions ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+├─── [approach] · options:3 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  oidc-sign-in plan review, round 3: REJECT. Correctness REJECT, 4 blockers; Verification REJECT, 4 blockers; Checks REJECT, 8 blockers.                      │
+│                                                                                                                                                              │
+│  Delivered change (9): end-to-end integration (HTTP/startup/order screen); missing Android/iOS app surfaces; refresh lifecycle concurrency; OIDC trust       │
+│  boundary (state/issuer/ID-token/nonce); bearer token destination scoping; device token storage; CHECK 1 credential holders/sinks; CHECK 4 session           │
+│  acceptance and refresh predicates; CHECK 6 platform and token lifecycle entry paths.                                                                        │
+│  This change's verification (7): whole-diff classification; scenario-to-test coverage; F1 evidence check (test -f on one file); Verify commands need a       │
+│  Gradle build that is not in the repo; F3 item missing; merge-gate Boundary fields; PROCESS 3 subsystem cut.                                                 │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered OIDC sign-in, on-device token storage and refresh, and bearer injection in shared/http/Client.kt.   │
+│  Effect: every blocker is excluded, so Accept and Override are off on every path, even on request.                                                           │
+│                                                                                                                                                              │
+│  Diagnosis: the blockers come from a plan that is mostly unwritten, not from separate defects. design.md is one sentence (D1 'own OIDC client'). That choice │
+│  leaves the whole security surface for this plan to specify, and it specifies none of it: redirect/state/ID-token validation, storage, token scoping,        │
+│  refresh coordination, redaction. The plan also assumes app sources, an order screen and a Gradle build that this repository does not contain. Each round    │
+│  can only report the next unwritten part, which is why round 2's 1 blocker became 16. Fixing blocker by blocker would keep producing new ones.               │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Settle where the app and build live, and decide whether a hand-written OIDC client is needed. Write the integration, security and  │
+│  session design to match, then the tests and gate. That addresses the source of the blockers and keeps the goal unchanged. No Split: the auth part sets the  │
+│  class and is the whole change, so nothing useful can ship without it.                                                                                       │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix all 16 blockers in the artifacts as they stand (none are eligible, so no per-blocker Accept), then a fresh round 4 with three new lenses. Expect    │
+│      new blockers wherever a patch adds design surface that has not been reviewed.                                                                           │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ No per-blocker ask; nothing from this round goes into gate.md. Revise the design, verification and every affected artifact, including gate.md's         │
+│      classification and whole-diff/F3. Then round 4 with three fresh lenses.                                                                                 │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round. review.md stays REJECT and apply stays blocked.                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking approach question for round 3                                                                                       🔐 OIDC: Review OIDC sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ oidc-sign-in plan review, round 3: REJECT. Correctness REJECT, 4 blockers; Verification REJECT, 4 blockers; Checks REJECT, 8 blockers.                       │
+│                                                                                                                                                              │
+│ Delivered change (9): end-to-end integration (HTTP/startup/order screen); missing Android/iOS app surfaces; refresh lifecycle concurrency; OIDC trust        │
+│ boundary (state/issuer/ID-token/nonce); bearer token destination scoping; device token storage; CHECK 1 credential holders/sinks; CHECK 4 session acceptanc… │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│   ○ Continue                                                                                                                                                 │
+│       Fix all 16 blockers in the artifacts as they stand (none are eligible, so no per-blocker Accept), then a fresh round 4 with three new lenses. Expect   │
+│       new blockers wherever a patch adds design surface that has not been reviewed.                                                                          │
+│ ❯ ○ Re-plan (Recommended)                                                                                                                                    │
+│       No per-blocker ask; nothing from this round goes into gate.md. Revise the design, verification and every affected artifact, including gate.md's        │
+│       classification and whole-diff/F3. Then round 4 with three fresh lenses.                                                                                │
+│   ○ Stop                                                                                                                                                     │
+│       No fix and no new round. review.md stays REJECT and apply stays blocked.                                                                               │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

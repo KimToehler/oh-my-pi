@@ -1,0 +1,577 @@
+diff --git a/openspec/changes/oidc-sign-in/design.md b/openspec/changes/oidc-sign-in/design.md
+index 98357a3..6fb8352 100644
+--- a/openspec/changes/oidc-sign-in/design.md
++++ b/openspec/changes/oidc-sign-in/design.md
+@@ -1,7 +1,158 @@
+ # Design
+ 
++## Context
++
++Today the repository holds one source file, `shared/http/Client.kt`, whose `httpClient()` returns a bare `HttpClient()`. There is no Gradle build, no Android or iOS app and no order screen. These come from the prerequisite change `kmp-app-shell` (D2), which must be proposed, reviewed and merged before this change is applied. Task 1.1 refuses to start otherwise.
++
++## Goals / Non-Goals
++
++**Goals:**
++- Every requirement in `specs/oidc-sign-in/spec.md` on Android and iOS, with one shared Kotlin implementation of the protocol.
++
++**Non-Goals:**
++- User-initiated sign-out, account switching, and Keycloak-side logout (`end_session`). The only sign-out in this change is the one forced by a rejected refresh (D9).
++- Reading or trusting ID token claims. The ID token is discarded (D3).
++- Background refresh timers. Refresh happens only before an API request (D8).
++- Building the app shells, the order list or the Gradle build (D2).
++
+ ## Decisions
+ 
+ ### D1. Own OIDC client
+ 
+-The app implements the authorization code flow with PKCE and token refresh itself, in `shared/auth/`.
++The app implements the authorization code flow with PKCE and token refresh itself, in `shared/src/commonMain/kotlin/app/auth/`, so both platforms run the same protocol code. The alternative was AppAuth-Android plus AppAuth-iOS behind expect/actual: two implementations, two state machines and two sets of tests. Because the protocol is our own code, every validation that a library would hide is specified here: D3 to D9.
++
++### D2. Prerequisite `kmp-app-shell` and the contract this change relies on
++
++`kmp-app-shell` is a separate change, proposed and reviewed before this one is implemented. This change relies on exactly these parts of it:
++
++1. `./gradlew` and `settings.gradle.kts` that include `:shared` and `:androidApp`.
++2. `:shared` is a Kotlin Multiplatform module with `com.android.library` and the targets `androidTarget`, `iosArm64` and `iosSimulatorArm64`. Its source sets are `commonMain`, `commonTest`, `androidMain`, `androidUnitTest` (JVM), `androidInstrumentedTest` and `iosMain`. It has the Gradle tasks `:shared:testDebugUnitTest`, `:shared:iosSimulatorArm64Test` and `:shared:connectedDebugAndroidTest`. Its dependencies are Ktor client (core, OkHttp engine on Android, Darwin engine on iOS, `ktor-client-mock` in `commonTest`), kotlinx-coroutines, kotlinx-serialization-json, kotlinx-datetime and Compose Multiplatform with `compose.uiTest`.
++3. `shared/http/Client.kt` moved unchanged to `shared/src/commonMain/kotlin/app/http/Client.kt`. It is still the only factory of the API `HttpClient` and installs no `Logging` plugin.
++4. `app.config.AppConfig` with `apiBaseUrl` (an `https` URL).
++5. `app.orders.OrderRepository(client: HttpClient)`, which loads `GET {apiBaseUrl}/orders`, and `app.ui.App()`, the shared root composable that today shows `OrderListScreen`. `:androidApp` hosts it in `MainActivity`; `iosApp/iosApp.xcodeproj` hosts it through `MainViewController()`.
++6. The Android `applicationId` and the iOS bundle identifier are the same reverse-DNS id, called `APP_ID` below. The `iosApp` scheme has a hosted XCTest target `iosAppTests`, and `:androidApp` has `connectedDebugAndroidTest`.
++
++### D3. Keycloak endpoints and client
++
++- `OidcConfig(issuer, clientId, redirectUri)` is built by `OidcConfig.create`. It refuses an issuer that is not `https`, except `http` on the hosts `localhost` and `127.0.0.1` (needed by the test Keycloak in task 6.1). It refuses a redirect URI other than `APP_ID:/oauth2redirect` ([RFC 8252 §7.1](https://www.rfc-editor.org/rfc/rfc8252#section-7.1)). Values come from Android `BuildConfig` fields and the iOS `Info.plist` keys `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_REDIRECT_URI`.
++- The endpoints are derived from the issuer, `{issuer}/protocol/openid-connect/auth` and `{issuer}/protocol/openid-connect/token`, with no discovery fetch. That leaves one trust input, the configured issuer.
++- Keycloak client `orders-app` settings: public; Standard Flow only (no implicit flow, no direct access grants); PKCE method `S256` required; exactly the one redirect URI; realm "Revoke Refresh Token" on with "Refresh Token Max Reuse" 0. The test realm in task 6.1 encodes the same settings. Configuring the staging and production clients is ops work outside this repo; it must be done before F1 (task 7.2).
++- The authorization request sends `response_type=code`, `client_id`, `redirect_uri`, `scope=openid`, `state`, `code_challenge` and `code_challenge_method=S256`. The token response's `id_token` is discarded: not parsed, not stored, not logged.
++
++### D4. Sign-in attempt and authorization-response predicate
++
++- `AuthSession.startSignIn()` creates one `SignInAttempt`, holding `state` and `codeVerifier` (each 32 bytes from the platform CSPRNG, base64url without padding, 43 characters) and `createdAt`. It is kept in memory only and replaces any earlier pending attempt. The challenge is `BASE64URL(SHA-256(verifier))`. The CSPRNG and SHA-256 are expect/actual: Android `SecureRandom` and `MessageDigest`, iOS `SecRandomCopyBytes` and `CC_SHA256`.
++- `AuthSession.completeSignIn(redirect: String)` checks the following, in this order, and stops at the first failure with a `SignInFailure` kind:
++  1. Take and clear the pending attempt atomically, under the session mutex (D8). None pending → `NoPendingAttempt`. Clearing it first makes a replayed redirect fail at this step.
++  2. The attempt is older than 10 minutes → `Expired`.
++  3. The redirect's scheme, host and path differ from the configured redirect URI → `RedirectMismatch`.
++  4. `state` is missing or differs from the attempt's state (constant-time comparison) → `StateMismatch`.
++  5. An `error` parameter is present → `AuthorizationError(code)`. The code is kept only if it matches `[a-z_]{1,64}`; `error_description` is ignored.
++  6. `iss` is missing or differs from the issuer ([RFC 9207](https://www.rfc-editor.org/rfc/rfc9207)) → `IssuerMismatch`.
++  7. `code` is missing or empty → `MissingCode`.
++- Steps 1 to 7 send no network request. Only after all of them pass does D5 run.
++- `AuthSession.cancelSignIn()` (the iOS session reports cancel) clears the pending attempt.
++
++### D5. Token exchange and commit order
++
++- `OidcClient` owns a dedicated Keycloak `HttpClient`: `followRedirects = false`, `HttpTimeout` request timeout 10 s, `expectSuccess = false`, no `Logging`. It is never used for API requests.
++- Exchange: POST form `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `code_verifier` to the token endpoint.
++- The token response is accepted only when all of these hold: HTTP 200; JSON with `token_type` equal to `Bearer` (case-insensitive); non-empty `access_token` and `refresh_token`; integer `expires_in > 0`.
++- On acceptance, `AuthTokens(accessToken, refreshToken, accessTokenExpiresAt = now + expires_in)` is first written to the `TokenStore`. Only after the write succeeds does the session become `SignedIn` in memory. If the write fails, the result is `StorageFailed` and the session stays `SignedOut`.
++- Failure kinds: HTTP 400 with `error=invalid_grant` (wrong PKCE verifier, reused or expired code) → `Rejected`; any other status, malformed body or incomplete response → `TokenEndpointError`; I/O or timeout → `Network`. No failure stores anything.
++
++### D6. Holders and sinks of protected values
++
++Protected values are the access token, refresh token, authorization code and code verifier. `state` is not secret, but it is never logged either.
++
++| Value | Holders | Allowed sinks | Everything else |
++|---|---|---|---|
++| access token | `AuthSession` memory; `TokenStore` | `Authorization` header to the API origin only (D7) | forbidden |
++| refresh token | `AuthSession` memory; `TokenStore` | token endpoint request body | forbidden |
++| authorization code | redirect URI (from the browser); local during `completeSignIn` | token endpoint request body | forbidden |
++| code verifier | `SignInAttempt` memory only | token endpoint request body | forbidden |
++
++- **Chokepoints.** API sending goes only through the `ApiAuth` plugin in `Client.kt` (D7). Keycloak sending goes only through the `OidcClient` client (D5). Persistence goes only through `TokenStore` (D10).
++- **Redaction.** `AuthTokens.toString()`, `SignInAttempt.toString()` and every `SignInFailure`, `AuthState` and exception `toString()`/`message` print no value from the table. Failures carry only kinds, HTTP status codes and the validated `error` code. No `Logging` plugin is installed on either client, and no crash or analytics reporter exists or is added.
++- **UI.** The sign-in screen shows a fixed string per failure kind, with no parameters.
++- **Proof.** `TokenLeakTest` (task 2.4) runs every flow with sentinel values and scans every sink. Storage tests (tasks 4.1, 4.2) check the at-rest form. F1 scans the device logs (task 7.2).
++
++### D7. Request pipeline (`Client.kt`)
++
++- `httpClient(session: AuthSession, config: AppConfig): HttpClient` replaces `httpClient()`. Every caller is updated; in the D2 contract that is the one `OrderRepository` construction, which moves into `AppController` (D12).
++- The client sets `followRedirects = false`. A 3xx surfaces to the caller as `ApiRedirectRejected`, and no request follows.
++- Plugin `ApiAuth`, built with `createClientPlugin`:
++  - `onRequest`, when the request origin (scheme, host, port) equals `config.apiBaseUrl`'s origin: `token = session.validAccessToken()` (D8), then set `Authorization: Bearer <token>`, replacing any existing value. For any other origin, remove any `Authorization` header.
++  - `onResponse`: a 401 from the API origin calls `session.markAccessTokenExpired(tokenUsed)`, and the response is returned unchanged.
++- Signed-out (`NotSignedIn`), rejected (`SignedOut`) and unavailable (`AuthUnavailable`) outcomes are thrown from `validAccessToken()` before the request leaves the client.
++
++### D8. Refresh: threshold, single-flight, failure classes
++
++- `AuthSession` has one `Mutex`. `validAccessToken()`, `completeSignIn`, `markAccessTokenExpired` and the D9 sign-out all run under it, so state transitions are serialised.
++- Inside the lock, `validAccessToken()` does:
++  1. State `SignedOut` → throw `NotSignedIn`.
++  2. `accessTokenExpiresAt - now >= 60 s` → return the current access token.
++  3. Otherwise call `OidcClient.refresh(refreshToken)`:
++     - **Success** (same acceptance rule as D5; Keycloak rotates the refresh token): write the new tokens to the store, set them in memory, return the new access token. If the store write fails, the new tokens stay in memory. The next refresh writes again (Risks).
++     - **Rejected** (HTTP 400 `error=invalid_grant`): D9, then throw `SignedOut`.
++     - **Transient** (I/O, 10 s timeout, 5xx, 429, any other 4xx or error code, malformed or incomplete body): keep the tokens. If `accessTokenExpiresAt > now`, return the current access token; otherwise throw `AuthUnavailable`. Nothing is retried inside the call; the next request tries again.
++- Callers that wait on the mutex re-check step 2 after acquiring it. They find the refreshed token and do not refresh again, so with rotation (D3) two concurrent requests never send the same refresh token twice.
++- `markAccessTokenExpired(tokenUsed)` sets `accessTokenExpiresAt = 0` only if `tokenUsed` is still the current access token, so a 401 that arrives after a refresh does not discard the new token.
++- `now` comes from an injected `kotlinx.datetime.Clock`; tests use a fake clock.
++
++### D9. Sign-out on rejected refresh: order of effects
++
++Under the mutex:
++1. `TokenStore.clear()`. Android deletes the Keystore key, which makes any remaining ciphertext undecryptable, and then the file. iOS calls `SecItemDelete`.
++2. Clear the in-memory tokens and any pending attempt.
++3. Publish `AuthState.SignedOut` on `state: StateFlow<AuthState>`.
++4. Throw `SignedOut` to the waiting request, which is never sent.
++
++`AppController` (D12) observes step 3 and shows the sign-in screen. If step 1 throws, steps 2 to 4 still run. The next cold start then reads the leftover entry, and its first refresh is rejected again, which signs out again (Risks).
++
++### D10. Platform token storage
++
++- **Android `KeystoreTokenStore`:** AES-256-GCM key `orders_auth_tokens` in `AndroidKeyStore` (non-exportable). The ciphertext of the JSON-serialised `AuthTokens` (12-byte IV prefix) is written to `noBackupFilesDir/auth/tokens.bin` via a temp file and rename. Files under `noBackupFilesDir` are excluded from Auto Backup and device transfer. `load()` returns `null` and deletes the file and key when decryption fails (key invalidated, corrupt file).
++- **iOS `KeychainTokenStore`:** `kSecClassGenericPassword`, service `APP_ID.auth`, account `tokens`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, which keeps the item out of iCloud Keychain and out of restores to other devices. Keychain items survive app deletion. So on first use, when the `NSUserDefaults` flag `auth.installed` is absent, the store deletes the item before setting the flag.
++- **Cold start:** `AuthSession.restore()` reads the store once. Tokens present → `SignedIn` (no network call). Absent or unreadable → `SignedOut`.
++
++### D11. Entry paths and the checks each runs
++
++| Entry path | Platform code | Shared checks | Platform-specific control |
++|---|---|---|---|
++| Android redirect | `OidcRedirectActivity` in `:androidApp`, exported, `VIEW`/`DEFAULT`/`BROWSABLE` filter on scheme `APP_ID` (Android ignores `path` without a host, so the path is checked in D4 step 3); forwards `intent.data` to `completeSignIn` and finishes | D4, D5 | `RedirectEntryTest` (task 5.2); F1 `android-forged-redirect` |
++| iOS redirect | `ASWebAuthenticationSession` with `callbackURLScheme = APP_ID` in `iosMain`; the completion handler calls `completeSignIn` or `cancelSignIn`. The scheme is not registered in `CFBundleURLTypes`, so `openURL` cannot deliver a redirect | D4, D5 | `RedirectEntryTests` (task 5.3); F1 `ios-forged-redirect` |
++| Refresh | shared `AuthSession` | D8, D9 | `AuthSessionTest` on both targets (task 2.3); F1 refresh and rejected-refresh per platform |
++| Rejected-refresh sign-out | shared `AuthSession` + platform `TokenStore.clear()` | D9 | store tests (tasks 4.1, 4.2); F1 rejected-refresh per platform |
++| Cold start with stored tokens | shared `restore()` + platform `TokenStore.load()` | D10 | store tests (tasks 4.1, 4.2); F1 relaunch steps per platform |
++
++The PKCE mismatch is decided by Keycloak and handled by the shared D5 code. Its real-surface run (F1 `android-pkce-mismatch`) needs Chrome remote debugging to change the challenge in the browser. On iOS, the only part of this path that differs is the Darwin HTTP engine, which `ios-first-sign-in` exercises against the same token endpoint.
++
++### D12. Order access gate
++
++`app.AppController` (commonMain) is one instance per process. `AppController.get(platform)` creates it on first call and returns the same instance afterwards. It is called by `App()`, by Android `OidcRedirectActivity` (with `applicationContext`) and by the iOS launcher, so the redirect reaches the session that started the attempt. Tests build their own instance through the constructor. It owns `AuthSession` (with `restore()` started on creation), `OidcClient`, the platform `TokenStore`, the API client from D7 and `OrderRepository`, and exposes `screen: StateFlow<Screen>`:
++- `Restoring` → `Screen.Loading`
++- `SignedOut` → `Screen.SignIn(failure)`
++- `SignedIn` → `Screen.Orders`, which loads orders on entry
++
++`App()` renders `screen`. `OrderRepository` is called only on entering `Screen.Orders`. The `ApiAuth` plugin additionally refuses any API request while signed out (D7). The platform browser launch (Custom Tab on Android via `androidx.browser`, D11 on iOS) is the expect/actual `BrowserLauncher.open(url)`.
++
++### D13. One change, not a cut
++
++The change touches the shared auth core, the HTTP client, the two platform entry layers and the UI gate. These cannot ship separately because they share one contract, `AuthSession`, and one cutover: sign-in is the moment `Client.kt` starts sending tokens.
++- The HTTP plugin without sign-in has no token to send.
++- Sign-in without the plugin delivers no access to orders.
++- Neither platform receiver has anything to deliver to without the shared core.
++- The gate is the switch that makes the order list depend on all of the above.
++
++The prerequisite D2, which can ship on its own, is cut out as its own change.
++
++## Risks / Trade-offs
++
++- [Store write fails after a rotated refresh] The new refresh token lives only in memory. After a restart the old one is rejected and the user signs in again. → Rare, and safe: no token leaks.
++- [`TokenStore.clear()` fails in D9] A rejected token stays at rest until the next cold start signs out again. On Android, deleting the key first makes the leftover file undecryptable. → Store tests cover `clear()`.
++- [Response lost after Keycloak rotated the refresh token] The next refresh is rejected and the user signs in again. → Accepted by design (D8 transient handling cannot know).
++- [Device wall clock moves backwards] The token looks valid but the API returns 401. → D7 `markAccessTokenExpired` makes the next request refresh.
++- [Process death while the browser is open (Android)] The in-memory attempt is lost, and the redirect fails with `NoPendingAttempt`. The user taps Sign in again. → The verifier is never at rest.
++- [Chrome may not hand a gesture-less redirect to the app when Keycloak's SSO session auto-completes] → F1 `android-first-sign-in` includes a second sign-in with an existing Keycloak SSO session.
++- [Production Keycloak without RFC 9207 `iss`] Sign-in fails closed with `IssuerMismatch`. → F1 against the staging Keycloak exposes it before merge.
+diff --git a/openspec/changes/oidc-sign-in/gate.md b/openspec/changes/oidc-sign-in/gate.md
+index e9c2aff..9cfade4 100644
+--- a/openspec/changes/oidc-sign-in/gate.md
++++ b/openspec/changes/oidc-sign-in/gate.md
+@@ -2,7 +2,7 @@
+ 
+ - **Mandatory class**: auth-secrets-pii
+ - **Risk tier**: product
+-- **Author's risk assessment**: A wrong sign-in or refresh locks users out or leaks tokens; tokens grant access to customer orders.
+-- **Whole-diff review**: not needed (one module, `shared/auth/`, and one line in `shared/http/Client.kt`)
++- **Author's risk assessment**: A wrong sign-in or refresh locks users out, leaks tokens, or binds the app to an attacker's session (login CSRF). Tokens grant access to customer orders, so the change reaches a real credential and customer data: product tier, class auth-secrets-pii.
++- **Whole-diff review**: needed
+ - **Accepted residual risks**: none (F1 fixture change)
+ - **Out of scope for blocking**: none (F1 fixture change)
+diff --git a/openspec/changes/oidc-sign-in/proposal.md b/openspec/changes/oidc-sign-in/proposal.md
+index b819f76..cd6dc4a 100644
+--- a/openspec/changes/oidc-sign-in/proposal.md
++++ b/openspec/changes/oidc-sign-in/proposal.md
+@@ -6,14 +6,17 @@ Users of the Kotlin Multiplatform app (Android and iOS) must sign in with the co
+ 
+ ## What Changes
+ 
+-- OIDC sign-in with authorization code and PKCE against Keycloak.
+-- Token storage on the device and token refresh before expiry.
++- OIDC sign-in with authorization code and PKCE against Keycloak, with full validation of the authorization response.
++- Token storage in platform secure storage (Android Keystore, iOS Keychain) and token refresh before expiry, with sign-out when Keycloak rejects the refresh token.
++- The API client attaches the access token to requests to the API origin only.
++- Platform sign-in entry paths: an Android Custom Tab with a redirect activity, and an iOS `ASWebAuthenticationSession`.
++- The order list is shown only to a signed-in user.
+ 
+ ## Capabilities
+ 
+ ### New Capabilities
+ 
+-- `oidc-sign-in`: sign-in, token storage and token refresh.
++- `oidc-sign-in`: sign-in, authorization-response validation, token storage, request authentication, refresh, sign-out on rejected refresh, and the order access gate.
+ 
+ ### Modified Capabilities
+ 
+@@ -21,4 +24,7 @@ None.
+ 
+ ## Impact
+ 
+-`shared/` gains the sign-in flow; `shared/http/Client.kt` sends the access token.
++- **Depends on the prerequisite change `kmp-app-shell`**, which must be proposed, reviewed and merged before this change is applied. It supplies the Gradle build, the Android and iOS app shells, the order list and the test harness listed in design.md D2. This repository has none of these today; its only source is `shared/http/Client.kt`.
++- `shared/` gains `app.auth` (common, Android and iOS) and `app.AppController`. `app/http/Client.kt` changes signature and gains the `ApiAuth` plugin; every caller is updated.
++- `:androidApp` gains `OidcRedirectActivity`. `iosApp` gains the `Info.plist` OIDC keys and Keychain/redirect tests.
++- Keycloak client `orders-app` must be configured on staging and production as in design.md D3. That is ops work outside this repository, needed before F1.
+diff --git a/openspec/changes/oidc-sign-in/review.md b/openspec/changes/oidc-sign-in/review.md
+index ff50385..58f434d 100644
+--- a/openspec/changes/oidc-sign-in/review.md
++++ b/openspec/changes/oidc-sign-in/review.md
+@@ -1,20 +1,84 @@
+ # Review
+ 
+ - **Verdict**: REJECT
+-- **Reviewed digest**: 1111111111111111111111111111111111111111111111111111111111111111
+-- **Reviewer**: plan-reviewer, F1CorrectnessR2, F1VerificationR2, F1ChecksR2
+-- **Round**: 2
++- **Reviewed digest**: 4f0ef79194646016612c03e23b1ed24c3cd3cae966498930ec67cfefb822d6b6
++- **Reviewer**: plan-reviewer, CorrectnessR4, VerificationR4, ChecksR4
++- **Round**: 4
+ - **Override**: none
+ 
+ ## Blockers
+ 
+-### Correctness (F1CorrectnessR2)
++### Correctness (CorrectnessR4)
+ 
+ [
+   {
+-    "area": "Correctness",
+-    "defect": "Token refresh can run twice for one expiry.",
+-    "evidence": "design.md:12",
+-    "change": "Single-flight the refresh."
++    "area": "Refresh concurrency",
++    "defect": "The mutex and expiry recheck do not guarantee that concurrent callers use the same refresh result.",
++    "evidence": "design.md:60 accepts every positive expires_in; design.md:93-99 makes each waiter refresh again whenever the resulting token has less than 60 seconds remaining. Thus a valid 30-second token causes two concurrent requests to make two sequential refreshes and use different tokens. Likewise, after a transient failure the unchanged near-expiry token makes each waiter perform another refresh. Both violate specs/oidc-sign-in/spec.md:85,94-97. The effects are reversible but break the promised single-flight behavior during normal short-token configurations or outages.",
++    "change": "Share the completed in-flight refresh result with callers already waiting, including transient outcomes, independently of the new token's remaining lifetime; cover short-lived successful tokens and concurrent transient failures."
++  },
++  {
++    "area": "Rejected-refresh sign-out and restore",
++    "defect": "A failed storage clear permits a signed-out session to be restored as signed in and potentially make an order request.",
++    "evidence": "design.md:103-111 explicitly continues sign-out when TokenStore.clear() throws and assumes the leftover entry will immediately be refreshed; design.md:117 instead restores any readable entry as SignedIn, and design.md:93-94 returns an access token with at least 60 seconds remaining without refreshing it. A revoked refresh token can be encountered while its access token still has remaining lifetime, for example after a 401-triggered refresh; if clear fails, a relaunch can show orders and send that still-valid token. This contradicts specs/oidc-sign-in/spec.md:115-131. The residual stored credential and unintended access persist until cleanup or expiry.",
++    "change": "Make rejection durably invalidate the restorable session even if token deletion fails, or keep the app in a fail-closed recovery state until invalidation is durable; define and test relaunch after clear failure with an unexpired access token."
++  },
++  {
++    "area": "Cold-start order request",
++    "defect": "The cold-start requirement forbids a network call before the order request, while the refresh design requires one for an expired or near-expiry stored token.",
++    "evidence": "specs/oidc-sign-in/spec.md:141-144 applies to stored tokens without limiting their age; design.md:117 restores them without a network call, but design.md:90-98 refreshes before every API request when less than 60 seconds remain. Relaunching after the app has been closed beyond the access-token lifetime therefore necessarily sends a token request before the order request. This is an ordinary, reversible lifecycle state but violates the requirement.",
++    "change": "Reconcile the requirement with refresh: distinguish valid tokens from expired or near-expiry tokens and explicitly specify the permitted refresh-before-order behavior."
++  },
++  {
++    "area": "Token-storage requirements",
++    "defect": "The specification forbids transmissions that its own sign-in and API requirements require.",
++    "evidence": "specs/oidc-sign-in/spec.md:139 says state exists only in memory and that the token endpoint body is the only other place the access token may be sent. Yet design.md:40 sends state in the authorization request, and specs/oidc-sign-in/spec.md:61-68 requires sending the access token in the API Authorization header. Both occur on every normal sign-in/order load, so the criteria cannot all be true; the consequence is a blocked or contradictory implementation, not irreversible damage.",
++    "change": "Allow state in the authorization request and response while prohibiting its persistence and logging, and explicitly allow the access token in the API-origin Authorization header."
++  },
++  {
++    "area": "Refresh persistence",
++    "defect": "The defined successful-refresh path can send a new token without storing the new token pair, contrary to the refresh scenario.",
++    "evidence": "design.md:95-96 explicitly keeps rotated tokens only in memory and returns the new access token when storage fails; specs/oidc-sign-in/spec.md:89-92 requires storing both new tokens before sending the request. After a subsequent restart, design.md:152 acknowledges the stale refresh token is rejected and the user must sign in again. The failure is reversible but violates the specified refresh outcome.",
++    "change": "Define and implement a storage-failure outcome consistent with the required durable refresh, or explicitly revise the requirement to permit the stated degraded behavior and its restart consequence."
++  }
++]
++
++### Verification (VerificationR4)
++
++[
++  {
++    "area": "Leak-protection verification",
++    "defect": "The sentinel negative control does not inspect logs, and the real-device scan cannot detect a standalone authorization code or verifier.",
++    "evidence": "specs/oidc-sign-in/spec.md:156-159 requires all four sentinels to be absent from log lines. tasks.md:14 captures string representations, URLs, headers and UI strings but not logs; tasks.md:56-60 searches device logs only for `eyJ` and `oauth2redirect?`. A log line containing only the verifier or code passes both checks.",
++    "change": "Capture and scan actual log sinks for each planted sentinel across the specified flows on both platforms, with a deliberately leaking control that makes the check fail. Avoid retaining real credentials in evidence."
++  },
++  {
++    "area": "Token-response acceptance verification",
++    "defect": "The listed incomplete-response tests do not exercise missing or empty access tokens, or establish the specified session and UI effects for incomplete responses.",
++    "evidence": "specs/oidc-sign-in/spec.md:5,12-15 requires a non-empty access token and that an incomplete response leaves nothing stored and the sign-in screen visible. tasks.md:12 tests missing refresh token, token type and expiry only, at OidcClient level; tasks.md:13 and 27 do not specify an incomplete-response session/UI test. An implementation accepting an empty access token, or storing/displaying orders after an incomplete response, can pass the listed checks.",
++    "change": "Add missing and empty access-token cases plus end-to-end session/controller assertions for each incomplete-response class: no persisted tokens and sign-in remains displayed."
++  },
++  {
++    "area": "Refresh-before-expiry real-surface proof",
++    "defect": "The F1 scenario named refresh-before-expiry first makes its request after expiry, so it cannot demonstrate the required pre-expiry behavior on either platform.",
++    "evidence": "specs/oidc-sign-in/spec.md:89-92 requires refresh before a request with less than 60 seconds remaining. tasks.md:54 waits until `t0 + L + 10 s` and accepts any refresh event up to that reload; an implementation refreshing only expired tokens passes. tasks.md:13 and 33 cover the shared session in tests, not the platform-to-order-request workflow.",
++    "change": "On each platform issue an order request within the final 60 seconds while the token remains valid, retain timing and refresh/order observations establishing the refresh preceded that request, and keep the post-expiry case separately."
++  }
++]
++
++### Checks (ChecksR4)
++
++[
++  {
++    "area": "CHECK 1 holders and sinks: F1 evidence files are an unscanned sink",
++    "defect": "The F1 procedure has the QA lane write the evidence files that review-work Phase 5 then stages and commits. Those files can contain real staging tokens or a live authorization code, and nothing scans them for secrets before staging. The log-scan scenario counts lines containing `eyJ` and `oauth2redirect?`. If a leak is found, the natural record is the matching lines, which are real staging access tokens, refresh tokens or a redirect URI with its code. The pkce-mismatch scenario has the tester read and navigate Network-panel request URLs, and the evidence also includes screenshots and recordings. Only the sentence 'No password is written into evidence' guards this. The 7.2 Verify checks only `test -s`.",
++    "evidence": "tasks.md:42-45 ('Each file records the steps, the observation, the screenshots or recording paths, and the Keycloak user events'; 'No password is written into evidence'); tasks.md:49-50 (log-scan lines); tasks.md:38 (Verify only `test -s \"$f.md\"`). design.md:78 lists only 'F1 scans the device logs' as proof and D6 (design.md:64-73) lists no evidence-file sink. The plan's own Phase 5 stages these artifacts into git (review-work SKILL.md Phase 5: 'QA artifacts ... must be tracked by git'). A staging refresh token committed to history is real-credential exposure, and it is irreversible once pushed.",
++    "change": "Add the F1 evidence directory as a named sink in D6. Add a scan to the 7.2 Verify command (and to the F1 procedure) that fails on `eyJ`, `refresh_token`, `access_token`, `code=` and `oauth2redirect?` hits, and on any `code=` or `state=` query value, in every file in `f1/`. Require that log-scan files record counts and never matched lines. Add a negative control: plant a sentinel in an evidence file and show the scan fails."
++  },
++  {
++    "area": "CHECK 1 holders and sinks: TokenLeakTest does not scan every forbidden sink in the D6 matrix",
++    "defect": "D6 gives each value exactly one allowed sink and calls everything else forbidden. The 2.4 negative control scans only these artifacts: exception/AuthState/SignInFailure strings, URLs sent to the API and to non-token hosts, headers sent to non-API origins, and sign-in screen strings. It never checks (a) request bodies and non-Authorization headers sent to the API origin, (b) the bearer value sent to the API origin (only ApiAuthTest asserts it is the access token), or (c) the token-endpoint request body and headers for values not allowed there (for example the access token or verifier in a refresh request, or the refresh token in an authorization_code request). It also plants no sentinel in inputs the code parses: token-endpoint error bodies (`error`, `error_description`), the discarded `id_token`, and unknown or duplicate redirect parameters. It captures no stdout/stderr or platform log output, so a `println`/`Log.d` of a token in common or platform code is caught only by the manual F1 scan. A malformed-JSON body containing the sentinel is not named.",
++    "evidence": "design.md:68-73 (per-value allowed sinks) vs tasks.md:14 (captures 'every request URL sent to the mock API and to hosts other than the token endpoint; every header sent to non-API origins'). design.md:51 and the D3 line 'id_token is discarded: not parsed, not stored, not logged' have no sentinel in 2.4. design.md:76 says failures carry only kinds, status codes and the validated `error` code, but 2.4 plants no sentinel in token-endpoint error bodies, so that claim is not exercised.",
++    "change": "Extend 2.4 so the capture is the full per-sink matrix. Record every request (URL, all headers, body) per origin class: API origin, token endpoint, other. Assert that API-origin requests carry only the access token (in Authorization) and no other protected value anywhere. Assert that token-endpoint bodies contain only their allowed values, per grant type. Add sentinels to `id_token`, the token-endpoint `error`/`error_description`, malformed-JSON bodies and extra redirect parameters. Capture process stdout/stderr or a test log sink. Keep the existing control (deliberately unredacted `toString` must fail) and add one control per newly covered sink."
+   }
+ ]
+diff --git a/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md b/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
+index 9a281c6..079a75d 100644
+--- a/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
++++ b/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
+@@ -2,28 +2,176 @@
+ 
+ ### Requirement: Sign-in with Keycloak
+ 
+-The app SHALL sign the user in with the OIDC authorization code flow with PKCE against Keycloak and SHALL send the access token with every API request.
++The app SHALL sign the user in with the OIDC authorization code flow with PKCE (`S256`) against the configured Keycloak issuer. It SHALL store tokens only after a token response with HTTP 200, `token_type` `Bearer`, a non-empty access token and refresh token, and a positive integer `expires_in`.
+ 
+ #### Scenario: First sign-in
+ 
+-- **WHEN** a signed-out user opens the app and signs in at Keycloak
+-- **THEN** the app holds an access and a refresh token and shows the order list
++- **WHEN** a signed-out user opens the app, taps Sign in and authenticates at Keycloak
++- **THEN** the app exchanges the code with the attempt's code verifier, stores an access token and a refresh token, and shows the order list
++
++#### Scenario: Incomplete token response
++
++- **WHEN** the token endpoint answers HTTP 200 without a refresh token, with a `token_type` other than `Bearer`, or without a positive `expires_in`
++- **THEN** sign-in fails, nothing is stored, and the app stays on the sign-in screen
+ 
+ #### Scenario: Negative control
+ 
+-- **WHEN** the redirect carries a code without the matching PKCE verifier
+-- **THEN** sign-in MUST fail and no token is stored
++- **WHEN** the redirect carries a code that Keycloak issued for a different code challenge than the one derived from the attempt's code verifier
++- **THEN** sign-in MUST fail: Keycloak answers `invalid_grant`, no token is stored, and the app stays on the sign-in screen
++
++### Requirement: Authorization response validation
++
++The app SHALL accept a redirect as an authorization response only when all of these hold:
++- a sign-in attempt started by the running app is pending and is at most 10 minutes old;
++- the redirect's scheme, host and path equal the configured redirect URI;
++- `state` equals the attempt's state;
++- the redirect carries no `error` parameter;
++- `iss` equals the configured issuer;
++- `code` is present and non-empty.
++
++The first redirect SHALL consume the pending attempt, whatever its outcome. A rejected redirect SHALL cause no token request and SHALL leave the current authentication state unchanged.
++
++#### Scenario: Missing state
++
++- **WHEN** a sign-in attempt is pending and the redirect carries a code but no `state`
++- **THEN** sign-in fails with no token request
++
++#### Scenario: Replayed redirect
+ 
+-### Requirement: Token refresh
++- **WHEN** the redirect that completed a sign-in attempt is delivered a second time
++- **THEN** it is rejected because no attempt is pending, and no token request is sent
++
++#### Scenario: Error response
++
++- **WHEN** the redirect carries the attempt's `state` and `error=access_denied`
++- **THEN** sign-in fails with no token request, and the sign-in screen shows the fixed message for a refused sign-in
++
++#### Scenario: Issuer mismatch
++
++- **WHEN** the redirect carries the attempt's `state` and a code, but `iss` is missing or names another issuer
++- **THEN** sign-in fails with no token request
++
++#### Scenario: Expired attempt
++
++- **WHEN** the redirect arrives more than 10 minutes after the attempt started
++- **THEN** sign-in fails with no token request
++
++#### Scenario: Negative control
+ 
+-The app SHALL refresh the access token before it expires and SHALL sign the user out when the refresh token is rejected.
++- **WHEN** a redirect with a forged `state` and a code is delivered through the platform's redirect path (Android redirect activity, iOS `ASWebAuthenticationSession` callback or an `openURL` to the app)
++- **THEN** accepting it MUST fail: no token request is sent, nothing is stored, and the app's authentication state is unchanged
++
++### Requirement: Access token on API requests
++
++The app SHALL attach `Authorization: Bearer <access token>` to every request whose origin (scheme, host, port) equals the configured API base URL's origin. It SHALL send no `Authorization` header to any other origin and SHALL NOT follow HTTP redirects on the API client. While signed out, the app SHALL send no API request.
++
++#### Scenario: Order request carries the token
++
++- **WHEN** a signed-in user's order list loads
++- **THEN** the `GET /orders` request carries the current access token as a bearer token
++
++#### Scenario: Other origin
++
++- **WHEN** the API client sends a request to an origin other than the API base URL, even with a caller-set `Authorization` header
++- **THEN** the request carries no `Authorization` header
++
++#### Scenario: Negative control
++
++- **WHEN** the API answers an order request with a 302 redirect to another host
++- **THEN** forwarding the token MUST fail: no request reaches the other host, and the redirect surfaces as an error
++
++### Requirement: Token refresh before expiry
++
++Before sending an API request, the app SHALL refresh the access token when it expires in less than 60 seconds. At most one refresh SHALL be in flight; concurrent requests SHALL wait for it and use its result. After the API answers 401, the next request SHALL refresh first.
++
++A refresh fails transiently on a network error, a timeout after 10 seconds, HTTP 5xx or 429, an error other than `invalid_grant`, or a malformed response. Then the app SHALL keep the stored tokens and send the request with the current access token only if that token has not expired.
+ 
+ #### Scenario: Refresh before expiry
+ 
+ - **WHEN** the access token expires in less than a minute
+-- **THEN** the app refreshes it before the next API request
++- **THEN** the app refreshes it before the next API request, stores the new access token and refresh token, and sends the request with the new access token
++
++#### Scenario: Concurrent requests
++
++- **WHEN** two API requests start while the access token expires in less than a minute
++- **THEN** exactly one refresh request reaches Keycloak, and both API requests carry the new access token
++
++#### Scenario: API rejects the access token
++
++- **WHEN** the API answers 401 to a request carrying the current access token
++- **THEN** the next API request refreshes the token first
++
++#### Scenario: Transient failure with a valid token
++
++- **WHEN** the access token expires in less than a minute, has not expired, and the refresh times out
++- **THEN** the request is sent with the current access token, and the stored tokens are unchanged
++
++#### Scenario: Negative control
++
++- **WHEN** the access token has expired and the refresh fails with HTTP 503
++- **THEN** sending the request MUST fail: no API request is sent, the stored tokens are unchanged, and the user stays signed in
++
++### Requirement: Sign-out on rejected refresh
++
++When Keycloak rejects the refresh token (HTTP 400 with `error=invalid_grant`), the app SHALL:
++- delete the stored tokens;
++- clear the in-memory session;
++- switch to the signed-out state;
++- not send the pending API request;
++- show the sign-in screen.
++
++#### Scenario: Relaunch after rejection
++
++- **WHEN** the app is relaunched after a rejected refresh signed the user out
++- **THEN** it shows the sign-in screen and sends no API request
+ 
+ #### Scenario: Negative control
+ 
+ - **WHEN** Keycloak rejects the refresh token
+-- **THEN** keeping the user signed in MUST fail: the app signs the user out and deletes the stored tokens
++- **THEN** keeping the user signed in MUST fail: the stored tokens are deleted, the state is signed out, the pending order request is not sent, and the sign-in screen is shown
++
++### Requirement: Token storage and leak protection
++
++The app SHALL store tokens only in platform secure storage:
++- Android: AES-256-GCM ciphertext under a non-exportable Android Keystore key, in `noBackupFilesDir`.
++- iOS: a Keychain item with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
++
++The code verifier and `state` SHALL exist only in memory. The access token, refresh token, authorization code and code verifier SHALL NOT appear in logs, exception messages, `toString` output or UI text. They also SHALL NOT appear in any URL other than the redirect URI that carries the code; the only other place they may be sent is a token endpoint request body.
++
++#### Scenario: Cold start with stored tokens
++
++- **WHEN** the app starts with stored tokens
++- **THEN** it shows the order list without a sign-in and without a network call before the order request
++
++#### Scenario: Unreadable store
++
++- **WHEN** the stored entry cannot be decrypted or parsed
++- **THEN** the entry is deleted and the app shows the sign-in screen
++
++#### Scenario: iOS reinstall
++
++- **WHEN** the app is installed again on iOS while a Keychain item from the earlier install exists
++- **THEN** the first launch deletes that item and shows the sign-in screen
++
++#### Scenario: Negative control
++
++- **WHEN** sign-in, refresh, rejection and every failure path run with sentinel access token, refresh token, code and verifier values
++- **THEN** any sentinel found in a log line, exception message, `toString` output, UI string, URL of a request other than to the token endpoint, or the stored bytes MUST fail the check
++
++### Requirement: Order access requires sign-in
++
++The app SHALL show the order list only in the signed-in state. It SHALL show:
++- the sign-in screen while signed out;
++- a loading screen while the stored tokens are read at start.
++
++A switch to the signed-out state SHALL replace the order list with the sign-in screen.
++
++#### Scenario: Signed-in start
++
++- **WHEN** the app starts with valid stored tokens
++- **THEN** it shows the order list loaded with the stored access token
++
++#### Scenario: Negative control
++
++- **WHEN** the app starts with no stored tokens
++- **THEN** showing the order list or sending an order request MUST fail: the sign-in screen is shown and no API request is sent
+diff --git a/openspec/changes/oidc-sign-in/tasks.md b/openspec/changes/oidc-sign-in/tasks.md
+index 615d326..7b8ec64 100644
+--- a/openspec/changes/oidc-sign-in/tasks.md
++++ b/openspec/changes/oidc-sign-in/tasks.md
+@@ -1,15 +1,67 @@
+ # Tasks
+ 
+-## 1. Sign-in
++Paths below `app/` are under `shared/src/<sourceSet>/kotlin/`. Commands that run `:shared:testDebugUnitTest` and `:shared:iosSimulatorArm64Test` run the common tests on the JVM and on the iOS simulator. The F1 scenario steps are in the `## F1 scenarios` section below the task list.
+ 
+-- [ ] 1.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect, exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`
+-- [ ] 1.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew :shared:allTests --tests '*Token*'`
++## 1. Prerequisite
+ 
+-## 2. Final verification
++- [ ] 1.1 Confirm that the `kmp-app-shell` change is merged and supplies the contract in design.md D2. Do not start group 2 otherwise. Verify: `test -x gradlew && test -f shared/src/commonMain/kotlin/app/http/Client.kt && test -f shared/src/commonMain/kotlin/app/orders/OrderRepository.kt && test -f shared/src/commonMain/kotlin/app/ui/App.kt && test -d iosApp/iosApp.xcodeproj && ./gradlew -q :shared:testDebugUnitTest :shared:iosSimulatorArm64Test`
+ 
+-- [ ] 2.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`
++## 2. Shared OIDC core (`commonMain`, D3 to D9)
++
++- [ ] 2.1 Add `app/auth/OidcConfig.kt`, `app/auth/Pkce.kt` and the expect/actual CSPRNG and SHA-256 (D3, D4). `OidcConfigTest` asserts that an `http` issuer on a non-loopback host and a redirect URI other than `APP_ID:/oauth2redirect` are refused, and that both endpoints are derived. `PkceTest` asserts that the RFC 7636 Appendix B verifier `dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk` gives challenge `E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM` on both targets, that the generated verifier and state are 43 base64url characters, and that two attempts differ. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.OidcConfigTest' --tests 'app.auth.PkceTest' :shared:iosSimulatorArm64Test --tests 'app.auth.OidcConfigTest' --tests 'app.auth.PkceTest'`
++- [ ] 2.2 Add `app/auth/OidcClient.kt`: the authorization URL (D3), code exchange and token-response acceptance (D5), and refresh classification (D8). `OidcClientTest` runs against a `MockEngine` Keycloak that enforces S256 (rejects a verifier whose SHA-256 does not equal the stored challenge) and single-use codes. It asserts the authorization URL parameters; a mismatched verifier → `Rejected`; each incomplete 200 response (no refresh token, wrong `token_type`, `expires_in` missing or 0) → `TokenEndpointError`; refresh 400 `invalid_grant` → `Rejected`; and 400 `invalid_client`, 401, 429, 500, 503, `IOException`, timeout and malformed JSON → `Transient`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.OidcClientTest' :shared:iosSimulatorArm64Test --tests 'app.auth.OidcClientTest'`
++- [ ] 2.3 Add `app/auth/AuthTokens.kt`, the `TokenStore` interface and `app/auth/AuthSession.kt`: the state machine, `restore`, `startSignIn`, `completeSignIn` with the D4 checks in order, `cancelSignIn`, single-flight `validAccessToken` with a re-check after the lock, `markAccessTokenExpired`, and the D9 sign-out. `AuthSessionTest` uses a fake clock, an in-memory `TokenStore` that can be made to fail, and the 2.2 mock Keycloak, which counts requests. It asserts: (a) each D4 failure (missing state, wrong state, replayed redirect, `error=access_denied`, missing or wrong `iss`, attempt age 10 min + 1 s, wrong path, missing code) yields its kind with 0 token requests and the state unchanged, and a forged redirect while signed in leaves the session `SignedIn`; (b) a store write failure at sign-in → `StorageFailed` and `SignedOut`; (c) 60 s remaining → no refresh; 59 s → one refresh, with the new access and refresh tokens stored; (d) two concurrent `validAccessToken` calls → exactly 1 refresh request, and both get the new token; (e) `markAccessTokenExpired` with the current token → the next call refreshes; with an older token → no refresh; (f) rejection → store empty, state `SignedOut`, `SignedOut` thrown; (g) transient with 30 s remaining → current token returned, store unchanged; transient after expiry → `AuthUnavailable`, store unchanged, state `SignedIn`; (h) `restore` with a stored entry → `SignedIn` with 0 network requests; with an empty store → `SignedOut`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.AuthSessionTest' :shared:iosSimulatorArm64Test --tests 'app.auth.AuthSessionTest'`
++- [ ] 2.4 Add the D6 redaction (`toString`/`message` overrides). `TokenLeakTest` uses sentinel access token, refresh token, code and verifier values. It runs successful sign-in, refresh, rejection and every 2.2/2.3 failure path, and captures: every `AuthState`, `SignInFailure` and exception `toString`/`message`; every request URL sent to the mock API and to hosts other than the token endpoint; every header sent to non-API origins; and the sign-in screen string for each failure kind. It asserts 0 sentinel occurrences, and is checked once against a deliberately unredacted `AuthTokens.toString()`, which must make it fail. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.TokenLeakTest' :shared:iosSimulatorArm64Test --tests 'app.auth.TokenLeakTest'`
++
++## 3. HTTP client integration (D7)
++
++- [ ] 3.1 Change `app/http/Client.kt` to `httpClient(session, config)` with `followRedirects = false` and the `ApiAuth` plugin, and update every caller of `httpClient()`. `ApiAuthTest` (`MockEngine` API plus the 2.2 mock Keycloak) asserts: an API-origin request carries `Authorization: Bearer` with the current access token; same host with a different port or scheme, and other hosts, get no `Authorization` header, even when one is preset; a 302 to another host → `ApiRedirectRejected`, with 0 requests for that host; signed out → `NotSignedIn`, 0 API requests; an expired token with a 503 refresh → `AuthUnavailable`, 0 API requests; a 401 → the next request is preceded by 1 refresh. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.http.ApiAuthTest' :shared:iosSimulatorArm64Test --tests 'app.http.ApiAuthTest' && ! grep -rn 'httpClient()' shared androidApp iosApp`
++
++## 4. Platform token storage (D10)
++
++- [ ] 4.1 Add `androidMain` `app/auth/KeystoreTokenStore.kt`. The instrumented `KeystoreTokenStoreTest`, run on an emulator, asserts: a save/load round trip; the file is `noBackupFilesDir/auth/tokens.bin` and its raw bytes do not contain the sentinel token; `clear()` removes the file and the Keystore alias; a file corrupted by one flipped byte, or a deleted key → `load()` returns `null` and the file is gone. Verify: `./gradlew :shared:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.auth.KeystoreTokenStoreTest`
++- [ ] 4.2 Add `iosMain` `app/auth/KeychainTokenStore.kt`. `KeychainTokenStoreTests` in `iosAppTests` asserts: a round trip; `SecItemCopyMatching` returns `kSecAttrAccessible == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`; `clear()` leaves no item; with `auth.installed` removed from `NSUserDefaults` and an item present, a new store instance deletes the item. Verify: `xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:iosAppTests/KeychainTokenStoreTests`
++
++## 5. Order gate and platform entry paths (D11, D12)
++
++- [ ] 5.1 Add `app/AppController.kt` (the process-wide holder in D12) and the `SignInScreen`, and change `App()` to render `AppController.get(platform).screen`. `AppControllerTest` builds `AppController` through its constructor (fake store, mock API and Keycloak) and asserts: an empty store → `Screen.SignIn` and 0 API requests; stored valid tokens → `Screen.Orders` and exactly one `GET /orders` with the bearer token; a rejected refresh during the order load → `Screen.SignIn`, store empty, and the order request not sent. `AppScreenTest` (`runComposeUiTest`) asserts that `Screen.SignIn` shows the sign-in button and no order list node. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.AppControllerTest' --tests 'app.ui.AppScreenTest' :shared:iosSimulatorArm64Test --tests 'app.AppControllerTest' --tests 'app.ui.AppScreenTest'`
++- [ ] 5.2 Android: add the `BrowserLauncher` actual (an `androidx.browser` Custom Tab); `OidcRedirectActivity` in `:androidApp` with the D11 intent filter, forwarding to `AppController.get(applicationContext).auth.completeSignIn`; and `BuildConfig` fields for issuer, client id and redirect URI. The instrumented `RedirectEntryTest` asserts: an implicit `ACTION_VIEW` intent for `APP_ID:/oauth2redirect?code=forged&state=forged` with `iss` set to the configured issuer resolves to `OidcRedirectActivity`, which finishes; the session stays `SignedOut` with last failure `NoPendingAttempt`; after `startSignIn()`, the same intent gives last failure `StateMismatch` and the session stays `SignedOut`. Both failures happen before any network request (D4, proven in 2.3). Verify: `./gradlew :androidApp:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.android.RedirectEntryTest`
++- [ ] 5.3 iOS: add the `BrowserLauncher` actual (`ASWebAuthenticationSession`, D11), forwarding to `AppController.get(platform).auth`, plus the `Info.plist` keys (D3), with no `CFBundleURLTypes` entry for `APP_ID`. `RedirectEntryTests` in `iosAppTests` asserts: the bundle's `CFBundleURLTypes` lists no `APP_ID` scheme; the launcher's completion handler with a forged redirect leaves the session state unchanged with last failure `StateMismatch`; a `canceledLogin` completion clears the pending attempt, so a following redirect with that attempt's state gives `NoPendingAttempt`. Verify: `xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:iosAppTests/RedirectEntryTests`
++
++## 6. Real Keycloak integration (D3, D5, D8, D9)
++
++- [ ] 6.1 Add `shared/src/androidUnitTest/resources/keycloak/`: `compose.yml` (`quay.io/keycloak/keycloak:26.0.7`, `start-dev --import-realm`, host port 8180, health check on `/health/ready`), `orders-test-realm.json` (client `orders-app` with the D3 settings, a test user, revoke refresh token on, max reuse 0) and `README.md` (how to start it, and that `:shared:testDebugUnitTest` needs it running). Add `app.auth.KeycloakIT` (`androidUnitTest`, JVM, OkHttp engine). It signs in headlessly: a cookie-keeping client loads the authorization URL, posts the login form and reads the 302 `Location`. It asserts: the redirect carries `iss` and completes sign-in with tokens stored; a login started with the challenge replaced by the RFC 7636 example challenge (same `state`) → `Rejected`, store empty; exchanging an already-used code → `Rejected`; the fake clock at 59 s remaining → a real refresh with a rotated refresh token stored; two concurrent `validAccessToken` calls with rotation on → both succeed and the session stays `SignedIn` (a double refresh would be rejected under max reuse 0); after an admin-API user logout, the next refresh → `Rejected`, store empty, `SignedOut`. The test fails, rather than being skipped, when Keycloak is unreachable. Verify: `docker compose -f shared/src/androidUnitTest/resources/keycloak/compose.yml up -d --wait && ./gradlew :shared:testDebugUnitTest --tests 'app.auth.KeycloakIT'`
++
++## 7. Final verification
++
++- [ ] 7.1 F3. Whole-diff review: `integration-review` over `main...HEAD` with this change folder as the plan; fixes delta-reviewed. Write the report (first line `INTEGRATION-REVIEW-REPORT-v1`) to `.omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md` and leave it unstaged (a staged report makes `GC snapshot` refuse); review-work Phase 5 stages it with the gate record and trailers. Verify: `test "$(head -n 1 .omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`
++- [ ] 7.2 F1. Manual QA on the real surface: the eleven scenarios in `## F1 scenarios`, each with its evidence file in `.omp/team-config/evidence/gate/oidc-sign-in/f1/` and the observation it must show, on the head after F3's last code commit. The QA lane judges every observation against the spec; a file that only exists proves nothing. Verify: `cd .omp/team-config/evidence/gate/oidc-sign-in/f1 && for f in android-first-sign-in ios-first-sign-in android-forged-redirect ios-forged-redirect android-refresh-before-expiry ios-refresh-before-expiry android-rejected-refresh ios-rejected-refresh android-log-scan ios-log-scan android-pkce-mismatch; do test -s "$f.md" || { echo "missing $f"; exit 1; }; done`
++
++## F1 scenarios
++
++**Setup.** Android emulator (API 34, Chrome) and iOS simulator (iPhone 16), debug builds pointed at the staging Keycloak and the staging orders API. Preconditions: the staging client is configured as in D3, "Save events" is on for user events, and a QA user has at least one order.
++- `L` is the staging client's access-token lifespan, read from the Keycloak admin console and written into each file.
++- Each file records the steps, the observation, the screenshots or recording paths, and the Keycloak user events with their timestamps.
++- No password is written into evidence.
++
++For `p` in `android` and `ios`:
++- `p-first-sign-in.md`: fresh install shows the sign-in screen. Sign in → the order list shows the QA user's orders, and a `LOGIN` and a `CODE_TO_TOKEN` event exist. Force-quit and relaunch → the order list appears without the browser. Android only: `adb shell pm clear APP_ID`, then sign in again while Chrome still holds the Keycloak SSO session → the app receives the redirect and shows the order list.
++- `p-forged-redirect.md`, on the sign-in screen, once with no attempt pending and once after tapping Sign in and backing out:
++  - Android: `adb shell am start -a android.intent.action.VIEW -d 'APP_ID:/oauth2redirect?code=forged&state=forged&iss=<issuer>'`.
++  - iOS: `xcrun simctl openurl booted 'APP_ID:/oauth2redirect?code=forged&state=forged'`.
++
++  Expected: the app stays on the sign-in screen, and no `CODE_TO_TOKEN` event exists for that time. On iOS `openurl` reaches no handler.
++- `p-refresh-before-expiry.md`: sign in at time `t0`; at `t0 + L + 10 s`, reload the order list → the orders load, a `REFRESH_TOKEN` event exists between `t0 + L - 60 s` and the reload, and no new `LOGIN` occurs.
++- `p-rejected-refresh.md`: sign in at `t0`; in the admin console, user → Sessions → Sign out; at `t0 + L + 10 s`, reload the order list → the sign-in screen is shown and a `REFRESH_TOKEN_ERROR` event exists. Force-quit and relaunch → the sign-in screen is shown (stored tokens deleted).
++- `p-log-scan.md`, after all scenarios on that platform:
++  - Android: `adb logcat -d --uid=<uid>`, where `<uid>` is the `uid:` value printed by `adb shell cmd package list packages -U APP_ID`. This covers every process of the app since boot, including those before force-quits.
++  - iOS: `xcrun simctl spawn booted log show --last 2h --info --debug --predicate 'process == "iosApp"'`.
++
++  Count the lines containing `eyJ` (the prefix of Keycloak's JWT access and refresh tokens) and the lines containing `oauth2redirect?` (a logged redirect URI with its code). Expected: 0 for each.
++
++`android-pkce-mismatch.md`: tap Sign in; in `chrome://inspect`, read the authorization request URL from the Custom Tab's Network panel; navigate the tab to the same URL with `code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM`; log in → the app shows the sign-in failure and a `CODE_TO_TOKEN_ERROR` event exists. Force-quit and relaunch → the sign-in screen is shown.
+ 
+ ## Workflow follow-up
+ 
+-- F2 merge gate (`review-work`), after 2.1 and never a checkbox.
++- F2 merge gate (`review-work`), after 7.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
+ - Merge only after the F2 record validates.

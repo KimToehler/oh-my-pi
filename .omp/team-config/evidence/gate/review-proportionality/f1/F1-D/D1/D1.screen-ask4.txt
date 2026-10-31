@@ -1,0 +1,50 @@
+│    delivered (spec contradiction)                                                                                                                            │
+│  - C5 Refresh persistence: when the store write fails, rotated tokens live only in memory, contrary to the scenario → delivered                              │
+│  - V1 Leak-protection verification: TokenLeakTest scans no log sink; the F1 log scan cannot see a bare code or verifier → verification                       │
+│  - V2 Token-response acceptance: missing or empty access token untested; no session/UI test for incomplete responses → verification                          │
+│  - V3 Refresh-before-expiry F1: the reload runs after expiry, so it cannot show a refresh before expiry → verification                                       │
+│  - K1 CHECK 1, F1 evidence files are an unscanned sink: real staging tokens or codes could be committed with the evidence → verification (consequence: real  │
+│    credential exposure)                                                                                                                                      │
+│  - K2 CHECK 1, TokenLeakTest does not cover the full D6 sink matrix: request bodies and headers per origin, id_token and error bodies, stdout/log →          │
+│    verification                                                                                                                                              │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered token storage, refresh and bearer attachment. Effect: every blocker is excluded, so Accept and      │
+│  Override are off. Each one can only be fixed, re-planned or stopped.                                                                                        │
+│                                                                                                                                                              │
+│  Diagnosis: the blockers changed in kind. Round 3 found missing architecture: no request pipeline, no response validation, no storage design, no build.      │
+│  Round 4 finds no missing component; the Checks lens calls the core design sound. What it finds comes from two sources:                                      │
+│  (a) Precision gaps in the new text I wrote: two spec sentences that contradict the design (C3, C4), and the fallbacks I chose for store failure (C2, C5).   │
+│  (b) Proof depth for the leak and refresh claims (V1 to V3, K1, K2).                                                                                         │
+│  All ten have concrete fixes in the current design: share the in-flight result, fail closed on store failure, correct the two spec sentences, extend the     │
+│  sentinel matrix with log capture, an evidence-file scan, and a pre-expiry F1 step. None of the fixes needs a new decision from you.                         │
+│                                                                                                                                                              │
+│  Recommendation: Continue. The cause that drove round 3, a thin design, is gone. What remains is the precision of one existing design, and re-planning would │
+│  discard it and restart review on a new surface. A Re-plan to AppAuth would remove C1, C2 and C5 only by moving the logic into a library, which still needs  │
+│  the same proofs for V1 to V3, K1 and K2.                                                                                                                    │
+│                                                                                                                                                              │
+│  No Split option: the class-setting part, token handling, is the whole goal.                                                                                 │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix all 10 blockers in the artifacts (all excluded, no per-blocker accept), then round 5 with three fresh lenses.                                       │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ Revise the approach (e.g. replace D1 with AppAuth behind expect/actual) and every affected artifact; nothing accepted; then round 5.                    │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fixes, no new round. review.md stays REJECT; apply stays blocked.                                                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking round 4 approach question                                                                                           🔑 OIDC: Review OIDC sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ oidc-sign-in plan review, round 4: REJECT (review.md written, digest 4f0ef791…).                                                                             │
+│                                                                                                                                                              │
+│ Lenses: Correctness REJECT (5 blockers), Verification REJECT (3), Checks REJECT (2).                                                                         │
+│                                                                                                                                                            … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Continue (Recommended)                                                                                                                                   │
+│       Fix all 10 blockers in the artifacts (all excluded, no per-blocker accept), then round 5 with three fresh lenses.                                      │
+│   ○ Re-plan                                                                                                                                                  │
+│       Revise the approach (e.g. replace D1 with AppAuth behind expect/actual) and every affected artifact; nothing accepted; then round 5.                   │
+│   ○ Stop                                                                                                                                                     │
+│       No fixes, no new round. review.md stays REJECT; apply stays blocked.                                                                                   │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

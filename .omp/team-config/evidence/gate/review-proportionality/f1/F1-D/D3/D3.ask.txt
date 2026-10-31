@@ -1,0 +1,32 @@
+Plan review of `oidc-sign-in`, round 3: REJECT. The round is complete and review.md is written (digest 6002dfa3…). This is round 3, so the approach question comes before any fix.
+
+Lenses:
+- Correctness (OidcCorrectnessR3): REJECT, 2 blockers
+- Verification (OidcVerificationR3): REJECT, 3 blockers
+- Checks (OidcChecksR3): REJECT, 7 blockers
+
+Blockers (area → whether it concerns the delivered change or the verification):
+- C1 Sign-in and app lifecycle integration → delivered
+- C2 HTTP authentication and refresh integration → delivered
+- V1 'SHALL send the access token with every API request' has no task → delivered (Client.kt is never changed)
+- V2 Tasks 1.1/1.2 Verify commands do not prove the scenarios; the repo has no Gradle or test scaffolding → verification
+- V3 Task 2.1 (F1) uses the wrong evidence directory and checks one file for four scenarios → verification
+- K1 Authorization-response binding (state, nonce, ID-token validation) → delivered
+- K2 Token destinations (trusted origin, redirects) → delivered
+- K3 Persistent credentials (secure storage, logs, backups) → delivered
+- K4 CHECK 1 credential holders and sinks → delivered
+- K5 CHECK 4 fail-closed auth and refresh predicates → delivered
+- K6 CHECK 6 parity between sign-in, refresh and restore paths → delivered
+- K7 PROCESS 3 subsystem cut → delivered
+
+Mandatory class: auth-secrets-pii. It comes from the delivered OIDC sign-in, the access/refresh token storage and refresh, and bearer injection in shared/http/Client.kt. Because the class is not `none`, every blocker is excluded and Accept is not available for any of them. Only Fix, Re-plan, Split or Stop remain.
+
+Why the blockers keep coming: the plan is much shallower than what it promises. The spec promises end-to-end sign-in (open the app, reach the order list), the token on every API request, and pre-request refresh. The design is one sentence that hands the whole flow to a new client. The tasks are two lines that create three classes in shared/auth/. The repository has only shared/http/Client.kt: no app entry point, no redirect handler, no build or test setup. Each round, the reviewers find the next missing layer: round 2 the refresh race; round 3 the app wiring, the Client.kt wiring, the OIDC trust boundaries, token storage and token destinations, fail-closed predicates, and test scaffolding. Fixing these one blocker at a time adds new design surface every round, and the next round reviews that new surface again.
+
+Recommendation: Re-plan. Rewrite design.md to cover the OIDC trust boundaries, the credential holders and sinks, the trusted-origin bearer policy, the app and redirect integration (or name it as a prerequisite, since the repo has no app), and the build and test setup. Then rewrite tasks with named tests and the F1 scenarios. This deals with the cause and keeps the goal. Re-plan can also do the PROCESS 3 cut properly.
+
+Split is possible but not recommended. You could keep sign-in, storage and bearer injection, and move token refresh to its own change (refresh depends on sign-in, not the other way round). Users would then have to sign in again when the access token expires, and the 'Token refresh' requirement leaves this change. The cause above stays in the retained scope, and that scope is still auth-secrets-pii.
+  - Continue
+  - Re-plan
+  - Split
+  - Stop

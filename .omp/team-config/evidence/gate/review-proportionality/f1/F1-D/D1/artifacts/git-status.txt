@@ -1,0 +1,6 @@
+ M openspec/changes/oidc-sign-in/design.md
+ M openspec/changes/oidc-sign-in/gate.md
+ M openspec/changes/oidc-sign-in/proposal.md
+ M openspec/changes/oidc-sign-in/review.md
+ M openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
+ M openspec/changes/oidc-sign-in/tasks.md

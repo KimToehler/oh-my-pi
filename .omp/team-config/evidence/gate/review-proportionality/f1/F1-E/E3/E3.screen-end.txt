@@ -1,0 +1,350 @@
+│ [                                                                                                                                                            │
+│   {                                                                                                                                                          │
+│     "area": "Sign-in lifecycle",                                                                                                                             │
+│     "defect": "The planned OIDC client is not connected to a user-facing sign-in and order navigation flow on either platform.",                             │
+│     "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:3-9 requires a signed-out user to sign in and see orders, but design.md:3-5        │
+│ 15                                                                                                                                                           │
+│ … 8 more lines (⌃O to expand)                                                                                                                                │
+│ Status                                                                                                                                                       │
+│ ├─ … 4 earlier                                                                                                                                               │
+│ ├─ 📄 read 4084 chars · from agent://F1CorrectnessR3/blockers                                                                                                │
+│ ├─ 📄 read 2932 chars · from agent://F1VerificationR3/blockers                                                                                               │
+│ └─ 📄 read 5385 chars · from agent://F1ChecksR3/blockers                                                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /private/tmp/rp-f1/E3/openspec/changes/oidc-sign-in                   │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                   │
+╰─── Wall: 0.05s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ • Read (2)
+   ├─ openspec/changes/oidc-sign-in/gate.md
+   └─ openspec/changes/oidc-sign-in/proposal.md
+
+ Since this is round 3, the mandatory auth-secrets-pii class excludes all blockers from eligibility, so Accept is off regardless. I'm now going through each
+ correctness blocker to classify it as a delivered change versus a verification issue—sign-in lifecycle, request/refresh integration, and rejected refresh
+ lifecycle all look like delivered changes, and I'm now checking the timeout error propagation case.
+
+ I'm sorting out which items are delivered changes versus verification gates: gate classification, gradle setup, scenario coverage, and evidence checks all
+ fall under verification, while OIDC trust handling, credential sinks, fail-closed behavior, and path parity look like genuinely delivered security work, with
+ the subsystem process item being more of a structural scope note.
+
+ Diagnosing the root cause now: the design is really just a skeleton that names the custom OIDC client, storage, and refresher without actually working out the
+ integration, the security contract, or test mapping, and it also bundles in unrelated timeout work. On top of that, the repo only has a single Client.kt file
+ with no build infrastructure, meaning the verify commands have no way to actually run — this points toward recommending a re-plan rather than patching
+ individual blockers, since the design itself is under-specified across lifecycle, security, and verification concerns.
+
+ I'm also considering whether a Split is viable here: the auth-secrets-pii class is triggered by the sign-in/token work, while the timeout/retry piece is
+ independent per proposal.md and could stand alone as a useful remainder. The question is which part gets retained and which gets removed as a separate change
+ — if I retain the OIDC piece, the timeout work splits off, or vice versa, but I need to be careful not to lower a class while its trigger stays in the
+ retained scope, and to think through what happens to the original sign-in goal depending on which scope I keep.
+
+ Weighing the recommendation: Re-plan seems right since the root cause is missing integration path, security contract, and verification setup, which Split
+ alone wouldn't fully resolve—Split only clears a couple of the many blockers. I'll recommend Re-plan while noting Split remains an option if the user wants to
+ narrow scope first before revising.
+
+ The lack of a build setup is another issue worth raising—the repo only contains the client file, so the re-plan needs a decision on which real project this
+ fits into. I'll surface this alongside the recommendation, keeping the question compact but covering all necessary context.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Plan review of oidc-sign-in, round 3: REJECT. review.md has been written (digest dfe7a15f…da11) and V --reviewed fails, so apply stays blocked.             │
+│                                                                                                                                                              │
+│  Lens results:                                                                                                                                               │
+│  - Correctness (F1CorrectnessR3): REJECT, 5 blockers                                                                                                         │
+│  - Verification (F1VerificationR3): REJECT, 4 blockers                                                                                                       │
+│  - Checks (F1ChecksR3): REJECT, 6 blockers                                                                                                                   │
+│                                                                                                                                                              │
+│  What each blocker concerns, based on its stated consequence (you can dispute this; it doesn't change severity or eligibility):                              │
+│  - Correctness: sign-in lifecycle (UI flow, redirects, navigation) → delivered change; bearer attachment and refresh-before-request not wired into the HTTP  │
+│    client → delivered; rejected refresh doesn't clear tokens or sign out → delivered; timeout error doesn't reach the order screen → delivered; gate.md      │
+│    waives whole-diff review against config.yaml:7-9 → verification                                                                                           │
+│  - Verification: Verify commands use ./gradlew, but the repo has no build (only shared/http/Client.kt) → verification; no named tests per scenario →         │
+│    verification; F1 only checks test -f on one file → verification; F3 skipped on a wrong description of the delta → verification                            │
+│  - Checks: OIDC trust (state/nonce, issuer, audience, signature, redirect binding) → delivered; CHECK 1, no inventory or controls for where credentials are  │
+│    held and sent → delivered; CHECK 4, no fail-closed rule for partial or malformed token state → delivered; CHECK 6, Android/iOS and exchange/refresh paths │
+│    lack per-path controls → delivered; PROCESS 3, independent timeout/retry work bundled in → delivered (scope); no Boundary per criterion → verification    │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by OIDC sign-in, token storage and refresh (gate.md:3). Because the class isn't none, every blocker is excluded, so  │
+│  Accept and Override are off for all 15.                                                                                                                     │
+│                                                                                                                                                              │
+│  Why the blockers keep coming: design.md and tasks.md name components (a hand-written OIDC client, a token store, a refresher) but specify neither how they  │
+│  connect to the app and the request path, nor the security contract a hand-written OIDC client needs. Verification depends on a build the repo doesn't have. │
+│  Every round of point fixes exposes the next missing seam: round 2 had 1 blocker, round 3 has 15 across all three lenses.                                    │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Only a revised design can fix the cause: end-to-end integration on both platforms, the OIDC/credential security contract and a     │
+│  path matrix, fail-closed state rules, scenario-mapped tests with an executable build, and a gate with whole-diff review. Split would remove only the 2      │
+│  timeout/bundling blockers.                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│  ○ Continue                                                                                                                                                  │
+│  ◉ Split                                                                                                                                                     │
+│  ○ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I should scope this down to just the OIDC work and pull out the HTTP timeout pieces entirely—the proposal's "also in this change" note, the timeout spec, task
+ 1.1, and any design references to it. Rather than building that out now, I'll just flag it as a separate change to be proposed and reviewed later, then
+ reclassify the retained OIDC behavior accordingly.
+
+ Split only calls for revising scope and reclassifying, not fixing the other blockers—those remain open and will likely resurface in round 4, so I won't touch
+ gate.md beyond the scope change since the module count stays the same. Now I need to go back and read through all the artifacts again with this narrower scope
+ in mind.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ find openspec/changes/oidc-sign-in -type f && cat openspec/changes/oidc-sign-in/design.md openspec/changes/oidc-sign-in/tasks.md && cat -n                 │
+│ openspec/changes/oidc-sign-in/specs/http-timeout/spec.md && git status --short                                                                               │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (45 earlier lines, showing 10 of 55) ⟦⌃O: Expand⟧                                                                                                          │
+│      7   #### Scenario: Stalled orders request                                                                                                               │
+│      8                                                                                                                                                       │
+│      9   - **WHEN** the orders API does not answer a GET within 10 seconds and answers the retry                                                             │
+│     10   - **THEN** the order list shows the retried response                                                                                                │
+│     11                                                                                                                                                       │
+│     12   #### Scenario: Negative control                                                                                                                     │
+│     13                                                                                                                                                       │
+│     14   - **WHEN** a POST times out                                                                                                                         │
+│     15   - **THEN** retrying it MUST fail the scenario: the POST is not retried and the error is shown                                                       │
+│  M openspec/changes/oidc-sign-in/review.md                                                                                                                   │
+╰─── Wall: 0.03s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm deciding to remove the timeout spec file and consolidate the remaining task sections, renumbering them for consistency since the old section 1 is gone and
+ other tasks reference numbering like "F1 after 3.1." I'll also replace the "Also in this change" note with something that clearly points to the separate
+ change it belongs to.
+
+ Checking gate.md, the classification stays as auth-secrets-pii/product since nothing in the retained behavior needs reclassifying, and the diff summary
+ mentioning a one-line Client.kt change still roughly holds, so I'll leave gate.md untouched. I'll name the separate change http-request-timeout and reference
+ it in the proposal note.
+
+ Split chosen. Retained scope is OIDC sign-in, token storage and refresh. Timeout and retry moves out as a separate change, http-request-timeout.
+
+╭─── ✘ Edit: 📝 openspec/changes/oidc-sign-in/proposal.md ─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Edit rejected for openspec/changes/oidc-sign-in/specs/http-timeout/spec.md: hash #0000 is not from this session.                                              │
+│The current file hashes to #9529. Re-read the file with `read` to copy a current [path#tag] header — never invent the tag and never reuse one from a prior    │
+│session.                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ • Read (2)
+   ├─ openspec/changes/oidc-sign-in/tasks.md
+   └─ openspec/changes/oidc-sign-in/specs/http-timeout/spec.md:1-2
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/E3/openspec/changes/oidc-sign-in/proposal.md ⟦+2/-2⟧ ───────────────────────────────────────────────────────────────────────────────╮
+│   1│# Proposal                                                                                                                                               │
+│…                                                                                                                                                             │
+│  22│## Impact                                                                                                                                                │
+│…                                                                                                                                                             │
+│  24│`shared/` gains the sign-in flow; `shared/http/Client.kt` sends the access token.                                                                        │
+│  25│                                                                                                                                                         │
+│ -26│## Also in this change                                                                                                                                   │
+│   +│## Not in this change                                                                                                                                    │
+│  27│                                                                                                                                                         │
+│ -28│- Today the app hangs on the order screen whenever the orders API stalls, because `httpClient()` in `shared/http/Client.kt` has no timeout. Give every   │
+│    │request a 10-second timeout and retry an idempotent GET once after a timeout, so a stalled request shows an error instead of hanging. This is independent│
+│    │of sign-in and helps signed-in and future anonymous screens alike.                                                                                       │
+│   +│- The 10-second request timeout and single idempotent-GET retry in `httpClient()` (`shared/http/Client.kt`), which fixes the order-screen hang when the  │
+│    │orders API stalls, is split out as the separate change `http-request-timeout`. It is independent of sign-in and is proposed and reviewed on its own      │
+│    │before it is implemented; this change does not fix that hang.                                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+🗑 Delete: 📝 /tmp/rp-f1/E3/openspec/changes/oidc-sign-in/specs/http-timeout/spec.md
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/E3/openspec/changes/oidc-sign-in/tasks.md ⟦+6/-10⟧ ─────────────────────────────────────────────────────────────────────────────────╮
+│   1│# Tasks                                                                                                                                                  │
+│   2│                                                                                                                                                         │
+│  -3│## 1. Timeout and retry                                                                                                                                  │
+│   +│## 1. Sign-in                                                                                                                                            │
+│   4│                                                                                                                                                         │
+│  -5│- [ ] 1.1 Install Ktor `HttpTimeout` (10 s request timeout) and `HttpRequestRetry` (one retry, GET only, on timeout) in `httpClient()` in                │
+│    │`shared/http/Client.kt`, with tests against a stalled mock engine. Verify: `./gradlew :shared:allTests --tests '*Client*'`                               │
+│   +│- [ ] 1.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect,        │
+│    │exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`                                                                │
+│  +6│- [ ] 1.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew          │
+│    │:shared:allTests --tests '*Token*'`                                                                                                                      │
+│    │                                                                                                                                                         │
+│  -7│## 2. Sign-in                                                                                                                                            │
+│  +8│## 2. Final verification                                                                                                                                 │
+│    │                                                                                                                                                         │
+│  -9│- [ ] 2.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect,        │
+│    │exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`                                                                │
+│ -10│- [ ] 2.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew          │
+│    │:shared:allTests --tests '*Token*'`                                                                                                                      │
+│   +│- [ ] 2.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code  │
+│    │commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`                                                                                │
+│  11│                                                                                                                                                         │
+│ -12│## 3. Final verification                                                                                                                                 │
+│ -13│                                                                                                                                                         │
+│ -14│- [ ] 3.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code  │
+│    │commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`                                                                                │
+│ -15│                                                                                                                                                         │
+│  16│## Workflow follow-up                                                                                                                                    │
+│  17│                                                                                                                                                         │
+│ -18│- F2 merge gate (`review-work`), after 3.1 and never a checkbox.                                                                                         │
+│ +14│- F2 merge gate (`review-work`), after 2.1 and never a checkbox.                                                                                         │
+│  19│- Merge only after the F2 record validates.                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm reclassifying this as still auth-secrets-pii, confirming gate.md and the design doc don't mention anything about timeout, and moving on to repeat
+ validation and dispatch for round four.
+
+ The retained scope still contains the auth-secrets-pii trigger (OIDC, token storage), so gate.md keeps its classification. Repeating from step 1 for round 4.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ V=~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs; D=/private/tmp/rp-f1/E3/openspec/changes/oidc-sign-in; node $V $D && node $V       │
+│ --digest $D                                                                                                                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ passed                                                                                                                                                       │
+│ 473e27f4f4aab268426b508ed3181b34758fb865cf17e9143b95a7f264bc26aa                                                                                             │
+╰─── Wall: 0.08s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── • Task 3 agents ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                              │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • ◑ onara/cx/gpt-6.1-terra F1CorrectnessR4 ⟦plan-reviewer⟧ · 20 🛠 · 5 req · 8.6%/272K · $0.04                                                                │
+│   yield[result]: {"verdict":"REJECT","summary":"The planned auth components do not con…                                                                      │
+│ • ◑ onara/cx/gpt-6.1-terra F1VerificationR4 ⟦plan-reviewer⟧ · 22 🛠 · 6 req · 10.6%/272K · $0.03                                                              │
+│   yield[result]: {"verdict":"REJECT","summary":"The authentication risk classification…                                                                      │
+│ • ◑ onara/cx/gpt-6.1-terra F1ChecksR4 ⟦plan-reviewer⟧ · 21 🛠 · 6 req · 10.6%/272K · $0.70                                                                    │
+│   yield[result]: {"verdict":"REJECT","summary":"The plan leaves authentication trust, …                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+• F1CorrectnessR4 done · 22.2s
+  2 still running
+
+• F1VerificationR4 done · 24.6s
+  1 still running
+
+• F1ChecksR4 done · 9m12s
+
+ Round 4 is a reject, so I need to write review.md and then mark the version reviewed before revisiting the approach question. There's some ambiguity around
+ correctness blocker 3 regarding the proposal's timeout claim — my wording about the 10-second client timeout fixing the order-screen hang may have been
+ slightly misread by the reviewer, but I'll include it anyway since the ambiguity is real.
+
+ I also notice the repo contains no Android/iOS app at all, which is a critical fact — the repo literally cannot host the delivered change, and that's a key
+ root cause to flag in the diagnosis.
+
+ Round 4 is complete and all three lenses returned REJECT again. Writing review.md first.
+
+╭─── 🐍 • Writing round 4 review.md · (8ms) ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ digest="473e27f4f4aab268426b508ed3181b34758fb865cf17e9143b95a7f264bc26aa"                                                                                    │
+│ lenses=[("Correctness","F1CorrectnessR4"),("Verification","F1VerificationR4"),("Checks","F1ChecksR4")]                                                       │
+│ parts=[]                                                                                                                                                     │
+│ for name,i in lenses:                                                                                                                                        │
+│     b=json.loads(read(f"agent://{i}/blockers"))                                                                                                              │
+│     parts.append(f"### {name} ({i})\n\n{json.dumps(b,indent=2,ensure_ascii=False)}\n")                                                                       │
+│ doc=f"""# Review                                                                                                                                             │
+│                                                                                                                                                              │
+│ - **Verdict**: REJECT                                                                                                                                        │
+│ - **Reviewed digest**: {digest}                                                                                                                              │
+│ - **Reviewer**: plan-reviewer, F1CorrectnessR4, F1VerificationR4, F1ChecksR4                                                                                 │
+│ - **Round**: 4                                                                                                                                               │
+│ - **Override**: none                                                                                                                                         │
+│                                                                                                                                                              │
+│ ## Blockers                                                                                                                                                  │
+│                                                                                                                                                              │
+│ """+"\n".join(parts)                                                                                                                                         │
+│ write("/private/tmp/rp-f1/E3/openspec/changes/oidc-sign-in/review.md",doc)                                                                                   │
+│ print(doc[:420])                                                                                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ - **Override**: none                                                                                                                                         │
+│                                                                                                                                                              │
+│ ## Blockers                                                                                                                                                  │
+│                                                                                                                                                              │
+│ ### Correctness (F1CorrectnessR4)                                                                                                                            │
+│                                                                                                                                                              │
+│ [                                                                                                                                                            │
+│   {                                                                                                                                                          │
+│     "area": "Correctness — app and API integration",                                                                                                         │
+│     "defect": "The implementation tasks never integrate sign-in with either pla                                                                              │
+│ … 6 more lines (⌃O to expand)                                                                                                                                │
+│ Status                                                                                                                                                       │
+│ ├─ … 1 earlier                                                                                                                                               │
+│ ├─ 📄 read 3044 chars · from agent://F1VerificationR4/blockers                                                                                               │
+│ ├─ 📄 read 4026 chars · from agent://F1ChecksR4/blockers                                                                                                     │
+│ └─ 📄 write 10352 chars · to /private/tmp/rp-f1/E3/openspec/changes/oidc-sign-in/review.md                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /private/tmp/rp-f1/E3/openspec/changes/oidc-sign-in                   │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                   │
+╰─── Wall: 0.07s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking again whether any class-setting piece can ship alone usefully, but everything retained is tied to auth as one unit—sign-in without bearer token
+ attachment wouldn't actually be useful on its own, so splitting doesn't seem viable here.
+
+ I'm now diagnosing a bigger issue: the repo has no app, no build, no order screen to integrate into—just a shared HTTP client file—so the plan is describing
+ integration points that don't exist, and the hand-rolled OIDC client also creates a large security surface. This points toward Re-plan rather than Continue,
+ with the re-plan needing to settle where the app/build actually lives and possibly favoring an established OIDC library over a hand-written one, since that
+ would shrink the security review burden—though I should frame that as a cause in the diagnosis rather than prescribing it as a fix.
+
+ Now I'm sorting round 4 blockers by category—checking whether correctness issues like the app/API integration gap, the refresh/sign-out lifecycle, and the
+ timeout scope wording have already been addressed or still need resolution.
+
+ I'm classifying the remaining items: the stalled-request-still-hangs issue is a delivered scope clarification, while scenario coverage, F1 evidence, and
+ executability all fall under verification. For the checks, CHECK 1, CHECK 4, and CHECK 6 (concurrency) are delivered, the boundary condition is verification,
+ and PROCESS 3 is delivered as a scope item—everything else stays excluded under the auth-secrets-PII classification.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Plan review of oidc-sign-in, round 4 (after the Split): REJECT. review.md has been written (digest 473e27f4…26aa) and V --reviewed fails, so apply stays    │
+│  blocked.                                                                                                                                                    │
+│                                                                                                                                                              │
+│  Lens results:                                                                                                                                               │
+│  - Correctness (F1CorrectnessR4): REJECT, 3 blockers                                                                                                         │
+│  - Verification (F1VerificationR4): REJECT, 3 blockers                                                                                                       │
+│  - Checks (F1ChecksR4): REJECT, 5 blockers                                                                                                                   │
+│                                                                                                                                                              │
+│  What each blocker concerns, based on its stated consequence (you can dispute this; it doesn't change severity or eligibility):                              │
+│  - Correctness: app and API integration (no platform entry point, redirect delivery, order screen or token attachment) → delivered change; refresh is not on │
+│    the request path and rejection doesn't sign out or delete tokens → delivered; proposal's timeout note reads as if the timeout already exists → delivered  │
+│    (scope wording)                                                                                                                                           │
+│  - Verification: no named tests per scenario → verification; F1 checks only test -f sign-in.md → verification; ./gradlew has no build in the repo →          │
+│    verification                                                                                                                                              │
+│  - Checks: CHECK 1, token holders and sinks (destinations, redirects, storage, logs) → delivered; CHECK 4, callback and ID-token validation for the          │
+│    hand-written OIDC client → delivered; CHECK 6, exchange and refresh share no common validation, and concurrent refresh races logout → delivered; no       │
+│    Boundary per criterion → verification; PROCESS 3, flow, storage, refresh and request auth combined without a cut → delivered (scope)                      │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by OIDC sign-in, token storage and refresh, which is the whole retained scope. Every blocker is excluded, so Accept  │
+│  and Override are off. No Split is offered: every remaining part sets the class, and none is useful on its own (sign-in without token attachment or refresh  │
+│  delivers nothing).                                                                                                                                          │
+│                                                                                                                                                              │
+│  Why the blockers keep coming: the plan is written against surfaces this repository doesn't have. There is no Android or iOS app, no order screen, no Gradle │
+│  build and no tests, only shared/http/Client.kt. So each lens finds the missing integration and the commands that can't run. Design D1 (hand-write the OIDC  │
+│  client) also takes on the full OIDC trust and credential-handling contract (CHECK 1/4/6), which the plan never states. The Split removed the timeout scope  │
+│  but neither cause, and the same auth blockers came back.                                                                                                    │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Further point fixes would keep describing integration into code that doesn't exist and leave D1's security contract open. A        │
+│  re-plan has to settle where the app and build actually live, and whether to hand-write OIDC at all, before tasks and verification can be written against    │
+│  real code.                                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│  ○ Continue                                                                                                                                                  │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I should stop here without applying any further fixes or running another round—time to report findings. I'll note that the separate http-request-timeout
+ change was only mentioned, not actually implemented.
+
+ I've stopped the review at your request. It ended with a REJECT in round 4, and apply stays blocked.
+
+ What happened:
+ - Round 3: the change passed validation, but the digest no longer matched the old round-2 REJECT, so I ran a new round. All three reviewers (correctness,
+   verification, checks) returned REJECT, with 15 blockers between them. I wrote review.md for the round, then asked how to proceed, since round 3 is where
+   that question is required. You chose Split.
+ - The split: the 10-second timeout and GET retry came out of this change. specs/http-timeout/spec.md is deleted, the timeout task is gone from tasks.md (the
+   remaining tasks are renumbered to 1.1, 1.2 and 2.1), and proposal.md now has a "Not in this change" section naming http-request-timeout as its own change. I
+   didn't create that change; it still needs to be proposed and reviewed. gate.md is unchanged because the class is still auth-secrets-pii.
+ - Round 4: all three reviewers rejected again, with 11 blockers. I wrote review.md first, then asked the same question again; you chose Stop.
+
+ Current state:
+ - review.md records round 4: REJECT, digest 473e27f4…26aa, reviewers F1CorrectnessR4, F1VerificationR4, F1ChecksR4, all 11 blockers quoted word for word,
+   Override none.
+ - validate-openspec-change.mjs --reviewed fails as expected after a REJECT.
+ - None of the blockers can be accepted or overridden, because the change is in the auth-secrets-pii class.
+
+ What keeps blocking it: the plan describes hooking sign-in into an Android/iOS app, an order screen and a Gradle build. None of these exist in this
+ repository; the only code is shared/http/Client.kt. Design D1 also writes the OIDC client by hand without saying how callbacks, ID tokens, token storage and
+ where tokens get sent are protected. Restarting means answering where the app and build actually live, and whether to write OIDC by hand at all. Then a new
+ review round 5 can run.
+
+ Editing any artifact other than ticking tasks makes this review stale, so run it again before apply.
+
+                                                                                                                      🔑 OIDC: Review OpenSpec oidc-sign-in plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/E3 > ⑂ main *4 > $1.06 (+1.58) ▶──────6%───────────────────┃───────────────────────────────────────────────────────────────1M─
+╰─

@@ -1,0 +1,250 @@
+│ ────────────────────────────────────────────────────────────────────────────────                                                                             │
+│                                                                                                                                                              │
+│ name: review-work                                                                                                                                            │
+│                                                                                                                                                              │
+│ description: "Post-implementation merge gate: run manual QA on the real surface yourself, then use orchestrator-decided review depth (auditor, optionally    │
+│ oracle) with verbatim briefs, stored trailers, and a team-config.merge-gate/v3 record validated by validate-gate-record.mjs. Use before calling work done,   │
+│ before a PR handoff or merge, or when the user asks to review completed work."                                                                               │
+│                                                                                                                                                              │
+│ Validator: $SKILL_DIR/scripts/validate-gate-record.mjs, where SKILL_DIR=~/.omp/agent/skills/review-work. Always pass --repo <repo root> (Phase 0.6           │
+│ --plan-only, Phase 2-3 --trailer, Phase 5 full run).                                                                                                         │
+│                                                                                                                                                              │
+│ Convergence: $SKILL_DIR/scripts/gate-convergence.mjs (see Fix waves).                                                                                        │
+│ … 897 more lines ⟦⌃O: Expand⟧                                                                                                                                │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⟦Resolved path: /tmp/rp-f1/D3/.omp/skills/review-work/SKILL.md⟧                                                                                              │
+│ ⟦Showing lines 1-191 and 453-549 of 549; 261 middle lines (34.6KB) elided. Read artifact://10 for full output⟧                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The JSON decode error is from a control character in the payload, so I should try loads with strict=False since the string likely has a literal newline. Also,
+ since review.md wasn't written due to the exception before that step, the --reviewed result still reflects the old file, which makes sense. I still need to
+ find the Blocker disposition section from the elided lines, so I'll grep for it.
+
+╭─── 🐍 ✘ Write round 3 review.md · (1ms) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ parts=["# Review","",                                                                                                                                        │
+│     "- **Verdict**: REJECT",                                                                                                                                 │
+│     "- **Reviewed digest**: 6002dfa3c1812d38bda3a5dd27379c4a2aaa456b6e96834edb09a4b7663177e3",                                                               │
+│     "- **Reviewer**: plan-reviewer, OidcCorrectnessR3, OidcVerificationR3, OidcChecksR3",                                                                    │
+│     "- **Round**: 3",                                                                                                                                        │
+│     "- **Override**: none","","## Blockers",""]                                                                                                              │
+│ P={}                                                                                                                                                         │
+│ for name,a in lenses:                                                                                                                                        │
+│     d=json.loads(payload[a],strict=False);                                                                                                                   │
+│     P[a]=d                                                                                                                                                   │
+│     assert d["verdict"]=="REJECT"                                                                                                                            │
+│     parts+= [f"### {name} ({a})","",json.dumps(d["blockers"],indent=2,ensure_ascii=False),""]                                                                │
+│ write("/private/tmp/rp-f1/D3/openspec/changes/oidc-sign-in/review.md","\n".join(parts))                                                                      │
+│ print({a:len(P[a]["blockers"]) for a in P})                                                                                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Traceback (most recent call last):                                                                                                                           │
+│   File "<cell>", line 9, in <module>                                                                                                                         │
+│   File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 359, in loads     │
+│     return cls(**kw).decode(s)                                                                                                                               │
+│   File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode     │
+│     obj, end = self.raw_decode(s, idx=_w(s, 0).end())                                                                                                        │
+│   File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 353, in raw_decode │
+│     obj, end = self.scan_once(s, idx)                                                                                                                        │
+│ json.decoder.JSONDecodeError: Expecting ',' delimiter: line 14 column 8 (char 2303)                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+⚠ Grep: ^#+ |Blocker disposition 34 matches · 1 file · in .omp/skills/review-work/SKILL.md · truncated
+├─  *18│# Review Work - Gate Review Orchestrator
+│   *32│## Phase 0: Gather Review Context
+│   *54│# 1. Get changed files
+│   *57│# 2. Get diff
+│   *60│# 3. Detect run command
+└─ … 29 more matches
+
+ The JSON decode error might be happening because the read() output got compressed or altered somewhere, possibly by a router. I should check the raw string
+ around character 2303 to see what's going on there.
+
+╭─── 🐍 • Inspect decode issue · (1ms) ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ s=payload["OidcCorrectnessR3"];                                                                                                                              │
+│ print(repr(s[2150:2450]))                                                                                                                                    │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 'to API requests, and propagates rejected-refresh sign-out to the app state."\n    }\n  ],\n  "notes": [\n    "The gate\'s product/auth-secrets-pii          │
+│ classification is consistent with the delivered authentication change and openspec/config.yaml:8."\n  ]\n}'                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ● Read .omp/skills/review-work/SKILL.md:417-444
+
+ I'm trying to pinpoint the exact error location in the JSON—it seems to be near line 14 at character 2303, likely an unescaped quote somewhere in the
+ verification payload for the Correctness check.
+
+╭─── 🐍 • Find bad payload · (1ms) ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ for a,s in payload.items():                                                                                                                                  │
+│     try:                                                                                                                                                     │
+│         json.loads(s,strict=False);                                                                                                                          │
+│         print(a,"ok")                                                                                                                                        │
+│     except Exception as e:                                                                                                                                   │
+│         print(a,e, repr(s[max(0,e.pos-200):e.pos+80]))                                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ OidcCorrectnessR3 ok                                                                                                                                         │
+│ OidcVerificationR3 Expecting ',' delimiter: line 14 column 8 (char 2303) 'sh before the next request) or the refresh-rejected case (user signed out and      │
+│ stored tokens deleted). The task text never states the \'expires in less than a minute\' threshold or the sign-out …\n      "evidence": "tasks.md:5-6        │
+│ (filters only, no test names or negative cases); spec.m'                                                                                                     │
+│ OidcChecksR3 ok                                                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The agent:// read got truncated by router compression, so I should try the blockers field path directly instead. I already have the full delivered defect text
+ from the task result in conversation, which I can compare against.
+
+╭─── 🐍 • Read field directly · (3ms) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ import os,glob                                                                                                                                               │
+│ s=read("agent://OidcVerificationR3/blockers/1/defect");                                                                                                      │
+│ print(len(s));                                                                                                                                               │
+│ print(s[-300:])                                                                                                                                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 894                                                                                                                                                          │
+│  refresh-rejected case (user signed out and stored tokens deleted). The task text never states the 'expires in less than a minute' threshold or the sign-out │
+│ and delete behaviour. The repo also has no Gradle or test scaffolding (only `shared/http/Client.kt`), so the filters would run against nothing.              │
+│ Status                                                                                                                                                       │
+│ └─ 📄 read 894 chars · from agent://OidcVerificationR3/blockers/1/defect                                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'll read each blocker's fields one at a time to avoid truncation issues when building the full list.
+
+╭─── 🐍 • Write round 3 review.md · (28ms) ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ def blockers(a):                                                                                                                                             │
+│     n=len(json.loads(payload[a],strict=False)["blockers"]) if a!="OidcVerificationR3" else 3                                                                 │
+│     out=[]                                                                                                                                                   │
+│     for i in range(n):                                                                                                                                       │
+│         out.append({k: read(f"agent://{a}/blockers/{i}/{k}") for k in ["area","defect","evidence","change"]})                                                │
+│     return out                                                                                                                                               │
+│ P={a:blockers(a) for _,a in lenses}                                                                                                                          │
+│ for a,bs in P.items():                                                                                                                                       │
+│     for b in bs:                                                                                                                                             │
+│         for k,v in b.items():                                                                                                                                │
+│             assert "…" not in v or True                                                                                                                      │
+│             if "…" in v:                                                                                                                                     │
+│                 print("ellipsis",a,k)                                                                                                                        │
+│ print({a:len(b) for a,b in P.items()})                                                                                                                       │
+│ parts=["# Review","",                                                                                                                                        │
+│     "- **Verdict**: REJECT",                                                                                                                                 │
+│     "- **Reviewed digest**: 6002dfa3c1812d38bda3a5dd27379c4a2aaa456b6e96834edb09a4b7663177e3",                                                               │
+│     "- **Reviewer**: plan-reviewer, OidcCorrectnessR3, OidcVerificationR3, OidcChecksR3",                                                                    │
+│     "- **Round**: 3",                                                                                                                                        │
+│     "- **Override**: none","","## Blockers",""]                                                                                                              │
+│ for name,a in lenses:                                                                                                                                        │
+│     parts+= [f"### {name} ({a})","",json.dumps(P[a],indent=2,ensure_ascii=False),""]                                                                         │
+│ write("/private/tmp/rp-f1/D3/openspec/changes/oidc-sign-in/review.md","\n".join(parts))                                                                      │
+│ print("written")                                                                                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ {'OidcCorrectnessR3': 2, 'OidcVerificationR3': 3, 'OidcChecksR3': 7}                                                                                         │
+│ written                                                                                                                                                      │
+│ Status                                                                                                                                                       │
+│ ├─ … 46 earlier                                                                                                                                              │
+│ ├─ 📄 read 350 chars · from agent://OidcChecksR3/blockers/6/evidence                                                                                         │
+│ ├─ 📄 read 158 chars · from agent://OidcChecksR3/blockers/6/change                                                                                           │
+│ └─ 📄 write 13152 chars · to /private/tmp/rp-f1/D3/openspec/changes/oidc-sign-in/review.md                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ No ellipsis issue; checking that the verification blocker text matches what was delivered, it lines up fine. I'll proceed with the reviewed verification run.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /private/tmp/rp-f1/D3/openspec/changes/oidc-sign-in                   │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                   │
+╰─── Wall: 0.04s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ● Read openspec/changes/oidc-sign-in/gate.md
+
+ Round 3 lands on REJECT since this touches auth, secrets, and PII, making it a mandatory class that excludes every blocker from Accept eligibility. I'm now
+ going through each blocker area—starting with correctness around sign-in and app lifecycle integration—comparing what was actually delivered (OIDC sign-in,
+ token storage/refresh, bearer injection in the HTTP client) against what verification requires.
+
+ For verification, I note the token-sending clause has no task tied to Client.kt, meaning the implementation itself is missing; the verify commands don't
+ actually prove the scenarios since there's no test scaffolding, and the F1 evidence path raises its own flags. Walking through the
+ checks—authorization-response binding, token destinations, persistent credentials, credential holders/sinks, fail-closed predicates, entry path parity, and
+ the subsystem cut—everything traces back to delivered code or plan scope.
+
+ My causal diagnosis is that the plan is fundamentally a skeleton: two tasks naming only three classes in shared/auth, while the actual requirement demands
+ end-to-end sign-in flowing from app open through to the order list with tokens on every request—yet the repo contains only the HTTP client file, with no app,
+ build, or tests to support that claim.
+
+ Given how shallow the design is relative to the requirement's scope, I'm weighing whether to recommend a full re-plan that specifies trust boundaries, token
+ storage, injection policy, and properly scoped tasks with named tests, versus attempting a split. But testing the split option, I keep finding that the entire
+ change is auth-classed—sign-in, storage, refresh—so there's no useful remainder that escapes the class trigger, which pushes me back toward recommending a
+ complete re-plan.
+
+ Splitting alone won't fix that, since re-planning would likely require its own scoping cut anyway. I also want to flag that the repo has no app entry points
+ at all, which could be a prerequisite blocker, and that gate.md has a stray inconsistent note I should mention briefly without losing focus. I'll frame this
+ as a single question with options — Continue, Re-plan, Split, Stop — laying out the per-blocker details even though it's lengthy.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Plan review of oidc-sign-in, round 3: REJECT. The round is complete and review.md is written (digest 6002dfa3…). This is round 3, so the approach question  │
+│  comes before any fix.                                                                                                                                       │
+│                                                                                                                                                              │
+│  Lenses:                                                                                                                                                     │
+│  - Correctness (OidcCorrectnessR3): REJECT, 2 blockers                                                                                                       │
+│  - Verification (OidcVerificationR3): REJECT, 3 blockers                                                                                                     │
+│  - Checks (OidcChecksR3): REJECT, 7 blockers                                                                                                                 │
+│                                                                                                                                                              │
+│  Blockers (area → whether it concerns the delivered change or the verification):                                                                             │
+│  - C1 Sign-in and app lifecycle integration → delivered                                                                                                      │
+│  - C2 HTTP authentication and refresh integration → delivered                                                                                                │
+│  - V1 'SHALL send the access token with every API request' has no task → delivered (Client.kt is never changed)                                              │
+│  - V2 Tasks 1.1/1.2 Verify commands do not prove the scenarios; the repo has no Gradle or test scaffolding → verification                                    │
+│  - V3 Task 2.1 (F1) uses the wrong evidence directory and checks one file for four scenarios → verification                                                  │
+│  - K1 Authorization-response binding (state, nonce, ID-token validation) → delivered                                                                         │
+│  - K2 Token destinations (trusted origin, redirects) → delivered                                                                                             │
+│  - K3 Persistent credentials (secure storage, logs, backups) → delivered                                                                                     │
+│  - K4 CHECK 1 credential holders and sinks → delivered                                                                                                       │
+│  - K5 CHECK 4 fail-closed auth and refresh predicates → delivered                                                                                            │
+│  - K6 CHECK 6 parity between sign-in, refresh and restore paths → delivered                                                                                  │
+│  - K7 PROCESS 3 subsystem cut → delivered                                                                                                                    │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii. It comes from the delivered OIDC sign-in, the access/refresh token storage and refresh, and bearer injection in          │
+│  shared/http/Client.kt. Because the class is not none, every blocker is excluded and Accept is not available for any of them. Only Fix, Re-plan, Split or    │
+│  Stop remain.                                                                                                                                                │
+│                                                                                                                                                              │
+│  Why the blockers keep coming: the plan is much shallower than what it promises. The spec promises end-to-end sign-in (open the app, reach the order list),  │
+│  the token on every API request, and pre-request refresh. The design is one sentence that hands the whole flow to a new client. The tasks are two lines that │
+│  create three classes in shared/auth/. The repository has only shared/http/Client.kt: no app entry point, no redirect handler, no build or test setup. Each  │
+│  round, the reviewers find the next missing layer: round 2 the refresh race; round 3 the app wiring, the Client.kt wiring, the OIDC trust boundaries, token  │
+│  storage and token destinations, fail-closed predicates, and test scaffolding. Fixing these one blocker at a time adds new design surface every round, and   │
+│  the next round reviews that new surface again.                                                                                                              │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Rewrite design.md to cover the OIDC trust boundaries, the credential holders and sinks, the trusted-origin bearer policy, the app  │
+│  and redirect integration (or name it as a prerequisite, since the repo has no app), and the build and test setup. Then rewrite tasks with named tests and   │
+│  the F1 scenarios. This deals with the cause and keeps the goal. Re-plan can also do the PROCESS 3 cut properly.                                             │
+│                                                                                                                                                              │
+│  Split is possible but not recommended. You could keep sign-in, storage and bearer injection, and move token refresh to its own change (refresh depends on   │
+│  sign-in, not the other way round). Users would then have to sign in again when the access token expires, and the 'Token refresh' requirement leaves this    │
+│  change. The cause above stays in the retained scope, and that scope is still auth-secrets-pii.                                                              │
+│  ○ Continue                                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│  ○ Split                                                                                                                                                     │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'll stop here without further fixes and just give a brief report.
+
+ You chose Stop, so the oidc-sign-in review ends here: no fixes and no round 4. Implementation stays blocked, and validate-openspec-change.mjs --reviewed fails
+ until a later review returns OKAY.
+
+ Round 3 result: REJECT from all three reviewers (correctness, verification, checks), with 12 blockers in total.
+
+ - Before dispatch: the change validated cleanly. Its current digest is 6002dfa3c1812d38bda3a5dd27379c4a2aaa456b6e96834edb09a4b7663177e3. The old round-2
+   review.md carried a placeholder digest, so it was stale, and it had no open approach question to resume.
+ - review.md now records round 3: verdict REJECT, the digest above, the three reviewers in lens order and every blocker word for word. I built the blocker text
+   from each reviewer's output field by field, because the full output came back truncated (one entry ended in …).
+ - No blocker can be accepted: the gate's mandatory class is auth-secrets-pii, which excludes every blocker from Accept.
+
+ Why the blockers keep coming: the spec promises end-to-end sign-in, the access token on every API request and refresh before requests. The plan is one design
+ sentence and two tasks in shared/auth/. The repo contains only shared/http/Client.kt, with no app, redirect handling, build or test setup. Each round finds
+ the next missing layer; this round it was:
+ - connecting sign-in to the app and to Client.kt;
+ - the OIDC security checks on redirects and ID tokens;
+ - where tokens are stored and which servers they are sent to;
+ - rejecting missing or incomplete tokens;
+ - the build and test setup.
+
+ To pick this up again: rewrite the design (Re-plan, which I recommended) or split out token refresh, then rerun this review as round 4 with three fresh
+ reviewers.
+
+ Not raised as a blocker: gate.md lines 7–8 give the reason "none (F1 fixture change)", which doesn't apply to this change.
+
+                                                                                                                               🔑 OIDC: Review OIDC sign-in plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/D3 > ⑂ main *1 > $0.68 (+0.23) ▶──────7%───────────────────┃───────────────────────────────────────────────────────────────1M─
+╰─
