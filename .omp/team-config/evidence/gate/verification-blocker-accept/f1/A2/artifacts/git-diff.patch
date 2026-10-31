@@ -1,0 +1,52 @@
+diff --git a/openspec/changes/session-refresh/design.md b/openspec/changes/session-refresh/design.md
+index 484febc..d1a3de9 100644
+--- a/openspec/changes/session-refresh/design.md
++++ b/openspec/changes/session-refresh/design.md
+@@ -20,8 +20,8 @@ Network errors and HTTP 5xx are transient; HTTP 400 `invalid_grant` is terminal.
+ 
+ ### D4. Retry transition
+ 
+-`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. See D3 for the backoff delays.
++`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. The backoff before the first retry is 500 ms, before the second 2 s.
+ 
+ ## Verification
+ 
+-F1 scenario 2 (shared in-flight refresh) keeps its outputs under `f1/scenario-2/`.
++F1 scenario 2 (shared in-flight refresh) keeps its outputs under `f1/s2/`.
+diff --git a/openspec/changes/session-refresh/gate.md b/openspec/changes/session-refresh/gate.md
+index ce6ba06..9e06ee8 100644
+--- a/openspec/changes/session-refresh/gate.md
++++ b/openspec/changes/session-refresh/gate.md
+@@ -4,5 +4,5 @@
+ - **Risk tier**: product
+ - **Author's risk assessment**: A wrong transition signs users out on transient errors or retries forever; concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens.
+ - **Whole-diff review**: not needed (one module and its single caller)
+-- **Accepted residual risks**: Refresh failure stays unproven by F1: the planned F1 run cannot fail when refresh fails, because the fixture identity provider never returns an error; accepted, the retry code is small. The retry evidence may not reflect what ships; accepted as a known limit of the local fixture.
++- **Accepted residual risks**: none (the change's mandatory class makes both verification gaps of round 2 non-acceptable; F1 scenario 5 and the shipped-build run against the RFC 6749 wire format close them)
+ - **Out of scope for blocking**: none (nothing excluded yet)
+diff --git a/openspec/changes/session-refresh/specs/session-refresh/spec.md b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+index c4d861b..81026f8 100644
+--- a/openspec/changes/session-refresh/specs/session-refresh/spec.md
++++ b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+@@ -9,6 +9,11 @@ A refresh that fails with a network error or HTTP 5xx SHALL be retried twice wit
+ - **WHEN** the first refresh attempt returns HTTP 503 and the second returns a new token
+ - **THEN** the session stays signed in and every waiting caller receives the new token
+ 
++#### Scenario: Retries exhausted
++
++- **WHEN** every refresh attempt fails with a network error or HTTP 5xx
++- **THEN** exactly three attempts reach the identity provider, 500 ms and 2 s apart, and the session moves to `failed` and signs the user out
++
+ #### Scenario: Negative control
+ 
+ - **WHEN** the identity provider answers `invalid_grant`
+diff --git a/openspec/changes/session-refresh/tasks.md b/openspec/changes/session-refresh/tasks.md
+index db075cc..6af6d5d 100644
+--- a/openspec/changes/session-refresh/tasks.md
++++ b/openspec/changes/session-refresh/tasks.md
+@@ -7,4 +7,4 @@
+ 
+ ## 2. Final verification
+ 
+-- [ ] 2.1 F1. Run the desktop client against the local fixture identity provider `tools/fake-idp.ts`. Scenario 1: the first refresh returns 503, the second a token; the user stays signed in. Scenario 2: three windows refresh at once; one request reaches the IdP; outputs in `f1/s2/`. Scenario 3: `invalid_grant` signs the user out; log in `f1/scenario3.log`. Scenario 4: the backoff delays are logged in `f1/backoff.txt`. Copy the provider key from `~/.config/acme/credentials` into `f1/env.txt` so the run can be repeated. The F1 README lists each scenario's evidence file. Verify: `test -s f1/README.md`
++- [ ] 2.1 F1. Create the disposable fixture identity provider `tools/fake-idp.ts` (change verification only, never shipped, no real credentials): it answers in the OAuth 2.0 token-endpoint format (HTTP 200 token response; HTTP 400 with JSON body `{"error":"invalid_grant"}` per RFC 6749 §5.2; HTTP 503), can drop the connection to produce a network error, and logs every request with a timestamp. Run the desktop client build that ships, unchanged, with only its identity provider endpoint pointed at the fixture. Scenario 1: the first refresh returns 503, the second a token; the user stays signed in. Scenario 2: three windows refresh at once; one request reaches the IdP; outputs in `f1/s2/`. Scenario 3: `invalid_grant` signs the user out; log in `f1/scenario3.log`. Scenario 4: the backoff delays are logged in `f1/backoff.txt`. Scenario 5: every attempt fails transiently (dropped connection, then 503, then 503); the fixture log shows exactly three requests and none within 10 s after the third, and the session moves to `failed` and signs the user out; log in `f1/scenario5.log`. The F1 README lists each scenario's evidence file and the commands that started the fixture and the client. Verify: `test -s f1/README.md`

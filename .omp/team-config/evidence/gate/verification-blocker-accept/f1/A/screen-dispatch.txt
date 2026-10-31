@@ -1,0 +1,140 @@
+
+ I'm trying to figure out whether ver2 counts as excluded or merely non-eligible, since it only touches verification (F1) but still leaves a real behavior unproven—checking the exact wording of the
+ class exclusion rule to decide which path applies.
+
+ Based on that reading, ver2 should be excluded: since the spec requires the failure to occur after two retries, accepting it would contradict a requirement, so the only valid options are Fix,
+ re-plan, or Stop.
+
+ For ver1, I'm treating "evidence path naming only" as the user's own stated reason, since Accept entries require their words verbatim.
+
+ Since ver2 remains unresolved and nothing was marked Stop, I need to ask the user again about ver2—Fix, re-plan, or Stop—before applying any other fixes, since that resolution has to come first.
+
+ The answers came back. ver2 can't be accepted, so I need to ask about it again before I fix anything. If the answer is Stop, nothing gets fixed.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  You asked to accept ver2 ("accept v2 anyway, I take the risk"). The rules exclude it, so it can't be accepted even on request. Under the Blocker disposition rules, Mandatory class                 │
+│  concurrency-state excludes every blocker except one that concerns only verification and misses both threshold limbs. This blocker's stated consequence is "The retrying -> failed transition after  │
+│  the second retry stays unproven: a retry loop that never gives up would pass F1." It therefore leaves a material behaviour unproven, which is named explicitly as excluded. The spec requirement    │
+│  ("retried twice ... before the session moves to failed") also says the opposite, and gate.md may not accept a risk that contradicts a requirement. An accepted entry would let later reviewers      │
+│  treat it as settled. The only options left are Fix, Re-plan or Stop.                                                                                                                                │
+│  ◉ Fix                                                                                                                                                                                               │
+│  ○ Re-plan                                                                                                                                                                                           │
+│  ○ Stop                                                                                                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'll apply fixes by rewriting the small files directly rather than doing targeted edits, since full replacements are simpler here—tasks.md, design.md, gate.md, and spec.md all need updates. First I
+ want to check the gate template to see how accepted residual risks should be formatted before editing gate.md.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cat openspec/schemas/omp-gated/templates/gate.md openspec/schemas/omp-gated/templates/tasks.md; ls src test tools 2>&1                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (40 earlier lines, showing 10 of 50) ⟦⌃O: Expand⟧                                                                                                                                                  │
+│ scenario's evidence path exists>`                                                                                                                                                                    │
+│                                                                                                                                                                                                      │
+│ ## Workflow follow-up                                                                                                                                                                                │
+│                                                                                                                                                                                                      │
+│ - F2 merge gate (`review-work`), after 3.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.      │
+│ - Merge only after the F2 record validates.                                                                                                                                                          │
+│ ls: cannot access 'test': No such file or directory                                                                                                                                                  │
+│ ls: cannot access 'tools': No such file or directory                                                                                                                                                 │
+│ src:                                                                                                                                                                                                 │
+│ session.ts                                                                                                                                                                                           │
+╰─── Wall: 0.01s · Timeout: 300s · Exit: 2 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I should fix only the blockers without extra churn. For the naming issue, I'll make tasks.md explicitly list the README entries using consistent names, and for the spec scenario fix, I'll add a
+ normal scenario alongside "Retries exhausted" so the Negative control requirement is satisfied exactly once.
+
+ For D4, I'll make the sleep injectable and add a task 1.1 test using a fake timer to assert delays of 500 and 2000ms, with F1 scenario 4 logging the requested delays from the client's retry log. I
+ also need to clarify that F1 runs the shipped client build unmodified against a configured fixture IdP endpoint returning realistic token response shapes, drop the unnecessary copy step since
+ env.txt is non-secret, keep the risk assessment class but rewrite its naming to match delivered code, and point D4 to the spec's delay values. For the accepted-risk item, I'll leave design.md's
+ scenario-2 section as is since it's accepted rather than fixed, and the README verify step isn't in my blocker list so I'll leave it alone — though the new scenario 5 will need its own evidence
+ file.
+
+ For chk2, since Verify currently only checks the README exists, I'm extending it to also check that each evidence file the README lists actually exists, since this directly addresses the "reader
+ opens a nonexistent file" consequence and ties naturally into defining those filenames anyway. The fake IdP fixture in tools/fake-idp.ts is just a disposable test tool, which is fine as is. Now I'm
+ ready to write out the files.
+
+ All eight are now decided: seven Fix and one Accept (ver1). Applying the fixes to the artifacts.
+
+╭─── ✎ Write: 📝 openspec/changes/session-refresh/design.md · 30 lines ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Design                                                                                                                                                                                         │
+│   2                                                                                                                                                                                                  │
+│   3 ## Context                                                                                                                                                                                       │
+│   4                                                                                                                                                                                                  │
+│   5 `src/session.ts` refreshes inline: any thrown error clears the session.                                                                                                                          │
+│   6                                                                                                                                                                                                  │
+│ … 24 more lines ⟦⌃O: Expand⟧                                                                                                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Write: 📝 openspec/changes/session-refresh/specs/session-refresh/spec.md · 21 lines ────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 ## ADDED Requirements                                                                                                                                                                            │
+│   2                                                                                                                                                                                                  │
+│   3 ### Requirement: Transient refresh failures are retried                                                                                                                                          │
+│   4                                                                                                                                                                                                  │
+│   5 A refresh that fails with a network error or HTTP 5xx SHALL be retried twice with backoff (500 ms, then 2 s) before the session moves to `failed`; concurrent callers SHALL share one in-flight  │
+│     refresh.                                                                                                                                                                                         │
+│   6                                                                                                                                                                                                  │
+│ … 15 more lines ⟦⌃O: Expand⟧                                                                                                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Write: 📝 openspec/changes/session-refresh/tasks.md · 11 lines ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   2                                                                                                                                                                                                  │
+│   3 ## 1. Implement                                                                                                                                                                                  │
+│   4                                                                                                                                                                                                  │
+│   5 - [ ] 1.1 Add `src/refresh.ts` with the state table of design D1, the error classes of D3 and the retry transition of D4, including the injected `sleep`. `test/refresh.test.ts` uses a          │
+│     recording fake `sleep` and covers: 503 then token (one retry, delays `[500]`); 503 on every attempt (exactly three IdP calls, delays `[500, 2000]`, final state `failed`); `invalid_grant` (one  │
+│     IdP call, no `sleep` call, `failed`). Verify: `bun test test/refresh.test.ts`                                                                                                                    │
+│   6 - [ ] 1.2 Route `src/session.ts` through `refresh()` with one in-flight promise (D2). Verify: `bun test test/session.test.ts`                                                                    │
+│ … 5 more lines ⟦⌃O: Expand⟧                                                                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Write: 📝 openspec/changes/session-refresh/gate.md · 9 lines ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Gate                                                                                                                                                                                           │
+│   2                                                                                                                                                                                                  │
+│   3 - **Mandatory class**: concurrency-state                                                                                                                                                         │
+│   4 - **Risk tier**: product                                                                                                                                                                         │
+│   5 - **Author's risk assessment**: The change delivers runtime code, not instruction text: a new refresh state machine in `src/refresh.ts` (`idle`/`refreshing`/`retrying`/`failed`, D1 and D4),    │
+│     and single-flight refresh shared by concurrent callers in `src/session.ts` (D2). That delivered state machine and its concurrency set the class. A wrong transition signs users out on transient │
+│     errors or retries forever. Concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens.                                                                 │
+│   6 - **Whole-diff review**: not needed (one module and its single caller)                                                                                                                           │
+│ … 3 more lines ⟦⌃O: Expand⟧                                                                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The design.md note about the shipped desktop client build checks out, and the "signs user out" behavior on retry exhaustion aligns with the negative control. I'll proceed through step 1 (validate
+ until passed), step 2 (digest), then step 3: dispatch three fresh plan-reviewer items for round 3, briefs verbatim, working from the repository root at /tmp/vba-f1/A and the session change
+ directory.
+
+ Next is round 3: validate, take the digest, then dispatch three fresh lenses.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ V="node $HOME/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"; $V openspec/changes/session-refresh && $V --digest openspec/changes/session-refresh; pwd -P                     │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ passed                                                                                                                                                                                               │
+│ d2c9654e2527955298f2fece1420b2733910ed2084b1454c17b328b1b824d815                                                                                                                                     │
+│ /private/tmp/vba-f1/A                                                                                                                                                                                │
+╰─── Wall: 0.09s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+ ⚠ Injecting rule: delegation  ↶
+
+ Before spawning subagents with the task tool - pick the agent by reasoning difficulty, serialize overlapping file-sets, isolate concurrent editing tasks, never touch files a running subagent owns,
+ keep reviews small and fresh
+
+
+ Since the reviewers are read-only, isolation isn't a concern here—I'll dispatch all 3 plan-reviewer items in a single task call, using the verbatim brief with the repository root path
+ (/tmp/vba-f1/A) filled in for each.
+
+ Dispatching round 3 using the omp-gated fixed brief, filling in the two paths plus a lens paragraph for each item with nothing extra added. All three items are read-only plan-reviewers with no
+ overlapping file-sets.
+
+╭─── ⇶ Task 3 agents ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                                                                      │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • LensCorR3 ⟦plan-reviewer⟧                                                                                                                                                                          │
+│ • LensVerR3 ⟦plan-reviewer⟧                                                                                                                                                                          │
+│ • LensChkR3 ⟦plan-reviewer⟧                                                                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Dispatching round-3 plan review lenses
+ ⠦ 6m > ◒ Opus 5.5 (onara) > 🗑 vba-f1/A > ⑂ main *4 > $0.76 ▶────────6%─────────────────────────────┃──────────────────────────────────────────────────────────────────────────────────────────1M─◀ ⚙ 3
+╰─

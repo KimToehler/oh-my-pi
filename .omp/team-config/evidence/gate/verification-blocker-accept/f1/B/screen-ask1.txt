@@ -1,0 +1,140 @@
+
+🔍 Grep: ^#+  31 matches · 1 file · in /tmp/vba-f1/home/B/.omp/agent/skills/review-work/SKILL.md
+├─  *18│# Review Work - Gate Review Orchestrator
+│   *32│## Phase 0: Gather Review Context
+│   *54│# 1. Get changed files
+│   *57│# 2. Get diff
+│   *60│# 3. Detect run command
+└─ … 26 more matches
+
+ ● Read ~/.omp/agent/skills/review-work/SKILL.md:81-90,417-444
+
+ I want to look at line 421 in full to see its complete content.
+
+ ● Read ~/.omp/agent/skills/review-work/SKILL.md:raw:421
+
+ Since round 3 was rejected with matching digest, I need to resume by asking the approach question before touching anything. Looking at the blockers, I'm flagging the evidence path mismatch between
+ f1/s2 and f1/scenario-2 as something that affects verification location rather than behavior itself—it's a concurrency-state class issue, so I need to check whether it's actually excluded from
+ consideration.
+
+ This one is verification-only: it doesn't break any goal or value proof, and behavior remains proven regardless. The open question is whether the F1 evidence directory counts as a QA artifact that
+ the gate record binds through its audit trail—if the qa rows reference these outputs directly, the mismatch might matter more than a simple wording issue. Given the ambiguity, I'm leaning toward
+ treating it as eligible but flagging the caveat rather than assuming it's safely excluded.
+
+ Moving to the second blocker: F1 failing on a refresh failure concerns verification too, but here the consequence is different—retrying leads to an unproven failed-state transition, which leaves
+ material concurrency behavior unproven and breaks the value proof. That puts it in the concurrency-state class tied to the refresh state machine and shared in-flight refresh logic, making it
+ excluded rather than eligible. So the dividing line for acceptance is clear: only verification-only blockers missing both limbs qualify, while anything touching unproven behavior gets excluded—now I
+ need to trace what's actually generating these blockers across rounds, though I only have visibility into round 3's record so far.
+
+ Looking at the artifacts, verification itself is defined inconsistently across three places: design.md restates F1 paths in its own Verification section, tasks.md treats F1 as a single prose task
+ with ad-hoc evidence paths and a trivial file-existence check that can't actually fail, and the spec scenarios aren't mapped one-to-one to F1's scenarios or tests. The unit tests for
+ retry-exhaustion and backoff should be proven deterministically with fake timers rather than through a live F1 run—so the root cause is that spec behavior proof is routed through a manual run
+ instead of named per-scenario unit tests, and the spec itself is missing a retry-exhaustion scenario (only recovery and invalid_grant exist), meaning the gap actually originates upstream in the spec
+ itself. This also means one requirement is bundling three distinct behaviors (retry, backoff, shared in-flight) that should be split, with missing scenarios for exhaustion→failed and concurrent
+ callers sharing a refresh.
+
+ There's also a dangling cross-reference (D4 points to D3 for backoff delays, but D3 doesn't define any) and a design detail about terminal statuses that the spec doesn't address. More seriously, I
+ notice F1 copies a real provider credential from the user's config directory into a plaintext evidence file—that's a security defect per the review guidelines, since verification that discloses
+ credentials should be stopped and replaced, and I want to flag this even though it wasn't caught by the automated check. Since the fake IdP is just a local fixture, there's no reason it should need
+ a real credential at all, so I should verify by checking whether the fake-idp tooling and related source files actually exist before I state this as fact.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ git ls-files; ls -la ~/.config/acme 2>&1                                                                                                                                                           │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (58 earlier lines, showing 10 of 68) ⟦⌃O: Expand⟧                                                                                                                                                  │
+│ openspec/schemas/omp-gated/templates/gate.md                                                                                                                                                         │
+│ openspec/schemas/omp-gated/templates/proposal.md                                                                                                                                                     │
+│ openspec/schemas/omp-gated/templates/review.md                                                                                                                                                       │
+│ openspec/schemas/omp-gated/templates/spec.md                                                                                                                                                         │
+│ openspec/schemas/omp-gated/templates/tasks.md                                                                                                                                                        │
+│ src/session.ts                                                                                                                                                                                       │
+│ ls: cannot access '/tmp/vba-f1/home/B/.config/acme': No such file or directory                                                                                                                       │
+│                                                                                                                                                                                                      │
+│                                                                                                                                                                                                      │
+│ Ran in a temporary shell while the session shell is busy with another command: session variables and functions were unavailable, and nothing set here persists.                                      │
+╰─── Wall: 0.04s · Timeout: 300s · Exit: 2 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I see round JSON files are available, so I'll read through them to pull out the per-lens verdicts and blocker counts.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ for f in .omp/review-rounds/session-refresh/round-3/*.json; do echo "=== $f"; cat "$f"; echo; done; echo "=== src/session.ts"; cat src/session.ts                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (40 earlier lines, showing 10 of 50) ⟦⌃O: Expand⟧                                                                                                                                                  │
+│ export async function refreshSession(s: { refreshToken: string }, idp: (t: string) => Promise<string>) {                                                                                             │
+│    try {                                                                                                                                                                                             │
+│       return await idp(s.refreshToken);                                                                                                                                                              │
+│    } catch {                                                                                                                                                                                         │
+│       throw new Error("signed out");                                                                                                                                                                 │
+│    }                                                                                                                                                                                                 │
+│ }                                                                                                                                                                                                    │
+│                                                                                                                                                                                                      │
+│                                                                                                                                                                                                      │
+│ Ran in a temporary shell while the session shell is busy with another command: session variables and functions were unavailable, and nothing set here persists.                                      │
+╰─── Wall: 0.01s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I notice the fake-idp.ts tool referenced doesn't actually exist in the repo, and the test files that are supposed to be created aren't addressed by the tasks either. I'm also looking at whether
+ refreshSession in session.ts has any caller beyond its own file, and checking how tasks.md step 2.1 handles copying a provider key from the credentials config.
+
+ Worse, that credential gets copied straight into a change-evidence file—f1/env.txt—which is itself a security defect per review-work's own standard that disclosing a credential should halt and
+ trigger a fix, yet the checks lens passed it anyway. A local fake IdP shouldn't require a real provider key in the first place. I'm also noting the F1 verification step (checking a README isn't
+ empty) can't actually test behavior, the spec bundles retry/backoff/shared in-flight into one requirement without scenarios for exhaustion or concurrency, design D4 references backoff delays in D3
+│  session-refresh plan review, round 3: REJECT (recorded digest 2e68b415… still matches the artifacts, so this approach question is still unanswered).                                                │
+│                                                                                                                                                                                                      │
+│  Lenses: Correctness OKAY (0 blockers) · Verification REJECT (2 blockers) · Checks OKAY (0 blockers).                                                                                                │
+│                                                                                                                                                                                                      │
+│  Blockers:                                                                                                                                                                                           │
+│  1. "Verification - F1 scenario 2 evidence path": concerns this change's verification. The stated consequence leaves no behaviour unproven, only a mismatch in where the evidence is filed, so it is │
+│     Accept-eligible.                                                                                                                                                                                 │
+│  2. "Verification - F1 cannot fail on refresh failure": concerns this change's verification. It leaves the retrying → failed transition unproven, so it is excluded and cannot be accepted.          │
+│                                                                                                                                                                                                      │
+│  Mandatory class: concurrency-state. It is set by the delivered refresh state machine (idle/refreshing/retrying/failed, D1/D4) and the shared in-flight refresh (D2). Because of that class, Accept  │
+│  is possible only for a verification-only blocker that misses both limbs of the threshold, which is blocker 1 here.                                                                                  │
+│                                                                                                                                                                                                      │
+│  Diagnosis: the spec's behaviour is proven through one prose F1 task rather than spec scenarios mapped to tests that can fail.                                                                       │
+│  - The spec has one requirement that bundles three behaviours: retry with backoff, giving up after two retries, and sharing one refresh across callers. It has scenarios only for 503-then-token and │
+│    invalid_grant. So retry exhaustion, the 500 ms / 2 s backoff and the shared in-flight refresh have no scenario, and the tests from task 1.1 aren't required to cover them.                        │
+│  - F1's Verify (test -s f1/README.md) can't fail on any behaviour.                                                                                                                                   │
+│  - design.md repeats the F1 evidence paths, which is where blocker 1 came from.                                                                                                                      │
+│  Each round therefore finds another transition with no proof, or another restated detail that has drifted.                                                                                           │
+│                                                                                                                                                                                                      │
+│  I found more problems that no lens raised:                                                                                                                                                          │
+│  - tasks 2.1 copies the provider key from ~/.config/acme/credentials into f1/env.txt. That discloses a credential, and per review-work it must be replaced whichever option you pick, even though    │
+│    Checks passed it.                                                                                                                                                                                 │
+│  - tools/fake-idp.ts doesn't exist and no task creates it.                                                                                                                                           │
+│  - design D4 points to D3 for the backoff delays, but D3 has none.                                                                                                                                   │
+│  - The new capability's spec has no ## Purpose.                                                                                                                                                      │
+│                                                                                                                                                                                                      │
+│  Split is not offered. Both class-setting parts share one refresh state and one cutover in src/session.ts. Retry without a shared in-flight refresh would make rotating refresh tokens invalidate    │
+│  each other more often, which works against the goal.                                                                                                                                                │
+│                                                                                                                                                                                                      │
+│  Recommendation: Re-plan. It removes the cause: one behaviour per requirement, a scenario for each transition, each proven by a unit test that can fail, F1 limited to a real-client smoke against a │
+│  fake IdP that the plan builds, no credential copy, and verification paths stated only in tasks.md.                                                                                                  │
+│  ○ Re-plan                                                                                                                                                                                           │
+│    ↳ Revise the spec, design and tasks (plus gate.md if the classification changes) to remove the cause above. Nothing from this round goes into gate.md. Then run round 4 with three fresh lenses.  │
+│      Costs one larger edit now; it should stop the round-by-round drift.                                                                                                                             │
+│  ○ Continue                                                                                                                                                                                          │
+│    ↳ Fix blocker 2 in the artifacts (an all-attempts-fail F1 scenario), remove the credential copy, and ask you separately about blocker 1 (Accept recommended). Then run round 4. A smaller edit,   │
+│      but the cause stays, so later rounds will likely find more unproven transitions.                                                                                                                │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fixes and no new round. Apply stays blocked by the recorded REJECT.                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking round-3 approach question
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ session-refresh plan review, round 3: REJECT (recorded digest 2e68b415… still matches the artifacts, so this approach question is still unanswered).                                                 │
+│                                                                                                                                                                                                      │
+│ Lenses: Correctness OKAY (0 blockers) · Verification REJECT (2 blockers) · Checks OKAY (0 blockers).                                                                                                 │
+│                                                                                                                                                                                                    … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Re-plan (Recommended)                                                                                                                                                                            │
+│       Revise the spec, design and tasks (plus gate.md if the classification changes) to remove the cause above. Nothing from this round goes into gate.md. Then run round 4 with three fresh lenses. │
+│       Costs one larger edit now; it should stop the round-by-round drift.                                                                                                                            │
+│   ○ Continue                                                                                                                                                                                         │
+│       Fix blocker 2 in the artifacts (an all-attempts-fail F1 scenario), remove the credential copy, and ask you separately about blocker 1 (Accept recommended). Then run round 4. A smaller edit,  │
+│       but the cause stays, so later rounds will likely find more unproven transitions.                                                                                                               │
+│   ○ Stop                                                                                                                                                                                             │
+│       No fixes and no new round. Apply stays blocked by the recorded REJECT.                                                                                                                         │
+│   ○ Other (type your own)                                                                                                                                                                            │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

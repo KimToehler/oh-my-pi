@@ -1,0 +1,13 @@
+{
+  "verdict": "REJECT",
+  "summary": "Correctness lens, round 2.",
+  "blockers": [
+    {
+      "area": "Correctness - design cross-reference",
+      "defect": "design.md D4 says \"See D3 for the backoff delays\", but D3 defines error classes; the delays are stated only in the spec.",
+      "evidence": "design.md:23 (D4) points to D3; design.md:19-21 (D3) has no delays; specs/session-refresh/spec.md:5 states 500 ms and 2 s.",
+      "consequence": "A reader of the retry transition follows a stale cross-reference; every behaviour stays specified and proven by tasks 1.1 and 2.1."
+    }
+  ],
+  "notes": []
+}

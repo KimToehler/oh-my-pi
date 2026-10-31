@@ -1,0 +1,31 @@
+{
+  "verdict": "REJECT",
+  "summary": "Verification lens, round 2.",
+  "blockers": [
+    {
+      "area": "Verification - F1 scenario 2 evidence path",
+      "defect": "F1 scenario 2's evidence directory is `f1/s2/` in tasks.md but `f1/scenario-2/` in design.md.",
+      "evidence": "tasks.md:10 (`f1/s2/`); design.md:27 (`f1/scenario-2/`).",
+      "consequence": "Someone reading design.md looks for scenario 2's outputs in the wrong directory; the scenario still runs and retains its outputs under tasks.md's path, so no behaviour goes unproven."
+    },
+    {
+      "area": "Verification - F1 cannot fail on refresh failure",
+      "defect": "The planned F1 run cannot fail when refresh fails: `tools/fake-idp.ts` is only configured for 503-then-token and `invalid_grant`; no scenario makes every attempt fail transiently.",
+      "evidence": "tasks.md:10 scenarios 1-4; specs/session-refresh/spec.md:5 (move to `failed` after two retries).",
+      "consequence": "The `retrying` -> `failed` transition after the second retry stays unproven: a retry loop that never gives up would pass F1."
+    },
+    {
+      "area": "Verification - fixture clock and delivered retry timing",
+      "defect": "Both the F1 fixture's timing and the planned backoff in `src/refresh.ts` read the wall clock with no injectable timer.",
+      "evidence": "tasks.md:10 scenario 4; design.md:23 (D4).",
+      "consequence": "The F1 backoff check can pass on a slow machine while the delivered retry code waits the wrong delays; this concerns both the F1 fixture and the delivered retry code."
+    },
+    {
+      "area": "Verification - retry evidence",
+      "defect": "The F1 run drives the client against a local fake identity provider whose responses are scripted per scenario.",
+      "evidence": "tasks.md:10 (`tools/fake-idp.ts`).",
+      "consequence": "The retry evidence may not reflect what ships."
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "summary": "Verification lens, round 2.",
+  "blockers": [
+    {
+      "area": "Verification - F1 cannot fail on refresh failure",
+      "defect": "The planned F1 run cannot fail when refresh fails: `tools/fake-idp.ts` is only configured for 503-then-token and `invalid_grant`; no scenario makes every attempt fail transiently.",
+      "evidence": "tasks.md:10 scenarios 1-4; specs/session-refresh/spec.md:5 (move to `failed` after two retries).",
+      "consequence": "The `retrying` -> `failed` transition after the second retry stays unproven: a retry loop that never gives up would pass F1."
+    },
+    {
+      "area": "Verification - retry evidence",
+      "defect": "The F1 run drives the client against a local fake identity provider whose responses are scripted per scenario.",
+      "evidence": "tasks.md:10 (`tools/fake-idp.ts`).",
+      "consequence": "The retry evidence may not reflect what ships."
+    }
+  ],
+  "notes": []
+}

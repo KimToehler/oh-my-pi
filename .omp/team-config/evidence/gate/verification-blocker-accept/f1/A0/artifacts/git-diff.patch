@@ -1,0 +1,205 @@
+diff --git a/openspec/changes/session-refresh/design.md b/openspec/changes/session-refresh/design.md
+index 484febc..5a73d68 100644
+--- a/openspec/changes/session-refresh/design.md
++++ b/openspec/changes/session-refresh/design.md
+@@ -20,8 +20,8 @@ Network errors and HTTP 5xx are transient; HTTP 400 `invalid_grant` is terminal.
+ 
+ ### D4. Retry transition
+ 
+-`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. See D3 for the backoff delays.
++`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. The backoff delays are those of the spec requirement "Transient refresh failures are retried" (specs/session-refresh/spec.md). `refresh()` waits through an injected `sleep(ms)` that defaults to a `setTimeout` wrapper, so `test/refresh.test.ts` records the exact delays the delivered code requests without reading the wall clock.
+ 
+ ## Verification
+ 
+-F1 scenario 2 (shared in-flight refresh) keeps its outputs under `f1/scenario-2/`.
++Task 2.1 (F1) is the single source for F1 scenarios and evidence paths. F1 runs the delivered `src/refresh.ts` and `src/session.ts` unmodified; `tools/fake-idp.ts` replaces only the identity provider's token endpoint, because a real provider cannot be made to answer 503 or `invalid_grant` on demand. It sends the responses the client handles in production: HTTP 503, HTTP 400 with body `{"error":"invalid_grant"}` (RFC 6749 §5.2), and a token response. It issues synthetic tokens only; F1 reads and writes no real credential.
+diff --git a/openspec/changes/session-refresh/gate.md b/openspec/changes/session-refresh/gate.md
+index be94352..0054cbe 100644
+--- a/openspec/changes/session-refresh/gate.md
++++ b/openspec/changes/session-refresh/gate.md
+@@ -2,7 +2,7 @@
+ 
+ - **Mandatory class**: concurrency-state
+ - **Risk tier**: product
+-- **Author's risk assessment**: A wrong transition signs users out on transient errors or retries forever; concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens.
++- **Author's risk assessment**: A wrong transition signs users out on transient errors or retries forever; concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens. The class is `concurrency-state` because the delivered code adds a refresh state machine (`src/refresh.ts`) and a shared in-flight promise across concurrent callers (`src/session.ts`); this is shipped runtime code, not instruction text, and the fake IdP used only for F1 does not change the class. The tier is `product` because the change decides whether real users stay signed in.
+ - **Whole-diff review**: not needed (one module and its single caller)
+ - **Accepted residual risks**: none (no residual risk accepted yet)
+ - **Out of scope for blocking**: none (nothing excluded yet)
+diff --git a/openspec/changes/session-refresh/review.md b/openspec/changes/session-refresh/review.md
+index 1f03aa5..b8be3bb 100644
+--- a/openspec/changes/session-refresh/review.md
++++ b/openspec/changes/session-refresh/review.md
+@@ -1,72 +1,102 @@
+ # Review
+ 
+ - **Verdict**: REJECT
+-- **Reviewed digest**: 2e68b415abd8f821333f185c2aa5b69ac835a480629dc27c274c95b43d412e95
+-- **Reviewer**: plan-reviewer, LensCorR2, LensVerR2, LensChkR2
+-- **Round**: 2
++- **Reviewed digest**: 8306f0ebfe98bcd93ccb7e88b862f606e690bffa78e89fa999b4c4d937f268ed
++- **Reviewer**: plan-reviewer, LensCorR3, LensVerR3, LensChkR3
++- **Round**: 3
+ - **Override**: none
+ 
+ ## Blockers
+ 
+-### Correctness (LensCorR2)
++### Correctness (LensCorR3)
+ 
+ [
+   {
+-    "area": "Correctness - design cross-reference",
+-    "defect": "design.md D4 says \"See D3 for the backoff delays\", but D3 defines error classes; the delays are stated only in the spec.",
+-    "evidence": "design.md:23 (D4) points to D3; design.md:19-21 (D3) has no delays; specs/session-refresh/spec.md:5 states 500 ms and 2 s.",
+-    "consequence": "A reader of the retry transition follows a stale cross-reference; every behaviour stays specified and proven by tasks 1.1 and 2.1."
++    "area": "Correctness — session lifecycle and sign-out",
++    "defect": "The design assumes a session store and sign-out operation that the named implementation does not have. Routing the existing function through a new refresh helper cannot by itself satisfy the requirement to clear a session on invalid_grant or expose a session-level failed state.",
++    "evidence": "openspec/changes/session-refresh/design.md:5 says an error clears the session; src/session.ts:1-6 only accepts a refresh-token object and callback and throws Error(\"signed out\"), without mutating or clearing the object. openspec/changes/session-refresh/specs/session-refresh/spec.md:17-20 requires invalid_grant to sign the user out, while tasks.md:5-6 only adds the helper and reroutes this function.",
++    "change": "Identify or implement the authoritative session owner, its sign-out and observable state operations, and wire success and each failure class to those operations. If the desktop/session infrastructure is a prerequisite outside this repository, identify it explicitly rather than assuming it exists."
++  },
++  {
++    "area": "Correctness — sharing across different sessions",
++    "defect": "A single unkeyed in-flight promise can return one session's token to an unrelated concurrent caller and skip that caller's refresh. The current public function accepts an arbitrary session and identity-provider callback on every call, with no single-session invariant.",
++    "evidence": "src/session.ts:1 accepts both s and idp per invocation; openspec/changes/session-refresh/design.md:12-14 says later callers await the first caller's promise, and tasks.md:6 prescribes one in-flight promise. Concurrent calls with distinct refresh tokens or IdP callbacks would receive the first call's result under that design.",
++    "change": "Define the ownership and identity of a refresh operation and share only calls belonging to the same session and provider; preserve independent refreshes for distinct sessions and specify how that identity changes on sign-out or replacement."
++  },
++  {
++    "area": "Architecture — cross-window refresh ownership",
++    "defect": "The plan requires one request across three desktop windows but does not provide a shared owner or communication path for the promise. Independent window execution contexts each holding their own module state can initiate simultaneous refreshes, defeating the stated rotation-safety goal.",
++    "evidence": "openspec/changes/session-refresh/tasks.md:10 requires three windows refreshing at once to produce one IdP request; design.md:12-14 only specifies callers awaiting a promise and proposal.md:21 specifies only a new module and its caller. The repository's only implementation is src/session.ts:1-6, which contains no cross-window coordinator.",
++    "change": "Specify the actual process/window topology and place the in-flight operation in a shared session owner reached by every window, including the request/result propagation and lifecycle; alternatively narrow the claimed window behavior only with explicit authorization."
++  },
++  {
++    "area": "Correctness — recovery after failed refresh",
++    "defect": "The state machine has no transition out of failed. After an ordinary outage exhausts retries, a persistent session owner following the specified table cannot perform a later refresh when connectivity returns, nor reuse the state machine after a new sign-in.",
++    "evidence": "openspec/changes/session-refresh/design.md:9-10 lists transitions from idle, refreshing and retrying but none from failed; design.md:20 sends exhausted transient errors to failed. The stated goal in proposal.md:5 is to avoid losing sessions to transient network errors.",
++    "change": "Define how a subsequent refresh or new sign-in resets or replaces the failed state, how in-flight state is cleared, and how this differs from terminal invalid_grant sign-out."
++  },
++  {
++    "area": "Correctness — identity-provider error contract",
++    "defect": "The existing callback contract does not provide HTTP status or OAuth error fields, while the proposed behavior depends on distinguishing network errors, 5xx and invalid_grant. A callback that rejects with an ordinary Error for an HTTP failure provides no information from which the new helper can make the required decision.",
++    "evidence": "src/session.ts:1 types idp only as (t: string) => Promise<string> and lines 3-5 discard the rejection; openspec/changes/session-refresh/design.md:16-18 requires classification by HTTP status and error body, but tasks.md:5-6 specifies no provider-adapter or error-contract change.",
++    "change": "Define the structured failure contract at the IdP boundary and migrate the real producer and consumers to it, including transport errors and parsing of the 400 response, so the refresh helper receives the information required by D3."
+   }
+ ]
+ 
+-### Verification (LensVerR2)
++### Verification (LensVerR3)
+ 
+ [
+   {
+-    "area": "Verification - F1 scenario 2 evidence path",
+-    "defect": "F1 scenario 2's evidence directory is `f1/s2/` in tasks.md but `f1/scenario-2/` in design.md.",
+-    "evidence": "tasks.md:10 (`f1/s2/`); design.md:27 (`f1/scenario-2/`).",
+-    "consequence": "Someone reading design.md looks for scenario 2's outputs in the wrong directory; the scenario still runs and retains its outputs under tasks.md's path, so no behaviour goes unproven."
++    "area": "Executability — F1 fixture and desktop client",
++    "defect": "Task 2.1 requires running a desktop client against a fixture IdP, but neither exists and no task creates or configures them. The current repository contains only the refreshSession function, which accepts an injected IdP function; it has no desktop entry point or HTTP token endpoint configuration. Consequently none of the four required real-surface scenarios can be executed as specified; the missing value proof is reversible by amending the plan.",
++    "evidence": "openspec/changes/session-refresh/tasks.md:10; openspec/changes/session-refresh/design.md:19; src/session.ts:1-7; repository root and src/ inventories contain no desktop client, tools/fake-idp.ts, package manifest, or test directory.",
++    "change": "Provide executable tasks and commands to construct or use an actual client surface and configurable fixture endpoint, including startup, scenario setup, observation and teardown, or explicitly redesign the QA around the real available public surface."
++  },
++  {
++    "area": "Verification — concurrent recovery and session integration",
++    "defect": "The recovery scenario requires every waiting caller to receive the new token after a transient failure. Task 1.1 tests only one caller; task 1.2 names a test file but specifies no test behavior; F1 scenario 1 checks only that the user stays signed in, while scenario 2 checks only request count. A shared request that resolves incorrectly for some waiters can pass every specified assertion. This breaks the stated requirement in ordinary concurrent refresh and is reversible.",
++    "evidence": "openspec/changes/session-refresh/specs/session-refresh/spec.md:5-10; openspec/changes/session-refresh/tasks.md:5-6,10.",
++    "change": "Specify a session integration test and observable F1 evidence in which overlapping callers survive a 503 followed by success and each receives the same new token; verify one shared retry sequence and successful results for all callers."
+   },
+   {
+-    "area": "Verification - F1 cannot fail on refresh failure",
+-    "defect": "The planned F1 run cannot fail when refresh fails: `tools/fake-idp.ts` is only configured for 503-then-token and `invalid_grant`; no scenario makes every attempt fail transiently.",
+-    "evidence": "tasks.md:10 scenarios 1-4; specs/session-refresh/spec.md:5 (move to `failed` after two retries).",
+-    "consequence": "The `retrying` -> `failed` transition after the second retry stays unproven: a retry loop that never gives up would pass F1."
++    "area": "Verification — network-error retry",
++    "defect": "The requirement covers both network errors and HTTP 5xx, but every planned transient-error test and F1 scenario uses HTTP 503. An implementation that immediately signs out on a network exception can pass the specified tests and QA, defeating the motivating transient-network-error goal; the resulting sign-out is reversible by signing in again.",
++    "evidence": "openspec/changes/session-refresh/proposal.md:5,9; openspec/changes/session-refresh/specs/session-refresh/spec.md:5; openspec/changes/session-refresh/tasks.md:5,10.",
++    "change": "Add a test that injects a network failure into the delivered refresh path and verifies retry, backoff and eventual recovery or exhaustion, including the session outcome."
+   },
+   {
+-    "area": "Verification - fixture clock and delivered retry timing",
+-    "defect": "Both the F1 fixture's timing and the planned backoff in `src/refresh.ts` read the wall clock with no injectable timer.",
+-    "evidence": "tasks.md:10 scenario 4; design.md:23 (D4).",
+-    "consequence": "The F1 backoff check can pass on a slow machine while the delivered retry code waits the wrong delays; this concerns both the F1 fixture and the delivered retry code."
++    "area": "Verification — final gate omitted",
++    "defect": "The plan ends after F1 and provides no F2 merge-gate follow-up, despite classifying the delivered change concurrency-state. Normal execution of the listed tasks can therefore finish without the required implementation and strategic reviews or validated gate record; this leaves the change without its required release proof. The omission is reversible.",
++    "evidence": "openspec/changes/session-refresh/tasks.md:8-10; openspec/changes/session-refresh/gate.md:3-4; openspec/config.yaml:7-9; openspec/schemas/omp-gated/templates/tasks.md:15-18.",
++    "change": "Add the non-checkbox F2 workflow follow-up after F1, requiring review-work's two mandatory review lanes and validated record before merge."
+   },
+   {
+-    "area": "Verification - retry evidence",
+-    "defect": "The F1 run drives the client against a local fake identity provider whose responses are scripted per scenario.",
+-    "evidence": "tasks.md:10 (`tools/fake-idp.ts`).",
+-    "consequence": "The retry evidence may not reflect what ships."
++    "area": "Verification — F1 retained evidence",
++    "defect": "Scenario 2 requires one client log per window, but the Verify command checks only the IdP log; the README lists only four paths, omitting those client logs. A run with one request but missing or failing window outcomes can satisfy the evidence check. Also, the prescribed f1 paths are not located in the gate record's evidence directory, so the plan does not establish that QA artifacts can be cited by the gate. This is a reversible missing proof of concurrency behavior.",
++    "evidence": "openspec/changes/session-refresh/tasks.md:10; openspec/schemas/omp-gated/templates/tasks.md:12; skill://review-work, Phase 1.",
++    "change": "Name and check each window's retained output, state the expected result for each, and place or copy all cited QA artifacts into the gate record's evidence directory."
+   }
+ ]
+ 
+-### Checks (LensChkR2)
++### Checks (LensChkR3)
+ 
+ [
+   {
+-    "area": "CHECK 1 - credential copied into evidence",
+-    "defect": "Task 2.1 copies the provider key from `~/.config/acme/credentials` into `f1/env.txt`, which is committed evidence.",
+-    "evidence": "tasks.md:10 (\"Copy the provider key ... into `f1/env.txt`\").",
+-    "consequence": "A live provider key lands in the repository history."
++    "area": "Security and privacy — shared refresh scope",
++    "defect": "The shared in-flight promise is not scoped to a session, refresh token, or identity-provider callable. Concurrent refreshes for different sessions can therefore return one session’s token to another caller, or send a refresh token through the wrong provider callable. This weakens credential isolation; disclosure of a real token is not reversible by reverting the code.",
++    "evidence": "src/session.ts:1-3 accepts both a session containing a refreshToken and an idp callable per invocation. design.md:13-15 says later callers await the first caller’s promise without an identity restriction; tasks.md:6 applies one in-flight promise to refreshSession. The concurrency scenario in tasks.md:10 only exercises three windows sharing a refresh, not distinct sessions or providers.",
++    "change": "Define and enforce the sharing key and lifetime so only callers for the same session and provider share an attempt; test concurrent distinct sessions and provider callables as well as same-session sharing."
+   },
+   {
+-    "area": "CHECK 1",
+-    "defect": "F1 scenario 3's evidence file is listed in the F1 README as `f1/s3-log.txt`, while tasks.md names it `f1/scenario3.log`.",
+-    "evidence": "tasks.md:10 (`f1/scenario3.log`); the README listing is planned in the same task under a different name.",
+-    "consequence": "A reader of the F1 README opens a file that does not exist; no credential, protected asset or other exclusion is involved, and every behaviour stays proven by the retained log."
++    "area": "CHECK 1 — credential holders and sinks",
++    "defect": "The delivered refresh path handles real credentials, but the plan provides no search-derived inventory of their holders and sinks, no common credential-protection chokepoint or sink exclusions, and no sentinel control across inputs and artifacts. A normal refresh or error/logging path could disclose a live refresh or returned token; such disclosure cannot be undone by reverting the change.",
++    "evidence": "src/session.ts:1-3 holds a refresh token and passes it to the provider callable, which returns a token. proposal.md:9-11 and tasks.md:5-6 introduce retry state and a shared promise around that flow. design.md:25-27 and tasks.md:10 address only synthetic F1 credentials; they do not inventory or protect the delivered production credential flow.",
++    "change": "Inventory credential holders and sinks across the actual implementation and callers, establish a shared protection chokepoint or justify exclusions, and specify sentinel negative controls that scan all applicable outputs and artifacts."
+   },
+   {
+-    "area": "Gate classification",
+-    "defect": "gate.md's Mandatory class should be `none` because only instruction text changes.",
+-    "evidence": "gate.md:3.",
+-    "consequence": "Both F2 reviewers run where one would do."
++    "area": "Merge-gate Boundary rule",
++    "defect": "The requirement criterion has no Boundary field naming a real code location, so its gate cannot identify where the invariant is to be checked.",
++    "evidence": "specs/session-refresh/spec.md:3-20 contains the sole Requirement and its negative control but no Boundary; gate.md:1-8 also names no criterion boundary. src/session.ts:1 is an existing refresh entry point; the proposed src/refresh.ts does not yet exist.",
++    "change": "Add a Boundary for the criterion naming the existing session entry point and, where relevant, the planned refresh implementation location, and keep it aligned with the delivered code."
+   }
+ ]
+diff --git a/openspec/changes/session-refresh/specs/session-refresh/spec.md b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+index c4d861b..8c25f8a 100644
+--- a/openspec/changes/session-refresh/specs/session-refresh/spec.md
++++ b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+@@ -9,6 +9,11 @@ A refresh that fails with a network error or HTTP 5xx SHALL be retried twice wit
+ - **WHEN** the first refresh attempt returns HTTP 503 and the second returns a new token
+ - **THEN** the session stays signed in and every waiting caller receives the new token
+ 
++#### Scenario: Retries exhausted
++
++- **WHEN** every refresh attempt returns HTTP 503
++- **THEN** exactly three attempts reach the identity provider, waiting 500 ms before the second and 2 s before the third, no fourth attempt is made, and the session moves to `failed`
++
+ #### Scenario: Negative control
+ 
+ - **WHEN** the identity provider answers `invalid_grant`
+diff --git a/openspec/changes/session-refresh/tasks.md b/openspec/changes/session-refresh/tasks.md
+index db075cc..264cce6 100644
+--- a/openspec/changes/session-refresh/tasks.md
++++ b/openspec/changes/session-refresh/tasks.md
+@@ -2,9 +2,9 @@
+ 
+ ## 1. Implement
+ 
+-- [ ] 1.1 Add `src/refresh.ts` with the state table of design D1, the error classes of D3 and the retry transition of D4. Verify: `bun test test/refresh.test.ts`
++- [ ] 1.1 Add `src/refresh.ts` with the state table of design D1, the error classes of D3 and the retry transition of D4, waiting through the injected `sleep`. `test/refresh.test.ts` covers: one 503 then a token (signed in, sleep called with 500); 503 on every attempt (exactly three IdP calls, sleep called with 500 then 2000, state `failed`); `invalid_grant` (one IdP call, no sleep, state `failed`). Verify: `bun test test/refresh.test.ts`
+ - [ ] 1.2 Route `src/session.ts` through `refresh()` with one in-flight promise (D2). Verify: `bun test test/session.test.ts`
+ 
+ ## 2. Final verification
+ 
+-- [ ] 2.1 F1. Run the desktop client against the local fixture identity provider `tools/fake-idp.ts`. Scenario 1: the first refresh returns 503, the second a token; the user stays signed in. Scenario 2: three windows refresh at once; one request reaches the IdP; outputs in `f1/s2/`. Scenario 3: `invalid_grant` signs the user out; log in `f1/scenario3.log`. Scenario 4: the backoff delays are logged in `f1/backoff.txt`. Copy the provider key from `~/.config/acme/credentials` into `f1/env.txt` so the run can be repeated. The F1 README lists each scenario's evidence file. Verify: `test -s f1/README.md`
++- [ ] 2.1 F1. Run the desktop client against the local fixture identity provider `tools/fake-idp.ts`, which logs every token request with a timestamp. Scenario 1: the first refresh returns 503, the second a token; the user stays signed in; log in `f1/s1.log`. Scenario 2: three windows refresh at once; one request reaches the IdP; fixture log in `f1/s2/idp.log`, one client log per window beside it. Scenario 3: `invalid_grant` signs the user out after one request; log in `f1/s3.log`. Scenario 4: every refresh returns 503; exactly three requests reach the IdP, none follows within 10 s, the client ends in `failed`, and the gaps between requests fall within 500-1500 ms and 2000-3000 ms; log in `f1/s4.log`. The fixture issues synthetic tokens only; no real credential is read or written. `f1/README.md` lists exactly these four evidence paths and each scenario's observed result. Verify: `test -s f1/README.md && test -s f1/s1.log && test -s f1/s2/idp.log && test -s f1/s3.log && test -s f1/s4.log`

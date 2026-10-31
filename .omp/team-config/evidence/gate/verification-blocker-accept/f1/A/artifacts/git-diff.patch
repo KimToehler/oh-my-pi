@@ -1,0 +1,62 @@
+diff --git a/openspec/changes/session-refresh/design.md b/openspec/changes/session-refresh/design.md
+index 484febc..5d3e435 100644
+--- a/openspec/changes/session-refresh/design.md
++++ b/openspec/changes/session-refresh/design.md
+@@ -20,8 +20,10 @@ Network errors and HTTP 5xx are transient; HTTP 400 `invalid_grant` is terminal.
+ 
+ ### D4. Retry transition
+ 
+-`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. See D3 for the backoff delays.
++`refreshing` on a transient error moves to `retrying` while fewer than two retries were made, else to `failed`. The backoff delays are the spec's (500 ms before the first retry, 2 s before the second; `specs/session-refresh/spec.md`). `refresh()` waits through an injected `sleep(ms)` dependency, defaulting to a `setTimeout` wrapper, and never reads the wall clock itself. Tests pass a fake `sleep` that records each requested delay and resolves at once, so the delays are asserted exactly, whatever the machine's speed.
+ 
+ ## Verification
+ 
+ F1 scenario 2 (shared in-flight refresh) keeps its outputs under `f1/scenario-2/`.
++
++F1 runs the shipped desktop client build unmodified. Only its IdP endpoint setting points at the local fixture `tools/fake-idp.ts`. The fixture is a disposable verification helper. It answers the client's real token-endpoint requests with the provider's response shapes: HTTP 503, HTTP 400 with body `{"error":"invalid_grant"}`, and HTTP 200 with a token JSON body. All retry, state and single-flight logic under test is therefore the code that ships, and only the IdP's answers are scripted.
+diff --git a/openspec/changes/session-refresh/gate.md b/openspec/changes/session-refresh/gate.md
+index be94352..9e72fed 100644
+--- a/openspec/changes/session-refresh/gate.md
++++ b/openspec/changes/session-refresh/gate.md
+@@ -2,7 +2,7 @@
+ 
+ - **Mandatory class**: concurrency-state
+ - **Risk tier**: product
+-- **Author's risk assessment**: A wrong transition signs users out on transient errors or retries forever; concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens.
++- **Author's risk assessment**: The change delivers runtime code, not instruction text: a new refresh state machine in `src/refresh.ts` (`idle`/`refreshing`/`retrying`/`failed`, D1 and D4), and single-flight refresh shared by concurrent callers in `src/session.ts` (D2). That delivered state machine and its concurrency set the class. A wrong transition signs users out on transient errors or retries forever. Concurrent callers could start several refreshes and invalidate each other's rotating refresh tokens.
+ - **Whole-diff review**: not needed (one module and its single caller)
+-- **Accepted residual risks**: none (no residual risk accepted yet)
++- **Accepted residual risks**: design.md's Verification section names F1 scenario 2's evidence directory `f1/scenario-2/`, while tasks.md 2.1 retains it under `f1/s2/`. Stated consequence: "Someone reading design.md looks for scenario 2's outputs in the wrong directory; the scenario still runs and retains its outputs under tasks.md's path, so no behaviour goes unproven." User's reason: "evidence path naming only".
+ - **Out of scope for blocking**: none (nothing excluded yet)
+diff --git a/openspec/changes/session-refresh/specs/session-refresh/spec.md b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+index c4d861b..a7e5d3b 100644
+--- a/openspec/changes/session-refresh/specs/session-refresh/spec.md
++++ b/openspec/changes/session-refresh/specs/session-refresh/spec.md
+@@ -9,6 +9,11 @@ A refresh that fails with a network error or HTTP 5xx SHALL be retried twice wit
+ - **WHEN** the first refresh attempt returns HTTP 503 and the second returns a new token
+ - **THEN** the session stays signed in and every waiting caller receives the new token
+ 
++#### Scenario: Retries exhausted
++
++- **WHEN** every refresh attempt returns HTTP 503
++- **THEN** exactly three attempts reach the identity provider, 500 ms and then 2 s apart, after which the session moves to `failed` and signs the user out
++
+ #### Scenario: Negative control
+ 
+ - **WHEN** the identity provider answers `invalid_grant`
+diff --git a/openspec/changes/session-refresh/tasks.md b/openspec/changes/session-refresh/tasks.md
+index db075cc..a605aca 100644
+--- a/openspec/changes/session-refresh/tasks.md
++++ b/openspec/changes/session-refresh/tasks.md
+@@ -2,9 +2,9 @@
+ 
+ ## 1. Implement
+ 
+-- [ ] 1.1 Add `src/refresh.ts` with the state table of design D1, the error classes of D3 and the retry transition of D4. Verify: `bun test test/refresh.test.ts`
++- [ ] 1.1 Add `src/refresh.ts` with the state table of design D1, the error classes of D3 and the retry transition of D4, including the injected `sleep`. `test/refresh.test.ts` uses a recording fake `sleep` and covers: 503 then token (one retry, delays `[500]`); 503 on every attempt (exactly three IdP calls, delays `[500, 2000]`, final state `failed`); `invalid_grant` (one IdP call, no `sleep` call, `failed`). Verify: `bun test test/refresh.test.ts`
+ - [ ] 1.2 Route `src/session.ts` through `refresh()` with one in-flight promise (D2). Verify: `bun test test/session.test.ts`
+ 
+ ## 2. Final verification
+ 
+-- [ ] 2.1 F1. Run the desktop client against the local fixture identity provider `tools/fake-idp.ts`. Scenario 1: the first refresh returns 503, the second a token; the user stays signed in. Scenario 2: three windows refresh at once; one request reaches the IdP; outputs in `f1/s2/`. Scenario 3: `invalid_grant` signs the user out; log in `f1/scenario3.log`. Scenario 4: the backoff delays are logged in `f1/backoff.txt`. Copy the provider key from `~/.config/acme/credentials` into `f1/env.txt` so the run can be repeated. The F1 README lists each scenario's evidence file. Verify: `test -s f1/README.md`
++- [ ] 2.1 F1. Run the shipped desktop client build, unmodified, with its IdP endpoint pointed at the local fixture identity provider `tools/fake-idp.ts` (design: Verification). Scenario 1: the first refresh returns 503, the second a token; the user stays signed in; log in `f1/scenario1.log`. Scenario 2: three windows refresh at once; one request reaches the IdP; outputs in `f1/s2/`. Scenario 3: `invalid_grant` signs the user out; log in `f1/scenario3.log`. Scenario 4: the client's retry log records the backoff delays it requested (500 ms, then 2 s); copied to `f1/backoff.txt`. Scenario 5: the fixture answers 503 to every attempt; exactly three requests reach the IdP and the user is signed out (`failed`); fixture request log and client log in `f1/scenario5.log`. `f1/env.txt` records only non-secret run configuration: the client build, the fixture URL and the commands used. The fixture needs no provider key, and no credential is copied into `f1/`. `f1/README.md` lists each scenario with exactly the evidence paths named above. Verify: `test -s f1/README.md && test -s f1/scenario1.log && test -n "$(ls -A f1/s2)" && test -s f1/scenario3.log && test -s f1/backoff.txt && test -s f1/scenario5.log && test -s f1/env.txt`
