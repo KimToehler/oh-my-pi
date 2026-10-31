@@ -4,8 +4,9 @@
  * ({@link AgentSession.restoreInterruptedTurn}) and the subagents it was running.
  *
  * Every persisted subagent transcript under the session ({@link collectSubSessions})
- * that its process left mid-turn ({@link hasRestorableTurn}), was not killed (no
- * tombstone) and can be revived (a `session_init` contract, not isolated) runs one
+ * that its process left mid-turn ({@link hasRestorableTurn}), had not yet ended its run
+ * with a terminal `yield` ({@link endedInTerminalYield}), was not killed (no tombstone)
+ * and can be revived (a `session_init` contract, not isolated) runs one
  * more monitored turn as a background job of its parent: the lifecycle reviver
  * rebuilds it from its transcript, {@link runSubagentFollowUpTurn} goes on with the
  * cut-off turn and drives it to `yield`, and the parent receives the result as the
@@ -19,11 +20,13 @@ import { ensurePersistedRoster } from "../registry/persisted-agents";
 import { AgentRegistry } from "../registry/agent-registry";
 import type { AgentSession } from "../session/agent-session";
 import { hasRestorableTurn } from "../session/exit-diagnostics";
+import type { SessionEntry } from "../session/session-entries";
 import { extractSessionInit } from "../session/session-manager";
 import { collectSubSessions } from "../session/sub-sessions";
 import type { EventBus } from "../utils/event-bus";
 import { runSubagentFollowUpTurn } from "./executor";
 import { persistedAgentDefinition } from "./persisted-revive";
+import { isTerminalYieldResult } from "../tools/yield";
 import { formatTaskResultSummary } from "./result-summary";
 import { cfgTaskMaxRuntimeMs } from "./settings";
 
@@ -72,7 +75,7 @@ async function restoreSubagents(session: AgentSession, options: RestoreOptions):
 	const restored: string[] = [];
 	for (const key of keys) {
 		const sub = subSessions[key]!;
-		if (sub.aborted || !hasRestorableTurn(sub.entries)) continue;
+		if (sub.aborted || !hasRestorableTurn(sub.entries) || endedInTerminalYield(sub.entries)) continue;
 		const id = sub.agentId;
 		const ref = registry.get(id);
 		const init = extractSessionInit(sub.entries);
@@ -114,4 +117,20 @@ async function restoreSubagents(session: AgentSession, options: RestoreOptions):
 	}
 	if (restored.length > 0) logger.info("Restored interrupted subagents", { ids: restored });
 	return restored;
+}
+
+/**
+ * Whether a subagent's last tool batch holds a terminal `yield`: its run ended there
+ * with its result recorded. The transcript still reads as cut off (the tail is a tool
+ * result nothing answered), but another turn would only replace that result.
+ */
+function endedInTerminalYield(entries: readonly SessionEntry[]): boolean {
+	for (let index = entries.length - 1; index >= 0; index--) {
+		const entry = entries[index]!;
+		if (entry.type !== "message") continue;
+		const message = entry.message;
+		if (message.role !== "toolResult") return false;
+		if (message.toolName === "yield" && isTerminalYieldResult(message.isError, message.details)) return true;
+	}
+	return false;
 }

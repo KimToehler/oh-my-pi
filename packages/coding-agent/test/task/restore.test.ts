@@ -49,6 +49,36 @@ const finished: Message[] = [
 	{ role: "user", content: "work", timestamp: Date.now() },
 	assistant({ content: [{ type: "text", text: "all done" }] }),
 ];
+/** A run cut off right after a `yield` accepted with `details` (its last turn, nothing answered the result). */
+function yielded(details: Record<string, unknown>): Message[] {
+	return [
+		{ role: "user", content: "work", timestamp: Date.now() },
+		assistant({
+			content: [
+				{ type: "toolCall", id: "call_r", name: "read", arguments: { path: "a.ts" } },
+				{ type: "toolCall", id: "call_y", name: "yield", arguments: { data: details.data } },
+			],
+			stopReason: "toolUse",
+		}),
+		{
+			role: "toolResult",
+			toolCallId: "call_y",
+			toolName: "yield",
+			content: [{ type: "text", text: "Result submitted." }],
+			details,
+			isError: false,
+			timestamp: Date.now(),
+		},
+		{
+			role: "toolResult",
+			toolCallId: "call_r",
+			toolName: "read",
+			content: [{ type: "text", text: "a" }],
+			isError: false,
+			timestamp: Date.now(),
+		},
+	];
+}
 
 /** Writes subagent `id`'s transcript under the main session `mainFile`, with its spawn contract. */
 async function writeSubagent(mainFile: string, cwd: string, id: string, messages: Message[]): Promise<string> {
@@ -65,7 +95,7 @@ async function writeSubagent(mainFile: string, cwd: string, id: string, messages
 }
 
 describe("restoreSession (omp --restore)", () => {
-	const ids = ["Cut", "Done", "Killed"];
+	const ids = ["Cut", "Done", "Killed", "Yielded", "Section"];
 	let tempDir: TempDir | undefined;
 	let manager: AsyncJobManager | undefined;
 
@@ -127,5 +157,52 @@ describe("restoreSession (omp --restore)", () => {
 		await manager.getJob("Cut")!.promise;
 		await manager.drainDeliveries({ filter: { ownerId: MAIN_AGENT_ID } });
 		expect(delivered).toEqual(["Cut"]);
+	});
+
+	it("leaves a subagent whose run ended in a terminal yield alone, but goes on after an incremental section", async () => {
+		tempDir = TempDir.createSync("@pi-restore-yielded-");
+		const cwd = tempDir.path();
+		const main = SessionManager.create(cwd, path.join(cwd, "sessions"));
+		main.appendMessage({ role: "user", content: "fan out", timestamp: Date.now() });
+		const mainFile = main.getSessionFile();
+		if (!mainFile) throw new Error("Expected a persisted session file");
+		await main.close();
+		await writeSubagent(mainFile, cwd, "Yielded", yielded({ status: "success", data: { verdict: "REJECT" } }));
+		await writeSubagent(
+			mainFile,
+			cwd,
+			"Section",
+			yielded({ status: "success", type: ["findings"], data: { finding: "x" } }),
+		);
+
+		manager = new AsyncJobManager({});
+		const followUp = vi.spyOn(executorModule, "runSubagentFollowUpTurn").mockResolvedValue({
+			index: 0,
+			id: "Section",
+			agent: "Section",
+			agentSource: "user",
+			task: "Section task",
+			exitCode: 0,
+			output: "finished after the restart",
+			stderr: "",
+			truncated: false,
+			durationMs: 5,
+			tokens: 0,
+			requests: 1,
+		});
+		const session = {
+			sessionManager: { getSessionFile: () => mainFile },
+			asyncJobManager: manager,
+			settings: Settings.isolated(),
+			restoreInterruptedTurn: vi.fn(async () => false),
+		} as unknown as AgentSession;
+
+		const outcome = await restoreSession(session);
+
+		expect(outcome).toEqual({ turn: false, subagents: ["Section"] });
+		expect(followUp).toHaveBeenCalledTimes(1);
+		expect(followUp.mock.calls[0]![0]).toMatchObject({ id: "Section" });
+		expect(manager.getJob("Yielded")).toBeUndefined();
+		await manager.getJob("Section")!.promise;
 	});
 });

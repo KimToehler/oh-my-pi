@@ -796,6 +796,23 @@ export function resetYieldTurnState(tool: AgentTool | undefined): void {
 	if (tool && canResetTurnState(tool)) tool.resetTurnState();
 }
 
+/**
+ * Whether a `yield` result ends its run: every accepted submission except an
+ * incremental section (a non-empty `type` label list) that does not complete a workpool.
+ */
+export function isTerminalYieldResult(isError: boolean | undefined, details: unknown): boolean {
+	if (isError) return false;
+	if (!details || typeof details !== "object") return true;
+	const record = details as Record<string, unknown>;
+	if (record.complete === true) return true;
+	return !(
+		record.status === "success" &&
+		Array.isArray(record.type) &&
+		record.type.length > 0 &&
+		record.type.every(item => typeof item === "string")
+	);
+}
+
 // Register subprocess tool handler for extraction + termination.
 subprocessToolRegistry.register<YieldDetails>("yield", {
 	extractData: event => {
@@ -814,17 +831,5 @@ subprocessToolRegistry.register<YieldDetails>("yield", {
 			schemaOverridden: record.schemaOverridden === true ? true : undefined,
 		};
 	},
-	shouldTerminate: event => {
-		if (event.isError) return false;
-		const details = event.result?.details;
-		if (!details || typeof details !== "object") return true;
-		const record = details as Record<string, unknown>;
-		if (record.complete === true) return true;
-		return !(
-			record.status === "success" &&
-			Array.isArray(record.type) &&
-			record.type.length > 0 &&
-			record.type.every(item => typeof item === "string")
-		);
-	},
+	shouldTerminate: event => isTerminalYieldResult(event.isError, event.result?.details),
 });
