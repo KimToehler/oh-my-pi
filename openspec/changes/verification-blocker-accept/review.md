@@ -1,37 +1,32 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 9c99b7029076c72de0249c7db47763bc8663ef0143a040e0b0490a55b344ae20
-- **Reviewer**: plan-reviewer, LensCorR1, LensVerR1, LensChkR1
-- **Round**: 1
+- **Reviewed digest**: 77f7d74c1ceb8ccf067d2cea5150a8c4d5e9af98f48604051d29c0556ea62021
+- **Reviewer**: plan-reviewer, LensCorR2, LensVerR2, LensChkR2
+- **Round**: 2
 - **Override**: none
 
 ## Blockers
 
-### Correctness (LensCorR1)
+### Verification (LensVerR2)
 
 [
   {
-    "area": "Correctness — threshold-breaking verification blockers",
-    "defect": "Narrowing the class exclusion also makes verification-only blockers that fail the threshold non-excluded. Existing coverage and explicit-user-request paths can then leave them unfixed, contrary to the plan’s claim that missing proof of material behaviour still blocks on classified changes.",
-    "evidence": "design.md:12-17, 29-31 says Accept is limited to verification blockers that pass the threshold and leaves coverage and explicit requests unchanged. But review-work/SKILL.md:433-441 permits a non-excluded blocker that breaks the threshold to be covered by a matching reviewed residual, and permits explicit acceptance of a non-eligible, non-excluded blocker at plan review, freeze or delta accept. For example, a classified change’s verification-only blocker says a disposable F1 scenario cannot detect a material failure; after the proposed bullet change, a user can explicitly accept it even though the proof remains missing. The decision is reversible by a later review, but it can allow the current change to proceed without that proof.",
-    "change": "Preserve exclusion for verification-only blockers that fail the threshold, or explicitly redesign and specify the covered and user-request paths so the promised material-proof boundary holds across every lane."
+    "area": "Verification and executability — task 2.1, row B",
+    "defect": "The expected per-blocker question after Continue contradicts the workflow being exercised, so a session correctly following the instruction can fail the planned QA.",
+    "evidence": "tasks.md:15 requires the post-Continue ask to cover both v1 and non-eligible v2. team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:434-437 says Continue fixes every non-eligible blocker and asks only for eligible blockers or fixes requiring a user decision. The fixture does not identify v2's fix as requiring such a decision.",
+    "change": "Expect the eligible v1 question and the non-eligible v2 fix under the existing Continue path, or explicitly construct and justify a v2 fix that needs a user decision. Retain evidence of the actual continuation."
   },
   {
-    "area": "Correctness — F1 evidence exclusion",
-    "defect": "The planned README asserts that all F1 evidence blockers remain excluded at F2 and F3, although the authoritative rule excludes only QA artifacts the validator binds. This misstates eligibility for ordinary F1 outputs that are not bound and contradicts the shared policy the change is meant to expose.",
-    "evidence": "tasks.md:9 requires adding “At F2 and F3, blockers about F1 evidence stay excluded as audit trail.” review-work/SKILL.md:426-427 limits that exclusion to the gate record, trailers, and QA artifacts the validator binds; design.md:37 itself says F1 blockers usually concern bound evidence. For a verification-only bookkeeping blocker involving an unbound F1 output, with no other exclusion and material behaviour otherwise proven, the shared rule permits eligibility while the new README says it is excluded. The resulting unnecessary fix or refusal is reversible but defeats the intended availability of Accept.",
-    "change": "Qualify the README statement to cover only F1 artifacts actually bound by the validator, and keep the task and design consistent with that scope."
-  }
-]
-
-### Checks (LensChkR1)
-
-[
+    "area": "Verification — excluded blockers and coverage",
+    "defect": "The material guarantee that a verification gap remains excluded even when a reviewed residual-risk entry names it is not exercised. A regression that lets such an entry cover the gap could pass all planned sessions and wrongly leave material behaviour unproven on a classified change.",
+    "evidence": "specs/review-blocker-disposition/spec.md:21-24 requires both rejection of an explicit user request and rejection of a gate.md entry covering the failed F1 proof. tasks.md:15 tests the explicit request and checks no new entry is written, but none of A, A0, B, C or C0 starts with an existing matching Accepted residual risks entry and checks that it cannot cover v2.",
+    "change": "Add a real-session fixture with a matching pre-existing reviewed gate entry and the material-proof blocker, and retain the decision showing the entry does not cover it and the blocker remains excluded."
+  },
   {
-    "area": "CHECK 6 — entry-path parity, task 2.1",
-    "defect": "F2, delta review and F3 consume the changed eligibility rule but have no path-specific controls. On a classified change with a verification-only bookkeeping blocker, those lanes could fail to offer an otherwise eligible disposition, or offer one despite an exclusion, without the planned F1 detecting it. The resulting review decision is reversible before merge, but an incorrect disposition can affect what is allowed to ship.",
-    "evidence": "proposal.md:30 applies the narrowed exclusion to plan review, F2, delta review and F3; design.md:40 confirms the post-implementation paths consume it. tasks.md:15 exercises only plan-review sessions and explicitly lists F2, delta and F3 as unexercised. The actual consumers are team-config/agent/skills/review-work/SKILL.md:370, :466, :478 and team-config/agent/skills/integration-review/SKILL.md:149.",
-    "change": "Add a discriminating control for each affected path, exercising its own disposition decision on a classified change, including an eligible verification-only blocker and an applicable exclusion, or provide a path-specific reason and evidence that the changed decision cannot occur there."
+    "area": "Verification — negative-control scenarios",
+    "defect": "Neither specified negative-control scenario is exercised as a review of an intentionally broken instruction. The baseline comparisons only demonstrate the old policy's narrower behaviour; they cannot show that review detects an instruction which wrongly admits an excluded blocker or makes the displayed assignment disagree with the disposition.",
+    "evidence": "specs/review-blocker-disposition/spec.md:37-40 and specs/openspec-plan-review/spec.md:15-18 require review of those broken instructions to fail. tasks.md:15 defines A0 and C0 using the old F and ordinary sessions, but no mutated instruction or reviewer outcome for either negative-control scenario.",
+    "change": "Add discriminating instruction-review controls for the two specified forbidden behaviours, retaining the mutated input and the reviewer's failing finding; include an unclear-subject case in the disposition control."
   }
 ]
