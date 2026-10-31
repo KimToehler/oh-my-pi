@@ -19,4 +19,4 @@ See proposal.md, Why. The behaviour already exists in review step 4 of the `omp-
 
 ## Risks / Trade-offs
 
-- [The archived spec drops or reorders a scenario of the requirement] → the delta is the main spec's block copied verbatim with one line changed; F1 archives it in a scratch copy and diffs the result.
+- [The archived spec drops or reorders a scenario of the requirement] → the delta is the main spec's block copied verbatim with two lines changed; F1 archives it in a scratch copy and diffs the result.
