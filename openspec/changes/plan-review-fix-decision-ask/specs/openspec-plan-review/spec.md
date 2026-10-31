@@ -36,5 +36,5 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
+- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks about eligible blockers while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
 - **THEN** review of that instruction MUST fail

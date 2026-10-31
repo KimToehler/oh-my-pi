@@ -7,6 +7,7 @@ The `openspec-plan-review` spec says a complete rejecting round below the approa
 ## What Changes
 
 - The spec scenario "Round with only blocking findings keeps the existing path" names the existing exception: a blocker whose fix needs a user decision is asked as a per-blocker ask offering Fix and Stop, never Accept.
+- The requirement's negative control names the mixed round it targets: an ask about eligible blockers must name every open non-eligible blocker; a decision-only ask about one non-eligible blocker does not fail it.
 - No instruction, validator, template or prompt change.
 
 ## Capabilities
