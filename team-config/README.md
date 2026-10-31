@@ -190,8 +190,10 @@ brief plus one fixed lens paragraph (correctness, verification, or security and 
 adds no focus. The round is OKAY only when all three lenses return OKAY; a lens without a structured verdict is
 retried once, and if the retry has none either the round is incomplete and no record is written. Each blocker of a
 complete rejecting round is decided by review-work's `Blocker disposition` section: it is Accept-eligible only when it
-misses the blocking threshold and no exclusion (security, audit trail, gate classification, review mechanism, a
-mandatory class) applies. Below the approach-question trigger (described next), a round with an eligible blocker records
+misses the blocking threshold and no exclusion (security, audit trail, gate classification, review mechanism, and on a
+change with a mandatory class every blocker that is not only about the change's own verification and below the
+threshold) applies. At F2 and F3, blockers about F1 evidence the validator binds stay excluded as audit trail. Below the
+approach-question trigger (described next), a round with an eligible blocker records
 its REJECT and asks you at once, per blocker, quoting each verbatim: Accept is recommended for eligible blockers and
 offered only for them (your reason goes into `gate.md` as a residual risk or out-of-scope area, and the next round does
 not block on it); the rest offer fix or stop. A round with only non-eligible blockers is fixed and reviewed again. From
