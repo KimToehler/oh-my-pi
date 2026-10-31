@@ -1,0 +1,34 @@
+# Deterministic Verify of tasks 1.1-1.3 at 19c1efe4429d5da21a90214b0f2f743c49878cae (F2 wave 1 snapshot head)
+
+## Task 1.1
+
+$ F=team-config/agent/skills/review-work/SKILL.md; X=$(awk '/^[*][*]Excluded[.][*][*]/,/^An excluded blocker/' "$F"); printf '%s\n' "$X" | grep -qx -e "- the change's mandatory class is not .none., unless the blocker concerns only this change's verification as .Change verification. defines it and misses both limbs of the blocking threshold; on such a change every other blocker stays excluded, including one about the delivered change, one that concerns both, one whose subject is unclear and one that leaves a material behaviour unproven;" && ! printf '%s\n' "$X" | grep -qx -e "- the change's mandatory class is not .none.;" && test "$(git diff --numstat $(git merge-base main HEAD) -- "$F" | cut -f1,2)" = "$(printf '1\t1')"
+
+exit 0
+stdout: (empty)
+stderr: (empty)
+
+## Task 1.2
+
+$ S=team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml; DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec instructions review --change verification-blocker-accept --json > /dev/null && tr '\n' ' ' < "$S" | tr -s ' ' | grep -q "it never changes a blocker's severity, and it is the same judgement .Blocker disposition. makes for the class exclusion, never a separate one)" && ! tr '\n' ' ' < "$S" | tr -s ' ' | grep -q "severity or eligibility" && cmp <(git show $(git merge-base main HEAD):"$S" | tr '\n' ' ' | tr -s ' ' | perl -pe 's/ or eligibility\)/, and it is the same judgement \x60Blocker disposition\x60 makes for the class exclusion, never a separate one)/') <(tr '\n' ' ' < "$S" | tr -s ' ')
+
+exit 0
+stdout: (empty)
+stderr: (empty)
+
+## Task 1.3
+
+$ R=team-config/README.md; tr '\n' ' ' < "$R" | tr -s ' ' | grep -q "no exclusion (security, audit trail, gate classification, review mechanism, and on a change with a mandatory class every blocker that is not only about the change's own verification and below the threshold) applies. At F2 and F3, blockers about F1 evidence the validator binds stay excluded as audit trail." && ! tr '\n' ' ' < "$R" | tr -s ' ' | grep -q "review mechanism, a mandatory class)"
+
+exit 0
+stdout: (empty)
+stderr: (empty)
+
+## Delivered diff outside the change folder and evidence
+
+4	2	team-config/README.md
+1	1	team-config/agent/skills/review-work/SKILL.md
+3	2	team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml
+ team-config/agent/skills/review-work/SKILL.md                       | 2 +-
+ .../agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml | 5 +++--
+ 3 files changed, 8 insertions(+), 5 deletions(-)

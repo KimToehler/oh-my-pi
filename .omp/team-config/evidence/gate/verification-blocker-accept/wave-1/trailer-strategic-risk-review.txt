@@ -1,0 +1,36 @@
+**Bottom line:** The change holds up architecturally: it narrows one exclusion in the authoritative disposition rule rather than creating competing rules across review lanes. I recommend retaining the implementation as written; I found no substantiated blocker.
+
+### Action plan / review answers
+
+1. **Does the architecture hold? — Yes.**  
+   `team-config/agent/skills/review-work/SKILL.md`, **Blocker disposition**, preserves the distinction between eligible, excluded and covered findings. Importantly, the new exception includes the blocking threshold *inside the class exclusion*: a material-proof gap remains excluded, rather than merely becoming ineligible and potentially reachable through coverage or an explicit user request. Schema review step **4a** uses that same classification rather than introducing a second decision.
+
+2. **What does the line-level audit structurally miss? — Classification depends on context, not just wording.**  
+   A file can look like disposable QA while actually serving CI, installation or later reviews. `SKILL.md`, **Change verification**, correctly classifies that as delivered behaviour, but using one judgement for display and eligibility does not independently validate the judgement.  
+   **Note — nonblocking:** This semantic enforcement boundary is explicitly acknowledged in the plan’s `gate.md`; the implementation does not claim script-enforced classification or a measured compliance rate.
+
+3. **Which production failure would hurt most, and is it addressed? — Accepting a material verification gap that conceals a delivered auth, migration or state defect.**  
+   The dangerous route is calling the finding “verification-only” and allowing an earlier acceptance to settle it. The delivered rule bars that route: material behaviour left unproven, mixed or unclear subjects, protected assets and validator-bound audit artifacts remain excluded; excluded findings cannot be covered, frozen or accepted on request. Schema step **4a** also exposes the classification for user challenge. These are appropriate safeguards within the declared instruction-driven boundary, not proof that future sessions cannot misclassify.
+
+4. **Is an auditor finding a false positive on unchanged behaviour? — None substantiated.**  
+   The auditor’s end-to-end orchestration caveat is a genuine evidence limitation, not a claimed regression. The F1 `README.md`, **Unexercised branches**, explicitly distinguishes single-turn lane decisions from complete F2/F3 runs. Nothing supplied establishes a broken consumer requiring a fix.
+
+**Watch out for:** Deploy the skill, refresh each project’s schema copy, and restart active sessions together, as the plan’s **Migration Plan** and **Workflow follow-up** require. Partial rollout leaves old display-only eligibility wording alongside the new shared rule. **Nonblocking:** the rollout requirement is already documented.
+
+**Effort:** Quick (<1h); no implementation changes recommended.  
+**Confidence:** Medium — grounded in the supplied diff, immutable plan, shared instruction boundaries and evidence summary; no runtime verification or exhaustive evidence-file inspection performed.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An earlier eligibility judgement must not survive a later clarification that turns the same finding into a material-proof gap.
+  positive_witness: After clarification establishes that the retained evidence cannot demonstrate the required failure behaviour, the orchestrator withdraws Accept and permits only fix, re-plan or stop.
+  negative_control: The orchestrator preserves Accept or writes an accepted entry because the finding was previously displayed as eligible bookkeeping.
+  observable: The clarification, subsequent user-facing options and resulting gate.md changes show whether eligibility was recomputed.
+  boundary: The transition from reviewer-consequence clarification to the final disposition and its persisted acceptance.
+END-REVIEW-TRAILER
