@@ -1,0 +1,102 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": ".omp/plans/review-proportionality.md",
+  "plan_sha256": "b7025c1a54587cd991a394df34e057cf71fae0ad0316fdbce4f53b09d2a55e68",
+  "reviewed_sha": "2506762dd65e46a59ccd53d8886c9d18478e9c59",
+  "diff_base": "b25d0cd6774f72c7be93a981d0ea66b1f2ad5805",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state (user decision): the change alters plan-review transitions, so both invocations run.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1-A planning and class",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/F1-A/calls.md",
+      "artifact_sha256": "da9f1b765029f30ca2bc9b531d66f89c3d315730493cc082b8a03eb9199e0684"
+    },
+    {
+      "name": "F1-B lens scope and material gap",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/F1-B/B2/session-output.txt",
+      "artifact_sha256": "2b3efe48d3bf1e0c1961dce44930d23d428af4a6ae044a5245bf78217b1863a8"
+    },
+    {
+      "name": "F1-C security stays blocking",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/F1-C/C2/session-output.txt",
+      "artifact_sha256": "e080c8bbfa5a5b0b323d5c91693aa84a96747f252cb2b33ed8c96866636df34a"
+    },
+    {
+      "name": "F1-D approach question",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/F1-D/D1/calls.md",
+      "artifact_sha256": "6b068cfe187727a6a89dfaa5febabba80dc094a7b0b224d14e066a9e200366ac"
+    },
+    {
+      "name": "F1-E Split and round-1 regression",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/F1-E/E3/calls.md",
+      "artifact_sha256": "fd34fcea0e55ffe4fa81d8e0c302c1510011cf67f02c4e44037562bb7d2b26ad"
+    },
+    {
+      "name": "Controls: delivered bytes, schema resolution, credential scan",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/controls/credscan-final.txt",
+      "artifact_sha256": "9dd11d90731f349ed18ce5f66cc7bf5a896c01c84729dd79a2a3e86098b1e442"
+    },
+    {
+      "name": "F1 index and row judgement",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/f1/README.md",
+      "artifact_sha256": "3ff266e446ded32f1f5ce8b47594f3ec2df516de049329801f565e9d26403470"
+    },
+    {
+      "name": "Verify commands at HEAD",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/review-proportionality/wave-1/verify-commands.txt",
+      "artifact_sha256": "8b529a3f68fc4c38865b5ae31d1c61a6be3bba78658ba7b04c55d59e0d10e0a5"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/review-proportionality/f3-integration-review-report.md",
+    "report_sha256": "06ca4634bce70309540e342191a8012f70a8bf8a58a5c02ca6f9d0cf8efd4e99"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/review-proportionality/wave-1/trailer-implementation-audit.md",
+      "trailer_sha256": "13c4fb557d7d853ce4034d4d1fae635317e47adbe5ed42f54eb2700d8b1982b7",
+      "note": "no blockers; non-blocking note on schema.yaml:420-423 resume fallback"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/review-proportionality/wave-1/trailer-strategic-risk-review.md",
+      "trailer_sha256": "8b1b9795f15e1ee175b80df202ad2e0e1514cbe636b1fc842a0c41dfbf4732c2",
+      "note": "no blockers; Split evidence shows scope separation with retained class"
+    }
+  ],
+  "blockers": []
+}
