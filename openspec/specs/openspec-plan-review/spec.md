@@ -93,7 +93,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 #### Scenario: Eligible blockers at the approach question
 
 - **WHEN** the third REJECT holds both eligible and non-eligible blockers and the user answers Continue at the approach question
-- **THEN** the non-eligible blockers are fixed without a per-blocker ask, and the per-blocker ask covers only the eligible ones, recommends Accept for each and shows each blocker's stated consequence
+- **THEN** the non-eligible blockers are fixed without a per-blocker ask unless a fix needs a user decision, and the per-blocker ask covers the eligible ones, recommends Accept for each and shows each blocker's stated consequence
 
 #### Scenario: Negative control
 
@@ -140,7 +140,7 @@ The early-ask rule and the approach question SHALL apply to plan-review rounds o
 
 ### Requirement: Approach question at a recurring REJECT
 
-At a complete REJECT of round 3 or later, or earlier when the correctness lens returned OKAY and every open blocker concerns the change's own verification method, the `omp-gated` review instruction SHALL ask one approach question before any per-blocker ask or fix, and SHALL ask it again at every later such REJECT. It SHALL offer Continue, Re-plan and Stop, and Split only where the Split requirement allows it. Continue SHALL fix the non-eligible blockers and dispatch a fresh round.
+At a complete REJECT of round 3 or later, or earlier when the correctness lens returned OKAY and every open blocker concerns the change's own verification method, the `omp-gated` review instruction SHALL ask one approach question before any per-blocker ask or fix, and again at every later such REJECT. It SHALL offer Continue, Re-plan, Stop and, where allowed, Split. Continue SHALL fix the non-eligible blockers, asking only for fixes that need a user decision, and dispatch a fresh round.
 
 #### Scenario: Third REJECT asks first
 
@@ -149,8 +149,8 @@ At a complete REJECT of round 3 or later, or earlier when the correctness lens r
 
 #### Scenario: Continue fixes and dispatches
 
-- **WHEN** the user answers Continue and no blocker is eligible
-- **THEN** the orchestrator fixes the blockers in the artifacts, runs the validator, takes a new digest and dispatches three fresh lenses without a per-blocker ask
+- **WHEN** the user answers Continue, no blocker is eligible, and one fix needs a user decision on scope the artifacts leave open
+- **THEN** the orchestrator asks that one decision with fix alternatives and Stop and no Accept, fixes the blockers in the artifacts, runs the validator, takes a new digest and dispatches three fresh lenses with no other per-blocker ask
 
 #### Scenario: Early trigger on verification-only blockers
 
@@ -159,7 +159,7 @@ At a complete REJECT of round 3 or later, or earlier when the correctness lens r
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction fixes or asks per blocker before the approach question at round 3, or asks it at a round-1 REJECT whose correctness lens rejected
+- **WHEN** an instruction fixes or asks per blocker before the approach question at round 3, asks it at a round-1 REJECT whose correctness lens rejected, or offers Accept for a non-eligible blocker after Continue
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The approach question diagnoses before it recommends

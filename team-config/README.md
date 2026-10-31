@@ -198,7 +198,7 @@ not block on it); the rest offer fix or stop. A round with only non-eligible blo
 the third REJECT on (earlier when the correctness lens passed and every blocker concerns the change's own verification),
 the agent records the REJECT and asks one approach question first: per lens and blocker what was found, the class and
 what sets it, a diagnosis of what keeps producing blockers and a recommendation among Continue (fix and review again;
-per-blocker asks only for eligible blockers), Re-plan (revise the approach, class included, with no Accept), Split
+per-blocker asks only for eligible blockers and for fixes that need your decision), Re-plan (revise the approach, class included, with no Accept), Split
 (only when a class-setting part can ship as its own change apart from a useful remainder) and Stop. It asks again at
 every later REJECT. Verification of
 the change itself follows review-work's `Change verification` section: instruction changes are proven by their text
