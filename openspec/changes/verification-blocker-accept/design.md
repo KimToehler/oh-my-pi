@@ -19,7 +19,9 @@
 
 ### D1. Narrow the class exclusion; do not drop it
 
-The bullet becomes "the change's mandatory class is not `none`, unless the blocker concerns only this change's verification as `Change verification` defines it; a blocker about the delivered change, one that concerns both and one whose subject is unclear stay excluded".
+The bullet becomes "the change's mandatory class is not `none`, unless the blocker concerns only this change's verification as `Change verification` defines it and misses both limbs of the blocking threshold; on such a change every other blocker stays excluded, including one about the delivered change, one that concerns both, one whose subject is unclear and one that leaves a material behaviour unproven".
+
+The threshold test sits inside the exclusion, not only in the eligibility test. An excluded blocker can be neither covered by a `gate.md` entry nor accepted on the user's explicit request; a merely non-eligible one can (SKILL.md, `Covered` and `The user's explicit request`). Without the threshold in the exclusion, a verification-only blocker that leaves material behaviour unproven would drop from excluded to non-eligible on a classified change and become coverable and user-acceptable. With it, the narrowing reaches exactly the blockers that are then eligible, and every lane's existing paths stay as they are for everything else.
 
 Alternatives:
 - Drop the class exclusion entirely. That would let bookkeeping blockers about delivered auth, migration, wire or state behaviour be accepted. The class exists because such blockers can hide real defects. Rejected.
@@ -27,9 +29,9 @@ Alternatives:
 
 ### D2. Subject is judged from the stated consequence, failing closed
 
-The subject is read from the blocker's own stated consequence, as eligibility already is. A blocker counts as verification-only when that consequence names only the change's QA sessions, disposable fixtures, one-off evidence helpers or their evidence, and nothing the change delivers. Tooling that serves users, CI, installation, benchmarks or later reviews is delivered, as `Change verification` says. The existing "Unclear means blocking" rule already covers an unclear or mixed subject; the bullet repeats it only for this exclusion's own question, so it cannot be read as a new default.
+The subject is read from the blocker's own stated consequence, as eligibility already is. A blocker counts as verification-only when that consequence names only the change's QA sessions, disposable fixtures, one-off evidence helpers or their evidence, and nothing the change delivers. Tooling that serves users, CI, installation, benchmarks or later reviews is delivered, as `Change verification` says. On a classified change an unclear or mixed subject stays excluded. That is stronger than "Unclear means blocking" (non-eligible) and keeps today's status for it: neither coverage nor the user's request can leave it unfixed.
 
-Being verification-only is necessary, not sufficient. The blocker must still miss both threshold limbs, so a missing proof of material behaviour still blocks. Every other exclusion still precedes, including credentials and protected assets, the audit trail, CHECK 1 / item 4, `security_delta: yes`, classification disputes and review mechanisms.
+Being verification-only is necessary, not sufficient: the blocker must also miss both threshold limbs, so a missing proof of material behaviour stays excluded. Every other exclusion still precedes, including credentials and protected assets, the audit trail, CHECK 1 / item 4, `security_delta: yes`, classification disputes and review mechanisms.
 
 ### D3. The approach question shows the eligibility judgement
 
@@ -37,7 +39,7 @@ Step 4a's parenthetical "it never changes a blocker's severity or eligibility" b
 
 ### D4. Post-implementation lanes need no edit
 
-F2, delta review and F3 reference the section. At F2 and F3 the blockers about F1 usually concern evidence the validator binds, and the audit-trail exclusion keeps them excluded. The practical effect is therefore mostly in plan review. This is stated in the README sentence, so nobody expects F2 freezes on F1 evidence.
+F2, delta review and F3 reference the section, so the changed decision can occur in each: a verification-only blocker that misses the threshold and concerns no artifact the validator binds (for example a misleading name in an F1 helper the record does not cite) becomes eligible for the F2 Phase 4 `below-threshold` override, a delta accept and an F3 freeze. Blockers about F1 evidence the validator binds stay excluded as audit trail, so the effect there is narrower than in plan review. The README states that limit. F1 exercises each of the three lanes' decisions (task 2.1 row C).
 
 ### D5. This change is `concurrency-state`
 

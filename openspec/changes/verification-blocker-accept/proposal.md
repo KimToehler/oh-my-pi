@@ -8,8 +8,8 @@
 
 ## What Changes
 
-- The class exclusion in `Blocker disposition` narrows. On a change whose Mandatory class is not `none`, a blocker stays excluded unless it concerns only this change's verification, as `Change verification` defines it. A blocker about the delivered change, one that concerns both, and one whose subject is unclear stay excluded.
-- A verification-only blocker on a classified change becomes Accept-eligible only through the unchanged threshold. A missing proof of any material behaviour or failure mode still breaks the value proof. All other exclusions remain in force and take precedence: security or privacy path, protected asset, credential, audit trail (including QA artifacts the validator binds), review_scope item 4 or CHECK 1, `security_delta: yes`, a dispute of the gate classification, and a review or gate mechanism that would admit unreviewed or failing work.
+- The class exclusion in `Blocker disposition` narrows. On a change whose Mandatory class is not `none`, a blocker stays excluded unless it concerns only this change's verification, as `Change verification` defines it, and misses both limbs of the blocking threshold. A blocker about the delivered change, one that concerns both, one whose subject is unclear and one that leaves a material behaviour unproven stay excluded, so coverage by `gate.md` and the user's explicit request cannot leave them unfixed either.
+- Only such a blocker becomes Accept-eligible on a classified change. All other exclusions remain in force and take precedence: security or privacy path, protected asset, credential, audit trail (including QA artifacts the validator binds), review_scope item 4 or CHECK 1, `security_delta: yes`, a dispute of the gate classification, and a review or gate mechanism that would admit unreviewed or failing work.
 - The approach question's per-blocker assignment (delivered change or verification) becomes the same judgement the exclusion uses. It is no longer a display that "never changes eligibility". It still never changes severity.
 - The team-config README sentence that lists the exclusions follows the new wording.
 
