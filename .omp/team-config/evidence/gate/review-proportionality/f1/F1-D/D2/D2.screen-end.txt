@@ -1,0 +1,350 @@
+│  67│- **accessTokenForRequest()**, called by the API client for every request:                                                                               │
+│  68│  - `SignedOut`: throw `NotSignedIn`.                                                                                                                    │
+│  69│  - `accessExpiresAt - now >= 60 s`: return the cached access token.                                                                                     │
+│  70│  - Otherwise refresh, under the same mutex: `refreshExpiresAt` passed → reject. Otherwise call `oidcClient.refreshToken(refreshToken)`.                 │
+│  71│    - Success: requires a non-empty access token and a positive `expires_in`. A returned ID token must pass the `iss`/`aud`/`azp`/`exp` checks; the nonce│
+│    │is not checked on refresh, per OIDC Core 12.2. A missing refresh token keeps the old one. Then `store.write()`. A write failure keeps the new tokens in  │
+│    │memory for this process: the persisted older session is refreshed or rejected at next start, which fails toward sign-out.                                │
+│ -72│····- `UnsuccessfulTokenRequest` whose `errorResponse.error` is `invalid_grant`, `invalid_client` or `unauthorized_client`, or local refresh expiry:     │
+│    │**reject**. State becomes `SignedOut`, then `store.delete()`; throw `SignedOutByServer`.                                                                 │
+│   +│····- A success response that fails these checks, an `UnsuccessfulTokenRequest` whose `errorResponse.error` is `invalid_grant`, `invalid_client` or      │
+│    │`unauthorized_client`, or local refresh expiry: **reject**. State becomes `SignedOut`, then `store.delete()`; throw `SignedOutByServer`.                 │
+│  73│    - Anything else: throw `SessionUnavailable`; state and storage are unchanged.                                                                        │
+│  74│- **Delete failure**: the state stays `SignedOut` and a `pendingDelete` flag is set. Every later operation retries the delete before doing anything else │
+│    │and never returns a token while the flag is set. See Risks.                                                                                              │
+│  75│                                                                                                                                                         │
+│…                                                                                                                                                             │
+│  86│### D7. Platform entry points                                                                                                                            │
+│  87│                                                                                                                                                         │
+│ -88│- androidMain `createAuth(context, config): AuthComponents`: OkHttp engine, `AndroidDataStoreSettingsStore`, `AndroidCodeAuthFlowFactory(useWebView =    │
+│    │false)`.                                                                                                                                                 │
+│   +│- androidMain `createAuth(context, config): AuthComponents`: OkHttp engine, `AndroidDataStoreSettingsStore`, `AndroidCodeAuthFlowFactory(useWebView =    │
+│    │false)`. The store is created once per process and memoized on the application context: the library opens a DataStore delegate per instance, and two     │
+│    │DataStores on one file in one process throw.                                                                                                             │
+│  89│- iosMain `createAuth(config): AuthComponents`: Darwin engine, `DeviceKeychainSettingsStore`, `IosCodeAuthFlowFactory()`.                                │
+│  90│                                                                                                                                                         │
+│…                                                                                                                                                             │
+│  92│                                                                                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The spec covers error-code rejection and expiry cases fine, and the refreshed-id-token-invalid path also triggers sign-out as expected. I should note I
+ actually read the library's main HEAD rather than the pinned 0.18.4 tag the design context specifies.
+
+ design.md says I read the library at tag 0.18.4, but I actually read main. Next I'm diffing the relevant files against the tag so the claim holds.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd /tmp/kmpoidc && git fetch -q --depth 1 origin tag 0.18.4 && git diff --stat 0.18.4 HEAD --                                                              │
+│ oidc-core/src/commonMain/kotlin/org/publicvalue/multiplatform/oidc/flows                                                                                     │
+│ oidc-core/src/commonMain/kotlin/org/publicvalue/multiplatform/oidc/types/AuthCodeRequest.kt                                                                  │
+│ oidc-core/src/commonMain/kotlin/org/publicvalue/multiplatform/oidc/DefaultOpenIdConnectClient.kt                                                             │
+│ oidc-core/src/commonMain/kotlin/org/publicvalue/multiplatform/oidc/OpenIdConnectException.kt oidc-tokenstore oidc-ktor                                       │
+│ oidc-core/src/commonMain/kotlin/org/publicvalue/multiplatform/oidc/preferences > /tmp/kmp-tagdiff.txt 2>&1; echo "exit=$?"; wc -l < /tmp/kmp-tagdiff.txt     │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ exit=0                                                                                                                                                       │
+│ 0                                                                                                                                                            │
+╰─── Wall: 0.86s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ No differences found between those paths in 0.18.4 and main, so the claim holds. Now I need to validate by running V and the gate validator in plan-only mode.
+
+ Main and tag 0.18.4 match on every file the design cites, so the claim holds. Next I'm running both validators on the re-planned folder.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ V=~/.omp/agent/skills/review-work/scripts; node $V/validate-openspec-change.mjs openspec/changes/oidc-sign-in; echo "exit=$?"; node                        │
+│ $V/validate-gate-record.mjs --repo /private/tmp/rp-f1/D2 --plan-only --plan openspec/changes/oidc-sign-in; echo "exit=$?"; DO_NOT_TRACK=1                    │
+│ OPENSPEC_TELEMETRY=0 openspec validate oidc-sign-in --strict; echo "exit=$?"                                                                                 │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (10 earlier lines, showing 10 of 20) ⟦⌃O: Expand⟧                                                                                                          │
+│ exit=1                                                                                                                                                       │
+│ blocked                                                                                                                                                      │
+│ plan OpenSpec change: task 1.1: expected trailing Verify: `<deterministic command>`; task 3.1: expected trailing Verify: `<deterministic command>`; task     │
+│ 3.2: expected trailing Verify: `<deterministic command>`; task 4.1: expected trailing Verify: `<deterministic command>`; task 5.1: expected trailing Verify: │
+│ `<deterministic command>`; task 5.2: expected trailing Verify: `<deterministic command>`; task 7.1: expected trailing Verify: `<deterministic command>`;     │
+│ task 8.1: placeholder text is forbidden; task 8.2: expected trailing Verify: `<deterministic command>`; Whole-diff review: use needed or not needed          │
+│ (<concrete reason>)                                                                                                                                          │
+│ exit=1                                                                                                                                                       │
+│ Change 'oidc-sign-in' is valid                                                                                                                               │
+│ exit=0                                                                                                                                                       │
+╰─── Wall: 0.20s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I need to fix a few things: tasks have to be single-line checkboxes since nested bullets break parsing, so I'll flatten them even if it hurts readability. For
+ the base reference I should check the actual branch name with git branch rather than leaving a placeholder. And for the whole-diff review step, I'll just
+ state "needed" plainly and move the justification into the risk assessment section instead of a parenthetical.
+
+ Each task needs to be on one line ending in Verify:, the <base> placeholder isn't allowed, and whole-diff review must be set to exactly needed. Now checking
+ the default branch name for the F3 range.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ git branch --show-current; git branch -a                                                                                                                   │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ main                                                                                                                                                         │
+│ * main                                                                                                                                                       │
+╰─── Wall: 0.05s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm working on main, using main...HEAD as the comparison for the branch point since the implementation lives in the task worktree branch. Now I'll rewrite
+ tasks.md to use single-line tasks while keeping the same content.
+
+╭─── ✎ Write: 📝 openspec/changes/oidc-sign-in/tasks.md · 46 lines ────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Tasks                                                                                                                                                  │
+│   2                                                                                                                                                          │
+│   3 Test classes live in `shared/src/commonTest/kotlin/` unless a task names another source set. `commonTest` runs on the Android host JVM                   │
+│     (`testDebugUnitTest`) and on the iOS simulator (`iosSimulatorArm64Test`). Prerequisites: JDK 17+, Android SDK (compileSdk 36), Xcode with an iOS         │
+│     simulator, Docker (task 7.1), and a booted Android emulator (task 5.1).                                                                                  │
+│   4                                                                                                                                                          │
+│   5 ## 1. Build                                                                                                                                              │
+│   6                                                                                                                                                          │
+│ … 40 more lines ⟦⌃O: Expand⟧                                                                                                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/D2/openspec/changes/oidc-sign-in/gate.md ⟦+2/-2⟧ ───────────────────────────────────────────────────────────────────────────────────╮
+│   1│# Gate                                                                                                                                                   │
+│…                                                                                                                                                             │
+│   3│- **Mandatory class**: auth-secrets-pii                                                                                                                  │
+│   4│- **Risk tier**: product                                                                                                                                 │
+│  -5│- **Author's risk assessment**: The change delivers authentication against the company Keycloak and stores access and refresh tokens that grant access to│
+│    │customer orders, so the class is auth-secrets-pii. The tier is product because it ships to users. The worst outcomes are irreversible: a token sent to a │
+│    │foreign origin, a token readable at rest or in logs, or a session accepted from a forged or mismatched authorization response all disclose customer      │
+│    │orders. A refresh race or a missed sign-out keeps a rejected session alive. The changed state machine (D4) also has concurrency risk; its class is       │
+│    │subsumed here and its review is the same full review.                                                                                                    │
+│  -6│- **Whole-diff review**: needed (Gradle build, `app.auth` session and storage, `app.http` API client, and the androidMain/iosMain platform stores and    │
+│    │entry points: four independently testable layers)                                                                                                        │
+│  +5│- **Author's risk assessment**: The change delivers authentication against the company Keycloak and stores access and refresh tokens that grant access to│
+│    │customer orders, so the class is auth-secrets-pii. The tier is product because it ships to users. The worst outcomes are irreversible: a token sent to a │
+│    │foreign origin, a token readable at rest or in logs, or a session accepted from a forged or mismatched authorization response all disclose customer      │
+│    │orders. A refresh race or a missed sign-out keeps a rejected session alive. The changed state machine (D4) also has concurrency risk; its class is       │
+│    │subsumed here and its review is the same full review. Whole-diff review is needed because the change spans four independently testable layers: the Gradle│
+│    │build, the `app.auth` session and storage, the `app.http` API client, and the androidMain/iosMain platform stores and entry points.                      │
+│  +6│- **Whole-diff review**: needed                                                                                                                          │
+│   7│- **Accepted residual risks**: If the platform store fails to delete the tokens after Keycloak rejects the refresh token and the process then dies, the  │
+│    │next start restores the tokens. The access token stays usable at the API for at most its remaining lifetime (Keycloak access-token lifespan) until the   │
+│    │next refresh is rejected again and signs the user out. In-process the session is signed out at once (design.md D4, Risks).                               │
+│   8│- **Out of scope for blocking**: Platform wiring in the follow-up change `oidc-app-integration`: Activity and redirect registration, URL schemes, Android│
+│    │backup rules, per-flavor build-config values, and order-list and sign-in UI. design.md "Platform contract" defines it, and findings about it belong to   │
+│    │that change's own review. This change's obligations on that boundary (`AuthComponents`, fail-closed restore of backed-up ciphertext) stay in scope.      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ V=~/.omp/agent/skills/review-work/scripts; node $V/validate-openspec-change.mjs openspec/changes/oidc-sign-in; echo "exit=$?"; node                        │
+│ $V/validate-gate-record.mjs --repo /private/tmp/rp-f1/D2 --plan-only --plan openspec/changes/oidc-sign-in; echo "exit=$?"; DO_NOT_TRACK=1                    │
+│ OPENSPEC_TELEMETRY=0 openspec validate oidc-sign-in --strict; echo "exit=$?"                                                                                 │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ task 8.2: placeholder text is forbidden                                                                                                                      │
+│ exit=1                                                                                                                                                       │
+│ blocked                                                                                                                                                      │
+│ plan OpenSpec change: task 8.2: placeholder text is forbidden                                                                                                │
+│ exit=1                                                                                                                                                       │
+│ Change 'oidc-sign-in' is valid                                                                                                                               │
+│ exit=0                                                                                                                                                       │
+╰─── Wall: 0.23s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I should clarify that head: <commit> is just a placeholder -- each transcript's first line actually reads "head: " followed by the real output of git
+ rev-parse HEAD.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ grep -n 'head: <commit>' openspec/changes/oidc-sign-in/tasks.md | cut -c1-60                                                                               │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 39:- [ ] 8.2 F1. Manual QA on the real surface (the shared m                                                                                                 │
+╰─── Wall: 0.00s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I need to replace line 39 entirely, swapping the phrasing so it says the first line is "head: " followed by the full output of git rev-parse HEAD, rather than
+ embedding it as a commit placeholder.
+
+╭─── ✎ Edit: 📝 /tmp/rp-f1/D2/openspec/changes/oidc-sign-in/tasks.md ⟦+1/-1⟧ ──────────────────────────────────────────────────────────────────────────────────╮
+│  36│## 8. Final verification                                                                                                                                 │
+│  37│                                                                                                                                                         │
+│  38│- [ ] 8.1 F3. Whole-diff review: `integration-review` over `main...HEAD` with this change folder as the plan; fixes delta-reviewed. The report (first    │
+│    │line `INTEGRATION-REVIEW-REPORT-v1`) is written to `.omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md` and left unstaged,      │
+│    │because a staged report makes `GC snapshot` refuse; review-work Phase 5 stages it with the gate record and trailers. Verify: `test "$(head -n 1          │
+│    │.omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`                                            │
+│ -39│- [ ] 8.2 F1. Manual QA on the real surface (the shared module against a real Keycloak, the Android emulator's Keystore-backed storage and the iOS       │
+│    │simulator Keychain), on the head after F3's last code commit. Each transcript's first line is `head: <commit>`, from `git rev-parse HEAD`. Evidence goes │
+│    │in `.omp/team-config/evidence/gate/oidc-sign-in/f1/`: `keycloak-it.txt` (`shared/testing/keycloak/run-it.sh`; shows `firstSignIn`, `wrongPkceVerifier`,  │
+│    │`refreshBeforeNextRequest` and `rejectedRefreshSignsOut` passed); `android-storage.txt` (`./gradlew :shared:connectedDebugAndroidTest`; shows            │
+│    │`storedFileHasNoPlaintextToken` passed); `ios-keychain.txt` (`./gradlew :shared:iosSimulatorArm64Test`; shows `itemIsThisDeviceOnly` and every commonTest│
+│    │class passed on iOS); `unit-suite.txt` (`./gradlew :shared:testDebugUnitTest`; shows every class of tasks 2–6 passed); `leak-scan.txt` (the output of    │
+│    │`grep -rnE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' --exclude=leak-scan.txt` over the directory; empty). The QA lane reads each transcript and judges the       │
+│    │observations. Verify: `d=.omp/team-config/evidence/gate/oidc-sign-in/f1 && for f in keycloak-it android-storage ios-keychain unit-suite; do grep -q      │
+│    │'BUILD SUCCESSFUL' "$d/$f.txt" && git diff --quiet "$(sed -n '1s/^head: //p' "$d/$f.txt")" HEAD -- shared settings.gradle.kts build.gradle.kts           │
+│    │gradle.properties gradle || exit 1; done && for t in firstSignIn wrongPkceVerifier refreshBeforeNextRequest rejectedRefreshSignsOut; do grep -q "$t"     │
+│    │"$d/keycloak-it.txt" || exit 1; done && grep -q storedFileHasNoPlaintextToken "$d/android-storage.txt" && grep -q itemIsThisDeviceOnly                   │
+│    │"$d/ios-keychain.txt" && test -f "$d/leak-scan.txt" && ! grep -rqE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' "$d"`                                               │
+│   +│- [ ] 8.2 F1. Manual QA on the real surface (the shared module against a real Keycloak, the Android emulator's Keystore-backed storage and the iOS       │
+│    │simulator Keychain), on the head after F3's last code commit. Each transcript's first line is `head: ` followed by the full output of `git rev-parse     │
+│    │HEAD`. Evidence goes in `.omp/team-config/evidence/gate/oidc-sign-in/f1/`: `keycloak-it.txt` (`shared/testing/keycloak/run-it.sh`; shows `firstSignIn`,  │
+│    │`wrongPkceVerifier`, `refreshBeforeNextRequest` and `rejectedRefreshSignsOut` passed); `android-storage.txt` (`./gradlew                                 │
+│    │:shared:connectedDebugAndroidTest`; shows `storedFileHasNoPlaintextToken` passed); `ios-keychain.txt` (`./gradlew :shared:iosSimulatorArm64Test`; shows  │
+│    │`itemIsThisDeviceOnly` and every commonTest class passed on iOS); `unit-suite.txt` (`./gradlew :shared:testDebugUnitTest`; shows every class of tasks 2–6│
+│    │passed); `leak-scan.txt` (the output of `grep -rnE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' --exclude=leak-scan.txt` over the directory; empty). The QA lane    │
+│    │reads each transcript and judges the observations. Verify: `d=.omp/team-config/evidence/gate/oidc-sign-in/f1 && for f in keycloak-it android-storage     │
+│    │ios-keychain unit-suite; do grep -q 'BUILD SUCCESSFUL' "$d/$f.txt" && git diff --quiet "$(sed -n '1s/^head: //p' "$d/$f.txt")" HEAD -- shared            │
+│    │settings.gradle.kts build.gradle.kts gradle.properties gradle || exit 1; done && for t in firstSignIn wrongPkceVerifier refreshBeforeNextRequest         │
+│    │rejectedRefreshSignsOut; do grep -q "$t" "$d/keycloak-it.txt" || exit 1; done && grep -q storedFileHasNoPlaintextToken "$d/android-storage.txt" && grep  │
+│    │-q itemIsThisDeviceOnly "$d/ios-keychain.txt" && test -f "$d/leak-scan.txt" && ! grep -rqE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' "$d"`                       │
+│  40│                                                                                                                                                         │
+│  41│## Workflow follow-up                                                                                                                                    │
+│…                                                                                                                                                             │
+│  45│- Propose `oidc-app-integration` (design.md "Platform contract") as its own reviewed change before any app wiring is implemented.                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ V=~/.omp/agent/skills/review-work/scripts; node $V/validate-openspec-change.mjs openspec/changes/oidc-sign-in; echo "exit=$?"; node                        │
+│ $V/validate-gate-record.mjs --repo /private/tmp/rp-f1/D2 --plan-only --plan openspec/changes/oidc-sign-in; echo "exit=$?"; node                              │
+│ $V/validate-openspec-change.mjs --digest openspec/changes/oidc-sign-in                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ passed                                                                                                                                                       │
+│ exit=0                                                                                                                                                       │
+│ passed                                                                                                                                                       │
+│ exit=0                                                                                                                                                       │
+│ 4b59444424ec53c098e0492521df90753c26f6ca02e9b97d5ce380b516651e1a                                                                                             │
+╰─── Wall: 0.12s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Validators pass. Round-4 digest: 4b594444…651e1a. Next I'm dispatching three fresh lenses with the fixed briefs.
+
+╭─── • Task 3 agents ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                              │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • ◑ onara/cx/gpt-6.1-terra OidcCorrectnessR4 ⟦plan-reviewer⟧ · 23 🛠 · 6 req · 15.5%/272K · $0.05                                                             │
+│   yield[result]: {"verdict":"REJECT","summary":"The proposed session lifecycle and res…                                                                      │
+│ • ◑ onara/cc/claude-sonnet-5-5 OidcVerificationR4 ⟦plan-reviewer⟧ · 21 🛠 · 7 req · 9.1%/1M · $0.35                                                           │
+│ • ◑ onara/cx/gpt-6.1-terra OidcChecksR4 ⟦plan-reviewer⟧ · 23 🛠 · 7 req · 16.1%/272K · $1.33                                                                  │
+│   yield[result]: {"verdict":"REJECT","summary":"Credential confidentiality, entry-path…                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+• OidcCorrectnessR4 done · 34.7s
+  2 still running
+
+• OidcVerificationR4 done · 17m22s
+  1 still running
+
+• OidcChecksR4 done · 18m44s
+
+ Round 4 is complete and it's another REJECT, so I need to write review.md for this round. Since round 4 is at or past round 3, this triggers revisiting the
+ approach question again.
+
+ Round 4 is complete: all three lenses returned REJECT, with 13 blockers. Step 4 requires recording it in review.md before the approach question, which is
+ asked again at every REJECT from round 3 on.
+
+╭─── 🐍 • Writing round-4 review.md · (13ms) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ import json                                                                                                                                                  │
+│ ids=[("Correctness","OidcCorrectnessR4"),("Verification","OidcVerificationR4"),("Checks","OidcChecksR4")]                                                    │
+│ parts=["# Review","","- **Verdict**: REJECT","- **Reviewed digest**: 4b59444424ec53c098e0492521df90753c26f6ca02e9b97d5ce380b516651e1a","- **Reviewer**:      │
+│ plan-reviewer, OidcCorrectnessR4, OidcVerificationR4, OidcChecksR4","- **Round**: 4","- **Override**: none","","## Blockers",""]                             │
+│ for lens,i in ids:                                                                                                                                           │
+│     b=json.loads(read(f"agent://{i}/blockers"))                                                                                                              │
+│     parts+=[f"### {lens} ({i})","",json.dumps(b,indent=2,ensure_ascii=False),""]                                                                             │
+│ write("openspec/changes/oidc-sign-in/review.md","\n".join(parts))                                                                                            │
+│ print("ok")                                                                                                                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ok                                                                                                                                                           │
+│ Status                                                                                                                                                       │
+│ ├─ … 1 earlier                                                                                                                                               │
+│ ├─ 📄 read 7577 chars · from agent://OidcVerificationR4/blockers                                                                                             │
+│ ├─ 📄 read 2485 chars · from agent://OidcChecksR4/blockers                                                                                                   │
+│ └─ 📄 write 14044 chars · to openspec/changes/oidc-sign-in/review.md                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/oidc-sign-in; echo "exit=$?"                         │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user                                                   │
+│ exit=1                                                                                                                                                       │
+╰─── Wall: 0.05s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ By this fourth round, I'm seeing the remaining blockers as concrete local defects rather than missing design—things like session ownership singleton issues,
+ the short-lived token refresh threshold, the spec vs refresh contract split, and refresh expiry updates. For verification, I'm focusing on test
+ discrimination: per-method results, concurrency gating, leak sentinel injection, real-store decrypt failures, and coverage gaps.
+
+ Tallying by area: six items are delivered (session ownership, short-lived refresh, token contract spec, refresh expiry, the CHECK1 inventory, and the
+ singleton duplicate), while seven fall under verification (five V-items plus continued sign-in and the boundary-symbol check). Since round 3's core issue of
+ missing design has been resolved, these remaining gaps are all fixable within the existing artifacts—one design gap flagged by two lenses, three
+ refresh-lifecycle edge rules, and test-detail work—so I'm recommending Continue rather than re-planning, since the design is now something reviewers check
+ line by line and splitting isn't viable here. Given the mandatory auth-secrets-pii classification excludes everything, Accept isn't an option regardless.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  oidc-sign-in plan review, round 4 (after the re-plan): REJECT. Correctness REJECT, 4 blockers; Verification REJECT, 5 blockers; Checks REJECT, 4 blockers.  │
+│                                                                                                                                                              │
+│  Delivered change (6): session ownership across repeated createAuth calls (Correctness; Checks CHECK 6 found the same defect); refresh reuse when the new    │
+│  token itself lives under 60 s; spec 'Token response validation' contradicts the refresh rules (refresh may omit the refresh token, ID token and nonce);     │
+│  refresh-token expiry not updated after a refresh; CHECK 1 holder/sink inventory and a safe output boundary.                                                 │
+│  This change's verification (7): Verify commands filter by class, not method, and accept cached or UP-TO-DATE runs; the concurrency tests cannot fail        │
+│  without controlled interleaving; leak tests can pass vacuously (no sentinels in injected failures, no planted-leak control, no iOS stream scan);            │
+│  fail-closed restore proven only with fakes; coverage gaps (timeout, continueSignIn, temporary-failure request not sent); continueSignIn negative control    │
+│  (Checks CHECK 6); criterion boundaries name symbols that don't exist yet.                                                                                   │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered sign-in, token storage and refresh, and bearer injection. Effect: every blocker is excluded, so     │
+│  Accept and Override are off on every path.                                                                                                                  │
+│                                                                                                                                                              │
+│  Diagnosis: the round-3 cause, a missing design, is gone. No lens disputes the approach: the library choice, the session state machine, origin-bound         │
+│  injection and fail-closed restore. Two lenses independently found the same structural gap: a session must have exactly one owner per store, and the design  │
+│  memoizes only the Android store. The rest are local: three refresh-lifecycle rules (short-lived tokens, the refresh-response contract, refresh-expiry       │
+│  rotation) and test details that make the planned tests discriminate (per-method result checks, gated concurrency, planted-leak controls, a real-store       │
+│  restore failure). Each fix lands in an artifact that already exists, and none changes the approach. Re-planning would throw away a design the reviewers are │
+│  now checking line by line.                                                                                                                                  │
+│                                                                                                                                                              │
+│  Recommendation: Continue. Fix all 13 in the artifacts: one session authority per store on both platforms, the three refresh rules, a split spec contract    │
+│  for exchange versus refresh, and discriminating tests with per-method JUnit/XML checks. Then round 5 with fresh lenses. No Split: the auth part sets the    │
+│  class and is the whole retained scope (app wiring is already split off).                                                                                    │
+│  ○ Continue                                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The user chose to stop here — no fix, no new round, apply stays blocked, so I'll finalize the report. I should also clean up my scratch work in /tmp, removing
+ the throwaway clone and temp files since they're outside the repo and purely my own scaffolding.
+
+ Worth noting as a lesson: the validator demands single-line tasks with zero <...> placeholders anywhere, even in things like head: <commit> — a non-obvious
+ convention worth recording as a memory.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ rm -rf /tmp/kmpoidc /tmp/kmp-*.txt /tmp/kmpoidc-files.txt; git status --short                                                                              │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  M openspec/changes/oidc-sign-in/design.md                                                                                                                   │
+│  M openspec/changes/oidc-sign-in/gate.md                                                                                                                     │
+│  M openspec/changes/oidc-sign-in/proposal.md                                                                                                                 │
+│  M openspec/changes/oidc-sign-in/review.md                                                                                                                   │
+│  M openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md                                                                                                  │
+│  M openspec/changes/oidc-sign-in/tasks.md                                                                                                                    │
+╰─── Wall: 0.11s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+ • Learn
+  └─ memory="omp-gated OpenSpec validator (validate-openspec-change.mjs / validate-gate-record.mjs --plan-only): every tasks.md checkbox must b…", context="…"
+ Lesson stored.
+ ⟦⌃O: Expand⟧
+
+
+ I'm wrapping up at round 4 per the user's choice, leaving apply blocked since the artifacts are still uncommitted revisions. The review.md file records the
+ round-4 REJECT with its digest, and I'm noting that if a resumed session hits this same REJECT with a matching digest, the approach question must be re-asked
+ before any edit proceeds.
+
+ The review stopped at round 4 by your choice, so apply is still blocked. review.md records a REJECT for round 4 and V --reviewed exits 1.
+
+ Round 3 (as originally planned): all three lenses rejected it, 16 blockers in total. You chose Re-plan and decided three things:
+ - Scope: this change covers only the shared/ module and defines a contract for the platform side. Showing the order list and the Android/iOS redirect wiring
+   move to a follow-up change, oidc-app-integration.
+ - Library: kotlin-multiplatform-oidc 0.18.4 replaces the hand-written client.
+ - Configuration: the API origin, issuer, client ID and redirect URI come from build config.
+
+ What the rewrite changed: I rewrote proposal.md, specs/oidc-sign-in/spec.md, design.md, gate.md and tasks.md to those decisions. The library facts in the
+ design come from reading its source, and those files are identical at tag 0.18.4. The library checks state and nonce but not iss, aud, exp or signatures. Its
+ token store swallows storage errors, and its Ktor bearer support sends the token to any host. So the design keeps the library for the login flow and builds
+ its own session handling, storage wrapper and API client. Whole-diff review (F3) is now needed. Both validators passed and openspec validate --strict passed.
+
+ Round 4: all three lenses rejected again (4 correctness, 5 verification and 4 checks blockers). The reviewers questioned none of the design choices. The main
+ open items:
+ - Session ownership: calling createAuth twice can create two independently locked sessions over one stored session. Two lenses found this.
+ - Refresh rules: three are missing: refreshing when the new token itself lives under 60 s, a separate validation contract for refresh responses versus the
+   first sign-in, and updating the refresh-token expiry after each refresh.
+ - Leak inventory: the plan lacks a full list of where tokens are held and could be written out.
+ - Tests that can't fail: Verify commands filter by class and accept cached runs. The concurrency tests have no controlled interleaving. The leak tests have no
+   planted-leak control. The fail-closed restore is tested only with fakes, and the resumed Android sign-in has no negative-control test.
+
+ Accept and Override were never available: the change is classed auth-secrets-pii, which excludes every blocker.
+
+ Current state:
+ - The rewritten artifacts are uncommitted, and review.md is bound to their current digest 4b594444…651e1a.
+ - A session that resumes this review must ask the approach question again before any edit or new round.
+ - I removed the scratch clone of the library from /tmp.
+
+                                                                                                                               🔐 OIDC: Review OIDC sign-in plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/D2 > ⑂ main *6 > $4.87 (+1.89) ▶──────────────────20%──────┃───────────────────────────────────────────────────────────────1M─
+╰─

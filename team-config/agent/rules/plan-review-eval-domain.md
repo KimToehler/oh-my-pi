@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Domain checks: evaluation runs
 
-Trigger for this whole rule: the plan or delta changes files under `packages/metaharness/`, or plans a run of an agent, verifier or benchmark inside a container, on a remote host, or through a runner or manager process. Otherwise ignore this rule entirely.
+Trigger for this whole rule: the plan or delta changes files under `packages/metaharness/`, or plans a run of an agent, verifier or benchmark inside a container, on a remote host, or through a runner or manager process. An ordinary local interactive QA session, including one driven through the terminal device, is not a run through a runner or manager process. Otherwise ignore this rule entirely.
 
 Labels are DOMAIN 1-6. Same form as CHECK n: each check fires only on its trigger; a triggered check without the required answer is a blocker naming the label and the plan slot. Blockers are ordered by severity; among equal severity, DOMAIN blockers follow CHECK 1-8.
 

@@ -1,0 +1,50 @@
+│  - Correctness: app and API integration (no platform entry point, redirect delivery, order screen or token attachment) → delivered change; refresh is not on │
+│    the request path and rejection doesn't sign out or delete tokens → delivered; proposal's timeout note reads as if the timeout already exists → delivered  │
+│    (scope wording)                                                                                                                                           │
+│  - Verification: no named tests per scenario → verification; F1 checks only test -f sign-in.md → verification; ./gradlew has no build in the repo →          │
+│    verification                                                                                                                                              │
+│  - Checks: CHECK 1, token holders and sinks (destinations, redirects, storage, logs) → delivered; CHECK 4, callback and ID-token validation for the          │
+│    hand-written OIDC client → delivered; CHECK 6, exchange and refresh share no common validation, and concurrent refresh races logout → delivered; no       │
+│    Boundary per criterion → verification; PROCESS 3, flow, storage, refresh and request auth combined without a cut → delivered (scope)                      │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by OIDC sign-in, token storage and refresh, which is the whole retained scope. Every blocker is excluded, so Accept  │
+│  and Override are off. No Split is offered: every remaining part sets the class, and none is useful on its own (sign-in without token attachment or refresh  │
+│  delivers nothing).                                                                                                                                          │
+│                                                                                                                                                              │
+│  Why the blockers keep coming: the plan is written against surfaces this repository doesn't have. There is no Android or iOS app, no order screen, no Gradle │
+│  build and no tests, only shared/http/Client.kt. So each lens finds the missing integration and the commands that can't run. Design D1 (hand-write the OIDC  │
+│  client) also takes on the full OIDC trust and credential-handling contract (CHECK 1/4/6), which the plan never states. The Split removed the timeout scope  │
+│  but neither cause, and the same auth blockers came back.                                                                                                    │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Further point fixes would keep describing integration into code that doesn't exist and leave D1's security contract open. A        │
+│  re-plan has to settle where the app and build actually live, and whether to hand-write OIDC at all, before tasks and verification can be written against    │
+│  real code.                                                                                                                                                  │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ No per-blocker asks; nothing from this round goes into gate.md. Revise design (including D1), specs, tasks and gate.md where the new approach changes   │
+│      them, then run round 5 with three fresh lenses. I'll need to ask you where the real app and build are, or whether this change should create them.       │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix all 11 blockers in the artifacts as stated, then run round 5. There's no Accept. Fixes that need your decision (for example, which app or build to  │
+│      target) get asked one at a time; Stop ends the review.                                                                                                  │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fixes and no new round. review.md keeps the round-4 REJECT, so apply stays blocked.                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking approach question round 4                                                                                  🔑 OIDC: Review OpenSpec oidc-sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plan review of oidc-sign-in, round 4 (after the Split): REJECT. review.md has been written (digest 473e27f4…26aa) and V --reviewed fails, so apply stays     │
+│ blocked.                                                                                                                                                     │
+│                                                                                                                                                              │
+│ Lens results:                                                                                                                                              … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Re-plan (Recommended)                                                                                                                                    │
+│       No per-blocker asks; nothing from this round goes into gate.md. Revise design (including D1), specs, tasks and gate.md where the new approach changes  │
+│       them, then run round 5 with three fresh lenses. I'll need to ask you where the real app and build are, or whether this change should create them.      │
+│   ○ Continue                                                                                                                                                 │
+│       Fix all 11 blockers in the artifacts as stated, then run round 5. There's no Accept. Fixes that need your decision (for example, which app or build to │
+│       target) get asked one at a time; Stop ends the review.                                                                                                 │
+│   ○ Stop                                                                                                                                                     │
+│       No fixes and no new round. review.md keeps the round-4 REJECT, so apply stays blocked.                                                                 │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

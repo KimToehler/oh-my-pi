@@ -1,0 +1,13 @@
+== (a) per-source loading (expect one sentinel-bearing value per source)
+[yaml] SOURCE yaml:models.yml: 1 values sentinel=yes
+[db] SOURCE db:auth_credentials.data: 1 values sentinel=yes
+[fixturedotenv] SOURCE dotenv:fixture/.env: 1 values sentinel=yes
+[homedotenv] SOURCE dotenv:~/.env: 1 values sentinel=yes
+[sso] SOURCE aws-sso-cache: 1 values sentinel=yes
+[env] SOURCE env:process: 5 values sentinel=yes
+== (b) planted copies (expect exactly 1 hit each)
+FILE 1-session-output.txt: 1 hits
+FILE 2-calls.md: 1 hits
+FILE 3-gate.md: 1 hits
+FILE 4-D1.screen-ask.txt: 1 hits
+SCANNED 4 files, 9 needles, 4 hits

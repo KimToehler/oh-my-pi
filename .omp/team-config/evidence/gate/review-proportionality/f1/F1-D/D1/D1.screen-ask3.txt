@@ -1,0 +1,50 @@
+│  The fix needs your decision: where do the Android/iOS app shells and the order-list screen come from?                                                       │
+│  ○ Fix: build in this change                                                                                                                                 │
+│    ↳ Tasks add minimal Android and iOS app modules, sign-in screen, redirect receivers, and an order-list screen gated on signed-in state that calls the     │
+│      orders API. Larger change; F1 can run on real devices from this change alone.                                                                           │
+│  ○ Fix: prerequisite change                                                                                                                                  │
+│    ↳ proposal/design name a separate change (app shells + order list) that must be merged before apply; this change only adds platform redirect receivers    │
+│      and the sign-in gate into those surfaces. Smaller, but apply is blocked until the prerequisite exists.                                                  │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                              │
+├─── [v1] · options:3 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Blocker V1 (Verification, VerificationR3):                                                                                                                  │
+│  Area: "Executability — build and test entry point"                                                                                                          │
+│  Defect and consequence: "Both implementation tasks invoke a Gradle wrapper and test targets that do not exist in the supplied repository, with no task to   │
+│  create or obtain the build and test infrastructure. An implementer following the plan cannot run either Verify command; the resulting blocked verification  │
+│  is reversible once the missing infrastructure is supplied."                                                                                                 │
+│  Reviewer's change: "Add executable setup tasks for the required Kotlin Multiplatform build, wrapper, targets, and test harness, or identify an actual       │
+│  existing build and commands. Include a way to run the required Android and iOS-relevant coverage."                                                          │
+│                                                                                                                                                              │
+│  Exclusions checked: mandatory class is auth-secrets-pii, not none, so the blocker is excluded. Fix or Stop only.                                            │
+│                                                                                                                                                              │
+│  The fix needs your decision: where does the Kotlin Multiplatform Gradle build (wrapper, :shared with android/ios targets, test harness) come from?          │
+│  ○ Fix: build in this change                                                                                                                                 │
+│    ↳ First task group creates the Gradle wrapper, settings, :shared KMP module (androidTarget, iosSimulatorArm64), commonTest + Ktor MockEngine harness;     │
+│      Verify runs a smoke test.                                                                                                                               │
+│  ○ Fix: prerequisite change                                                                                                                                  │
+│    ↳ Same prerequisite change as C1 supplies the build; this change's Verify commands assume it and apply is blocked until it is merged.                     │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking scope decision for C1 and V1                                                                                        🔑 OIDC: Review OIDC sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  C1 app surfaces    V1 build    Submit                                                                                                                       │
+│ Blocker C1 (Correctness, CorrectnessR3):                                                                                                                     │
+│ Area: "Correctness — mobile sign-in and order access"                                                                                                        │
+│ Defect and consequence: "The plan implements an OIDC client but does not provide the Android or iOS entry points, redirect delivery, sign-in state           │
+│ integration, or order-screen gating needed for a user to sign in and see orders. The repository contains no app or order-screen implementation to which the… │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Fix: build in this change                                                                                                                                │
+│       Tasks add minimal Android and iOS app modules, sign-in screen, redirect receivers, and an order-list screen gated on signed-in state that calls the    │
+│       orders API. Larger change; F1 can run on real devices from this change alone.                                                                          │
+│   ○ Fix: prerequisite change                                                                                                                                 │
+│       proposal/design name a separate change (app shells + order list) that must be merged before apply; this change only adds platform redirect receivers   │
+│       and the sign-in gate into those surfaces. Smaller, but apply is blocked until the prerequisite exists.                                                 │
+│   ○ Stop                                                                                                                                                     │
+│       No fix, no new round; apply stays blocked.                                                                                                             │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⇥/←/→ question · ⎋ cancel · ⌥H hide · ⌃O expand                                                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

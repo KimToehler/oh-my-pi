@@ -38,6 +38,7 @@ Every behavioural criterion needs all five fields; the negative control is the o
 often missing and the one that makes the criterion discriminate. Mandatory class other than
 `none` means both reviewers run at F2, no discretion.
 `auth-secrets-pii` applies when the change touches a real credential, an authentication or authorisation path, or third-party personal data. Classify the value and its reach, never the filename: a provider key or production token read from a local `.env` is real; a synthetic password generated only for disposable local/test services is not.
+Every class is derived from the behaviour and reach of the delivered change, never from the tools used to verify it: an ordinary QA session using its existing provider authentication does not make an instruction-only change `auth-secrets-pii`, and a changed existing state machine keeps `concurrency-state`. `skill://review-work`, section `Change verification`, is the definition.
 
 ## Risk tier
 

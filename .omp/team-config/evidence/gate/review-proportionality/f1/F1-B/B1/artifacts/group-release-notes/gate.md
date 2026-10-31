@@ -1,0 +1,8 @@
+# Gate
+
+- **Mandatory class**: none
+- **Risk tier**: internal-tooling
+- **Author's risk assessment**: The change inserts one instruction sentence into a developer-facing skill. Worst realistic outcome: agents draft badly grouped or mis-ordered release notes (for example a `### Breaking` section lost inside package groups), which the developer sees and corrects before publishing; nothing is published automatically. The skill only reads git history and writes draft text, so it reaches no production data, credential, personal data, tenant boundary, money, audit history or irreversible state, and it does not change how any product code is gated: internal-tooling. No auth path, schema, supported wire/API contract or state machine is touched: class none.
+- **Whole-diff review**: not needed (one paragraph in one file, `skills/release-notes/SKILL.md`; a single module)
+- **Accepted residual risks**: In repositories without a declared package layout (no workspace or module manifest and no per-package directories such as `packages/api/`), agents may pick different grouping units from session to session; QA exercises only a declared npm-workspaces layout. Developers whose installation has not yet synced the team skills keep drafting flat notes until they sync.
+- **Out of scope for blocking**: Placement of the `### Breaking` section relative to the package groups (step 3 is unchanged and this change does not decide it); releases that touch only one package or no identifiable package; wording and selection of individual bullets (steps 2 and 4 are unchanged). Findings there become follow-ups.

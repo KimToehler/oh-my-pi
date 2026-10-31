@@ -1,0 +1,50 @@
+│  shared/http/Client.kt. Because the class is not none, every blocker is excluded and Accept is not available for any of them. Only Fix, Re-plan, Split or    │
+│  Stop remain.                                                                                                                                                │
+│                                                                                                                                                              │
+│  Why the blockers keep coming: the plan is much shallower than what it promises. The spec promises end-to-end sign-in (open the app, reach the order list),  │
+│  the token on every API request, and pre-request refresh. The design is one sentence that hands the whole flow to a new client. The tasks are two lines that │
+│  create three classes in shared/auth/. The repository has only shared/http/Client.kt: no app entry point, no redirect handler, no build or test setup. Each  │
+│  round, the reviewers find the next missing layer: round 2 the refresh race; round 3 the app wiring, the Client.kt wiring, the OIDC trust boundaries, token  │
+│  storage and token destinations, fail-closed predicates, and test scaffolding. Fixing these one blocker at a time adds new design surface every round, and   │
+│  the next round reviews that new surface again.                                                                                                              │
+│                                                                                                                                                              │
+│  Recommendation: Re-plan. Rewrite design.md to cover the OIDC trust boundaries, the credential holders and sinks, the trusted-origin bearer policy, the app  │
+│  and redirect integration (or name it as a prerequisite, since the repo has no app), and the build and test setup. Then rewrite tasks with named tests and   │
+│  the F1 scenarios. This deals with the cause and keeps the goal. Re-plan can also do the PROCESS 3 cut properly.                                             │
+│                                                                                                                                                              │
+│  Split is possible but not recommended. You could keep sign-in, storage and bearer injection, and move token refresh to its own change (refresh depends on   │
+│  sign-in, not the other way round). Users would then have to sign in again when the access token expires, and the 'Token refresh' requirement leaves this    │
+│  change. The cause above stays in the retained scope, and that scope is still auth-secrets-pii.                                                              │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix all 12 blockers in the existing artifacts and run round 4 with three fresh lenses. None is Accept-eligible.                                         │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ Rewrite design.md, specs, tasks and gate.md around a complete design (trust boundaries, credential handling, app/HTTP integration, test setup), then    │
+│      run round 4. Nothing from this round goes into gate.md.                                                                                                 │
+│  ○ Split                                                                                                                                                     │
+│    ↳ Keep sign-in + token storage + bearer injection; move token refresh to a separate change proposed and reviewed later. Users re-authenticate on          │
+│      access-token expiry. Class stays auth-secrets-pii.                                                                                                      │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round. Apply stays blocked by the round-3 REJECT.                                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking approach question round 3                                                                                           🔑 OIDC: Review OIDC sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plan review of oidc-sign-in, round 3: REJECT. The round is complete and review.md is written (digest 6002dfa3…). This is round 3, so the approach question   │
+│ comes before any fix.                                                                                                                                        │
+│                                                                                                                                                              │
+│ Lenses:                                                                                                                                                    … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│   ○ Continue                                                                                                                                                 │
+│       Fix all 12 blockers in the existing artifacts and run round 4 with three fresh lenses. None is Accept-eligible.                                        │
+│ ❯ ○ Re-plan (Recommended)                                                                                                                                    │
+│       Rewrite design.md, specs, tasks and gate.md around a complete design (trust boundaries, credential handling, app/HTTP integration, test setup), then   │
+│       run round 4. Nothing from this round goes into gate.md.                                                                                                │
+│   ○ Split                                                                                                                                                    │
+│       Keep sign-in + token storage + bearer injection; move token refresh to a separate change proposed and reviewed later. Users re-authenticate on         │
+│       access-token expiry. Class stays auth-secrets-pii.                                                                                                     │
+│   ○ Stop                                                                                                                                                     │
+│       No fix and no new round. Apply stays blocked by the round-3 REJECT.                                                                                    │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

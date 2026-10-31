@@ -1,0 +1,52 @@
+oidc-sign-in plan review, round 3: REJECT (review.md written, digest 6002dfa3…).
+
+Lenses: Correctness REJECT (3 blockers), Verification REJECT (3), Checks REJECT (4).
+
+Blockers (area → whether it concerns the delivered change or this change's verification):
+- C1 Mobile sign-in and order access: no Android/iOS entry point, redirect delivery, sign-in state or order gating → delivered
+- C2 Authenticated request and refresh path: nothing wires the token store or refresher into Client.kt → delivered
+- C3 Rejected-refresh lifecycle: no transition to signed-out state and no token deletion → delivered
+- V1 Build/test entry point: no gradlew, Gradle build or tests in the repo → verification
+- V2 Requirement/scenario test coverage: no named tests, no HTTP-integration test → verification (also names missing Client.kt work)
+- V3 F1 real-surface evidence: one sign-in.md satisfies Verify for all four scenarios → verification
+- K1 CHECK 1 holders/sinks: no inventory of token storage, logs, URLs or cross-origin bearer; no sentinel scan → delivered
+- K4 CHECK 4 decision predicate: no state, redirect-URI, issuer or error-response validation (login CSRF) → delivered
+- K8 CHECK 8 silent fallback: transient refresh failures and concurrent refresh undefined (round 2's double-refresh blocker is still open) → delivered
+- K6 CHECK 6 entry-path parity: Android/iOS redirect receivers and secure storage are untested per path → mixed
+
+Mandatory class: auth-secrets-pii. It comes from the delivered token storage and refresh and from attaching the bearer token to requests. Effect: every blocker is excluded, so Accept and Override are off. Each one can only be fixed, re-planned or stopped.
+
+Diagnosis: two causes keep producing blockers. (1) The design has one decision, D1 "own OIDC client". Implementing the protocol yourself makes every validation the plan's own job: state/CSRF, issuer, PKCE, refresh rotation, single-flight refresh and secure storage. None of these is designed, so each round finds more of them. (2) The plan assumes app, build and order-screen infrastructure that the repo lacks; its only source is shared/http/Client.kt. Without that infrastructure, neither the Verify commands nor the platform wiring can exist.
+
+Recommendation: Re-plan. Patching blockers under Continue keeps both causes, and the next round reviews the newly added surface on the same thin design. A re-plan can reconsider D1, for example using platform AppAuth behind expect/actual instead of writing the protocol yourself. It can also design the trust, storage and request pipeline and either add the build and app scaffolding or name it as an explicit prerequisite. That still delivers the full sign-in goal.
+
+No Split option is offered: the class-setting part is the token handling, which is the whole goal, so no useful part could ship without it.
+  - Continue
+  - Re-plan
+  - Stop
+oidc-sign-in plan review, round 3: REJECT (review.md written, digest 6002dfa3…, still current).
+
+Lenses: Correctness REJECT (3 blockers), Verification REJECT (3), Checks REJECT (4).
+
+Blockers (area → whether it concerns the delivered change or this change's verification):
+- C1 Mobile sign-in and order access: no Android/iOS entry point, redirect delivery, sign-in state or order gating → delivered
+- C2 Authenticated request and refresh path: nothing wires the token store or refresher into Client.kt → delivered
+- C3 Rejected-refresh lifecycle: no transition to signed-out state and no token deletion → delivered
+- V1 Build/test entry point: no gradlew, Gradle build or tests in the repo → verification
+- V2 Requirement/scenario test coverage: no named tests, no HTTP-integration test → verification (also names missing Client.kt work)
+- V3 F1 real-surface evidence: one sign-in.md satisfies Verify for all four scenarios → verification
+- K1 CHECK 1 holders/sinks: no inventory of token storage, logs, URLs or cross-origin bearer; no sentinel scan → delivered
+- K4 CHECK 4 decision predicate: no state, redirect-URI, issuer or error-response validation (login CSRF) → delivered
+- K8 CHECK 8 silent fallback: transient refresh failures and concurrent refresh undefined (round 2's double-refresh blocker is still open) → delivered
+- K6 CHECK 6 entry-path parity: Android/iOS redirect receivers and secure storage are untested per path → mixed
+
+Mandatory class: auth-secrets-pii. It comes from the delivered token storage and refresh and from attaching the bearer token to requests. Effect: every blocker is excluded, so Accept and Override are off. Each one can only be fixed, re-planned or stopped.
+
+Diagnosis: two causes keep producing blockers. (1) The design has one decision, D1 "own OIDC client". Implementing the protocol yourself makes every validation the plan's own job: state/CSRF, issuer, PKCE, refresh rotation, single-flight refresh and secure storage. None of these is designed, so each round finds more of them. (2) The plan assumes app, build and order-screen infrastructure that the repo lacks; its only source is shared/http/Client.kt. Without that infrastructure, neither the Verify commands nor the platform wiring can exist.
+
+Recommendation: Re-plan. Patching blockers under Continue keeps both causes, and the next round reviews the newly added surface on the same thin design. A re-plan can reconsider D1, for example using platform AppAuth behind expect/actual instead of writing the protocol yourself. It can also design the trust, storage and request pipeline and either add the build and app scaffolding or name it as an explicit prerequisite. That still delivers the full sign-in goal.
+
+No Split option is offered: the class-setting part is the token handling, which is the whole goal, so no useful part could ship without it.
+  - Continue
+  - Re-plan
+  - Stop

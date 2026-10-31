@@ -78,6 +78,16 @@ For GOAL, CONSTRAINTS, BACKGROUND - review the full conversation history. The us
 
 ---
 
+## Change verification
+
+Change verification is work done only to establish this change's evidence: its manual QA sessions, disposable fixtures and one-off evidence helpers. Code, instructions or tooling that will serve users, CI, installation, a benchmark or later reviews after delivery are part of the delivered change, even when named tests, docs or QA. Classify by use, not by location or filename.
+
+For model-read instruction text, prove the delivered text deterministically, and exercise the changed workflow in fresh ordinary agent sessions on disposable fixtures. Retain the relevant outputs, written artifacts and successful tool interactions, and judge the observed behaviour directly. Do not require a deterministic checker that infers or re-scores model behaviour, or a new proxy, sandbox or credential for this evidence. Exercise each changed mechanism and its riskiest branch, plus adjacent behaviour. Name unexercised branches and uncertainty; never report them as passed. A missing proof of material behaviour still blocks under the existing threshold.
+
+Derive Mandatory class from the behaviour and reach of the delivered change, not from the tools used to verify it. An ordinary session using its existing provider authentication does not make an instruction-only change auth-secrets-pii. Verification that discloses a credential, weakens access or damages protected data is still a security defect: stop and replace the unsafe verification. This never exempts delivered auth, migration, wire/API or concurrency/state behaviour from its class, including changes to an existing state machine.
+
+---
+
 ## Phase 0.5: Decide the review depth
 
 Read plan's `## Merge gate` section as input, not a command. Final diff, history, consequence, and implementation uncertainty decide depth. Choose one option and record one-line `decision_reason`, including when no reviewer runs.
@@ -96,6 +106,8 @@ Discretion does not apply to these classes. Always run both invocations:
 2. schema or migration
 3. wire contract or public API shape
 4. concurrency or state machine
+
+Each class is judged on the delivered change as `Change verification` defines it, never on the tools used to verify it.
 
 Judgement habituates toward "does not need it". Across 400 repeat reviewers and 11,429 reviews, approval drifted from 30.1% to 36.8%, inline comments fell 22%, and word count fell 28%, while rising approval negatively correlated with comment effort ([Habituation at the Gate](https://arxiv.org/abs/2606.22721)). These four classes remain immune to that drift, supported by [OWASP ASVS](https://github.com/OWASP/ASVS) and [OWASP Top 10](https://owasp.org/www-project-top-ten/).
 
@@ -154,6 +166,7 @@ When this review is a plan's merge gate (F2), run Fix waves step 1 first.
    - Web: the real page in a real browser - omp's `browser` global in the `eval` tool (docs: `xd://eval/browser`) - action log plus screenshot (`read` the PNG to inspect it).
    - Desktop / GUI: OS-level automation against the running app - action log plus screenshot.
    - Library / SDK: a script that imports and exercises the public API - transcript.
+   - Model-read instruction text (skills, rules, agent prompts, schema instructions): fresh ordinary agent sessions on disposable fixtures, as `Change verification` describes - retained outputs, written artifacts and the successful tool interactions, judged directly.
    - Data-shaped work (migrations, configs, generated files): the resulting artifact itself, diffed or dumped.
 3. **Cover at least**: the happy path the goal names, the riskiest edge (empty, boundary, malformed, or concurrent input), and one regression on adjacent behavior the change could have broken. Add a row for every stated success criterion.
 4. **Build the QA matrix** - one row per scenario:

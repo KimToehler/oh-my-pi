@@ -1,0 +1,14 @@
+head: 2506762dd65e46a59ccd53d8886c9d18478e9c59
+== openspec validate --specs --strict
+Totals: 18 passed, 0 failed (18 items)
+== openspec schema validate omp-gated
+✓ Schema 'omp-gated' is valid
+== bun test packages/coding-agent/test/bundled-agent-parsing.test.ts
+ 5 pass
+ 0 fail
+== bun run test:team-config
+ 687 pass
+ 0 fail
+Ran 687 tests across 9 files. [82.72s]
+== plan-only
+passed

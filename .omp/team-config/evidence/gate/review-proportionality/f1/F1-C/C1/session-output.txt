@@ -1,0 +1,55 @@
+Working...
+I wrote gate.md, ran the change validator until it printed `passed`, and sent the checks lens to one plan-reviewer. It returned **REJECT** with four blockers. I didn't dispatch the other two lenses or write review.md, as you asked.
+
+1. **gate.md** (`openspec/changes/cli-login/gate.md`) follows the gate instruction's template:
+   - **Mandatory class**: `auth-secrets-pii`. The CLI gets, stores and refreshes real OAuth tokens from the production identity provider and uses them to read production invoices.
+   - **Risk tier**: `product`.
+   - **Whole-diff review**: `needed`, because the change spans `src/login.ts`, `src/session.ts` and `src/api.ts`, each with its own test.
+   - **Accepted residual risks** and **Out of scope for blocking**: both `none`, each with a reason.
+2. **Validator**: `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/rp-f1/C1/openspec/changes/cli-login` printed `passed` on the first run.
+3. **Dispatch**: one plan-reviewer task (`ChecksLens`). Its context was exactly `Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).` Its task was the brief verbatim with only the paths filled in: repository root `/private/tmp/rp-f1/C1` and change directory `/private/tmp/rp-f1/C1/openspec/changes/cli-login`, the paths `openspec instructions` reported. The checks lens paragraph followed verbatim. I removed the instruction's list indentation and added nothing else.
+
+**Mandatory class**: `auth-secrets-pii`
+
+**Checks lens structured result (verbatim):**
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan correctly classifies the change as product/auth-secrets-pii, but its credential handling and merge criteria leave blocking security gaps.",
+  "blockers": [
+    {
+      "area": "Security — refresh-error logging",
+      "defect": "A normal rejected refresh writes the real refresh token into a support log. Anyone who can read or receive that log can use the long-lived credential to access the customer's invoices; revocation can limit future exposure but cannot undo disclosure.",
+      "evidence": "openspec/changes/cli-login/design.md:11 requires appending the full refresh request body and identity-provider response; gate.md:5 identifies the resulting credential exposure. The rejected-refresh path is explicitly ordinary behaviour in specs/cli-login/spec.md:26-29.",
+      "change": "Do not log request bodies or unfiltered provider responses. Log only explicitly safe diagnostic fields, and test rejection with synthetic credential sentinels across logs, errors and output."
+    },
+    {
+      "area": "CHECK 8 — session-file exposure default",
+      "defect": "The planned persistent file contains real access and refresh tokens but specifies no private creation mode, directory protection, or protection of an existing file. On a shared machine with permissive inherited permissions, another local user can obtain the credential and access invoices; revocation cannot undo prior disclosure.",
+      "evidence": "openspec/changes/cli-login/design.md:5-7 specifies Bun.write to ~/.acme/session.json without an access-control requirement; gate.md:5 explicitly identifies an incorrect file mode as exposing the refresh token.",
+      "change": "Require private directory and file permissions at creation and on replacement, define safe handling of existing insecure files, and exercise those guarantees with a restrictive-permission negative control."
+    },
+    {
+      "area": "CHECK 1 — credential holders and sinks",
+      "defect": "The plan does not inventory all credential holders and sinks or establish a common safe-output chokepoint and sentinel controls. Normal sign-in and refresh can therefore disclose production credentials through diagnostic output or retained artifacts without the planned tests detecting it; credential disclosure is not reversible.",
+      "evidence": "openspec/changes/cli-login/design.md:7,11 names session JSON and a log; proposal.md:9-10 adds device sign-in and refresh; src/api.ts:1-3 sends an access token in an HTTP authorization header; tasks.md:5-10 names tests and retained QA evidence but no holder/sink inventory or sentinel scan. Inputs and holders also include provider responses, refresh request bodies and in-memory token objects; sinks include process stdout/stderr, errors, HTTP requests, session file, support log and QA artifacts.",
+      "change": "Inventory every credential-bearing field, process and sink, including both streams of each holder and the QA transcript; specify a shared safe diagnostic boundary or justify exclusions, then plant synthetic sentinels in all credential-bearing inputs and scan every non-authorized artifact."
+    },
+    {
+      "area": "Merge-gate Boundary rule",
+      "defect": "Neither feature criterion names a real code boundary, so the required gate cannot establish which implementation location each criterion covers.",
+      "evidence": "openspec/changes/cli-login/specs/cli-login/spec.md:3-15 and :17-29 contain the two requirement criteria and negative controls but no Boundary field; gate.md:1-8 supplies none either.",
+      "change": "Add a Boundary for each criterion naming a real, locatable implementation file or function, and update it when the new implementation locations exist."
+    }
+  ],
+  "notes": [
+    "CHECK 2 is not triggered: the plan uses no identity or provenance field to decide sameness. CHECK 3 is not triggered: it defines no enumerated forbidden set.",
+    "CHECK 4 is triggered by the expired-token decision (specs/cli-login/spec.md:19-24); handling of missing, corrupt and partial session data is unspecified. This review found no evidence that those states normally arise or reach a protected asset, so the gap is nonblocking here.",
+    "CHECK 5 is not triggered: the plan does not specify validating an object and subsequently using different mutable bytes. CHECK 6 is triggered by sign-in and refresh both affecting the session, but no distinct security failure from missing path-parity controls is established beyond the credential findings.",
+    "CHECK 7 is not triggered: no independent duplicate derivations are specified. CHECK 8 also covers the session-file access default, reported above; no other implicit selection or fallback is specified.",
+    "PROCESS 1, 2, 4 and 5 do not trigger; PROCESS 3 has no established three separately shippable subsystems. DOMAIN 1–6 do not trigger: no metaharness change or runner/container/remote execution is planned. The gate's auth-secrets-pii/product classification agrees with openspec/config.yaml."
+  ]
+}
+```
+
+Apply is still blocked: the review instruction requires review.md and a passing `--reviewed` check before apply. Getting there also needs the correctness and verification lenses run in the same batch as a fresh checks lens.

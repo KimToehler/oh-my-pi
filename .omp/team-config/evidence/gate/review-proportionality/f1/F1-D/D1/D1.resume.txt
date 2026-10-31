@@ -1,0 +1,7 @@
+lines before restore: 51
+ M openspec/changes/oidc-sign-in/review.md
+55
+resume message: My terminal closed by accident. Pick up the plan review where it stopped.
+answer: Continue
+fix asks C1,V1: prerequisite change
+round 4 answer: Stop

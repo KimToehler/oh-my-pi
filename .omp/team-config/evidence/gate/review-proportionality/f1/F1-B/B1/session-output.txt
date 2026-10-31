@@ -1,0 +1,41 @@
+Working...
+Both lenses returned **OKAY**.
+
+- **Validator:** `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs /private/tmp/rp-f1/B1/openspec/changes/group-release-notes` printed `passed` on the first run.
+- **Dispatch:** one `task` call with two `plan-reviewer` items, nothing else. The `context` was the instruction's fixed sentence. Each brief was the instruction's text with only the repository root and change directory filled in, followed by the lens paragraph. The correctness lens was not dispatched and no `review.md` was written.
+
+### Verification lens (VerificationLens)
+This payload has no `blockers` field; it is reproduced exactly as returned.
+```json
+{
+  "verdict": "OKAY",
+  "summary": "Both requirements and all four scenarios (including each Negative control) map to a task whose check can fail. Requirement 1 (Skill instructs package grouping) is covered by tasks.md 1.1 and 1.2. Requirement 2 (Drafted notes are grouped by package) is covered by 2.1 scenarios s0, s1 and s2. Base revision 27185a9 exists in the repo and is its only commit, and SKILL.md lines 1-11 match the plan's line numbers, so the 1.1 line-8 and line-9 checks and the `sed '8,9d'` diff are executable. The 2.1 Verify only tests that the evidence files exist, but the gate's Change verification rule says to judge model behaviour directly from the retained transcript and notes, and the plan does that. The fixture is built to expose the failure: s0 runs the base skill as a control, s1 has two packages plus a CI-only branch, and s2 adds a breaking change. No blockers.",
+  "notes": [
+    "1.1 `diff` (with `sed '8,9d'`) passes only if the sentence is on line 8, line 9 is blank, and the rest of the file is byte-identical to 27185a9. Moving the sentence, duplicating it, or editing any other line makes it fail. The scenario-1 negative controls (paraphrase, duplicate, edited step) are therefore detectable.",
+    "1.2 does not run the 1.1 command itself. It reruns only the grep count and the diff against sed-mutated copies, so the `sed -n 8p` and `sed -n 9p` position checks have no negative control. An edited step 4 is the only edited step tried (the spec says steps 1-4). The checks that are run can fail, so this does not block.",
+    "2.1 does not say how to confirm that the fixture's `.omp/skills/release-notes/SKILL.md` was the copy the session loaded rather than a globally synced team copy of the same skill. A global copy could already contain the sentence after a skill sync, or shadow the fixture copy. The s0 control would show a grouped draft in that case. Still, require the transcript or notes to show which SKILL.md was read.",
+    "s0 and s1 are one session each. A single grouped s1 draft against a flat s0 draft is thin evidence for non-deterministic model output. The plan names the single-package and no-layout cases as unexercised. Consider stating that the s1 result is a single observation.",
+    "The transcript's first line is `git rev-parse HEAD`, but 2.1 does not say the paragraph from 1.1 is committed before the s1 and s2 runs. If it is not, that SHA does not identify the skill text under test. The F2 snapshot also refuses uncommitted tracked changes. Add 'commit 1.1 before 2.1'.",
+    "config.yaml's apply guidance says to run `validate-openspec-change.mjs` after every planning-artifact change, and no task lists it. It is a workflow step, not a Verify gap.",
+    "The wording of the s2 `feat-api` merge message that marks the change breaking is not fixed, so the s2 fixture is built by the QA lane's own choice. The plan does not make s2 blocking."
+  ]
+}
+```
+
+### Checks lens (ChecksLens)
+```json
+{
+  "verdict": "OKAY",
+  "summary": "No evidenced security, mechanical-check, or gate-classification blockers were found within the requested scope.",
+  "blockers": [],
+  "notes": [
+    "CHECK 1 and DOMAIN 1–6 do not trigger: the delivered change handles no protected credential or personal data, and QA uses ordinary local sessions rather than a runner or foreign environment.",
+    "CHECK 2 and CHECK 5: the revision comparison and copied skill are change-verification evidence, not delivered identity or a runtime security check; no realistic check/use race affecting the goal was established.",
+    "CHECK 3, 6, 7 and 8 do not trigger: the plan introduces no forbidden-set validator, multiple delivered entry paths, duplicate derivations, or runtime selection or fallback.",
+    "CHECK 4 applies to the two conformance judgments; the plan specifies negative controls, and its evidence-file check rejects missing or empty artifacts. No realistic blocking failure from an unspecified input state was established.",
+    "PROCESS 1 and 5 apply; PROCESS 2–4 do not introduce a blocking issue. The gate declares internal-tooling and class none consistently with the delivered instruction-only change. No Boundary fields are present to resolve."
+  ]
+}
+```
+
+Apply is still blocked. The instruction needs all three lenses for a complete round, then a `review.md`; this run covered two of them.

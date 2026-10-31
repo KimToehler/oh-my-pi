@@ -1,0 +1,508 @@
+diff --git a/openspec/changes/oidc-sign-in/design.md b/openspec/changes/oidc-sign-in/design.md
+index 98357a3..285a49c 100644
+--- a/openspec/changes/oidc-sign-in/design.md
++++ b/openspec/changes/oidc-sign-in/design.md
+@@ -1,7 +1,127 @@
+ # Design
+ 
++## Context
++
++See proposal.md for motivation and the scope decision. The repository currently contains only `shared/http/Client.kt` (package `app.http`, `fun httpClient(): HttpClient = HttpClient()`, no callers). It has no Gradle build, no app modules and no source-set layout. Everything below is new, apart from the move and replacement of that function.
++
++Library facts this design relies on (kotlin-multiplatform-oidc 0.18.4, read from its source at tag 0.18.4):
++
++- `PreferencesCodeAuthFlow.continueLogin` rejects a mismatched `state` before redeeming the code. After redeeming, it rejects a `nonce` that differs from the request's; a missing ID token yields an empty nonce and is rejected too, unless `disableNonce` is set, which this design never sets. (`oidc-core/.../flows/CodeAuthFlow.kt`, `types/AuthCodeRequest.kt`.)
++- The library does not verify signatures and does not check `iss`, `aud`, `azp` or `exp`. `Jwt.parse` only decodes (README "JWT Parsing").
++- `DefaultOpenIdConnectClient(httpClient, config)` accepts our own Ktor `HttpClient`.
++- `SettingsTokenStore` swallows every read, write and delete failure (`runOrNull`, which also `println`s the exception message). `IosKeychainSettingsStore` uses `kSecAttrAccessibleAfterFirstUnlock`, which allows backup and device migration. `AndroidDataStoreSettingsStore` encrypts each value with AES-256-GCM under a non-exportable Android Keystore key and throws when decryption fails.
++- `oidcBearer` (Ktor `bearer`) sends the token to every host by default and refreshes only after a 401. `TokenRefreshHandler` keeps its lock private, so it cannot be ordered with sign-out.
++
++## Goals / Non-Goals
++
++**Goals:** the requirements in `specs/oidc-sign-in/spec.md`, delivered by `shared/` with tests that run on Android (host JVM and emulator) and the iOS simulator.
++
++**Non-Goals:**
++
++- Platform wiring and the order list (follow-up change `oidc-app-integration`, see "Platform contract").
++- User-initiated sign-out, token revocation and Keycloak end-session. The only sign-out in this change is the forced one on refresh rejection or an unreadable session.
++- Retrying an API request after a 401: an API 401 is returned to the caller. A session revoked on the server is detected at its next refresh.
++- Discovery (`.well-known/openid-configuration`): endpoints are derived from the configured issuer.
++
+ ## Decisions
+ 
+-### D1. Own OIDC client
++### D1. Use kotlin-multiplatform-oidc for the protocol, own the session
++
++We use the library for the authorization request (PKCE S256, `state`, `nonce`), browser hand-off (`AndroidCodeAuthFlowFactory`, `IosCodeAuthFlowFactory`), the `state`/`nonce` checks and the token-endpoint calls. We do not use its `SettingsTokenStore`, `TokenRefreshHandler` or `oidcBearer`, for the reasons listed under Context: silent storage failures, logging, a non-device-only Keychain class, a refresh lock we cannot share, and a bearer policy that is neither origin-bound nor proactive. Alternatives considered: a hand-written client (rejected by user decision; the whole protocol surface would become ours), and AppAuth-Android/AppAuth-iOS behind expect/actual (two native integrations, more glue).
++
++### D2. Configuration (`app.auth.AuthConfig`)
++
++`AuthConfig(issuer, clientId, redirectUri, apiOrigin)` comes from the app's build config (platform contract).
++
++Construction fails with `IllegalArgumentException` in any of these cases:
++- `issuer` or `apiOrigin` is not `https`;
++- `apiOrigin` has a path, query or fragment;
++- `clientId` or `redirectUri` is blank.
++
++Endpoints are derived from the issuer in Keycloak's fixed layout: `<issuer>/protocol/openid-connect/auth` and `/token`. The OIDC client config uses scope `openid` and `codeChallengeMethod = S256`, and leaves `disableNonce` false.
++
++### D3. Session storage (`app.auth.SessionStore`)
++
++`SessionStore` sits on the library's `SettingsStore` interface (get/put/remove; implementations throw on failure). It writes one key, `session.v1`, holding JSON `StoredSession(accessToken, refreshToken, accessExpiresAtEpochSec, refreshExpiresAtEpochSec?)`. The ID token is validated at sign-in and then discarded, never stored.
++- `read()` returns the session, or `null` when the key is absent.
++- `read()` throws `SessionUnreadable` on any failure: decrypt or Keychain error, malformed JSON, a missing field, or an empty token.
++- `write`/`delete` propagate failures; nothing is swallowed.
++
++Platform stores:
++- Android: the library's `AndroidDataStoreSettingsStore(context)`.
++- iOS: our own `app.auth.DeviceKeychainSettingsStore`, built on multiplatform-settings `KeychainSettings` with service `<bundle id>.auth` and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
++
++### D4. Session state machine (`app.auth.SessionManager`)
++
++`SessionManager(oidcClient, store, config, clock: kotlin.time.Clock)` exposes `state: StateFlow<SessionState>` (`SignedOut`, `SignedIn`). Each operation below runs under one `Mutex`. The mutex holds through the refresh network call, which the OIDC HTTP client bounds with a 15 s request timeout. Serializing these operations means a refresh cannot finish after a sign-out and restore tokens, and two refreshes cannot overlap.
++
++- **restore** (on first use):
++  - `store.read()` returns a session: `SignedIn`, cached in memory.
++  - `null`: `SignedOut`.
++  - `SessionUnreadable`: `store.delete()`, then `SignedOut`.
++- **signIn(factory)** / **continueSignIn(factory)**: the second exists for Android process death; the platform calls it when `canContinueLogin()` is true. The browser step runs outside the mutex. The commit step runs under it:
++  - validate the response (spec "Token response validation"; `exp` against `clock`);
++  - compute `accessExpiresAt = now + expires_in` and `refreshExpiresAt` from `refresh_expires_in` when present;
++  - `store.write()`, then `SignedIn`.
++  - Any library exception, validation failure or write failure yields `SignInFailed(reason)`; no session is stored and the state stays `SignedOut`.
++- **accessTokenForRequest()**, called by the API client for every request:
++  - `SignedOut`: throw `NotSignedIn`.
++  - `accessExpiresAt - now >= 60 s`: return the cached access token.
++  - Otherwise refresh, under the same mutex: `refreshExpiresAt` passed → reject. Otherwise call `oidcClient.refreshToken(refreshToken)`.
++    - Success: requires a non-empty access token and a positive `expires_in`. A returned ID token must pass the `iss`/`aud`/`azp`/`exp` checks; the nonce is not checked on refresh, per OIDC Core 12.2. A missing refresh token keeps the old one. Then `store.write()`. A write failure keeps the new tokens in memory for this process: the persisted older session is refreshed or rejected at next start, which fails toward sign-out.
++    - A success response that fails these checks, an `UnsuccessfulTokenRequest` whose `errorResponse.error` is `invalid_grant`, `invalid_client` or `unauthorized_client`, or local refresh expiry: **reject**. State becomes `SignedOut`, then `store.delete()`; throw `SignedOutByServer`.
++    - Anything else: throw `SessionUnavailable`; state and storage are unchanged.
++- **Delete failure**: the state stays `SignedOut` and a `pendingDelete` flag is set. Every later operation retries the delete before doing anything else and never returns a token while the flag is set. See Risks.
++
++Error types (`app.auth.SessionException`: `NotSignedIn`, `SignedOutByServer`, `SessionUnavailable`, `SignInFailed(reason: SignInFailure enum)`, `UntrustedOrigin(origin)`) carry a fixed message, an enum reason and at most an HTTP status code or OAuth error code. They never take a library exception as `cause`, never carry response bodies and never carry token or claim values.
++
++### D5. API client (`app.http.apiHttpClient`)
++
++`apiHttpClient(session, config, engine): HttpClient` replaces `httpClient()`. It sets `followRedirects = false`, installs no `Logging` plugin, and installs a client plugin `SessionAuth` that runs before sending. If the request's scheme, host and effective port differ from `config.apiOrigin`, it throws `UntrustedOrigin` and nothing is sent. Otherwise it sets `Authorization: Bearer <session.accessTokenForRequest()>`, so `NotSignedIn`, `SignedOutByServer` and `SessionUnavailable` all propagate before sending. The OIDC client's own `HttpClient` (token endpoint only) also sets `followRedirects = false`, installs no `Logging`, and uses the same engine type.
++
++### D6. ID-token signature
++
++The ID token is received directly from the configured HTTPS token endpoint, with platform TLS validation. OIDC Core 3.1.3.7 step 6 lets the client use that TLS validation in place of checking the token signature. The app makes no authorization decision from ID-token claims beyond D4's checks, and authorization happens at the API with the access token. Adding JWKS verification would mean a key-fetch and rotation subsystem; we don't add it.
++
++### D7. Platform entry points
++
++- androidMain `createAuth(context, config): AuthComponents`: OkHttp engine, `AndroidDataStoreSettingsStore`, `AndroidCodeAuthFlowFactory(useWebView = false)`. The store is created once per process and memoized on the application context: the library opens a DataStore delegate per instance, and two DataStores on one file in one process throw.
++- iosMain `createAuth(config): AuthComponents`: Darwin engine, `DeviceKeychainSettingsStore`, `IosCodeAuthFlowFactory()`.
++
++`AuthComponents(session, apiClient, authFlowFactory)` is the contract surface for `oidc-app-integration`.
++
++### D8. Why this is one change
++
++The changed mechanisms are the build, configuration, session storage, the session state machine, the API client and the platform entry points. They cannot ship separately with useful behaviour. The API client's only input is the session's `accessTokenForRequest()`, and a session that nothing sends is inert. The stores are the session's persistence and have no other consumer. The build exists only to compile and test them. The platform wiring that can ship separately has been split off as `oidc-app-integration`. gate.md declares whole-diff review needed because the change spans more than three layers.
++
++### Criterion boundaries
++
++| Requirement | Boundary (where the invariant is checked) |
++|---|---|
++| Sign-in establishes a session | `SessionManager.signIn`/`continueSignIn` commit step; library `PreferencesCodeAuthFlow.continueLogin` (`state`) |
++| Token response validation | `SessionManager` response validation, before `SessionStore.write` |
++| Bearer token only to the API origin | `SessionAuth` plugin in `app.http.apiHttpClient`; `followRedirects = false` on both clients |
++| Refresh before expiry | `SessionManager.accessTokenForRequest` under its mutex |
++| Session restore fails closed | `SessionStore.read` → `SessionManager` restore |
++| Credentials stay confidential | `SessionStore` + platform `SettingsStore`; `SessionException` construction |
++
++## Platform contract (for `oidc-app-integration`)
++
++The follow-up change must:
++- supply `AuthConfig` from per-flavor build config;
++- on Android: call `AndroidCodeAuthFlowFactory.registerActivity` in the launcher Activity's `onCreate`; call `continueSignIn` when `canContinueLogin()`; register the redirect scheme;
++- on iOS: register the redirect URL scheme;
++- exclude `datastore/org.publicvalue.multiplatform.oidc.tokenstore.preferences_pb` from Android Auto Backup and device transfer. A restored copy is only ciphertext, and D4 deletes it, but excluding it avoids a wasted restore;
++- show the order list only in `SignedIn`, return to sign-in on `SignedOut`, and show a retry for `SessionUnavailable`;
++- add no HTTP `Logging` plugin to `apiClient`.
++
++## Risks / Trade-offs
++
++- [Delete fails after a rejected refresh, then the process dies] → The stored tokens survive a restart. The access token stays valid at the API for at most its remaining lifetime (Keycloak access-token lifespan, default 5 min). The next refresh is rejected again, which signs the user out and retries the delete. Inside the running process the session is signed out at once (D4 `pendingDelete`). Declared in gate.md.
++- [Holding the mutex through a refresh delays concurrent requests] → Bounded by the 15 s timeout. The alternative, a lock-free refresh, reopens the stale-completion race.
++- [kotlin-multiplatform-oidc marks parts `@ExperimentalOpenIdConnect`] → We pin 0.18.4 and use only the flow, client and `SettingsStore` APIs read above. The negative-control tests exercise the library's `state`/`nonce` behaviour, so an upgrade that changes it fails the tests.
++- [Clock changes on the device] → Expiry is computed from the app clock at receipt. A clock set forward triggers an early refresh; a clock set back leads to a 401 from the API, which is returned to the caller until the token is refreshed.
++
++## Migration Plan
+ 
+-The app implements the authorization code flow with PKCE and token refresh itself, in `shared/auth/`.
++New capability; no data to migrate. Rollback is a revert of the change: nothing calls the new API until `oidc-app-integration` lands.
+diff --git a/openspec/changes/oidc-sign-in/gate.md b/openspec/changes/oidc-sign-in/gate.md
+index e9c2aff..734b9a9 100644
+--- a/openspec/changes/oidc-sign-in/gate.md
++++ b/openspec/changes/oidc-sign-in/gate.md
+@@ -2,7 +2,7 @@
+ 
+ - **Mandatory class**: auth-secrets-pii
+ - **Risk tier**: product
+-- **Author's risk assessment**: A wrong sign-in or refresh locks users out or leaks tokens; tokens grant access to customer orders.
+-- **Whole-diff review**: not needed (one module, `shared/auth/`, and one line in `shared/http/Client.kt`)
+-- **Accepted residual risks**: none (F1 fixture change)
+-- **Out of scope for blocking**: none (F1 fixture change)
++- **Author's risk assessment**: The change delivers authentication against the company Keycloak and stores access and refresh tokens that grant access to customer orders, so the class is auth-secrets-pii. The tier is product because it ships to users. The worst outcomes are irreversible: a token sent to a foreign origin, a token readable at rest or in logs, or a session accepted from a forged or mismatched authorization response all disclose customer orders. A refresh race or a missed sign-out keeps a rejected session alive. The changed state machine (D4) also has concurrency risk; its class is subsumed here and its review is the same full review. Whole-diff review is needed because the change spans four independently testable layers: the Gradle build, the `app.auth` session and storage, the `app.http` API client, and the androidMain/iosMain platform stores and entry points.
++- **Whole-diff review**: needed
++- **Accepted residual risks**: If the platform store fails to delete the tokens after Keycloak rejects the refresh token and the process then dies, the next start restores the tokens. The access token stays usable at the API for at most its remaining lifetime (Keycloak access-token lifespan) until the next refresh is rejected again and signs the user out. In-process the session is signed out at once (design.md D4, Risks).
++- **Out of scope for blocking**: Platform wiring in the follow-up change `oidc-app-integration`: Activity and redirect registration, URL schemes, Android backup rules, per-flavor build-config values, and order-list and sign-in UI. design.md "Platform contract" defines it, and findings about it belong to that change's own review. This change's obligations on that boundary (`AuthComponents`, fail-closed restore of backed-up ciphertext) stay in scope.
+diff --git a/openspec/changes/oidc-sign-in/proposal.md b/openspec/changes/oidc-sign-in/proposal.md
+index b819f76..7dfdb94 100644
+--- a/openspec/changes/oidc-sign-in/proposal.md
++++ b/openspec/changes/oidc-sign-in/proposal.md
+@@ -2,18 +2,23 @@
+ 
+ ## Why
+ 
+-Users of the Kotlin Multiplatform app (Android and iOS) must sign in with the company Keycloak before they can see their orders.
++Users of the Kotlin Multiplatform app (Android and iOS) must sign in with the company Keycloak before they can see their orders. The app's API calls carry no credential today: `shared/http/Client.kt:5` returns an unconfigured `HttpClient()`.
+ 
+ ## What Changes
+ 
+-- OIDC sign-in with authorization code and PKCE against Keycloak.
+-- Token storage on the device and token refresh before expiry.
++- A Gradle Kotlin Multiplatform build for `shared/` (Android and iOS targets). The repository has none today, so nothing in `shared/` can be compiled or tested.
++- OIDC sign-in against Keycloak with authorization code, PKCE (S256), `state` and `nonce`, built on the `kotlin-multiplatform-oidc` library (`io.github.kalinjul.kotlin.multiplatform`, 0.18.4). The app validates the token response before it accepts a session.
++- A session held in platform-protected storage (Android Keystore-encrypted DataStore, iOS Keychain with a this-device-only accessibility class). The session is refreshed before the access token expires and signed out when Keycloak rejects the refresh token.
++- An API client that sends the access token only to the configured API origin and never follows redirects. It replaces `httpClient()` in `shared/http/Client.kt`.
++- A platform entry point per target that builds these parts from build-config values (issuer, client ID, redirect URI, API origin).
++
++**Scope narrowed by user decision (2026-10-31, plan review round 3, "Shared only + contract"):** this change delivers the shared module only. Platform wiring is a separate change, `oidc-app-integration`, proposed and reviewed before it is implemented: Activity/redirect registration, URL schemes, backup rules, build-config values per flavor and showing the order list after sign-in. design.md, "Platform contract", defines what that change must do. Until it lands, no user-visible behaviour changes.
+ 
+ ## Capabilities
+ 
+ ### New Capabilities
+ 
+-- `oidc-sign-in`: sign-in, token storage and token refresh.
++- `oidc-sign-in`: signing in with Keycloak, holding and refreshing the session, and authenticating API requests.
+ 
+ ### Modified Capabilities
+ 
+@@ -21,4 +26,9 @@ None.
+ 
+ ## Impact
+ 
+-`shared/` gains the sign-in flow; `shared/http/Client.kt` sends the access token.
++- New build: `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, Gradle wrapper, `shared/build.gradle.kts`.
++- `shared/http/Client.kt` moves to `shared/src/commonMain/kotlin/app/http/Client.kt`; `httpClient()` is replaced by `apiHttpClient(...)`. The repository has no caller of `httpClient()`.
++- New `shared/src/{commonMain,androidMain,iosMain}/kotlin/app/auth/`.
++- New dependencies: kotlin-multiplatform-oidc 0.18.4 (`oidc-appsupport`), Ktor 3.3.3 (core, OkHttp, Darwin, mock for tests), kotlinx-serialization 1.9.0, kotlinx-coroutines 1.10.2.
++- Test fixture: a disposable local Keycloak realm under `shared/testing/keycloak/`.
++- Operational prerequisite (outside this repository): the production Keycloak client is a public client with PKCE method S256 enforced and standard flow only.
+diff --git a/openspec/changes/oidc-sign-in/review.md b/openspec/changes/oidc-sign-in/review.md
+index ff50385..b183356 100644
+--- a/openspec/changes/oidc-sign-in/review.md
++++ b/openspec/changes/oidc-sign-in/review.md
+@@ -1,20 +1,102 @@
+ # Review
+ 
+ - **Verdict**: REJECT
+-- **Reviewed digest**: 1111111111111111111111111111111111111111111111111111111111111111
+-- **Reviewer**: plan-reviewer, F1CorrectnessR2, F1VerificationR2, F1ChecksR2
+-- **Round**: 2
++- **Reviewed digest**: 4b59444424ec53c098e0492521df90753c26f6ca02e9b97d5ce380b516651e1a
++- **Reviewer**: plan-reviewer, OidcCorrectnessR4, OidcVerificationR4, OidcChecksR4
++- **Round**: 4
+ - **Override**: none
+ 
+ ## Blockers
+ 
+-### Correctness (F1CorrectnessR2)
++### Correctness (OidcCorrectnessR4)
+ 
+ [
+   {
+-    "area": "Correctness",
+-    "defect": "Token refresh can run twice for one expiry.",
+-    "evidence": "design.md:12",
+-    "change": "Single-flight the refresh."
++    "area": "Session ownership and concurrency",
++    "defect": "The process-wide store is shared, but the session state, cache and mutex are owned by individual SessionManager instances. Repeated createAuth calls can therefore operate concurrently on the same persisted session without coordination.",
++    "evidence": "design.md:45,56,58-59,88-91 and tasks.md:25 explicitly permit and test two createAuth calls while memoizing only the Android store. If both managers restore the same session, they can refresh the same token concurrently; one may reject and delete the session while the other remains SignedIn or rewrites it. This violates specs/oidc-sign-in/spec.md:78,87-88,98-99. The incorrect session state persists until corrected or the process restarts; it is reversible.",
++    "change": "Give each persisted session a single shared owner, including its state and lock, or explicitly enforce and document a singleton AuthComponents/session per storage namespace on both platforms; cover concurrent refresh and rejection through two entry-point instances."
++  },
++  {
++    "area": "Concurrent refresh",
++    "defect": "The mutex alone does not ensure that requests queued together reuse one refresh when the newly issued access token also has less than one minute of lifetime.",
++    "evidence": "design.md:69-71 accepts any positive expires_in and refreshes whenever the remaining lifetime is below 60 seconds. With a 30-second token, ten queued requests each find the new token below the threshold and refresh again, contradicting specs/oidc-sign-in/spec.md:87-88. This causes avoidable token rotations and possible rate limiting or sign-out; the effects are reversible.",
++    "change": "Define how a request that waited for an already-completed refresh reuses its result even for short-lived tokens, or explicitly constrain and handle short-lived responses; test the ten-request case with expires_in below 60 seconds."
++  },
++  {
++    "area": "Token response contract",
++    "defect": "The specification requires every accepted token response to include a refresh token and ID token with the original nonce, while the refresh design expressly accepts responses without either and does not validate refresh nonce.",
++    "evidence": "specs/oidc-sign-in/spec.md:35 requires those fields for a token response; design.md:71 accepts a missing refresh token and an absent ID token and skips nonce checking on refresh. A normal successful refresh without a new refresh token is accepted by the design but violates the stated requirement; the contract failure is reversible.",
++    "change": "Distinguish initial authorization-code responses from refresh responses in the requirement, specifying the appropriate validation and token-retention rules for each, and align implementation tasks with that contract."
++  },
++  {
++    "area": "Refresh expiry lifecycle",
++    "defect": "The design records refresh-token expiry at sign-in but does not update or clear it when refresh returns a replacement token or a new refresh lifetime.",
++    "evidence": "design.md:64 computes refreshExpiresAt on sign-in; design.md:70-71 checks it before refresh but describes no update on success. After a successful rotation with an extended refresh lifetime, the old expiry can cause a later request to delete an otherwise valid session without contacting Keycloak. This involuntary sign-out is reversible by signing in again.",
++    "change": "Specify how each refresh response updates the stored refresh expiry, including returned replacement tokens, new lifetime values and absent lifetime values; exercise rotation across the old expiry."
++  }
++]
++
++### Verification (OidcVerificationR4)
++
++[
++  {
++    "area": "Quality and verification - Verify commands (tasks 2.1-6.1, 8.2)",
++    "defect": "The Verify commands cannot fail when a named test is missing, was not run, or was served from cache. Per-task Verify filters at class level (`--tests 'app.auth.X'`), so omitting `nonceMismatchFails` or `stateMismatchFailsWithoutTokenRequest` still passes. The 8.2 Verify checks only `BUILD SUCCESSFUL` for `unit-suite.txt`, and no class name at all. For `ios-keychain.txt` it checks only `itemIsThisDeviceOnly`, although the task text claims 'every commonTest class passed on iOS' and 'every class of tasks 2-6 passed'. A Gradle run that is UP-TO-DATE or FROM-CACHE prints `BUILD SUCCESSFUL` without executing any test, and the plan does not require `--rerun-tasks` or `cleanTest`. In the 8.2 Verify, the `git diff --quiet <recorded head> HEAD` comparison ignores uncommitted working-tree edits, so the transcript's `head:` line does not prove which code ran.",
++    "evidence": "tasks.md:11,12,16,17,21,30 (class-level `--tests`); tasks.md:39 (the Verify loop greps `BUILD SUCCESSFUL` and the keycloak test names, and checks `storedFileHasNoPlaintextToken` and `itemIsThisDeviceOnly`; nothing for unit-suite classes, SecretLeakTest, StdStreamLeakTest or the iOS commonTest classes)",
++    "change": "Add a check that reads the JUnit XML under `build/test-results/` (and the Kotlin/Native iOS results) and asserts every method named in tasks 2.1-6.1 ran with no skip or failure. Run the F1 commands with `--rerun-tasks` or `cleanTest`. Require a clean working tree, or bind the transcripts to a tree hash, instead of only comparing against HEAD."
++  },
++  {
++    "area": "Quality and verification - task 3.2 / spec 'Refresh before expiry' Concurrent requests",
++    "defect": "`tenConcurrentRequestsRefreshOnce` and `refreshQueuedBehindRejectionCannotRestoreSession` are specified without any suspension control. Under `runTest` on a single-threaded test dispatcher, and with a `MockEngine` handler that returns immediately, the ten calls run one after another. A mutex-free implementation that rechecks expiry after the first refresh still shows token-endpoint count 1, so the test cannot fail when the mutex is removed. The 'queued behind rejection' race cannot be reproduced without a controlled interleaving, and the plan names none.",
++    "evidence": "tasks.md:17 gives only '(token-endpoint count 1, all ten see the new token)'. design.md D4 states the serialization is the mechanism that prevents the stale-completion race and double refresh.",
++    "change": "Specify a gated token-endpoint handler (for example a `CompletableDeferred` that holds the first refresh until all ten callers are waiting). Run the test on a multi-threaded dispatcher or with explicit interleaving. For the race test, hold a refresh in flight, fire a rejection or sign-out, then release it and assert that the session stays `SignedOut`. Add a mutation check that the test fails with the mutex removed."
++  },
++  {
++    "area": "Quality and verification - task 6.1 / spec 'Credentials stay confidential' Negative control",
++    "defect": "The leak tests can pass vacuously. (a) The injected failures are not said to carry sentinels. The throwing store fake, the 5xx/`invalid_grant` response bodies and the library exceptions need sentinel text in their messages or bodies. Otherwise a leaked cause chain or response body contains nothing to find. (b) There is no planted-leak control that proves the detector fails when a sentinel is leaked. (c) `StdStreamLeakTest` is `androidUnitTest` only, so iOS stdout and stderr are never checked. The F1 `leak-scan.txt` only greps Gradle transcripts, which show test stdout only if `showStandardStreams` is enabled, and 1.1 does not require it. (d) 'ID token never persisted' is tested only as `idTokenIsNeverWritten` at `SessionStore`, whose `StoredSession` has no ID-token field, so the test is tautological. The sentinel ID token and email claim are never scanned in the raw value that `SessionManager.signIn` writes to the store.",
++    "evidence": "tasks.md:12 (`idTokenIsNeverWritten`), tasks.md:30 (paths listed; no sentinel injection into failures; no control), tasks.md:39 (leak-scan over transcripts); spec.md 'Credentials stay confidential' Negative control",
++    "change": "In 6.1, embed sentinels in the injected exception messages, error bodies and the ID-token `email` claim. Add a control that deliberately leaks a sentinel through a test-only path and asserts the detector fails. Scan the raw store contents after a `signIn` with `SENTINEL-ID`. Cover iOS output, or state the iOS gap explicitly as unexercised."
++  },
++  {
++    "area": "Quality and verification - spec 'Session restore fails closed' Negative control (tasks 3.1, 5.1, 5.2)",
++    "defect": "The negative control (decrypt failure after a backup restore to another device) is exercised only with a throwing in-memory fake (`unreadableSessionIsDeletedAndSignedOut`). The design's load-bearing claim is that the real `AndroidDataStoreSettingsStore` throws on decryption failure instead of returning null or empty. If it swallowed the failure, restore would sign the user out without ever calling delete, or would behave differently. The instrumented and Keychain tests cover only plaintext-at-rest, round-trip and accessibility. Restore with a failing `delete()` is also untested: the `pendingDelete` flag is tested only after a refresh rejection.",
++    "evidence": "tasks.md:16 (restore tests all use fakes), tasks.md:25 and tasks.md:26 (no corrupt-ciphertext or wrong-key test), design.md Context ('throws when decryption fails'), design.md D4 (restore: `SessionUnreadable` → `store.delete()`)",
++    "change": "Add to 5.1 an instrumented test that corrupts the DataStore file or deletes the Keystore key, then runs a real `SessionManager` restore. It must assert that `SessionUnreadable` is raised, the entry is deleted, and the state is `SignedOut`. Add an iOS equivalent (an unreadable item). Add a restore test with a failing `delete()` that asserts `SignedOut` and that no token is returned."
++  },
++  {
++    "area": "Quality and verification - tasks 3.1, 3.2, 4.1 coverage gaps",
++    "defect": "Scenarios and implemented paths have no test. (a) The 'Temporary failure' scenario lists a timeout, but no `timeoutKeepsSession` test exists. The design's mitigation for holding the mutex through the refresh ('bounded by the 15 s timeout') has no task that implements or verifies the OIDC HttpClient timeout. Task 4.1 mentions only `followRedirects = false` for that client. (b) `continueSignIn`, a second commit path, is implemented in 3.1 but has no test, so a path that skips validation or the state check would go unnoticed. (c) The scenario says the API request is not sent after a temporary refresh failure, but `ApiHttpClientTest` covers only `rejectedRefreshRequestNotSent` and `signedOutRequestNotSent`. (d) `followRedirects = false` on the OIDC client is asserted in 4.1 but not tested.",
++    "evidence": "spec.md 'Temporary failure' ('a network error, a timeout, ...'); tasks.md:16-17 (test lists; no timeout and no continueSignIn test); tasks.md:21 (4.1 test list); design.md D4 (15 s bound), D5, Risks",
++    "change": "Add `timeoutKeepsSession` using a virtual-time `MockEngine` delay, and a configuration assertion that the OIDC client has a 15 s request timeout and `followRedirects = false`. Assign the timeout to a task. Add `continueSignIn` tests for success, state mismatch and validation failure. Add `temporaryRefreshFailureRequestNotSent` to `ApiHttpClientTest`."
++  }
++]
++
++### Checks (OidcChecksR4)
++
++[
++  {
++    "area": "CHECK 1 — Credential confidentiality",
++    "defect": "The plan omits a complete holder and sink inventory and does not scan all artifacts for every secret-bearing input. A normal token or claim leak to an uncovered sink can expose customer orders or personal data irreversibly.",
++    "evidence": "design.md:45-50,62-76,80-81; tasks.md:30,39 cover exception text, states and JVM streams, but not all platform and library output or all credential-bearing fields.",
++    "change": "Inventory all holders and sinks, establish a common safe output boundary or justify exclusions, and plant sentinels in every input and scan every artifact on both platforms."
++  },
++  {
++    "area": "CHECK 6 — Multiple session entry paths",
++    "defect": "Repeated createAuth calls can create independently locked managers sharing one persisted session. Concurrent refreshes can overlap, and one manager can continue using cached credentials after the other signs out.",
++    "evidence": "design.md:56-59,67-74,90-95 memoizes only the Android store; tasks.md:17,25 tests concurrency through one manager and only checks store reuse.",
++    "change": "Enforce one coordinated session authority per store on both platforms and test concurrent requests and rejection across separate entry-point calls."
++  },
++  {
++    "area": "CHECK 6 — Continued sign-in",
++    "defect": "The Android process-death continuation path has no path-specific negative control proving state, nonce and token validation before session commit. A broken resumed flow could accept a forged response and expose customer orders irreversibly.",
++    "evidence": "design.md:62-66,109-112; tasks.md:16 lists sign-in tests but no continueSignIn or process-death control.",
++    "change": "Exercise continuation independently after process recreation, including mismatched state and nonce and incomplete responses, asserting no session is committed."
++  },
++  {
++    "area": "Boundary rule — Criterion boundaries",
++    "defect": "The criterion boundaries name new symbols that cannot be found in the repository, so the required real code locations cannot be verified.",
++    "evidence": "design.md:101-108 names SessionManager, SessionAuth, SessionStore and SessionException; shared/http/Client.kt:5 contains only httpClient(), and the planned auth files do not yet exist.",
++    "change": "Identify locatable real boundaries or revise the gate so the required boundaries can be verified against the implementation before acceptance."
+   }
+ ]
+diff --git a/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md b/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
+index 9a281c6..088b2cd 100644
+--- a/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
++++ b/openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md
+@@ -1,29 +1,126 @@
++# Spec Delta
++
++## Purpose
++
++Lets app users sign in with the company Keycloak, keeps their session on the device safely, and authenticates the app's API requests with that session.
++
+ ## ADDED Requirements
+ 
+-### Requirement: Sign-in with Keycloak
++### Requirement: Sign-in establishes a session
+ 
+-The app SHALL sign the user in with the OIDC authorization code flow with PKCE against Keycloak and SHALL send the access token with every API request.
++The app SHALL sign the user in with the OIDC authorization code flow against Keycloak, sending a PKCE S256 challenge, a fresh `state` and a fresh `nonce` with every authorization request. It SHALL accept the authorization response only when its `state` equals the one it sent. A session exists only after the token response has been validated and stored.
+ 
+ #### Scenario: First sign-in
+ 
+-- **WHEN** a signed-out user opens the app and signs in at Keycloak
+-- **THEN** the app holds an access and a refresh token and shows the order list
++- **WHEN** a signed-out user completes the Keycloak login and the redirect carries the code and the `state` the app sent
++- **THEN** the app holds a signed-in session whose access and refresh tokens are in platform-protected storage, and an API request with that session succeeds
++
++#### Scenario: Authorization request parameters
++
++- **WHEN** the app starts a sign-in
++- **THEN** the authorization URL carries `response_type=code`, `code_challenge_method=S256`, a `code_challenge`, a `state` and a `nonce`
++
++#### Scenario: Wrong PKCE verifier
++
++- **WHEN** the code is redeemed with a verifier that does not match the challenge and Keycloak answers `invalid_grant`
++- **THEN** sign-in fails, the app stays signed out and nothing is stored
++
++#### Scenario: Negative control
++
++- **WHEN** the redirect carries a code with a `state` that differs from the one the app sent
++- **THEN** sign-in MUST fail without redeeming the code: the token endpoint is not called, the app stays signed out and nothing is stored
++
++### Requirement: Token response validation
++
++The app SHALL accept a token response only when it has a non-empty access token, a refresh token, a positive `expires_in` and an ID token. The ID token's `iss` must equal the configured issuer, its `aud` must contain the client ID, its `azp` (when present) must equal the client ID, its `exp` must lie in the future, and its `nonce` must equal the one sent.
++
++#### Scenario: Wrong issuer or audience
++
++- **WHEN** the ID token's `iss` is another realm, or its `aud` does not contain the client ID, or its `azp` names another client
++- **THEN** sign-in fails, the app stays signed out and nothing is stored
++
++#### Scenario: Incomplete response
++
++- **WHEN** the token response lacks the refresh token, `expires_in` or the ID token, or the ID token's `exp` has passed
++- **THEN** sign-in fails, the app stays signed out and nothing is stored
++
++#### Scenario: Negative control
++
++- **WHEN** the ID token's `nonce` differs from the one the app sent
++- **THEN** sign-in MUST fail, the app stays signed out and nothing is stored
++
++### Requirement: Bearer token only to the API origin
++
++The app SHALL attach the access token as `Authorization: Bearer` only to requests whose scheme, host and port equal the configured HTTPS API origin. It SHALL refuse every other request on the authenticated client before sending it, and SHALL NOT follow redirects on the authenticated client.
++
++#### Scenario: API request
++
++- **WHEN** a signed-in user's app sends a request to the API origin
++- **THEN** the request carries `Authorization: Bearer` with the current access token
++
++#### Scenario: Redirect not followed
++
++- **WHEN** the API origin answers a request with a redirect to another origin
++- **THEN** the redirect is returned to the caller and no request reaches the other origin
++
++#### Scenario: Signed out
++
++- **WHEN** a request is sent on the authenticated client while no session exists
++- **THEN** the request fails with a not-signed-in error and nothing is sent
++
++#### Scenario: Negative control
++
++- **WHEN** the authenticated client is asked to send a request to another host, scheme or port
++- **THEN** sending MUST fail before any byte leaves the device: no request reaches the network and no token is attached anywhere
++
++### Requirement: Refresh before expiry
++
++The app SHALL refresh the access token before an API request when it expires in less than one minute, with at most one refresh in flight per session; concurrent requests use the refreshed token. When Keycloak rejects the refresh token, the app SHALL sign the user out and delete the stored tokens. A temporary failure SHALL keep the session.
++
++#### Scenario: Refresh before the next request
++
++- **WHEN** the access token expires in less than a minute and the app sends an API request
++- **THEN** the app refreshes the token first and sends the request with the new access token
++
++#### Scenario: Concurrent requests
++
++- **WHEN** ten API requests start at once while the access token expires in less than a minute
++- **THEN** Keycloak receives exactly one refresh request and all ten requests carry the new access token
++
++#### Scenario: Temporary failure
++
++- **WHEN** the refresh fails with a network error, a timeout, HTTP 5xx or 429, or an error response without `invalid_grant`, `invalid_client` or `unauthorized_client`
++- **THEN** the request fails with a retryable error, the session and the stored tokens are kept and the API request is not sent
++
++#### Scenario: Negative control
++
++- **WHEN** Keycloak rejects the refresh token with `invalid_grant` (or `invalid_client`/`unauthorized_client`), or the refresh token's known expiry has passed
++- **THEN** keeping the user signed in MUST fail: the app signs the user out, deletes the stored tokens, the API request is not sent and fails with a signed-out error
++
++### Requirement: Session restore fails closed
++
++At start, the app SHALL treat a stored session as signed in only when it can be read, decrypted and decoded in full: access token, refresh token and expiry. Any other stored state SHALL be deleted and the app SHALL be signed out.
++
++#### Scenario: Valid stored session
++
++- **WHEN** the app starts with a complete stored session
++- **THEN** it is signed in without user interaction
+ 
+ #### Scenario: Negative control
+ 
+-- **WHEN** the redirect carries a code without the matching PKCE verifier
+-- **THEN** sign-in MUST fail and no token is stored
++- **WHEN** the stored session cannot be decrypted (for example after a backup restore to another device), is malformed JSON, or lacks the refresh token or expiry
++- **THEN** treating the user as signed in MUST fail: the stored entry is deleted, the app is signed out and no token from it is sent
+ 
+-### Requirement: Token refresh
++### Requirement: Credentials stay confidential
+ 
+-The app SHALL refresh the access token before it expires and SHALL sign the user out when the refresh token is rejected.
++The app SHALL store access and refresh tokens only in platform-protected storage: Keystore-encrypted on Android, a Keychain item with this-device-only accessibility on iOS. It SHALL NOT persist the ID token, and SHALL NOT write any token or ID-token claim to logs, standard output or error messages.
+ 
+-#### Scenario: Refresh before expiry
++#### Scenario: Storage at rest
+ 
+-- **WHEN** the access token expires in less than a minute
+-- **THEN** the app refreshes it before the next API request
++- **WHEN** a session is stored on Android or iOS
++- **THEN** the Android storage file does not contain the token bytes in plain text, and the iOS Keychain item's accessibility is "after first unlock, this device only"
+ 
+ #### Scenario: Negative control
+ 
+-- **WHEN** Keycloak rejects the refresh token
+-- **THEN** keeping the user signed in MUST fail: the app signs the user out and deletes the stored tokens
++- **WHEN** sentinel token values pass through sign-in, validation failure, refresh, refresh rejection, temporary failure, storage failure and untrusted-origin paths
++- **THEN** a sentinel appearing in any exception message, cause chain, session state, standard output or standard error MUST fail the check
+diff --git a/openspec/changes/oidc-sign-in/tasks.md b/openspec/changes/oidc-sign-in/tasks.md
+index 615d326..adff54a 100644
+--- a/openspec/changes/oidc-sign-in/tasks.md
++++ b/openspec/changes/oidc-sign-in/tasks.md
+@@ -1,15 +1,45 @@
+ # Tasks
+ 
+-## 1. Sign-in
++Test classes live in `shared/src/commonTest/kotlin/` unless a task names another source set. `commonTest` runs on the Android host JVM (`testDebugUnitTest`) and on the iOS simulator (`iosSimulatorArm64Test`). Prerequisites: JDK 17+, Android SDK (compileSdk 36), Xcode with an iOS simulator, Docker (task 7.1), and a booted Android emulator (task 5.1).
+ 
+-- [ ] 1.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect, exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`
+-- [ ] 1.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew :shared:allTests --tests '*Token*'`
++## 1. Build
+ 
+-## 2. Final verification
++- [ ] 1.1 Create the Gradle Kotlin Multiplatform build. Wrapper and root files: Gradle wrapper 9.5.0 (`gradlew`, `gradlew.bat`, `gradle/wrapper/`), `settings.gradle.kts` including `:shared`, root `build.gradle.kts`, and `gradle.properties` with `android.useAndroidX=true`. Versions in `gradle/libs.versions.toml`: Kotlin 2.3.0, AGP 8.13.2, Ktor 3.3.3, kotlinx-coroutines 1.10.2, kotlinx-serialization 1.9.0, kotlin-multiplatform-oidc 0.18.4, AndroidX test runner and ext-junit. `shared/build.gradle.kts`: targets `androidTarget()`, `iosArm64()` and `iosSimulatorArm64()`; Android library namespace `app.shared`, minSdk 26, compileSdk 36, `testInstrumentationRunner`; `commonTest` dependencies kotlin-test, kotlinx-coroutines-test and ktor-client-mock; every test task logs `passed`/`failed`/`skipped` events with full exception format; `testDebugUnitTest` excludes `**/KeycloakIntegrationTest*` unless the property `oidcIt` is set. Move `shared/http/Client.kt` to `shared/src/commonMain/kotlin/app/http/Client.kt` with `git mv`. Verify: `./gradlew :shared:assemble && test -f shared/src/commonMain/kotlin/app/http/Client.kt && test ! -e shared/http/Client.kt`
+ 
+-- [ ] 2.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`
++## 2. Configuration and storage
++
++- [ ] 2.1 Implement `app.auth.AuthConfig` (design D2) and the derived OIDC client config. Tests in `app.auth.AuthConfigTest`: `rejectsHttpIssuer`, `rejectsHttpApiOrigin`, `rejectsApiOriginWithPath`, `rejectsBlankClientIdOrRedirectUri`, `derivesKeycloakEndpoints`, `oidcConfigUsesS256AndKeepsNonce`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.AuthConfigTest'`
++- [ ] 2.2 Implement `app.auth.SessionStore` and `StoredSession` (D3). The tests use an in-memory `SettingsStore` fake and a fake that throws per operation. Tests in `app.auth.SessionStoreTest`: `roundTrip`, `absentKeyIsNull`, `malformedJsonIsUnreadable`, `missingRefreshTokenIsUnreadable`, `missingExpiryIsUnreadable`, `emptyAccessTokenIsUnreadable`, `readFailureIsUnreadable`, `writeFailurePropagates`, `deleteFailurePropagates`, `idTokenIsNeverWritten`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.SessionStoreTest'`
++
++## 3. Session
++
++- [ ] 3.1 Implement `app.auth.SessionManager` sign-in, continue-sign-in and restore (D4), plus `SessionException`. Fixtures in `commonTest/kotlin/app/auth/testing/`: `TestCodeAuthFlow`, a `PreferencesCodeAuthFlow` subclass over an in-memory `Preferences` whose `startLoginFlow` writes a scripted redirect URI, so the library's own `state`/`nonce` checks run; a `MockEngine` token endpoint that counts requests; `TestJwt`, which builds unsigned JWTs; and `FakeClock`. Tests in `app.auth.SessionManagerSignInTest`: `firstSignInStoresSessionAndSignsIn`; `authorizationUrlCarriesPkceStateAndNonce`; `stateMismatchFailsWithoutTokenRequest` (token-endpoint count 0); `nonceMismatchFails`, `wrongIssuerFails`, `wrongAudienceFails`, `foreignAzpFails`, `expiredIdTokenFails`; `missingRefreshTokenFails`, `missingExpiresInFails`, `missingIdTokenFails`; `invalidGrantOnExchangeFails`, `storeWriteFailureFailsSignIn`. Every failure test asserts state `SignedOut` and an empty store. Tests in `app.auth.SessionRestoreTest`: `validStoredSessionSignsIn`, `unreadableSessionIsDeletedAndSignedOut`, `malformedSessionIsDeletedAndSignedOut`, `partialSessionIsDeletedAndSignedOut`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.SessionManagerSignInTest' --tests 'app.auth.SessionRestoreTest'`
++- [ ] 3.2 Implement refresh in `SessionManager.accessTokenForRequest` (D4). Tests in `app.auth.SessionRefreshTest`: `noRefreshWhenMoreThanOneMinuteLeft`, `refreshesBeforeRequestWhenLessThanOneMinuteLeft`; `tenConcurrentRequestsRefreshOnce` (token-endpoint count 1, all ten see the new token); `invalidGrantSignsOutAndDeletes`, `invalidClientSignsOutAndDeletes`, `unauthorizedClientSignsOutAndDeletes`, `expiredRefreshTokenSignsOutWithoutNetwork`, `refreshedIdTokenWithWrongIssuerSignsOutAndDeletes`; `serverErrorKeepsSession`, `tooManyRequestsKeepsSession`, `networkErrorKeepsSession`, `unknownErrorCodeKeepsSession` (each asserts `SessionUnavailable`, the stored session unchanged and state `SignedIn`); `missingNewRefreshTokenKeepsOld`, `refreshWriteFailureKeepsNewTokensInMemory`, `deleteFailureStaysSignedOutAndRetriesDelete`, `refreshQueuedBehindRejectionCannotRestoreSession`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.SessionRefreshTest'`
++
++## 4. API client
++
++- [ ] 4.1 Replace `httpClient()` with `app.http.apiHttpClient(session, config, engine)` and its `SessionAuth` plugin (D5), and give the OIDC client's `HttpClient` `followRedirects = false`. Tests in `app.http.ApiHttpClientTest`, using a `MockEngine` with a request log and a real `SessionManager` over fakes: `apiRequestCarriesBearer`; `foreignHostRejectedBeforeSend`, `foreignSchemeRejectedBeforeSend`, `foreignPortRejectedBeforeSend` (engine log empty, no `Authorization` header anywhere); `redirectToForeignOriginNotFollowed` (one logged request, the 302 returned); `signedOutRequestNotSent`; `refreshHappensBeforeSend` (the logged request carries the refreshed token); `rejectedRefreshRequestNotSent`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.http.ApiHttpClientTest'`
++
++## 5. Platform entry points and storage
++
++- [ ] 5.1 Implement androidMain `createAuth(context, config)` (D7). It uses one `AndroidDataStoreSettingsStore` per process, memoized on the application context. Instrumented tests in `shared/src/androidInstrumentedTest/kotlin/app/auth/AndroidSessionStorageTest.kt`: `storedFileHasNoPlaintextToken` (stores a session with sentinel tokens, reads the raw bytes of `files/datastore/org.publicvalue.multiplatform.oidc.tokenstore.preferences_pb`, asserts no sentinel); `roundTripAndDelete`; `createAuthTwiceReusesStore`. Verify: `adb get-state && ./gradlew :shared:connectedDebugAndroidTest`
++- [ ] 5.2 Implement iosMain `DeviceKeychainSettingsStore` and `createAuth(config)` (D3, D7). Tests in `shared/src/iosTest/kotlin/app/auth/IosSessionStorageTest.kt`: `itemIsThisDeviceOnly` (`SecItemCopyMatching` with `kSecReturnAttributes` reports `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`); `roundTripAndDelete`; `readAfterDeleteIsNull`. Verify: `./gradlew :shared:iosSimulatorArm64Test --tests 'app.auth.IosSessionStorageTest'`
++
++## 6. Credential confidentiality
++
++- [ ] 6.1 Add `app.auth.SecretLeakTest` (commonTest). It drives the paths of tasks 3.1, 3.2 and 4.1 with sentinel tokens `SENTINEL-ACCESS-7f3a`, `SENTINEL-REFRESH-7f3a`, `SENTINEL-ID-7f3a`, and an ID-token `email` claim `SENTINEL-EMAIL-7f3a`. The paths are: sign-in success, each validation failure, PKCE `invalid_grant`, refresh success, rejection, temporary failure, store read/write/delete failure and untrusted origin. It collects every thrown exception's `message`, `toString()` and full cause chain, plus every emitted `SessionState`, and asserts that none contains `SENTINEL-`. Add `app.auth.StdStreamLeakTest` (`androidUnitTest`): the same paths with `System.out` and `System.err` redirected to buffers, asserting no `SENTINEL-`. Verify: `./gradlew :shared:testDebugUnitTest --tests 'app.auth.SecretLeakTest' --tests 'app.auth.StdStreamLeakTest' :shared:iosSimulatorArm64Test --tests 'app.auth.SecretLeakTest'`
++
++## 7. Keycloak integration
++
++- [ ] 7.1 Add a disposable local Keycloak test stack; its synthetic credentials grant nothing outside it. `shared/testing/keycloak/realm-oidc-it.json`: realm `oidc-it`; public client `mobile-app` with standard flow only, `pkce.code.challenge.method` `S256` and redirect URI `app.oidc.it:/callback`; user `it-user` with a synthetic password. `shared/testing/keycloak/run-it.sh`: generates a throwaway self-signed certificate for `127.0.0.1`; starts `quay.io/keycloak/keycloak:26.4.0` with `start-dev --import-realm`, HTTPS on `127.0.0.1:8443` and that certificate; waits for the realm's discovery document; runs `./gradlew :shared:testDebugUnitTest -PoidcIt --tests 'app.auth.KeycloakIntegrationTest'` with `OIDC_IT_BASE_URL` and `OIDC_IT_CA`; removes the container on exit. `app.auth.KeycloakIntegrationTest` (`androidUnitTest`, OkHttp engine trusting only `OIDC_IT_CA`) fails, not skips, when either variable is missing. Its `TestCodeAuthFlow` performs the browser step over HTTP: it fetches the authorization URL, posts the login form and captures the redirect without following it. It never prints a token. Tests: `firstSignIn` (`SignedIn`, and `GET /realms/oidc-it/protocol/openid-connect/userinfo` through `apiHttpClient` with API origin `https://127.0.0.1:8443` returns 200); `wrongPkceVerifier` (the stored request's verifier is replaced before redemption; Keycloak answers `invalid_grant`, the state is `SignedOut` and the store is empty); `refreshBeforeNextRequest` (fake clock +241 s; the next userinfo request carries a different access token and returns 200); `rejectedRefreshSignsOut` (the admin API logs the user out, then fake clock +241 s; the request fails with `SignedOutByServer`, the store is empty and the userinfo endpoint receives no request). Verify: `shared/testing/keycloak/run-it.sh`
++
++## 8. Final verification
++
++- [ ] 8.1 F3. Whole-diff review: `integration-review` over `main...HEAD` with this change folder as the plan; fixes delta-reviewed. The report (first line `INTEGRATION-REVIEW-REPORT-v1`) is written to `.omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md` and left unstaged, because a staged report makes `GC snapshot` refuse; review-work Phase 5 stages it with the gate record and trailers. Verify: `test "$(head -n 1 .omp/team-config/evidence/gate/oidc-sign-in/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`
++- [ ] 8.2 F1. Manual QA on the real surface (the shared module against a real Keycloak, the Android emulator's Keystore-backed storage and the iOS simulator Keychain), on the head after F3's last code commit. Each transcript's first line is `head: ` followed by the full output of `git rev-parse HEAD`. Evidence goes in `.omp/team-config/evidence/gate/oidc-sign-in/f1/`: `keycloak-it.txt` (`shared/testing/keycloak/run-it.sh`; shows `firstSignIn`, `wrongPkceVerifier`, `refreshBeforeNextRequest` and `rejectedRefreshSignsOut` passed); `android-storage.txt` (`./gradlew :shared:connectedDebugAndroidTest`; shows `storedFileHasNoPlaintextToken` passed); `ios-keychain.txt` (`./gradlew :shared:iosSimulatorArm64Test`; shows `itemIsThisDeviceOnly` and every commonTest class passed on iOS); `unit-suite.txt` (`./gradlew :shared:testDebugUnitTest`; shows every class of tasks 2–6 passed); `leak-scan.txt` (the output of `grep -rnE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' --exclude=leak-scan.txt` over the directory; empty). The QA lane reads each transcript and judges the observations. Verify: `d=.omp/team-config/evidence/gate/oidc-sign-in/f1 && for f in keycloak-it android-storage ios-keychain unit-suite; do grep -q 'BUILD SUCCESSFUL' "$d/$f.txt" && git diff --quiet "$(sed -n '1s/^head: //p' "$d/$f.txt")" HEAD -- shared settings.gradle.kts build.gradle.kts gradle.properties gradle || exit 1; done && for t in firstSignIn wrongPkceVerifier refreshBeforeNextRequest rejectedRefreshSignsOut; do grep -q "$t" "$d/keycloak-it.txt" || exit 1; done && grep -q storedFileHasNoPlaintextToken "$d/android-storage.txt" && grep -q itemIsThisDeviceOnly "$d/ios-keychain.txt" && test -f "$d/leak-scan.txt" && ! grep -rqE 'eyJ[A-Za-z0-9_-]{10,}|SENTINEL-' "$d"`
+ 
+ ## Workflow follow-up
+ 
+-- F2 merge gate (`review-work`), after 2.1 and never a checkbox.
++- F2 merge gate (`review-work`), after 8.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
+ - Merge only after the F2 record validates.
++- Propose `oidc-app-integration` (design.md "Platform contract") as its own reviewed change before any app wiring is implemented.

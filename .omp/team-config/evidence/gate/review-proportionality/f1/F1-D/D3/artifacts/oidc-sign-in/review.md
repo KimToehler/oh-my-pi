@@ -1,0 +1,96 @@
+# Review
+
+- **Verdict**: REJECT
+- **Reviewed digest**: 6002dfa3c1812d38bda3a5dd27379c4a2aaa456b6e96834edb09a4b7663177e3
+- **Reviewer**: plan-reviewer, OidcCorrectnessR3, OidcVerificationR3, OidcChecksR3
+- **Round**: 3
+- **Override**: none
+
+## Blockers
+
+### Correctness (OidcCorrectnessR3)
+
+[
+  {
+    "area": "Sign-in and app lifecycle integration",
+    "defect": "No implementation task connects sign-in to the Android or iOS app, receives platform redirects, or changes the signed-in/signed-out and order-list surfaces. A shared OIDC client alone cannot make opening the app lead to sign-in and the order list.",
+    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:7-10 requires the first-sign-in flow; openspec/changes/oidc-sign-in/tasks.md:5-6 only creates shared authentication components. The repository's only Kotlin source is shared/http/Client.kt:1-5; no app entry point, redirect handler, or order-list implementation is present.",
+    "change": "Plan the Android and iOS entry points, browser/redirect delivery, authentication-state transitions and order-list integration, or establish the missing app integration as a prerequisite before this change can satisfy the requirement."
+  },
+  {
+    "area": "HTTP authentication and refresh integration",
+    "defect": "The implementation tasks never change the HTTP client or connect request execution to the token store and refresher. Under normal API use, the existing client would still send unauthenticated requests and cannot refresh before a request, breaking the required order access; the failure is reversible by implementing the missing wiring.",
+    "evidence": "shared/http/Client.kt:5 constructs a plain HttpClient. openspec/changes/oidc-sign-in/proposal.md:20 promises that this client sends the token, and openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5,19-22 requires authenticated requests and pre-request refresh, but tasks.md:5-6 assigns work only to OidcClient, TokenStore and TokenRefresher.",
+    "change": "Add an explicit client integration task that obtains the current token, coordinates refresh before requests, attaches the access token to API requests, and propagates rejected-refresh sign-out to the app state."
+  }
+]
+
+### Verification (OidcVerificationR3)
+
+[
+  {
+    "area": "Requirement 'Sign-in with Keycloak': 'SHALL send the access token with every API request'",
+    "defect": "No task implements or verifies the token-sending clause, and no scenario covers it. proposal.md names `shared/http/Client.kt` as impacted and gate.md calls it 'one line in `shared/http/Client.kt`', but neither 1.1 nor 1.2 edits that file. Tasks 1.1/1.2 name only `shared/auth/*`.",
+    "evidence": "tasks.md:5-6 (only shared/auth files); spec.md:5 (the clause); spec.md:7-14 (no scenario asserts the Authorization header); shared/http/Client.kt:5 (`fun httpClient(): HttpClient = HttpClient()` has no token plugin or header). The 1.1/1.2 Verify filters `*OidcClient*` and `*Token*` do not touch the HTTP client.",
+    "change": "Add a task that edits `shared/http/Client.kt` to attach the token. Give it a Verify that runs a named test against a mock engine asserting the Authorization header on a request. Add a scenario to spec.md for the header, with a negative control such as signed-out or no token meaning no header or no request."
+  },
+  {
+    "area": "Tasks 1.1 and 1.2: Verify commands do not prove the Requirements or Scenarios",
+    "defect": "No named test file or test case is tied to any scenario. Each Verify is only a Gradle name filter, so the planned tests are undefined. The four scenarios (First sign-in, PKCE-verifier negative control, Refresh before expiry, rejected-refresh negative control) are not mapped to a test. 1.1's wording ('build the authorization URL, receive the redirect, exchange the code') names no PKCE-verifier-mismatch case and no assertion that no token is stored. 1.2's `*Token*` filter does not name the refresh-before-expiry case (access token under 1 minute left, refresh before the next request) or the refresh-rejected case (user signed out and stored tokens deleted). The task text never states the 'expires in less than a minute' threshold or the sign-out and delete behaviour. The repo also has no Gradle or test scaffolding (only `shared/http/Client.kt`), so the filters would run against nothing.",
+    "evidence": "tasks.md:5-6 (filters only, no test names or negative cases); spec.md:12-14 and spec.md:30-32 (negative controls); glob of the repo shows no build.gradle, settings.gradle or *Test.kt files.",
+    "change": "Name the test files and cases per scenario in tasks 1.1 and 1.2, for example `OidcClientTest.codeWithoutMatchingVerifierFails_noTokenStored`, `TokenRefresherTest.refreshesWhenUnderOneMinute`, `TokenRefresherTest.rejectedRefreshSignsOutAndDeletesTokens`, plus the first-sign-in happy path. Make each Verify run those specific tests, and state in the task that each test must fail against a broken implementation. Add the build and test scaffolding as a task, or name the existing module that holds it."
+  },
+  {
+    "area": "Task 2.1 (F1 manual QA): evidence path and Verify",
+    "defect": "The evidence directory is wrong. The template and schema put F1 evidence at `.omp/team-config/evidence/gate/<change>/f1/`, here `gate/oidc-sign-in/f1/`. The task uses `.omp/team-config/evidence/gate/f1/f1/`, which is not the record's evidence directory, so Phase 5 cannot cite or bind it. The task also says 'one evidence path per scenario', but there are four scenarios and Verify is `test -f .../sign-in.md`, which checks one file that fits none of them. It does not state the real surface (Android emulator or iOS simulator against a real or dev Keycloak) or the observation each scenario must show. It does not say how the negative controls are produced against a real Keycloak (a code redeemed with a wrong verifier, a revoked refresh token) or how the near-expiry condition is forced. A bare file-exists check also passes on an empty file.",
+    "evidence": "tasks.md:11 (`gate/f1/f1/` and a single `sign-in.md`); openspec/schemas/omp-gated/templates/tasks.md:19 (`.omp/team-config/evidence/gate/<change>/f1/`, 'a command that checks every scenario's evidence path exists'); schema.yaml:258 (a model-behaviour task names its real-session scenario and evidence path); spec.md:7-32 (four scenarios).",
+    "change": "Set the directory to `.omp/team-config/evidence/gate/oidc-sign-in/f1/`. List the four scenarios, each with its own evidence file (first-sign-in, pkce-mismatch, refresh-before-expiry, refresh-rejected) and the observation it must show, including that no token is stored and that the user is signed out with tokens deleted. State the real surface and Keycloak setup. Make Verify `test -s` on every one of those files."
+  }
+]
+
+### Checks (OidcChecksR3)
+
+[
+  {
+    "area": "Security: authorization-response binding",
+    "defect": "The custom OIDC flow does not specify how a redirect is bound to the initiating app session or how an identity token is validated before treating the user as authenticated.",
+    "evidence": "design.md:5 delegates the entire authorization-code/PKCE flow to a new client; tasks.md:5 says to receive the redirect and exchange its code, while specs/oidc-sign-in/spec.md:13-16 tests only a missing PKCE verifier. A forged, replayed or mismatched response, or an identity token with the wrong issuer or audience, has no specified rejection path. This can authenticate the wrong session or accept an untrusted identity; the resulting unauthorized access to orders is not necessarily reversible.",
+    "change": "Specify transaction-bound state and replay handling, trusted issuer and endpoint configuration, and complete OIDC ID-token validation, including signature, issuer, audience, expiry and nonce as applicable; add negative controls for each trust boundary."
+  },
+  {
+    "area": "Security: token destinations",
+    "defect": "The requirement to attach the access token to every API request has no trusted-origin boundary, redirect policy or exclusion for authentication and unrelated endpoints.",
+    "evidence": "specs/oidc-sign-in/spec.md:5 requires the token on every API request; proposal.md:19 puts it in shared/http/Client.kt, whose existing httpClient() is an unrestricted generic client (shared/http/Client.kt:3-5). If that client requests another origin or follows a cross-origin redirect, the plan does not prevent disclosure of a credential granting access to customer orders; disclosure cannot be undone by deleting the local copy.",
+    "change": "Define and enforce the exact trusted API origin and HTTPS policy, keep token exchange and other origins outside bearer injection, and test direct and redirected requests to an untrusted origin with a sentinel token."
+  },
+  {
+    "area": "Security: persistent credentials",
+    "defect": "Device token storage is required but the plan specifies neither platform-protected storage nor protections against exposing tokens through logs, backups or errors.",
+    "evidence": "proposal.md:10 and tasks.md:6 require storage of access and refresh tokens, and gate.md:5 states that those tokens grant access to customer orders. A normal device backup, diagnostic log or ordinary app-data exposure can disclose a long-lived refresh credential if an implementation stores or prints it without protection; credential disclosure is not reversible.",
+    "change": "Choose platform-backed secure storage and define token lifecycle, backup/log/error handling and deletion semantics for Android and iOS; verify with credential-sentinel controls on the actual storage and diagnostics surfaces."
+  },
+  {
+    "area": "CHECK 1 — credential holders and sinks",
+    "defect": "The plan handles real access and refresh credentials but provides no complete holder/sink inventory, inherited chokepoint, or sentinel scan.",
+    "evidence": "proposal.md:9-10 and tasks.md:5-6 introduce token exchange, storage and refresh; proposal.md:19 adds HTTP transmission. The new client, redirect/exchange responses, token store, refresher and HTTP client necessarily hold credentials, but the plan does not inventory their memory, requests, storage, stdout/stderr, logs, errors and other artifacts or justify exclusions. A plausible failure or diagnostic path can expose an order-access credential, an irreversible disclosure.",
+    "change": "Search and inventory every holder and sink across sign-in, persistence, refresh and HTTP, define a shared redaction/exclusion boundary, and plant sentinels in each credential-bearing input while scanning all resulting artifacts and holder output."
+  },
+  {
+    "area": "CHECK 4 — authentication and refresh decisions",
+    "defect": "The authentication and refresh acceptance predicates do not define fail-closed outcomes for missing, malformed, partial or lossy inputs.",
+    "evidence": "tasks.md:5-6 requires code exchange and refresh, and specs/oidc-sign-in/spec.md:13-16, 25-28 tests only a missing verifier and an explicitly rejected refresh token. For example, a successful-looking token response missing a refresh token or an unreadable stored token has no specified decision; accepting incomplete credentials can leave a user incorrectly authenticated or retain access after a failed refresh.",
+    "change": "Define each sign-in, stored-session and refresh acceptance predicate and its missing, corrupt, partial and lossy outcomes, defaulting to rejection or visible undecidable; add negative controls for missing and incomplete responses and storage."
+  },
+  {
+    "area": "CHECK 6 — token lifecycle entry paths",
+    "defect": "Sign-in and refresh both create or replace stored credentials, but the plan does not specify parity of validation, storage and failure checks across these paths.",
+    "evidence": "tasks.md:5-6 has separate code-exchange and refresh paths; specs/oidc-sign-in/spec.md:8-10 and 20-28 require both to leave a usable authenticated session. A refresh response that omits or substitutes token fields can take a different, unspecified persistence path from first sign-in, undermining the session or preserving invalid credentials.",
+    "change": "List the sign-in, refresh and session-restoration paths with every validation, storage, deletion and token-field rule marked for each; explain exceptions and add a path-specific negative control for each."
+  },
+  {
+    "area": "PROCESS 3 — subsystem cut",
+    "defect": "The plan introduces more than two independently testable mechanisms without a cut into separately gated plans or evidence that they cannot ship separately.",
+    "evidence": "tasks.md:5-6 introduces authorization-code processing, token storage and token refresh; proposal.md:19 additionally changes HTTP bearer injection. design.md:5 gives only the client location and does not establish why these mechanisms cannot ship separately. Their combined authentication and credential-handling changes reach protected customer data.",
+    "change": "Split independently shippable mechanisms into plans with their own gates, or document the concrete shared contract and cutover that prevent separate shipment."
+  }
+]

@@ -1,0 +1,21 @@
+Plan review of `oidc-sign-in`, round 3: REJECT. review.md has been written (digest dfe7a15f…da11) and `V --reviewed` fails, so apply stays blocked.
+
+Lens results:
+- Correctness (F1CorrectnessR3): REJECT, 5 blockers
+- Verification (F1VerificationR3): REJECT, 4 blockers
+- Checks (F1ChecksR3): REJECT, 6 blockers
+
+What each blocker concerns, based on its stated consequence (you can dispute this; it doesn't change severity or eligibility):
+- Correctness: sign-in lifecycle (UI flow, redirects, navigation) → delivered change; bearer attachment and refresh-before-request not wired into the HTTP client → delivered; rejected refresh doesn't clear tokens or sign out → delivered; timeout error doesn't reach the order screen → delivered; gate.md waives whole-diff review against config.yaml:7-9 → verification
+- Verification: Verify commands use ./gradlew, but the repo has no build (only shared/http/Client.kt) → verification; no named tests per scenario → verification; F1 only checks `test -f` on one file → verification; F3 skipped on a wrong description of the delta → verification
+- Checks: OIDC trust (state/nonce, issuer, audience, signature, redirect binding) → delivered; CHECK 1, no inventory or controls for where credentials are held and sent → delivered; CHECK 4, no fail-closed rule for partial or malformed token state → delivered; CHECK 6, Android/iOS and exchange/refresh paths lack per-path controls → delivered; PROCESS 3, independent timeout/retry work bundled in → delivered (scope); no Boundary per criterion → verification
+
+Mandatory class: auth-secrets-pii, set by OIDC sign-in, token storage and refresh (gate.md:3). Because the class isn't `none`, every blocker is excluded, so Accept and Override are off for all 15.
+
+Why the blockers keep coming: design.md and tasks.md name components (a hand-written OIDC client, a token store, a refresher) but specify neither how they connect to the app and the request path, nor the security contract a hand-written OIDC client needs. Verification depends on a build the repo doesn't have. Every round of point fixes exposes the next missing seam: round 2 had 1 blocker, round 3 has 15 across all three lenses.
+
+Recommendation: Re-plan. Only a revised design can fix the cause: end-to-end integration on both platforms, the OIDC/credential security contract and a path matrix, fail-closed state rules, scenario-mapped tests with an executable build, and a gate with whole-diff review. Split would remove only the 2 timeout/bundling blockers.
+  - Re-plan: No per-blocker asks; nothing from this round goes into gate.md. Revise design, specs, tasks and gate.md's classification and review decision as the new approach requires, then start round 4 with three fresh lenses. I may need to ask you which real project or build the Verify commands should run against.
+  - Continue: Fix each of the 15 blockers in the artifacts as stated, then start round 4. None is eligible, so there's no Accept. Fixes that need your decision get asked one at a time; answering Stop to any of them ends the review.
+  - Split: Two scopes: (A) OIDC sign-in, token storage and refresh, which sets auth-secrets-pii and stays in this change, still classified auth-secrets-pii; (B) the 10 s timeout and single GET retry, moved to its own change to be proposed and reviewed separately (proposal.md:28 says it's independent of sign-in). After the split, this change no longer fixes the order-screen hang. This change still needs its auth blockers fixed in round 4.
+  - Stop: No fixes and no new round. review.md keeps the round-3 REJECT, so apply stays blocked.

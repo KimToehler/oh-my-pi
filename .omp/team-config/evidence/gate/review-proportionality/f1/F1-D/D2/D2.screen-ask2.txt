@@ -1,0 +1,50 @@
+╭─── Ask 1 questions ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+├─── [approach4] · options:3 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  oidc-sign-in plan review, round 4 (after the re-plan): REJECT. Correctness REJECT, 4 blockers; Verification REJECT, 5 blockers; Checks REJECT, 4 blockers.  │
+│                                                                                                                                                              │
+│  Delivered change (6): session ownership across repeated createAuth calls (Correctness; Checks CHECK 6 found the same defect); refresh reuse when the new    │
+│  token itself lives under 60 s; spec 'Token response validation' contradicts the refresh rules (refresh may omit the refresh token, ID token and nonce);     │
+│  refresh-token expiry not updated after a refresh; CHECK 1 holder/sink inventory and a safe output boundary.                                                 │
+│  This change's verification (7): Verify commands filter by class, not method, and accept cached or UP-TO-DATE runs; the concurrency tests cannot fail        │
+│  without controlled interleaving; leak tests can pass vacuously (no sentinels in injected failures, no planted-leak control, no iOS stream scan);            │
+│  fail-closed restore proven only with fakes; coverage gaps (timeout, continueSignIn, temporary-failure request not sent); continueSignIn negative control    │
+│  (Checks CHECK 6); criterion boundaries name symbols that don't exist yet.                                                                                   │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered sign-in, token storage and refresh, and bearer injection. Effect: every blocker is excluded, so     │
+│  Accept and Override are off on every path.                                                                                                                  │
+│                                                                                                                                                              │
+│  Diagnosis: the round-3 cause, a missing design, is gone. No lens disputes the approach: the library choice, the session state machine, origin-bound         │
+│  injection and fail-closed restore. Two lenses independently found the same structural gap: a session must have exactly one owner per store, and the design  │
+│  memoizes only the Android store. The rest are local: three refresh-lifecycle rules (short-lived tokens, the refresh-response contract, refresh-expiry       │
+│  rotation) and test details that make the planned tests discriminate (per-method result checks, gated concurrency, planted-leak controls, a real-store       │
+│  restore failure). Each fix lands in an artifact that already exists, and none changes the approach. Re-planning would throw away a design the reviewers are │
+│  now checking line by line.                                                                                                                                  │
+│                                                                                                                                                              │
+│  Recommendation: Continue. Fix all 13 in the artifacts: one session authority per store on both platforms, the three refresh rules, a split spec contract    │
+│  for exchange versus refresh, and discriminating tests with per-method JUnit/XML checks. Then round 5 with fresh lenses. No Split: the auth part sets the    │
+│  class and is the whole retained scope (app wiring is already split off).                                                                                    │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix every blocker in the artifacts (none are eligible, so no per-blocker Accept), then a fresh round 5 with three new lenses.                           │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ Revise the design and verification approach again; nothing from this round goes into gate.md. Then round 5.                                             │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fix and no new round. review.md stays REJECT and apply stays blocked.                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking round-4 approach question                                                                                           🔐 OIDC: Review OIDC sign-in plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ oidc-sign-in plan review, round 4 (after the re-plan): REJECT. Correctness REJECT, 4 blockers; Verification REJECT, 5 blockers; Checks REJECT, 4 blockers.   │
+│                                                                                                                                                              │
+│ Delivered change (6): session ownership across repeated createAuth calls (Correctness; Checks CHECK 6 found the same defect); refresh reuse when the new     │
+│ token itself lives under 60 s; spec 'Token response validation' contradicts the refresh rules (refresh may omit the refresh token, ID token and nonce);    … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Continue (Recommended)                                                                                                                                   │
+│       Fix every blocker in the artifacts (none are eligible, so no per-blocker Accept), then a fresh round 5 with three new lenses.                          │
+│   ○ Re-plan                                                                                                                                                  │
+│       Revise the design and verification approach again; nothing from this round goes into gate.md. Then round 5.                                            │
+│   ○ Stop                                                                                                                                                     │
+│       No fix and no new round. review.md stays REJECT and apply stays blocked.                                                                               │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

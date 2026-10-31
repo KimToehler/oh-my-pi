@@ -1,0 +1,4 @@
+ M openspec/changes/oidc-sign-in/proposal.md
+ M openspec/changes/oidc-sign-in/review.md
+ D openspec/changes/oidc-sign-in/specs/http-timeout/spec.md
+ M openspec/changes/oidc-sign-in/tasks.md

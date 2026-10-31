@@ -131,7 +131,8 @@ It runs on the work-tree root (or the root given as its argument) and writes onl
 - `openspec/config.yaml` is created with the team content when it does not exist. An existing one is never rewritten:
   with `schema: omp-gated` it is left alone; any other or missing `schema:` refuses, and you change that line yourself.
   Merge the team `rules:` and `operations:` from `~/.omp/agent/skills/review-work/openspec/config.yaml` by hand if you
-  want them.
+  want them. A changed team rule reaches an existing config only this way: for example the `gate:` rule that classifies
+  risk of the delivered change, never the tools used to verify it.
 
 Git is the backup. The installer refuses, changing nothing, unless
 `git status --porcelain --ignored --untracked-files=all -- openspec/config.yaml openspec/schemas/omp-gated` is empty, so
@@ -190,10 +191,19 @@ adds no focus. The round is OKAY only when all three lenses return OKAY; a lens 
 retried once, and if the retry has none either the round is incomplete and no record is written. Each blocker of a
 complete rejecting round is decided by review-work's `Blocker disposition` section: it is Accept-eligible only when it
 misses the blocking threshold and no exclusion (security, audit trail, gate classification, review mechanism, a
-mandatory class) applies. A round with an eligible blocker records its REJECT and asks you at once, per blocker, quoting
-each verbatim: Accept is recommended for eligible blockers and offered only for them (your reason goes into `gate.md`
-as a residual risk or out-of-scope area, and the next round does not block on it); the rest offer fix or stop. A round
-with only non-eligible blockers is fixed for at most two fix rounds, then you are asked per blocker. The record carries
+mandatory class) applies. Below the approach-question trigger (described next), a round with an eligible blocker records
+its REJECT and asks you at once, per blocker, quoting each verbatim: Accept is recommended for eligible blockers and
+offered only for them (your reason goes into `gate.md` as a residual risk or out-of-scope area, and the next round does
+not block on it); the rest offer fix or stop. A round with only non-eligible blockers is fixed and reviewed again. From
+the third REJECT on (earlier when the correctness lens passed and every blocker concerns the change's own verification),
+the agent records the REJECT and asks one approach question first: per lens and blocker what was found, the class and
+what sets it, a diagnosis of what keeps producing blockers and a recommendation among Continue (fix and review again;
+per-blocker asks only for eligible blockers and for fixes that need your decision), Re-plan (revise the approach, class included, with no Accept), Split
+(only when a class-setting part can ship as its own change apart from a useful remainder) and Stop. It asks again at
+every later REJECT. Verification of
+the change itself follows review-work's `Change verification` section: instruction changes are proven by their text
+plus real sessions on disposable fixtures, not by checkers that re-score model output, and the class comes from the
+delivered change, not from the session's own login. The record carries
 the digest of the folder it reviewed and the round's subagent ids, in lens order. OpenSpec reports apply as `blocked`
 while `review.md` is missing, and `/opsx-apply` runs this before the
 first source edit:

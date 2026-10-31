@@ -1,0 +1,102 @@
+# Review
+
+- **Verdict**: REJECT
+- **Reviewed digest**: d9acd9ba64169ab1bfb209b3c86b5103ca7a1f68840f35d5b3725b0856df5fe1
+- **Reviewer**: plan-reviewer, OidcCorrectnessR3, OidcVerificationR3, OidcChecksR3
+- **Round**: 3
+- **Override**: none
+
+## Blockers
+
+### Correctness (OidcCorrectnessR3)
+
+[
+  {
+    "area": "Correctness — API authentication and refresh",
+    "defect": "No task wires token acquisition or refresh into API requests. A signed-in user making an ordinary request would still use an HTTP client that neither attaches a token nor waits for refresh, contrary to both requirements. The resulting access failure is reversible but prevents the feature from working.",
+    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5 and :23 require a token on every request and refresh before the next request; proposal.md:24 promises the client sends it. Yet tasks.md:5 only renames the client, and tasks.md:9-10 only introduce authentication components. The existing shared/http/Client.kt:5 returns a plain HttpClient.",
+    "change": "Add a task and design for integrating the token store and refresher with the actual API client, including the request-time expiry decision and behavior when refresh fails."
+  },
+  {
+    "area": "Correctness — platform and app integration",
+    "defect": "The plan provides no path from opening either app through browser authorization and redirect delivery to an authenticated order list. The repository contains only the shared HTTP client, with no app entry points, order-list implementation or platform redirect handlers, and the tasks do not provide them. Consequently the stated first-sign-in outcome cannot be reached in the supplied tree; this is reversible but breaks the core goal.",
+    "evidence": "openspec/changes/oidc-sign-in/proposal.md:5 names Android and iOS; specs/oidc-sign-in/spec.md:7-10 requires opening the app and showing orders. design.md:5 limits the decision to shared/auth, while tasks.md:9-10 names only shared authentication components; shared/http/Client.kt:1-5 is the only application source present.",
+    "change": "Identify or include the actual Android and iOS app, redirect entry points, platform token storage, and order-list integration, with explicit implementation tasks tracing the complete signed-out-to-orders flow."
+  },
+  {
+    "area": "Correctness — rejected refresh lifecycle",
+    "defect": "The refresh task does not specify the required transition to signed out or deletion of persisted tokens when Keycloak rejects a refresh token. On an ordinary rejected refresh, merely implementing token refresh can leave the app signed in with stale persisted credentials, violating the negative-control requirement. The resulting lockout or stale state is reversible.",
+    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:17-18 and :25-28 require sign-out and token deletion on rejection; design.md:5 and tasks.md:10 specify storage and refresh but no rejection handling or sign-out state transition.",
+    "change": "Define and task the rejection path across refresher, persistent storage and app session state, including how subsequent API requests observe the signed-out state."
+  }
+]
+
+### Verification (OidcVerificationR3)
+
+[
+  {
+    "area": "Executability — tasks 2.1 and 2.2",
+    "defect": "Both implementation checks depend on a build and test infrastructure that the repository does not contain and the plan does not create. Normal execution therefore cannot run either Verify command or establish that the implementations work; the failed checks are reversible but block the value proof.",
+    "evidence": "openspec/changes/oidc-sign-in/tasks.md:9-10 invokes ./gradlew :shared:allTests; the repository root contains no gradlew or Gradle build files, and shared/http/Client.kt:1-5 is the only shared source file. No task provisions a build, test targets, or platform app surfaces.",
+    "change": "Identify the actual build and app sources if external, or plan the necessary build and test setup explicitly; give runnable commands against tests that the tasks create."
+  },
+  {
+    "area": "Scenario and task verification",
+    "defect": "No task names tests or assertions that discriminate the required scenarios. A passing OidcClient or Token test selection could exercise unrelated behavior while the sign-in, API authorization, refresh, or sign-out requirements are broken. This can allow an ordinary user to be locked out or receive incorrect authentication behavior; the failure is reversible, but the required value proof is missing.",
+    "evidence": "openspec/changes/oidc-sign-in/tasks.md:9-10 supplies only wildcard test filters. For spec.md:3-12, task 2.1 is the apparent sign-in mapping but names no test for first sign-in, orders, or the mismatched-verifier negative control; no task-level test covers the access token on every API request. For spec.md:14-23, task 2.2 is the apparent refresh mapping but names no test for refresh before the next request or rejection causing sign-out and token deletion. No test files exist in the repository.",
+    "change": "For each scenario, name the implementing task and concrete tests with observable assertions, including the API client integration and both negative controls; make each Verify run those tests and ensure the test selection cannot succeed without them."
+  },
+  {
+    "area": "F1 — manual QA evidence",
+    "defect": "The final verification does not specify scenario-specific actions, observations, or evidence paths, and its check accepts one arbitrary existing file even if the other scenarios were never exercised. A normal incomplete or stale QA capture can therefore pass without proof of material behavior; the evidence gap is reversible but blocks the gate.",
+    "evidence": "openspec/changes/oidc-sign-in/tasks.md:14 asks for one path per scenario but checks only test -f .../sign-in.md. The four scenarios at specs/oidc-sign-in/spec.md:7-12,16-23 have no mapped actions or captures. openspec/schemas/omp-gated/templates/tasks.md:13-14 requires named scenarios, observations and a check of every evidence path.",
+    "change": "Specify real-surface steps and expected observations for first sign-in and order display, mismatched PKCE, pre-expiry refresh, and rejected-refresh sign-out; retain a separate current-head artifact per scenario and check all paths under the change's gate evidence directory."
+  },
+  {
+    "area": "F3 — whole-diff verification",
+    "defect": "The plan skips whole-diff review based on counting auth as one module, despite planning independently testable OIDC flow, token storage/refresh, and HTTP-client integration. An integration defect across these layers can pass slice-level checks without the required composition review; this is reversible but leaves the cross-layer value proof incomplete.",
+    "evidence": "openspec/changes/oidc-sign-in/gate.md:6 says whole-diff review is not needed; tasks.md:9-10 names OidcClient, TokenStore and TokenRefresher, and proposal.md:21 requires shared/http/Client.kt to send tokens. openspec/schemas/omp-gated/schema.yaml:224 requires whole-diff review for at least three independently testable modules/layers, and tasks.md:12-18 has no F3 task.",
+    "change": "Classify whole-diff review as needed and add the F3 integration-review task before F1, including the report path, report-header verification, and F2 handoff."
+  }
+]
+
+### Checks (OidcChecksR3)
+
+[
+  {
+    "area": "Security and privacy — authorization response",
+    "defect": "The self-built flow does not specify how a redirect is bound to the initiating login or how tokens and the issuer are authenticated. A matching PKCE verifier alone does not establish that an unsolicited or substituted authorization response belongs to the user's pending session.",
+    "evidence": "openspec/changes/oidc-sign-in/design.md:5-7; openspec/changes/oidc-sign-in/tasks.md:9; openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:12-15. The sole sign-in negative control covers a missing matching verifier, not an unsolicited, replayed or wrong-issuer response.",
+    "change": "Design and test transaction-bound state, one-time redirect handling, trusted issuer and endpoint configuration, and applicable OIDC token validation; reject missing, invalid, replayed and mismatched responses before storing tokens."
+  },
+  {
+    "area": "Security and privacy — token exposure",
+    "defect": "The plan requires storing real access and refresh tokens and attaching access tokens to every API request but provides neither secure platform storage requirements nor an origin boundary for credential transmission. A request redirected or sent to a different origin, or tokens stored in ordinary application storage, can expose credentials granting access to customer orders; credential compromise is not necessarily reversible.",
+    "evidence": "openspec/changes/oidc-sign-in/proposal.md:9-10,23-24; openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5; openspec/changes/oidc-sign-in/tasks.md:10; openspec/changes/oidc-sign-in/gate.md:5. The existing shared/http/Client.kt:5 creates an unrestricted HttpClient and has no credential boundary.",
+    "change": "Specify Android and iOS protected token storage, TLS and trusted API-origin enforcement including redirects, token deletion, and safe logging and evidence handling; add negative controls for untrusted destinations and token exposure."
+  },
+  {
+    "area": "CHECK 1 — credential holders and sinks",
+    "defect": "The delivered flow handles real order-access credentials, but the plan has no holder/sink inventory, inherited chokepoint, exclusions or sentinel control. Consequently ordinary sign-in, refresh, API calls, errors and retained QA evidence can disclose tokens without the planned verification detecting it.",
+    "evidence": "openspec/changes/oidc-sign-in/tasks.md:9-14 creates the flow, store, refresher and retained evidence; openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5,9-10 requires bearer-token use. Repository search finds no existing application token holders or credential-control implementation; shared/http/Client.kt:5 is the sole existing HTTP client. Planned holders include the authorization exchange, token store, refresher and HTTP client, and sinks include their requests, storage, errors, logs and stdout/stderr as well as QA artifacts; none is inventoried in the plan.",
+    "change": "Inventory every concrete holder and sink for access and refresh tokens on both platforms, define an inherited containment/redaction chokepoint or justified exclusions, and plant sentinels in every applicable input with scans of all resulting artifacts."
+  },
+  {
+    "area": "CHECK 4 — sign-in and refresh admission",
+    "defect": "The plan relies on decisions that a redirect matches a login and that a token is usable, but does not define outcomes for missing, malformed, partial or otherwise unverifiable state. An incomplete or invalid response could be accepted or credentials retained without the specified negative controls detecting it, breaking the authentication boundary.",
+    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5,12-15,19-29 tests only a missing matching verifier and an explicitly rejected refresh token; openspec/changes/oidc-sign-in/design.md:5-7 supplies no decision predicates.",
+    "change": "Define fail-closed acceptance predicates for login and refresh, including absent, malformed, partial, expired and unverifiable inputs, and test missing and in-flight states where applicable."
+  },
+  {
+    "area": "CHECK 6 — platform and credential-flow parity",
+    "defect": "Android and iOS both need the same login and token-protection guarantees, but the plan does not enumerate their platform entry paths or establish which checks and storage protections each implements. It also omits parity between initial token acquisition and refresh replacement. A platform or refresh path can bypass a control while the other passes.",
+    "evidence": "openspec/changes/oidc-sign-in/proposal.md:5,9-10; openspec/changes/oidc-sign-in/tasks.md:9-10; openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:3-29. No platform-specific entry-path matrix or path-specific controls are provided.",
+    "change": "List Android and iOS login, redirect, storage, refresh and API paths with each validation and protection applied or explicitly excepted, and add a negative control unique to each path."
+  },
+  {
+    "area": "Merge-gate Boundary rule",
+    "defect": "Neither requirement criterion names a Boundary at a real code location, so the gate cannot identify the components against which its sign-in and refresh invariants are reviewed.",
+    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:3-15,17-29 contain both criteria and their negative controls but no Boundary fields; openspec/changes/oidc-sign-in/gate.md:1-8 supplies none. The proposed shared/auth files in tasks.md:9-10 do not yet exist.",
+    "change": "Name a locatable real code boundary for each criterion, or establish and identify the actual implementation boundary before gate review."
+  }
+]

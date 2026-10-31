@@ -1,0 +1,11 @@
+A: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/A/openspec/schemas/omp-gated 
+B1: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/B1/openspec/schemas/omp-gated 
+B2: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/B2/openspec/schemas/omp-gated 
+C1: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/C1/openspec/schemas/omp-gated 
+C2: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/C2/openspec/schemas/omp-gated 
+D1: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/D1/openspec/schemas/omp-gated 
+D2: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/D2/openspec/schemas/omp-gated 
+D3: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/D3/openspec/schemas/omp-gated 
+E1: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/E1/openspec/schemas/omp-gated 
+E2: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/E2/openspec/schemas/omp-gated 
+E3: Note: Schema commands are experimental and may change. Schema: omp-gated Source: project Path: /private/tmp/rp-f1/E3/openspec/schemas/omp-gated 

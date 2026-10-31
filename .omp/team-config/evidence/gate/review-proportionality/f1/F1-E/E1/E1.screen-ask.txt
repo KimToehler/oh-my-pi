@@ -1,0 +1,50 @@
+│  2. Correctness, platform and app integration: delivered (no Android/iOS entry, redirect handler or order list)                                              │
+│  3. Correctness, rejected-refresh lifecycle: delivered (no task covers sign-out and token deletion)                                                          │
+│  4. Security, authorization response: delivered (no state, issuer or token validation, and no replay protection)                                             │
+│  5. Security, token exposure: delivered (no Keystore/Keychain storage and no origin/TLS boundary)                                                            │
+│  6. CHECK 1, credential holders and sinks: delivered (no inventory, redaction chokepoint or sentinels)                                                       │
+│  7. CHECK 4, sign-in and refresh admission: delivered (no fail-closed checks for missing, malformed or partial input)                                        │
+│  8. CHECK 6, platform and flow parity: delivered (no Android/iOS path matrix; first sign-in and refresh are not shown to apply the same checks)              │
+│  9. Merge-gate Boundary rule: verification (no criterion names a code boundary)                                                                              │
+│  10. Executability, tasks 2.1/2.2: verification (no gradlew or Gradle build exists in the repo)                                                              │
+│  11. Scenario and task verification: verification (only wildcard test filters and no named assertions)                                                       │
+│  12. F1 manual QA evidence: verification (checks one file for four scenarios)                                                                                │
+│  13. F3 whole-diff verification: verification (gate.md says it isn't needed, but schema.yaml:224 requires it)                                                │
+│                                                                                                                                                              │
+│  Mandatory class: auth-secrets-pii, set by the delivered OIDC sign-in and token storage/refresh. Because of it, Accept is off: every blocker is excluded and │
+│  can only be fixed, re-planned or stopped. Split is not offered: the only part that could ship without the class is the rename of httpClient (no callers),   │
+│  which meets none of the sign-in goal.                                                                                                                       │
+│                                                                                                                                                              │
+│  Diagnosis: Two causes produce most of these blockers. (a) design.md has one decision, "own OIDC client", and specifies none of the protocol or security     │
+│  details that decision makes the app own (state binding, issuer and token validation, secure storage, origin boundary, fail-closed rules, rejection          │
+│  lifecycle). Blockers 3–8 are all specifications that decision left out. (b) The plan targets a tree that contains only shared/http/Client.kt: no Gradle     │
+│  build, no Android/iOS app and no order list. That causes blockers 1, 2, 9, 10 and 11, and F1 cannot run on a real surface. Fixing these one by one in a     │
+│  fourth round would repeat the cycle. The design itself has to decide where the app and build live and whether to own the protocol. Recommended: Re-plan,    │
+│  because it removes both causes and keeps the goal unchanged.                                                                                                │
+│  ○ Re-plan                                                                                                                                                   │
+│    ↳ Revise the design, verification and all affected artifacts (including gate.md, which needs F3 marked as required). Nothing from this round enters       │
+│      gate.md. Then run round 4 with three fresh lenses.                                                                                                      │
+│  ○ Continue                                                                                                                                                  │
+│    ↳ Fix all 13 blockers inside the current design, then run round 4. No blocker is eligible, so there are no per-blocker Accept asks.                       │
+│  ○ Stop                                                                                                                                                      │
+│    ↳ No fixes and no new round. Apply stays blocked by the REJECT in review.md.                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking approach question                                                                                          🔑 OIDC: Review OIDC sign-in OpenSpec plan
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plan review round 3 (digest d9acd9…) is a complete REJECT with 13 blockers. review.md has been written, and apply stays blocked.                             │
+│                                                                                                                                                              │
+│ Lens verdicts:                                                                                                                                               │
+│ • Correctness: REJECT, 3 blockers                                                                                                                          … │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Re-plan (Recommended)                                                                                                                                    │
+│       Revise the design, verification and all affected artifacts (including gate.md, which needs F3 marked as required). Nothing from this round enters      │
+│       gate.md. Then run round 4 with three fresh lenses.                                                                                                     │
+│   ○ Continue                                                                                                                                                 │
+│       Fix all 13 blockers inside the current design, then run round 4. No blocker is eligible, so there are no per-blocker Accept asks.                      │
+│   ○ Stop                                                                                                                                                     │
+│       No fixes and no new round. Apply stays blocked by the REJECT in review.md.                                                                             │
+│   ○ Other (type your own)                                                                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

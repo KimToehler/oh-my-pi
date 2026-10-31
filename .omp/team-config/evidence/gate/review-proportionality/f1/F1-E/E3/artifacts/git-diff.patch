@@ -1,0 +1,167 @@
+diff --git a/openspec/changes/oidc-sign-in/proposal.md b/openspec/changes/oidc-sign-in/proposal.md
+index 2d446af..cca4bf9 100644
+--- a/openspec/changes/oidc-sign-in/proposal.md
++++ b/openspec/changes/oidc-sign-in/proposal.md
+@@ -23,6 +23,6 @@ None.
+ 
+ `shared/` gains the sign-in flow; `shared/http/Client.kt` sends the access token.
+ 
+-## Also in this change
++## Not in this change
+ 
+-- Today the app hangs on the order screen whenever the orders API stalls, because `httpClient()` in `shared/http/Client.kt` has no timeout. Give every request a 10-second timeout and retry an idempotent GET once after a timeout, so a stalled request shows an error instead of hanging. This is independent of sign-in and helps signed-in and future anonymous screens alike.
++- The 10-second request timeout and single idempotent-GET retry in `httpClient()` (`shared/http/Client.kt`), which fixes the order-screen hang when the orders API stalls, is split out as the separate change `http-request-timeout`. It is independent of sign-in and is proposed and reviewed on its own before it is implemented; this change does not fix that hang.
+diff --git a/openspec/changes/oidc-sign-in/review.md b/openspec/changes/oidc-sign-in/review.md
+index ff50385..af85fed 100644
+--- a/openspec/changes/oidc-sign-in/review.md
++++ b/openspec/changes/oidc-sign-in/review.md
+@@ -1,20 +1,90 @@
+ # Review
+ 
+ - **Verdict**: REJECT
+-- **Reviewed digest**: 1111111111111111111111111111111111111111111111111111111111111111
+-- **Reviewer**: plan-reviewer, F1CorrectnessR2, F1VerificationR2, F1ChecksR2
+-- **Round**: 2
++- **Reviewed digest**: 473e27f4f4aab268426b508ed3181b34758fb865cf17e9143b95a7f264bc26aa
++- **Reviewer**: plan-reviewer, F1CorrectnessR4, F1VerificationR4, F1ChecksR4
++- **Round**: 4
+ - **Override**: none
+ 
+ ## Blockers
+ 
+-### Correctness (F1CorrectnessR2)
++### Correctness (F1CorrectnessR4)
+ 
+ [
+   {
+-    "area": "Correctness",
+-    "defect": "Token refresh can run twice for one expiry.",
+-    "evidence": "design.md:12",
+-    "change": "Single-flight the refresh."
++    "area": "Correctness — app and API integration",
++    "defect": "The implementation tasks never integrate sign-in with either platform's app, order screen, or HTTP client. A user opening the app therefore has no planned route to authenticate or see orders, and API requests have no planned token attachment. This breaks the primary requirement under ordinary use; the resulting lockout or unauthenticated requests are reversible.",
++    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:3-9 requires token-bearing requests and the order list; proposal.md:19 says shared/http/Client.kt will send the token, but tasks.md:5-6 only create auth components. shared/http/Client.kt:3-5 currently constructs a bare HttpClient. The repository contains no Android/iOS app or order-screen implementation to connect.",
++    "change": "Plan the platform entry points, redirect delivery, signed-in navigation and order-loading integration, plus the HTTP client change that attaches the current token; identify or provide the missing app surfaces."
++  },
++  {
++    "area": "Correctness — refresh and sign-out lifecycle",
++    "defect": "A standalone refresher is not connected to the request path, and the plan does not implement the required sign-out and token deletion on refresh rejection. In normal use an expiring token can be sent without refresh, or a rejected refresh can leave the user signed in with stored tokens; the resulting failure is reversible.",
++    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:16-26 requires refresh before the next request and deletion/sign-out on rejection; tasks.md:6 only says to store and refresh tokens, while shared/http/Client.kt:5 has no auth or refresh integration. design.md:5 only says the client implements refresh itself.",
++    "change": "Specify and implement the request-time expiry check, refresh coordination and token replacement, and the rejected-refresh transition that clears stored tokens and updates app sign-in state before further authenticated requests."
++  },
++  {
++    "area": "Correctness — timeout scope claim",
++    "defect": "The proposal describes a 10-second timeout and single GET retry as existing behavior in httpClient(), but the cited implementation has neither configured. If the timeout split is understood as preserving an existing fix, an ordinary stalled orders request will still hang; the effect is reversible.",
++    "evidence": "openspec/changes/oidc-sign-in/proposal.md:23 asserts the timeout and retry in shared/http/Client.kt and references a separately proposed change; shared/http/Client.kt:3-5 only returns HttpClient(). No http-request-timeout change is present in the repository listing.",
++    "change": "Correct the proposal to describe the timeout and retry as unimplemented future work, and accurately state the status of the separate change without implying that the current client already provides it."
++  }
++]
++
++### Verification (F1VerificationR4)
++
++[
++  {
++    "area": "Quality and verification — scenario coverage",
++    "defect": "Neither implementation task names tests or assertions for the required scenarios and request-level behaviour. The class-name filters alone can pass with tests that do not exercise the material requirements; a broken implementation could therefore reach the final gate without discriminating coverage.",
++    "evidence": "specs/oidc-sign-in/spec.md:3-13 requires first sign-in, orders display, bearer tokens on every API request, and rejection without the matching verifier; tasks.md:5 names only an '*OidcClient*' test filter. spec.md:15-25 requires refresh before the next request and sign-out plus token deletion on rejection; tasks.md:6 names only a '*Token*' filter. Neither task names a test for the HTTP client or the app/order-list integration.",
++    "change": "For each scenario, identify a task and discriminating test with inputs and observable assertions, including a real request carrying the token, the missing-verifier rejection with no stored tokens, refresh before the request, and rejected refresh clearing tokens and signing out. Include integration coverage for reaching the order list."
++  },
++  {
++    "area": "Final verification — F1 evidence",
++    "defect": "The sole F1 check accepts the existence of one file without establishing what was exercised or observed. In normal execution it can pass even if refresh, either negative control, or the order list was never tested; the missing evidence makes the claimed material behaviour unproved. The resulting evidence gap is reversible by rerunning QA.",
++    "evidence": "tasks.md:10 requires one evidence path per scenario but names and checks only '.omp/team-config/evidence/gate/f1/f1/sign-in.md'; it gives no actions, expected observations, or individual paths for the four scenarios in specs/oidc-sign-in/spec.md:7-25, and its test -f command accepts an empty or unrelated file.",
++    "change": "Specify real-surface actions and expected observations for each scenario and the token-bearing request, retain a distinct evidence artifact per scenario, and check every path. Have the QA lane inspect the retained observations rather than treating file existence as behavioural proof."
++  },
++  {
++    "area": "Executability — implementation verification",
++    "defect": "Both implementation Verify commands require a Gradle wrapper and shared Gradle project that the repository does not contain, and no task supplies them. On the ordinary checkout the commands cannot start, so neither task can be verified as planned.",
++    "evidence": "tasks.md:5-6 invokes './gradlew :shared:allTests' twice. The repository root listing contains only shared/, openspec/ and .omp/; shared/ contains only http/Client.kt, with no wrapper, Gradle settings, shared build files, or tests.",
++    "change": "Provide the actual build and test infrastructure as an explicit prerequisite or task, or replace the commands with executable repository-supported verification and identify where the tests will be created."
++  }
++]
++
++### Checks (F1ChecksR4)
++
++[
++  {
++    "area": "CHECK 1 — Credential holders and sinks",
++    "defect": "Real tokens lack a holder/sink inventory and enforced protection boundary. A request to another origin or redirect, insecure device storage, or diagnostic output can disclose credentials granting access to customer orders; disclosure may be irreversible.",
++    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:5 requires the access token on every API request; tasks.md:5-6 introduces exchange, storage and refresh; gate.md:5 identifies the protected orders; shared/http/Client.kt:5 is a general-purpose client. No destination, redirect, storage or logging controls are specified.",
++    "change": "Inventory token holders and sinks including requests, platform stores, memory, errors and logs; enforce trusted destinations and redirects and secure platform storage, and plant sentinel tokens in all inputs and scan every artifact."
++  },
++  {
++    "area": "CHECK 4 — Authentication acceptance",
++    "defect": "The custom OIDC flow does not define how callbacks and identity responses are authenticated before tokens are accepted. A forged, replayed or misdirected callback or an untrusted identity response can lead to an incorrect authenticated identity or access to protected customer orders.",
++    "evidence": "openspec/changes/oidc-sign-in/design.md:5-7 and tasks.md:5 specify only PKCE and code exchange; specs/oidc-sign-in/spec.md:12-15 tests only a mismatched verifier. No callback correlation, issuer, endpoint or ID-token validation predicate is defined.",
++    "change": "Specify transaction-bound single-use callback correlation, trusted issuer and endpoints, redirect validation, and applicable signature, issuer, audience, expiry and nonce checks; fail closed on absent, malformed and incomplete responses and test each rejection before storage."
++  },
++  {
++    "area": "CHECK 6 — Token issuance and refresh parity",
++    "defect": "Initial exchange and refresh both create token state, but the plan does not define common validation, storage and atomic session transitions across those paths. Concurrent requests near expiry can initiate competing refreshes; a rejected or late response can sign out a valid session or restore credentials after sign-out, breaking the required logout and deletion behavior.",
++    "evidence": "openspec/changes/oidc-sign-in/tasks.md:5-6 defines separate exchange and refresher paths; specs/oidc-sign-in/spec.md:19-29 requires pre-request refresh and token deletion on rejection, but specifies no concurrent-request behavior or per-path controls.",
++    "change": "Inventory initial exchange, refresh, storage and request consumers; define shared validation and serialized or generation-bound refresh and logout semantics, with path-specific and concurrent-refresh negative controls."
++  },
++  {
++    "area": "Boundary rule — Requirement criteria",
++    "defect": "Neither requirement names a Boundary, so the gate does not identify a real contract surface at which its criteria are checked.",
++    "evidence": "openspec/changes/oidc-sign-in/specs/oidc-sign-in/spec.md:3-29 contains both requirement blocks and negative controls but no Boundary field; shared/http/Client.kt:5 is the only existing named implementation surface.",
++    "change": "Name a real, findable code boundary for each criterion, including sign-in, token storage, refresh and request enforcement as appropriate."
++  },
++  {
++    "area": "PROCESS 3 — Subsystem cut",
++    "defect": "The plan combines independently testable authorization flow, token storage, refresh lifecycle and HTTP request authentication without a gated cut or evidence they cannot ship separately.",
++    "evidence": "openspec/changes/oidc-sign-in/tasks.md:5-6 and proposal.md:24; gate.md:6 waives whole-diff review by describing one auth module and one HTTP line.",
++    "change": "Divide the mechanisms into independently gated plans or explain the concrete dependency that prevents separate delivery, and size whole-diff review to the actual integration."
+   }
+ ]
+diff --git a/openspec/changes/oidc-sign-in/specs/http-timeout/spec.md b/openspec/changes/oidc-sign-in/specs/http-timeout/spec.md
+deleted file mode 100644
+index c697f33..0000000
+--- a/openspec/changes/oidc-sign-in/specs/http-timeout/spec.md
++++ /dev/null
+@@ -1,15 +0,0 @@
+-## ADDED Requirements
+-
+-### Requirement: Request timeout with one GET retry
+-
+-Every request made through `httpClient()` SHALL time out after 10 seconds, and an idempotent GET SHALL be retried once after a timeout before the error reaches the screen.
+-
+-#### Scenario: Stalled orders request
+-
+-- **WHEN** the orders API does not answer a GET within 10 seconds and answers the retry
+-- **THEN** the order list shows the retried response
+-
+-#### Scenario: Negative control
+-
+-- **WHEN** a POST times out
+-- **THEN** retrying it MUST fail the scenario: the POST is not retried and the error is shown
+diff --git a/openspec/changes/oidc-sign-in/tasks.md b/openspec/changes/oidc-sign-in/tasks.md
+index 372b9d0..615d326 100644
+--- a/openspec/changes/oidc-sign-in/tasks.md
++++ b/openspec/changes/oidc-sign-in/tasks.md
+@@ -1,19 +1,15 @@
+ # Tasks
+ 
+-## 1. Timeout and retry
++## 1. Sign-in
+ 
+-- [ ] 1.1 Install Ktor `HttpTimeout` (10 s request timeout) and `HttpRequestRetry` (one retry, GET only, on timeout) in `httpClient()` in `shared/http/Client.kt`, with tests against a stalled mock engine. Verify: `./gradlew :shared:allTests --tests '*Client*'`
++- [ ] 1.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect, exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`
++- [ ] 1.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew :shared:allTests --tests '*Token*'`
+ 
+-## 2. Sign-in
++## 2. Final verification
+ 
+-- [ ] 2.1 Implement the OIDC authorization code flow with PKCE in `shared/auth/OidcClient.kt`: build the authorization URL, receive the redirect, exchange the code for tokens. Verify: `./gradlew :shared:allTests --tests '*OidcClient*'`
+-- [ ] 2.2 Store the tokens in `shared/auth/TokenStore.kt` and refresh them before expiry in `shared/auth/TokenRefresher.kt`. Verify: `./gradlew :shared:allTests --tests '*Token*'`
+-
+-## 3. Final verification
+-
+-- [ ] 3.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`
++- [ ] 2.1 F1. Manual QA on the real surface, one evidence path per scenario in `.omp/team-config/evidence/gate/f1/f1/`, on the head after the last code commit. Verify: `test -f .omp/team-config/evidence/gate/f1/f1/sign-in.md`
+ 
+ ## Workflow follow-up
+ 
+-- F2 merge gate (`review-work`), after 3.1 and never a checkbox.
++- F2 merge gate (`review-work`), after 2.1 and never a checkbox.
+ - Merge only after the F2 record validates.

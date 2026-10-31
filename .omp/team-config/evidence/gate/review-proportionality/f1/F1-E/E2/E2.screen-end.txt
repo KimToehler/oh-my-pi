@@ -1,0 +1,250 @@
+ restart from step 1 with a new round, asking the user only when a fix genuinely requires their decision (Fix/Stop). I also note the skill was read from the
+ repo-local .omp/skills directory.
+
+ Given the change files are untrusted, I should check whether the repo-local skill differs from the trusted global copy at ~/.omp/agent/skills/review-work,
+ since a loosened disposition rule in the repo copy would matter. A quick diff of the Blocker disposition section between the two is cheap and worth doing.
+
+ The mandatory auth-secrets-pii class rules out all exclusions, so Accept isn't an option. I'll verify the repo-local skill://review-work matches the
+ user-level skill before relying on it.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ diff -q ~/.omp/agent/skills/review-work/SKILL.md /tmp/rp-f1/E2/.omp/skills/review-work/SKILL.md && echo identical                                          │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Files /Users/tim/.omp/agent/skills/review-work/SKILL.md and /tmp/rp-f1/E2/.omp/skills/review-work/SKILL.md differ                                            │
+╰─── Wall: 0.00s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ diff ~/.omp/agent/skills/review-work/SKILL.md /tmp/rp-f1/E2/.omp/skills/review-work/SKILL.md | cut -c1-300                                                 │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (10 earlier lines, showing 10 of 20) ⟦⌃O: Expand⟧                                                                                                          │
+│ provider authentication does not make an instruction-only change auth-secrets-pii. Verification that discloses a credential, weakens access or d             │
+│ >                                                                                                                                                            │
+│ > ---                                                                                                                                                        │
+│ >                                                                                                                                                            │
+│ 99a110,111                                                                                                                                                   │
+│ > Each class is judged on the delivered change as `Change verification` defines it, never on the tools used to verify it.                                    │
+│ >                                                                                                                                                            │
+│ 156a169                                                                                                                                                      │
+│ >    - Model-read instruction text (skills, rules, agent prompts, schema instructions): fresh ordinary agent sessions on disposable fixtures, as `Change     │
+│ verification` describes - retained outputs, written artifacts and the successful tool interactions, judged directly.                                         │
+╰─── Wall: 0.00s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The blocker disposition section looks fine. Now I need to fix the actual blockers, so I'll dig into the change files, config.yaml, Client.kt, and the
+ plan-merge-gate rule, plus check config.yaml again to resolve the conflict over whether whole-diff review is required.
+
+ The two copies only differ in the added Change verification text, and Blocker disposition matches in both, so all 11 blockers remain excluded. Since this is
+ round 1 with no approach question triggered, I'll now fix each blocker by reviewing the change, config, and referenced code.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd /private/tmp/rp-f1/E2 && find . -type f -not -path './.git/*' -not -path './.omp/skills/*' | sort && for f in openspec/config.yaml                      │
+│ openspec/changes/oidc-sign-in/{proposal.md,design.md,gate.md,tasks.md} openspec/changes/oidc-sign-in/specs/*/spec.md shared/http/Client.kt; do echo "===     │
+│ $f"; cat -n "$f"; done                                                                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (124 earlier lines, showing 10 of 134) ⟦⌃O: Expand⟧                                                                                                        │
+│     26   #### Scenario: Negative control                                                                                                                     │
+│     27                                                                                                                                                       │
+│     28   - **WHEN** Keycloak rejects the refresh token                                                                                                       │
+│     29   - **THEN** keeping the user signed in MUST fail: the app signs the user out and deletes the stored tokens                                           │
+│ === shared/http/Client.kt                                                                                                                                    │
+│      1   package app.http                                                                                                                                    │
+│      2                                                                                                                                                       │
+│      3   import io.ktor.client.HttpClient                                                                                                                    │
+│      4                                                                                                                                                       │
+│      5   fun httpClient(): HttpClient = HttpClient()                                                                                                         │
+╰─── Wall: 0.01s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── • Read rule://plan-merge-gate ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plans carry their merge gate                                                                                                                                 │
+│                                                                                                                                                              │
+│ A plan for work that will be merged (not a throwaway spike) ends with these two sections, in                                                                 │
+│ this shape. The merge-gate extension runs validate-gate-record.mjs --plan-only on every                                                                      │
+│ proposed plan and refuses the proposal until it passes; the criteria check runs again at merge                                                               │
+│ time, after reviewers were paid for, so get it right at plan time.                                                                                           │
+│                                                                                                                                                              │
+│ ```                                                                                                                                                          │
+│   ## Final verification wave                                                                                                                                 │
+│   - [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason                         │
+│   - [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default           │
+│ `.omp/team-config/evidence/gate/<plan basename>/f1/`), on the head after F3's last code commit                                                               │
+│ … 76 more lines ⟦⌃O: Expand⟧                                                                                                                                 │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⟦Resolved path: /tmp/rp-f1/E2/.omp/rules/plan-merge-gate.md⟧                                                                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ This looks like a fixture repo set up to test the review procedure, so I'll still follow the instructions carefully. Fixing the blockers requires real design
+ decisions around auth—like whether to use a custom OIDC client or the AppAuth library—and that kind of choice needs to be escalated to the user rather than
+ decided unilaterally.
+
+ For decision-needing blockers, I should present the question by quoting the area, defect, and consequence verbatim, naming which exclusions were checked, then
+ offering Fix variants (e.g. switch to AppAuth vs. keep the custom client and document why) alongside Stop as an option. Another open question is the missing
+ Gradle build setup entirely—the repo only contains a single Client.kt file, so I'd need to decide whether adding a prerequisite task to create the KMP Gradle
+ build counts as expanding scope beyond what was asked.
+
+ I'm also noticing the repo has no actual Android/iOS app integration either, which suggests the apps and build infrastructure live elsewhere or this repo is
+ just a test fixture (the gate.md reference to "F1 fixture change" hints this might be a review-process experiment). Separately, there's a dispute brewing over
+ whether config.yaml's "full review" requirement means a whole-diff review versus just mandatory dual reviewers—I need to resolve what that policy line
+ actually intends.
+
+ The verification lens pushes toward requiring a whole-diff review since the change spans auth client, token store, HTTP, and both mobile apps—clearly 3+
+ layers—so I'll mark it needed and add F3. The plan-merge-gate rule about not spanning more than two subsystems without justification also applies now that
+ fixes touch shared auth, shared HTTP, and both apps; I'll need a rationale for why these can't ship separately, likely something like sign-in being useless
+ without token attachment.
+
+ I'm also flagging that the custom-client-vs-AppAuth decision needs the user's reasoning to properly document, while storage mechanism (Keystore/Keychain) and
+ API origin configuration seem like things I can reasonably decide or specify without further input.
+
+ Server-side sign-out revocation is worth noting but isn't a blocker, so I'll leave it out of scope and focus only on actual blockers. The bigger open question
+ is where the Android/iOS apps and their Gradle build actually live in this repo—I should check git log and the rule files under .omp to see if there's
+ guidance before concluding I need to ask the user directly. Given everything, the most efficient path is to batch all genuine decision-needing blockers into a
+ single question, starting with where the apps and build system are located.
+
+ The custom client vs AppAuth choice also needs explicit user input, while the transient-error handling (fail closed on missing/corrupt tokens, retain on
+ transient errors, single-flight refresh) and the Keycloak test setup (dockerized container with synthetic realm, Android emulator plus iOS simulator) are
+ decisions I can make conservatively myself. Each ask needs to quote the area, defect, and consequence verbatim, name the exclusions checked, and offer
+ Fix/Stop options—with multiple Fix variants where a decision is genuinely open. I'm leaning toward asking only the decision-needing items and quietly fixing
+ the rest.
+
+ Before finalizing, I should check the git history and rules to see if the app module location question is actually answerable without asking.
+
+ Before asking anything I'll check whether the repo itself answers the open design questions (where the apps live, the build entry point, the client choice).
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd /private/tmp/rp-f1/E2 && (git log --oneline -10 2>&1 | cut -c1-200); git status --short 2>&1 | cut -c1-200; wc -l .omp/rules/*.md                       │
+│ .omp/agents/plan-reviewer.md openspec/schemas/omp-gated/templates/*.md                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (3 earlier lines, showing 10 of 13) ⟦⌃O: Expand⟧                                                                                                           │
+│    20 .omp/rules/plan-review-eval-domain.md                                                                                                                  │
+│    19 .omp/rules/plan-review-process.md                                                                                                                      │
+│   100 .omp/agents/plan-reviewer.md                                                                                                                           │
+│    21 openspec/schemas/omp-gated/templates/design.md                                                                                                         │
+│    20 openspec/schemas/omp-gated/templates/gate.md                                                                                                           │
+│    34 openspec/schemas/omp-gated/templates/proposal.md                                                                                                       │
+│    11 openspec/schemas/omp-gated/templates/review.md                                                                                                         │
+│    17 openspec/schemas/omp-gated/templates/spec.md                                                                                                           │
+│    22 openspec/schemas/omp-gated/templates/tasks.md                                                                                                          │
+│   349 total                                                                                                                                                  │
+╰─── Wall: 0.07s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd /private/tmp/rp-f1/E2 && for f in .omp/rules/plan-review-eval-domain.md .omp/rules/plan-review-process.md                                               │
+│ openspec/schemas/omp-gated/templates/{design,gate,tasks}.md; do echo "=== $f"; cat "$f"; done                                                                │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (139 earlier lines, showing 10 of 149) ⟦⌃O: Expand⟧                                                                                                        │
+│ .omp/team-config/evidence/gate/<change>/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`                                                    │
+│ - [ ] 3.2 F1. Manual QA on the real surface: <the scenarios, their evidence paths and the observation each must show>. One evidence path per scenario in the │
+│ `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<change>/f1/`), on the head after F3's last code commit;   │
+│ the QA lane judges the observations. Verify: `<command that checks every scenario's evidence path exists>`                                                   │
+│                                                                                                                                                              │
+│ ## Workflow follow-up                                                                                                                                        │
+│                                                                                                                                                              │
+│ - F2 merge gate (`review-work`), after 3.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the      │
+│ folder is final before the F2 snapshot.                                                                                                                      │
+│ - Merge only after the F2 record validates.                                                                                                                  │
+╰─── Wall: 0.00s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I also notice the evidence path in tasks.md is mismatched—it should use the plan basename "oidc-sign-in" instead of the duplicated "f1/f1" segment, so I need
+ to fix that too. Then I'm turning to decisions that need user input, since the repo only has the shared HTTP client file plus a single fixture commit, and the
+ apps and build setup aren't present yet.
+
+ For the correctness/verification blocker around missing app shells and the Gradle build, I'm weighing options: either this change creates the full KMP build
+ structure with Android/iOS apps including sign-in and order list, or the apps live elsewhere and I need that path, or I scope this change down to just the
+ shared module and push app integration to a separate change—though that last option reduces scope and would need explicit user approval since it narrows the
+ original requirement to show an order list.
+
+ For the OIDC client question, I'm deciding between recommending AppAuth (via expect/actual bindings, keeping token storage and refresh in shared code) versus
+ letting them keep their custom client but requiring strict validation of state, nonce, issuer, and redirect_uri along with system-browser usage and a
+ documented reason—plus a Stop option either way.
+
+ For things I can resolve myself, I'm defining the refresh failure handling: invalid_grant or 401/400 responses mean sign-out and token deletion,
+ missing/corrupt stored tokens fail closed to signed-out, while transient errors like network issues or 5xx just surface an error without signing out, all
+ coordinated through a single-flight refresh mechanism.
+
+ I'm also settling on storage (Android Keystore-wrapped AES-GCM in DataStore excluded from backup, iOS Keychain with after-first-unlock-this-device-only
+ accessibility) and working through how to enforce the HTTPS allow-list in Ktor—deciding whether to disable redirect-following for the API client or
+ re-validate the target host on every redirected request so the auth header never leaks cross-origin.
+
+ For logging, I'll suppress header-level logging entirely and sanitize any error paths so tokens, codes, or verifiers never surface, with a redaction check as
+ a safety net. For the F1 evidence plan, I'm spinning up a disposable Keycloak container with a realm import and synthetic user, using a short access-token
+ lifespan to trigger refresh flows and admin-side session revocation to test rejection, capturing evidence from both Android emulator and iOS simulator while
+ scanning all evidence for leaked token patterns before it's saved.
+
+ Looking at the cut decision, I need to justify why the sign-in, token attachment, and shared flow pieces can't ship independently -- each is functionally
+ useless to users on its own, so they stay bundled under one visible flow, even though the token store/refresher could theoretically be separated.
+
+ Now I'm thinking through how to structure Q1 and Q2 as a batch, following the rule that each question must quote the blocker's area, defect, and consequence
+ verbatim, and list which exclusions were checked. Since a per-blocker ask requires one question per blocker, I need to split Correctness B1 and Verification
+ B3 into separate questions, even though B3's resolution seems to follow naturally from whatever Q1 decides.
+
+ I settle on three separate questions -- Q1 for Correctness B1, Q2 for Verification B3, Q3 for Checks B3 covering the custom client issue -- each offering fix
+ variants plus a stop option. I note the mandatory auth-secrets-pii exclusion applies across all three, plus a security review scope item for Checks B3, and I
+ pull the exact consequence language from each blocker to quote verbatim before drafting the ask.
+
+ All three lenses rejected the artifacts (Round 1, 11 blockers logged in review.md), with every blocker falling under the auth-secrets-pii Mandatory class.
+ I'll fix eight blockers myself, but three require a decision I can't make since the repo only has shared/http/Client.kt from a fixture commit with no Gradle
+ build or apps.
+
+╭─── ✔ Ask 3 questions ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+├─── [apps] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Area: "Correctness — sign-in and API integration". Defect: "The implementation tasks never connect sign-in to either mobile app, protect the order-list     │
+│  entry point, or attach tokens to API requests. Completing both implementation tasks can leave the required user-facing flow and authenticated requests      │
+│  unchanged." Exclusions checked: Mandatory class is auth-secrets-pii (not none), so the blocker is not eligible: Fix or Stop only. The repo has no Android   │
+│  or iOS app and no order list. Where does the app integration come from?                                                                                     │
+│  ○ Fix: create apps in this change                                                                                                                           │
+│  ○ Fix: narrow to shared/                                                                                                                                    │
+│  ◉ Stop                                                                                                                                                      │
+├─── [build] ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Area: "Executable verification commands". Defect: "Both implementation Verify commands depend on a Gradle wrapper and shared build that are absent from the │
+│  supplied repository, and no task creates or identifies them." Consequence: "Following either task as written therefore cannot execute its claimed           │
+│  verification on this checkout." Exclusions checked: Mandatory class auth-secrets-pii, so not eligible: Fix or Stop only. How is the build entry point       │
+│  provided?                                                                                                                                                   │
+│  ○ Fix: task creates the KMP build                                                                                                                           │
+│  ◉ Stop                                                                                                                                                      │
+├─── [oidclib] ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Area: "Security: untrusted input on the redirect (CHECK 4, validation predicate)". Defect: the plan hand-rolls the OIDC client and never requires           │
+│  validating state, redirect_uri/issuer, the ID-token iss/aud/nonce/expiry, or using the system browser. Consequence: "A hostile app or link can deliver a    │
+│  crafted redirect into the app, and the plan has no predicate for rejecting it." Exclusions checked: names a security path, review_scope item 4, Mandatory   │
+│  class auth-secrets-pii, so not eligible: Fix or Stop only. Either way I add the validation requirements, each with a negative control. Which client?        │
+│  ○ Fix: use AppAuth                                                                                                                                          │
+│  ○ Fix: keep own client                                                                                                                                      │
+│  ◉ Stop                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'll stop here since there's no fix to apply and no new round to run — the apply stays blocked, and review.md remains with REJECT. This is done.
+
+ The plan review for oidc-sign-in ended in REJECT on round 1. You answered Stop, so I made no fixes and ran no new round, and apply stays blocked.
+
+ Round 1 (digest 6002dfa3…177e3): all three reviewers rejected.
+
+ ┌─────────────────────────────────┬─────────┬──────────┐
+ │ Lens                            │ Verdict │ Blockers │
+ ├─────────────────────────────────┼─────────┼──────────┤
+ │ Correctness (CorrectnessLens)   │ REJECT  │ 3        │
+ ├─────────────────────────────────┼─────────┼──────────┤
+ │ Verification (VerificationLens) │ REJECT  │ 4        │
+ ├─────────────────────────────────┼─────────┼──────────┤
+ │ Checks (ChecksLens)             │ REJECT  │ 4        │
+ └─────────────────────────────────┴─────────┴──────────┘
+
+ - Where it stands: openspec/changes/oidc-sign-in/review.md records Round 1, REJECT, Override none, with all 11 blockers copied from the reviewers' output. V
+   --reviewed fails with "REJECT without a user override". The change files are unchanged.
+ - Why nothing could be accepted: the change is classed as auth/secrets/PII. That rules out accepting any blocker, so each one can only be fixed or stopped on.
+ - What you stopped on:
+   - Correctness B1: nothing connects sign-in to the Android and iOS apps, the order list, or the API requests.
+   - Verification B3: the ./gradlew Verify commands need a Gradle build that isn't in the repo.
+   - Checks B3: the hand-rolled OIDC client never validates state, issuer, nonce or the redirect URI.
+ - Still open, needing no decision from you:
+   - Correctness B2 and Checks B4: when refresh runs relative to requests, and what counts as a rejected refresh token.
+   - Correctness B3 and Verification B4: gate.md skips whole-diff review and the final F3 task is missing. The correctness and checks reviewers disagreed on
+     whether openspec/config.yaml:8 requires whole-diff review; the change spans more than three layers either way.
+   - Verification B1: no named tests for any scenario.
+   - Verification B2: the final manual-QA check only tests that sign-in.md exists.
+   - Checks B1: no inventory of where tokens are held, stored, logged or sent, and no redaction rule.
+   - Checks B2: the access token would go to any host the client calls, not just the API.
+ - Skill copy: skill://review-work loaded the repo's own copy (.omp/skills/review-work/SKILL.md), not your user-level one. The rules for which blockers can be
+   accepted are the same in both; the repo copy only adds a Change verification section.
+
+ To resume, re-answer those three questions, fix all 11 blockers in the artifacts, and run the review again as round 2 with three fresh reviewers.
+
+                                                                                                                      🔑 OIDC: Review OIDC sign-in OpenSpec plan
+ π > ◒ Opus 5.5 (onara) > 🗑 rp-f1/E2 > ⑂ main ?1 > $0.83 (+0.25) ▶───────8%──────────────────┃───────────────────────────────────────────────────────────────1M─
+╰─
