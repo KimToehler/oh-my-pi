@@ -42,7 +42,7 @@ Every full-round plan-reviewer task SHALL carry the brief fixed in the schema ve
 
 ### Requirement: A verifier triages every finding
 
-After every complete round or delta check with a blocker, and before any fix or ask, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief, the two paths and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete.
+After every complete round or delta check with a blocker, and before any fix or ask, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief, the two paths and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. A finding that no verifier result ever triaged SHALL be untriaged: it is neither confirmed nor refuted, and the instruction SHALL NOT decide it on its own.
 
 #### Scenario: Round with findings
 
@@ -56,12 +56,12 @@ After every complete round or delta check with a blocker, and before any fix or 
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction fixes or asks about a blocker before the verifier returned, sends the verifier a paraphrase or a subset of the round's blockers, or triages a verifier result that omits an index or repeats one
+- **WHEN** an instruction fixes or asks about a blocker before the verifier returned, sends the verifier a paraphrase or a subset of the round's blockers, triages a verifier result that omits an index or repeats one, or triages a finding itself after the verifier failed
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Only confirmed findings block
 
-A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence it found at the cited repository `file:line` or plan quote, that no check the plan runs would fail when that failure occurs, and the blocking threshold. A check that runs is a task's `Verify:` command, a test the tasks name, or a planned real-session run whose retained outputs would show the failure; a `### Requirement:` block or a `#### Scenario:`, its Negative control included, is a criterion, not a check, and SHALL NOT refute a finding about missing or ineffective verification. A blocker that triggers an exception ask SHALL stay blocking until the user answers it. Every other blocker SHALL become a residual recorded with the verifier's result and reason; residuals never block apply.
+A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence it found at the cited repository `file:line` or plan quote, that no check the plan runs would fail when that failure occurs, and the blocking threshold. A check that runs is a task's `Verify:` command, a test the tasks name, or a planned real-session run whose retained outputs would show the failure; a `### Requirement:` block or a `#### Scenario:`, its Negative control included, is a criterion, not a check, and SHALL NOT refute a finding about missing or ineffective verification. A blocker that triggers an exception ask SHALL stay blocking until the user answers it. An untriaged finding SHALL stay under `## Blockers` with its untriaged reason and SHALL force the verdict REJECT until a verifier triages it; it SHALL NOT become a residual. Every other blocker SHALL become a residual recorded with the verifier's result and reason; residuals never block apply.
 
 #### Scenario: Speculative finding
 
@@ -78,9 +78,14 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 - **WHEN** a blocker shows that a criterion covers deletion and no planned Verify command or test can fail when deletion breaks, and the verifier confirms the cited lines
 - **THEN** it stays blocking, and the criterion's own text, its Negative control scenario included, does not refute it
 
+#### Scenario: Finding no verifier triaged
+
+- **WHEN** both verifier attempts of a rejecting round fail, so its findings carry no result
+- **THEN** they stay under Blockers as untriaged with that reason, the round is recorded REJECT, and apply stays blocked until a later verifier triages them
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, keeps apply blocked on a round whose findings are all residuals, or refutes a finding about a Verify command that cannot fail by citing a requirement or scenario no task executes
+- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, keeps apply blocked on a round whose findings are all residuals, refutes a finding about a Verify command that cannot fail by citing a requirement or scenario no task executes, or records an untriaged finding as a residual or ends its round OKAY
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fix budget per depth

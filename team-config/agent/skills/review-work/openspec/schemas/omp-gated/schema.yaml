@@ -542,7 +542,8 @@ artifacts:
          otherwise REJECT.
          `## Blockers`: `none` for OKAY; for REJECT one `### <Scope> (<subagent id>)` subsection
          per rejecting reviewer with its open findings verbatim, each with the verifier's result
-         and reason. `## Residuals`: every other finding with the verifier's result and reason.
+         and reason, or `not triaged: the verifier failed twice` when Awaiting is `triage`.
+         `## Residuals`: every other finding with the verifier's result and reason.
          Override is `none` until the user gives one. Rewrite the record on the same digest when
          an exception answer changes it.
       8. Run `V --reviewed <change-dir>`. After a REJECT it fails; that is what keeps apply
