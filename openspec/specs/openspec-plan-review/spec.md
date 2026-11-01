@@ -83,7 +83,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 #### Scenario: Round with only blocking findings keeps the existing path
 
 - **WHEN** a complete rejecting round below the approach-question trigger holds only non-eligible blockers, including the ambiguous and no-stated-consequence cases
-- **THEN** the instruction directs a fix and a new round without an ask; from round 3 on, the approach question takes the place of the former per-blocker ask after the third REJECT
+- **THEN** the instruction directs a fix and a new round without a per-blocker ask, except for a blocker whose fix needs a user decision, which is asked as a per-blocker ask offering Fix and Stop, never Accept; from round 3 on, the approach question takes the place of the former per-blocker ask after the third REJECT
 
 #### Scenario: Incomplete round keeps its stop
 
@@ -97,7 +97,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
+- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks about eligible blockers while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The early ask is recorded first and quotes blockers verbatim
