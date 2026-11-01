@@ -1,0 +1,29 @@
+Working...
+Both cases get the same answer. Offer **continue** (one more F3 fix wave) or **re-plan**, and recommend **continue**. Do not offer freeze. No blocker may stay unfixed, not even if the user asks.
+
+**The rule that decides both cases**
+- `gate.md:3` sets `Mandatory class: concurrency-state`.
+- review-work, Blocker disposition → Excluded (`SKILL.md:423-431`): a blocker is "never eligible, whatever the blocker's immediate observer" when "the change's mandatory class is not `none`".
+- "An excluded blocker is never accepted, frozen or overridden at any path, even on the user's request: offer fix, re-plan or stop."
+- integration-review Step 4 (`integration-review/SKILL.md:149`): "Recommend and offer freeze only when every remaining Must-fix class is eligible or covered; otherwise offer re-plan or continue … an excluded class is never frozen."
+- Covered does not help. `gate.md:7-8` has `none` for both Accepted residual risks and Out of scope for blocking, and coverage never applies to an excluded blocker anyway.
+
+**Case 1 (p1 only)**
+- Options: continue or re-plan. Recommend continue: the fix is a field rename in one helper and adds no subsystem, so it does not need a separate plan (Fix waves step 4).
+- Eligible to stay unfixed: none. p1 must be fixed.
+- Without the class exclusion, p1 would be eligible. It is only a gap in the form of evidence (wording), the behaviour stays proven by checks that can fail, and the audit-trail exclusion does not apply because the gate record does not cite `tools/fixture.py`. But the exclusion depends on the change's class, not on what the blocker is about. Change verification says the class comes from the delivered change (`SKILL.md:110`). The helper is not delivered and cannot lower the class to `none`, so p1 inherits `concurrency-state`.
+- Freeze is closed even on user request: "the user's explicit request" only applies to a non-eligible blocker "that no exclusion names".
+
+**Case 2 (p1 + p3)**
+- Options: continue or re-plan. Recommend continue and fix both blockers in that wave.
+- Eligible to stay unfixed: none.
+- p3 is excluded by the same `concurrency-state` rule. It also sits in the delivered retry module, which `gate.md:5` names as the risk ("retries forever"). Whether a misleading comment that might lead someone to change the code meets the threshold doesn't matter here.
+- A decision that leaves several blockers open "needs every one of them" eligible or covered, and neither is.
+
+**Recording**
+- Record the user's choice with `GC decide --lane F3 --choice continue|replan --by <user> --reason <text>`.
+- Product tier: continue is legal at any wave, because the round cap only applies to `internal-tooling`.
+
+Two things I couldn't check from these files:
+- **Exempting the p3 commit:** the comment fix may qualify as an informative-comment-only commit for `GC exempt` (Fix waves step 5). I didn't read how F3 Step 5 treats cleanup commits, so that's unverified.
+- **Exempting the p1 commit:** the `fixture.py` rename changes what the helper outputs, so treat it as delta-reviewed, not exempt.

@@ -1,0 +1,25 @@
+{
+  "verdict": "REJECT",
+  "summary": "Checks lens, round 2.",
+  "blockers": [
+    {
+      "area": "CHECK 1 - credential copied into evidence",
+      "defect": "Task 2.1 copies the provider key from `~/.config/acme/credentials` into `f1/env.txt`, which is committed evidence.",
+      "evidence": "tasks.md:10 (\"Copy the provider key ... into `f1/env.txt`\").",
+      "consequence": "A live provider key lands in the repository history."
+    },
+    {
+      "area": "CHECK 1",
+      "defect": "F1 scenario 3's evidence file is listed in the F1 README as `f1/s3-log.txt`, while tasks.md names it `f1/scenario3.log`.",
+      "evidence": "tasks.md:10 (`f1/scenario3.log`); the README listing is planned in the same task under a different name.",
+      "consequence": "A reader of the F1 README opens a file that does not exist; no credential, protected asset or other exclusion is involved, and every behaviour stays proven by the retained log."
+    },
+    {
+      "area": "Gate classification",
+      "defect": "gate.md's Mandatory class should be `none` because only instruction text changes.",
+      "evidence": "gate.md:3.",
+      "consequence": "Both F2 reviewers run where one would do."
+    }
+  ],
+  "notes": []
+}

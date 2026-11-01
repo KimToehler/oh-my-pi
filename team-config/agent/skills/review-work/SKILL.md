@@ -426,7 +426,7 @@ The one definition of which reviewer blockers may stay unfixed, for every lane: 
 - it concerns the audit trail: the gate record, its trailers, or a QA artifact the validator binds;
 - its area names review_scope item 4 or CHECK 1;
 - it comes from a `security_delta: yes` trailer;
-- the change's mandatory class is not `none`;
+- the change's mandatory class is not `none`, unless the blocker concerns only this change's verification as `Change verification` defines it and misses both limbs of the blocking threshold; on such a change every other blocker stays excluded, including one about the delivered change, one that concerns both, one whose subject is unclear and one that leaves a material behaviour unproven;
 - it disputes the plan's Mandatory class, Risk tier, reviewer set or whole-diff-review decision;
 - it says the change alters a review, gate or release mechanism so that it would admit unreviewed or failing work.
 

@@ -424,8 +424,9 @@ artifacts:
       4a. Approach question: one `ask`, before any per-blocker ask. Show the round; per lens its
          verdict and blocker count; per blocker its area and whether it concerns the delivered
          change or this change's verification, judged by the blocker's consequence, not by which
-         lens raised it (shown so the user can dispute it; it never changes a blocker's severity
-         or eligibility); the Mandatory class, the delivered part that sets it, and its effect on
+         lens raised it (shown so the user can dispute it; it never changes a blocker's severity,
+         and it is the same judgement `Blocker disposition` makes for the class exclusion, never
+         a separate one); the Mandatory class, the delivered part that sets it, and its effect on
          Accept. Then give a causal diagnosis, what keeps generating blockers, and recommend the
          option that removes that cause while best keeping the goal, with the reason. Never
          recommend by counting blockers, and never offer pre-written fixes as options. Options:

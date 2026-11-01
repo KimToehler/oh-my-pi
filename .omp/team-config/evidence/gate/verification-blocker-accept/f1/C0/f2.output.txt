@@ -1,0 +1,25 @@
+Working...
+**None of the four blockers may stay unfixed.** There is no override, freeze or accept path for any of them, even if the user asks. The deciding fact is in `openspec/changes/session-refresh/gate.md:3`: **Mandatory class: concurrency-state**.
+
+**The rule that decides all four.** The skill's Blocker disposition has an Excluded list. One item on it is "the change's mandatory class is not `none`". An excluded blocker is "never accepted, frozen or overridden at any path, even on the user's request." Three consequences follow:
+- **No coverage.** "Coverage never applies to an excluded blocker." It also wouldn't help here, because both `Accepted residual risks` and `Out of scope for blocking` in `gate.md` are `none`.
+- **No user-request path.** The user can ask to accept a blocker only when "no exclusion names" it. All four are excluded, so that path is closed.
+- **No Phase 4 override.** Phase 4 Downgrades allows `below-threshold` only for an eligible blocker, and `accepted-residual` or `out-of-scope` only for a covered one. None of these four is either, so no `rule` would describe a downgrade truthfully. A `frozen` entry at a convergence STOP is also closed, because freeze is limited to eligible or covered blockers, plus non-excluded ones the user asks for.
+
+**Per blocker:**
+
+| Blocker | Decision | Reason from the skill |
+|---|---|---|
+| **p1**: `tools/fixture.py` logs `attempts` instead of `retry_count` | Fix | On its own it looks eligible: a wording gap in an uncited helper, with behaviour still proven by checks that can fail ("weaker proof"). But exclusions apply "whatever the blocker's immediate observer", and the class is not `none`. The class comes from the delivered change, so it covers verification helpers too. |
+| **p2**: a cited F1 transcript is not scenario 2's run | Fix: re-run scenario 2 and cite its real capture | Excluded on three counts. It concerns a QA artifact the validator binds, which is the audit trail. The class is not `none`. And scenario 2 has no proof of its run, which breaks the value proof. |
+| **p3**: comment says "Retry up to three times" but the code retries twice | Fix | Excluded because the class is not `none`. The stated consequence is also that a maintainer may change the retry count to match the comment. That is a code-path risk in a concurrency/state module, not just a gap in the form of evidence. |
+| **sd1**: README names `f1/backoff-delays.txt`, tasks.md names `f1/backoff.txt` | Fix | Excluded twice: it comes from a `security_delta: yes` trailer, and the class is not `none`. "No cited artifact involved, all behaviour proven" does not lift an exclusion. |
+| **sd1**: `security_delta: yes` itself | Re-classify; no fix needed | It means the reviewer saw an authentication path, which a session refresh with rotating tokens plausibly is. Re-classify the final diff in Phase 4: `auth-secrets-pii` may apply alongside `concurrency-state`. Both classes already require both reviewers and Risk tier is already `product`, so no retier is needed. |
+
+**What to offer the user:** fix, re-plan or stop, naming each blocker with its stated consequence as listed above.
+
+If they choose fix, it goes through Fix waves:
+1. Add each fix as an `N.` row under `## TODOs`.
+2. Commit.
+3. Delta-review the commit range. The p3 comment commit can be exempted with `GC exempt`, but only if it contains nothing but that informative comment.
+4. Run the next wave, re-capturing the F1 rows the fixes affect, including scenario 2 for p2.

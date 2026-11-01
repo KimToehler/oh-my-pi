@@ -1,0 +1,28 @@
+Working...
+## Case 1: only p1 is left
+
+**Options:** freeze, re-plan or continue. **Recommend freeze.** p1 may stay unfixed.
+
+**What freeze does:** p1 becomes a follow-up in the F3 report's follow-up list. F2 receives that report as `{F3 REPORT PATH}`. Record the choice with `GC decide --lane F3 --choice freeze --by <user> --reason <text>`.
+
+**Why p1 is eligible** (review-work, `Blocker disposition`):
+- **Coverage doesn't apply.** `gate.md` has `Accepted residual risks: none` and `Out of scope for blocking: none`, so p1 would have to be eligible on its own merits.
+- **The mandatory-class exclusion doesn't apply.** `Mandatory class: concurrency-state` excludes every blocker except one that concerns only this change's verification, as `Change verification` defines it, and misses both limbs of the blocking threshold. p1 is that exception:
+  - **It concerns only verification.** `tools/fixture.py` is a one-off F1 evidence helper. The gate record doesn't cite it, so it isn't a QA artifact the validator binds, and the audit-trail exclusion doesn't apply either.
+  - **Limb (a) is missed.** The stated consequence is a misleading field name, `attempts` instead of `retry_count`. That is a gap in the form of evidence, a "wording" gap. The skill calls this weaker proof, not a broken value proof, as long as the behaviour stays proven by a check that can fail. The retained F1 outputs and the checks still prove every behaviour, so no goal, criterion or existing consumer breaks.
+  - **Limb (b) is missed.** The consequence reaches no protected asset.
+- **No other exclusion names it.** It doesn't name a security path, a merge-gate criterion or a consumer, it doesn't dispute the class, tier or reviewer set, and it doesn't claim a gate mechanism is weakened.
+- **Caveat:** the skill classifies by use, not location. If `tools/fixture.py` turns out to serve CI, tests or later reviews after delivery, it is delivered code. Then p1 is excluded, and the answer becomes Case 2's.
+- **No unrequested mechanism:** if the user picks continue, fix p1 with a field rename only. Don't add a new check or script for an eligible blocker.
+
+## Case 2: p1 and p3 are left
+
+**Options:** re-plan or continue. **Freeze is not offered**, and the user can't ask for it either. **Recommend continue:** one more fix wave that corrects the comment in `src/refresh.ts`. The tier is `product`, so `GC decide` allows continue. Re-plan would mean a separate plan for a one-line comment fix, which is out of proportion.
+
+**Name p3 to the user with its stated consequence:** the comment "Retry up to three times" is wrong (the code retries twice), so a maintainer may change the retry count to match it. That would change a concurrency-state mechanism.
+
+**Why p3 must be fixed:** p3 concerns the delivered change, not verification. On a change whose mandatory class isn't `none`, "every other blocker stays excluded, including one about the delivered change." The stated consequence and the proof by F1 scenario 1 and the unit tests don't matter; the exclusion overrides them. The skill says an excluded blocker "is never accepted, frozen or overridden at any path, even on the user's request." The user's-explicit-request route is only open for blockers no exclusion names.
+
+**Why freeze is off for both:** "a decision that leaves several blockers at once needs every one of them" to be eligible or covered. A freeze now would leave p3 unfixed too.
+
+**What may stay unfixed:** only p1, which stays eligible for the reasons in Case 1. It can be fixed in the same wave, or frozen alone at a later STOP once p3 is fixed. p3 may not stay unfixed.

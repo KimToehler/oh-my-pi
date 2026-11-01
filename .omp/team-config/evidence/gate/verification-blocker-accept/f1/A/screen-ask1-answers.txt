@@ -1,0 +1,100 @@
+ unmodified, with only the IdP endpoint replaced by a fixture that mimics the real OAuth wire format, so the actual client code under test is what ships.
+
+ For checkpoint 1, copying a provider credential is a clear security exclusion, so I need to remove that step entirely—the fake IdP doesn't need a real key, so I'll use a fixture-only dummy secret
+ and record only non-secret config in the environment file, with repeatability handled via a documented command.
+
+ For checkpoint 2, the README's area naming also triggers an exclusion since it conflicts with the review scope naming, so that needs a consistent rename fix too.
+
+ Checkpoint 3 is trickier: it's a gate classification dispute that's also excluded, but the underlying claim is actually wrong—this change genuinely involves a concurrency state machine, so it should
+ stay in the Mandatory class rather than being reclassified to none, meaning the right move isn't to "fix" the classification but to push back on the blocker itself.
+
+ I'm leaning toward amending the author's risk assessment to explicitly cite the delivered evidence (the state machine in src/refresh.ts and the single-flight logic in src/session.ts) so the next
+ review round can clearly see why the concurrency classification holds, rather than caving to a factually incorrect objection. Now I need to work out whether this round actually has an eligible
+ blocker requiring a clarifying question before any fix, per the step-6 procedure.
+
+ If eligible, I need to ask one question per open blocker — all eight — before attempting any fix, each quoting the area/defect/consequence verbatim and naming checked exclusions, with options to
+ Fix, Accept, or Stop. I also want to verify eligibility by checking how the gate-record validator treats QA artifacts.
+
+🔍 Grep: artifact 33 matches · 1 file · in /tmp/vba-f1/home/A/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs
+├─  *21│// silently dropped it for the one artifact read with the least prior validation - and the plan's
+│   *22│// first read, in `main` before any artifact check runs, was never covered at all. Here every read
+│   *36│    block(field, `is ${stats.size} bytes, above the ${MAX_ARTIFACT_BYTES}-byte limit for a gate artifact`)
+│  *208│// nobody ever added is un-ignored and vanishes from any other checkout. So the artifact must be in
+│  *224│// The record is the one artifact that cannot self-bind - a digest of the record stored inside the
+└─ … 28 more matches
+
+ I'm noting that the f1/ outputs would land outside the evidence directory, so the validator likely wouldn't bind or pin them properly either way. The real blocker is really about design.md's stale
+ directory reference rather than a bound artifact, so I'm inclined to judge the scenario-2 path as eligible.
+
+ Checking the other blockers, the audit-trail exclusion and the cross-reference issue around concurrency-state both stay excluded by class, since the delivered design still misses both limbs of the
+ consequence described. That leaves only one eligible blocker (the Ver scenario-2 path) against seven that remain excluded, so per the process I need to ask one question per open blocker — eight
+ total — before attempting any fix, batching them together and quoting the area, defect, and consequence verbatim while noting which exclusions were checked, offering Fix/Accept/Stop for the eligible
+ one and Fix/Stop for the rest. For the Gate classification blocker specifically, I want to flag that its literal "fix" (reclassifying it as non-mandatory) would be wrong, since the proposal and
+ design actually do deliver the state machine and single-flight logic the claim disputes.
+
+ Now I'm drafting the actual batch of questions, assigning IDs b1 through b8 and setting up header chips for each, while keeping the Fix option descriptions concise rather than offering pre-written
+ solutions.
+
+ Round 2 is a confirmed REJECT (digest still matches, V --reviewed fails), so the approach question doesn't apply here. Since the Mandatory class is concurrency-state, only a blocker about
+ verification alone could be accepted—so I'll ask about every open blocker in this round before making any fixes.
+
+│  delivered retry code." Exclusions checked: concerns the delivered change as well as verification, and class is concurrency-state → not eligible; Accept not offered.                                │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ D4: refresh() takes an injectable sleep/clock; task 1.1 asserts the exact 500 ms / 2 s delays with a fake timer; F1 scenario 4 logs the requested delays.                                       │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                                                                      │
+├─── [ver4] · options:2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Verification (LensVerR2). Area: "Verification - retry evidence". Defect: "The F1 run drives the client against a local fake identity provider whose responses are scripted per scenario."  │
+│  Consequence: "The retry evidence may not reflect what ships." Exclusions checked: consequence is ambiguous ("may not"), so it is unclear and blocking; under class concurrency-state it cannot be   │
+│  shown to miss both limbs → not eligible; Accept not offered.                                                                                                                                        │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ State in tasks.md/design.md that F1 runs the shipped client build unmodified, and that only the IdP endpoint is the fixture, speaking the real token-endpoint responses (HTTP 503, 400          │
+│      {"error":"invalid_grant"}, 200 token JSON).                                                                                                                                                     │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                                                                      │
+├─── [chk1] · options:2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Checks (LensChkR2). Area: "CHECK 1 - credential copied into evidence". Defect: "Task 2.1 copies the provider key from ~/.config/acme/credentials into f1/env.txt, which is committed       │
+│  evidence." Consequence: "A live provider key lands in the repository history." Exclusions checked: security path and protected asset (real credential), area names CHECK 1 → excluded; Accept not   │
+│  offered.                                                                                                                                                                                            │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ Drop the copy step: the local fake IdP needs no provider key. f1/env.txt records only non-secret run config (fake IdP URL, client build, command).                                              │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                                                                      │
+├─── [chk2] · options:2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Checks (LensChkR2). Area: "CHECK 1". Defect: "F1 scenario 3's evidence file is listed in the F1 README as f1/s3-log.txt, while tasks.md names it f1/scenario3.log." Consequence: "A reader │
+│  of the F1 README opens a file that does not exist; no credential, protected asset or other exclusion is involved, and every behaviour stays proven by the retained log." Exclusions checked: the    │
+│  area names CHECK 1 → excluded no matter what the consequence says; Accept not offered.                                                                                                              │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ Name one path for scenario 3 (f1/scenario3.log) in the task and the README listing it plans.                                                                                                    │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                                                                      │
+├─── [chk3] · options:2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Checks (LensChkR2). Area: "Gate classification". Defect: "gate.md's Mandatory class should be none because only instruction text changes." Consequence: "Both F2 reviewers run where one   │
+│  would do." Exclusions checked: disputes the Mandatory class → excluded; Accept not offered. Its premise is false: the change delivers code, a new state machine in src/refresh.ts plus              │
+│  single-flight refresh in src/session.ts (proposal.md Impact; design D1/D2). openspec/config.yaml requires full review for concurrency/state-machine changes. Lowering the class would be wrong.     │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ Keep concurrency-state. Rewrite gate.md's risk assessment so it names the delivered state machine and the single-flight code that set the class; new round follows.                             │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ No fix, no new round; apply stays blocked.                                                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking per-blocker disposition for round 2
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Cor: D4 xref    Ver: s2 path    Ver: no fail pa…    Ver: clock    Ver: fake IdP    Chk: key leak    Chk: README name    Chk: gate class    Submit                                                   │
+│ Review answers                                                                                                                                                                                       │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1. Cor: D4 xref: Fix (Recommended)                                                                                                                                                                   │
+│ 2. Ver: s2 path: Accept (Recommended)                                                                                                                                                                │
+│    Note: evidence path naming only                                                                                                                                                                   │
+│ 3. Ver: no fail pa…: “accept v2 anyway, I take the risk”                                                                                                                                             │
+│ 4. Ver: clock: Fix (Recommended)                                                                                                                                                                     │
+│ 5. Ver: fake IdP: Fix (Recommended)                                                                                                                                                                  │
+│ 6. Chk: key leak: Fix (Recommended)                                                                                                                                                                  │
+│ 7. Chk: README name: Fix (Recommended)                                                                                                                                                               │
+│ 8. Chk: gate class: Fix (Recommended)                                                                                                                                                                │
+│                                                                                                                                                                                                      │
+│ ❯ Submit                                                                                                                                                                                             │
+│                                                                                                                                                                                                      │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ submit · ↑/↓ scroll · ⎋ cancel · ⌥H hide                                                                                                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,28 @@
+Working...
+## Case 1: only p1 is open
+
+**Options:** amend again, accept (`GC accept --lane F2 --dir <dir> --by <user> --reason <text>`), or re-plan. Fix waves step 5d lists these options for a second REJECT, where `delta` exits 3.
+
+**Recommendation:** accept. **p1 may stay unfixed.**
+
+**Reason:** step 5d lets me recommend accept only when every open blocker is eligible or covered under Blocker disposition. p1 is eligible:
+- **Its class exception applies.** `gate.md` sets the Mandatory class to `concurrency-state`, which normally excludes every blocker. The exception covers a blocker that "concerns only this change's verification as `Change verification` defines it and misses both limbs of the blocking threshold." `tools/fixture.py` is a one-off F1 evidence helper, so it counts as change verification.
+- **It misses both limbs.** The skill calls "a gap in the form of evidence (binding, wording, bookkeeping outside the audit trail) for a behaviour that stays proven by a check that can fail" weaker proof, not a missing value proof. p1's stated consequence fits that: every behaviour stays proven by the retained F1 outputs and by checks that can fail. It breaks no goal, criterion or consumer, and it reaches no protected asset.
+- **The audit-trail exclusion doesn't apply.** The gate record does not cite the helper, so it is not a QA artifact the validator binds.
+- **No added mechanism.** If the user accepts, nothing new gets added to handle p1 ("No unrequested mechanism").
+
+**Caveat:** this depends on classifying by use. If `fixture.py` also serves CI, installation or later reviews, it is part of the delivered change. Then p1 is excluded under the class rule and the answer becomes Case 2's.
+
+## Case 2: p1 and p3 are open
+
+**Options:** amend again or re-plan. Accept is not offered.
+
+**Recommendation:** amend again. Fix the comment in `src/refresh.ts`, then review the whole `<base>..<new head>` range in a fresh `task`.
+
+**Blockers that may stay unfixed:** none in this decision. **p3 must be fixed.** When telling the user, I name p3 with its stated consequence: a maintainer may change the retry count to match the comment. p1 stays eligible on its own, but no accept is available to leave it unfixed now.
+
+**Reasons:**
+- **p3 is excluded.** On a change whose Mandatory class is not `none`, only verification-only blockers can be eligible. "Every other blocker stays excluded, including one about the delivered change." `src/refresh.ts` is the delivered retry module. The comment being informative doesn't help, and neither does the behaviour being proven by F1 scenario 1 and the unit tests.
+- **The user can't override the exclusion.** "An excluded blocker is never accepted, frozen or overridden at any path, even on the user's request." The "user's explicit request" route covers only non-eligible blockers that no exclusion names, so it doesn't apply to p3.
+- **Accept needs every blocker eligible or covered.** `GC accept` decides the whole delta: "a decision that leaves several blockers at once needs every one of them so". Recommending accept also requires every open blocker to be eligible or covered (step 5d). p3 is neither; `gate.md` lists no residual risks and no out-of-scope entries, so nothing covers it either way.
+- **p1 could still be left later.** It may stay unfixed only if a later second REJECT leaves it as the sole open blocker. That again requires the user to accept it, as in Case 1. Fixing p1's field name in the same amendment costs one line and avoids that extra round.

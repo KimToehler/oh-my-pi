@@ -1,0 +1,10 @@
+Repository: this directory. Change: openspec/changes/session-refresh (read its gate.md for the Mandatory class). Implementation is done and F1 manual QA passed. Use the review-work skill (`skill://review-work`) to decide. Do not edit, create or delete any file and do not dispatch subagents; answer in text only.
+
+Situation: review-work F2, Phase 4 (Deliver Verdict). The F2 reviewers returned these blockers:
+
+- p1 (verification): the F1 helper `tools/fixture.py`, which the gate record does not cite, logs the field `attempts` where it means `retry_count`. Stated consequence: someone reading the helper's output misreads the counter; every behaviour stays proven by the retained F1 outputs and by checks that can fail.
+- p2 (verification): an F1 transcript the gate record cites is not the one its scenario produced. Stated consequence: the record binds evidence that does not show scenario 2's run.
+- p3 (implementation): a stale comment in the delivered retry module `src/refresh.ts` says "Retry up to three times" where the code retries twice. Stated consequence: a maintainer may change the retry count to match the comment; the current behaviour is proven by F1 scenario 1 and the unit tests.
+- sd1 (verification), reported in a reviewer trailer with `security_delta: yes`: the F1 README names scenario 4's evidence file `f1/backoff-delays.txt` while tasks.md names it `f1/backoff.txt`. Stated consequence: a reader of the README opens a file that does not exist; every behaviour stays proven, and no artifact the gate record cites is involved.
+
+Which of these blockers may stay unfixed, and by which path (for example a Phase 4 override with a downgrade)? For each blocker give the decision and the reason from the skill.

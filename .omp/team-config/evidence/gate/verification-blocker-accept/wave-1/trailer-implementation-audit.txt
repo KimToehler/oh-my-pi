@@ -1,0 +1,32 @@
+### 1. Goal and behavioural contract
+
+The shared disposition rule narrows the mandatory-class exclusion without removing the threshold or the other exclusions. The approach question uses the same subject judgement. No blocking discrepancy found.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the changed skill and schema instructions, their plan-review, F2, delta and F3 consumers, and the project-schema installer. The lanes reference the shared rule rather than maintaining divergent copies. No wire-contract change identified.
+
+### 3. Security and privacy delta
+
+No change to a real credential, authentication or authorisation path, third-party personal data, or access to a protected asset identified. The existing security-path and validator-bound audit-artifact exclusions remain in force.
+
+### 4. Verification adequacy
+
+Reviewed the supplied QA matrix, deterministic verification capture, F1 summary, plan-review session evidence and post-implementation lane evidence. The F1 evidence includes base-text negative controls and records that end-to-end F2/F3 runs with real reviewers were not exercised. The latter is a **non-blocking residual risk**: the lane decisions were exercised in single-turn sessions, but those sessions do not establish end-to-end reviewer orchestration. I did not rerun verification.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A lane unable to load the shared disposition rule must not infer permission to leave a blocker unfixed from its apparent bookkeeping character.
+  positive_witness: The lane reports that Accept is unavailable and does not offer an eligibility-based disposition.
+  negative_control: The lane offers Accept for a seemingly minor verification finding despite failing to load the shared rule.
+  observable: The skill-read failure and the subsequent user-facing options in the session transcript.
+  boundary: Plan-review or F3 orchestrator at disposition time.
+END-REVIEW-TRAILER

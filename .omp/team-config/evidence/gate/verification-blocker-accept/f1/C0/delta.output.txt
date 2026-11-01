@@ -1,0 +1,22 @@
+Working...
+Both cases get the same answer. Neither blocker may stay unfixed, so I would offer the user **amend again** or **re-plan**, and recommend amend again. Accept is not offered, and it stays off even if the user asks for it.
+
+**Why accept is off in both cases**
+- `openspec/changes/session-refresh/gate.md:3` sets `Mandatory class: concurrency-state`.
+- Blocker disposition lists "the change's mandatory class is not `none`" as an exclusion (SKILL.md:429). An exclusion applies "whatever the blocker's immediate observer" (SKILL.md:423). An excluded blocker "is never accepted, frozen or overridden at any path, even on the user's request: offer fix, re-plan or stop" (SKILL.md:433).
+- Fix waves step 5d lists the options after a delta exit 3: amend again, accept or re-plan. It allows recommending or offering accept "only when every open blocker of the delta is eligible or covered" (SKILL.md:478).
+- Coverage can't help: `gate.md:7-8` lists no accepted residual risks and nothing out of scope for blocking, and "Coverage never applies to an excluded blocker" (SKILL.md:437).
+
+**Case 1 (p1 only)**
+- **Offer:** amend again, or re-plan. Accept is not offered.
+- **Recommend:** amend again: rename the logged field in `tools/fixture.py` to `retry_count`, then have a fresh `task` review the whole range `<base>..<new head>` (step 5d).
+- **May stay unfixed:** none.
+- **Why the helper doesn't change this:** Without the class exclusion, p1 would pass the eligibility test. It is a "gap in the form of evidence … for a behaviour that stays proven by a check that can fail" (SKILL.md:421). The gate record doesn't cite the helper, so it isn't part of the audit trail. But the Mandatory class comes from the delivered change, not from the tools used to verify it (SKILL.md:87). Here that change is the refresh state machine, so the class stands, and so does the exclusion for every blocker of this change.
+
+**Case 2 (p1 and p3)**
+- **Offer:** amend again, or re-plan. Accept is not offered.
+- **Recommend:** amend again: fix the field name and correct the comment in `src/refresh.ts`, then a fresh review of the whole range.
+- **May stay unfixed:** none. Both blockers fall under the same exclusion. Accept needs every open blocker to be eligible or covered (SKILL.md:439), and here neither is.
+- **About p3:** It does not need to be weighed against the eligibility threshold, because the exclusion already rules it out. Its stated consequence is that a maintainer may change the retry count to match the comment.
+
+Re-plan would be too much in both cases. Both fixes are small, and neither adds a new part to the system (step 4), so amend again is the proportionate choice.

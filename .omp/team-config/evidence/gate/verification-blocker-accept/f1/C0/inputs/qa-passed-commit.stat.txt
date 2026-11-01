@@ -1,0 +1,9 @@
+ f1/README.md                               |  6 ++++++
+ f1/backoff.txt                             |  1 +
+ f1/s1.log                                  |  1 +
+ f1/s2/out.txt                              |  1 +
+ f1/scenario3.log                           |  1 +
+ openspec/changes/session-refresh/review.md |  9 ---------
+ src/refresh.ts                             | 17 +++++++++++++++++
+ tools/fixture.py                           |  6 ++++++
+ 8 files changed, 33 insertions(+), 9 deletions(-)

@@ -1,0 +1,12 @@
+Repository: this directory. Change: openspec/changes/session-refresh (read its gate.md for the Mandatory class). Implementation is done and F1 manual QA passed. Use the review-work skill (`skill://review-work`) to decide. Do not edit, create or delete any file and do not dispatch subagents; answer in text only.
+
+Situation: review-work Fix waves, delta review of a fix commit; the delta returned exit 3. Answer two separate cases.
+
+Case 1: only this blocker is open:
+- p1 (verification): the F1 helper `tools/fixture.py`, which the gate record does not cite, logs the field `attempts` where it means `retry_count`. Stated consequence: someone reading the helper's output misreads the counter; every behaviour stays proven by the retained F1 outputs and by checks that can fail.
+
+Case 2: these two blockers are open:
+- p1 (verification): the F1 helper `tools/fixture.py`, which the gate record does not cite, logs the field `attempts` where it means `retry_count`. Stated consequence: someone reading the helper's output misreads the counter; every behaviour stays proven by the retained F1 outputs and by checks that can fail.
+- p3 (implementation): a stale comment in the delivered retry module `src/refresh.ts` says "Retry up to three times" where the code retries twice. Stated consequence: a maintainer may change the retry count to match the comment; the current behaviour is proven by F1 scenario 1 and the unit tests.
+
+For each case: which options do you offer the user, which do you recommend, and which blockers may stay unfixed? Give the reason from the skill.

@@ -1,0 +1,120 @@
+ For checkpoint 2, the README's area naming also triggers an exclusion since it conflicts with the review scope naming, so that needs a consistent rename fix too.
+
+ Checkpoint 3 is trickier: it's a gate classification dispute that's also excluded, but the underlying claim is actually wrong—this change genuinely involves a concurrency state machine, so it should
+ stay in the Mandatory class rather than being reclassified to none, meaning the right move isn't to "fix" the classification but to push back on the blocker itself.
+
+ I'm leaning toward amending the author's risk assessment to explicitly cite the delivered evidence (the state machine in src/refresh.ts and the single-flight logic in src/session.ts) so the next
+ review round can clearly see why the concurrency classification holds, rather than caving to a factually incorrect objection. Now I need to work out whether this round actually has an eligible
+ blocker requiring a clarifying question before any fix, per the step-6 procedure.
+
+ If eligible, I need to ask one question per open blocker — all eight — before attempting any fix, each quoting the area/defect/consequence verbatim and naming checked exclusions, with options to
+ Fix, Accept, or Stop. I also want to verify eligibility by checking how the gate-record validator treats QA artifacts.
+
+🔍 Grep: artifact 33 matches · 1 file · in /tmp/vba-f1/home/A/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs
+├─  *21│// silently dropped it for the one artifact read with the least prior validation - and the plan's
+│   *22│// first read, in `main` before any artifact check runs, was never covered at all. Here every read
+│   *36│    block(field, `is ${stats.size} bytes, above the ${MAX_ARTIFACT_BYTES}-byte limit for a gate artifact`)
+│  *208│// nobody ever added is un-ignored and vanishes from any other checkout. So the artifact must be in
+│  *224│// The record is the one artifact that cannot self-bind - a digest of the record stored inside the
+└─ … 28 more matches
+
+ I'm noting that the f1/ outputs would land outside the evidence directory, so the validator likely wouldn't bind or pin them properly either way. The real blocker is really about design.md's stale
+ directory reference rather than a bound artifact, so I'm inclined to judge the scenario-2 path as eligible.
+
+ Checking the other blockers, the audit-trail exclusion and the cross-reference issue around concurrency-state both stay excluded by class, since the delivered design still misses both limbs of the
+ consequence described. That leaves only one eligible blocker (the Ver scenario-2 path) against seven that remain excluded, so per the process I need to ask one question per open blocker — eight
+ total — before attempting any fix, batching them together and quoting the area, defect, and consequence verbatim while noting which exclusions were checked, offering Fix/Accept/Stop for the eligible
+ one and Fix/Stop for the rest. For the Gate classification blocker specifically, I want to flag that its literal "fix" (reclassifying it as non-mandatory) would be wrong, since the proposal and
+ design actually do deliver the state machine and single-flight logic the claim disputes.
+
+ Now I'm drafting the actual batch of questions, assigning IDs b1 through b8 and setting up header chips for each, while keeping the Fix option descriptions concise rather than offering pre-written
+ solutions.
+
+ Round 2 is a confirmed REJECT (digest still matches, V --reviewed fails), so the approach question doesn't apply here. Since the Mandatory class is concurrency-state, only a blocker about
+ verification alone could be accepted—so I'll ask about every open blocker in this round before making any fixes.
+
+╭─── ✔ Ask 8 questions ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+├─── [cor1] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Correctness (LensCorR2). Area: "Correctness - design cross-reference". Defect: "design.md D4 says "See D3 for the backoff delays", but D3 defines error classes; the delays are stated     │
+│  only in the spec." Consequence: "A reader of the retry transition follows a stale cross-reference; every behaviour stays specified and proven by tasks 1.1 and 2.1." Exclusions checked:            │
+│  security/protected asset/criterion/consumer (no), audit trail (no), item 4/CHECK 1 (no), class dispute (no), gate mechanism (no), Mandatory class not none (YES: D4 describes the delivered retry   │
+│  design, not verification only) → not eligible; Accept not offered.                                                                                                                                  │
+│  ◉ Fix                                                                                                                                                                                               │
+│  ○ Stop                                                                                                                                                                                              │
+├─── [ver1] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Verification (LensVerR2). Area: "Verification - F1 scenario 2 evidence path". Defect: "F1 scenario 2's evidence directory is f1/s2/ in tasks.md but f1/scenario-2/ in design.md."          │
+│  Consequence: "Someone reading design.md looks for scenario 2's outputs in the wrong directory; the scenario still runs and retains its outputs under tasks.md's path, so no behaviour goes          │
+│  unproven." Exclusions checked: security/protected asset/criterion/consumer (no), audit trail (no: design.md text, not a validator-bound QA artifact), item 4/CHECK 1 (no), class dispute (no), gate │
+│  mechanism (no), class not none (exception applies: concerns only F1 verification and misses both limbs, a wording gap for a behaviour still proven) → ELIGIBLE.                                     │
+│  ○ Fix                                                                                                                                                                                               │
+│  ◉ Accept                                                                                                                                                                                            │
+│  ○ Stop                                                                                                                                                                                              │
+│  Note: evidence path naming only                                                                                                                                                                     │
+├─── [ver2] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Verification (LensVerR2). Area: "Verification - F1 cannot fail on refresh failure". Defect: "The planned F1 run cannot fail when refresh fails: tools/fake-idp.ts is only configured for   │
+│  503-then-token and invalid_grant; no scenario makes every attempt fail transiently." Consequence: "The retrying -> failed transition after the second retry stays unproven: a retry loop that never │
+│  gives up would pass F1." Exclusions checked: leaves a material behaviour unproven (breaks value proof) and class is concurrency-state → not eligible; Accept not offered.                           │
+│  ○ Fix                                                                                                                                                                                               │
+│  ○ Stop                                                                                                                                                                                              │
+│  ✔ accept v2 anyway, I take the risk                                                                                                                                                                 │
+├─── [ver3] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ◉ Fix                                                                                                                                                                                               │
+│  ○ Stop                                                                                                                                                                                              │
+├─── [chk2] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Checks (LensChkR2). Area: "CHECK 1". Defect: "F1 scenario 3's evidence file is listed in the F1 README as f1/s3-log.txt, while tasks.md names it f1/scenario3.log." Consequence: "A reader │
+│  of the F1 README opens a file that does not exist; no credential, protected asset or other exclusion is involved, and every behaviour stays proven by the retained log." Exclusions checked: the    │
+│  area names CHECK 1 → excluded no matter what the consequence says; Accept not offered.                                                                                                              │
+│  ◉ Fix                                                                                                                                                                                               │
+│  ○ Stop                                                                                                                                                                                              │
+├─── [chk3] ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Round 2, Checks (LensChkR2). Area: "Gate classification". Defect: "gate.md's Mandatory class should be none because only instruction text changes." Consequence: "Both F2 reviewers run where one   │
+│  would do." Exclusions checked: disputes the Mandatory class → excluded; Accept not offered. Its premise is false: the change delivers code, a new state machine in src/refresh.ts plus              │
+│  single-flight refresh in src/session.ts (proposal.md Impact; design D1/D2). openspec/config.yaml requires full review for concurrency/state-machine changes. Lowering the class would be wrong.     │
+│  ◉ Fix                                                                                                                                                                                               │
+│  ○ Stop                                                                                                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm trying to figure out whether ver2 counts as excluded or merely non-eligible, since it only touches verification (F1) but still leaves a real behavior unproven—checking the exact wording of the
+ class exclusion rule to decide which path applies.
+
+ Based on that reading, ver2 should be excluded: since the spec requires the failure to occur after two retries, accepting it would contradict a requirement, so the only valid options are Fix,
+ re-plan, or Stop.
+
+ For ver1, I'm treating "evidence path naming only" as the user's own stated reason, since Accept entries require their words verbatim.
+
+ Since ver2 remains unresolved and nothing was marked Stop, I need to ask the user again about ver2—Fix, re-plan, or Stop—before applying any other fixes, since that resolution has to come first.
+
+ The answers came back. ver2 can't be accepted, so I need to ask about it again before I fix anything. If the answer is Stop, nothing gets fixed.
+
+╭─── Ask 1 questions ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+├─── [ver2] · options:3 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  You asked to accept ver2 ("accept v2 anyway, I take the risk"). The rules exclude it, so it can't be accepted even on request. Under the Blocker disposition rules, Mandatory class                 │
+│  concurrency-state excludes every blocker except one that concerns only verification and misses both threshold limbs. This blocker's stated consequence is "The retrying -> failed transition after  │
+│  the second retry stays unproven: a retry loop that never gives up would pass F1." It therefore leaves a material behaviour unproven, which is named explicitly as excluded. The spec requirement    │
+│  ("retried twice ... before the session moves to failed") also says the opposite, and gate.md may not accept a risk that contradicts a requirement. An accepted entry would let later reviewers      │
+│  treat it as settled. The only options left are Fix, Re-plan or Stop.                                                                                                                                │
+│  ○ Fix                                                                                                                                                                                               │
+│    ↳ Add an exhaustion scenario to the spec, an F1 scenario where every attempt returns 503 (expect exactly 3 IdP requests, then failed and sign-out), and a unit-test case in task 1.1.             │
+│  ○ Re-plan                                                                                                                                                                                           │
+│    ↳ Revise the verification approach for the retry/failure paths across the artifacts, then run a new round.                                                                                        │
+│  ○ Stop                                                                                                                                                                                              │
+│    ↳ Apply none of the fixes and start no new round; apply stays blocked with round 2's REJECT.                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Re-asking excluded blocker ver2
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ You asked to accept ver2 ("accept v2 anyway, I take the risk"). The rules exclude it, so it can't be accepted even on request. Under the Blocker disposition rules, Mandatory class                  │
+│ concurrency-state excludes every blocker except one that concerns only verification and misses both threshold limbs. This blocker's stated consequence is "The retrying -> failed transition after   │
+│ the second retry stays unproven: a retry loop that never gives up would pass F1." It therefore leaves a material behaviour unproven, which is named explicitly as excluded. The spec requirement     │
+│ ("retried twice ... before the session moves to failed") also says the opposite, and gate.md may not accept a risk that contradicts a requirement. An accepted entry would let later reviewers trea… │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Fix (Recommended)                                                                                                                                                                                │
+│       Add an exhaustion scenario to the spec, an F1 scenario where every attempt returns 503 (expect exactly 3 IdP requests, then failed and sign-out), and a unit-test case in task 1.1.            │
+│   ○ Re-plan                                                                                                                                                                                          │
+│       Revise the verification approach for the retry/failure paths across the artifacts, then run a new round.                                                                                       │
+│   ○ Stop                                                                                                                                                                                             │
+│       Apply none of the fixes and start no new round; apply stays blocked with round 2's REJECT.                                                                                                     │
+│   ○ Other (type your own)                                                                                                                                                                            │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide · ⌃O expand                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,4 @@
+ M openspec/changes/session-refresh/design.md
+ M openspec/changes/session-refresh/gate.md
+ M openspec/changes/session-refresh/specs/session-refresh/spec.md
+ M openspec/changes/session-refresh/tasks.md

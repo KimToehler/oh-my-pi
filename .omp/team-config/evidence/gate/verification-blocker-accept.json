@@ -1,0 +1,113 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/verification-blocker-accept",
+  "plan_sha256": "510097db54526d32eebdc3159c922e9746c24f6b758eb0453f505f4e588460fc",
+  "reviewed_sha": "19c1efe4429d5da21a90214b0f2f743c49878cae",
+  "diff_base": "fa6bf72aef2775cd0c2dee71f6a8e52b2f694355",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state (changes the guard of the review-flow transition that decides which blockers reach Accept), so both invocations run.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 Delivered text: tasks 1.1-1.3 Verify at the snapshot head",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/wave-1/verify-delivered-text.txt",
+      "artifact_sha256": "6f9767caf70b7c59a46d417e46a24a2b4a69814cd5d3db40926efa5487498ca6"
+    },
+    {
+      "name": "Q2 F1 A: eligible verification blocker under concurrency-state, exclusions, typed accept of excluded v2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/A/calls.md",
+      "artifact_sha256": "cd43c4fab5e95822018dbd9774f4a1fc8bee138ace29d27174795dd07032597d"
+    },
+    {
+      "name": "Q3 F1 A0 negative control (SKILL.md from base)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/A0/calls.md",
+      "artifact_sha256": "bd7d44f78a48b8854cab5861a19ea8898c4a8aaf00e086897c4bdb91eab45898"
+    },
+    {
+      "name": "Q4 F1 A2: covering gate.md entries cannot cover excluded v2/u1",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/A2/calls.md",
+      "artifact_sha256": "b2f46e5f43cbf42dec38c499a061346c3aa5a0785aeb8e064af2b62f3ff7bcaa"
+    },
+    {
+      "name": "Q5 F1 B: approach question assignment and eligibility",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/B/calls.md",
+      "artifact_sha256": "b40d3fe2ae7170c92514b1e5f189f56e8696cf64e5c187c87c8247e66a6746bc"
+    },
+    {
+      "name": "Q6 F1 C: F2 override, delta accept, F3 freeze with delivered F",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/C/calls.md",
+      "artifact_sha256": "0b6ca85935263326010a3ea161a1cd151825e4eed87d4369cd567dcb37b6097e"
+    },
+    {
+      "name": "Q7 F1 C0 negative control (base F)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/C0/calls.md",
+      "artifact_sha256": "58611206047222058f2137853ddae4ba03912342fa5e71c68b7cde19a17104a5"
+    },
+    {
+      "name": "Q8 F1 D1 instruction review, Blocker disposition",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/D1/calls.md",
+      "artifact_sha256": "235dba8cc8b1571266e5bc6ed85e5b635c8589ce75626e76057ef81cde89fda0"
+    },
+    {
+      "name": "Q9 F1 D2 instruction review, step 4a",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/D2/calls.md",
+      "artifact_sha256": "6edfc7105ee568900ac727ae0288a602dc4b2bfcec3dae54ee5f5c9218ee2c86"
+    },
+    {
+      "name": "Q10 F1 summary, validity and unexercised branches",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/f1/README.md",
+      "artifact_sha256": "619312568a3a17baf6393993e9bb40a09d51cf876c10a5d08f760ccf7a57d1e7"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "three instruction texts that state one rule, its README description and two spec deltas; no executable code, no independently testable module or runtime layer"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/wave-1/trailer-implementation-audit.txt",
+      "trailer_sha256": "5b24b7c7345caa39b73792e6b93fad9e2866d32ac7298447174a750ca04b3fb3",
+      "note": "no blockers; non-blocking residual: F2/F3 end-to-end runs with real reviewers unexercised (F1 README)"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/verification-blocker-accept/wave-1/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "46be10a95e573f5c16230b909ba1108045bccffc1b85b0a5b6dece8f032f3762",
+      "note": "no blockers; rollout must deploy skill, refresh project schema copies and restart sessions together"
+    }
+  ],
+  "blockers": []
+}
