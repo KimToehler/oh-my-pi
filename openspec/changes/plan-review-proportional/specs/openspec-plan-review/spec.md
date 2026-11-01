@@ -4,17 +4,17 @@
 
 ### Requirement: Review depth follows the change's risk
 
-Before round 1 the `omp-gated` review instruction SHALL set one depth and record it in `review.md`: `risky` when `gate.md`'s Mandatory class is not `none` or the change alters a review, gate or release mechanism, otherwise `standard`. `standard` dispatches one fresh `plan-reviewer` with all review scopes; `risky` dispatches two fresh reviewers in one `task` batch, scope A (correctness, architecture, security, mechanical checks) and scope B (verification, executability).
+Before round 1 the planner SHALL record `- **Depth**:` in `gate.md` with its reason: `risky` when the Mandatory class is not `none` or the change alters a review, gate or release mechanism, else `standard`; a fix changing either SHALL update it before the next dispatch. `standard` dispatches one fresh `plan-reviewer` with all scopes; `risky` dispatches two in one batch, scope A (correctness, architecture, security, checks) and scope B (verification, executability).
 
 #### Scenario: Instruction change without a class
 
 - **WHEN** a change has Mandatory class `none` and edits a skill's wording without touching a review, gate or release mechanism
-- **THEN** `review.md` records depth `standard` and each round dispatches one `plan-reviewer`
+- **THEN** `gate.md` records depth `standard` and each round dispatches one `plan-reviewer`
 
 #### Scenario: Class-bearing change
 
 - **WHEN** a change has Mandatory class `concurrency-state`
-- **THEN** `review.md` records depth `risky` and each full round dispatches the scope A and scope B reviewers in one batch
+- **THEN** `gate.md` records depth `risky` and each full round dispatches the scope A and scope B reviewers in one batch
 
 #### Scenario: Gate mechanism without a class
 
@@ -23,7 +23,7 @@ Before round 1 the `omp-gated` review instruction SHALL set one depth and record
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction records depth `standard` for a change whose Mandatory class is `auth-secrets-pii`, or dispatches one reviewer for a `risky` change
+- **WHEN** an instruction records depth `standard` for a change whose Mandatory class is `auth-secrets-pii`, dispatches one reviewer for a `risky` change, or keeps the old depth after a fix raised the class
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixed reviewer briefs on a pinned model
@@ -85,12 +85,17 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 
 ### Requirement: Fix budget per depth
 
-Confirmed blocking findings SHALL be fixed in the artifacts without asking while budget remains. `standard`: after the round-1 fixes, one fresh `plan-reviewer` checks the fix delta (fix entries plus artifact diff) under PROCESS 4. `risky`: after the round-1 fixes, round 2 is a full fresh two-reviewer round. No further dispatch SHALL follow without the user's answer.
+Confirmed blocking findings SHALL be fixed and committed without asking while budget remains. `standard`: one fresh `plan-reviewer` then checks the fix delta under PROCESS 4: the fixed findings verbatim from the record as fix entries, plus `git diff <c> -- <change dir>` without `review.md`, where `<c>` is the commit that recorded the round. `risky`: round 2 is a full fresh two-reviewer round on the new digest. No further dispatch SHALL follow without the user's answer.
 
 #### Scenario: Standard change with fixes
 
 - **WHEN** round 1 of a `standard` change leaves two confirmed blocking findings
 - **THEN** both are fixed, the validator passes, and one delta check runs on the new digest; its findings are triaged like a round
+
+#### Scenario: Risky change with fixes
+
+- **WHEN** round 1 of a `risky` change leaves one confirmed blocking finding
+- **THEN** it is fixed and committed, and round 2 dispatches fresh scope A and scope B reviewers with new subagent ids on the new digest
 
 #### Scenario: Risky change clean after triage
 
@@ -99,7 +104,7 @@ Confirmed blocking findings SHALL be fixed in the artifacts without asking while
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches a third full round of a `risky` change, or a second delta check of a `standard` change, before the user answered the exhaustion ask
+- **WHEN** an instruction dispatches a third full round of a `risky` change or a second delta check of a `standard` change before the user answered the exhaustion ask, ends a `risky` review OKAY after round-1 fixes without round 2, answers them with a one-reviewer delta check, or builds a delta check from a diff base other than the recording commit
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The user is asked only on named exceptions
@@ -118,7 +123,7 @@ The instruction SHALL ask the user only when a finding in the security scope (re
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction records an unconfirmed security-scope finding as a residual without asking, or asks the user at a round whose findings are all refuted and outside the security scope
+- **WHEN** an instruction records an unconfirmed security-scope finding, or an `undecided` finding whose stated consequence meets the threshold, as a residual without asking, applies a fix that needs an open scope decision without asking, or asks the user at a round whose findings are all refuted and outside the security scope
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Budget exhaustion asks once and Override is the user's acceptance
@@ -153,6 +158,44 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 - **WHEN** an instruction edits an artifact or asks the user before writing the round's REJECT, drops a residual from the record, or records a finding awaiting an exception answer outside Blockers
 - **THEN** review of that instruction MUST fail
+
+### Requirement: Resume from the record
+
+`review.md` SHALL carry `- **Awaiting**:` naming the ask open when it was written (`none`, `exception`, `exhaustion` or `scope`), and every finding under Blockers SHALL carry the verifier's result and reason. A session resuming a review whose recorded digest equals the current one and whose Awaiting is not `none` SHALL ask that ask again from the record's fields before any edit or dispatch, and SHALL NOT re-dispatch the verifier for recorded findings.
+
+#### Scenario: Interrupted exhaustion ask
+
+- **WHEN** the session ends after writing a round-2 REJECT with Awaiting `exhaustion` and before the user answered, and a new session resumes the review
+- **THEN** it asks the exhaustion ask again, quoting the recorded findings and verifier reasons, and dispatches no verifier or reviewer first
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction re-triages recorded findings on resume, offers "keep" for a finding recorded as confirmed, or writes a record with an open ask and Awaiting `none`
+- **THEN** review of that instruction MUST fail
+
+### Requirement: The record matches the change's risk
+
+`validate-openspec-change.mjs` SHALL refuse a `gate.md` Depth other than `standard` or `risky`, and Depth `standard` with a Mandatory class other than `none`. `--reviewed` SHALL refuse a record of Round 1 or 2 with fewer than two reviewer ids when `gate.md` has Depth `risky` or a class other than `none`. Round counts rounds and delta checks from 1. A `gate.md` without Depth is checked on its class alone.
+
+#### Scenario: Risky change recorded with one reviewer
+
+- **WHEN** `gate.md` has class `concurrency-state` and Depth `risky`, and a current `review.md` of Round 1 names one reviewer id
+- **THEN** `--reviewed` fails and names the Reviewer field
+
+#### Scenario: Exhaustion delta check
+
+- **WHEN** a `risky` change's current OKAY `review.md` is Round 3 with one reviewer id
+- **THEN** `--reviewed` passes
+
+#### Scenario: Record from before this change
+
+- **WHEN** `gate.md` has class `concurrency-state` and no Depth, and a current OKAY `review.md` names three lens ids
+- **THEN** `--reviewed` passes
+
+#### Scenario: Negative control
+
+- **WHEN** `gate.md` has Depth `standard` and Mandatory class `auth-secrets-pii`
+- **THEN** `validate-openspec-change.mjs` MUST fail and name the Depth field
 
 ### Requirement: Plan-review triage stays inside plan review
 

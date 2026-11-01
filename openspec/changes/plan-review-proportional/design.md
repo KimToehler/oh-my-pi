@@ -17,9 +17,9 @@ See proposal.md (Why). The plan-review loop lives in the `review` artifact instr
 
 ## Decisions
 
-### D1. Depth is derived and recorded, not a gate.md field
+### D1. Depth is a gate.md field, checked where it is mechanical
 
-`risky` when Mandatory class is not `none` or the change alters a review, gate or release mechanism (the predicate `SKILL.md:431` already uses); else `standard`. The planner records it as a `- **Depth**: <standard|risky> (<reason>)` bullet in `review.md`; reviewers can dispute it like any claim. Alternative: a new `gate.md` field. Rejected: `gate.md` is parsed by both validators and the gate record, the schema forbids a `Review tier` field, and the class already carries the risk.
+`risky` when Mandatory class is not `none` or the change alters a review, gate or release mechanism (the predicate `SKILL.md:431` already uses); else `standard`. The planner records it as `- **Depth**: <standard|risky> (<reason>)` in `gate.md`, next to the class it derives from. `gate.md` is in the digest and every reviewer reads it (the brief excludes only `review.md`, `schema.yaml:345`), so reviewers can dispute it like the class, and a fix that changes the class or the reach updates the depth in the same edit, so the next check runs at the new depth. Both validators tolerate extra `gate.md` bullets and refuse only `Review tier` (`validate-openspec-change.mjs:159`), so the field needs no record-schema change. The mechanical limb is checked by the validator (D9); the judgement limb (review, gate or release reach) is checked by the reviewers and can only raise the depth. Rejected: recording it in `review.md`, which no reviewer reads and the round already ran at by the time it is written.
 
 Changes too small for OpenSpec never reach this artifact: the `openspec` skill keeps them in plan mode (`team-config/agent/skills/openspec/SKILL.md:19`). There is no third, review-free depth inside `omp-gated`.
 
@@ -41,8 +41,9 @@ Every non-blocking finding goes under a new `## Residuals` section of `review.md
 
 ### D5. Budget
 
-- `standard`: round 1 with one reviewer (all-scopes paragraph). Confirmed blocking findings are fixed; then one fix-delta check: one fresh `plan-reviewer` with the schema's delta brief (fix entries plus the artifact diff since the reviewed digest, judged under PROCESS 4). Its findings go through the verifier like a round.
-- `risky`: round 1 with scope A and scope B; confirmed blocking findings fixed; round 2 a full fresh two-reviewer round on the new digest.
+- `standard`: round 1 with one reviewer (all-scopes paragraph). Confirmed blocking findings are fixed and committed; then one fix-delta check: one fresh `plan-reviewer` with the schema's plan-artifact delta brief, under PROCESS 4. Its input: the fixed findings copied verbatim from the recorded round as the fix entries, and `git diff <c> -- <change dir> ':!<change dir>/review.md'`, where `<c>` is the commit that recorded the round's `review.md`. The review digest is a bundle hash, not a diff base, and a change folder has no `## TODOs` rows, so the F2 `GC patch` input does not apply. Its findings go through the verifier like a round.
+- `risky`: round 1 with scope A and scope B; confirmed blocking findings fixed and committed; round 2 a full fresh two-reviewer round on the new digest.
+- Each round and delta check is recorded in a commit of `review.md` before any fix (D6), which gives the delta check its base.
 - A round or delta check whose findings are all residuals ends the review OKAY.
 - Confirmed below-threshold findings may be fixed together with confirmed blocking ones before the next check, never on their own (an edit without a following check stales the review).
 
@@ -54,6 +55,8 @@ Asked only for: an unconfirmed finding with `protected` true or area review_scop
 
 A finding awaiting such an answer is recorded under `## Blockers` with REJECT before the ask, so `--reviewed` keeps failing while the answer is open, including after an interruption. The answer then rewrites the record on the same digest: "keep" moves the finding to Residuals with the user's reason and the verdict becomes OKAY when nothing else is open; Fix edits the artifacts and leads to the next check; Stop leaves the REJECT. This uses the unchanged validator contract (REJECT needs Blockers, OKAY needs none).
 
+The record carries the loop state a resumed session needs: every finding under `## Blockers` carries the verifier's result and reason, and a `- **Awaiting**:` bullet names the ask that was open when the record was written (`none`, `exception`, `exhaustion` or `scope`). A session resuming a review whose recorded digest equals `--digest` and whose Awaiting is not `none` asks that ask again from the record's fields before any edit or dispatch; it never re-dispatches the verifier for recorded findings, so a confirmed finding cannot flip to refuted on a second draw. This replaces the old approach-question resume rule (`schema.yaml:420-423`).
+
 Interpretation recorded for review: the agreed trigger "verifier and reviewer disagree" is implemented as `undecided`, because every refutation is a disagreement by construction and escalating all of them would ask the user at nearly every round. A confirmed security finding is fixed without asking; only an unconfirmed one goes to the user, so no security finding is dropped by the verifier alone.
 
 ### D7. Override only at exhaustion
@@ -64,13 +67,13 @@ One ask quoting each open confirmed finding (area, defect, evidence verbatim, ve
 
 Removed from the schema and specs: three lenses, early ask, approach question (Continue, Re-plan, Split, Stop), resume rule, plan-review Accept into `gate.md`. `SKILL.md` `Blocker disposition` drops plan review from its lane list, accept paths and explicit-request paths; the README review section is rewritten. A user who wants to re-plan or split answers Stop and edits the artifacts, which starts a fresh review.
 
-### D9. Validator unchanged
+### D9. One validator check for the mechanical limb
 
-The current `--reviewed` contract already accepts the new record (D1, D4, one or two ids). Alternative: enforce depth versus reviewer count and class. Rejected: part of the depth predicate is judgement, and the user asked for less machinery; the class-to-depth rule is checked by the reviewers and by F1.
+`validate-openspec-change.mjs` refuses a `gate.md` Depth other than `standard` or `risky`, and Depth `standard` with a class other than `none`. `--reviewed` refuses a record of Round 1 or 2 with fewer than two reviewer ids when `gate.md` has Depth `risky` or a class other than `none`; Round counts rounds and delta checks from 1, so the one-reviewer delta check after exhaustion (Round 3) passes. A `gate.md` without Depth (changes planned before this change) is checked on its class alone, and their three-lens records pass. Decided by the user after round 2 of this change's review: the class-to-depth rule is decidable from bytes in the same snapshot, so it should not rest on reviewers alone. The judgement limb stays unchecked by the validator.
 
 ### Scope check
 
-Two independently testable parts: the schema's review instruction with its template, and the `blocker-verifier` agent. They share one contract (the verifier's output fields the instruction reads) and ship in one cutover. `SKILL.md` and README edits only remove plan-review references. No split.
+Three independently testable parts: the schema's review instruction with its templates, the `blocker-verifier` agent, and the validator's depth check. They share the record contract (`gate.md` Depth, `review.md` fields, the verifier's output fields) and ship in one cutover. `SKILL.md` and README edits only remove plan-review references. No split.
 
 ## Risks / Trade-offs
 
@@ -84,7 +87,7 @@ Two independently testable parts: the schema's review instruction with its templ
 
 1. Merge; `scripts/deploy-local.sh` installs the schema, the agent and SKILL.md into the agent directory.
 2. Repositories with their own `omp-gated` copy (onara, weaver) run `node ~/.omp/agent/skills/review-work/scripts/install-openspec-workflow.mjs`.
-3. In-flight changes: an existing `review.md` stays valid (`--reviewed` unchanged); a re-review after this change follows the new instruction.
+3. In-flight changes: an existing `review.md` stays valid; `--reviewed` adds only the class rule (D9), which their three-lens records meet, and their `gate.md` without Depth is checked on its class alone. A re-review after this change follows the new instruction and adds Depth to `gate.md`.
 4. Rollback: revert the merge and redeploy.
 
-This change's own plan review (user decision, 2026-11-01): depth `risky`, `plan-reviewer` on `onara/cx/gpt-6.1-sol:high` (through the user's `task.agentModelOverrides`, added for this review), at most two rounds; blockers whose cited evidence the orchestrator confirmed at the named lines are fixed (the verifier agent does not exist before apply); after round 2 the user decides.
+This change's own plan review (user decision, 2026-11-01): depth `risky`, `plan-reviewer` on `onara/cx/gpt-6.1-sol:high` (through the user's `task.agentModelOverrides`, added for this review), at most two rounds; blockers whose cited evidence the orchestrator confirmed at the named lines are fixed (the verifier agent does not exist before apply); after round 2 the user decides. After round 2 the user chose Fix for all six blockers plus the D9 check, followed by one delta check of those fixes.

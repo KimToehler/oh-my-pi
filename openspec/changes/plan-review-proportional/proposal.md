@@ -10,8 +10,8 @@ Plan review of `omp-gated` changes does not converge: the 13 archived changes to
 - Plan reviewers run on `onara/cx/gpt-6.1-sol:high` through a seeded `task.agentModelOverrides.plan-reviewer` entry; the new verifier pins `onara/cx/gpt-6.1-sol:medium` in its agent definition.
 - Evidence-gated blockers: after every round a new `blocker-verifier` agent checks each blocking finding against the repository. A finding blocks only when the verifier confirms a concrete failure scenario, repository or plan evidence, why the plan's criteria and Verify commands would not catch it, and that it meets the existing blocking threshold. Refuted or below-threshold findings become residuals recorded in `review.md` and do not block apply.
 - Good-enough exit without a per-round user decision: confirmed blockers are fixed within the budget; the user is asked only when a security or protected-asset finding is not confirmed, when the verifier cannot decide a finding that claims blocking damage, when the budget is spent with confirmed blockers open, or when a fix needs a scope decision.
-- **BREAKING**: plan review no longer uses Accept eligibility, the early per-blocker ask, the approach question (Continue, Re-plan, Split, Stop) or the three fixed lenses. `review.md` keeps its validated fields and gains a `## Residuals` section; Override remains the user's acceptance at budget exhaustion.
-- Post-implementation lanes (F1, F2, F3, delta reviews, gate record, trailers, `Blocker disposition` for those lanes) stay unchanged.
+- **BREAKING**: plan review no longer uses Accept eligibility, the early per-blocker ask, the approach question (Continue, Re-plan, Split, Stop) or the three fixed lenses. `gate.md` gains a `Depth` bullet that `validate-openspec-change.mjs` checks against the class; `review.md` keeps its validated fields and gains an `Awaiting` bullet and a `## Residuals` section, and `--reviewed` refuses a class-bearing round with fewer than two reviewers; Override remains the user's acceptance at budget exhaustion.
+- Post-implementation lanes (F1, F2, F3, delta reviews, gate record, trailers, `Blocker disposition` for those lanes) keep their decisions; F2 delta reviews dispatch `plan-reviewer` and so resolve to its new model too.
 
 ## Capabilities
 
@@ -26,10 +26,11 @@ None.
 
 ## Impact
 
-- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction) and `templates/review.md`.
+- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction), `templates/review.md` and `templates/gate.md` (new `Depth` bullet).
+- `validate-openspec-change.mjs`: refuses a `gate.md` Depth other than `standard`/`risky` or `standard` with a class; `--reviewed` refuses a Round 1 or 2 record with fewer than two reviewer ids for a `risky` or class-bearing change. Its tests and `install-openspec-workflow.test.ts` (template placeholders) change with it.
 - New agent definition `team-config/agent/agents/blocker-verifier.md`.
 - `team-config/seed/config.yml`: `task.agentModelOverrides.plan-reviewer`; existing agent directories merge it by hand.
 - `team-config/agent/skills/review-work/SKILL.md` (`Blocker disposition` lane list and accept paths) and `team-config/README.md` (review section).
 - `openspec/specs/openspec-plan-review`, `openspec/specs/review-blocker-disposition` through this change's deltas.
 - Installed copies: `scripts/deploy-local.sh` for this agent directory; repositories with their own `omp-gated` copy (onara, weaver) rerun `install-openspec-workflow.mjs`.
-- Unchanged: `validate-openspec-change.mjs` (its `review.md` contract already admits one or more reviewer ids and ignores extra sections), the bundled `plan-reviewer` prompt, `validate-gate-record.mjs`, `gate-convergence.mjs`.
+- Unchanged: the bundled `plan-reviewer` prompt, `validate-gate-record.mjs`, `gate-convergence.mjs`.
