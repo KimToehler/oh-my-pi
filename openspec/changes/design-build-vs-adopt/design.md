@@ -26,6 +26,8 @@ See proposal.md - Why. Current state, read in this worktree (`S` is `team-config
 
 The design instruction is where an `omp-gated` change decides how to build. A rule there runs at the moment the approach is chosen, so the search can still change the design. The correctness lens names the schema path instead of restating the rule. Its paragraph is fixed for every change, so a second copy of the rule would drift.
 
+The lens sentence lands inside `plan-reviewer`'s contract, which marks a finding a blocker only when it breaks the goal, the value proof, a `## Merge gate` criterion or an existing consumer, or reaches a protected asset; anything below that threshold becomes a note (`packages/coding-agent/src/prompts/agents/plan-reviewer.md:75,90`). An unconditional "is a blocker" next to that rule would leave the reviewer to choose between the two, and a missing Platform line or an open Decision would end as a note. E3 therefore names the limb it meets and why: the value proof, because apply builds or adopts the mechanism as designed, and without a complete decision the plan shows no search of the cheaper stages, which is the failure this change exists to prevent. E3 does not override the threshold; it supplies the reason the threshold asks for. Rows C2-C4 prove that the lens reports these gaps as blockers.
+
 Alternatives: a team rule file with plan-path globs (rejected: it would be injected only when a plan file is touched, which is often after the approach is set, and it would be a second copy next to the schema); giving `plan-reviewer` web search so it finds missed candidates itself (rejected: cost and untrusted web content in the reviewer; the planner records the search and the reviewer checks the record); a Context7 MCP server or its REST API (rejected in `plan-adopt-and-cap`: its tool descriptors load into every session, and the keyless REST quota ran out while planning).
 
 ### D2. Search order and decision form
@@ -72,7 +74,7 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
         - Repository: <PATH:LINE of what this repository or an installed dependency offers, or none and the paths searched>
         - Platform: <documentation URL of what the platform or standard library offers, or none and what was searched> | not searched, covered above
         - Candidates: <per library: URL; newest release and its date; licence; maintained or archived; adopt, or reject with its gap> | none and the searches run | not searched, covered above
-        - Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which>
+        - Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which> | user decided: <choice>; reason: <the user's reason>
 
       A build or reject verdict names its gap. Auth, crypto and protocol mechanisms are never
       built when a stage above covers them: building one names a gap that none covers. A search
@@ -94,7 +96,9 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
          openspec/schemas/omp-gated/schema.yaml under the repository root: a mechanism it covers
          that the plan introduces without its subsection in design.md, a subsection missing a line
          or a candidate fact the paragraph's form asks for, a Decision still open, or a build or
-         reject verdict without a gap is a blocker.
+         reject verdict without a gap meets the blocking threshold, because it breaks the plan's
+         value proof: apply builds or adopts the mechanism as designed, without the record that the
+         cheaper stages were searched. Report it as a blocker, not a note.
 ~~~~
 
 #### E4: `team-config/agent/skills/review-work/openspec/schemas/omp-gated/templates/design.md`, after line 17
@@ -106,7 +110,7 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
 - Repository: <PATH:LINE of what this repository or an installed dependency offers, or none and the paths searched>
 - Platform: <documentation URL of what the platform or standard library offers, or none and what was searched> | not searched, covered above
 - Candidates: <per library: URL; newest release and its date; licence; maintained or archived; adopt, or reject with its gap> | none and the searches run | not searched, covered above
-- Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which>
+- Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which> | user decided: <choice>; reason: <the user's reason>
 -->
 ~~~~
 
