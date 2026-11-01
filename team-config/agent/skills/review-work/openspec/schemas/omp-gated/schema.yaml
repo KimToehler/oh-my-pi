@@ -470,9 +470,12 @@ artifacts:
              through step 4 and this step like a round.
            - Budget spent (a `risky` review after its second full round, a `standard` review
              after its delta check) with a confirmed blocking finding open: the exhaustion ask
-             (step 6). Dispatch nothing further before the user answers. The budget counts full
-             rounds and delta checks this review actually dispatched, never the record's round
-             number: a resume dispatches nothing and spends nothing.
+             (step 6). Dispatch nothing further before the user answers. The budget counts the
+             full rounds and delta checks this review has dispatched since its first round, in
+             this session and in earlier ones, as the committed `review.md` records show; the
+             record's round number never defines it. A resume dispatches nothing, so it neither
+             spends budget nor gives any back: a review resumed after its first full round still
+             owes that round's successor before it can end OKAY.
 
          Delta brief (substitute the `{...}` inputs, change nothing else):
 
