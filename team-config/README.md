@@ -184,31 +184,27 @@ openspec validate <change> --strict
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/<change>
 ```
 
-The last artifact `/opsx-propose` creates is `review.md`. A review round is three fixed-lens `plan-reviewer` tasks (the
-`advisor` model, another family than the planner) in one batch over the whole change folder: each gets the same fixed
-brief plus one fixed lens paragraph (correctness, verification, or security and the mechanical checks), and the planner
-adds no focus. The round is OKAY only when all three lenses return OKAY; a lens without a structured verdict is
-retried once, and if the retry has none either the round is incomplete and no record is written. Each blocker of a
-complete rejecting round is decided by review-work's `Blocker disposition` section: it is Accept-eligible only when it
-misses the blocking threshold and no exclusion (security, audit trail, gate classification, review mechanism, and on a
-change with a mandatory class every blocker that is not only about the change's own verification and below the
-threshold) applies. At F2 and F3, blockers about F1 evidence the validator binds stay excluded as audit trail. Below the
-approach-question trigger (described next), a round with an eligible blocker records
-its REJECT and asks you at once, per blocker, quoting each verbatim: Accept is recommended for eligible blockers and
-offered only for them (your reason goes into `gate.md` as a residual risk or out-of-scope area, and the next round does
-not block on it); the rest offer fix or stop. A round with only non-eligible blockers is fixed and reviewed again. From
-the third REJECT on (earlier when the correctness lens passed and every blocker concerns the change's own verification),
-the agent records the REJECT and asks one approach question first: per lens and blocker what was found, the class and
-what sets it, a diagnosis of what keeps producing blockers and a recommendation among Continue (fix and review again;
-per-blocker asks only for eligible blockers and for fixes that need your decision), Re-plan (revise the approach, class included, with no Accept), Split
-(only when a class-setting part can ship as its own change apart from a useful remainder) and Stop. It asks again at
-every later REJECT. Verification of
-the change itself follows review-work's `Change verification` section: instruction changes are proven by their text
-plus real sessions on disposable fixtures, not by checkers that re-score model output, and the class comes from the
-delivered change, not from the session's own login. The record carries
-the digest of the folder it reviewed and the round's subagent ids, in lens order. OpenSpec reports apply as `blocked`
-while `review.md` is missing, and `/opsx-apply` runs this before the
-first source edit:
+The last artifact `/opsx-propose` creates is `review.md`. The review's depth comes from `gate.md`: `risky` when the
+change carries a mandatory class or alters a review, gate or release mechanism, `standard` otherwise. A `standard`
+round dispatches one `plan-reviewer` over the whole change folder with every scope; a `risky` round dispatches two in
+one batch, scope A (correctness, architecture, security, the mechanical checks) and scope B (verification and tests).
+Both run as `onara/cx/gpt-6.1-sol:high`, pinned in the team seed, and the planner adds no focus of its own to the fixed
+brief. Every finding the round returns then goes, verbatim and numbered, to one read-only `blocker-verifier`
+(`onara/cx/gpt-6.1-sol:medium`), which checks each against the repository and returns `confirmed`, `refuted` or
+`undecided` with a reason. Confirmed blocking findings are fixed; everything else is recorded under `## Residuals` with
+the verifier's reason and never reviewed again. The budget is fixed: a `standard` round is followed by one delta check
+over the fix diff, a `risky` review runs at most two full rounds. Four cases ask you instead of deciding: a finding the
+verifier left `undecided`, a finding on a security or privacy path or a protected asset that it refuted, a fix that
+needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. The ask
+quotes the finding verbatim and offers Fix, Override and Stop; Override is unavailable while a security-scope or
+protected-asset finding is open. The record is written and committed before any fix or ask, so an interrupted session
+resumes from `review.md` alone. A reviewer or verifier without a structured result is retried once; if the retry has
+none either, the round is incomplete and no record is written. Verification of the change itself follows review-work's
+`Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
+not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
+login. F2 delta reviews and F3 keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
+The record carries the digest of the folder it reviewed and the round's subagent ids. OpenSpec reports apply as
+`blocked` while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
 
 ```sh
 node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/<change>
