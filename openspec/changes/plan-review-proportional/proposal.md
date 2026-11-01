@@ -28,6 +28,7 @@ None.
 
 - `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction) and `templates/review.md`.
 - New agent definition `team-config/agent/agents/blocker-verifier.md`.
+- `team-config/seed/config.yml`: `task.agentModelOverrides.plan-reviewer`; existing agent directories merge it by hand.
 - `team-config/agent/skills/review-work/SKILL.md` (`Blocker disposition` lane list and accept paths) and `team-config/README.md` (review section).
 - `openspec/specs/openspec-plan-review`, `openspec/specs/review-blocker-disposition` through this change's deltas.
 - Installed copies: `scripts/deploy-local.sh` for this agent directory; repositories with their own `omp-gated` copy (onara, weaver) rerun `install-openspec-workflow.mjs`.
