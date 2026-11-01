@@ -16,7 +16,7 @@ F3 is not needed: gate.md says Whole-diff review `not needed`. This is not an F3
 
 ## 3. F2 fix wave 1
 
-- [x] 3.1 F2 wave 1 blocker B1 (class `qa-witness-mismatch`, sites `.omp/team-config/evidence/gate/design-build-vs-adopt/f1/README.md:27`, `.omp/team-config/evidence/gate/design-build-vs-adopt/f1/A2/artifacts/design.md:151`): the F1 README called A2's sign-in Decision "partial" while it reads `adopt` per target. The A2 row now reports the Decision line as written, why the row's precondition did not hold (Nimbus covers the JVM desktop, so E2's form gives `adopt`), the three clauses it meets with their lines, and B3 as the session witness of the `partial` form value. Evidence only; no delivered file changes. Verify: the task 2.1 Verify command exits 0.
+- [x] 3.1 F2 wave 1 blocker B1 (class `qa-witness-mismatch`, sites `.omp/team-config/evidence/gate/design-build-vs-adopt/f1/README.md:27`, `.omp/team-config/evidence/gate/design-build-vs-adopt/f1/A2/artifacts/design.md:151`): the F1 README called A2's sign-in Decision "partial" while it reads `adopt` per target. The A2 row now reports the Decision line as written, why the row's precondition did not hold (Nimbus covers the JVM desktop, so E2's form gives `adopt`), the three clauses it meets with their lines, and B3 as the session witness of the `partial` form value. Evidence only; no delivered file changes. Verify: `E=.omp/team-config/evidence/gate/design-build-vs-adopt/f1; grep -q '^| A2 | The sign-in Decision line reads .adopt kmp-oidc' "$E/README.md" && grep -q '^- Decision: adopt kmp-oidc' "$E/A2/artifacts/design.md" && grep -q '^- Decision: partial. Adopted:' "$E/B3/artifacts/design.md" && ! grep -q '^| A2 | Decision partial' "$E/README.md"`
 
 ## Workflow follow-up
 
