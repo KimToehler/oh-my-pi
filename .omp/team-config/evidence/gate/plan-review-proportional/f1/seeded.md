@@ -17,7 +17,8 @@ In all three scenarios the session was told exactly one substitution: wherever t
 dispatches `plan-reviewer` items for a round, take that round's reviewer results from a payload
 file (`$TMPDIR/prp-fix/payloads/*.json`, one entry per reviewer with `scope`, `id`, `result`)
 instead of dispatching. Everything else ran for real: the validator, the digest, the commits, the
-`blocker-verifier` dispatch, the fixes, the record and `--reviewed`.
+`blocker-verifier` dispatch, the fixes, the record and `--reviewed`. All three scenarios
+ran on the fixed text of this head, after every F2 wave-1 fix.
 
 ## (a) All-residual exit — `$TMPDIR/prp-fix/repo-f1ea`, change `f1e`
 
@@ -55,7 +56,7 @@ edited nothing first.
 
 **Resume.** That session ended unanswered. A **fresh** session on the same fixture (42.9 s) read
 the record, confirmed the recorded digest still equals `V --digest`, and re-asked the same ask from
-`review.md` alone. Its complete tool-call list:
+`review.md` alone. Retained tool calls, its complete list in order:
 
 ```
 1 read skill://openspec
