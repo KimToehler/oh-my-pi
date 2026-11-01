@@ -8,12 +8,17 @@ Defines when an `omp-gated` design must look for an existing implementation befo
 
 ### Requirement: Covered mechanisms are researched before they are designed
 
-The design instruction SHALL require a search before a mechanism is designed when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: first this repository and its installed dependencies, then the platform or standard library, then maintained open-source libraries, stopping at the first stage that covers it. Project-specific logic and glue between existing components SHALL need no search.
+The design instruction SHALL require a search before a mechanism the change introduces (one the changed code does not use today) is designed, when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: this repository and its installed dependencies, then the platform or standard library, then maintained open-source libraries, stopping at the first stage that covers it. Project-specific logic and glue SHALL need none.
 
 #### Scenario: Protocol client is covered
 
 - **WHEN** a design adds sign-in through OIDC authorization code with PKCE, token storage and token refresh
 - **THEN** the planner searches for existing implementations before writing the design of those mechanisms, and `design.md` records the result
+
+#### Scenario: Repository covers it
+
+- **WHEN** a change needs token storage and the repository already has an encrypted key-value store that other code uses
+- **THEN** the decision adopts that store with its `PATH:LINE` and records that no platform or library search was needed
 
 #### Scenario: Platform covers it
 
@@ -32,7 +37,7 @@ The design instruction SHALL require a search before a mechanism is designed whe
 
 ### Requirement: A covered mechanism brings design.md
 
-The design instruction SHALL list building a covered mechanism as a reason to create `design.md`, even when the change stays inside one module and meets no other reason.
+The design instruction SHALL list introducing a covered mechanism, whether it is built, adopted or reused, as a reason to create `design.md`, even when the change stays inside one module and meets no other reason.
 
 #### Scenario: Single-module format parser
 
@@ -62,6 +67,20 @@ Each covered mechanism SHALL get one `### Build vs. adopt: <mechanism>` subsecti
 
 - **WHEN** a decision rejects a candidate without a gap, or lists a candidate without its newest release and date
 - **THEN** the correctness lens review of that design MUST fail with REJECT
+
+### Requirement: A failed search leaves the decision open
+
+The design instruction SHALL forbid recording a failed or unreadable search as `none`. The planner SHALL retry it; if it still fails, the Decision SHALL stay open with the failed search named, and the planner SHALL ask the user before designing the mechanism.
+
+#### Scenario: Search provider fails
+
+- **WHEN** `web_search` returns an error on the retry as well
+- **THEN** the Decision reads open with the failed search, and the planner asks the user instead of deciding build
+
+#### Scenario: Negative control
+
+- **WHEN** a design records `none` for a stage whose only search failed and decides build
+- **THEN** review of that instruction MUST fail, because it lets a failed search pass as evidence that nothing exists
 
 ### Requirement: Auth, crypto and protocol mechanisms are not built when covered
 
@@ -93,7 +112,7 @@ The design instruction SHALL name research tools an omp session already has: `we
 
 ### Requirement: Plan review checks the decision
 
-The plan review's correctness lens SHALL read the `Build vs. adopt` rule from the project's `omp-gated` schema and SHALL return a blocker when the plan builds a covered mechanism without its decision in `design.md`, when a decision lacks a line or candidate fact the form asks for, or when a build or reject verdict names no gap. A complete decision SHALL produce no such blocker.
+The plan review's correctness lens SHALL read the `Build vs. adopt` rule from the project's `omp-gated` schema and SHALL return a blocker when the plan introduces a covered mechanism without its decision in `design.md`, when a decision lacks a line or candidate fact the form asks for, when a Decision is still open, or when a build or reject verdict names no gap. A complete decision SHALL produce no such blocker.
 
 #### Scenario: Complete decision passes
 
@@ -102,5 +121,5 @@ The plan review's correctness lens SHALL read the `Build vs. adopt` rule from th
 
 #### Scenario: Negative control
 
-- **WHEN** a plan hand-builds OIDC with PKCE without a `Build vs. adopt` decision, or rejects every candidate without naming a gap
-- **THEN** the correctness lens review MUST fail with REJECT and a blocker naming the missing decision or the missing gap
+- **WHEN** a plan hand-builds OIDC with PKCE without a `Build vs. adopt` decision, rejects every candidate without naming a gap, omits a form line, or leaves a Decision open
+- **THEN** the correctness lens review MUST fail with REJECT and a blocker naming the missing decision, gap or line, or the open decision

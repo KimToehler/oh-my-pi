@@ -8,9 +8,9 @@ The stopped `plan-adopt-and-cap` change carried the same rule together with revi
 
 ## What Changes
 
-- The design instruction requires research before a mechanism is designed when that mechanism implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain. The search runs in this order and stops at the first stage that covers the mechanism: this repository and its installed dependencies, the platform or standard library, then maintained open-source libraries. Each such mechanism gets one short `Build vs. adopt` decision in `design.md`. Auth, crypto and protocol mechanisms are never built when one of those stages covers them; building one names a gap that none covers.
-- A change that builds such a mechanism includes `design.md` even when it stays inside one module.
-- The plan review's correctness lens reads that rule. It blocks on a covered mechanism that has no decision, on a decision that lacks a line or candidate fact the form asks for, and on a build or reject verdict that names no gap.
+- The design instruction requires research before a mechanism the change introduces is designed, when that mechanism implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain. The search runs in this order and stops at the first stage that covers the mechanism: this repository and its installed dependencies, the platform or standard library, then maintained open-source libraries. Each such mechanism gets one short `Build vs. adopt` decision in `design.md`, whether it ends up built, adopted or reused. Auth, crypto and protocol mechanisms are never built when one of those stages covers them; building one names a gap that none covers. A failed search is never recorded as "nothing found": the decision stays open and the planner asks the user.
+- A change that introduces such a mechanism includes `design.md` even when it stays inside one module.
+- The plan review's correctness lens reads that rule. It blocks on a covered mechanism that has no decision, on a decision that lacks a line or candidate fact the form asks for, on a decision still open, and on a build or reject verdict that names no gap.
 - The instruction names keyless research tools every session has: `web_search`, `read` on URLs, and the deps.dev API through `read` for release history.
 - The design template gets the decision form as a comment, and the team-config README describes the rule.
 

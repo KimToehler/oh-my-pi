@@ -34,11 +34,15 @@ The order (repository and installed dependencies, platform or standard library, 
 
 The form has four labelled lines. Each fact carries what a reader needs to check it: a `PATH:LINE` for the repository, a documentation URL for the platform, and per candidate its URL, newest release and date, licence and maintenance state. Every build or reject verdict names its gap, because a rejection without a gap is exactly the failure from the proposal. Auth, crypto and protocol mechanisms are never built when any stage covers them: hand-building them is where the proof surface and the review rounds came from. A covering repository, dependency or platform implementation counts as adoption, so a standard-library crypto primitive that meets the need is used without a library search.
 
+The rule covers mechanisms the change introduces, meaning the changed code does not use them today, whatever the outcome: a reused repository store or an adopted platform API also gets its decision, so the decision records that the search happened. A mechanism the changed code already uses (the module's existing HTTP client) is not introduced and needs none.
+
+A failed search is not evidence that nothing exists. The rule makes the planner retry and otherwise leave the Decision open and ask the user, and the lens blocks an open Decision, so a provider outage cannot turn into a build decision.
+
 `plan-adopt-and-cap` also required a verbatim source quote per fact. That is dropped: the lens is not asked to check facts against web sources, and the quotes made every decision several times longer.
 
 ### D3. `design.md` trigger
 
-`design.md` is optional (`S:178-182`), and `/opsx-propose` skips it when no reason applies. Without a trigger, a single-module parser or retry policy would never meet the rule.
+`design.md` is optional (`S:178-182`), and `/opsx-propose` skips it when no reason applies. Without a trigger, a single-module parser or retry policy would never meet the rule. The trigger names introducing a covered mechanism, not only building one, so a reused or adopted mechanism also gets its decision.
 
 ### D4. Delivered text
 
@@ -47,31 +51,36 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
 #### E1: after `S:182`
 
 ~~~~text
-      - The change builds a mechanism the `Build vs. adopt` paragraph below covers, even inside one module
+      - The change introduces a mechanism the `Build vs. adopt` paragraph below covers, even inside one module
 ~~~~
 
 #### E2: after `S:202`, before "Focus on architecture and approach"
 
 ~~~~text
-      Build vs. adopt: a mechanism that implements a published protocol, format or algorithm
-      (OAuth/OIDC, JWT, a crypto primitive, a wire or file format) or general-purpose
-      infrastructure not specific to the project's domain (token storage, retry and backoff,
-      scheduling, caching, a UI widget) is covered. Project-specific logic and glue between
-      existing components are not. Before designing a covered mechanism, search for what already
-      provides it, in this order, and stop at the first stage that covers it: this repository and
-      its installed dependencies, the platform or standard library, then maintained open-source
-      libraries. Record one subsection per covered mechanism under Decisions:
+      Build vs. adopt: a mechanism the change introduces (one the changed code does not use
+      today, whether it ends up built, adopted or reused) is covered when it implements a
+      published protocol, format or algorithm (OAuth/OIDC, JWT, a crypto primitive, a wire or
+      file format) or general-purpose infrastructure not specific to the project's domain (token
+      storage, retry and backoff, scheduling, caching, a UI widget). Project-specific logic and
+      glue between existing components are not covered. Before designing a covered mechanism,
+      search for what already provides it, in this order, and stop at the first stage that
+      covers it: this repository and its installed dependencies, the platform or standard
+      library, then maintained open-source libraries. Record one subsection per covered
+      mechanism under Decisions:
 
         ### Build vs. adopt: <mechanism>
         - Repository: <PATH:LINE of what this repository or an installed dependency offers, or none and the paths searched>
         - Platform: <documentation URL of what the platform or standard library offers, or none and what was searched> | not searched, covered above
         - Candidates: <per library: URL; newest release and its date; licence; maintained or archived; adopt, or reject with its gap> | none and the searches run | not searched, covered above
-        - Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap>
+        - Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which>
 
       A build or reject verdict names its gap. Auth, crypto and protocol mechanisms are never
-      built when a stage above covers them: building one names a gap that none covers. Research with
-      tools every session has, without an API key, quota or MCP server: `web_search` to find
-      candidates; `read` on repository, registry and documentation URLs; `read` on
+      built when a stage above covers them: building one names a gap that none covers. A search
+      that failed or returned nothing readable is not `none`: retry it, and if it still fails,
+      write the Decision as open with the failed search and ask the user before designing the
+      mechanism. Research with tools every session has, without an API key, quota or MCP
+      server: `web_search` to find candidates; `read` on repository, registry and documentation
+      URLs; `read` on
       https://api.deps.dev/v3/systems/<system>/packages/<name> for every release and its date
       (system maven, npm, pypi, cargo, go or nuget; a Maven name is <group>%3A<artifact>; the
       list is not in date order, so the newest release has the latest publishedAt).
@@ -83,9 +92,9 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
 ~~~~text
          Read the `Build vs. adopt` paragraph of the design instruction in
          openspec/schemas/omp-gated/schema.yaml under the repository root: a mechanism it covers
-         that the plan builds without its subsection in design.md, a subsection missing a line or
-         a candidate fact the paragraph's form asks for, or a build or reject verdict without a
-         gap is a blocker.
+         that the plan introduces without its subsection in design.md, a subsection missing a line
+         or a candidate fact the paragraph's form asks for, a Decision still open, or a build or
+         reject verdict without a gap is a blocker.
 ~~~~
 
 #### E4: `team-config/agent/skills/review-work/openspec/schemas/omp-gated/templates/design.md`, after line 17
@@ -97,19 +106,20 @@ The edits are insertions only; no existing line changes. Task 1.1 compares the i
 - Repository: <PATH:LINE of what this repository or an installed dependency offers, or none and the paths searched>
 - Platform: <documentation URL of what the platform or standard library offers, or none and what was searched> | not searched, covered above
 - Candidates: <per library: URL; newest release and its date; licence; maintained or archived; adopt, or reject with its gap> | none and the searches run | not searched, covered above
-- Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap>
+- Decision: adopt <what> | build, gap: <what nothing above covers> | partial, adopted: <part>; built: <part>; gap: <gap> | open, search failed: <which>
 -->
 ~~~~
 
 #### E5: `team-config/README.md`, before the paragraph "The last artifact `/opsx-propose` creates is `review.md`."
 
 ~~~~text
-Before a design builds a mechanism that implements a published protocol, format or algorithm, or general-purpose
+Before a design introduces a mechanism that implements a published protocol, format or algorithm, or general-purpose
 infrastructure, the design instruction asks the planner to search this repository and its dependencies, then the
 platform, then maintained libraries, stopping at the first that covers it, with `web_search`, `read` and the deps.dev
 API (no key or MCP server). Each such mechanism gets a `Build vs. adopt` decision in `design.md`; auth, crypto and
-protocol mechanisms are never built when one of those covers them. The correctness lens of the plan review blocks on
-a missing or incomplete decision and on a verdict without a gap.
+protocol mechanisms are never built when one of those covers them, and a failed search leaves the decision open for
+the user. The correctness lens of the plan review blocks on a missing, incomplete or open decision and on a verdict
+without a gap.
 
 ~~~~
 
@@ -128,14 +138,17 @@ Each row runs in its own disposable git repository under `/tmp/dba-f1/<row>`. Un
 | A | rule fires, order, tools, adoption, decision content | Change `keycloak-sign-in` with `.openspec.yaml` and a proposal for Keycloak sign-in through OIDC authorization code with PKCE, token storage and token refresh on Android and iOS. | `design.md` holds a `### Build vs. adopt:` subsection for the sign-in flow with Repository, Platform, Candidates and Decision lines. The call log shows a repository search (`grep`, `glob` or `read` in the fixture) before any web call, then a platform lookup reflected on the Platform line, then library discovery by `web_search` or `read`, and a `read` of the deps.dev package endpoint whose result lists versions with publish dates; the newest release and date on the Candidates line match that result. Each listed candidate has a URL, newest release with date, licence and maintenance state. The Decision adopts a maintained library for the sign-in flow (a library stable on Android and iOS exists: `kotlin-multiplatform-oidc`). No MCP or keyed tool is called. |
 | A0 | negative control | Row A with `schema.yaml` and `templates/design.md` from the merge base. | `design.md` has no `Build vs. adopt` subsection. |
 | A2 | partial coverage | As A, but the proposal targets Android, iOS and desktop (JVM) and states that every release target may use only components their maintainers mark stable. `kotlin-multiplatform-oidc` marks Desktop (JVM) "Experimental" in its README. | The Decision is partial: it adopts a library for Android and iOS, names what is built or done otherwise for desktop, and names the desktop gap with its source (the candidate's stability statement). |
+| A3 | stop at the repository | As A, but the fixture also holds `shared/src/commonMain/kotlin/storage/SecureStore.kt`, an encrypted key-value store (`expect class SecureStore` with Keystore and Keychain `actual`s) that the settings code uses. Change `api-token`: persist the user's API token for the existing REST client across app restarts. | The `Build vs. adopt` subsection for token storage cites `SecureStore` with `PATH:LINE` on the Repository line, Platform and Candidates `not searched, covered above`, and Decision adopt; the call log shows no web call for it. |
 | B | not covered | Change `trial-expiry`: refuse sign-in for accounts whose trial has ended, using the existing account model. Prompt: "Decide from `openspec instructions design --change trial-expiry --json` whether this change needs design.md, and create it only if it does." | No `Build vs. adopt` subsection and no library search. |
 | B2 | `design.md` trigger | Change `ics-import` in `:shared` only: import iCalendar (RFC 5545) files into the app's calendar. Prompt as in B with this change name. | `design.md` is created and holds a `Build vs. adopt` subsection for the parser. |
 | B3 | stop at the platform | A plain Kotlin/JVM project (`build.gradle.kts` with `kotlin("jvm")`, one `src/main/kotlin/Upload.kt`) instead of the skeleton. Change `upload-dedupe`: skip storing an uploaded file whose SHA-256 digest matches a stored one. | The `Build vs. adopt` subsection for the digest records the JDK's `java.security.MessageDigest` on the Platform line, Candidates `not searched, covered above`, and Decision adopt; the call log shows no library search for it. |
 | C1 | lens, missing decision | Change `keycloak-sign-in` complete (proposal, one spec requirement with its negative control, gate.md, tasks.md); `design.md` hand-builds OIDC with PKCE, token storage and refresh without any decision. Prompt: "Run step 3 of the review instruction from `openspec instructions review --change keycloak-sign-in --json` for item 1 only: dispatch one plan-reviewer task with the brief and the correctness lens paragraph verbatim, paths filled in. Print the reviewer's full output. Edit nothing." | REJECT with a blocker naming the missing `Build vs. adopt` decision. |
 | C2 | lens, incomplete decision | As C1, but `design.md` records the decisions, rejects every candidate and decides build without naming any gap, and one candidate has no newest release or date. | REJECT with blockers naming the missing gap and the missing release. |
+| C3 | lens, missing line | As C0, but one decision has no Platform line. | REJECT with a blocker naming the missing Platform line. |
+| C4 | lens, open decision | As C0, but one Decision reads `open, search failed: web_search returned an error`. | REJECT with a blocker naming the open decision. |
 | C0 | lens, complete decision | As C1, but `design.md` adopts `kotlin-multiplatform-oidc` through complete decisions. | No blocker about the `Build vs. adopt` decisions; other blockers about the fixture are recorded, not judged. |
 
-Unexercised by design: the "Nothing found" branch. A fixture whose mechanism truly has no implementation anywhere cannot be built reliably; the branch shares the form and the gap rule that A2, C2 and the delivered-text check cover.
+Unexercised by design: the "Nothing found" branch and the failed-search branch. A fixture whose mechanism truly has no implementation anywhere cannot be built reliably, and a failed search cannot be produced in an ordinary session without a proxy or sandbox, which the `Change verification` section rules out. Both branches share the form and the rules that A2, C2, C3 and the delivered-text check cover.
 
 Evidence goes to `.omp/team-config/evidence/gate/design-build-vs-adopt/f1/`: per row `prompt.txt`, `output.txt` (the session's final reply), `calls.md` (ordered tool calls with arguments and results, subagent output included) and `artifacts/` (the written `design.md` where one exists, and `git status --short`); the fixture builder under `tools/`; and `README.md` with the commit under test, one table row per row above with its observation and result, unexercised branches, and a credential scan of every retained file with its hit count.
 
