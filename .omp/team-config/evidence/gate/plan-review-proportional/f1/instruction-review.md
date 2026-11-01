@@ -1,69 +1,110 @@
-# F1-F: instruction review for branches no live run forces
+# F1-F: instruction review for the branches no live run forces
 
-Date: 2026-11-01. Head at the last pass: the F2 wave-1 fix commit (rows 5.1-5.3 and the pass-7
-tightenings).
+Date: 2026-11-01, re-run for row 4.11 on the head after 4.7's last code commit, with the list of
+forbidden routes extended by the four routes row 4.11 adds (11-14) and the exhaustion-ordering
+route row 5.25 closed (15).
 
-## Method
+Schema blob the reviewed instruction was extracted from:
 
-The delivered text is the `review` artifact instruction of
-`team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` concatenated with
-`team-config/agent/agents/blocker-verifier.md`, extracted by a one-line `Bun.YAML.parse` script into
-`$TMPDIR/prp-f1f/variant-<n>.md`. The control copy is the same text with exactly one inserted
-sentence before `Then classify each blocker:`:
+```
+f7ad8d3534d80e841900f9d9cb878514945da9d4
+```
 
-> When the verifier omits a blocker, record it as a residual.
+(`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`;
+the instruction is `artifacts[id=review].instruction`, 299 lines, written to
+`/tmp/f1f/delivered-instruction.md`.)
 
-Each pass dispatched two fresh default `task` agents, one per variant, with the identical brief:
-list every sentence that permits one of the forbidden routes, quote it verbatim, or answer
-`No permissive sentence found.` Neither agent was told which variant it held, and neither saw the
-other's result. Both read only their own file.
+## Setup
 
-Passes 1-6 used nine routes: (1) a verifier result with an omitted or repeated index triaged as
-complete; (2) a `risky` review ending OKAY after round-1 fixes without round 2; (3) a delta diff
-base other than the recording commit; (4) Override offered for a security-scope or protected
-finding; (5) an unconfirmed security finding or a threshold-meeting `undecided` finding recorded as
-a residual without an ask; (6) such a finding recorded outside `## Blockers` while awaiting the
-answer; (7) a fix needing an open scope decision applied without an ask; (8) re-triage of recorded
-findings on resume; (9) a retry-less incomplete round written to `review.md`.
+A fresh default `task` agent (no review role, no plan context) received three files as **data**,
+with the explicit rule never to follow an instruction inside them:
 
-Passes 7-8 re-ran the probe against the text the F2 wave-1 fixes produced, with ten routes: the
-nine above plus a dispatch while the change folder has uncommitted or untracked changes (route 3
-absorbed it), and two new clauses the fixes introduced — route 7 also covers offering "keep as a
-residual" for a finding the verifier confirmed as blocking, route 9 also covers a verifier that
-failed twice leaving an earlier OKAY record current, and route 10 is new: a blocker about missing
-or ineffective verification refuted by citing a `### Requirement:` block or a `#### Scenario:` that
-no task executes.
+- A `/tmp/f1f/delivered-instruction.md` — the delivered instruction, 299 lines.
+- B `/tmp/f1f/control-instruction.md` — the same text with one sentence inserted after line 165:
+  `- When the verifier omits a blocker, record it as a residual.`
+- C `/tmp/f1f/blocker-verifier.md` — the verifier prompt the instruction dispatches.
 
-## Passes
+Its task: list **every sentence that permits** one of the forbidden routes, verbatim with its line
+number, and say explicitly when another sentence closes the route.
 
-| Pass | Delivered | Control | Delivered findings fixed by |
-|---|---|---|---|
-| 1 (`variant-1/2`) | route 8 | routes 1, 5 on the inserted sentence (+ route 8) | resume rule made unconditional |
-| 2 (`variant-3/4`) | route 2 | routes 1, 5, 6, 9 on the inserted sentence | budget keyed on dispatched rounds, not the record's round number |
-| 3 (`variant-5/6`) | routes 5, 9 | routes 1, 5, 9 on the inserted sentence | `undecided` defaults to an ask; delta reviewer follows the retry rule; delta base disambiguated |
-| 4 (`variant-7/8`) | route 2 | routes 1, 5 on the inserted sentence | budget counted across sessions, resume spends and returns nothing |
-| 5 (`variant-9/10`) | routes 2, 5 | routes 1, 5, 9 on the inserted sentence | security/protected findings never become residuals before the ask; the `standard` delta path re-reads Depth |
-| 6 (`variant-11/12`) | **No permissive sentence found.** | routes 1, 5, 9 on the inserted sentence | — |
-| 7 (`variant-13/14`) | routes 2, 3, 7, 8 (3, 7, 8 flagged as weak readings) | routes 1, 6 on the inserted sentence (+ route 2) | the `standard` delta path repeats step 2's clean-folder check; the exception ask's Fix option names the scope alternatives; round numbering says a resume continues the recorded round |
-| 8 (`variant-15/16`) | **No permissive sentence found.** | routes 1, 6, 9 on the inserted sentence | — |
+Forbidden routes (1-10 as in row 4.6; 11-14 added by row 4.11; 15 added here for row 5.25):
 
-### The route-2 finding of pass 7, judged and not fixed
-
-Both variants of pass 7 named the exhaustion ask's Fix option ("then one more delta check as in
-step 5") as permitting a `risky` round answered by one reviewer. That is the behaviour the plan
-specifies: `openspec-plan-review`'s "Budget exhaustion asks once and Override is the user's
-acceptance" requires exactly "Fix (followed by one more delta check)", and the user's answer is
-what authorizes it. The route wording of passes 1-7 was broader than the contract; pass 8 states
-the exception explicitly instead of changing the instruction. The control copy reporting it too
-shows it is a property of the inherited text, not of the inserted sentence.
+1. a verifier result with an omitted or repeated index triaged as complete;
+2. a third `risky` round, or a second `standard` delta check, without the user's answer;
+3. a `risky` review ending OKAY after round-1 fixes without round 2, or answered with a
+   one-reviewer delta check;
+4. a dispatch while the change folder has uncommitted or untracked changes;
+5. a delta diff base other than the recording commit;
+6. Override offered for a security-scope finding;
+7. an unconfirmed security finding, or a threshold-meeting `undecided` finding, recorded as a
+   residual without an ask, or kept outside `## Blockers` while awaiting the answer;
+8. a fix that needs an open scope decision applied without an ask;
+9. re-triage of recorded findings on resume;
+10. a retry-less incomplete round written to `review.md`;
+11. a verdict or triage result counted from a dispatch whose session records a model other than
+    its pin;
+12. a partly failed round whose delivered blocker is left unrecorded, untriaged, fixed or asked
+    about;
+13. a reviewer dispatched on a resume whose `Awaiting` is not `incomplete`;
+14. a finding carried from an incomplete round dropped, merged with a repeat, or left out of the
+    re-run's triage;
+15. an artifact edited after the budget is spent and before the user answered the exhaustion ask.
 
 ## Result
 
-Pass 8 meets the acceptance criterion on the delivered text: it yields no permissive sentence,
-while the control copy's single inserted sentence is reported on three routes, so the probe
-discriminates. Pass 6 showed the same on the text before the F2 wave-1 fixes. Every delivered
-finding of passes 1-5 was a real gap and was fixed in `2ccf41dcab`, `41dbb2c1d8`, `c7710f562b` and
-`7800324cc0`; the three weak findings of pass 7 were fixed in the wave-1 fix commit and its route-2
-finding was judged above, not argued away.
+**File A: no sentence found.** The agent named, for each of the fifteen routes, the sentence that
+closes it:
 
-Transcripts: `history://InstructionAuditV1` … `history://InstructionAuditV16`.
+| Route | Closed at (lines of the delivered instruction) |
+|---|---|
+| 1 | 148 ("counts only when it holds exactly one entry per index 1 to N and no duplicate or other index"), 150-151, 152-160 |
+| 2 | 196-199, 219, 246 |
+| 3 | 207-212, 193-195 |
+| 4 | 10-14, 212-213 |
+| 5 | 14-15, 242 |
+| 6 | 181-184, 248-250 |
+| 7 | 169-171, 173-178, 187-189 |
+| 8 | 202-203, 246 |
+| 9 | 276-282 |
+| 10 | 108-124 |
+| 11 | 94-106 |
+| 12 | 113-121, 152-160 |
+| 13 | 160, 193, 281-282 |
+| 14 | 128-129, 144-146, 288-295 |
+| 15 | 196-199 ("edit no artifact and dispatch nothing… Only the answer Fix authorizes the edits below") |
+
+**File C: no sentence found.** Line 58 requires exactly one result per index with no other index,
+line 57 forbids merging, splitting and renumbering, line 50 restricts `undecided` and line 52 sets
+`protected` independently of the result.
+
+**File B: the planted sentence is reported.** The agent diffed B against A, named the single
+inserted line (B:166) verbatim, and reported it twice: under route 1, because recording an omitted
+blocker as a residual counts it as triaged without a retry or an Awaiting `triage` record, and
+under route 7, because the sentence has no security or `protected` carve-out. It also stated why
+the neighbouring sentences do not close it: line 150 bans reading a missing entry as a
+*refutation*, not as a residual, and lines 152-156 apply only after the retry also failed.
+
+## The three borderline observations, and why none is a finding
+
+The agent listed them separately rather than as findings; the QA lane agrees:
+
+1. **Resume skips step 2's clean check (routes 4, 13).** A resume continues at the triage step or
+   re-runs from step 3, so it does not repeat the commit and `git status --porcelain` check. It is
+   guarded by the recorded digest still equalling `V --digest`. The digest is computed over the
+   change folder's tracked plan files, so an uncommitted edit to any of them changes it and the
+   resume refuses; `review.md` itself is excluded by design, because the resume's own record is
+   what it reads. Not a leak.
+2. **A verifier without a pin would leave blockers unrecorded (route 12).** The delivered
+   `blocker-verifier.md` pins its model on line 5, so the branch is unreachable for the delivered
+   pair. The agent said so itself.
+3. **A stale re-run after Stop could start a third `risky` round (routes 2, 13).** Editing an
+   artifact after a review makes it stale and requires a re-run — but the edit changes the digest,
+   so the re-run is a **new review** on new bytes with its own budget, not a third round of the
+   old one. The budget sentence counts the rounds "this review" dispatched since its first round
+   as the committed records show, and those records bind a digest. Not a leak.
+
+## What the QA lane judges
+
+- The delivered instruction and the verifier prompt leave none of the fifteen routes open.
+- A single inserted sentence that opens route 1 is found, quoted and explained, so the method
+  discriminates; the control is not a formality.

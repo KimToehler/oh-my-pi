@@ -1,73 +1,122 @@
-# F1-B: a `risky` review end to end
+# F1-B: a `risky` review, two full rounds, then the exhaustion ask
 
-Date: 2026-11-01, re-run after the F2 wave-1 fixes (rows 5.1-5.3). Same deployment as F1-A
-(`.../f1/standard.md`, "Deployment deviation"): the branch installed into the disposable profile
-`prp`, every session run as `omp --profile prp`.
+Date: 2026-11-01, re-run for row 4.11 on the delivered text of this head. Deployment as in F1-A
+(`.../f1/standard.md`, "Deployment deviation").
+
+Schema the sessions ran on, installed into the fixture and committed there as `54d539e`:
+
+```
+f7ad8d3534d80e841900f9d9cb878514945da9d4
+```
+
+(`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`.)
 
 ## Fixture
 
-`$TMPDIR/prp-fix/repo-f1b`, rebuilt from the fixture base, change `f1b`: a `TotalsStore` with a
-`#generation` counter so only the newest refresh publishes. `gate.md`: Mandatory class
-`concurrency-state`, Depth `risky`, Risk tier `product`. The planted defect is a state machine with
-no failure transition: `design.md` specifies `idle -> refreshing -> ready` only, so a rejecting
-source leaves the store `refreshing` forever.
+`$TMPDIR/prp-fix/repo-f1b`, change `f1b`: the refresh-store plan, **Mandatory class
+`concurrency-state`, Depth `risky`** in `gate.md`, digest
+`102212f2bd367462037dd99c5b7abf5c62b4e1b7fe2a44fef5aae628634162ac` at round 1. The planted gaps are
+real: the plan's tests never drive a superseded refresh that settles while the newest is pending,
+task 1.2's Verify only checks that the test file exists, and there is no F1/F2 final verification.
 
-## Observed run
+## Session 1 — round 1 is incomplete
 
-Session: `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1b/2026-11-01T12-18-19-880Z_01a1970b-de68-7450-b1f6-dfc71a1e6066`,
-continued twice with the QA lane's answers. Every child resolved to `onara/cx/gpt-6.1-sol`:
-reviewers (`EquivalentTahr`, `FriendlyTakin`, `LevelLeopon`, `HandicappedWhale`, `AwfulFowl`) at
-effort `high`, verifiers (`FaintBass`, `ImplicitGoose`) at `medium`.
+`…/sessions/-tmp-prp-fix-repo-f1b/2026-11-01T19-26-22-268Z…`, 1602 s.
 
-**Round 1.** Depth `risky` read from `gate.md`; two fresh reviewers dispatched in one batch, scope A
-(`EquivalentTahr`, 1 blocker) and scope B (`FriendlyTakin`, 5 blockers). One verifier (`FaintBass`)
-returned one result per index across all six: five confirmed blocking, one **refuted** (task 1.1's
-Verify runs a test file task 1.2 creates later) and recorded as a residual. None protected.
-Record committed as `6e8e6e7` before any edit: REJECT, Round 1, Awaiting `scope`; `--reviewed`
-fails.
+```
+13  task plan-reviewer/F1bScopeA, plan-reviewer/F1bScopeB     <- scope A and B in ONE batch
+14  wait
+17  wait
+20  task plan-reviewer/F1bScopeARetry
+21  wait
+```
 
-Blocker 1 (the missing failure transition) needed a scope decision the artifacts leave open, so the
-session asked one question quoting the finding and the verifier's reason, offering two named scope
-alternatives — an `error` state, or reverting to the previous settled state — and Stop. **No "keep
-as a residual" option**, which is the wave-1 fix (row 5.2) on a confirmed blocking finding.
+Depth `risky` was read from `gate.md`. Scope A ran partly on `onara/cc/claude-opus-5` → no verdict;
+its retry hit the provider's output size limit six times (17727 tokens against a 16384 cap) and
+returned nothing. Scope B, on its pin, returned REJECT with three blockers.
 
-**After the answer** (alternative 1): fixes in the artifacts only, commit `d1e4de4` — the `error`
-state with its scenarios, a readable `totals` surface, one named test per scenario, a task running
-the tests against deliberately broken stores, the F1 group and the follow-up section.
+Record `1195dcf`: REJECT, Round 1, **Awaiting `incomplete`**, Verifier `none`, scope B's three
+blockers verbatim with `not triaged: the round is incomplete`, and a `Models` line carrying
+`(no verdict)` on both failed scope A attempts. No verifier ran; `--reviewed` exits 1.
 
-**Round 2** — a full fresh two-reviewer round on the new digest, new subagent ids
-(`LevelLeopon` OKAY, `HandicappedWhale` REJECT with 1 blocker). Verifier `ImplicitGoose` confirmed
-it blocking and `protected` true. Record `b8a9ab0`: REJECT, Round 2, Awaiting `exhaustion`.
-The budget for `risky` is now spent, so the exhaustion ask ran — and because the open finding is
-`protected`, it offered **only Fix and Stop**, no Override.
+## Session 2 — the resume re-runs round 1 and asks a scope question
 
-**After Fix**: commit `27858b6` adds the missing interval (a superseded refresh settling while the
-newest is still pending) as two spec scenarios, two named tests, a fourth broken-store control and
-a two-order F1 observation. One delta check (`AwfulFowl`) against the round-2 recording commit
-`b8a9ab0` returned OKAY with no blockers, so no triage was needed. Final record `8bdac42`: Verdict
-OKAY, Depth `risky`, Round 3, Awaiting `none`, Override `none`.
-`--reviewed` prints `reviewed: OKAY in round 3`.
+`…T19-53-15-824Z…`, 381 s.
 
-## Acceptance
+```
+17  task plan-reviewer/F1bRerunScopeA, plan-reviewer/F1bRerunScopeB    <- one batch again
+18,21 wait
+23-28 eval/wait   -> blocker-verifier F1bTriage (dispatched from an eval cell with the fixed brief)
+```
 
-| criterion | result |
-|---|---|
-| depth `risky` read from `gate.md` | yes |
-| scope A and scope B dispatched in one batch | yes, rounds 1 and 2 |
-| the confirmed findings fixed and committed after the REJECT record | yes: `6e8e6e7` precedes `d1e4de4` |
-| round 2 dispatches two fresh reviewers with new ids on the new digest | yes: `LevelLeopon`, `HandicappedWhale` |
-| at most two full rounds | yes, two; round 3 is the single delta check the user's Fix at the exhaustion ask authorizes |
-| exhaustion ask only with a confirmed blocking finding open after round 2 | yes, one finding open |
+Same round number, fresh reviewers, both on their pins, both REJECT. The verifier took **all seven
+findings** — the three carried from the incomplete round plus one from scope A and three from scope
+B — and confirmed every one as blocking, none protected.
 
-## Observations for the QA lane
+Record `7da60ca`: REJECT, **Round 1** (not 2: the re-run is the same round), Awaiting `scope`,
+Verifier `F1bTriage`, `Models` listing all six dispatches of both attempts with their `(no verdict)`
+marks. Finding 4 needs a decision the artifacts leave open (what the store does when the newest
+refresh fails), so the session printed the **scope ask**: the finding verbatim with the verifier's
+reason, two named alternatives and Stop — **and no "keep as a residual" option**, because the
+finding is confirmed. Nothing was edited.
 
-- Override was correctly withheld at the exhaustion ask because the open finding carried
-  `protected` true. The verifier marked a verification-coverage finding as protected, which is
-  conservative — the rule makes `protected` true for a security or privacy path, a credential,
-  another protected asset, or review_scope item 4 / CHECK 1. Erring this way only removes an
-  acceptance option; it never lets a finding through.
-- The verifier still refutes under the stricter condition 3 when there is a real reason: it refuted
-  the "task 1.1's Verify runs a later file" finding in round 1 and recorded it as a residual.
-- The post-exhaustion delta check used one reviewer on a `risky` change. That is the path the plan
-  specifies for a user-authorized Fix after the budget is spent, and `F1-F`'s route-2 note records
-  the same judgement.
+## Session 3 — the answer, the fix, round 2, the exhaustion ask
+
+`…T19-59-52-376Z…`, 2979 s. The QA lane answered the scope ask with alternative 1 (add an `error`
+state that only the newest refresh can reach, last totals kept, `refresh()` rejects with the
+source's error).
+
+- Fix `9390de2`: all seven findings, **change folder only** (`proposal.md`, the spec, `design.md`,
+  `gate.md`, `tasks.md`), no source code.
+- Round 2 on the new digest
+  `7b075d2ea97dba0a757a9bd85404135ecd62e08c472ec0755577f3e9b1adf02a`:
+
+```
+29  task plan-reviewer/F1bR2ScopeA, plan-reviewer/F1bR2ScopeB   <- two FRESH reviewers, one batch
+36  task plan-reviewer/F1bR2ScopeARetry        (scope A's first run left the pin)
+42  task blocker-verifier/F1bR2Triage          (left the pin -> no verdict)
+46  task blocker-verifier/F1bR2TriageRetry     (on the pin -> counts)
+```
+
+Scope B found one blocker; the retried scope A found none; the verifier's retry confirmed it,
+blocking, not protected.
+
+Record `8ba2079`:
+
+```
+- **Verdict**: REJECT
+- **Reviewed digest**: 7b075d2e…f02a
+- **Depth**: risky
+- **Reviewer**: plan-reviewer, F1bR2ScopeARetry, F1bR2ScopeB
+- **Verifier**: blocker-verifier, F1bR2TriageRetry
+- **Models**: F1bR2ScopeA … onara/cc/claude-opus-5 (no verdict); F1bR2ScopeB …; F1bR2ScopeARetry …; F1bR2Triage … onara/cc/claude-opus-5 (no verdict); F1bR2TriageRetry …
+- **Round**: 2
+- **Awaiting**: exhaustion
+```
+
+committed **before** the ask and before any further edit. A `risky` review's budget is two full
+rounds, both spent, so the session printed the exhaustion ask with the finding verbatim, the
+verifier's reason and the options Fix, Override, Stop — and stopped, artifacts untouched.
+
+## What the QA lane judges
+
+- Depth `risky` read from `gate.md`; scope A and scope B dispatched **in one batch** in every round.
+- The record is committed before the first artifact edit of its round, and the fix touches only the
+  change folder.
+- Round 2 dispatches **fresh** reviewers with new ids on the **new digest**.
+- At most two full rounds: after round 2 the session asks instead of running a third.
+- The exhaustion ask appears only because a confirmed blocking finding is still open, it quotes the
+  finding and the verifier's reason, and it offers Fix, Override and Stop with the reviewed bytes
+  unchanged (row 5.25's ordering).
+
+## Honest notes
+
+- The ask was left unanswered: the row's subject is the round structure and the budget, and the
+  answer paths are covered live by F1-C (Override, `.../f1/security.md`) and F1-E (b) (Override
+  after a resume, `.../f1/seeded.md`).
+- Four dispatches across the three sessions left their pinned model mid-run, and one hit the
+  provider's output-size limit. All are real infrastructure behaviour, not planted; each cost one
+  dispatch and the instruction's retry rule recovered every time.
+- The verifier of session 2 was dispatched from an `eval` cell rather than the `task` tool, after
+  the brief was assembled there; the record names it (`F1bTriage`) and its model was read from its
+  own session file.

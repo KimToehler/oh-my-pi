@@ -1,49 +1,51 @@
-# F1-D: the other review lanes are untouched
+# F1-D: the other review lanes are unchanged
 
-Date: 2026-11-01, re-checked after the F2 wave-1 fixes; neither skill file was touched by them.
+Date: 2026-11-01, re-run for row 4.11 on the head after 4.7's last code commit
+(`d7246ce425`, lane F3 closed PASS in wave 4).
 
-## Method
-
-```
-git diff --stat main -- team-config/agent/skills/review-work/SKILL.md \
-                        team-config/agent/skills/integration-review/SKILL.md
-git diff -U0 main -- <same two files> | grep '^@@'
-```
-
-## Result
+Schema blob the delivered instruction of this head carries:
 
 ```
+f7ad8d3534d80e841900f9d9cb878514945da9d4
+```
+
+(`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`.)
+
+## The diff
+
+```
+$ git diff --stat main -- team-config/agent/skills/review-work/SKILL.md \
+                          team-config/agent/skills/integration-review/SKILL.md
  team-config/agent/skills/review-work/SKILL.md | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
 ```
 
-`team-config/agent/skills/integration-review/SKILL.md` has no diff against `main` at all: the F3
-lane is byte-identical.
+`team-config/agent/skills/integration-review/SKILL.md` has **no hunk at all**: F3 is untouched by
+this change. `review-work/SKILL.md` has two hunks, both inside `## Blocker disposition`, three
+changed lines:
 
-Three single-line hunks in `review-work/SKILL.md`, at lines 419, 439 and 441. The
-`## Blocker disposition` section runs from line 417 to line 444 (`## Fix waves: delta review and
-convergence (F2)` starts at 445), so all three hunks sit inside that one section. Each removes
-exactly the plan-review references from a lane enumeration and nothing else:
+1. `@@ -416,7 +416,7 @@` — the section's own scope sentence. Plan review is removed from the list
+   of lanes that read this section, and the sentence now says plan review of an `omp-gated` change
+   triages every reviewer finding with `blocker-verifier` instead.
+2. `@@ -436,9 +436,9 @@` — **Accept paths**: `plan-review Accept and Override` drops out of the
+   list of paths where a blocker may stay unfixed.
+3. the same hunk — **The user's explicit request**: `plan-review Accept or Override` drops out of
+   the list of paths the user may ask for.
 
-- **419** (the section's scope sentence): drops `plan review (the `omp-gated` schema's `review`
-  instruction)` from the lane list and appends the pointer that plan review of an `omp-gated`
-  change triages every finding with the `blocker-verifier` agent instead. F2 (Phase 4 and Fix
-  waves), delta reviews and F3 (`integration-review` Step 4) stay named as before.
-- **439** (Accept paths): drops `plan-review Accept and Override` from the list of paths where a
-  blocker can stay unfixed. The Phase 4 override, an F2 or F3 freeze and a delta accept are
-  unchanged, including the `internal-tooling` wave-3 clause.
-- **441** (The user's explicit request): drops `at plan-review Accept or Override` and the
-  `gate.md` entry / Override from the record list. The freeze, the delta accept, the `frozen`
-  `downgrades` entry, the F3 report's follow-up list and `GC accept --reason` are unchanged, as is
-  the closing sentence about the ordinary Phase 4 override.
+## The QA lane's note
 
-Nothing else in the section moved: the Eligible paragraph with the two-limb blocking threshold, the
-exclusion list, `No unrequested mechanism` and every other line are untouched. No hunk falls in
-`## Fix waves: delta review and convergence (F2)` (445+), in Phase 4, or anywhere in the F3 lane.
+Every hunk is a **plan-review reference being removed** from a section that keeps working
+unchanged for the other lanes. Nothing in the file's F2 machinery changed:
 
-## Acceptance
+- `Phase 4` and its Downgrades: untouched (no hunk).
+- `Fix waves`: untouched (no hunk).
+- F3 / `integration-review` Step 4: untouched, and its SKILL.md has no hunk at all.
+- The **Eligible**, **Excluded** and **Covered** paragraphs of `Blocker disposition`: untouched.
+  The eligibility definition, the exclusion list and the coverage rule are byte-identical to
+  `main`, so every lane that still reads the section reads exactly what it read before.
 
-| criterion | result |
-|---|---|
-| every hunk is a plan-review reference inside `Blocker disposition` | yes, 3 of 3 (lines 419, 439, 441; section 417-444) |
-| nothing in Phase 4, Fix waves or F3 changed | yes: no hunk at 445+, `integration-review/SKILL.md` has no diff |
+The three changed lines are the clean cutover this change requires: plan review no longer has an
+Accept path at all, so a sentence that still offered one would be a second, contradicting rule.
+The record of the live runs is in `.../f1/standard.md`, `.../f1/risky.md`, `.../f1/security.md`,
+`.../f1/seeded.md`, `.../f1/failed-triage.md`, `.../f1/partial-round.md` and
+`.../f1/substitution.md`: no session offered Accept, and every finding went through the verifier.
