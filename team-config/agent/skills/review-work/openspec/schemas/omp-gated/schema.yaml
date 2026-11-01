@@ -520,8 +520,9 @@ artifacts:
              two-reviewer round over the fixed artifacts.
            - `standard` after its first full round: re-read and update `- **Depth**:` as step 2
              prescribes, before the fixes are committed; when a fix made the change `risky`,
-             dispatch a full fresh two-reviewer round
-             instead. Otherwise one fix-delta check: commit the change folder and confirm
+             repeat from step 1 as a second full fresh two-reviewer round over the fixed
+             artifacts, so the raised depth is validated, committed and digested before that
+             dispatch. Otherwise one fix-delta check: commit the change folder and confirm
              `git status --porcelain -- <change dir>` is empty as step 2 prescribes, run
              `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
              so the delta check's record carries this new digest, not the round's — and dispatch
