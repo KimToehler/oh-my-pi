@@ -28,7 +28,7 @@ Before round 1 the planner SHALL record `- **Depth**:` in `gate.md` with its rea
 
 ### Requirement: Fixed reviewer briefs on a pinned model
 
-Every plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else, so the planner's focus does not steer the review. The team seed SHALL resolve `plan-reviewer` to `onara/cx/gpt-6.1-sol:high` through `task.agentModelOverrides`, so the user's `advisor` role does not choose the reviewer model.
+Every full-round plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else; a delta check SHALL carry the schema's fixed delta brief with only the paths, the fix entries and the patch path filled in. The team seed SHALL resolve `plan-reviewer` to `onara/cx/gpt-6.1-sol:high` through `task.agentModelOverrides`.
 
 #### Scenario: Standard dispatch
 
@@ -105,6 +105,20 @@ Confirmed blocking findings SHALL be fixed and committed without asking while bu
 #### Scenario: Negative control
 
 - **WHEN** an instruction dispatches a third full round of a `risky` change or a second delta check of a `standard` change before the user answered the exhaustion ask, ends a `risky` review OKAY after round-1 fixes without round 2, answers them with a one-reviewer delta check, or builds a delta check from a diff base other than the recording commit
+- **THEN** review of that instruction MUST fail
+
+### Requirement: Reviewed bytes are committed
+
+Before every round or delta-check dispatch, the instruction SHALL commit the change folder and confirm `git status --porcelain -- <change dir>` is empty, and SHALL commit each round's `review.md` before any fix or ask. The commit that records a round therefore holds exactly the planning bytes that round reviewed, and it is the base of the next delta check.
+
+#### Scenario: Draft created without a commit
+
+- **WHEN** `/opsx-propose` wrote the planning artifacts without committing them and round 1 of a `standard` change is about to be dispatched
+- **THEN** the artifacts are committed first, and the later delta patch shows every change made after round 1, including a removed line that existed only in the reviewed draft
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction dispatches a round or delta check while the change folder has uncommitted or untracked changes, or takes a delta base whose change folder differs from the reviewed bytes
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The user is asked only on named exceptions
