@@ -42,7 +42,7 @@ Every full-round plan-reviewer task SHALL carry the brief fixed in the schema ve
 
 ### Requirement: A verifier triages every finding
 
-After every complete round or delta check with a blocker, and before any fix or ask, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief, the two paths and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. A finding that no verifier result ever triaged SHALL be untriaged: it is neither confirmed nor refuted, and the instruction SHALL NOT decide it on its own.
+After every complete round or delta check with a blocker, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. A finding no verifier result triaged is untriaged, and the instruction SHALL NOT decide it itself.
 
 #### Scenario: Round with findings
 
@@ -61,7 +61,7 @@ After every complete round or delta check with a blocker, and before any fix or 
 
 ### Requirement: Only confirmed findings block
 
-A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence it found at the cited repository `file:line` or plan quote, that no check the plan runs would fail when that failure occurs, and the blocking threshold. A check that runs is a task's `Verify:` command, a test the tasks name, or a planned real-session run whose retained outputs would show the failure; a `### Requirement:` block or a `#### Scenario:`, its Negative control included, is a criterion, not a check, and SHALL NOT refute a finding about missing or ineffective verification. A blocker that triggers an exception ask SHALL stay blocking until the user answers it. An untriaged finding SHALL stay under `## Blockers` with its untriaged reason and SHALL force the verdict REJECT until a verifier triages it; it SHALL NOT become a residual. Every other blocker SHALL become a residual recorded with the verifier's result and reason; residuals never block apply.
+A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence at the cited `file:line` or plan quote, that no check the plan runs would fail on that failure, and the blocking threshold. A finding awaiting an ask stays blocking; an untriaged finding stays under `## Blockers`, forces REJECT and SHALL NOT become a residual. Every other blocker SHALL become a residual with the verifier's result and reason; residuals never block apply.
 
 #### Scenario: Speculative finding
 
@@ -76,7 +76,7 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 #### Scenario: Unproven material behaviour
 
 - **WHEN** a blocker shows that a criterion covers deletion and no planned Verify command or test can fail when deletion breaks, and the verifier confirms the cited lines
-- **THEN** it stays blocking, and the criterion's own text, its Negative control scenario included, does not refute it
+- **THEN** it stays blocking: a check the plan runs is a task's `Verify:` command, a test the tasks name or a planned real-session run, while a `### Requirement:` block or a `#### Scenario:`, its Negative control included, is a criterion, not a check, and refutes nothing
 
 #### Scenario: Finding no verifier triaged
 
@@ -128,7 +128,7 @@ Before every round or delta-check dispatch, the instruction SHALL commit the cha
 
 ### Requirement: The user is asked only on named exceptions
 
-The instruction SHALL ask the user only when a finding in the security scope (review_scope item 4 or CHECK 1) or naming a protected asset is not confirmed; when the verifier returns `undecided` for a finding whose stated consequence meets the blocking threshold; when the budget is spent with a confirmed blocking finding open; or when a fix needs a scope decision the artifacts leave open. Otherwise it SHALL decide without asking. The first two asks SHALL offer Fix, keep as a residual with the user's reason, and Stop. The scope ask SHALL offer the named scope alternatives, each a fix of the artifacts, and Stop, and SHALL NOT offer keep: a finding the verifier confirmed as blocking reaches acceptance only through the exhaustion ask's Override.
+The instruction SHALL ask the user only when a finding in the security scope (review_scope item 4 or CHECK 1) or naming a protected asset is not confirmed; when the verifier returns `undecided` for a finding whose stated consequence meets the blocking threshold; when the budget is spent with a confirmed blocking finding open; or when a fix needs a scope decision the artifacts leave open. Otherwise it SHALL decide without asking.
 
 #### Scenario: Refuted findings only
 
@@ -140,10 +140,15 @@ The instruction SHALL ask the user only when a finding in the security scope (re
 - **WHEN** the verifier refutes a CHECK 1 finding that a QA step writes a provider key to an evidence file
 - **THEN** `review.md` records the round as REJECT with that finding under Blockers before the user is asked whether to fix it, keep it as a residual with their reason, or stop; only the answer "keep" moves it to Residuals with the user's reason, and the record is then rewritten as OKAY when no other blocking finding remains
 
+#### Scenario: Undecided finding that claims blocking damage
+
+- **WHEN** the verifier returns `undecided` for a finding whose stated consequence meets the threshold
+- **THEN** the ask offers Fix, keep as a residual with the user's reason, and Stop, and the finding stays under Blockers until the user answers
+
 #### Scenario: Confirmed finding whose fix needs a scope decision
 
 - **WHEN** the verifier confirms a blocking finding whose fix depends on a scope decision the artifacts leave open
-- **THEN** the ask offers the scope alternatives and Stop, and the finding stays under Blockers until a fix lands
+- **THEN** the ask offers the named scope alternatives, each a fix of the artifacts, and Stop, never keep as a residual, because a finding confirmed as blocking reaches acceptance only through the exhaustion ask's Override; the finding stays under Blockers until a fix lands
 
 #### Scenario: Negative control
 
@@ -185,7 +190,7 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 ### Requirement: Resume from the record
 
-`review.md` SHALL carry `- **Awaiting**:` naming what was open when it was written (`none`, `exception`, `exhaustion`, `scope` or `triage`), and every finding under Blockers SHALL carry the verifier's result and reason, or the recorded triage failure when Awaiting is `triage`. A session resuming a review whose recorded digest equals the current one SHALL, before any edit or dispatch, ask the recorded ask again from the record's fields when Awaiting is `exception`, `exhaustion` or `scope`, and dispatch triage for exactly the untriaged findings when Awaiting is `triage`. It SHALL NOT re-dispatch the verifier for a finding whose verifier result the record carries, and SHALL NOT dispatch a reviewer or add a finding.
+`review.md` SHALL carry `- **Awaiting**:` naming what is open (`none`, `exception`, `exhaustion`, `scope` or `triage`), and every finding under Blockers SHALL carry the verifier's result and reason, or its triage failure when Awaiting is `triage`. A session resuming a review on the recorded digest SHALL, before any edit or dispatch, re-ask the recorded ask, or dispatch triage for exactly the untriaged findings. It SHALL NOT re-triage a recorded result, dispatch a reviewer, or add a finding.
 
 #### Scenario: Interrupted exhaustion ask
 
