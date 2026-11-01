@@ -447,6 +447,9 @@ artifacts:
          - `undecided`: an exception ask (step 5), unless the finding's own stated consequence is
            clearly below the blocking threshold, which makes it a residual. A finding that states
            no consequence is never read as below the threshold.
+         - Overriding both: a finding whose area is in the security scope or whose `protected` is
+           true becomes a residual only after step 5's ask is answered `keep`, never before and
+           never because its consequence reads as small.
       5. Write review.md for this round (step 7) and commit it, before any fix or ask. Then:
          - Exception asks, one `ask` per finding, each quoting the finding's area, defect and
            evidence verbatim with the verifier's reason: a finding in the security scope
@@ -464,8 +467,10 @@ artifacts:
            fixes, then spend the budget:
            - `risky` after its first full round: repeat from step 1 as a second full fresh
              two-reviewer round over the fixed artifacts.
-           - `standard` after its first full round: one fix-delta check. Run `V <change-dir>`,
-             commit, and dispatch one fresh plan-reviewer item with the delta brief below. The
+           - `standard` after its first full round: re-read `- **Depth**:` as step 3 prescribes
+             first; when a fix made the change `risky`, dispatch a full fresh two-reviewer round
+             instead. Otherwise one fix-delta check: run `V <change-dir>`, commit, and dispatch
+             one fresh plan-reviewer item with the delta brief below. The
              delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
              through step 4 and this step like a round.
            - Budget spent (a `risky` review after its second full round, a `standard` review
