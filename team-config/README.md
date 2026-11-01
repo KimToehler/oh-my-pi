@@ -199,7 +199,8 @@ brief. Every finding the round returns then goes, verbatim and numbered, to one 
 left undecided without a blocking consequence is recorded under `## Residuals` with the verifier's reason and never
 reviewed again, while a finding awaiting one of the asks below stays under `## Blockers` until you answer. The budget
 is fixed: a `standard` round is followed by one delta check
-over the fix diff, a `risky` review runs at most two full rounds. Four cases ask you instead of deciding: an
+over the fix diff, unless a fix raised the depth, which starts one full `risky` round instead; a `risky` review runs
+at most two full rounds. Four cases ask you instead of deciding: an
 `undecided` finding whose stated consequence meets the blocking threshold, a finding on a security or privacy path or
 a protected asset that it refuted, a fix that
 needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. Every ask

@@ -514,12 +514,12 @@ artifacts:
          - Fix every confirmed blocking finding in the artifacts (never in source code) and the
            findings answered Fix. A finding whose fix needs a scope decision the artifacts leave
            open is never fixed before the user answers the ask that names its alternatives. Confirmed
-           below-threshold findings may be fixed in the same edit, never on their own. Commit the
-           fixes, then spend the budget:
+           below-threshold findings may be fixed in the same edit, never on their own. Update
+           `- **Depth**:` with them when a fix changed the Mandatory class or the reach, commit the
+           fixes and that update together, then spend the budget:
            - `risky` after its first full round: repeat from step 1 as a second full fresh
              two-reviewer round over the fixed artifacts.
-           - `standard` after its first full round: re-read and update `- **Depth**:` as step 2
-             prescribes, before the fixes are committed; when a fix made the change `risky`,
+           - `standard` after its first full round: when that update made the change `risky`,
              repeat from step 1 as a second full fresh two-reviewer round over the fixed
              artifacts, so the raised depth is validated, committed and digested before that
              dispatch. Otherwise one fix-delta check: commit the change folder and confirm
@@ -603,7 +603,8 @@ artifacts:
 
       A record with Awaiting `incomplete` on the unchanged digest
       re-runs the recorded round in full from step 3 with fresh reviewers, under the same round
-      number: an incomplete round
+      number and the depth the record names, since the digest it resumes covers that depth: an
+      incomplete round
       spends no budget. Its recorded findings are carried into that re-run verbatim, each under
       its original reviewer and id marked `carried from the incomplete round`, and step 4 triages
       them with the re-run's own blockers, carried ones first, even when the fresh reviewers
