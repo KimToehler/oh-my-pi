@@ -199,9 +199,11 @@ brief. Every finding the round returns then goes, verbatim and numbered, to one 
 the verifier's reason and never reviewed again. The budget is fixed: a `standard` round is followed by one delta check
 over the fix diff, a `risky` review runs at most two full rounds. Four cases ask you instead of deciding: a finding the
 verifier left `undecided`, a finding on a security or privacy path or a protected asset that it refuted, a fix that
-needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. The ask
-quotes the finding verbatim and offers Fix, Override and Stop; Override is unavailable while a security-scope or
-protected-asset finding is open. The record is written and committed before any fix or ask, so an interrupted session
+needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. Every ask
+quotes the finding verbatim; its options differ. The two findings the verifier did not confirm offer Fix, keep as a
+residual with your reason, and Stop. The scope decision offers the alternatives the artifacts leave open and Stop,
+never keep: the finding is confirmed. Exhaustion offers Fix, Override and Stop, and Override is unavailable while a
+security-scope or protected-asset finding is open. The record is written and committed before any fix or ask, so an interrupted session
 resumes from `review.md` alone. Each dispatch is checked against its pinned model and the record's `Models` line names
 what every dispatch ran on: a reviewer or verifier that ran on another model, returned no structured result or failed
 is retried once, and a retry without a result counts the same. A verifier that fails twice leaves the round REJECT

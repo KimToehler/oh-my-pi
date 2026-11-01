@@ -339,8 +339,13 @@ A reviewer or verifier task that returns no structured result (failure, timeout,
 
 #### Scenario: No delivered blocker
 
-- **WHEN** a reviewer has no verdict after its retry and no other reviewer of the round delivered a blocker
+- **WHEN** a reviewer has no verdict after its retry, no other reviewer of the round delivered a blocker, and the round carries nothing from an incomplete round
 - **THEN** no `review.md` is written or edited, an earlier record stays as it was, and the user is told which reviewer failed
+
+#### Scenario: Repeated incomplete round
+
+- **WHEN** the re-run of an incomplete round is itself incomplete and its fresh reviewers delivered no new blocker
+- **THEN** the findings carried from the incomplete record are written again with Verdict REJECT and Awaiting `incomplete`, still marked as carried and untriaged, that record replaces the one it resumed, and the user is told which reviewer failed
 
 #### Scenario: Verifier with an incomplete result
 

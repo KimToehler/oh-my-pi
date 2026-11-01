@@ -431,13 +431,17 @@ artifacts:
          with the same brief, in a new task call; the other result stands. If the retry also has
          none, the round is incomplete and no verifier runs on it, because an all-refuted triage
          would turn a half-reviewed round into OKAY:
-         - when another reviewer of the round delivered blockers, write review.md for the round
-           (step 7) and commit it with Verdict REJECT, Awaiting `incomplete`, those blockers
-           verbatim under their reviewer, each carrying `not triaged: the round is incomplete`
-           where the verifier's result would stand, so no earlier OKAY stays current and
-           `--reviewed` fails. Then tell the user which reviewer failed and stop: dispatch
+         - when another reviewer of the round delivered blockers, or the round carries findings
+           from an incomplete round, write review.md for the round
+           (step 7) and commit it with Verdict REJECT, Awaiting `incomplete`, those blockers and
+           every carried finding verbatim under their reviewer, each carrying `not triaged: the
+           round is incomplete` where the verifier's result would stand and each carried one still
+           marked `carried from the incomplete round`, so no earlier OKAY stays current and
+           `--reviewed` fails; that record replaces the incomplete one it resumed. Then tell the
+           user which reviewer failed and stop: dispatch
            nothing further, ask nothing and edit no artifact;
-         - when no other reviewer delivered a blocker, the round produced nothing: write no
+         - when no other reviewer delivered a blocker and the round carries nothing, the round
+           produced nothing: write no
            review.md and edit no existing one, tell the user which reviewer failed, and stop.
 
          The round returns the blockers of every rejecting reviewer, after the findings it carries
@@ -515,7 +519,8 @@ artifacts:
              first; when a fix made the change `risky`, dispatch a full fresh two-reviewer round
              instead. Otherwise one fix-delta check: commit the change folder and confirm
              `git status --porcelain -- <change dir>` is empty as step 2 prescribes, run
-             `V <change-dir>`, and dispatch
+             `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
+             so the delta check's record carries this new digest, not the round's — and dispatch
              one fresh plan-reviewer item with the delta brief below. The
              delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
              through step 4 and this step like a round.
