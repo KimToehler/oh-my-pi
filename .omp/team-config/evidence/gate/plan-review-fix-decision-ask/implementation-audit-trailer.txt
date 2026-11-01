@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Archiving the modified requirement must preserve unrelated requirements and scenarios in the main specification.
+  positive_witness: The archived spec retains the adjacent recording requirement and the unchanged scenarios in their original order.
+  negative_control: Archive silently drops an unchanged scenario or overwrites the adjacent recording requirement.
+  observable: The archive-generated main-spec diff shows only the two intended line replacements, with surrounding requirement context intact.
+  boundary: OpenSpec archive output and resulting main-spec diff
+END-REVIEW-TRAILER
