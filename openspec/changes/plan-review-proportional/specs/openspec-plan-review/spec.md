@@ -40,6 +40,30 @@ Every full-round plan-reviewer task SHALL carry the brief fixed in the schema ve
 - **WHEN** an instruction adds its own focus, a file list or a summary of the change to a brief, or the seed leaves `plan-reviewer` on the `advisor` role
 - **THEN** review of that instruction or seed MUST fail
 
+### Requirement: A dispatch counts only on its pinned model
+
+After every reviewer and verifier dispatch the instruction SHALL read the models the dispatch's session file records for its assistant turns and record them per dispatch under `- **Models**:` in `review.md`. A dispatch any of whose turns ran on a model other than its agent's pin SHALL count as a dispatch without a structured result, whatever it returned.
+
+#### Scenario: Credential fallback to the parent model
+
+- **WHEN** the pinned `plan-reviewer` model has no working credentials, so both attempts of a `standard` round-1 dispatch run on the parent session's model
+- **THEN** neither verdict counts, the round is incomplete, no `review.md` is written, and the user is told which model the dispatch ran on instead of its pin
+
+#### Scenario: Retry chain switches a reviewer mid-run
+
+- **WHEN** scope A's session records its last turns on `onara/cc/claude-opus-5` after the retry chain switched it from its pin, and its fresh retry runs on the pin throughout
+- **THEN** the round continues with the retry's verdict, the Reviewer field lists the retry's id, and `- **Models**:` lists both attempts, the switched one marked as having no verdict
+
+#### Scenario: Substituted verifier
+
+- **WHEN** both verifier attempts of a rejecting round run on a model other than the verifier's pin
+- **THEN** the round is recorded REJECT with Awaiting `triage` and its findings untriaged, as for a verifier without a structured result
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction counts a verdict or triage result from a dispatch whose session records a model other than its pin, or writes a record whose `- **Models**:` omits a dispatch of the recorded round
+- **THEN** review of that instruction MUST fail
+
 ### Requirement: A verifier triages every finding
 
 After every complete round or delta check with a blocker, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. A finding no verifier result triaged is untriaged, and the instruction SHALL NOT decide it itself.
@@ -176,7 +200,7 @@ When the budget is spent with a confirmed blocking finding open, one ask SHALL q
 
 ### Requirement: A round is recorded before any fix or ask
 
-Before any fix or ask that follows a round or delta check, the instruction SHALL write `review.md` with that round's digest, verdict, depth, reviewer and verifier ids, Blockers (confirmed blocking findings and findings awaiting an exception answer, verbatim, grouped by reviewer) and Residuals (every other finding with the verifier's result and reason), so a Stop or an interrupted session leaves no earlier OKAY current and no unanswered exception authorizes apply.
+Before any fix or ask that follows a round or delta check, the instruction SHALL write `review.md` with that round's digest, verdict, depth, reviewer and verifier ids, each dispatch's models, Blockers (confirmed blocking findings and findings awaiting an exception answer, verbatim, grouped by reviewer) and Residuals (every other finding with the verifier's result and reason), so a Stop or an interrupted session leaves no earlier OKAY current and no unanswered exception authorizes apply.
 
 #### Scenario: Earlier OKAY stays superseded
 
@@ -190,7 +214,7 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 ### Requirement: Resume from the record
 
-`review.md` SHALL carry `- **Awaiting**:` naming what is open (`none`, `exception`, `exhaustion`, `scope` or `triage`), and every finding under Blockers SHALL carry the verifier's result and reason, or its triage failure when Awaiting is `triage`. A session resuming a review on the recorded digest SHALL, before any edit or dispatch, re-ask the recorded ask, or dispatch triage for exactly the untriaged findings. It SHALL NOT re-triage a recorded result, dispatch a reviewer, or add a finding.
+`review.md` SHALL carry `- **Awaiting**:` naming what is open (`none`, `exception`, `exhaustion`, `scope`, `triage` or `incomplete`), and every finding under Blockers SHALL carry the verifier's result and reason, or why it is untriaged. A session resuming a review on the recorded digest SHALL, before any edit, re-ask the recorded ask, triage exactly the untriaged findings, or re-run an `incomplete` round in full. It SHALL NOT re-triage a recorded result or add a finding.
 
 #### Scenario: Interrupted exhaustion ask
 
@@ -202,9 +226,14 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 - **WHEN** a record carries Awaiting `triage` with two untriaged findings and a new session resumes the review on the unchanged digest
 - **THEN** it dispatches one verifier for exactly those two findings and dispatches no reviewer
 
+#### Scenario: Interrupted incomplete round
+
+- **WHEN** a record carries Awaiting `incomplete` and a new session resumes the review on the unchanged digest
+- **THEN** it dispatches the recorded round's reviewers fresh and in full under the same round number, the incomplete round spends no budget, and the re-run's record replaces it
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction re-triages a finding whose verifier result the record carries, offers "keep" for a finding recorded as confirmed, writes a record with an open ask and Awaiting `none`, or dispatches a reviewer on a resume
+- **WHEN** an instruction re-triages a finding whose verifier result the record carries, offers "keep" for a finding recorded as confirmed, writes a record with an open ask and Awaiting `none`, or dispatches a reviewer on a resume whose record's Awaiting is not `incomplete`
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The record matches the change's risk
@@ -225,6 +254,16 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 - **WHEN** `gate.md` has class `concurrency-state` and no Depth, and a current OKAY `review.md` names three lens ids
 - **THEN** `--reviewed` passes
+
+#### Scenario: Class-bearing record without Depth names one reviewer
+
+- **WHEN** `gate.md` has class `concurrency-state` and no Depth, and a current OKAY `review.md` of Round 1 names one reviewer id
+- **THEN** `--reviewed` fails and names the Reviewer field
+
+#### Scenario: Risky round 2 recorded with one reviewer
+
+- **WHEN** `gate.md` has Depth `risky`, and a current OKAY `review.md` of Round 2 names one reviewer id
+- **THEN** `--reviewed` fails and names the Reviewer field
 
 #### Scenario: Negative control
 
@@ -271,12 +310,22 @@ A round SHALL be OKAY when, after verifier triage and the user's answer to every
 - **THEN** `validate-openspec-change.mjs --reviewed` MUST fail and name the Blockers section
 
 ### Requirement: Incomplete round
-A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output), or a verifier result that is not complete as defined in "A verifier triages every finding", SHALL get one fresh retry with the same brief. When a reviewer's retry also returns none, the round SHALL be incomplete: the agent writes and edits no `review.md` for it and SHALL tell the user which task failed, because the round has no verdict to record. When the verifier's retry also fails or returns an incomplete result, the round's reviewers have already delivered their verdicts, so the agent SHALL write and commit `review.md` for that round with Verdict REJECT, Awaiting `triage` and every blocker of the round verbatim under `## Blockers`, each recording that it was not triaged, and SHALL then tell the user and stop without fixing, asking or editing any artifact. A record of an earlier complete round stays as it was only while no such record is written.
+A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output), runs on a model other than its pin, or, for the verifier, returns an incomplete result SHALL get one fresh retry with the same brief. A reviewer whose retry fails too makes the round incomplete: the agent SHALL tell the user and stop, recording the round REJECT with Awaiting `incomplete` when another reviewer delivered blockers. A verifier whose retry fails too SHALL leave the round recorded REJECT with Awaiting `triage`.
 
 #### Scenario: Retry recovers the lens
 
 - **WHEN** the scope B reviewer fails and its fresh retry returns REJECT
 - **THEN** the round continues with scope A's result and the retry's, and the record lists the retry's subagent id for scope B
+
+#### Scenario: Reviewer fails beside a rejecting reviewer
+
+- **WHEN** a `risky` change with a current OKAY `review.md` is reviewed again unchanged, scope A returns REJECT with two blockers, and scope B has no verdict after its retry
+- **THEN** `review.md` records that round as REJECT with Awaiting `incomplete` and scope A's two blockers verbatim under `## Blockers`, each untriaged because the round is incomplete; no verifier is dispatched, nothing is fixed or asked, `--reviewed` fails, and the user is told scope B failed
+
+#### Scenario: No delivered blocker
+
+- **WHEN** a reviewer has no verdict after its retry and no other reviewer of the round delivered a blocker
+- **THEN** no `review.md` is written or edited, an earlier record stays as it was, and the user is told which reviewer failed
 
 #### Scenario: Verifier with an incomplete result
 
@@ -290,7 +339,7 @@ A reviewer or verifier task that returns no structured result (failure, timeout,
 
 #### Scenario: Negative control
 
-- **WHEN** a reviewer of the first round of a change has no structured result after its retry and a review record is produced for that round, or a verifier failure leaves an earlier OKAY record current
+- **WHEN** a reviewer has no verdict after its retry and its round is triaged, fixed, asked about or recorded OKAY, a blocker another reviewer of that round delivered leaves an earlier OKAY record current, or a verifier failure leaves an earlier OKAY record current
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Reviewer record
