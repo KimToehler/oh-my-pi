@@ -8,7 +8,7 @@ The stopped `plan-adopt-and-cap` change carried the same rule together with revi
 
 ## What Changes
 
-- The design instruction requires research before a mechanism is designed when that mechanism implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain. The search runs in this order: this repository and its installed dependencies, the platform or standard library, then maintained open-source libraries. Each such mechanism gets one short `Build vs. adopt` decision in `design.md`. Auth, crypto and protocol mechanisms adopt a maintained library unless the decision names a gap that no candidate covers.
+- The design instruction requires research before a mechanism is designed when that mechanism implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain. The search runs in this order and stops at the first stage that covers the mechanism: this repository and its installed dependencies, the platform or standard library, then maintained open-source libraries. Each such mechanism gets one short `Build vs. adopt` decision in `design.md`. Auth, crypto and protocol mechanisms are never built when one of those stages covers them; building one names a gap that none covers.
 - A change that builds such a mechanism includes `design.md` even when it stays inside one module.
 - The plan review's correctness lens reads that rule. It blocks on a covered mechanism that has no decision, on a decision that lacks a line or candidate fact the form asks for, and on a build or reject verdict that names no gap.
 - The instruction names keyless research tools every session has: `web_search`, `read` on URLs, and the deps.dev API through `read` for release history.
@@ -28,4 +28,4 @@ The stopped `plan-adopt-and-cap` change carried the same rule together with revi
 - `team-config/README.md`: one paragraph.
 - No script, validator, record format or package code changes.
 - Rollout: `scripts/deploy-local.sh`, then `install-openspec-workflow.mjs` in onara and weaver, which hold their own schema copy, then a restart of running sessions. Changes already in flight are only affected when their design or review step runs after the update.
-- Out of scope: plan-mode plans and the plan-mode `plan-reviewer` prompt, giving `plan-reviewer` web access, the implementation phase, and a Context7 or other MCP research tool.
+- Out of scope: plan-mode plans and the plan-mode `plan-reviewer` prompt, `web_search` for `plan-reviewer` and reviewer verification of cited facts, the implementation phase, and a Context7 or other MCP research tool.

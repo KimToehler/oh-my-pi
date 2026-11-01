@@ -8,12 +8,17 @@ Defines when an `omp-gated` design must look for an existing implementation befo
 
 ### Requirement: Covered mechanisms are researched before they are designed
 
-The design instruction SHALL require a search before a mechanism is designed when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: first this repository and its installed dependencies, then the platform or standard library, then maintained open-source libraries. Project-specific logic and glue between existing components SHALL need no search.
+The design instruction SHALL require a search before a mechanism is designed when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: first this repository and its installed dependencies, then the platform or standard library, then maintained open-source libraries, stopping at the first stage that covers it. Project-specific logic and glue between existing components SHALL need no search.
 
 #### Scenario: Protocol client is covered
 
 - **WHEN** a design adds sign-in through OIDC authorization code with PKCE, token storage and token refresh
 - **THEN** the planner searches for existing implementations before writing the design of those mechanisms, and `design.md` records the result
+
+#### Scenario: Platform covers it
+
+- **WHEN** a JVM change needs a SHA-256 digest and the JDK provides one
+- **THEN** the decision adopts the platform API and records that no library search was needed
 
 #### Scenario: Project logic is not covered
 
@@ -45,8 +50,8 @@ Each covered mechanism SHALL get one `### Build vs. adopt: <mechanism>` subsecti
 
 #### Scenario: Partial coverage
 
-- **WHEN** the only maintained candidate covers Android and iOS and the change also targets desktop
-- **THEN** the decision names the desktop gap and states which part is adopted and which is built
+- **WHEN** the only maintained candidate is stable on Android and iOS and experimental on desktop, and the change requires stable components on every target including desktop
+- **THEN** the decision names the desktop gap with its source and states which part is adopted and which is built or handled otherwise
 
 #### Scenario: Nothing found
 
@@ -58,13 +63,13 @@ Each covered mechanism SHALL get one `### Build vs. adopt: <mechanism>` subsecti
 - **WHEN** a decision rejects a candidate without a gap, or lists a candidate without its newest release and date
 - **THEN** the correctness lens review of that design MUST fail with REJECT
 
-### Requirement: Auth, crypto and protocol mechanisms adopt by default
+### Requirement: Auth, crypto and protocol mechanisms are not built when covered
 
-The design instruction SHALL require a covered auth, crypto or protocol mechanism to adopt a maintained library unless its decision names a gap that no candidate covers.
+The design instruction SHALL forbid building a covered auth, crypto or protocol mechanism when the repository, its dependencies, the platform or a maintained library covers it; a decision to build SHALL name a gap that none of them covers.
 
 #### Scenario: Maintained library exists
 
-- **WHEN** a design needs an OIDC authorization-code client and a maintained library covers the change's targets
+- **WHEN** a design needs an OIDC authorization-code client on Android and iOS and a maintained library is stable on both
 - **THEN** the decision adopts that library
 
 #### Scenario: Negative control
