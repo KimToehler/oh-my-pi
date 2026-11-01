@@ -202,7 +202,7 @@ is fixed: a `standard` round is followed by one delta check
 over the fix diff, unless a fix raised the depth, which starts one full `risky` round instead; a `risky` review runs
 at most two full rounds. Four cases ask you instead of deciding: an
 `undecided` finding whose stated consequence meets the blocking threshold, a finding on a security or privacy path or
-a protected asset that it refuted, a fix that
+a protected asset that it did not confirm as blocking, whether refuted or confirmed below the threshold, a fix that
 needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. Every ask
 quotes the finding verbatim; its options differ. The two findings the verifier did not confirm offer Fix, keep as a
 residual with your reason, and Stop. The scope decision offers the alternatives the artifacts leave open and Stop,

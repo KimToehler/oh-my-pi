@@ -196,7 +196,7 @@ The instruction SHALL ask the user only when a finding in the security scope (re
 
 ### Requirement: Budget exhaustion asks once and Override is the user's acceptance
 
-When the budget is spent with a confirmed blocking finding open, one ask SHALL quote each such finding's area, defect and evidence verbatim with the verifier's reason, and offer Fix (followed by one more delta check), Override and Stop. Override SHALL record the user's reason in `review.md` with the artifacts unchanged and SHALL NOT be offered while an open finding is in the security scope or names a protected asset.
+When the budget is spent with a confirmed blocking finding open, the instruction SHALL edit no artifact and SHALL ask once, quoting each such finding's area, defect and evidence verbatim with the verifier's reason, offering Fix (followed by one more delta check), Override and Stop. Override SHALL record the user's reason in `review.md` with the artifacts unchanged and SHALL NOT be offered while an open finding is in the security scope or names a protected asset.
 
 #### Scenario: User accepts a remaining finding
 
@@ -208,9 +208,14 @@ When the budget is spent with a confirmed blocking finding open, one ask SHALL q
 - **WHEN** the open confirmed finding names a credential sink
 - **THEN** the ask offers only Fix and Stop
 
+#### Scenario: Nothing is fixed before the ask
+
+- **WHEN** the delta check of a `standard` change leaves one confirmed blocking finding
+- **THEN** the artifacts stay as the delta check read them until the user answers, so an Override accepts exactly those bytes, and only Fix starts the edits and the one further delta check
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction offers Override for an open security-scope finding, writes an Override the user did not give, or edits an artifact before writing Override
+- **WHEN** an instruction offers Override for an open security-scope finding, writes an Override the user did not give, edits an artifact before writing Override, or fixes a finding after the budget is spent without the user's Fix answer
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: A round is recorded before any fix or ask
