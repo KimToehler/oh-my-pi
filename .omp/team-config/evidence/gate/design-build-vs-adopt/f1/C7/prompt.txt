@@ -1,0 +1,1 @@
+Run step 3 of the review instruction from `openspec instructions review --change keycloak-sign-in --json` for item 1 only: dispatch one plan-reviewer task with the brief and the correctness lens paragraph verbatim, paths filled in. Print the reviewer's full output. Edit nothing.

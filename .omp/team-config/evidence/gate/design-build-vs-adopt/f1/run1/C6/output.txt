@@ -1,0 +1,42 @@
+I sent one plan-reviewer task for the correctness lens. Its context was the fixed line and its brief was verbatim, with only the two paths filled in: repository root `/private/tmp/dba-f1/C6` and change directory `/private/tmp/dba-f1/C6/openspec/changes/keycloak-sign-in`. It returned **REJECT** with 4 blockers. I edited nothing and did not write review.md. I also skipped steps 1–2, so there's no validator pass and no digest for this round. Subagent id: `CorrectnessLens`.
+
+Full reviewer output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan cannot deliver its app-level sign-in requirement against the repository as scoped, contradicts its session-persistence criterion on refresh failures, and specifies an incompatible rollback. The token-refresh adoption record also fails the required candidate-record form.",
+  "blockers": [
+    {
+      "area": "Correctness / architecture — missing application integration",
+      "defect": "The implementation tasks cover only :shared, but successful sign-in requires executable Android and iOS applications, browser-redirect integration, and a signed-in home screen. None exists in this repository. Completing the listed shared-library tasks leaves the normal sign-in path without an application entry point or redirect consumer; the requirement remains unimplemented. This is recoverable by adding the missing application work.",
+      "evidence": "settings.gradle.kts:2 includes only :shared; shared/build.gradle.kts:3 applies com.android.library, and lines 7–9 declare library platform targets. The complete source inventory contains only shared/src/commonMain/kotlin/http/Client.kt. Nevertheless, openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11–12 requires browser sign-in, redirect reception and a signed-in home screen; proposal.md:23 names Android and iOS app shells as impacted, while tasks.md:5–6 limits implementation to :shared and ApiClient. design.md:40 also assumes an existing password screen that is absent.",
+      "change": "Correct the repository baseline and explicitly design and task the Android/iOS application entry points, redirect handling, session-to-UI wiring and required application modules. If these applications live elsewhere, identify their actual locations and include their coordinated changes rather than assuming they exist here."
+    },
+    {
+      "area": "Correctness — refresh failure contradicts session persistence",
+      "defect": "Signing out on every failed refresh violates the requirement to retain the session until Keycloak rejects the refresh token. A routine timeout, offline restart or temporary server failure triggers sign-out even though the refresh token remains valid. The user-visible loss of session is recoverable only through another sign-in.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:11 says 'a failed refresh signs the user out'; specs/keycloak-sign-in/spec.md:7 requires keeping the user signed in across restarts 'until Keycloak rejects the refresh token'. design.md:27–32 does not distinguish transient refresh failure from token rejection.",
+      "change": "Define refresh outcomes explicitly: preserve the stored session on transport and transient service failures, distinguish unavailable access from signed-out state, and invalidate the session only on the rejection conditions allowed by the requirement. Carry that distinction through the session and API request paths."
+    },
+    {
+      "area": "Correctness — rollback cannot restore sign-in",
+      "defect": "The proposed rollback reinstalls the password-based release after the API has stopped accepting its authentication scheme. In an ordinary failed rollout, reverting the app therefore does not restore sign-in and can lock users out. Recovery requires a compatible backend transition or a corrected client, not the stated app-only rollback.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:5 states that the existing app sends username/password credentials and that the API now accepts only Keycloak access tokens. design.md:40 nevertheless specifies 'Rollback: the previous release'; gate.md:5 likewise describes the change as revertible by shipping the previous app version.",
+      "change": "Specify a rollback compatible with the API's accepted credentials, such as an explicitly coordinated compatibility window, or document a forward-fix deployment strategy and remove the unsupported previous-release rollback claim."
+    },
+    {
+      "area": "Build vs. adopt — incomplete token-refresh candidate record",
+      "defect": "The token-refresh subsection declares that there are no candidates while explicitly evaluating and rejecting kotlin-multiplatform-oidc's refresh implementation. It omits the required per-candidate record for that mechanism. Applying the plan would build the custom coordinator without the required record establishing why the evaluated alternative was rejected; this meets the assignment's explicit value-proof blocking threshold.",
+      "evidence": "openspec/changes/keycloak-sign-in/design.md:31 says 'Candidates: none' but also says the kotlin-multiplatform-oidc README was read and its refresh was found limited to one process; line 32 then chooses build. openspec/schemas/omp-gated/schema.yaml:215–220 requires a subsection with per-library URL, newest release/date, licence, maintenance status and adoption or rejection with its gap. The refresh subsection supplies no such candidate entry or explicit reference incorporating the earlier library metadata.",
+      "change": "Record kotlin-multiplatform-oidc as an evaluated refresh candidate, include or explicitly reference all required candidate facts, and state its rejection gap. Establish whether cross-process widget refresh is actually required before using it to justify the custom build."
+    }
+  ],
+  "notes": [
+    "design.md:5 and :15 overstate the absence of authentication support: shared/src/commonMain/kotlin/http/Client.kt:10–11 already accepts an optional token and emits a Bearer header. The missing work is connecting requests to the persisted/refreshed session, not introducing Bearer formatting; this wording alone does not block.",
+    "design.md:30–32 introduces coordination with an iOS widget extension, but neither the repository nor the proposal/spec identifies such a consumer. This unsupported premise makes the custom design unnecessarily broad; by itself, architectural complexity is not a blocker."
+  ]
+}
+```
+
+This isn't a complete round: the verification lens (item 2) and checks lens (item 3) were not sent. A full round under this instruction needs all three lenses dispatched together in one task call, so these results can't go into review.md alone.

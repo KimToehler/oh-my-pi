@@ -1,0 +1,18 @@
+I wrote `openspec/changes/keycloak-sign-in/design.md`. `openspec status` now lists design as complete, and specs is the next artifact. No other file changed.
+
+**What the design decides:**
+- **Library:** use Lokksmith 2.6.0 (`dev.lokksmith:lokksmith-core`) for the PKCE sign-in, the browser hand-off and redirect, encrypted token storage, and refreshing before expiry. Use `io.ktor:ktor-client-auth` to attach the Bearer token and retry once after a 401. There is one "Build vs. adopt" section per mechanism. The rejected options were kotlin-multiplatform-oidc, AppAuth-Android, oauth-kmp and KVault, each with the gap that ruled it out. Release dates come from deps.dev.
+- **Wrapper:** one `KeycloakSession` class in `:shared` is the only code that uses Lokksmith.
+- **`ApiClient`:** installs the Ktor auth plugin itself, sends the token only to the API host, and drops its `token` parameter.
+
+**Three decisions change the build or the proposal; please confirm or overrule them before specs and tasks are written:**
+1. **Toolchain upgrade (D2).** Lokksmith 2.6.0 is built with Kotlin 2.4.21 and Ktor 3.6.0, and its Android package requires compile SDK 37. So `:shared` moves from Kotlin 2.2.20 to 2.4.21, Ktor from 3.3.1 to 3.6.1, and compile SDK from 36 to 37. The Android Gradle Plugin moves from 8.12 to 9.5, which also means switching `:shared` to the `com.android.kotlin.multiplatform.library` plugin. The alternatives were worse: the Lokksmith release that matches today's versions stores tokens unencrypted, and kotlin-multiplatform-oidc would leave refresh-before-expiry for us to build.
+2. **What counts as a failed refresh (D4).** The proposal says "a failed refresh signs the user out". I read that as: sign out only when Keycloak rejects the refresh token (`invalid_grant`). A network error or server error keeps the session; otherwise a field user who opens the app offline after the access token expired would be signed out every time. The specs should say this explicitly.
+3. **App shells (D6).** `settings.gradle.kts` includes only `:shared`, so the Android and iOS shells named in the proposal are not in this repository. The design gives them a short list of required changes:
+   - **Android:** the redirect scheme setting, compile SDK 37, startup code for Lokksmith, and excluding Lokksmith's files from backup.
+   - **iOS:** registering the URL scheme in `Info.plist` and the same startup code.
+   - **Both:** passing the new `ApiClient` constructor argument.
+
+   tasks.md needs to know where the shells live, or whether their changes are tracked somewhere else.
+
+The only open question left in the design is the Keycloak client ID, plus confirming that the realm client is public, requires PKCE S256 and allows `com.example.fieldnotes:/oauth2redirect`. That value doesn't affect the specs or the task list.

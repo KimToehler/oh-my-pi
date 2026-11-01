@@ -1,0 +1,33 @@
+I sent one `plan-reviewer` task (`UniqueNewt`) for the correctness lens. Its context was the fixed review line. Its task was the brief and the correctness lens paragraph exactly as the instruction gives them, with only the two paths filled in:
+
+- Repository root: `/private/tmp/dba-f1/C6`
+- Change directory: `/private/tmp/dba-f1/C6/openspec/changes/keycloak-sign-in`
+
+I did not run steps 1–2 (`V` and `V --digest`) because you asked for step 3 only. I edited nothing and did not write `review.md`: one lens is not a complete round. That also means this verdict is not tied to a digest.
+
+The reviewer returned **REJECT** with 2 blockers and 2 notes. Its full output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not account for the missing application integration and contradicts its session-persistence requirement on ordinary refresh failures.",
+  "blockers": [
+    {
+      "area": "Correctness — application integration and cutover",
+      "defect": "The plan assumes existing Android/iOS applications and a password screen, but this repository contains only a shared library. Neither implementation task creates or integrates the application hosts, browser/redirect lifecycle, or signed-in navigation. Implementing the two shared-module tasks therefore cannot deliver the specified user-visible sign-in flow. This affects every normal sign-in attempt; the omission is reversible by completing the integration before release.",
+      "evidence": "settings.gradle.kts:1-2 includes only :shared; shared/build.gradle.kts:3 declares com.android.library, and lines 7-9 declare library compilation targets rather than application hosts. The source inventory contains only shared/src/commonMain/kotlin/http/Client.kt. Nevertheless, openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires receiving a browser redirect and showing the signed-in home screen; proposal.md:23 names Android/iOS app shells; design.md:40 promises removal of a password sign-in screen. tasks.md:5-6 schedules only shared-module implementation and ApiClient changes.",
+      "change": "Reconcile the plan with the actual library-only baseline. Identify and include the real application consumers and their integration changes, or explicitly plan the necessary hosts. Cover login invocation, platform browser/redirect registration and lifecycle, session restoration, and signed-in/signed-out navigation. Remove the unsupported existing-screen migration claim or identify the actual screen and its migration."
+    },
+    {
+      "area": "Correctness — refresh failure semantics",
+      "defect": "The proposal signs the user out on any failed refresh, whereas the requirement keeps the user signed in until Keycloak rejects the refresh token. A normal network outage or temporary server failure during refresh would end a session whose refresh token Keycloak has not rejected. This directly violates the stated persistence contract and unnecessarily requires another login; the user-visible damage is reversible by signing in again.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:11 says 'a failed refresh signs the user out'. openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 instead requires keeping the user signed in 'until Keycloak rejects the refresh token'. design.md:27-32 addresses coordination only and supplies no distinction between rejection and transient failure; tasks.md:5 delegates refresh implementation to that design.",
+      "change": "Define consistent refresh outcomes across the proposal, design and tasks. Sign out on definitive refresh-token rejection; preserve the persisted session on transport failures and temporary service errors, while reporting that authenticated requests cannot currently proceed. Specify how that distinction applies when restoring an expired session after restart."
+    }
+  ],
+  "notes": [
+    "Architecture: design.md:30-32 justifies custom refresh coordination with an iOS widget extension and shared Keychain access group, but neither the requirements nor repository identifies such a consumer. Establish that requirement before committing to cross-process infrastructure; otherwise evaluate the adopted library's documented TokenRefreshHandler for the actual app-only case. This is not a separate blocker because the record does name a cross-process gap, and unnecessary complexity alone does not establish a correctness failure.",
+    "Existing-code claim: design.md:15 calls ApiClient unauthenticated, but shared/src/commonMain/kotlin/http/Client.kt:10-11 already emits a Bearer header when supplied a token. The material integration is obtaining the current restored/refreshed token, not adding the header syntax. This does not independently block because tasks.md:6 can encompass that integration."
+  ]
+}
+```

@@ -1,0 +1,1 @@
+Decide from `openspec instructions design --change backup-checksum --json` whether this change needs design.md, and create it only if it does.

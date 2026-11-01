@@ -1,0 +1,38 @@
+The correctness lens returned **REJECT** with 3 blockers and 2 notes. The first attempt (`CorrectnessLens`) failed without a verdict: the subagent's result was rejected 6 times (`yield cannot contain both data and error (got error "prose-last")`). As step 3 allows, I ran one fresh retry with the same brief (`CorrectnessLensRetry`), and the output below is from that retry.
+
+The brief was sent as specified: the fixed context string, the brief verbatim with Repository root `/private/tmp/dba-f1/C0` and Change directory `/private/tmp/dba-f1/C0/openspec/changes/keycloak-sign-in`, then the correctness lens paragraph verbatim. I edited nothing, skipped steps 1–2, wrote no review.md, and dispatched no verification or checks lens.
+
+Full reviewer output (`CorrectnessLensRetry`):
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not connect the shared library to executable Android/iOS sign-in flows, contradicts its session-retention requirement on transient refresh failures, and proposes a rollback incompatible with its stated backend cutover.",
+  "blockers": [
+    {
+      "area": "Correctness and architecture — missing application integration",
+      "defect": "Normal sign-in cannot reach the required browser → redirect → signed-in-screen path through the planned implementation. The plan assumes existing Android/iOS shells and a password screen, but this repository contains only a shared library, and both implementation tasks are confined to that library. The missing application boundary is part of the delivered behavior, not merely a verification prerequisite. The incomplete delivery is reversible by completing the host integration.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires receiving the redirect and showing the signed-in home screen. proposal.md:23 identifies Android and iOS app shells as affected, and design.md:40 assumes a password screen can be removed. However, settings.gradle.kts:2 includes only ':shared', shared/build.gradle.kts:3 applies 'com.android.library', and the complete source inventory contains only shared/src/commonMain/kotlin/http/Client.kt. tasks.md:5-6 provides only shared implementation and ApiClient tasks; design.md:18 selects a library without specifying host entry points or redirect/lifecycle wiring.",
+      "change": "Identify the actual Android and iOS host applications and include their concrete integration design and implementation tasks: starting sign-in, receiving and continuing redirects, restoring session state at startup, and routing to the signed-in screen. If those applications live elsewhere, name that dependency and its coordinated delivery rather than assuming shells exist in this repository."
+    },
+    {
+      "area": "Correctness — refresh failure contradicts session retention",
+      "defect": "For a signed-in user with a valid refresh token, an ordinary network outage or temporary token-endpoint failure triggers unconditional token deletion and sign-out. Keycloak has not rejected the refresh token, so this violates the requirement to retain the session until rejection. Clearing persisted credentials makes the session loss survive a restart; recovery requires interactive sign-in.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 says the app SHALL keep the user signed in across restarts 'until Keycloak rejects the refresh token'. In contrast, proposal.md:11 says 'a failed refresh signs the user out', and design.md:32 explicitly says 'a failed refresh clears the token store and signs the user out', without distinguishing rejection from transport or temporary service failure.",
+      "change": "Distinguish definitive refresh-token rejection from transient or indeterminate refresh failure. Preserve the persisted session on the latter, specify what API callers and the UI observe while a usable access token is unavailable, and clear credentials only on the termination conditions permitted by the requirement."
+    },
+    {
+      "area": "Correctness — rollback cannot restore authentication",
+      "defect": "If the Keycloak release causes a sign-in regression, shipping the previous password-authentication release cannot restore access under the backend contract stated in the proposal. The rollback therefore leaves users locked out rather than mitigating the release failure. Recovery is possible through a corrected release or a coordinated backend restoration, but neither is the stated rollback.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:5 says the previous app sends username/password to its own API and that the API 'now accepts only Keycloak access tokens'. design.md:40 nevertheless specifies 'Rollback: the previous release'. gate.md:5 likewise claims the change is revertible by shipping the previous app version.",
+      "change": "Define a rollback or forward-recovery strategy that remains compatible with the Keycloak-only API. If rollback depends on restoring a backend authentication capability or on an already Keycloak-compatible app version, identify that dependency and the coordinated steps; otherwise remove the unsupported previous-release rollback claim."
+    }
+  ],
+  "notes": [
+    "design.md:15 describes Client.kt as an 'unauthenticated Ktor client', but shared/src/commonMain/kotlin/http/Client.kt:9-11 already supports caller-supplied Bearer authentication. This does not invalidate adopting OIDC, but the plan should describe the existing token argument and its migration to session-owned credentials accurately.",
+    "unverified: design.md:32 assumes adopting oidc-ktor provides refresh before expiry. No library implementation or documentation shipped in this repository establishes that timing behavior. This is not a blocker based solely on an external-library behavior claim; the design should distinguish proactive expiry handling from refresh triggered by an API authentication failure."
+  ]
+}
+```
+
+I reported the first attempt's failed submission loop to `xd://report_issue`.

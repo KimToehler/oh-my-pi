@@ -1,0 +1,16 @@
+This change does need a design.md, so I created `openspec/changes/backup-checksum/design.md`. `openspec status` now shows it as done.
+
+The proposal says none of the reasons for a design doc apply, but one does: "Ambiguity that benefits from technical decisions before coding".
+
+- **No CRC-32 is available where the code lives.** `Backup.kt` sits in shared code that has to run on both Android and iOS. Kotlin's standard library has no CRC-32 for that shared code: `java.util.zip.CRC32` exists only on Android/JVM, and ktor (the only dependency) has none. okio's CRC-32 is marked internal, and okio isn't a dependency anyway. So whether the change can really stay "no new dependency, `Backup.kt` only" depends on a decision made before coding.
+- **The checksum format is undecided.** How the checksum is written into the file and how import reads it back is part of the file format, and the proposal doesn't say.
+
+Main decisions in the design:
+1. **Checksum code:** write the standard CRC-32 in plain Kotlin inside `Backup.kt`. I rejected separate Android and iOS implementations (three source sets and iOS interop) and adding okio or kotlinx-io (a new dependency, and okio's CRC-32 is internal).
+2. **File format:** a fixed last line of `crc32:` plus 8 lowercase hex digits. Import finds it by its position at the end of the file, not by searching for the text, so a note containing `crc32:` can't be mistaken for it.
+3. **Import order:** check the checksum before decoding. A file that is too short, has a missing or malformed last line, or doesn't match is refused with `CorruptBackup`, so a cut-off file is always refused.
+4. **`CorruptBackup`:** an exception, so `import` still returns `List<Note>`. Nothing in the repo calls the backup code yet.
+
+One risk is recorded: an older importer would read the checksum line as a note and fail on it. Rolling back is only safe until the first backup with a checksum has been exported.
+
+The next artifact is `specs`; `gate`, `tasks` and `review` are still blocked behind it.

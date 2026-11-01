@@ -1,0 +1,19 @@
+This change needs a design.md, so I created `openspec/changes/trial-expiry/design.md`. Two of the instruction's criteria apply.
+
+**Why it qualifies:**
+- **It adds a new kind of mechanism (a clock).** `SignInService` has no notion of the current time today. The code is in Kotlin Multiplatform `commonMain`, where `java.time` and `System.currentTimeMillis()` aren't available. A clock is general-purpose infrastructure, so the instruction's "Build vs. adopt" rule applies even though only one module changes.
+- **Some behaviour is ambiguous and should be settled before coding.** That covers the exact moment the trial ends, whether the expiry check runs before or after the password check, and what to do with a `TRIAL` account whose `trialEndsAtMillis` is `null` (the type allows it).
+
+**Main decisions in the design:**
+- **Clock:** `SignInService` takes a `kotlin.time.Clock` in its constructor, defaulting to `Clock.System`, so tests can pass a fixed time. This class is in the standard library since Kotlin 2.1.20 and is still experimental, so the class needs `@OptIn(ExperimentalTime::class)`.
+  - Rejected ktor's `getTimeMillis()`: it's available indirectly through `ktor-client-core:3.3.1` (`Date.kt:186` at tag 3.3.1), but it's a global function tests can't control, and it would tie sign-in to the HTTP library.
+  - Rejected kotlinx-datetime: it would add a dependency for something the standard library now provides.
+- **When a trial counts as ended:** when `now >= trialEndsAtMillis`, so the end instant itself is already outside the trial.
+- **Check order:** the expiry check runs after the password check. Otherwise anyone with just an email address could learn that the account exists and is an ended trial.
+- **New result:** `SignInResult` gets a `data object TrialEnded`.
+
+**Decision to confirm:** I chose that a `TRIAL` account with a `null` trial end still signs in. The proposal only refuses trials that have ended, and refusing would lock users out over missing data. The other option is to refuse sign-in in that case. Since this changes behaviour the specs will describe, please confirm before the specs are written.
+
+**Risk:** the check uses the device clock, so a user who sets their clock back gets around it. The design accepts this and leaves real enforcement to the server, which isn't in this repository.
+
+`openspec status` now shows proposal and design done, with specs next. `openspec validate` fails only because there are no spec files yet.

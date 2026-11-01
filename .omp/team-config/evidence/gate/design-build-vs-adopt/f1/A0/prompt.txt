@@ -1,0 +1,1 @@
+Create design.md for the OpenSpec change keycloak-sign-in: get the instruction with `openspec instructions design --change keycloak-sign-in --json` and follow it. Write only design.md.

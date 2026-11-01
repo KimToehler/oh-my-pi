@@ -1,0 +1,15 @@
+This change needs a design.md, so I created `openspec/changes/backup-checksum/design.md`.
+
+**Why it's needed:** the proposal rules out the first four reasons in the instructions (it stays in one module, adds no dependency, changes no data model, and has no security or migration issue). But the fifth reason still applies: the change introduces a mechanism covered by the "Build vs. adopt" rule, "even inside one module". CRC-32 is a published algorithm, and `Backup.kt` doesn't compute any checksum today.
+
+**Where CRC-32 comes from**
+- **This repo and its libraries:** nothing usable. I downloaded and searched the source of every common dependency pulled in by `ktor-client-core:3.3.1`. The only matches were a MIME type name in `Mimes.kt:653` and links to example code in kotlinx-io-core 0.8.0 that isn't shipped with the library.
+- **The platforms:** both targets already have it. Android has `java.util.zip.CRC32`. iOS has zlib's `crc32` through Kotlin/Native's `platform.zlib`; it's declared in Kotlin 2.2.20's `ios/zlib.def`, and I saw `crc32` in the local iOS zlib library (from a 2.4.21 install, not 2.2.20).
+- **Decision:** use the platform versions behind one shared `internal expect fun crc32`. No third-party library was searched because the platforms already cover it, and this keeps the proposal's "no new dependency" promise.
+
+**Other decisions in the design**
+- **Checksum format:** every exported file ends with a fixed 15-byte text line, `\ncrc32:` plus 8 lowercase hex digits. The file stays plain UTF-8 text. Import checks this ending and the checksum before reading any note, and only accepts exactly the form export writes. I rejected two alternatives: 4 raw bytes (the file would no longer be text) and a last line of variable length (note text could look like it).
+- **`CorruptBackup`:** an exception thrown by `BackupImporter.import`, which keeps its `List<Note>` return type so callers don't change. I rejected a result type with success and failure cases because it changes the signature for every caller.
+- **Android and iOS must agree:** a shared test checks that `crc32("123456789")` is `cbf43926` and that an export can be imported back, on both Android and the iOS simulator. On iOS an empty array is passed as a null pointer with length 0.
+
+`openspec status` now marks design as done. `openspec validate` still fails only because the change has no `specs/` yet; that's the next artifact and wasn't part of this task. Nothing was built or tested, since this step only writes the design document.

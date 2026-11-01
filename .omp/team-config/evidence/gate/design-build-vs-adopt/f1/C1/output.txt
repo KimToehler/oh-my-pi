@@ -1,0 +1,36 @@
+The correctness reviewer returned REJECT with three blockers. I dispatched one `plan-reviewer` (`EnthusiasticPuffin`) with the exact context line, the brief verbatim, and the correctness lens paragraph verbatim. The paths filled in were repository root `/private/tmp/dba-f1/C1` and change directory `/private/tmp/dba-f1/C1/openspec/changes/keycloak-sign-in`.
+
+You asked for step 3 only, so I did not run steps 1–2 (validation and digest). I also did not dispatch the verification and checks reviewers, so this review round is incomplete. I edited nothing and wrote no `review.md`.
+
+Reviewer's full output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan lacks the required build-versus-adopt records, omits application integration needed to deliver the sign-in scenario, and clears valid sessions on failures that do not constitute Keycloak rejecting the refresh token.",
+  "blockers": [
+    {
+      "area": "Correctness — application integration",
+      "defect": "The implementation tasks cannot deliver the specified application flow from this repository. They cover only the shared library and ApiClient, but the required browser launch, platform redirect delivery, startup session restoration, and transition to the signed-in home screen need application integration that is neither present nor assigned. Under an ordinary sign-in or restart, implementing the listed library work alone leaves no application entry point consuming it. The resulting inability to sign in is reversible through further implementation, but breaks the stated goal.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7-12 requires persistent application sign-in and the signed-in home screen. proposal.md:23 explicitly includes Android and iOS app shells; design.md:15 relies on Android intent-filter and iOS authentication-session callbacks, and design.md:31 assumes an existing password screen. However, settings.gradle.kts:2 includes only :shared, shared/build.gradle.kts:3 makes it an Android library, and the complete shared source tree contains only shared/src/commonMain/kotlin/http/Client.kt. tasks.md:5-6 assigns only shared-library implementation and token sending, with no application-shell or UI integration task.",
+      "change": "Identify and include the actual Android and iOS application consumers, with concrete integration locations and tasks for initiating sign-in, delivering redirects to the pending authorization flow, restoring session state on startup, and driving signed-in/signed-out navigation. Correct the assumption about the existing password screen. If the application consumers live elsewhere, include their coordinated changes rather than treating the shared-library changes as the complete feature."
+    },
+    {
+      "area": "Correctness — refresh failure semantics",
+      "defect": "The refresh policy contradicts the persistence requirement. During normal operation, a timeout, offline connection, or temporary token-endpoint failure can fail a refresh without Keycloak rejecting the refresh token. The design nevertheless deletes the stored session and signs the user out. This loses a still-valid refresh token and forces reauthentication; access can be recovered by signing in again, but the promised session continuity is broken.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 requires keeping the user signed in across restarts 'until Keycloak rejects the refresh token'. In contrast, design.md:23 says 'a failed refresh clears the store and emits SignedOut', and proposal.md:11 repeats the unconditional failure policy.",
+      "change": "Distinguish a definitive refresh-token rejection from transient transport and service failures. Clear the session only for the rejection condition required by the specification; preserve persisted credentials on transient failures and define how the pending API request reports that it cannot currently obtain a usable access token. Align the proposal and design with that decision."
+    },
+    {
+      "area": "Architecture — required Build vs. adopt value proof",
+      "defect": "The design commits to newly introduced protocol and infrastructure mechanisms without any of the required Build vs. adopt subsections. In particular, it specifies a handwritten OIDC/PKCE client, platform token storage, and refresh machinery without recording the ordered repository, platform, and maintained-library searches or a gap justifying custom implementation. This independently breaks the required architectural value proof before implementation.",
+      "evidence": "openspec/schemas/omp-gated/schema.yaml:204-219 explicitly covers OAuth/OIDC, crypto primitives, and token-storage infrastructure and requires a subsection with Repository, Platform, Candidates, and Decision fields for each covered mechanism. Lines 221-222 require a gap for a build decision. openspec/changes/keycloak-sign-in/design.md:13-23 introduces these mechanisms through D1-D3 but contains none of those subsections or search records.",
+      "change": "Perform and record the ordered searches for each covered mechanism. Add the prescribed subsections, including candidate facts where that stage is reached and a settled decision. Adopt an existing implementation where it covers the need; justify any custom or partial implementation with the specific uncovered gap. Revise the design and tasks to follow those decisions."
+    }
+  ],
+  "notes": [
+    "Rollback inconsistency: proposal.md:5 says the API now accepts only Keycloak access tokens, while design.md:31 proposes rolling back to the previous password-sign-in release. That release cannot restore working authentication under the stated API contract. This is not a separate blocker because the incompatibility already predates this change; nevertheless, name a rollback target compatible with the migrated API.",
+    "ApiClient token ownership needs an explicit integration decision: shared/src/commonMain/kotlin/http/Client.kt:9-11 currently receives both its HttpClient and optional bearer token from callers. design.md:23 and tasks.md:6 should establish who installs the refresh plugin and ensures the outgoing header uses the refreshed token rather than a token captured before refresh. Not independently blocking at planning time because task 1.2 can implement that ordering correctly."
+  ]
+}
+```

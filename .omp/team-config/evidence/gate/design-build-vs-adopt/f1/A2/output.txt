@@ -1,0 +1,20 @@
+I wrote `openspec/changes/keycloak-sign-in/design.md` and touched nothing else; `openspec status` now shows `design` as complete. It covers all the sections the instruction asks for: context, goals and non-goals, decisions, a build-vs-adopt record for each of the five mechanisms, risks, a migration plan and open questions.
+
+**What the design picks:**
+- **Android and iOS:** kmp-oidc `oidc-appsupport` 0.16.5. Its README marks both platforms Stable, and 0.16.x is the last line that works with the repo's Kotlin 2.2.20 and Ktor 3.3.1.
+- **Desktop:** kmp-oidc marks desktop (JVM) Experimental, which the proposal's stability rule forbids. Desktop uses Nimbus `oauth2-oidc-sdk` 11.38.2 for the OAuth calls and the JDK's own `HttpServer` and `Desktop.browse` for the browser redirect.
+- **Token storage:** the platform's secure store on Android (Keystore) and iOS (Keychain), and java-keyring 1.0.4 on desktop. java-keyring has had no release since August 2023; it is the only desktop option that isn't archived or experimental, and it sits behind one interface so replacing it touches one file.
+- **Refresh:** shared code checks expiry and runs one refresh at a time. Ktor's built-in bearer auth in 3.3.1 only refreshes after a 401 and caches tokens, so it can't refresh before expiry as the proposal requires.
+
+**Three decisions that change or narrow the proposal; the specs should state them:**
+1. **Desktop redirect:** desktop uses `http://127.0.0.1:<random port>/oauth2redirect`, not `com.example.fieldnotes:/oauth2redirect`. A desktop Java app can only receive a custom scheme if every OS installer registers it, and the standard for native apps (RFC 8252) recommends this loopback form. Keycloak accepts it on any port, and the proposal lists only the Android and iOS shells for the redirect.
+2. **What "a failed refresh" means:** the user is signed out only when Keycloak refuses the refresh (an OAuth error such as `invalid_grant`). A network failure or 5xx keeps the session, so a field user going offline isn't signed out.
+3. **`offline_access` scope:** without it the refresh token expires with the Keycloak SSO session, which breaks "stays signed in across app restarts".
+
+**Other things the design records:**
+- The Android, iOS and desktop app shells are not in this repo (`settings.gradle.kts` includes only `:shared`). The design describes what the shells must do but doesn't change them.
+- kmp-oidc on Android falls back to an embedded WebView when the device has no Custom Tabs browser, even with `useWebView = false`. The design adds a check that fails sign-in with an error instead of opening the WebView.
+
+**Open questions:** the Keycloak client ID, the exact loopback redirect string to register in the realm, and whether the realm is served under `/realms/fieldnotes` or the older `/auth/realms/fieldnotes`.
+
+The next artifact is `specs`.

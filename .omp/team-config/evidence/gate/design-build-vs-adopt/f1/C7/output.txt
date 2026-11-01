@@ -1,0 +1,36 @@
+The correctness reviewer returned **REJECT** with 3 blockers. I sent one `plan-reviewer` task (subagent `CollectivePiranha`) with the exact context, the brief and the correctness lens paragraph unchanged. Only the two paths were filled in: repository root `/private/tmp/dba-f1/C7` and change directory `/private/tmp/dba-f1/C7/openspec/changes/keycloak-sign-in`. I didn't run steps 1–2 (the validator and the digest), didn't dispatch items 2 or 3, and didn't write `review.md` or edit anything else.
+
+Full reviewer output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not cover the application integration needed to complete sign-in, contradicts its session-persistence requirement on refresh failures, and omits the required build-versus-adopt design records.",
+  "blockers": [
+    {
+      "area": "Correctness / end-to-end platform integration",
+      "defect": "The implementation tasks cover only shared authentication and ApiClient, leaving browser launch, platform redirect delivery and signed-in screen integration unimplemented. This is not merely an omitted verification step: the repository contains no Android or iOS application shell to supply those paths. Following the listed implementation scope cannot complete an ordinary sign-in on either promised target. The resulting inability to sign in is reversible through additional implementation.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:9 promises system-browser sign-in and the custom-scheme redirect; proposal.md:13 targets Android and iOS; proposal.md:23 names app shells as affected code. However, tasks.md:5-6 are the only implementation tasks and target :shared and ApiClient; tasks.md:10 only exercises the intended app behavior. settings.gradle.kts:2 includes only :shared, and shared/build.gradle.kts:3 configures it as com.android.library. The complete repository file inventory contains no application shells, redirect handlers or home-screen code. specs/keycloak-sign-in/spec.md:11-12 requires receiving the redirect, exchanging the code and showing the signed-in home screen.",
+      "change": "Identify the application code that will consume :shared and explicitly plan browser launch, redirect registration and handling on both platforms, startup/session-to-UI integration, and the signed-in screen transition. If the shells live outside this repository, name the integration artifacts and coordinated delivery needed to achieve the requirement; do not leave these behaviors as assumptions in manual QA."
+    },
+    {
+      "area": "Correctness / refresh failure semantics",
+      "defect": "Signing out on every failed refresh contradicts the requirement to retain the session until Keycloak rejects the refresh token. A normal temporary network outage when refresh is due would discard an otherwise valid session without any rejection by Keycloak. Reauthentication can recover access, but the promised persistence is broken.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:11 states that 'a failed refresh signs the user out.' In contrast, specs/keycloak-sign-in/spec.md:7 requires keeping the user signed in across restarts 'until Keycloak rejects the refresh token.' No design.md exists to distinguish a definitive refresh-token rejection from a transport failure or temporary server failure.",
+      "change": "Define refresh outcomes explicitly. Sign out on a definitive rejection of the refresh token, while retaining the session on failures that do not establish rejection and defining what API callers and the UI observe in that state. Align the proposal and implementation tasks with that distinction."
+    },
+    {
+      "area": "Build vs. adopt / missing mechanism decisions",
+      "defect": "The change introduces OIDC authorization-code/PKCE handling and device token storage without any required build-versus-adopt subsection: design.md is entirely absent. Task 1.1 nevertheless delegates implementation choices to that missing document. Applying the plan would build or adopt these covered mechanisms without the required record that cheaper existing implementations were investigated, breaking the stipulated value proof.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:9-11 introduces OIDC/PKCE, persistent access/refresh-token storage and refresh handling; tasks.md:5 says to implement them 'as design.md decides.' The complete change-directory inventory has no design.md. openspec/schemas/omp-gated/schema.yaml:204-219 explicitly covers OAuth/OIDC and token storage and requires a subsection per covered mechanism containing Repository, Platform, Candidates and Decision; schema.yaml:221-226 requires gaps for build/reject decisions and resolution of failed searches before designing the mechanism. The existing declared dependencies at shared/build.gradle.kts:12-19 are Ktor client core and platform engines; the plan records no investigation of existing support.",
+      "change": "Add design.md with the prescribed, researched build-versus-adopt subsection for each covered mechanism introduced by the chosen approach, including OIDC/PKCE and persistent token storage. Include all required candidate facts, settle every decision, and identify an uncovered gap for any build or reject verdict. Then make the tasks implement the actual selected design rather than an absent decision source."
+    }
+  ],
+  "notes": [
+    "The gate's auth-secrets-pii classification and product risk tier fit the planned authentication behavior and the omp-gated schema selected by openspec/config.yaml:1.",
+    "shared/src/commonMain/kotlin/http/Client.kt:9-11 already sends a caller-supplied token as Bearer and defaults to no token. Task 1.2 should specify the new session-to-request integration rather than describe Bearer-header formatting as new behavior; this is not a separate blocker because the planned task can still change token sourcing."
+  ]
+}
+```
+
+This is one lens out of three, so it isn't a complete round under the instruction, and `review.md` can't be written from it alone.

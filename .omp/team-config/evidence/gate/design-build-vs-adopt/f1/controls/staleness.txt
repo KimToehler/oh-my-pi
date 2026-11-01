@@ -1,0 +1,2 @@
+$ git diff --quiet 9565a314226c5191a9f2bac34145b17784b6e5bc HEAD -- team-config/agent/skills/review-work/openspec/schemas/omp-gated team-config/README.md
+exit 0
