@@ -66,7 +66,7 @@ After every reviewer and verifier dispatch the instruction SHALL read the models
 
 ### Requirement: A verifier triages every finding
 
-After every complete round or delta check with a blocker, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief and every blocker verbatim, numbered 1 to N. It SHALL return per blocker `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. A finding no verifier result triaged is untriaged, and the instruction SHALL NOT decide it itself.
+After every complete round or delta check with a blocker or a finding carried from an incomplete round, the instruction SHALL dispatch one fresh `blocker-verifier` with its fixed brief and every such finding verbatim, numbered 1 to N. It SHALL return per finding `confirmed`, `refuted` or `undecided`, a reason, and for `confirmed` whether the threshold is met. A result without exactly one entry per index SHALL count as incomplete. The instruction SHALL NOT decide an untriaged finding itself.
 
 #### Scenario: Round with findings
 
@@ -75,7 +75,7 @@ After every complete round or delta check with a blocker, the instruction SHALL 
 
 #### Scenario: Round without findings
 
-- **WHEN** every reviewer of a round returns OKAY with no blockers
+- **WHEN** every reviewer of a round returns OKAY with no blockers and no finding is carried from an incomplete round
 - **THEN** no verifier is dispatched and the round is OKAY
 
 #### Scenario: Negative control
@@ -214,7 +214,7 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 ### Requirement: Resume from the record
 
-`review.md` SHALL carry `- **Awaiting**:` naming what is open (`none`, `exception`, `exhaustion`, `scope`, `triage` or `incomplete`), and every finding under Blockers SHALL carry the verifier's result and reason, or why it is untriaged. A session resuming a review on the recorded digest SHALL, before any edit, re-ask the recorded ask, triage exactly the untriaged findings, or re-run an `incomplete` round in full. It SHALL NOT re-triage a recorded result or add a finding.
+`review.md` SHALL carry `- **Awaiting**:` (`none`, `exception`, `exhaustion`, `scope`, `triage` or `incomplete`), and each finding under Blockers its verifier result and reason, or why it is untriaged. A session resuming on the recorded digest SHALL, before any edit, re-ask the recorded ask, triage exactly the untriaged findings, or re-run an `incomplete` round in full, triaging its carried findings with the re-run's. It SHALL NOT re-triage a recorded result, drop a carried finding, or add one.
 
 #### Scenario: Interrupted exhaustion ask
 
@@ -229,11 +229,16 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 #### Scenario: Interrupted incomplete round
 
 - **WHEN** a record carries Awaiting `incomplete` and a new session resumes the review on the unchanged digest
-- **THEN** it dispatches the recorded round's reviewers fresh and in full under the same round number, the incomplete round spends no budget, and the re-run's record replaces it
+- **THEN** it dispatches the recorded round's reviewers fresh and in full under the same round number, the incomplete round spends no budget, the verifier receives the record's delivered findings verbatim, carried ones first, with the re-run's blockers, and the re-run's record replaces the incomplete one
+
+#### Scenario: Re-run misses a carried finding
+
+- **WHEN** the re-run of an incomplete round returns OKAY with no blockers from both scopes, and the incomplete record carried one blocker from scope A
+- **THEN** a verifier is still dispatched for that carried blocker, and the round is OKAY only if the verifier triages it out of Blockers; when it confirms it as blocking, the record is REJECT with the finding under scope A marked as carried from the incomplete round
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction re-triages a finding whose verifier result the record carries, offers "keep" for a finding recorded as confirmed, writes a record with an open ask and Awaiting `none`, or dispatches a reviewer on a resume whose record's Awaiting is not `incomplete`
+- **WHEN** an instruction re-triages a finding whose verifier result the record carries, offers "keep" for a finding recorded as confirmed, writes a record with an open ask and Awaiting `none`, dispatches a reviewer on a resume whose record's Awaiting is not `incomplete`, or ends the re-run of an incomplete round without triaging every finding it carried, or merges a carried finding into a repeat of it
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The record matches the change's risk
