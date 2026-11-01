@@ -330,9 +330,10 @@ artifacts:
 
       1. Run `V <change-dir>` until it prints `passed`.
       2. Commit the change folder, then confirm `git status --porcelain -- <change-dir>` prints
-         nothing. The commit that will record this round must hold exactly the bytes the round
-         reviews, because it is the base of a later delta check. Then run `V --digest <change-dir>`
-         and keep the printed digest for this round.
+         nothing: the round reviews exactly the committed bytes, and nothing is edited until the
+         round is recorded, so step 5's recording commit holds the same bytes. That recording
+         commit, never this one and never any other, is the base of a later delta check. Then run
+         `V --digest <change-dir>` and keep the printed digest for this round.
       3. Read `- **Depth**:` from gate.md. Update it first when a fix since the last dispatch
          changed the Mandatory class or made the change alter a review, gate or release mechanism;
          a class other than `none` is always `risky`.
@@ -443,8 +444,9 @@ artifacts:
          - `confirmed` with `blocking` true: it stays a blocker and is fixed within the budget.
          - `confirmed` with `blocking` false, or `refuted`: it becomes a residual, unless step 5
            asks the user about it; a residual never blocks apply and is never fixed on its own.
-         - `undecided`: a residual, unless its stated consequence meets the blocking threshold,
-           which makes it an exception ask (step 5).
+         - `undecided`: an exception ask (step 5), unless the finding's own stated consequence is
+           clearly below the blocking threshold, which makes it a residual. A finding that states
+           no consequence is never read as below the threshold.
       5. Write review.md for this round (step 7) and commit it, before any fix or ask. Then:
          - Exception asks, one `ask` per finding, each quoting the finding's area, defect and
            evidence verbatim with the verifier's reason: a finding in the security scope
@@ -463,8 +465,9 @@ artifacts:
            - `risky` after its first full round: repeat from step 1 as a second full fresh
              two-reviewer round over the fixed artifacts.
            - `standard` after its first full round: one fix-delta check. Run `V <change-dir>`,
-             commit, and dispatch one fresh plan-reviewer item with the delta brief below. Its
-             findings go through step 4 and this step like a round.
+             commit, and dispatch one fresh plan-reviewer item with the delta brief below. The
+             delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
+             through step 4 and this step like a round.
            - Budget spent (a `risky` review after its second full round, a `standard` review
              after its delta check) with a confirmed blocking finding open: the exhaustion ask
              (step 6). Dispatch nothing further before the user answers. The budget counts full
@@ -494,8 +497,9 @@ artifacts:
          `{RECORDING COMMIT}` is the commit of step 5 that recorded the round being fixed; the
          patch goes under `.omp/team-config/gate-deltas/`, which is never committed.
       6. Exhaustion ask: one `ask` quoting every open confirmed blocking finding's area, defect and
-         evidence verbatim with the verifier's reason. Options: Fix (you fix them, then one more
-         delta check as in step 5), Override, Stop. Override records the user's reason in their
+         evidence verbatim with the verifier's reason. Options: Fix (you fix them under step 5's
+         fix rule, the scope-decision ban included, then one more delta check as in step 5),
+         Override, Stop. Override records the user's reason in their
          words in review.md with the artifacts unchanged (any edit makes the review stale) and is
          never offered while an open finding is in the security scope or has `protected` true;
          offer only Fix and Stop then.
