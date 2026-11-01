@@ -1,48 +1,32 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: e2a449ccfd3091b02f756b96e6c769273e5e3f0adb1c44f5425863ba130e7189
-- **Reviewer**: plan-reviewer, DbaCorrectnessR2, DbaVerificationR2, DbaChecksR2
-- **Round**: 2
+- **Reviewed digest**: fc6ba96ae861f9c211108e51cc67255206f4b91d280f108b0d6cadfeaa222edd
+- **Reviewer**: plan-reviewer, DbaCorrectnessR3, DbaVerificationR3b, DbaChecksR3
+- **Round**: 3
 - **Override**: none
 
 ## Blockers
 
-### Correctness (DbaCorrectnessR2)
+### Verification (DbaVerificationR3b)
 
 [
   {
-    "area": "correctness",
-    "defect": "The design trigger and reviewer check only cover built mechanisms, leaving adopted mechanisms without a required decision.",
-    "evidence": "design.md:50,84-88 restrict the trigger and check to builds; specs/openspec-design-adoption/spec.md:18-21,43 require a decision for each covered mechanism, including platform SHA-256. A single-module change using the existing JDK digest, with no other design trigger, can skip design.md entirely. This reversibly misses the stated decision requirement.",
-    "change": "Trigger design.md and the missing-decision review for covered mechanisms regardless of whether they are built or adopted."
-  }
-]
-
-### Verification (DbaVerificationR2)
-
-[
-  {
-    "area": "Quality and verification",
-    "defect": "F1 never exercises a mechanism already covered by the repository or an installed dependency, so it cannot establish that the planner adopts it and stops before platform and library research. In ordinary use, an agent could overlook existing project code and perform unnecessary research or propose a duplicate implementation while every planned row passes. The resulting plan is reversible, but misses the central build-versus-adopt goal.",
-    "evidence": "design.md:128-133 exercises a repository search that proceeds to platform and libraries, and a separate platform-covered case; no row supplies a covering repository implementation or dependency. design.md:138 names only the nothing-found branch as unexercised; tasks.md:15 runs only those rows.",
-    "change": "Add a fresh-session fixture with a covered mechanism already implemented in the repository or an installed dependency. Require the decision to identify it with PATH:LINE, adopt it, and show no platform or library search; retain the same evidence as the other F1 rows."
+    "area": "quality (criteria coverage)",
+    "defect": "Vier Szenarien aus drei Requirements werden von keiner F1-Zeile, keiner Kontrolle und keinem deterministischen Check geprüft; die Begründung im Design nennt dafür Zeilen, die diese Regeln nicht berühren.",
+    "evidence": "spec.md:71-83 (`### Requirement: A failed search leaves the decision open` mit `#### Scenario: Search provider fails` und `#### Scenario: Negative control`) hat keine Zeile in der F1-Tabelle design.md:136-149 - A2/C2/C3/C4 prüfen Teilabdeckung, fehlende Lücke/Release, fehlende Platform-Zeile und eine bereits offene Decision, keine davon die Regel \"ein fehlgeschlagener Suchlauf ist nicht `none`\", den Retry, das Offenlassen oder das Rückfragen. design.md:151 behauptet dennoch \"Both branches share the form and the rules that A2, C2, C3 and the delivered-text check cover\"; der delivered-text check (tasks.md:7) pinnt nur Bytes und kann die Wirkung des Satzes nicht zeigen. Ebenso ohne jede Kontrolle: spec.md:47-50 (Negativkontrolle zu `A covered mechanism brings design.md`) und spec.md:108-111 (Negativkontrolle zu `Research uses keyless session tools`); A0 (design.md:139) deckt von spec.md:35-36 nur die erste Hälfte ab, nicht \"lets the search start with open-source libraries before the repository and platform\". Das etablierte Mittel für genau diese instruktionsseitigen Negativkontrollen existiert im Repo: die Instruction-Review-Zeilen E/D1 und E/D2 auf absichtlich verfälschten Kopien in openspec/changes/archive/2026-11-01-verification-blocker-accept/tasks.md:17.",
+    "change": "Für spec.md:47-50, :80-83 und :108-111 je eine Instruction-Review-Zeile ergänzen (frischer Default-`task`-Agent, (a) delivered E1/E2-Text, (b) mutierte Kopie, die das Verbotene erlaubt; besteht nur, wenn (a) \"none found\" liefert und (b) den mutierten Satz zitiert), und für spec.md:75-78 entweder eine Zeile oder - mit Nennung in gate.md - das Requirement auf den lens-seitig belegten Teil (C4) zurücknehmen; design.md:151 entsprechend korrigieren, da die dort genannten Zeilen die Regel nicht abdecken."
   },
   {
-    "area": "Quality and verification",
-    "defect": "The correctness-lens tests do not exercise the explicitly required rejection of a decision missing an entire form line. A reviewer that catches a missing subsection, missing candidate release and gap-less verdicts but accepts a decision without, for example, its Repository or Platform line would pass all the planned lens rows. This is a reversible plan-review failure, but breaks a stated gate criterion.",
-    "evidence": "specs/openspec-design-adoption/spec.md:94-96 requires a blocker for a missing line or candidate fact. design.md:134-136 tests a missing subsection, missing candidate release and gap, and a complete decision, but no decision missing a form line; tasks.md:15 runs those cases.",
-    "change": "Add a real correctness-lens session with an otherwise complete decision missing one required line, and require a REJECT blocker naming that omission. Retain the reviewer output and calls with the other F1 evidence."
-  }
-]
-
-### Checks (DbaChecksR2)
-
-[
+    "area": "quality (verification)",
+    "defect": "Die Verify von Task 1.1 kann nicht fehlschlagen, wenn E1 (und E2) an der falschen Stelle innerhalb derselben Instruction landen - obwohl bei E1 genau die Platzierung in der Liste \"When to include design.md\" das gesamte Requirement ist.",
+    "evidence": "tasks.md:7: die einzige Positionsprüfung ist die awk-Range für E3 (`awk '/Correctness lens \\(item 1\\):/{f=1} /Verification lens \\(item 2\\):/{f=0} f' \"$S\" | grep -q 'that the plan introduces without its subsection in design.md'`). E1 und E2 werden nur über `jq -e '(.instruction | contains(\"The change introduces a mechanism the\")) and (.instruction | contains(\"Build vs. adopt: a mechanism the change introduces\"))'` geprüft - ein Substring-Test über die ganze Design-Instruction - plus den Zeilen-Diff, der nur Menge und Reihenfolge der hinzugefügten Zeilen vergleicht. E1 in die `Sections:`-Liste (schema.yaml:184-191) statt in die Liste \"When to include design.md (create only if any apply):\" (schema.yaml:178-182) eingefügt lässt deleted=0, die Reihenfolge E1,E2,E3 und alle vier Teilprüfungen intakt, verletzt aber spec.md:38-40. Realistischer Auslöser: die drei Anker S:182, S:202, S:363 sind alle gegen dieselbe Basis gezählt und verschieben sich beim Einfügen. Die einzige Verhaltenszeile dazu, B2 (design.md:143), fragt ein Modell, ob ein RFC-5545-Import design.md braucht - das bejahen schon die bestehenden Gründe schema.yaml:180 (\"New external dependency\") und schema.yaml:182 (\"Ambiguity that benefits from technical decisions before coding\"), also kann B2 mit falsch platziertem E1 bestehen.",
+    "change": "In 1.1 je eine Range-Prüfung pro Einfügung ergänzen, wie sie für E3 schon existiert: E1 zwischen \"When to include design.md (create only if any apply):\" und \"Sections:\", E2 zwischen \"The reviewer rejects a change that does neither.\" und \"Focus on architecture and approach\"; zusätzlich eine Merge-Base-Basiszeile zu B2 (wie A0 zu A), damit B2 den Effekt von E1 überhaupt zuordnen kann."
+  },
   {
-    "area": "CHECK 4 — Build-vs-adopt decision, design.md D4/E2 and D6",
-    "defect": "The decision predicate has no undecidable state for an unavailable, incomplete or unreadable research source. During an ordinary search-provider outage, the planner can record the searches run, enter `none`, and provide a build gap; the planned lens then has no reason to reject that complete-looking decision. This can permit a covered mechanism to be built without establishing that adoption was unavailable, defeating the change's goal. The resulting plan is reversible.",
-    "evidence": "design.md:58-72 permits `none and the searches run` and `build, gap: <what nothing above covers>`; design.md:81-85 makes the lens block missing fields or gaps, not failed research. Search failures are realistic: packages/coding-agent/src/web/search/index.ts:349-355 returns an error with an empty sources list after providers fail. D6 at design.md:128-140 has no outage or incomplete-result control.",
-    "change": "Define completed research and a visible undecidable outcome for failed, missing, partial or unreadable results; prevent a build decision from treating those states as no candidate. Add a negative control that exercises a failed search and confirms that the decision cannot pass as `none`."
+    "area": "quality (F1 evidence check)",
+    "defect": "Die Evidenzprüfung von Task 2.1 verlangt das einzige Artefakt der Negativkontrolle A0 nicht; die Verify besteht, wenn genau das Dokument fehlt, an dem A0 beurteilt wird.",
+    "evidence": "tasks.md:15: `for r in A A2 A3 B2 B3; do test -s \"$E/$r/artifacts/design.md\" || m=1; done` - A0 fehlt in der Liste. design.md:139 definiert A0 (\"negative control\") ausschließlich über den Inhalt des geschriebenen Dokuments (\"`design.md` has no `Build vs. adopt` subsection\"), und A0 verwendet den Design-Zeilen-Prompt aus design.md:134 (\"Write only design.md\"), schreibt also eines; design.md:153 listet \"the written `design.md` where one exists\" als aufzubewahrendes Artefakt. Für A0 fordert die Verify nur prompt.txt/output.txt/calls.md, also Modellprosa statt des Artefakts, das die Negativkontrolle belegt.",
+    "change": "A0 in die artifacts-Schleife aufnehmen (`for r in A A0 A2 A3 B2 B3`) und für B festlegen, ob ein geschriebenes design.md erwartet wird; zusätzlich prüfen, dass A0s design.md keinen `Build vs. adopt`-Abschnitt enthält, damit die Kontrolle auch maschinell fehlschlagen kann."
   }
 ]
