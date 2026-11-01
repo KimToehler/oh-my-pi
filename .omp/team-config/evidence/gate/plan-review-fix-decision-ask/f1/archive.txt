@@ -1,0 +1,41 @@
+# F1 archive in scratch worktree at 4483714746f18074812ff1e6176e7dda2d7520be
+## openspec archive
+Task status: 1/2 tasks
+Warning: 1 incomplete task(s) found. Continuing due to --yes flag.
+
+Specs to update:
+  openspec-plan-review: update
+Applying changes to openspec/specs/openspec-plan-review/spec.md:
+  ~ 1 modified
+Totals: + 0, ~ 1, - 0, → 0
+Specs updated successfully.
+Change 'plan-review-fix-decision-ask' archived as '2026-10-31-plan-review-fix-decision-ask'.
+## git diff --stat
+ openspec/specs/openspec-plan-review/spec.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+## git diff
+diff --git a/openspec/specs/openspec-plan-review/spec.md b/openspec/specs/openspec-plan-review/spec.md
+index 0901993244..bddc435adb 100644
+--- a/openspec/specs/openspec-plan-review/spec.md
++++ b/openspec/specs/openspec-plan-review/spec.md
+@@ -83,7 +83,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
+ #### Scenario: Round with only blocking findings keeps the existing path
+ 
+ - **WHEN** a complete rejecting round below the approach-question trigger holds only non-eligible blockers, including the ambiguous and no-stated-consequence cases
+-- **THEN** the instruction directs a fix and a new round without an ask; from round 3 on, the approach question takes the place of the former per-blocker ask after the third REJECT
++- **THEN** the instruction directs a fix and a new round without a per-blocker ask, except for a blocker whose fix needs a user decision, which is asked as a per-blocker ask offering Fix and Stop, never Accept; from round 3 on, the approach question takes the place of the former per-blocker ask after the third REJECT
+ 
+ #### Scenario: Incomplete round keeps its stop
+ 
+@@ -97,7 +97,7 @@ The `omp-gated` review instruction SHALL apply the `Blocker disposition` section
+ 
+ #### Scenario: Negative control
+ 
+-- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
++- **WHEN** an instruction defers an eligible blocker of a complete round below the approach-question trigger to a later round without asking, asks about eligible blockers while a non-eligible blocker is open without naming it, or recommends or offers Accept for a non-eligible blocker
+ - **THEN** review of that instruction MUST fail
+ 
+ ### Requirement: The early ask is recorded first and quotes blockers verbatim
+## openspec validate --specs
+✓ spec/tool-approval
+Totals: 18 passed, 0 failed (18 items)
