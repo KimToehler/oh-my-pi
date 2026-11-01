@@ -65,6 +65,36 @@ Verdict stays REJECT with the blocker listed verbatim, Awaiting back to `none`, 
 the user's own words, digest unchanged, and `--reviewed` exits 0 printing
 `reviewed: REJECT overridden by the user: …`.
 
+**Retained tool calls.** Review session
+`~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb/2026-11-01T13-30-50-420Z_01a1974e-40b4-710c-ac3d-fee3c753ea1b`,
+in order: `openspec instructions review --change f1eb --json` (x2), three reads of the delivered
+instruction and the record template, `validate-openspec-change.mjs` on the folder,
+`git status --porcelain -- openspec/changes/f1eb` with `--digest`, the round-1 payload read,
+**`task blocker-verifier/F1ebTriageR1`**, reads of design, spec, tasks, gate and proposal plus the
+repository (`ls; cat package.json; ls src test`), **`write openspec/changes/f1eb/review.md`**,
+**`git add … && git commit -m "review(f1eb): record round 1 …"`**, then the four fix edits
+(design, spec, tasks, gate), the validator and commit, the round-2 payload read,
+**`task blocker-verifier/F1ebTriageR2`**, **`write review.md`**, validator and commit. The record
+write precedes every artifact edit of its round, and each verifier dispatch precedes its record.
+
+Resume session
+`…/2026-11-01T13-35-09-049Z_01a19752-32f9-75d2-8059-93c31f60579e`, complete list: `read
+skill://openspec`, `openspec instructions review --change f1eb --json`, one `eval`,
+`ls -la openspec/changes/f1eb && cat review.md && git log …`, one artifact read, a `grep` and a
+read of `validate-openspec-change.mjs`, two reads of `review.md`, `edit review.md` (`PUT 9.=10`,
+the Awaiting and Override bullets) and `validate-openspec-change.mjs --reviewed`. **No `task`
+call, no reviewer, no verifier, no plan-file edit** — the re-ask came from the record alone, and
+the only write was the user's Override.
+
+Retained outputs: before the answer `--reviewed` printed
+`Verdict: REJECT without a user override` and exited 1; after it,
+`reviewed: REJECT overridden by the user: the fixture is a throwaway QA repository, …` and exit 0.
+`git diff --stat f36eb44 HEAD` -> `openspec/changes/f1eb/review.md | 6 +++---`, and
+`V --digest` still prints `cb6c8b83c16d16a2c6b69c853afe0974dd7faf4dc9d78f5cfcbe2c0558f60e2d`,
+the digest the record carries. The blocker stays verbatim under `## Blockers` with
+`- **Verifier result**: confirmed, blocking true, protected false` and
+`- **Answer**: Override (exhaustion ask)`.
+
 ## (c) Undecided finding — `$TMPDIR/prp-fix/repo-f1ec`, change `f1e`
 
 Payload `f1e-c-round1.json`: a `risky` round 1, scope A (`SeedScopeA3`) REJECT with one
