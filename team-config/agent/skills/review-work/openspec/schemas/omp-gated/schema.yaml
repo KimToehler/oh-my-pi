@@ -438,8 +438,8 @@ artifacts:
          - when no other reviewer delivered a blocker, the round produced nothing: write no
            review.md and edit no existing one, tell the user which reviewer failed, and stop.
 
-         The round returns the blockers of every rejecting reviewer. A round without a blocker is
-         OKAY; go to step 7.
+         The round returns the blockers of every rejecting reviewer, after the findings it carries
+         from an incomplete round. A round with no blocker and nothing carried is OKAY; go to step 7.
       4. Verifier triage, before any fix, ask or edit. Number the round's blockers 1 to N across
          reviewers in reviewer order (carried findings first, then scope A before scope B).
          Dispatch one fresh task item,

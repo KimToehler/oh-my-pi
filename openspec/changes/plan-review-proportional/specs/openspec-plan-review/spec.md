@@ -301,7 +301,7 @@ A round SHALL be OKAY when, after verifier triage and the user's answer to every
 
 #### Scenario: All lenses agree
 
-- **WHEN** every reviewer of the round returns OKAY with no blockers
+- **WHEN** every reviewer of the round returns OKAY with no blockers and the round carries no finding from an incomplete round
 - **THEN** the round's verdict is OKAY and the `## Blockers` section is `none`
 
 #### Scenario: All findings are residuals
@@ -315,7 +315,7 @@ A round SHALL be OKAY when, after verifier triage and the user's answer to every
 - **THEN** `validate-openspec-change.mjs --reviewed` MUST fail and name the Blockers section
 
 ### Requirement: Incomplete round
-A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output), runs on a model other than its pin, or, for the verifier, returns an incomplete result SHALL get one fresh retry with the same brief. A reviewer whose retry fails too makes the round incomplete: the agent SHALL tell the user and stop, recording the round REJECT with Awaiting `incomplete` when another reviewer delivered blockers. A verifier whose retry fails too SHALL leave the round recorded REJECT with Awaiting `triage`.
+A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output) or runs on a model other than its pin SHALL get one fresh retry with the same brief; so SHALL a verifier whose result is incomplete. A reviewer whose retry fails too makes the round incomplete: the agent SHALL tell the user and stop. A verifier whose retry fails too SHALL leave the round recorded REJECT with Awaiting `triage`.
 
 #### Scenario: Retry recovers the lens
 
