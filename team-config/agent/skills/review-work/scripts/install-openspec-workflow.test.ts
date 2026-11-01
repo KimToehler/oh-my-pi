@@ -164,6 +164,7 @@ describe("install", () => {
 			Depth: "standard",
 			Reviewer: "plan-reviewer, ProbeRev",
 			Verifier: "blocker-verifier, none",
+			Models: "ProbeRev probe/model-a",
 			Round: "1",
 			Awaiting: "none",
 			Override: "none",

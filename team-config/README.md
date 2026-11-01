@@ -198,8 +198,12 @@ verifier left `undecided`, a finding on a security or privacy path or a protecte
 needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. The ask
 quotes the finding verbatim and offers Fix, Override and Stop; Override is unavailable while a security-scope or
 protected-asset finding is open. The record is written and committed before any fix or ask, so an interrupted session
-resumes from `review.md` alone. A reviewer or verifier without a structured result is retried once; if the retry has
-none either, the round is incomplete and no record is written. Verification of the change itself follows review-work's
+resumes from `review.md` alone. Each dispatch is checked against its pinned model and the record's `Models` line names
+what every dispatch ran on: a reviewer or verifier that ran on another model, returned no structured result or failed
+is retried once, and a retry without a result counts the same. A verifier that fails twice leaves the round REJECT
+with Awaiting `triage`; a reviewer that fails twice while another reviewer delivered blockers leaves it REJECT with
+Awaiting `incomplete`, and a resumed session re-runs that round in full and triages its delivered findings together
+with the re-run's. Only a round where nothing was delivered writes no record. Verification of the change itself follows review-work's
 `Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
 login. F2 delta reviews and F3 keep review-work's `Blocker disposition` section unchanged; plan review does not use it.

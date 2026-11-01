@@ -5,13 +5,14 @@
 - **Depth**: <standard or risky, from gate.md>
 - **Reviewer**: plan-reviewer, <scope A or only reviewer id>[, <scope B id>]
 - **Verifier**: blocker-verifier, <subagent id, or none when no finding needed triage>
+- **Models**: <one entry per dispatch of this round, retries and attempts that counted as having no result included: "<subagent id> <provider/model>", further models that dispatch ran on appended, "(no verdict)" after an attempt whose result did not count>
 - **Round**: <1 for the first dispatch>
-- **Awaiting**: <none, exception, exhaustion, scope or triage>
+- **Awaiting**: <none, exception, exhaustion, incomplete, scope or triage>
 - **Override**: none
 
 ## Blockers
 
-<none, or one "### <Scope> (<subagent id>)" subsection per rejecting reviewer with its open findings verbatim, each with the verifier's result and reason, or "not triaged: the verifier failed twice" when Awaiting is triage>
+<none, or one "### <Scope> (<subagent id>)" subsection per rejecting reviewer with its open findings verbatim, each with the verifier's result and reason, or "not triaged: the verifier failed twice" when Awaiting is triage, or "not triaged: the round is incomplete" when Awaiting is incomplete>
 
 ## Residuals
 

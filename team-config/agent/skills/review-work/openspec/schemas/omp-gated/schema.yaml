@@ -412,16 +412,37 @@ artifacts:
          whole effort on your focus and work through it exhaustively, requirement by requirement
          and task by task.
 
-         A reviewer without a structured verdict (the task failed, its output does not parse, or
-         you stopped it because it made no progress) gets one fresh retry with the same brief, in
-         a new task call; the other result stands. If the retry also has no structured verdict,
-         the round is incomplete: write no review.md and edit no existing one, tell the user which
-         reviewer failed, and stop.
+         After every reviewer or verifier dispatch, before you use its result, check what it ran
+         on. `read history://<subagent id>` prints the path of that dispatch's session file; take
+         the distinct provider and model of its assistant turns from that file with
+         `jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' <file> | sort -u`
+         and compare them, without a thinking-effort suffix, with the agent's pin: the entry for
+         that agent in `omp config get task.agentModelOverrides`, else the model named in its
+         definition under `$(omp config path)/agents/`. A dispatch that ran on any other model
+         counts as a dispatch without a structured result, whatever it returned: the runtime
+         substitutes a pinned model silently on a credential or retry fallback, and a verdict
+         from the substitute is not the independent draw this budget assumes. Name no model here;
+         read the pin from the configuration every time.
+
+         A reviewer without a structured verdict (the task failed, its output does not parse, you
+         stopped it because it made no progress, or it ran on another model) gets one fresh retry
+         with the same brief, in a new task call; the other result stands. If the retry also has
+         none, the round is incomplete and no verifier runs on it, because an all-refuted triage
+         would turn a half-reviewed round into OKAY:
+         - when another reviewer of the round delivered blockers, write review.md for the round
+           (step 7) and commit it with Verdict REJECT, Awaiting `incomplete`, those blockers
+           verbatim under their reviewer, each carrying `not triaged: the round is incomplete`
+           where the verifier's result would stand, so no earlier OKAY stays current and
+           `--reviewed` fails. Then tell the user which reviewer failed and stop: dispatch
+           nothing further, ask nothing and edit no artifact;
+         - when no other reviewer delivered a blocker, the round produced nothing: write no
+           review.md and edit no existing one, tell the user which reviewer failed, and stop.
 
          The round returns the blockers of every rejecting reviewer. A round without a blocker is
          OKAY; go to step 7.
       4. Verifier triage, before any fix, ask or edit. Number the round's blockers 1 to N across
-         reviewers in reviewer order (scope A before scope B). Dispatch one fresh task item,
+         reviewers in reviewer order (carried findings first, then scope A before scope B).
+         Dispatch one fresh task item,
          `agent: "blocker-verifier"`, `solutionSpace: "Triage of plan-review blockers; outcomes
          unknown"`, with the brief below, the two paths and every blocker copied verbatim from the
          delivered payload (`read agent://<id>`), never retyped, paraphrased or filtered. Carry no
@@ -435,9 +456,14 @@ artifacts:
          <blocker 2 verbatim>
          ...
 
+         A round that carries findings from an incomplete round triages them here even when its
+         own reviewers returned none: a fresh reviewer that did not repeat a delivered defect has
+         not refuted it.
+
          The result counts only when it holds exactly one entry per index 1 to N and no duplicate
-         or other index. Any other result, and any task without a structured result, gets one
-         fresh retry with the same brief. Never read a missing entry as a refutation. If the retry
+         or other index. Any other result, any task without a structured result, and any task
+         that ran on another model gets one fresh retry with the same brief. Never read a missing
+         entry as a refutation. If the retry
          is also missing or incomplete, the round is not incomplete as in step 3: its reviewers
          delivered their verdicts and those verdicts reject. Write review.md for the round
          (step 7) and commit it with Verdict REJECT, Awaiting `triage` and every blocker of the
@@ -536,13 +562,17 @@ artifacts:
          triage), the round number (the first dispatch of this review is 1, incremented once per
          reviewer dispatch, delta checks included; a resume continues the recorded round rather
          than opening a new one, so neither it nor a repeated triage dispatch changes the number),
-         and `- **Awaiting**:` naming the ask open when you write it
-         (`none`, `exception`, `exhaustion`, `scope` or `triage`). Verdict is OKAY when no confirmed
-         blocking finding, no untriaged finding and no finding awaiting an answer remains open,
-         otherwise REJECT.
+         `- **Models**:` with one entry per dispatch of this round, retries and attempts that
+         counted as having no result included, as `<subagent id> <provider/model>` with every
+         further model that dispatch ran on appended and `(no verdict)` after an attempt whose
+         result did not count, and `- **Awaiting**:` naming what is open when you write it
+         (`none`, `exception`, `exhaustion`, `incomplete`, `scope` or `triage`). Verdict is OKAY
+         when no confirmed blocking finding, no untriaged finding and no finding awaiting an
+         answer remains open, otherwise REJECT.
          `## Blockers`: `none` for OKAY; for REJECT one `### <Scope> (<subagent id>)` subsection
          per rejecting reviewer with its open findings verbatim, each with the verifier's result
-         and reason, or `not triaged: the verifier failed twice` when Awaiting is `triage`.
+         and reason, or `not triaged: the verifier failed twice` when Awaiting is `triage`, or
+         `not triaged: the round is incomplete` when Awaiting is `incomplete`.
          `## Residuals`: every other finding with the verifier's result and reason.
          Override is `none` until the user gives one. Rewrite the record on the same digest when
          an exception answer changes it.
@@ -551,10 +581,23 @@ artifacts:
 
       A verifier result already in `review.md` stands: no session re-triages a recorded finding,
       whatever the record's digest or `- **Awaiting**:` value says. A finding recorded with no
-      verifier result, which only Awaiting `triage` leaves, carries no result to stand on and is
-      triaged on the resume step 4 prescribes. A session that resumes a review whose recorded
-      digest still equals `V --digest` and whose `- **Awaiting**:` is `exception`, `exhaustion` or
-      `scope` asks that ask again from the record's own fields, before any edit or dispatch.
+      verifier result, which only Awaiting `triage` and Awaiting `incomplete` leave, carries no
+      result to stand on and is triaged on the resume those values prescribe. A session that
+      resumes a review whose recorded digest still equals `V --digest` and whose
+      `- **Awaiting**:` is `exception`, `exhaustion` or `scope` asks that ask again from the
+      record's own fields, before any edit or dispatch.
+
+      A record with Awaiting `incomplete` on the unchanged digest
+      re-runs the recorded round in full from step 3 with fresh reviewers, under the same round
+      number: an incomplete round
+      spends no budget. Its recorded findings are carried into that re-run verbatim, each under
+      its original reviewer and id marked `carried from the incomplete round`, and step 4 triages
+      them with the re-run's own blockers, carried ones first, even when the fresh reviewers
+      return none. A carried finding is never merged with, or dropped for, a repeat of it from
+      the re-run: both reach the verifier verbatim, each with its own evidence. A re-run that is
+      incomplete again keeps the carried findings under `## Blockers` beside its own delivered
+      ones. The re-run's record replaces the incomplete one, and is OKAY only when every carried
+      and new finding is triaged out of `## Blockers`.
 
       Editing any artifact after the review (other than ticking tasks) makes it stale; re-run
       this review before apply.

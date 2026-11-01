@@ -732,6 +732,18 @@ The system SHALL export records in batches.
 		expect(result.stderr).toContain("review.md Reviewer:");
 	});
 
+	it("refuses a class-bearing gate.md without Depth whose round 1 record names one reviewer id", async () => {
+		const result = run("--reviewed", await atDepth("concurrency-state", null, {}));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Reviewer:");
+	});
+
+	it("refuses a risky round 2 record with one reviewer id, naming Reviewer", async () => {
+		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "2" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Reviewer:");
+	});
+
 	it("accepts a risky round 3 record with one reviewer id", async () => {
 		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "3" }));
 		expect(result.stderr).toBe("");
