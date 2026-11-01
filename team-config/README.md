@@ -37,7 +37,11 @@ omp
 ```
 
 Update later with `git pull && scripts/deploy-local.sh`. Restart running omp sessions
-(including IntelliJ ACP) afterwards.
+(including IntelliJ ACP) afterwards. `seed/config.yml` is copied only when it is missing, so a
+new entry in it never reaches an existing `~/.omp/agent/config.yml`: after an update that adds
+one, merge it by hand. Today that is `task.agentModelOverrides.plan-reviewer`, the model plan
+review is pinned to; without a pin for the agent it dispatches, a plan review stops and asks you
+to add the entry instead of reviewing on whatever model the runtime picks.
 
 ## What lands where
 

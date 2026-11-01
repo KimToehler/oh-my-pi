@@ -418,11 +418,13 @@ artifacts:
          `jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' <file> | sort -u`
          and compare them, without a thinking-effort suffix, with the agent's pin: the entry for
          that agent in `omp config get task.agentModelOverrides`, else the model named in its
-         definition under `$(omp config path)/agents/`. A dispatch that ran on any other model
-         counts as a dispatch without a structured result, whatever it returned: the runtime
-         substitutes a pinned model silently on a credential or retry fallback, and a verdict
-         from the substitute is not the independent draw this budget assumes. Name no model here;
-         read the pin from the configuration every time.
+         definition under `$(omp config path)/agents/`. When neither source names a model, this
+         installation has no pin for that agent: write no review.md, tell the user to add
+         `task.agentModelOverrides.<agent>` to the agent configuration, and stop. A dispatch that
+         ran on any other model counts as a dispatch without a structured result, whatever it
+         returned: the runtime substitutes a pinned model silently on a credential or retry
+         fallback, and a verdict from the substitute is not the independent draw this budget
+         assumes. Name no model here; read the pin from the configuration every time.
 
          A reviewer without a structured verdict (the task failed, its output does not parse, you
          stopped it because it made no progress, or it ran on another model) gets one fresh retry

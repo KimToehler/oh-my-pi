@@ -42,7 +42,7 @@ Every full-round plan-reviewer task SHALL carry the brief fixed in the schema ve
 
 ### Requirement: A dispatch counts only on its pinned model
 
-After every reviewer and verifier dispatch the instruction SHALL read the models the dispatch's session file records for its assistant turns and record them per dispatch under `- **Models**:` in `review.md`. A dispatch any of whose turns ran on a model other than its agent's pin SHALL count as a dispatch without a structured result, whatever it returned.
+After every dispatch the instruction SHALL read the models the dispatch's session file records and record them per dispatch under `- **Models**:` in `review.md`. A dispatch any of whose turns ran on a model other than its agent's pin SHALL count as one without a structured result. Without a pin for a dispatched agent, from the overrides or an agent definition, the instruction SHALL stop, name the missing override and write no record.
 
 #### Scenario: Credential fallback to the parent model
 
@@ -58,6 +58,11 @@ After every reviewer and verifier dispatch the instruction SHALL read the models
 
 - **WHEN** both verifier attempts of a rejecting round run on a model other than the verifier's pin
 - **THEN** the round is recorded REJECT with Awaiting `triage` and its findings untriaged, as for a verifier without a structured result
+
+#### Scenario: Installation without the pin
+
+- **WHEN** the configuration has no `task.agentModelOverrides` entry for `plan-reviewer` and no agent definition in the agent directory names its model, as on an installation updated without merging the new seed entry
+- **THEN** the review stops before its first dispatch counts, writes no `review.md`, and tells the user to add the override
 
 #### Scenario: Negative control
 
@@ -85,7 +90,7 @@ After every complete round or delta check with a blocker or a finding carried fr
 
 ### Requirement: Only confirmed findings block
 
-A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence at the cited `file:line` or plan quote, that no check the plan runs would fail on that failure, and the blocking threshold. A finding awaiting an ask stays blocking; an untriaged finding stays under `## Blockers`, forces REJECT and SHALL NOT become a residual. Every other blocker SHALL become a residual with the verifier's result and reason; residuals never block apply.
+A blocker SHALL stay blocking only when the verifier confirms a concrete failure scenario, evidence at the cited `file:line` or plan quote, and the blocking threshold. A check the plan runs refutes only a blocker about missing or ineffective verification, never one about what the plan delivers. A finding awaiting an ask stays blocking; an untriaged one stays under `## Blockers` and forces REJECT. Every other blocker SHALL become a residual that never blocks apply.
 
 #### Scenario: Speculative finding
 
@@ -96,6 +101,11 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 
 - **WHEN** a blocker asks for a different Verify method while the planned test already fails when the named failure occurs
 - **THEN** it is recorded as a residual, not fixed
+
+#### Scenario: Detection is not resolution
+
+- **WHEN** a blocker names a contradiction between two of the plan's own rules and the plan schedules a QA run whose retained outputs would exhibit it
+- **THEN** the verifier confirms it: the scheduled run refutes only a finding about verification, so the contradiction stays blocking until the plan is fixed
 
 #### Scenario: Unproven material behaviour
 
@@ -109,7 +119,7 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, keeps apply blocked on a round whose findings are all residuals, refutes a finding about a Verify command that cannot fail by citing a requirement or scenario no task executes, or records an untriaged finding as a residual or ends its round OKAY
+- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, keeps apply blocked on a round whose findings are all residuals, refutes a finding about a Verify command that cannot fail by citing a requirement or scenario no task executes, refutes a finding about what the plan delivers by citing a check that would detect it later, or records an untriaged finding as a residual or ends its round OKAY
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fix budget per depth
