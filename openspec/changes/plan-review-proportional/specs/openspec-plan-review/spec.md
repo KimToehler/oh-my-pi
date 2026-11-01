@@ -148,12 +148,17 @@ Confirmed blocking findings SHALL be fixed and committed without asking while bu
 
 ### Requirement: Reviewed bytes are committed
 
-Before every round or delta-check dispatch, the instruction SHALL commit the change folder and confirm `git status --porcelain -- <change dir>` is empty, and SHALL commit each round's `review.md` before any fix or ask. The commit that records a round therefore holds exactly the planning bytes that round reviewed, and it is the base of the next delta check.
+Before every round or delta-check dispatch, the instruction SHALL update `- **Depth**:` when a fix changed the class or the reach, then commit the change folder, confirm `git status --porcelain -- <change dir>` is empty and take the digest, and SHALL commit each round's `review.md` before any fix or ask. The commit that records a round therefore holds exactly the planning bytes that round reviewed, and it is the base of the next delta check.
 
 #### Scenario: Draft created without a commit
 
 - **WHEN** `/opsx-propose` wrote the planning artifacts without committing them and round 1 of a `standard` change is about to be dispatched
 - **THEN** the artifacts are committed first, and the later delta patch shows every change made after round 1, including a removed line that existed only in the reviewed draft
+
+#### Scenario: A fix raises the depth
+
+- **WHEN** a fix between two rounds makes a `standard` change `risky`
+- **THEN** the depth bullet is updated before the folder is committed and digested, so the digest covers the new depth and the next dispatch is the one that depth prescribes
 
 #### Scenario: Negative control
 

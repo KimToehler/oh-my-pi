@@ -329,14 +329,17 @@ artifacts:
       V = `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs`
 
       1. Run `V <change-dir>` until it prints `passed`.
-      2. Commit the change folder, then confirm `git status --porcelain -- <change-dir>` prints
+      2. Read `- **Depth**:` from gate.md and update it before anything is committed when a fix
+         since the last dispatch changed the Mandatory class or made the change alter a review,
+         gate or release mechanism; a class other than `none` is always `risky`. Then commit the
+         change folder, including that update, and confirm `git status --porcelain -- <change-dir>`
+         prints
          nothing: the round reviews exactly the committed bytes, and nothing is edited until the
          round is recorded, so step 5's recording commit holds the same bytes. That recording
          commit, never this one and never any other, is the base of a later delta check. Then run
-         `V --digest <change-dir>` and keep the printed digest for this round.
-      3. Read `- **Depth**:` from gate.md. Update it first when a fix since the last dispatch
-         changed the Mandatory class or made the change alter a review, gate or release mechanism;
-         a class other than `none` is always `risky`.
+         `V --digest <change-dir>` and keep the printed digest for this round. An edit after this
+         point, the depth bullet included, makes the digest stale: return to step 1.
+      3. Dispatch the round for the depth step 2 read:
          - `standard`: dispatch one fresh plan-reviewer item with the all-scopes paragraph.
          - `risky`: dispatch two fresh plan-reviewer items in one task call, item 1 with the
            scope A paragraph, item 2 with the scope B paragraph.
@@ -515,8 +518,9 @@ artifacts:
            fixes, then spend the budget:
            - `risky` after its first full round: repeat from step 1 as a second full fresh
              two-reviewer round over the fixed artifacts.
-           - `standard` after its first full round: re-read `- **Depth**:` as step 3 prescribes
-             first; when a fix made the change `risky`, dispatch a full fresh two-reviewer round
+           - `standard` after its first full round: re-read and update `- **Depth**:` as step 2
+             prescribes, before the fixes are committed; when a fix made the change `risky`,
+             dispatch a full fresh two-reviewer round
              instead. Otherwise one fix-delta check: commit the change folder and confirm
              `git status --porcelain -- <change dir>` is empty as step 2 prescribes, run
              `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
@@ -563,11 +567,13 @@ artifacts:
          words in review.md with the artifacts unchanged (any edit makes the review stale) and is
          never offered while an open finding is in the security scope or has `protected` true;
          offer only Fix and Stop then.
-      7. Write review.md from the template with that round's digest from step 2, its depth, the
+      7. Write review.md from the template with the digest of the bytes this round reviewed (step
+         2's digest, or the delta check's own from the fix-delta path), its depth, the
          reviewer ids in dispatch order (scope A then scope B; a retried reviewer is listed with
          its retry's id), `blocker-verifier` and its subagent id (`none` when no finding needed
-         triage), the round number (the first dispatch of this review is 1, incremented once per
-         reviewer dispatch, delta checks included; a resume continues the recorded round rather
+         triage), the round number (the first round of this review is 1, incremented once per
+         full round and once per delta check, never per reviewer item of one round and never for a
+         retry; a resume continues the recorded round rather
          than opening a new one, so neither it nor a repeated triage dispatch changes the number),
          `- **Models**:` with one entry per dispatch of this round, retries and attempts that
          counted as having no result included, as `<subagent id> <provider/model>` with every

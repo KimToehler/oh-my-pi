@@ -195,10 +195,13 @@ one batch, scope A (correctness, architecture, security, the mechanical checks) 
 Both run as `onara/cx/gpt-6.1-sol:high`, pinned in the team seed, and the planner adds no focus of its own to the fixed
 brief. Every finding the round returns then goes, verbatim and numbered, to one read-only `blocker-verifier`
 (`onara/cx/gpt-6.1-sol:medium`), which checks each against the repository and returns `confirmed`, `refuted` or
-`undecided` with a reason. Confirmed blocking findings are fixed; everything else is recorded under `## Residuals` with
-the verifier's reason and never reviewed again. The budget is fixed: a `standard` round is followed by one delta check
-over the fix diff, a `risky` review runs at most two full rounds. Four cases ask you instead of deciding: a finding the
-verifier left `undecided`, a finding on a security or privacy path or a protected asset that it refuted, a fix that
+`undecided` with a reason. Confirmed blocking findings are fixed; a finding that is refuted, below the threshold or
+left undecided without a blocking consequence is recorded under `## Residuals` with the verifier's reason and never
+reviewed again, while a finding awaiting one of the asks below stays under `## Blockers` until you answer. The budget
+is fixed: a `standard` round is followed by one delta check
+over the fix diff, a `risky` review runs at most two full rounds. Four cases ask you instead of deciding: an
+`undecided` finding whose stated consequence meets the blocking threshold, a finding on a security or privacy path or
+a protected asset that it refuted, a fix that
 needs a decision about the change's scope, and exhaustion of the budget with a confirmed finding still open. Every ask
 quotes the finding verbatim; its options differ. The two findings the verifier did not confirm offer Fix, keep as a
 residual with your reason, and Stop. The scope decision offers the alternatives the artifacts leave open and Stop,
@@ -209,7 +212,7 @@ what every dispatch ran on: a reviewer or verifier that ran on another model, re
 is retried once, and a retry without a result counts the same. A verifier that fails twice leaves the round REJECT
 with Awaiting `triage`; a reviewer that fails twice while another reviewer delivered blockers leaves it REJECT with
 Awaiting `incomplete`, and a resumed session re-runs that round in full and triages its delivered findings together
-with the re-run's. Only a round where nothing was delivered writes no record. Verification of the change itself follows review-work's
+with the re-run's. Only a round that delivered nothing and carries nothing writes no record. Verification of the change itself follows review-work's
 `Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
 login. F2 delta reviews and F3 keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
