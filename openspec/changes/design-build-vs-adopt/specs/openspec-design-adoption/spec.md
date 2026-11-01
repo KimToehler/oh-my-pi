@@ -8,7 +8,7 @@ Defines when an `omp-gated` design must look for an existing implementation befo
 
 ### Requirement: Covered mechanisms are researched before they are designed
 
-The design instruction SHALL require a search before a mechanism the change introduces (one the changed code does not use today) is designed, when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: this repository and its installed dependencies, then the platform or standard library, then maintained open-source libraries, stopping at the first stage that covers it. Project-specific logic and glue SHALL need none.
+The design instruction SHALL require a search before a mechanism the change introduces (one the changed code does not use today) is designed, when it implements a published protocol, format or algorithm, or general-purpose infrastructure not specific to the project's domain: the repository and its installed dependencies, then the platform or standard library, then maintained libraries, stopping at the first stage that covers it. Project-specific logic and glue SHALL need none.
 
 #### Scenario: Protocol client is covered
 
@@ -39,14 +39,14 @@ The design instruction SHALL require a search before a mechanism the change intr
 
 The design instruction SHALL list introducing a covered mechanism, whether it is built, adopted or reused, as a reason to create `design.md`, even when the change stays inside one module and meets no other reason.
 
-#### Scenario: Single-module format parser
+#### Scenario: Single-module checksum
 
-- **WHEN** a change inside one module parses a published file format and meets no other reason for `design.md`
-- **THEN** the planner creates `design.md` with a `Build vs. adopt` decision for the parser
+- **WHEN** a change inside one module adds a CRC-32 checksum and meets no other reason for `design.md`
+- **THEN** the planner creates `design.md` with a `Build vs. adopt` decision for the checksum
 
 #### Scenario: Negative control
 
-- **WHEN** the reasons for `design.md` omit covered mechanisms, so a single-module parser change skips `design.md`
+- **WHEN** the reasons for `design.md` omit covered mechanisms, so a single-module checksum change skips `design.md`
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Decision content
