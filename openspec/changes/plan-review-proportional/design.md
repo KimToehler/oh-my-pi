@@ -23,9 +23,9 @@ See proposal.md (Why). The plan-review loop lives in the `review` artifact instr
 
 Changes too small for OpenSpec never reach this artifact: the `openspec` skill keeps them in plan mode (`team-config/agent/skills/openspec/SKILL.md:19`). There is no third, review-free depth inside `omp-gated`.
 
-### D2. Model pinned on the task item
+### D2. Model pinned through agent configuration, not the task item
 
-Every plan-reviewer item sets `model: "onara/cx/gpt-6.1-sol:high"`; the verifier item sets `model: "onara/cx/gpt-6.1-sol:medium"`. Alternatives: change `modelRoles.advisor` (it also drives the per-turn advisor), or `task.agentModelOverrides` in the seed (does not reach existing installs). The schema is shipped by `install-openspec-workflow.mjs` to every team repository, so the pin is the one place every install reads. Sol over terra and high over medium follow `runs/review-effort-20261029/RESULT.md` (high: 12 validated blocker occurrences and 7 mechanisms vs medium 7 and 4) and the review pilot's sol-only validated extras.
+The `task` tool accepts a per-item `model` only for `seance` (it refuses any other agent), so the dispatch cannot carry the model. Resolution order is request model, then `task.agentModelOverrides`, then the agent's frontmatter `model:` (`packages/coding-agent/src/config/model-resolver.ts:1284-1310`), and patterns keep a thinking suffix (`:1240`). `blocker-verifier` is a team agent, so its frontmatter sets `model: onara/cx/gpt-6.1-sol:medium`. `plan-reviewer` is bundled upstream code (`model: "@advisor"`), so `team-config/seed/config.yml` adds `task.agentModelOverrides.plan-reviewer: onara/cx/gpt-6.1-sol:high` next to the existing `reviewer` entry. Alternatives: change `modelRoles.advisor` (it also drives the per-turn advisor), or ship a team `plan-reviewer.md` that shadows the bundled prompt (a fork of upstream text). The seed reaches new agent directories only; existing ones merge it by hand as the README already describes, which the workflow follow-up does for this machine. The review instruction does not name a model. Sol over terra and high over medium follow `runs/review-effort-20261029/RESULT.md` (high: 12 validated blocker occurrences and 7 mechanisms vs medium 7 and 4) and the review pilot's sol-only validated extras.
 
 ### D3. A dedicated read-only `blocker-verifier` agent
 

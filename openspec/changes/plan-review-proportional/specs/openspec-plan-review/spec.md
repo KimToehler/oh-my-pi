@@ -28,21 +28,21 @@ Before round 1 the `omp-gated` review instruction SHALL set one depth and record
 
 ### Requirement: Fixed reviewer briefs on a pinned model
 
-Every plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else, and SHALL set model `onara/cx/gpt-6.1-sol:high` in its task item, so neither the planner's focus nor the user's `advisor` role steers the review.
+Every plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else, so the planner's focus does not steer the review. The team seed SHALL resolve `plan-reviewer` to `onara/cx/gpt-6.1-sol:high` through `task.agentModelOverrides`, so the user's `advisor` role does not choose the reviewer model.
 
 #### Scenario: Standard dispatch
 
-- **WHEN** a `standard` change starts round 1
-- **THEN** the one `plan-reviewer` task carries the fixed brief, the all-scopes paragraph and model `onara/cx/gpt-6.1-sol:high`
+- **WHEN** a `standard` change starts round 1 in an agent directory seeded from the team config
+- **THEN** the one `plan-reviewer` task carries the fixed brief and the all-scopes paragraph, and its run resolves to `onara/cx/gpt-6.1-sol:high`
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction adds its own focus, a file list or a summary of the change to a brief, or dispatches a plan-reviewer task without the pinned model
-- **THEN** review of that instruction MUST fail
+- **WHEN** an instruction adds its own focus, a file list or a summary of the change to a brief, or the seed leaves `plan-reviewer` on the `advisor` role
+- **THEN** review of that instruction or seed MUST fail
 
 ### Requirement: A verifier triages every finding
 
-After every complete round or fix-delta check that returned at least one blocker, and before any fix or ask, the instruction SHALL dispatch one fresh `blocker-verifier` task on model `onara/cx/gpt-6.1-sol:medium` with its fixed brief, the two paths and every blocker verbatim. For each blocker the verifier SHALL return `confirmed`, `refuted` or `undecided` with its reason and, for `confirmed`, whether the blocker meets the blocking threshold.
+After every complete round or fix-delta check that returned at least one blocker, and before any fix or ask, the instruction SHALL dispatch one fresh `blocker-verifier` task, whose agent definition pins `onara/cx/gpt-6.1-sol:medium`, with its fixed brief, the two paths and every blocker verbatim. For each blocker the verifier SHALL return `confirmed`, `refuted` or `undecided` with its reason and, for `confirmed`, whether the blocker meets the blocking threshold.
 
 #### Scenario: Round with findings
 
