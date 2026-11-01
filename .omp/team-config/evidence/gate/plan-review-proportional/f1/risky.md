@@ -1,63 +1,73 @@
 # F1-B: a `risky` review end to end
 
-Date: 2026-11-01. Same deployment as F1-A (`.../f1/standard.md`, "Deployment deviation"): the
-branch installed into the disposable profile `prp`, every session run as `omp --profile prp`.
+Date: 2026-11-01, re-run after the F2 wave-1 fixes (rows 5.1-5.3). Same deployment as F1-A
+(`.../f1/standard.md`, "Deployment deviation"): the branch installed into the disposable profile
+`prp`, every session run as `omp --profile prp`.
 
 ## Fixture
 
-`$TMPDIR/prp-fix/repo-f1b`, the same repository. Change `f1b` plans a `TotalsStore` with a refresh
-generation and a `idle -> refreshing -> ready` state machine. `gate.md`: Mandatory class
-`concurrency-state`, Depth `risky`, Risk tier `product`. Planted defect: task 1.2's Verify is
-`test -f test/totals-store.test.ts`.
+`$TMPDIR/prp-fix/repo-f1b`, rebuilt from the fixture base, change `f1b`: a `TotalsStore` with a
+`#generation` counter so only the newest refresh publishes. `gate.md`: Mandatory class
+`concurrency-state`, Depth `risky`, Risk tier `product`. The planted defect is a state machine with
+no failure transition: `design.md` specifies `idle -> refreshing -> ready` only, so a rejecting
+source leaves the store `refreshing` forever.
 
 ## Observed run
 
-Session: `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1b/2026-11-01T09-35-32-386Z_01a19676-d422-7209-a6d5-954aa96b64e0`.
+Session: `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1b/2026-11-01T12-18-19-880Z_01a1970b-de68-7450-b1f6-dfc71a1e6066`,
+continued twice with the QA lane's answers. Every child resolved to `onara/cx/gpt-6.1-sol`:
+reviewers (`EquivalentTahr`, `FriendlyTakin`, `LevelLeopon`, `HandicappedWhale`, `AwfulFowl`) at
+effort `high`, verifiers (`FaintBass`, `ImplicitGoose`) at `medium`.
 
-Commits, in order:
+**Round 1.** Depth `risky` read from `gate.md`; two fresh reviewers dispatched in one batch, scope A
+(`EquivalentTahr`, 1 blocker) and scope B (`FriendlyTakin`, 5 blockers). One verifier (`FaintBass`)
+returned one result per index across all six: five confirmed blocking, one **refuted** (task 1.1's
+Verify runs a test file task 1.2 creates later) and recorded as a residual. None protected.
+Record committed as `6e8e6e7` before any edit: REJECT, Round 1, Awaiting `scope`; `--reviewed`
+fails.
 
-```
-c2222c3 review(f1b): record round 1 (REJECT, awaiting scope)   <- record before any edit
-0b0fb93 review(f1b): record scope answer for round 1 blocker 1
-f526e63 plan(f1b): fix round 1 blockers (failure contract, verification, F1/F2)
-61a31cc review(f1b): record round 2 (OKAY)
-```
+Blocker 1 (the missing failure transition) needed a scope decision the artifacts leave open, so the
+session asked one question quoting the finding and the verifier's reason, offering two named scope
+alternatives — an `error` state, or reverting to the previous settled state — and Stop. **No "keep
+as a residual" option**, which is the wave-1 fix (row 5.2) on a confirmed blocking finding.
 
-Resolved models, from each child's session file:
+**After the answer** (alternative 1): fixes in the artifacts only, commit `d1e4de4` — the `error`
+state with its scenarios, a readable `totals` surface, one named test per scenario, a task running
+the tests against deliberately broken stores, the F1 group and the follow-up section.
 
-| child | role | model | effort |
-|---|---|---|---|
-| `ReviewScopeA`, `ReviewScopeB` | round 1 reviewers, one batch | `onara/cx/gpt-6.1-sol` | high |
-| `VerifyBlockers` | round 1 verifier | `onara/cx/gpt-6.1-sol` | medium |
-| `ReviewR2ScopeA`, `ReviewR2ScopeB` | round 2 reviewers, new ids | `onara/cx/gpt-6.1-sol` | high |
-| `VerifyR2Blockers`, `VerifyR2BlockersRetry` | round 2 verifier plus its one retry | `onara/cx/gpt-6.1-sol` | medium |
+**Round 2** — a full fresh two-reviewer round on the new digest, new subagent ids
+(`LevelLeopon` OKAY, `HandicappedWhale` REJECT with 1 blocker). Verifier `ImplicitGoose` confirmed
+it blocking and `protected` true. Record `b8a9ab0`: REJECT, Round 2, Awaiting `exhaustion`.
+The budget for `risky` is now spent, so the exhaustion ask ran — and because the open finding is
+`protected`, it offered **only Fix and Stop**, no Override.
 
-**Round 1** (digest `102212f2…62ac`): depth `risky` read from `gate.md`, two reviewers dispatched
-in one batch, two blockers each. The verifier confirmed all four as blocking, none protected.
-`review.md` was written and committed as REJECT, Round 1, Awaiting `scope`, **before** any
-artifact edit; `--reviewed` failed. The session then asked one scope question, quoting the
-finding's area, defect, evidence and the verifier's reason verbatim, with Fix (three named
-contracts), keep-as-residual and Stop. The QA lane answered Fix, option a.
-
-**Fixes**: the answer was recorded (`0b0fb93`), then all four findings were fixed in the plan
-files only and committed (`f526e63`).
-
-**Round 2** (digest `c7383c4a…3a4b`): two fresh reviewers with new subagent ids on the new digest.
-Scope B OKAY; scope A returned one blocker, which the verifier refuted (the spec already requires
-`ready` after any earlier publication). It is recorded under `## Residuals` with the verifier's
-reason. Final record: Verdict OKAY, Depth `risky`, Round 2, Awaiting `none`; `--reviewed` exits 0.
-
-The round-2 verifier's first dispatch was cut off by a session deadline; the instruction's one
-fresh retry (`VerifyR2BlockersRetry`) returned a usable result, and the session did not re-dispatch
-the reviewers it already had.
+**After Fix**: commit `27858b6` adds the missing interval (a superseded refresh settling while the
+newest is still pending) as two spec scenarios, two named tests, a fourth broken-store control and
+a two-order F1 observation. One delta check (`AwfulFowl`) against the round-2 recording commit
+`b8a9ab0` returned OKAY with no blockers, so no triage was needed. Final record `8bdac42`: Verdict
+OKAY, Depth `risky`, Round 3, Awaiting `none`, Override `none`.
+`--reviewed` prints `reviewed: OKAY in round 3`.
 
 ## Acceptance
 
 | criterion | result |
 |---|---|
 | depth `risky` read from `gate.md` | yes |
-| scope A and scope B in one batch | yes (round 1 and round 2) |
-| confirmed finding fixed and committed after the REJECT record | yes: `c2222c3` then `f526e63` |
-| round 2 dispatches two fresh reviewers with new ids on the new digest | yes |
-| at most two full rounds | yes, two |
-| exhaustion ask only with a confirmed blocking finding open after round 2 | none open, no ask |
+| scope A and scope B dispatched in one batch | yes, rounds 1 and 2 |
+| the confirmed findings fixed and committed after the REJECT record | yes: `6e8e6e7` precedes `d1e4de4` |
+| round 2 dispatches two fresh reviewers with new ids on the new digest | yes: `LevelLeopon`, `HandicappedWhale` |
+| at most two full rounds | yes, two; round 3 is the single delta check the user's Fix at the exhaustion ask authorizes |
+| exhaustion ask only with a confirmed blocking finding open after round 2 | yes, one finding open |
+
+## Observations for the QA lane
+
+- Override was correctly withheld at the exhaustion ask because the open finding carried
+  `protected` true. The verifier marked a verification-coverage finding as protected, which is
+  conservative — the rule makes `protected` true for a security or privacy path, a credential,
+  another protected asset, or review_scope item 4 / CHECK 1. Erring this way only removes an
+  acceptance option; it never lets a finding through.
+- The verifier still refutes under the stricter condition 3 when there is a real reason: it refuted
+  the "task 1.1's Verify runs a later file" finding in round 1 and recorded it as a residual.
+- The post-exhaustion delta check used one reviewer on a `risky` change. That is the path the plan
+  specifies for a user-authorized Fix after the budget is spent, and `F1-F`'s route-2 note records
+  the same judgement.

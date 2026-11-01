@@ -437,8 +437,16 @@ artifacts:
 
          The result counts only when it holds exactly one entry per index 1 to N and no duplicate
          or other index. Any other result, and any task without a structured result, gets one
-         fresh retry with the same brief; if the retry is also missing or incomplete, the round is
-         incomplete as in step 3. Never read a missing entry as a refutation.
+         fresh retry with the same brief. Never read a missing entry as a refutation. If the retry
+         is also missing or incomplete, the round is not incomplete as in step 3: its reviewers
+         delivered their verdicts and those verdicts reject. Write review.md for the round
+         (step 7) and commit it with Verdict REJECT, Awaiting `triage` and every blocker of the
+         round verbatim under `## Blockers`, each carrying `not triaged: the verifier failed
+         twice` where the verifier's result would stand, so no earlier OKAY stays current and
+         `--reviewed` fails. Then tell the user which triage failed and stop: dispatch nothing
+         further, ask nothing and edit no artifact. A session resuming that record on the
+         unchanged digest dispatches triage again for exactly its untriaged findings and
+         continues at this step, dispatching no reviewer and adding no finding.
 
          Then classify each blocker:
          - `confirmed` with `blocking` true: it stays a blocker and is fixed within the budget.
@@ -452,24 +460,34 @@ artifacts:
            never because its consequence reads as small.
       5. Write review.md for this round (step 7) and commit it, before any fix or ask. Then:
          - Exception asks, one `ask` per finding, each quoting the finding's area, defect and
-           evidence verbatim with the verifier's reason: a finding in the security scope
+           evidence verbatim with the verifier's reason, for a finding in the security scope
            (review_scope item 4 or CHECK 1) or with `protected` true that the verifier did not
-           confirm as blocking; a finding the verifier returned `undecided` whose stated
-           consequence meets the blocking threshold; a fix that needs a scope decision the
-           artifacts leave open. Options: Fix (you change the artifacts), keep as a residual with
-           the user's reason in their words, Stop (apply stays blocked). A finding awaiting such
-           an answer stays under `## Blockers` with Awaiting set, so `--reviewed` keeps failing;
-           only the answer "keep" moves it to `## Residuals` with the user's reason.
+           confirm as blocking, and for a finding the verifier returned `undecided` whose stated
+           consequence meets the blocking threshold. Options: Fix (you change the artifacts), keep
+           as a residual with the user's reason in their words, Stop (apply stays blocked).
+         - The scope ask, one `ask` per finding, quoted the same way, for a finding whose fix needs
+           a scope decision the artifacts leave open. Its options are the scope alternatives you
+           name, each one a fix of the artifacts, and Stop. Never offer keep here: a finding the
+           verifier confirmed as blocking is fixed within the budget, and the only acceptance it
+           can reach is the exhaustion ask's Override (step 6), which a security-scope or
+           `protected` finding never reaches either. A finding the verifier did not confirm as
+           blocking and that needs a scope decision takes the exception ask above instead, and that
+           ask's Fix option names the same scope alternatives.
+         - A finding awaiting any of these answers stays under `## Blockers` with Awaiting set, so
+           `--reviewed` keeps failing; only the answer "keep" moves it to `## Residuals` with the
+           user's reason.
          - Fix every confirmed blocking finding in the artifacts (never in source code) and the
            findings answered Fix. A finding whose fix needs a scope decision the artifacts leave
-           open is never fixed before the user answers its exception ask above. Confirmed
+           open is never fixed before the user answers the ask that names its alternatives. Confirmed
            below-threshold findings may be fixed in the same edit, never on their own. Commit the
            fixes, then spend the budget:
            - `risky` after its first full round: repeat from step 1 as a second full fresh
              two-reviewer round over the fixed artifacts.
            - `standard` after its first full round: re-read `- **Depth**:` as step 3 prescribes
              first; when a fix made the change `risky`, dispatch a full fresh two-reviewer round
-             instead. Otherwise one fix-delta check: run `V <change-dir>`, commit, and dispatch
+             instead. Otherwise one fix-delta check: commit the change folder and confirm
+             `git status --porcelain -- <change dir>` is empty as step 2 prescribes, run
+             `V <change-dir>`, and dispatch
              one fresh plan-reviewer item with the delta brief below. The
              delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
              through step 4 and this step like a round.
@@ -478,9 +496,10 @@ artifacts:
              (step 6). Dispatch nothing further before the user answers. The budget counts the
              full rounds and delta checks this review has dispatched since its first round, in
              this session and in earlier ones, as the committed `review.md` records show; the
-             record's round number never defines it. A resume dispatches nothing, so it neither
-             spends budget nor gives any back: a review resumed after its first full round still
-             owes that round's successor before it can end OKAY.
+             record's round number never defines it. A resume dispatches no reviewer, so it neither
+             spends budget nor gives any back, and a repeated triage dispatch does not either: a
+             review resumed after its first full round still owes that round's successor before it
+             can end OKAY.
 
          Delta brief (substitute the `{...}` inputs, change nothing else):
 
@@ -514,10 +533,13 @@ artifacts:
       7. Write review.md from the template with that round's digest from step 2, its depth, the
          reviewer ids in dispatch order (scope A then scope B; a retried reviewer is listed with
          its retry's id), `blocker-verifier` and its subagent id (`none` when no finding needed
-         triage), the round number (first dispatch is 1, incremented per dispatch including delta
-         checks and after a resume), and `- **Awaiting**:` naming the ask open when you write it
-         (`none`, `exception`, `exhaustion` or `scope`). Verdict is OKAY when no confirmed
-         blocking finding and no finding awaiting an answer remains open, otherwise REJECT.
+         triage), the round number (the first dispatch of this review is 1, incremented once per
+         reviewer dispatch, delta checks included; a resume continues the recorded round rather
+         than opening a new one, so neither it nor a repeated triage dispatch changes the number),
+         and `- **Awaiting**:` naming the ask open when you write it
+         (`none`, `exception`, `exhaustion`, `scope` or `triage`). Verdict is OKAY when no confirmed
+         blocking finding, no untriaged finding and no finding awaiting an answer remains open,
+         otherwise REJECT.
          `## Blockers`: `none` for OKAY; for REJECT one `### <Scope> (<subagent id>)` subsection
          per rejecting reviewer with its open findings verbatim, each with the verifier's result
          and reason. `## Residuals`: every other finding with the verifier's result and reason.
@@ -527,9 +549,11 @@ artifacts:
          blocked while an ask is open or the user stopped.
 
       A verifier result already in `review.md` stands: no session re-triages a recorded finding,
-      whatever the record's digest or `- **Awaiting**:` value says. A session that resumes a
-      review whose recorded digest still equals `V --digest` and whose `- **Awaiting**:` is not
-      `none` asks that ask again from the record's own fields, before any edit or dispatch.
+      whatever the record's digest or `- **Awaiting**:` value says. A finding recorded with no
+      verifier result, which only Awaiting `triage` leaves, carries no result to stand on and is
+      triaged on the resume step 4 prescribes. A session that resumes a review whose recorded
+      digest still equals `V --digest` and whose `- **Awaiting**:` is `exception`, `exhaustion` or
+      `scope` asks that ask again from the record's own fields, before any edit or dispatch.
 
       Editing any artifact after the review (other than ticking tasks) makes it stale; re-run
       this review before apply.

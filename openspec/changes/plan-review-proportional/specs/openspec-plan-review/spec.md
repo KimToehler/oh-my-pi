@@ -61,7 +61,7 @@ After every complete round or delta check with a blocker, and before any fix or 
 
 ### Requirement: Only confirmed findings block
 
-A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence it found at the cited repository `file:line` or plan quote, why the plan's criteria and Verify commands would not catch that failure, and the blocking threshold. A blocker that triggers an exception ask SHALL stay blocking until the user answers it. Every other blocker SHALL become a residual recorded with the verifier's result and reason; residuals never block apply.
+A blocker SHALL stay blocking only when the verifier confirms all of: a concrete failure scenario, evidence it found at the cited repository `file:line` or plan quote, that no check the plan runs would fail when that failure occurs, and the blocking threshold. A check that runs is a task's `Verify:` command, a test the tasks name, or a planned real-session run whose retained outputs would show the failure; a `### Requirement:` block or a `#### Scenario:`, its Negative control included, is a criterion, not a check, and SHALL NOT refute a finding about missing or ineffective verification. A blocker that triggers an exception ask SHALL stay blocking until the user answers it. Every other blocker SHALL become a residual recorded with the verifier's result and reason; residuals never block apply.
 
 #### Scenario: Speculative finding
 
@@ -76,11 +76,11 @@ A blocker SHALL stay blocking only when the verifier confirms all of: a concrete
 #### Scenario: Unproven material behaviour
 
 - **WHEN** a blocker shows that a criterion covers deletion and no planned Verify command or test can fail when deletion breaks, and the verifier confirms the cited lines
-- **THEN** it stays blocking
+- **THEN** it stays blocking, and the criterion's own text, its Negative control scenario included, does not refute it
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, or keeps apply blocked on a round whose findings are all residuals
+- **WHEN** an instruction lists a refuted or below-threshold finding under Blockers, keeps apply blocked on a round whose findings are all residuals, or refutes a finding about a Verify command that cannot fail by citing a requirement or scenario no task executes
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fix budget per depth
@@ -123,7 +123,7 @@ Before every round or delta-check dispatch, the instruction SHALL commit the cha
 
 ### Requirement: The user is asked only on named exceptions
 
-The instruction SHALL ask the user only when a finding in the security scope (review_scope item 4 or CHECK 1) or naming a protected asset is not confirmed; when the verifier returns `undecided` for a finding whose stated consequence meets the blocking threshold; when the budget is spent with a confirmed blocking finding open; or when a fix needs a scope decision the artifacts leave open. Otherwise it SHALL decide without asking.
+The instruction SHALL ask the user only when a finding in the security scope (review_scope item 4 or CHECK 1) or naming a protected asset is not confirmed; when the verifier returns `undecided` for a finding whose stated consequence meets the blocking threshold; when the budget is spent with a confirmed blocking finding open; or when a fix needs a scope decision the artifacts leave open. Otherwise it SHALL decide without asking. The first two asks SHALL offer Fix, keep as a residual with the user's reason, and Stop. The scope ask SHALL offer the named scope alternatives, each a fix of the artifacts, and Stop, and SHALL NOT offer keep: a finding the verifier confirmed as blocking reaches acceptance only through the exhaustion ask's Override.
 
 #### Scenario: Refuted findings only
 
@@ -135,9 +135,14 @@ The instruction SHALL ask the user only when a finding in the security scope (re
 - **WHEN** the verifier refutes a CHECK 1 finding that a QA step writes a provider key to an evidence file
 - **THEN** `review.md` records the round as REJECT with that finding under Blockers before the user is asked whether to fix it, keep it as a residual with their reason, or stop; only the answer "keep" moves it to Residuals with the user's reason, and the record is then rewritten as OKAY when no other blocking finding remains
 
+#### Scenario: Confirmed finding whose fix needs a scope decision
+
+- **WHEN** the verifier confirms a blocking finding whose fix depends on a scope decision the artifacts leave open
+- **THEN** the ask offers the scope alternatives and Stop, and the finding stays under Blockers until a fix lands
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction records an unconfirmed security-scope finding, or an `undecided` finding whose stated consequence meets the threshold, as a residual without asking, applies a fix that needs an open scope decision without asking, or asks the user at a round whose findings are all refuted and outside the security scope
+- **WHEN** an instruction records an unconfirmed security-scope finding, or an `undecided` finding whose stated consequence meets the threshold, as a residual without asking, applies a fix that needs an open scope decision without asking, offers keep for a finding the verifier confirmed as blocking, or asks the user at a round whose findings are all refuted and outside the security scope
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Budget exhaustion asks once and Override is the user's acceptance
@@ -175,16 +180,21 @@ Before any fix or ask that follows a round or delta check, the instruction SHALL
 
 ### Requirement: Resume from the record
 
-`review.md` SHALL carry `- **Awaiting**:` naming the ask open when it was written (`none`, `exception`, `exhaustion` or `scope`), and every finding under Blockers SHALL carry the verifier's result and reason. A session resuming a review whose recorded digest equals the current one and whose Awaiting is not `none` SHALL ask that ask again from the record's fields before any edit or dispatch, and SHALL NOT re-dispatch the verifier for recorded findings.
+`review.md` SHALL carry `- **Awaiting**:` naming what was open when it was written (`none`, `exception`, `exhaustion`, `scope` or `triage`), and every finding under Blockers SHALL carry the verifier's result and reason, or the recorded triage failure when Awaiting is `triage`. A session resuming a review whose recorded digest equals the current one SHALL, before any edit or dispatch, ask the recorded ask again from the record's fields when Awaiting is `exception`, `exhaustion` or `scope`, and dispatch triage for exactly the untriaged findings when Awaiting is `triage`. It SHALL NOT re-dispatch the verifier for a finding whose verifier result the record carries, and SHALL NOT dispatch a reviewer or add a finding.
 
 #### Scenario: Interrupted exhaustion ask
 
 - **WHEN** the session ends after writing a round-2 REJECT with Awaiting `exhaustion` and before the user answered, and a new session resumes the review
 - **THEN** it asks the exhaustion ask again, quoting the recorded findings and verifier reasons, and dispatches no verifier or reviewer first
 
+#### Scenario: Interrupted triage
+
+- **WHEN** a record carries Awaiting `triage` with two untriaged findings and a new session resumes the review on the unchanged digest
+- **THEN** it dispatches one verifier for exactly those two findings and dispatches no reviewer
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction re-triages recorded findings on resume, offers "keep" for a finding recorded as confirmed, or writes a record with an open ask and Awaiting `none`
+- **WHEN** an instruction re-triages a finding whose verifier result the record carries, offers "keep" for a finding recorded as confirmed, writes a record with an open ask and Awaiting `none`, or dispatches a reviewer on a resume
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The record matches the change's risk
@@ -251,7 +261,7 @@ A round SHALL be OKAY when, after verifier triage and the user's answer to every
 - **THEN** `validate-openspec-change.mjs --reviewed` MUST fail and name the Blockers section
 
 ### Requirement: Incomplete round
-A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output), or a verifier result that is not complete as defined in "A verifier triages every finding", SHALL get one fresh retry with the same brief. When the retry also returns none or an incomplete result, the round SHALL be incomplete: the agent writes and edits no `review.md` for it and SHALL tell the user which task failed. A record of an earlier complete round stays as it was.
+A reviewer or verifier task that returns no structured result (failure, timeout, unparsable output), or a verifier result that is not complete as defined in "A verifier triages every finding", SHALL get one fresh retry with the same brief. When a reviewer's retry also returns none, the round SHALL be incomplete: the agent writes and edits no `review.md` for it and SHALL tell the user which task failed, because the round has no verdict to record. When the verifier's retry also fails or returns an incomplete result, the round's reviewers have already delivered their verdicts, so the agent SHALL write and commit `review.md` for that round with Verdict REJECT, Awaiting `triage` and every blocker of the round verbatim under `## Blockers`, each recording that it was not triaged, and SHALL then tell the user and stop without fixing, asking or editing any artifact. A record of an earlier complete round stays as it was only while no such record is written.
 
 #### Scenario: Retry recovers the lens
 
@@ -261,12 +271,17 @@ A reviewer or verifier task that returns no structured result (failure, timeout,
 #### Scenario: Verifier with an incomplete result
 
 - **WHEN** the verifier returns results for blockers 1 and 3 of three, and its retry again omits one
-- **THEN** no `review.md` is written or edited for that round and the user is told the verifier failed
+- **THEN** `review.md` records that round as REJECT with Awaiting `triage` and all three blockers untriaged under `## Blockers`, `--reviewed` fails, and the user is told the verifier failed
+
+#### Scenario: Failed triage supersedes an earlier approval
+
+- **WHEN** a change with a current OKAY `review.md` is reviewed again unchanged, every reviewer returns blockers, and both verifier attempts fail
+- **THEN** the earlier OKAY is replaced by that round's REJECT record, so `--reviewed` fails and apply is not authorized
 
 #### Scenario: Negative control
 
-- **WHEN** a reviewer or the verifier of the first round of a change has no structured result after its retry
-- **THEN** producing a review record for that round MUST fail: no `review.md` exists afterwards, so `--reviewed` keeps failing as missing
+- **WHEN** a reviewer of the first round of a change has no structured result after its retry and a review record is produced for that round, or a verifier failure leaves an earlier OKAY record current
+- **THEN** review of that instruction MUST fail
 
 ### Requirement: Reviewer record
 `review.md` SHALL name the reviewers of the recorded round as `plan-reviewer` followed by the subagent ids the `task` tool returned, comma-separated; a `risky` round lists its scope A and scope B ids in that order, a `standard` round or a delta check its one id. `--reviewed` SHALL accept one or more ids and SHALL refuse an empty id, a template placeholder or a duplicate id.

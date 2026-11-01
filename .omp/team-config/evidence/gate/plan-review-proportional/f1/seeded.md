@@ -10,6 +10,14 @@ instead of dispatching. Everything else ran for real: the validator, the digest,
 `blocker-verifier` dispatch, the fixes, the record and `--reviewed`. Every verifier child resolved
 to `onara/cx/gpt-6.1-sol` at effort `medium`.
 
+Scenarios (a), (b) and (c) ran on the text before the F2 wave-1 fixes; the probe at the end of this
+file ran on the fixed text. The fixes do not touch what (a), (b) and (c) observe: (a) turns on
+condition 2 of the verifier (the cited lines do not say what the blockers claim), (c) on
+`undecided` for evidence outside the repository, and (b) on the exhaustion ask, the record and the
+cross-session resume. Row 5.1 changed condition 3 only, and it can only make the verifier stricter,
+never more lenient; row 5.2 changed the scope ask, which none of the three raises; row 5.3 added
+the triage-failure record, which none of the three triggers.
+
 ## (a) All-residual exit — `$TMPDIR/prp-fix/repo-f1ea`, change `f1e`
 
 Payload `f1e-a-round1.json`: a `risky` round 1, scope A (`SeedScopeA1`) and scope B
@@ -79,14 +87,39 @@ the finding, the verifier's `undecided` result and the user's reason under `## R
 | (c) `--reviewed` fails while unanswered; options Fix, keep, Stop | yes |
 | (c) after "keep": OKAY with the finding and reason under Residuals | yes |
 
-## Fixture iterations (honest record)
+## Fixture iterations, and the defect they exposed (honest record)
 
-Scenario (b) needed two fixture rewrites before it could reach round 2, and the reason is a real
-property of the system: on a "the Verify command cannot fail" finding the verifier's judgement is
-**not stable**. The same payload blocker was confirmed by one verifier run (`ConsistentHamster`)
-and refuted by two others (`MonthlyWallaby`, `VerifyF1ebR1`), each time citing the spec's written
-negative-control scenarios as if they were executable checks. The scenario became deterministic
-only when the blocker named the gap explicitly ("the Negative control scenarios are written
-criteria, not commands; no task executes them") and cited `package.json`. The same leniency
-refuted the planted defect in F1-A. Findings about a missing failure transition or a missing
-section were confirmed every time.
+Scenario (b) needed two fixture rewrites before it could reach round 2, and the reason was a real
+defect in the delivered text, not fixture luck: on a "the Verify command cannot fail" finding the
+verifier's judgement was **not stable**. The same payload blocker was confirmed by one verifier run
+(`ConsistentHamster`) and refuted by two others (`MonthlyWallaby`, `VerifyF1ebR1`), each time
+citing the spec's written negative-control scenarios as if they were executable checks. The
+scenario became deterministic only when the blocker named the gap explicitly ("the Negative control
+scenarios are written criteria, not commands; no task executes them") and cited `package.json`. The
+same leniency refuted the planted defect in F1-A. Findings about a missing failure transition or a
+missing section were confirmed every time.
+
+The F2 wave-1 audit raised that as blocker class `prose-as-executable-verification`, and row 5.1
+fixed condition 3 of `blocker-verifier.md`: only a check the plan runs (a task's verify command, a
+test the tasks name, or a planned real-session run whose retained outputs would show the failure)
+can refute, and a `### Requirement:` block or a `#### Scenario:` never does.
+
+### Probe of the fixed rule
+
+The same **plain** blocker — the one the two earlier runs refuted, with no meta-argument about
+scenarios and no `package.json` citation, naming only `tasks.md:5-7` — was sent to a fresh
+`blocker-verifier` (`WelcomeBandicoot`, `onara/cx/gpt-6.1-sol` effort `medium`) in a fresh session
+on the unchanged `$TMPDIR/prp-fix/repo-f1eb` fixture, through the fixed agent file. One entry for
+index 1: **confirmed, blocking true, protected false**:
+
+> All conditions hold. tasks.md:5-7 runs only `bun run format` and file-existence checks;
+> package.json:5 defines format as `prettier --check .`. A formatted implementation that publishes
+> every refresh, accompanied by an empty test file and an empty Unreleased entry, can pass all
+> three commands. **Task 1.2 describes the necessary tests but never executes them, and neither
+> design.md nor gate.md adds an executable or real-session check.** … This defeats the change's
+> central supersession goal and leaves the state and failure transitions unproven; gate.md accepts
+> no residual risks.
+
+Two runs of the old text refuted this blocker; the fixed text confirms it, with the reason naming
+exactly the distinction row 5.1 introduced. F1-A was re-run end to end on the fixed text as well
+(`standard.md`), where the planted defect is now confirmed and fixed.

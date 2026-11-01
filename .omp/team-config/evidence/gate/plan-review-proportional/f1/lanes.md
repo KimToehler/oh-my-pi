@@ -1,6 +1,6 @@
 # F1-D: the other review lanes are untouched
 
-Date: 2026-11-01. Head at the final pass: `7800324cc0`.
+Date: 2026-11-01, re-checked after the F2 wave-1 fixes; neither skill file was touched by them.
 
 ## Method
 
