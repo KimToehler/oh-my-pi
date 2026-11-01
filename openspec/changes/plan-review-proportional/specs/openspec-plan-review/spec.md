@@ -90,7 +90,7 @@ After every complete round or delta check with a blocker or a finding carried fr
 
 ### Requirement: Only confirmed findings block
 
-A blocker SHALL stay blocking only when the verifier confirms a concrete failure scenario, evidence at the cited `file:line` or plan quote, and the blocking threshold. A check the plan runs refutes only a blocker about missing or ineffective verification, never one about what the plan delivers. A finding awaiting an ask stays blocking; an untriaged one stays under `## Blockers` and forces REJECT. Every other blocker SHALL become a residual that never blocks apply.
+A blocker SHALL stay blocking only when the verifier confirms a concrete failure scenario, evidence at the cited `file:line` or plan quote, and the blocking threshold. A check the plan runs refutes only a blocker about missing or ineffective verification, never one about what the plan delivers. A finding awaiting an ask stays blocking; an untriaged one forces REJECT and SHALL NOT become a residual. Every other blocker becomes a residual that never blocks apply.
 
 #### Scenario: Speculative finding
 
