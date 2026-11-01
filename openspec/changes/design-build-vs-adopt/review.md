@@ -1,60 +1,48 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: f64fdea4e1dfd2558d0976bc548f0eeabf6f69b18cf784f2b61730449ba9e943
-- **Reviewer**: plan-reviewer, DbaCorrectnessR1, DbaVerificationR1, DbaChecksR1
-- **Round**: 1
+- **Reviewed digest**: e2a449ccfd3091b02f756b96e6c769273e5e3f0adb1c44f5425863ba130e7189
+- **Reviewer**: plan-reviewer, DbaCorrectnessR2, DbaVerificationR2, DbaChecksR2
+- **Round**: 2
 - **Override**: none
 
 ## Blockers
 
-### Correctness (DbaCorrectnessR1)
+### Correctness (DbaCorrectnessR2)
 
 [
   {
     "area": "correctness",
-    "defect": "The search instruction permits skipping the library stage even though the requirement requires the ordered search through maintained open-source libraries.",
-    "evidence": "specs/openspec-design-adoption/spec.md:9-11 requires searching the repository and dependencies, then the platform, then maintained libraries; design.md:61-63 instead says to search libraries only when the earlier steps do not cover the mechanism. For an ordinary format parser already available in the platform, the delivered instruction stops before the final required search. This misses the stated requirement; the planning impact is reversible.",
-    "change": "Reconcile the requirement and delivered instruction: either require the library stage as specified, or explicitly amend the requirement and its scenarios to permit stopping on earlier coverage."
-  },
-  {
-    "area": "correctness",
-    "defect": "The early-stop rule and the mandatory library-adoption rule give incompatible instructions for common covered mechanisms already provided by the platform.",
-    "evidence": "design.md:61-63 forbids searching libraries when an earlier stage covers the mechanism, while design.md:71-72 requires auth, crypto and protocol mechanisms to adopt a maintained library unless a gap exists. For a standard-library cryptographic primitive that fully meets the need, the planner must both stop before library discovery and adopt a maintained library, despite having no gap to invoke. This can lead to an unnecessary dependency or an instruction-violating decision; the planning impact is reversible.",
-    "change": "Explicitly allow adoption of a suitable repository, dependency or platform implementation for these mechanisms, and align the auth/crypto/protocol requirement and decision form with that precedence."
+    "defect": "The design trigger and reviewer check only cover built mechanisms, leaving adopted mechanisms without a required decision.",
+    "evidence": "design.md:50,84-88 restrict the trigger and check to builds; specs/openspec-design-adoption/spec.md:18-21,43 require a decision for each covered mechanism, including platform SHA-256. A single-module change using the existing JDK digest, with no other design trigger, can skip design.md entirely. This reversibly misses the stated decision requirement.",
+    "change": "Trigger design.md and the missing-decision review for covered mechanisms regardless of whether they are built or adopted."
   }
 ]
 
-### Verification (DbaVerificationR1)
+### Verification (DbaVerificationR2)
 
 [
   {
-    "area": "Verification — research order and release history",
-    "defect": "The principal real-session row can pass without exercising the required platform search or the named release-history endpoint. In ordinary planning, an agent could search the repository and then jump straight to libraries, or record a release without using deps.dev, yet satisfy the row. That leaves the stated ordered research workflow and keyless release-history scenario unproved; the resulting planning behaviour is reversible but misses the change’s goal.",
-    "evidence": "specs/openspec-design-adoption/spec.md:10-16 and :77-82 require repository, platform, then libraries and a keyless Maven release-history response. design.md:128 requires only a repository search followed by `web_search` or `read` research; tasks.md:15 judges against that row.",
-    "change": "Require the retained calls and results to show each applicable search stage in order, including a successful keyless deps.dev Maven package read and its version/date response. Judge the session output against those observations."
+    "area": "Quality and verification",
+    "defect": "F1 never exercises a mechanism already covered by the repository or an installed dependency, so it cannot establish that the planner adopts it and stops before platform and library research. In ordinary use, an agent could overlook existing project code and perform unnecessary research or propose a duplicate implementation while every planned row passes. The resulting plan is reversible, but misses the central build-versus-adopt goal.",
+    "evidence": "design.md:128-133 exercises a repository search that proceeds to platform and libraries, and a separate platform-covered case; no row supplies a covering repository implementation or dependency. design.md:138 names only the nothing-found branch as unexercised; tasks.md:15 runs only those rows.",
+    "change": "Add a fresh-session fixture with a covered mechanism already implemented in the repository or an installed dependency. Require the decision to identify it with PATH:LINE, adopt it, and show no platform or library search; retain the same evidence as the other F1 rows."
   },
   {
-    "area": "Verification — adoption when a candidate covers the need",
-    "defect": "The only planner-session acceptance condition permits either adoption or any named gap, even when a maintained candidate covers the targets. A planner that continues hand-building the OIDC client despite a suitable library can therefore pass F1, leaving the primary value proposition unproved. This affects ordinary plans and is reversible, but defeats the goal of adopting an existing implementation.",
-    "evidence": "specs/openspec-design-adoption/spec.md:65-68 requires adoption when a maintained OIDC client covers the targets; design.md:128 accepts a decision that 'adopts a library or names a gap'. The complete-decision row at design.md:134 supplies a prewritten adoption decision to the reviewer rather than exercising the planner's choice.",
-    "change": "Add or strengthen a fresh planner-session row with a demonstrably suitable maintained candidate and judge that the resulting decision adopts it; retain the research and decision evidence."
-  },
-  {
-    "area": "Verification — partial coverage branch",
-    "defect": "No planned real-session row exercises a candidate that covers only part of the requested platforms. The model could treat partial coverage as a reason to build everything, or omit the uncovered platform and still pass every listed row. This is a normal adoption decision and leaves an explicit material scenario unproved; the resulting plan is reversible.",
-    "evidence": "specs/openspec-design-adoption/spec.md:46-49 requires adoption of the covered part, building of the remainder, and the desktop gap. The complete F1 matrix in design.md:126-134 covers a general OIDC search, a format parser, and reviewer fixtures, but no partial-coverage planner scenario; tasks.md:15 runs only those rows.",
-    "change": "Exercise a fresh planner session with a candidate that covers Android and iOS but not desktop, and retain and judge the resulting partial-adoption decision and named gap."
+    "area": "Quality and verification",
+    "defect": "The correctness-lens tests do not exercise the explicitly required rejection of a decision missing an entire form line. A reviewer that catches a missing subsection, missing candidate release and gap-less verdicts but accepts a decision without, for example, its Repository or Platform line would pass all the planned lens rows. This is a reversible plan-review failure, but breaks a stated gate criterion.",
+    "evidence": "specs/openspec-design-adoption/spec.md:94-96 requires a blocker for a missing line or candidate fact. design.md:134-136 tests a missing subsection, missing candidate release and gap, and a complete decision, but no decision missing a form line; tasks.md:15 runs those cases.",
+    "change": "Add a real correctness-lens session with an otherwise complete decision missing one required line, and require a REJECT blocker naming that omission. Retain the reviewer output and calls with the other F1 evidence."
   }
 ]
 
-### Checks (DbaChecksR1)
+### Checks (DbaChecksR2)
 
 [
   {
-    "area": "PROCESS 5 — gate.md risk tier and tasks.md workflow follow-up",
-    "defect": "The plan classifies the change as internal-tooling even though it changes the criteria that gate implementation of product changes. Under PROCESS 5, a change to how product code is gated must use the product tier.",
-    "evidence": "gate.md:3-4 declares Mandatory class none and Risk tier internal-tooling; design.md:83-90 adds a correctness-lens blocker for missing or incomplete build-vs-adopt decisions. The existing schema makes review required and blocks apply until an acceptable review exists (team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:323-329); its review instruction makes any rejecting lens reject the round (schema.yaml:401-402). Thus an ordinary product change subject to this schema can now be prevented from reaching implementation by the new criterion. The effect is reversible by reverting and redeploying the instruction, but it changes the product gate in normal use.",
-    "change": "Classify the risk tier as product in gate.md, reassess the mandatory class from the delivered behavior under openspec/config.yaml, and update tasks.md's F2 workflow to use the product-tier review decision."
+    "area": "CHECK 4 — Build-vs-adopt decision, design.md D4/E2 and D6",
+    "defect": "The decision predicate has no undecidable state for an unavailable, incomplete or unreadable research source. During an ordinary search-provider outage, the planner can record the searches run, enter `none`, and provide a build gap; the planned lens then has no reason to reject that complete-looking decision. This can permit a covered mechanism to be built without establishing that adoption was unavailable, defeating the change's goal. The resulting plan is reversible.",
+    "evidence": "design.md:58-72 permits `none and the searches run` and `build, gap: <what nothing above covers>`; design.md:81-85 makes the lens block missing fields or gaps, not failed research. Search failures are realistic: packages/coding-agent/src/web/search/index.ts:349-355 returns an error with an empty sources list after providers fail. D6 at design.md:128-140 has no outage or incomplete-result control.",
+    "change": "Define completed research and a visible undecidable outcome for failed, missing, partial or unreadable results; prevent a build decision from treating those states as no candidate. Add a negative control that exercises a failed search and confirms that the decision cannot pass as `none`."
   }
 ]
