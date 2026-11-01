@@ -27,11 +27,13 @@ Changes too small for OpenSpec never reach this artifact: the `openspec` skill k
 
 The `task` tool accepts a per-item `model` only for `seance` (it refuses any other agent), so the dispatch cannot carry the model. Resolution order is request model, then `task.agentModelOverrides`, then the agent's frontmatter `model:` (`packages/coding-agent/src/config/model-resolver.ts:1284-1310`), and patterns keep a thinking suffix (`:1240`). `blocker-verifier` is a team agent, so its frontmatter sets `model: onara/cx/gpt-6.1-sol:medium`. `plan-reviewer` is bundled upstream code (`model: "@advisor"`), so `team-config/seed/config.yml` adds `task.agentModelOverrides.plan-reviewer: onara/cx/gpt-6.1-sol:high` next to the existing `reviewer` entry. Alternatives: change `modelRoles.advisor` (it also drives the per-turn advisor), or ship a team `plan-reviewer.md` that shadows the bundled prompt (a fork of upstream text). The seed reaches new agent directories only; existing ones merge it by hand as the README already describes, which the workflow follow-up does for this machine. The review instruction does not name a model. Sol over terra and high over medium follow `runs/review-effort-20261029/RESULT.md` (high: 12 validated blocker occurrences and 7 mechanisms vs medium 7 and 4) and the review pilot's sol-only validated extras.
 
+The override is per agent, not per lane: F2 fix-delta reviews also dispatch `plan-reviewer` (`team-config/agent/skills/review-work/SKILL.md:476`), so they move to sol:high too. Their briefs, convergence and disposition decisions stay unchanged; only the model they resolve to changes.
+
 ### D3. A dedicated read-only `blocker-verifier` agent
 
 New `team-config/agent/agents/blocker-verifier.md`: tools `read, grep, glob`, `structured: true`, output `results[]` with `index`, `result` (`confirmed | refuted | undecided`), `blocking` (bool, meaningful for `confirmed`), `protected` (bool: the finding names a security path or a protected asset) and `reason` (with the `file:line` it checked). Its prompt states the four confirmation conditions (concrete failure scenario, evidence present at the cited location, why the plan's criteria and Verify commands miss it, blocking threshold) and restates the `plan-reviewer` threshold in one paragraph. Alternative: reuse `plan-reviewer` with a verify brief. Rejected: its schema has no per-finding result, and its notes are capped at five.
 
-The verifier sees the plan files and the round's blockers verbatim (copied from the delivered payload, never retyped), with nothing from the planner. One verifier per round, not per finding: a round's findings share context and it keeps cost to one call.
+The verifier sees the plan files and the round's blockers verbatim (copied from the delivered payload, never retyped), numbered 1 to N across reviewers in reviewer order, with nothing from the planner. One verifier per round, not per finding: a round's findings share context and it keeps cost to one call. The orchestrator accepts the result only when it holds exactly one entry per index 1 to N; an omitted, repeated or unknown index makes it a result without structure (one retry, then the round is incomplete), because a missing entry is indistinguishable from an unprocessed finding and must never read as a refutation.
 
 ### D4. Residuals live in review.md
 
@@ -49,6 +51,8 @@ Rationale: 80% of later-round blockers were latent in round 1, so a fresh full r
 ### D6. Exception asks
 
 Asked only for: an unconfirmed finding with `protected` true or area review_scope item 4 / CHECK 1 (options Fix, keep as residual with the user's reason, Stop); a finding the verifier marks `undecided` whose stated consequence meets the threshold (same options); budget exhausted with a confirmed blocking finding open (D7); a fix that needs a scope decision the artifacts leave open (the alternatives and Stop).
+
+A finding awaiting such an answer is recorded under `## Blockers` with REJECT before the ask, so `--reviewed` keeps failing while the answer is open, including after an interruption. The answer then rewrites the record on the same digest: "keep" moves the finding to Residuals with the user's reason and the verdict becomes OKAY when nothing else is open; Fix edits the artifacts and leads to the next check; Stop leaves the REJECT. This uses the unchanged validator contract (REJECT needs Blockers, OKAY needs none).
 
 Interpretation recorded for review: the agreed trigger "verifier and reviewer disagree" is implemented as `undecided`, because every refutation is a disagreement by construction and escalating all of them would ask the user at nearly every round. A confirmed security finding is fixed without asking; only an unconfirmed one goes to the user, so no security finding is dropped by the verifier alone.
 
@@ -83,4 +87,4 @@ Two independently testable parts: the schema's review instruction with its templ
 3. In-flight changes: an existing `review.md` stays valid (`--reviewed` unchanged); a re-review after this change follows the new instruction.
 4. Rollback: revert the merge and redeploy.
 
-This change's own plan review (user decision, 2026-11-01): depth `risky`, `plan-reviewer` on `onara/cx/gpt-6.1-sol:high`, at most two rounds; findings are triaged by a fresh `task` with the verifier rules of D3 (the agent does not exist before apply); after round 2 the user decides.
+This change's own plan review (user decision, 2026-11-01): depth `risky`, `plan-reviewer` on `onara/cx/gpt-6.1-sol:high` (through the user's `task.agentModelOverrides`, added for this review), at most two rounds; blockers whose cited evidence the orchestrator confirmed at the named lines are fixed (the verifier agent does not exist before apply); after round 2 the user decides.
