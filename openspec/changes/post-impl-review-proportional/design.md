@@ -111,9 +111,13 @@ Plan review needed the `blocker-verifier` because 85 of 106 later-round blockers
 
 Alternative: verify only disputed blockers. Rejected, because nothing defines "disputed" without a second review.
 
-### D7: F1 follows the depth and re-runs only what a fix can change
+### D7: F1 follows the depth, runs on the merged tree and re-runs only what a fix or merge can change
 
 `standard` QA runs one row per requirement plus Phase 1's existing minimum. `risky` runs one row per scenario. SKILL.md:162's "a fix committed after a capture stales that capture" narrows: a fix stales a row only when its diff can change the behaviour that row observed. The orchestrator writes every carried row with a one-line reason. The fix-delta brief gets a `{CARRIED ROWS}` input, so the delta reviewer can object to a carry. This fits the validator, which binds QA artifacts by path and digest and does not care which wave a row came from.
+
+Fix waves step 1 (SKILL.md:450) already merges the default branch before the first `GC baseline` and before each later snapshot, so every wave reviews the tree that will merge. F1 runs earlier, as its own final-verification task, so its rows can observe a tree without main's latest commits, and no rule says what a merge commit does to a capture. Narrowing staleness to fixes would let a merge carry every row silently. Two rules close that gap:
+- the final verification wave starts by merging the default branch (the same `git merge-base --is-ancestor` check), before F1 captures any row; `plan-merge-gate.md` and the `omp-gated` tasks template say so in the F1 row;
+- a later merge of the default branch stales rows like a fix, by its diff against the pre-merge head. Before the first F2 wave the carried rows and their reasons go into the wave's `{QA MATRIX}`, which both briefs receive. After the baseline the merge is reviewed with the round's fix delta, as step 1 already says, and its carries go into `{CARRIED ROWS}`.
 
 Alternative: re-run everything per wave, as today. Rejected: plan-review-proportional's 4 F1 re-runs were mostly unchanged behaviour.
 

@@ -154,14 +154,24 @@ F1 at `standard` depth SHALL run one row per requirement, plus a row for the hap
 - **WHEN** a `risky` change's QA matrix has no row for a requirement's negative-control scenario
 - **THEN** that gate MUST fail
 
-### Requirement: A fix re-runs only the QA rows it can change
+### Requirement: A fix or a merge re-runs only the QA rows it can change
 
-A fix SHALL stale a QA row only when its diff can change the behaviour that row observed. Every other row SHALL be carried with a one-line reason. The fix-delta brief SHALL list the carried rows with their reasons, so the delta reviewer can object to a carry.
+The final verification wave SHALL merge the default branch into the work branch before F1 captures any row. A fix, or a later merge of the default branch, SHALL stale a QA row only when its diff can change the behaviour that row observed. Every other row SHALL be carried with a one-line reason, listed in the fix-delta brief or, before the first F2 wave, in its QA matrix, so a reviewer can object to a carry.
 
 #### Scenario: Fix outside a row's behaviour
 
 - **WHEN** a fix only changes an error message that no QA row observes
 - **THEN** every row is carried with its reason, and the delta brief lists them
+
+#### Scenario: Default branch integrated before F1
+
+- **WHEN** the final verification wave starts and the default branch is not an ancestor of the work branch
+- **THEN** it is merged and committed before F1 captures any row, so F1 observes the tree that will merge
+
+#### Scenario: Default branch moves after F1
+
+- **WHEN** the default branch moves after F1 and is merged before the gate's first `GC baseline`
+- **THEN** before any reviewer is dispatched, every row whose behaviour the merged diff can change is re-run, and every other row is carried with its reason in the wave's QA matrix
 
 #### Scenario: Objected carry
 
@@ -170,5 +180,5 @@ A fix SHALL stale a QA row only when its diff can change the behaviour that row 
 
 #### Scenario: Negative control
 
-- **WHEN** an orchestrator carries a row whose observed transition the fix's diff rewrites, and the delta brief omits that carry
+- **WHEN** an orchestrator carries a row whose observed transition the diff of a fix or of a merged default-branch change rewrites, and neither the delta brief nor the QA matrix lists that carry
 - **THEN** that gate MUST fail
