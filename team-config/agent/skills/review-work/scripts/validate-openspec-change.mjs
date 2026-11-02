@@ -163,6 +163,14 @@ function validateGate(text, hasRequirements, errors) {
 	if (mandatory && !MANDATORY_CLASSES.has(mandatory.replace(/`/g, ""))) {
 		errors.push(`Mandatory class: unsupported value ${mandatory}; use exactly one class, with no reason (it goes in Author's risk assessment)`);
 	}
+	const depth = topLevelField(content, "Depth");
+	if (depth.count > 1) errors.push("Depth: expected at most one top-level bullet");
+	if (depth.count === 1) {
+		const level = /^(standard|risky)\b/.exec((depth.value ?? "").replace(/`/g, "").trim())?.[1];
+		if (!level) errors.push("Depth: expected standard or risky with a short reason");
+		else if (level === "standard" && mandatory && mandatory.replace(/`/g, "").trim() !== "none")
+			errors.push("Depth: a Mandatory class other than none makes the review risky");
+	}
 	if (values.has("Risk tier")) {
 		const parsed = readRiskTier(content);
 		if (parsed.error) errors.push(`Risk tier: ${parsed.error}`);
@@ -395,12 +403,29 @@ export function checkReview(snapshot) {
 			new Set(ids).size !== ids.length
 		)
 			errors.push(
-				`${REVIEW_FILE} Reviewer: expected plan-reviewer and the distinct subagent ids the task tool returned, in lens order (plan-reviewer, <id>[, <id>...])`,
+				`${REVIEW_FILE} Reviewer: expected plan-reviewer and the distinct subagent ids the task tool returned, in reviewer order (plan-reviewer, <id>[, <id>...])`,
 			);
 	}
 	const round = values.get("Round");
 	if (round !== undefined && !/^[1-9]\d*$/.test(round))
 		errors.push(`${REVIEW_FILE} Round: expected a positive integer`);
+	// A risky review runs both scopes in rounds 1 and 2; a record naming one reviewer there is a half-dispatched round.
+	const gate = snapshot.get("gate.md");
+	if (gate !== undefined && reviewer !== undefined && (round === "1" || round === "2")) {
+		const gateContent = planContent(scanMarkdown(gate.toString("utf8")));
+		const depth = (topLevelField(gateContent, "Depth").value ?? "").replace(/`/g, "").trim();
+		const mandatory = (topLevelField(gateContent, "Mandatory class").value ?? "").replace(/`/g, "").trim();
+		const risky = /^risky\b/.test(depth) || (mandatory !== "" && mandatory !== "none");
+		const ids = reviewer
+			.split(",")
+			.slice(1)
+			.map((part) => part.trim())
+			.filter(Boolean);
+		if (risky && ids.length < 2)
+			errors.push(
+				`${REVIEW_FILE} Reviewer: a risky round ${round} dispatches scope A and scope B; expected both subagent ids`,
+			);
+	}
 	const override = values.get("Override");
 	const overridden = override !== undefined && override.toLowerCase() !== "none";
 	if (overridden && (valueDefect(override) || PLACEHOLDER.test(override)))
@@ -413,7 +438,7 @@ export function checkReview(snapshot) {
 		const empty = blockers === "" || /^none\.?$/i.test(blockers.replace(/`/g, ""));
 		if (verdict === "REJECT" && empty) errors.push(`${REVIEW_FILE} Blockers: a REJECT needs the reviewer's blockers verbatim`);
 		else if (verdict === "OKAY" && !empty)
-			errors.push(`${REVIEW_FILE} Blockers: an OKAY round has no blockers; expected none (a lens that returned blockers makes the round REJECT)`);
+			errors.push(`${REVIEW_FILE} Blockers: an OKAY round has no blockers; expected none (an open confirmed finding makes the round REJECT)`);
 	}
 	if (errors.length > 0) return { errors };
 

@@ -1,0 +1,66 @@
+**Bottom line:** The change holds up architecturally, and I found no additional blocker beyond the issues already addressed in the supplied fix waves. The critical improvement is that rejecting evidence becomes durable before verifier dispatch, rather than depending on that fallible task completing.
+
+## 1. Architectural fit
+
+The implementation reuses the existing authorization boundary rather than introducing another approval store:
+
+- `gate.md` carries depth inside the reviewed snapshot.
+- `reviewDigest()` excludes `review.md`, allowing triage and user answers to update the record without invalidating otherwise unchanged planning bytes.
+- `checkReview()` continues to require a matching digest and either OKAY or an explicit Override, while adding the mechanical reviewer-count check.
+
+These responsibilities remain coherent in `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs`, particularly `reviewDigest()` and `checkReview()`.
+
+The important limitation is explicit: model-pin checks, exception handling and budget accounting remain instruction-enforced, not independently reconstructed by the validator. That matches the accepted exposure recorded in `openspec/changes/plan-review-proportional/gate.md`; it is not an undisclosed second enforcement mechanism.
+
+## 2. What the line-level audit structurally misses
+
+The important strategic question is whether authorization remains safe **between** successful operations: reviewer completion, verifier dispatch, interruption, retry and resume.
+
+The delivered instruction closes the previously identified dangerous boundary. Review step 4 commits REJECT with untriaged findings before dispatching the verifier; failed triage retains that rejection; a partly failed reviewer round preserves delivered findings instead of discarding them (`team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:433–490`). The retained sequences in `f1/failed-triage.md` and `f1/partial-round.md` support those transitions.
+
+**Note — the all-residual terminal transition is less explicit than the failure transitions.** Step 7 defines the correct OKAY verdict, but step 5’s “Budget left” branch does not explicitly say to terminate before its fix/successor logic when triage leaves nothing to fix (`schema.yaml:532–555,598–605`). This does **not block**: design D5 states the terminal rule, and `f1/seeded.md`, leg (a), records the delivered instruction ending OKAY in round 1 without another dispatch. It is a wording-maintainability risk, not an observed convergence failure.
+
+**Note — mixed-outcome human-decision persistence has narrower evidence.** `f1/seeded.md`, leg (c), demonstrates Keep ending a review, while `f1/risky.md` demonstrates an earlier refutation surviving a later round. Neither specifically demonstrates a user’s Keep reason surviving sibling fixes and a subsequent full round. This does **not block**: no lost decision is demonstrated, and the contract already prohibits dropping residuals and re-triaging recorded results (`specs/openspec-plan-review/spec.md:242`; `schema.yaml:611–614`). It is a useful future discriminator for record-replacement changes.
+
+## 3. Most damaging production failure
+
+[INFERENCE] The highest-consequence failure would be authorizing an unsafe plan before implementation review can prevent its irreversible action—for example, a plan directing a real credential into tracked evidence. Downstream F2/F3 cannot undo an already disclosed credential.
+
+The relevant routes are addressed:
+
+- An earlier approval cannot survive delivered rejecting findings merely because verifier triage is interrupted.
+- Unconfirmed security/protected findings require an explicit user answer.
+- Confirmed security findings cannot take the scope ask’s Keep path or the exhaustion ask’s Override path.
+
+Those controls appear in review steps 4–6 (`schema.yaml:454–585`). `f1/security.md` reports a confirmed credential-sink finding being fixed, and `f1/failed-triage.md` reports the earlier approval being replaced and `--reviewed` failing. These are reviewed evidence artifacts; I did not independently execute their sessions or checks.
+
+The delivered change itself does not handle a real credential or change access to a protected asset, so `security_delta` is **no**.
+
+## 4. Auditor findings versus unchanged behaviour
+
+There is no auditor blocker to dismiss as a false positive. Its two observations are appropriately non-blocking. In particular, task-checkbox normalization belongs to the existing `reviewDigest()` contract; its interaction with the new resume instructions is a residual concern, not evidence that this change introduced the normalization.
+
+## Action plan
+
+1. Accept this strategic review without opening another blocking fix wave.
+2. Preserve the currently evidenced instruction bytes through the remaining gate-record steps; treat either note above as a later wording or regression-coverage improvement.
+
+**Effort:** Quick (<1h), no blocking implementation change identified.  
+**Confidence:** High for the structural assessment; runtime conclusions rely on the supplied retained evidence.
+
+PASS
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Replacing a review record after unrelated fixes must not erase or silently reopen an earlier human acceptance decision.
+  positive_witness: A user keeps one finding with a reason, another finding is fixed, and the later record preserves the kept finding, reason and provenance without requiring renewed acceptance.
+  negative_control: The later record loses the user's reason or presents the unchanged kept finding as a newly unanswered decision.
+  observable: Compare committed review records, the intervening artifact diff and the later session's asks.
+  boundary: Human-decision persistence across review-record replacement and subsequent reviewer rounds.
+END-REVIEW-TRAILER

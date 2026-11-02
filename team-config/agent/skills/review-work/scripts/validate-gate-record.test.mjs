@@ -1834,6 +1834,7 @@ function gateText({ cls, tier, whole, assessment, extra, example }) {
   let text = template("gate.md")
   for (const [label, value] of [
     ["Mandatory class", cls],
+    ["Depth", cls === "none" ? "standard (no mechanism changes)" : `risky (the ${cls} class)`],
     ["Risk tier", tier],
     ["Author's risk assessment", assessment],
     ["Whole-diff review", whole],

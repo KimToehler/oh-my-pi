@@ -466,6 +466,21 @@ describe("validate-openspec-change gate.md under the Risk tier", () => {
 	it("accepts a mandatory class under the product tier", async () => {
 		expect(run(await withGate({ ...VALID, "Mandatory class": "wire-contract-api" })).exitCode).toBe(0);
 	});
+	it("accepts a risky Depth with a mandatory class", async () => {
+		const fields = { ...VALID, "Mandatory class": "auth-secrets-pii", Depth: "risky (the change reads a credential)" };
+		expect(run(await withGate(fields)).exitCode).toBe(0);
+	});
+	it("rejects a standard Depth under a mandatory class, naming Depth", async () => {
+		const fields = { ...VALID, "Mandatory class": "auth-secrets-pii", Depth: "standard (one file)" };
+		const result = run(await withGate(fields));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Depth:");
+	});
+	it("rejects a Depth value that is neither standard nor risky", async () => {
+		const result = run(await withGate({ ...VALID, Depth: "medium (a few files)" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Depth:");
+	});
 	it("rejects a Review tier bullet with an error naming Risk tier", async () => {
 		const result = run(await withGate({ ...VALID, "Review tier": "standard" }));
 		expect(result.exitCode).toBe(1);
@@ -655,9 +670,9 @@ The system SHALL export records in batches.
 		});
 	}
 
-	it("refuses an OKAY whose Blockers section lists a lens's blockers", async () => {
-		const lensBlockers = `### Verification (LensVer1)\n\n${REJECT_BLOCKERS}`;
-		const result = run("--reviewed", await reviewed({ Reviewer: "plan-reviewer, LensCor1, LensVer1, LensChk1" }, "", lensBlockers));
+	it("refuses an OKAY whose Blockers section lists a reviewer's findings", async () => {
+		const grouped = `### Scope B (ScopeB1)\n\n${REJECT_BLOCKERS}`;
+		const result = run("--reviewed", await reviewed({ Reviewer: "plan-reviewer, ScopeA1, ScopeB1" }, "", grouped));
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("review.md Blockers:");
 	});
@@ -672,6 +687,74 @@ The system SHALL export records in batches.
 			expect(result.exitCode).toBe(0);
 		});
 	}
+
+	const RESIDUALS = `none\n\n## Residuals\n\n1. **Verification**\n   - Defect: the cited line does not say what the finding claims\n   - Verifier: refuted (api.ts:12 returns early, so the task's Verify command does fail)`;
+
+	it("accepts a current OKAY whose findings all stand under Residuals", async () => {
+		const fields = { Verifier: "blocker-verifier, ProbeVerify", Awaiting: "none" };
+		const result = run("--reviewed", await reviewed(fields, "", RESIDUALS));
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	});
+
+	it("refuses an overridden REJECT whose findings stand only under Residuals", async () => {
+		const fields = { Verdict: "REJECT", Override: "Tim accepts the missing load test for this internal tool" };
+		const result = run("--reviewed", await reviewed(fields, "", RESIDUALS));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Blockers:");
+	});
+
+	/** A review record over a change whose gate.md carries `class` and, unless null, `depth`. */
+	async function atDepth(cls: string, depth: string | null, fields: Record<string, string | null>): Promise<string> {
+		const root = await changeFixture();
+		const gate = path.join(root, "gate.md");
+		const text = (await Bun.file(gate).text()).replace("- **Mandatory class**: none", `- **Mandatory class**: ${cls}`);
+		await Bun.write(
+			gate,
+			depth === null
+				? text
+				: text.replace(`- **Mandatory class**: ${cls}`, `- **Mandatory class**: ${cls}\n- **Depth**: ${depth}`),
+		);
+		await Bun.write(
+			path.join(root, "review.md"),
+			REVIEW(
+				{ Verdict: "OKAY", "Reviewed digest": digest(root), Reviewer: "plan-reviewer, ScopeA1", Round: "1", Override: "none", ...fields },
+				"",
+				"none",
+			),
+		);
+		return root;
+	}
+
+	it("refuses a risky round 1 record with one reviewer id, naming Reviewer", async () => {
+		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", {}));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Reviewer:");
+	});
+
+	it("refuses a class-bearing gate.md without Depth whose round 1 record names one reviewer id", async () => {
+		const result = run("--reviewed", await atDepth("concurrency-state", null, {}));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Reviewer:");
+	});
+
+	it("refuses a risky round 2 record with one reviewer id, naming Reviewer", async () => {
+		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "2" }));
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("review.md Reviewer:");
+	});
+
+	it("accepts a risky round 3 record with one reviewer id", async () => {
+		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "3" }));
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	});
+
+	it("accepts a class-bearing gate.md without Depth whose record names two reviewers", async () => {
+		const result = run("--reviewed", await atDepth("concurrency-state", null, { Reviewer: "plan-reviewer, ScopeA1, ScopeB1" }));
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	});
 
 	it("refuses a REJECT without a user override", async () => {
 		const result = run("--reviewed", await reviewed({ Verdict: "REJECT" }, "", REJECT_BLOCKERS));
