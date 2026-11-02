@@ -1,6 +1,28 @@
 $ cd <evidence dir>
 $ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
-(no output above means no hit)
-$ grep -ro -E "sk-[A-Za-z-]{0,123}" . | sort | uniq -c | wc -l
-22
-(all matches are the words risk-child / risk-review / risk-owned in prose)
+(no output)
+$ grep -ro -E "sk-[A-Za-z-]{0,12}" . | sort | uniq -c
+      1 ./experiment/dataset.json:sk-child
+      1 ./experiment/dataset.json:sk-review
+      1 ./f1/inputs.md:sk-owned
+      5 ./f1/publication.md:sk-
+      5 ./f1/publication.md:sk-child
+      3 ./f1/publication.md:sk-owned
+      5 ./f1/publication.md:sk-review
+      2 ./wave-1/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-review
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-review
+      5 ./wave-3/qa5-publication-leak-scan.txt:sk-
+      4 ./wave-3/qa5-publication-leak-scan.txt:sk-child
+      2 ./wave-3/qa5-publication-leak-scan.txt:sk-owned
+      4 ./wave-3/qa5-publication-leak-scan.txt:sk-review
+      6 ./wave-4/qa5-publication-leak-scan.txt:sk-
+      5 ./wave-4/qa5-publication-leak-scan.txt:sk-child
+      3 ./wave-4/qa5-publication-leak-scan.txt:sk-owned
+      5 ./wave-4/qa5-publication-leak-scan.txt:sk-review
+      1 ./wave-5/qa5-publication-leak-scan.txt:sk-
+
+The first grep excludes the lines that quote the scan commands themselves. Every `sk-` hit is a substring false positive of the secret pattern: `task-child`, `risk-review`, `task-owned`, plus this file, f1/publication.md and the earlier QA captures quoting the pattern itself. No credential, private repository path or home-directory path survives in any published file.
