@@ -58,6 +58,7 @@ task:
   showResolvedModelBadge: true
   agentModelOverrides:
     reviewer: "@review"
+    plan-reviewer: onara/cx/gpt-6.1-sol:high
 autolearn:
   enabled: true
 memory:

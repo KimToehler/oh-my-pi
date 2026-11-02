@@ -1,0 +1,120 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/plan-review-proportional",
+  "plan_sha256": "507ad8f8abb10b86d07e3e90109e0d3e1265ea24b2e99a4cc89e090c339876ae",
+  "reviewed_sha": "a1d8ad7ab43c4cf4ac8976c992dec734a7466e39",
+  "diff_base": "ca7ac0f99392c132b43da6532717747da4d26826",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state (the change rewrites the transitions of the plan-review state machine that authorizes apply), so both invocations run; F2 wave 4 recorded DECISION: PASS with QA and both reviewers PASS.",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 Verify sweep (59 task rows) and the three suites covering the changed scripts",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/wave-4/qa.md",
+      "artifact_sha256": "d4239de9cdb03b0853cfb0e5b3906410c3462bbfa1e730dc986419403ddca7a6"
+    },
+    {
+      "name": "Q2 F1-A standard depth end to end: planted defect confirmed, fixed, one delta check, OKAY",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/standard.md",
+      "artifact_sha256": "0ac50b745e342a9fd9c932ddde95c2914f9efb2b94e753ba9f257ab93a153857"
+    },
+    {
+      "name": "Q3 F1-B risky depth: two scope reviewers, carried refutation, budget",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/risky.md",
+      "artifact_sha256": "263959e71a6bdc723691c57577381bacf19b1db07d216bb30b004bbc6df323ef"
+    },
+    {
+      "name": "Q4 F1-C security scope: a confirmed credential-sink finding cannot be kept",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/security.md",
+      "artifact_sha256": "b2616f1b2e61cdf7391c9cbd9d9957972c5d2306ee7938a1336ba573472524dc"
+    },
+    {
+      "name": "Q5 F1-D lanes: depth classification and the other lanes' records unchanged",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/lanes.md",
+      "artifact_sha256": "554269c4c4dbaa5995f56461e3c8ebe7cd194c8d5a08aae80feb942ab3c84f9a"
+    },
+    {
+      "name": "Q6 F1-E seeded rounds: pre-dispatch record, post-budget Fix, exhaustion ask and Override",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/seeded.md",
+      "artifact_sha256": "38a8e6bfe21d2fdace37fae402173d266c9d1408570a0be9b13804299d035b9f"
+    },
+    {
+      "name": "Q7 F1-F instruction review of the branches no live run forces",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/instruction-review.md",
+      "artifact_sha256": "4021bfb3667c0fc3b657d6f89e63ae609fbba1547095952eab28142609ca050a"
+    },
+    {
+      "name": "Q8 F1-G failed triage, its resume, and the retry that recovers",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/failed-triage.md",
+      "artifact_sha256": "15ab413109d28bbadd0d23f5556b7318f4632986c12e7bd05361914b1ca4b6a1"
+    },
+    {
+      "name": "Q9 F1-H partly failed round, both resumes and the unchanged-record control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/partial-round.md",
+      "artifact_sha256": "22a9bbbb66667eab8abbfb88ac4710b03587e66c4e6d35930f33930889c66c75"
+    },
+    {
+      "name": "Q10 F1-I a dispatch off its pinned model counts as no verdict",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/f1/substitution.md",
+      "artifact_sha256": "5852aa935e235e4dc1a72ebd3829c6987e4a8debf78e7d58b728288f96d2a33d"
+    },
+    {
+      "name": "Q11 RED runs of the new validator guards before their fix",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-proportional/red-validator-guards.md",
+      "artifact_sha256": "1a28d5a62c5a7f5ad77d795cc93df13f7c72a9759ce2451ff3f8d4239507781e"
+    }
+  ],
+  "whole_diff": {
+    "run": true,
+    "report": ".omp/team-config/evidence/gate/plan-review-proportional/f3-integration-review-report.md",
+    "report_sha256": "65b2b030c51bba6adac46623dd313ee7e78aab4968268bc143ad7b7c643a88b9"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-proportional/wave-4/trailer-implementation-audit.txt",
+      "trailer_sha256": "71b8f3a4ab7ae4fc767e8b3dfd7021b5506fc5d87900587dcf31618357b8110c",
+      "note": "no blockers; two non-blocking notes: the missing-Depth transition on an older gate.md is not spelled out, and the resume instruction does not repeat the clean-worktree check"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-proportional/wave-4/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "9467921fea5f6e6bfa0105f8cba5c9641fe5be333ec71c9c77d7942db60ee80c",
+      "note": "no blockers; notes: the all-residual terminal transition is stated in design D5 rather than in step 5, and mixed-outcome Keep persistence across a later full round has no dedicated witness"
+    }
+  ],
+  "blockers": []
+}

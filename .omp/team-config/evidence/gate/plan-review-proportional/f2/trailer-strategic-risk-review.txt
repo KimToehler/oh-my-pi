@@ -1,0 +1,64 @@
+**Bottom line:** The proportional-depth design fits the existing digest, review-record and apply-gate architecture, but I recommend fixing it before merge. Beyond the auditor’s findings, the new verifier stage introduces an approval-state failure: completed rejecting reviews can leave an earlier approval authoritative when verifier triage fails.
+
+## 1. Architectural fit
+
+The main design choices are appropriately small: `gate.md` carries depth inside the reviewed digest; residuals stay outside that digest in `review.md`; and `checkReview()` continues to authorize apply from the existing record format. The added reviewer-count check uses the same snapshot as the digest, avoiding a second source of gate state (`team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs`, `reviewDigest()`, `checkReview()` and `main()`).
+
+The architectural weakness is **durability at the newly introduced triage boundary**. Reviewer completion and verifier completion are now separate events, but rejection is persisted only after both succeed.
+
+## 2. What the line-level audit structurally misses
+
+Blocker B1: **High — failed verifier triage can leave a superseded approval authorizing apply.** **Trigger:** an unchanged, previously approved change is reviewed again; every required reviewer returns a structured result, including a security/protected-asset blocker; the verifier and its fresh retry fail or return incomplete indexes. **Preconditions:** the existing `review.md` remains current and authorizing. The new verifier branch explicitly routes failure to the incomplete-round rule, which forbids changing that existing record (`schema.yaml:438-441` → `:415-419`). The new rejection therefore never reaches step 5’s recording boundary. `checkReview()` still accepts the old digest-matching approval, and the apply instruction authorizes source edits from th…
+
+- **class:** stale-approval-after-completed-rejection
+- **sites:**  
+  - `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:438-441` — newly sends failed verifier triage through the record-preserving incomplete path.  
+  - Same file, `:415-419,452` — preserves the earlier record and postpones rejection persistence until after triage.  
+  - `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs:377-457` — unchanged consumer accepts the surviving current approval.  
+  - `openspec/changes/plan-review-proportional/specs/openspec-plan-review/spec.md:253-254` — the new contract explicitly includes verifier failure while preserving the earlier record.
+- **Search run:** repository-wide `grep` for `incomplete as in step 3|write no review\.md|edit no existing one|earlier complete round stays|current OKAY|if \(verdict === "REJECT" && !overridden\)`, including both result pages. Historical matches describe reviewer-incomplete behavior; the delivered new verifier-to-incomplete transition is the single new entry point.
+- **Closure:** not closed. The supplied QA covers an initially missing verifier and a retry that recovers, not failed verifier triage over a still-current approval.
+
+The distinction from the inherited behavior matters: **all reviewers have completed and supplied rejecting evidence here**. Previously that completed reviewer set proceeded to writing REJECT; this change inserts another fallible task before that durable write.
+
+## 3. Most damaging production failure
+
+The highest-consequence outcome is an unsafe plan reaching apply and exposing a real credential or performing another irreversible action **before post-implementation review**. The security exception handling attempts to prevent this, but the auditor’s B2 and the additional state failure above leave routes open.
+
+F2/F3 are valuable downstream checks, but they cannot undo a credential already copied into committed evidence. Their unchanged presence is therefore not sufficient mitigation for this boundary (`schema.yaml`, review steps 4–8 and `apply.instruction`; `.omp/team-config/evidence/gate/plan-review-proportional/f1/security.md`).
+
+## 4. Auditor findings versus unchanged behavior
+
+**None of the auditor’s three findings is dismissible as unchanged behavior.** They concern the newly introduced verifier rule, the rewritten exception-options path, and this change’s submitted F1 witness respectively. I have not re-derived them as additional blockers.
+
+One qualification to the auditor’s B1 remedy: valid, concrete manual or real-session verification must remain acceptable; the schema expressly requires it for model behavior. The distinction should be **an actual planned exercise with observable failure evidence versus inert written criteria**, not “automated executable checks versus everything else” (`schema.yaml:373-381,403-412`).
+
+**Note — inherited incomplete-review policy:** preserving an earlier approval when a reviewer itself never completes predates this change, as shown in the supplied removed schema text and `openspec/specs/openspec-plan-review/spec.md:38-39`. That inherited policy alone is not a new blocker; B1 identifies its newly exposed application after a completed rejecting reviewer set.
+
+## Action plan
+
+1. Persist a non-authorizing rejection once the complete reviewer set contains blockers, before starting verifier triage; verifier failure must not restore an earlier approval. Reuse the existing REJECT/Blockers contract rather than introducing another subsystem.
+2. Add a fresh-session witness starting from a current OKAY record: complete reviewers reject, both verifier attempts fail, then a separate apply attempt must remain blocked. Retain the records, tool order and validator result.
+3. Resolve the implementation auditor’s findings and rerun the affected F1 scenarios, reporting the actual required witnesses rather than substituting another successful finding.
+
+**Effort:** Short (1–4h).  
+**Confidence:** High. The additional failure follows directly from the record-preservation instruction and `checkReview()`’s acceptance predicate; it was not runtime-exercised in this read-only review.
+
+FAIL
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: yes
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: Once a complete reviewer set produces rejecting evidence, failure of a subsequent triage task must not leave an older approval authoritative.
+  positive_witness: An unchanged approved change is reviewed again, reviewers reject, verifier retries fail, and a separate apply attempt remains blocked by the persisted rejection.
+  negative_control: The same sequence leaves the earlier OKAY record untouched and a separate apply attempt is authorized.
+  observable: Retained reviewer results and verifier failures, the review record before and after triage, and the subsequent --reviewed exit status and diagnostic.
+  boundary: Rejection persistence between schema review steps 3–5 and checkReview authorization of apply.
+END-REVIEW-TRAILER
+
+[Some lines truncated to 768 chars. Use agent://F2StrategicWave1:raw:11-11 to read line 11 whole]

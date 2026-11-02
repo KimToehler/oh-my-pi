@@ -158,14 +158,29 @@ describe("install", () => {
 		const validator = path.join(import.meta.dir, "validate-openspec-change.mjs");
 		const digest = spawnSync("node", [validator, "--digest", change], { encoding: "utf8" });
 		expect(digest.status).toBe(0);
+		const fields: Record<string, string> = {
+			Verdict: "OKAY",
+			"Reviewed digest": digest.stdout.trim(),
+			Depth: "standard",
+			Reviewer: "plan-reviewer, ProbeRev",
+			Verifier: "blocker-verifier, none",
+			Models: "ProbeRev probe/model-a",
+			Round: "1",
+			Awaiting: "none",
+			Override: "none",
+		};
+		// Derived from the shipped template: a new or renamed field fails here instead of
+		// silently leaving its placeholder in the record.
 		const record = canonical("templates/review.md")
-			.replace(/<OKAY or REJECT[^>]*>/, "OKAY")
-			.replace(/<64-hex digest[^>]*>/, digest.stdout.trim())
-			.replace("<correctness id>", "ProbeCor")
-			.replace("<verification id>", "ProbeVer")
-			.replace("<checks id>", "ProbeChk")
-			.replace(/<1 for the first dispatch>/, "1")
-			.replace(/<none, or one "### Lens[^>]*>/, "none");
+			.split("\n")
+			.map(line => {
+				const field = /^- \*\*([^*]+)\*\*:/.exec(line);
+				if (!field) return line.startsWith("<") ? "none" : line;
+				const value = fields[field[1]];
+				if (value === undefined) throw new Error(`template field without a test value: ${field[1]}`);
+				return `- **${field[1]}**: ${value}`;
+			})
+			.join("\n");
 		write(change, { "review.md": record });
 		const ready = JSON.parse(openspec(...applyArgs).stdout);
 		expect(ready.state).toBe("ready");

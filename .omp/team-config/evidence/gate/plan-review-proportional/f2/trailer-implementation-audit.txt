@@ -1,0 +1,40 @@
+## 1. Goal and behavioural contract
+
+The proportional review workflow is present, but the evidence shows that it can discard a real test-value finding and offer acceptance of a confirmed blocker before exhaustion. Both undermine the stated goal of reducing cost without losing those checks.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Blocker B1: **High — verification gaps refuted by non-executable criteria.** Trigger: a reviewer identifies that a task’s deterministic Verify command passes when its result is broken, while the plan also contains prose criteria or later manual QA. `team-config/agent/agents/blocker-verifier.md:47` treats criteria alongside executable checks as evidence that a failure is caught. In the real F1-A run, the verifier refuted precisely this finding and the final review passed with it as a residual (`.omp/team-config/evidence/gate/plan-review-proportional/f1/standard.md:24-29,64-72`); two additional verifier runs relied on written negative controls as though they were executable (`f1/seeded.md:84-91`). This breaks the test-value goal and the plan’s unproven-materia…
+
+## 3. Security and privacy delta
+
+Blocker B2: **High — confirmed blockers can be accepted through the scope-decision path.** Trigger: a confirmed blocking finding needs a scope decision; this includes a finding involving a real credential. `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:453-462` gives every exception ask, including scope decisions, a “keep as a residual” option. The F1-C run actually offered that option for findings confirmed as blocking and protected (`.omp/team-config/evidence/gate/plan-review-proportional/f1/security.md:27-44`). A user choosing it can move the confirmed finding out of Blockers and authorize apply, bypassing both the confirmed-finding rule and the security exclusion on Override. The plan explicitly makes offering “keep” for a c…
+
+## 4. Verification adequacy
+
+Blocker B3: **Medium — the F1 evidence is reported as passing despite missing its required witness.** Trigger and precondition are already present in the submitted evidence: task 4.1 requires the planted ineffective Verify command to be confirmed and fixed (`openspec/changes/plan-review-proportional/tasks.md:21`), but F1-A refuted that planted finding and fixed a different, missing-Purpose finding (`f1/standard.md:64-72`). The reported PASS therefore does not prove the named end-to-end test-value behaviour; this is a merge-gate value-proof failure, not merely uncertainty about model recall. The evidence and record are reversible. **Fix:** after correcting B1, run and retain a fresh ordinary-session witness that confirms and fixes the planted defect, and repo…
+
+**Note:** F1-F’s recorded nine-route brief (`f1/instruction-review.md:16-27`) does not list every route named in task 4.6, including dispatch with an unclean change folder. This is additional coverage uncertainty; it is not separately blocking here because B3 already identifies a missing material F1 witness.
+
+**Note:** Resume after a committed REJECT with `Awaiting: none` is less explicit than resume with an open ask (`schema.yaml:529-532`). The record retains the blocker, but the supplied QA only demonstrates resume at an exhaustion ask. This is a non-blocking risk: the reviewed text also says recorded verifier results stand and confirmed findings must be fixed, so I cannot substantiate a completed bypass from this ambiguity alone.
+
+## 5. Final
+
+Reviewed the supplied diff, immutable plan bundle, validator, schema instruction, verifier definition, templates, changed tests, and six F1 artifacts. I did not run commands or tests. The F1 evidence supports several workflow transitions, but also directly exposes B1–B3.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: yes
+verdict: FAIL
+blockers: B1,B2,B3
+adversarial_criteria:
+- invariant: A user’s reason for retaining an earlier-round finding remains attributable after a later review round replaces the current record.
+  positive_witness: The final review record retains the finding, the user’s reason, and its earlier-round provenance after a subsequent successful check.
+  negative_control: A later OKAY record silently loses the earlier user decision while still claiming the review is complete.
+  observable: Compare the committed records before and after the later round and inspect the final finding and reason.
+  boundary: Cross-round review-record persistence.
+END-REVIEW-TRAILER
+
+[Some lines truncated to 768 chars. Use agent://F2AuditWave1:raw:7-7 to read line 7 whole; cut lines run to line 15, each read the same way]

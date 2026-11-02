@@ -1,6 +1,7 @@
 # Gate
 
 - **Mandatory class**: none
+- **Depth**: standard (<reason: the class is none and no review, gate or release mechanism changes>)
 - **Risk tier**: product
 - **Author's risk assessment**: <what could break, and how badly>
 - **Whole-diff review**: not needed (<concrete reason>)
