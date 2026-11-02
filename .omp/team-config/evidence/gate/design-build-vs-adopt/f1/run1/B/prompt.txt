@@ -1,0 +1,1 @@
+Decide from `openspec instructions design --change trial-expiry --json` whether this change needs design.md, and create it only if it does.

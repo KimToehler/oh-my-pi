@@ -1,0 +1,5 @@
+Scratch copy of fixture A's openspec/ at /tmp/dba-f1/scratch-bytes; byte 11901 of openspec/schemas/omp-gated/schema.yaml changed from 'B' to 'b'.
+$ python3 tools/fixture.py check /tmp/dba-f1/scratch-bytes 9565a314226c5191a9f2bac34145b17784b6e5bc A/delivered.sha256
+MISMATCH openspec/schemas/omp-gated/schema.yaml (have a150d113852b, want 9976a2e4d5e6, recorded 9976a2e4d5e6, sha 9565a31422)
+checked 7 delivered files against 9565a31422: 1 MISMATCH
+exit 1

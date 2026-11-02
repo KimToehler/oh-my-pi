@@ -1,0 +1,105 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/design-build-vs-adopt",
+  "plan_sha256": "84a2c5c9c979f83823e6cdd8ee1878539000b35df893bede49b5a17a9adfa5be",
+  "reviewed_sha": "809c458a6599346bb3c5c752b88c86d93eb4c52c",
+  "diff_base": "473b97d4e5ec6eb23ed4af145d5e811854851db1",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Mandatory class none, Risk tier product: implementation-audit only; F2 wave 3 PASS after wave 1-2 FAIL (A2 witness) fixes and the main merge.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 index and row judgement (A-B3, C0-C8, D1-D5)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/README.md",
+      "artifact_sha256": "3765fb2d447e7ef1496e2ab47485cdc3b5ed22ae2d09c4e362bd52f57b0275dd"
+    },
+    {
+      "name": "F1 row A planner search and decision",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/A/calls.md",
+      "artifact_sha256": "2454ae1150d6b628daeb3ec7fee5cc542c37db46cea6898924a86578e6b8c6a6"
+    },
+    {
+      "name": "F1 row C1 risky scope A blocker confirmed by verifier",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/C1/calls.md",
+      "artifact_sha256": "7c1965d72b8d6fbe692ae66e4e578318c65b9ba782845c7a83955ab3115b1590"
+    },
+    {
+      "name": "F1 row C8 standard reviewer blocker confirmed by verifier",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/C8/calls.md",
+      "artifact_sha256": "f9ec30b6dd17fc0619ac9c72e139aafb7aa9c71ae36269fa04458e6449eda02b"
+    },
+    {
+      "name": "F1 row C5 domain logic without Build vs. adopt blocker",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/C5/calls.md",
+      "artifact_sha256": "0994aae4d6ec84dfdbf513321f999ac3ee7c2400c9220a61b89e6070e2ed2c59"
+    },
+    {
+      "name": "F1 instruction review D1",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/D1/output-b.md",
+      "artifact_sha256": "12626327fd8c5751ef69f12436f81f72630a20173245e2a4079873eca7460b7d"
+    },
+    {
+      "name": "Controls: delivered bytes",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/controls/bytes-control.txt",
+      "artifact_sha256": "9953710012e9174cbf4b608ed15d339de6959586afce4293c799166a0cb29afa"
+    },
+    {
+      "name": "Controls: design instruction unchanged",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/controls/design-unchanged.txt",
+      "artifact_sha256": "a5ae5dd2de0f2541fc3a8dbd893fbf9653388ed600762e84d6ca3188bc3999b9"
+    },
+    {
+      "name": "Controls: staleness",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/controls/staleness.txt",
+      "artifact_sha256": "3c85ca6dfb16723e586a4cbf9a342927182f62fe32c94d9ef89d8b53954d38ff"
+    },
+    {
+      "name": "Controls: credential scan",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/f1/controls/credscan.out.txt",
+      "artifact_sha256": "20f4dcf409ceefcf00ddc7cb6b313ccbe9b6097e94c546cf074b95dde896becb"
+    },
+    {
+      "name": "Verify commands at HEAD",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/wave-3/verify-commands.txt",
+      "artifact_sha256": "d031f5e746570b8fb537f8e7a460803aa408c04835378cce03fd559ee67d1ba2"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "one schema file, one template comment and one README paragraph, all model-read text; no independently testable module or runtime layer"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/design-build-vs-adopt/wave-3/implementation-audit-trailer.txt",
+      "trailer_sha256": "ff8b89bf41769afa7e4f6267242ff44f8eca953db4e3de4a859b93bfdf1dba5c",
+      "note": "wave 3: no blockers; E3 in both correctness-bearing scope paragraphs, A2/B3 decisions checked"
+    }
+  ],
+  "blockers": []
+}

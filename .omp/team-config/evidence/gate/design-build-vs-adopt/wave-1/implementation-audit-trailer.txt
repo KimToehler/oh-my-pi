@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+The delivered instructions cover the ordered search, decision form, `design.md` trigger, failed-search handling, and correctness-lens check. The partial-coverage verification has a material evidence mismatch, described below.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+I reviewed the supplied diff against the immutable plan and the surrounding schema instructions. No additional blocker was substantiated in the delivered text.
+
+## 3. Security and privacy delta
+
+The change adds instructions to treat research content as data, not instructions. It does not itself touch a real credential, an authentication or authorisation path, third-party personal data, or access to a protected asset. The evidence demonstrates one ignored injected instruction, not general prompt-injection resistance.
+
+## 4. Verification adequacy
+
+Blocker B1: **Medium — partial-coverage QA reported as passed without the required witness.** The trigger is the ordinary F1 execution of row A2; no special local state is required. The immutable plan requires **the Decision** to be partial for the Android/iOS-versus-desktop scenario and to identify the desktop gap and disposition (`.omp/team-config/gate-deltas/F2-1043908c96e6-wave-1.plan.md:161`; task 2.1 requires judging each row against its “Must show” at line 416). The retained OIDC decision instead says **adopt** kmp-oidc for Android/iOS and Nimbus for desktop (`.omp/team-config/evidence/gate/design-build-vs-adopt/f1/A2/artifacts/design.md:151`), while the QA README calls it “Decision partial” and passes the row (`f1/README.md:27`). The different partial decision at `A2/artifacts/design.md:195-198` concerns bearer-token attachment and refresh coordination, not the specified desktop coverage scenario. Thus the required F1 witness is not established; the evidence error is reversible. **Fix:** judge A2 against the actual artifact and obtain a qualifying partial-coverage witness, or change the criterion through the appropriate reviewed plan process rather than reporting this artifact as that witness. **class:** QA pass inconsistent with its specified witness. **sites:** A2’s plan criterion, retained design and QA verdict at the paths above; the call log at `f1/A2/calls.md:1398` repeats the same decision. I searched the worktree for `\| A2 \| partial coverage|\| A2 \| Decision partial|Decision: adopt kmp-oidc`; these are the identified sites of this instance. The class is **not closed** at the QA verdict.
+
+The retained evidence otherwise covers the repository and platform stop cases, missing and incomplete decisions, an open decision, and an embedded instruction. The plan expressly records the unexercised live search-provider failure and separate planning-store lookup as residual or out of scope.
+
+## 5. Final
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A QA pass attributed to a target-specific partial-coverage decision must be supported by that same decision, not by an unrelated partial decision elsewhere in the design.
+  positive_witness: The target-specific decision identifies the adopted targets, the uncovered target, its gap, and how that target is handled.
+  negative_control: The target-specific decision adopts separate libraries for all targets while an unrelated refresh decision is partial, yet QA reports the target-specific partial witness as passed.
+  observable: The retained design decision and the QA row's recorded observation and verdict.
+  boundary: F1 evidence judgement against the immutable plan's row criterion.
+END-REVIEW-TRAILER

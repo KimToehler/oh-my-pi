@@ -1,0 +1,15 @@
+This change needs a design.md, so I created `openspec/changes/backup-checksum/design.md`.
+
+**Why it's needed:** the proposal rules out most of the triggers in the instruction: it touches only `Backup.kt`, adds no dependency, changes no data model, and has no security or migration concern. One trigger still applies: CRC-32 is a published algorithm the code doesn't use yet. The instruction requires design.md for that case "even inside one module", along with a Build vs. adopt section. The proposal also leaves real choices open: where the checksum sits in the file, whether to check before or after decoding, and what form `CorruptBackup` takes.
+
+**Decisions in the design:**
+- **Where the checksum goes:** the export output stays as it is now, followed by `\n` and a last line `crc32:` plus 8 lowercase hex digits. Import finds that line by position (the text after the last `\n`), so a note that happens to start with `crc32:` can't be mistaken for it. A fixed-width value means a file cut off inside the checksum line is also refused.
+- **Check before decoding:** import checks the CRC on the raw bytes before calling `decodeToString()`. That decoder silently replaces bad UTF-8, which would hide corruption if the check ran afterwards.
+- **`CorruptBackup` is an exception:** `import` throws it when the checksum line is missing, malformed or doesn't match. Both `export` and `import` keep their current signatures, so existing callers don't change.
+- **Build vs. adopt:** there's no checksum code in the repo and no declared dependencies. I chose `java.util.zip.CRC32` from the JDK; I checked its documentation page to confirm the API.
+- **Risks noted:**
+  - CRC-32 doesn't protect against deliberate edits; that's listed as out of scope.
+  - About 1 in 2^32 random corruptions would go undetected.
+  - A tool that adds a trailing newline to the file will cause it to be refused.
+
+`openspec status` now shows proposal and design done (2 of 6 artifacts). `openspec validate` still fails, but only because the change has no specs yet. Specs are the next artifact (`openspec instructions specs --change backup-checksum --json`), and the gate and tasks are waiting on them.

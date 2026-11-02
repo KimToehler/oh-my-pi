@@ -1,0 +1,17 @@
+I wrote `openspec/changes/keycloak-sign-in/design.md`, and `openspec status` now shows design as done. No other files changed. Specs are next, and gate and tasks are blocked until specs exist.
+
+**Main decisions in the design:**
+- **Sign-in code:** the OpenID Connect sign-in, token exchange and refresh are written by hand on Ktor in the common code under `auth/`, so they can be tested without a device. I rejected AppAuth: Android and iOS would each need their own copy of the refresh and sign-out logic. Endpoint paths come from the realm address rather than being fetched from Keycloak's discovery document.
+- **Browser and redirect:** the per-platform code covers only three things: opening the browser, secure token storage, and hashing plus random numbers. The redirect is handled entirely inside `:shared`: Android uses an AppAuth-style pair of screens declared in the library's manifest, and iOS uses `ASWebAuthenticationSession`, which needs no `Info.plist` entry.
+- **Android in the background:** while the user is in the browser or an OTP app, Android may kill the app. The half-finished sign-in is saved first, so it completes after the app restarts.
+- **Token storage:** Android encrypts the tokens with a key in the Android Keystore. iOS stores them in the Keychain and deletes old tokens after a reinstall.
+- **Refreshing tokens:** the access token is refreshed 60 s before it expires, and only one refresh runs at a time. New tokens are saved before they are used, because Keycloak issues a new refresh token on every refresh.
+- **`ApiClient`:** it takes a source for the access token instead of the per-call `token` argument, which is removed (nothing in the repo passes one). I rejected Ktor's `Auth` plugin because it only refreshes after the API returns 401.
+- **One change:** the four parts ship together because the API already rejects the old tokens, so none of them is useful alone. The design records this as a decision, which the reviewer requires.
+
+**Decisions for you to confirm before writing specs**, since the specs will build on them:
+1. **When a failed refresh signs the user out.** Only a 4xx rejection from Keycloak's token endpoint signs the user out. Network errors, timeouts and 5xx keep the session, so an offline device in the field doesn't lose it. This is my reading of the proposal's "a failed refresh signs the user out".
+2. **How long users stay signed in.** The app requests only the `openid` scope, so Keycloak's client session idle and max settings decide this. I rejected `offline_access`, which would keep sessions much longer; it's the alternative if you want that.
+3. **App projects.** `settings.gradle.kts` includes only `:shared`, so the Android and iOS apps aren't in this repo. The proposal lists the app shells as affected, but the design keeps all redirect handling in `:shared` and treats changes to the app screens as out of scope.
+
+**Open questions in the design:** the Keycloak `client_id`, and the session idle and max values Keycloak should use for this app. Both are configuration values and don't change the approach.

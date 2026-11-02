@@ -1,0 +1,20 @@
+I wrote `openspec/changes/upload-dedupe/design.md` and changed no other file. `openspec status` now shows proposal and design done. Specs is next, and gate, tasks and review are waiting on it.
+
+**Chosen approach:**
+- **Ids stay random UUIDs.** `store` computes the SHA-256 of the upload and checks an in-memory map from digest to id. On a match it returns the existing id; otherwise it writes a new UUID-named file as it does today and records it in the map. I rejected using the digest itself as the id: anyone with the file's bytes could then work out its id and call `load` without uploading. Files stored before this change would also need the map anyway.
+- **The map is filled when `UploadStore` is created.** The constructor hashes every file directly under `root`, so files stored before the change are deduplicated too. I rejected saving the map to a file (it can drift out of step with the directory) and building it on the first `store` call (a bad `root` would only show up at the first upload).
+- **Concurrency:** hashing happens outside the lock; the lookup, the write and the map update run in one `synchronized` section. Without that, two identical uploads at the same time would both be stored.
+- **On a match, `store` checks the file still exists.** If it was deleted outside the store, it writes the upload again rather than return an id that `load` can't read.
+- **No byte-by-byte comparison when digests match.** The proposal defines "same file" by SHA-256, and comparing would mean reading the stored file for every duplicate upload.
+
+**Build vs. adopt** (two subsections, as the instruction requires):
+- **SHA-256 and hex encoding:** use Java's built-in `MessageDigest` and Kotlin's `ByteArray.toHexString()`. The Kotlin release notes confirm that function is stable from Kotlin 2.2.0, and the project uses 2.2.20.
+- **The dedupe map:** partial — use Java's `HashMap`, and build the startup scan and lookup logic in `UploadStore`. I checked and rejected two libraries, with release dates from deps.dev and licences from GitHub:
+  - JGit (7.8.0, released 2026-09-08, Eclipse Distribution License): it would replace the file layout and the id format.
+  - FastCDC4J (1.3, released 2021-02-12, GPL-3.0): it removes duplicate chunks inside files, not whole duplicate files, and its licence doesn't fit.
+
+**Deliberately out of scope:** removing duplicates already on disk (clients hold those ids), deduplicating across separate instances or processes sharing `root`, and making writes atomic.
+
+**Main cost:** creating an `UploadStore` now reads every stored file, so startup time grows with the total size of `root`. The design lists this with its mitigations under Risks. There are no data migrations, and rolling back means reverting `Upload.kt` with nothing lost.
+
+There's no Open Questions section because nothing was left that would change the specs, the approach or the task list.

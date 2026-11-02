@@ -1,0 +1,15 @@
+I didn't create design.md. None of the five conditions in the design instruction applies to this change:
+
+| Condition | Applies? | Evidence |
+|---|---|---|
+| Cross-cutting or new architectural pattern | No | `proposal.md` names one file to change: `shared/src/commonMain/kotlin/auth/SignInService.kt`. |
+| New dependency or significant data model change | No | It uses existing fields: `Account.plan` (`Plan.TRIAL`) and `Account.trialEndsAtMillis: Long?` in `account/Account.kt`. The only addition is a `TrialEnded` case on `SignInResult`. |
+| Security, performance or migration complexity | No | It's one comparison during sign-in. There's no data to migrate and no performance concern. |
+| Ambiguity needing technical decisions | No | Two details are still open: whether a trial counts as ended at exactly `now == trialEndsAtMillis`, and what to do with a `TRIAL` account whose `trialEndsAtMillis` is null. Both are behaviour, so they belong in the specs as scenarios, not in a design. |
+| New mechanism needing a build-vs-adopt record | No | `SignInService` already takes `clock: AppClock = SystemClock` but doesn't use it yet. Comparing its time with the trial end is project-specific logic connecting existing pieces, which the instruction doesn't count as a covered mechanism. |
+
+Two things to know:
+- **Tasks stay blocked until design.md exists.** In `openspec/schemas/omp-gated/schema.yaml`, `tasks` requires `design`, and `openspec status` currently shows `tasks (blocked by: specs, design, gate)`. Leaving design.md out keeps `tasks` blocked, and I didn't add a placeholder to get around that.
+- **The check uses the device clock.** `SystemClock` returns the device time on Android and iOS, so someone could set their clock back to keep using an ended trial. That's a question of scope for the proposal, not a reason to write a design. If only the server should enforce the trial end, the proposal needs to say so.
+
+Next step from `openspec status` is `openspec instructions specs --change "trial-expiry" --json`.

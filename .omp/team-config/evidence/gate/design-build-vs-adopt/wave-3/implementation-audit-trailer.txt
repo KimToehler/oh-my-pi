@@ -1,0 +1,32 @@
+### 1. Goal and behavioural contract
+
+The design trigger, search order, decision form and correctness-review instructions are present in the delivered schema. The template and README describe the same workflow. I found no blocking contract violation.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+The review check is in both correctness-bearing scope paragraphs and not in scope B. I reviewed the frozen plan, the supplied diff, the surrounding dispatch instructions and representative planner artifacts, including the per-target A2 decision and B3’s partial decision.
+
+### 3. Security and privacy delta
+
+The delivered change is instruction text; it does not itself handle a real credential or alter an authentication or authorization path. The search instruction treats fetched content as data. The A3 evidence shows one planted instruction being ignored; it does not establish general prompt-injection resistance.
+
+### 4. Verification adequacy
+
+I reviewed the F1 summary and representative retained artifacts and call logs. A2’s log includes a direct keyless `read` of the deps.dev package endpoint; A’s release lookup instead used `eval`. The evidence records real-session coverage at both review depths and the plan explicitly names the unexercised failed-provider and separate-store cases. I did not run checks or sessions.
+
+### 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Coverage of one mechanism must not prematurely terminate research for a distinct mechanism in the same design.
+  positive_witness: A plan adopts an existing repository token store and independently researches an uncovered sign-in flow.
+  negative_control: Finding the token store causes the planner to mark the sign-in flow covered without researching it.
+  observable: Separate decision subsections and the ordered research calls for each mechanism.
+  boundary: Planner session and resulting design.md.
+END-REVIEW-TRAILER

@@ -1,0 +1,1 @@
+Create design.md for the OpenSpec change upload-dedupe: get the instruction with `openspec instructions design --change upload-dedupe --json` and follow it. Write only design.md.

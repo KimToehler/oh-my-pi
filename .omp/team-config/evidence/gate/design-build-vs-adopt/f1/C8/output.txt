@@ -1,0 +1,118 @@
+I ran steps 3 and 4 at depth `standard` (from gate.md: class `none`, so one plan-reviewer with the all-scopes paragraph). The reviewer returned REJECT with three blockers, and the triage confirmed all three as blocking. Nothing was edited or committed, and review.md was not written.
+
+**What I dispatched**
+- **Reviewer:** one fresh `plan-reviewer`, no `model` on the item. The context, brief and all-scopes paragraph were used verbatim, with only the two paths filled in: repository root `/private/tmp/dba-f1/C8` and change directory `/private/tmp/dba-f1/C8/openspec/changes/backup-checksum`.
+- **Verifier:** one fresh `blocker-verifier`, no `model`, `solutionSpace: "Triage of plan-review blockers; outcomes unknown"`. I built the brief in code from `agent://PlanReviewAllScopes`, so blockers 1–3 are the payload's JSON objects byte for byte.
+
+**Model checks**
+
+| Dispatch | Ran on | Pin | Counts? |
+|---|---|---|---|
+| `PlanReviewAllScopes` | `onara/cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:high` (`task.agentModelOverrides`) | yes |
+| `BlockerTriage` | `onara/cc/claude-opus-5` + `onara/cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:medium` (`agents/blocker-verifier.md`) | **no**: it partly ran on another model, so I gave it one fresh retry with the same brief |
+| `BlockerTriageRetry` | `onara/cx/gpt-6.1-sol` | same | yes: exactly one entry per index 1–3 |
+
+The first triage reached the same verdicts as the retry, but per step 4 it doesn't count.
+
+## Reviewer output: `PlanReviewAllScopes`
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The checksum flow is plausible, but the plan omits the mandatory build-versus-adopt record, references verification infrastructure that does not exist, and never independently verifies that its custom checksum is CRC-32.",
+  "blockers": [
+    {
+      "area": "Build vs. adopt — design.md Decisions",
+      "defect": "The plan commits to a handwritten implementation of a published algorithm without the mandatory research and decision record. Applying it would build the mechanism without establishing why cheaper existing implementations are insufficient. This breaks the required value proof; the planning decision is reversible.",
+      "evidence": "openspec/changes/backup-checksum/design.md:13-15 specifies a private Crc32 object and bespoke lookup-table implementation, but design.md has no Build vs. adopt subsection. openspec/schemas/omp-gated/schema.yaml:204-224 explicitly covers newly introduced published algorithms and file formats and requires Repository, Platform, Candidates and Decision entries, including a gap for a build decision. build.gradle.kts:1-3 establishes that this is Kotlin/JVM.",
+      "change": "Before retaining the bespoke implementation, add the required Build vs. adopt subsection for the checksum mechanism. Search the repository and installed dependencies first, then the JVM platform, and only proceed to maintained libraries if necessary. Record the required evidence and a settled decision; adopt an implementation that covers the need, or identify the uncovered gap that justifies building."
+    },
+    {
+      "area": "Verification executability — tasks 1.1 and 2.1",
+      "defect": "Neither verification task has a complete executable route in this repository. Task 1.1 invokes an absent Gradle wrapper without planning its setup or a test framework. F1 names neither an invocation of this library nor a retained artifact or Verify command. Normal implementation following these tasks therefore cannot execute the promised verification as written; this is reversible but blocks the plan's proof.",
+      "evidence": "openspec/changes/backup-checksum/tasks.md:5 requires ./gradlew test. The repository root contains no gradlew or wrapper files, and build.gradle.kts:1-5 declares only the Kotlin JVM plugin and Maven Central, with no test dependencies. tasks.md:9 describes exporting sample notes and using a hex editor, but src/main/kotlin/Backup.kt:1-17 contains only a data class and library objects, with no runnable QA entry point or sample fixture. openspec/schemas/omp-gated/schema.yaml:290-291 requires every tracked task to end with a deterministic Verify command.",
+      "change": "Plan a runnable test setup and use its actual command, including any necessary test dependencies and wrapper setup. Give F1 a concrete public-API driver or other executable procedure, disposable sample notes, expected success/refusal observations, a retained evidence path, and a Verify command that checks its material outputs."
+    },
+    {
+      "area": "Verification discrimination — task 1.1 and checksum requirement",
+      "defect": "The listed tests establish self-consistency and rejection of one alteration, not compliance with CRC-32 or the specified trailer format. For example, omitting the final inversion in the shared checksum implementation would still allow round trips, reject the changed byte, and reject a missing trailer. Every listed test and F1 could pass while all exports violate the requirement. Ordinary exports trigger the defect; generated files can be regenerated, but the required behavior and its proof are broken.",
+      "evidence": "openspec/changes/backup-checksum/specs/backup-checksum/spec.md:7 requires CRC-32 of every preceding byte and exactly eight lowercase hexadecimal digits. design.md:15 introduces a custom algorithm, including initialization and final inversion. tasks.md:5 lists only round-trip, changed-byte and missing-checksum tests; tasks.md:9 repeats round-trip and changed-byte QA. Neither provides an independent checksum oracle or an exact exported-byte assertion.",
+      "change": "Add independent known-answer CRC-32 tests and exact export-format assertions, rather than deriving expected checksums through the production helper. Cover the checksum's precise byte span, including the separator before the trailer, empty input, and multibyte UTF-8 notes. Include an independently constructed valid backup for the importer so matching exporter/importer mistakes cannot satisfy the proof."
+    }
+  ],
+  "notes": [
+    "Mechanical checks 1–3: CHECK 1 is not triggered by any evidenced real credential or third-party personal data. CHECK 2 is triggered by checksum-based equality: the bound input is every byte preceding the trailer, the trailer is explicitly excluded, and the recorded checksum is compared with recomputation; the independent-proof gap is reported above. CHECK 3 has no forbidden-set trigger; the trailer spelling is already specified as an allow-set.",
+    "Mechanical checks 4–5: CHECK 4 is triggered by checksum acceptance; the requirement rejects a missing or mismatching trailer and D2 addresses truncation. There is no separate live-file admission path. CHECK 5 is triggered by checking bytes before parsing them; BackupImporter.import receives a ByteArray, and the plan introduces no path reopening or second source. No ordinary check/use race is evidenced.",
+    "Mechanical checks 6–8: CHECK 6 covers the exporter/importer paths, both addressed by D1 and the proposed round-trip/refusal tests. CHECK 7 is addressed by the shared private Crc32 object rather than independently implemented checksum algorithms. CHECK 8 has no exposing option, implicit run selection, or runtime fallback; selecting the final line is an explicit format rule.",
+    "Further checks: PROCESS 1 applies to the supplied gate/criteria arrangement; the observable requirement and negative control are decidable, and their boundaries resolve to BackupExporter.export and BackupImporter.import at src/main/kotlin/Backup.kt:6-12. Residual-risk and out-of-scope findings were excluded as requested. PROCESS 2–5 and DOMAIN 1–6 are not triggered: there is no open contingency, more-than-two-subsystem change, fix delta, internal-tooling classification, metaharness change, or managed/foreign-environment evaluation.",
+    "All change files except review.md were reviewed. openspec/config.yaml selects omp-gated without classification overrides. Product/standard, class none and no whole-diff review are not contradicted by the available single-package library and absence of external consumers. The claim that checksum-free backups are not in circulation is unverified release context, not disproved repository behavior, so it is not a blocker."
+  ]
+}
+```
+
+## Verifier output: `BlockerTriage` (attempt 1, doesn't count: partly ran on `onara/cc/claude-opus-5`)
+```json
+{
+  "results": [
+    {
+      "index": 1,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "design.md:13-15 chooses a handwritten CRC-32 table and update loop, and the Decisions section contains no Build vs. adopt subsection. schema.yaml:204-224 expressly covers newly introduced published algorithms and requires Repository/Platform/Candidates/Decision entries with a named gap for a build verdict. build.gradle.kts:1-3 confirms Kotlin/JVM (java.util.zip.CRC32 is a platform candidate that was never recorded). The plan therefore commits to building a covered mechanism without the mandated decision record; this is a delivery defect no later check resolves, and the gate accepts no residual risk."
+    },
+    {
+      "index": 2,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "tasks.md:5 ends with Verify: ./gradlew test, but the repo root (openspec/, src/, build.gradle.kts, settings.gradle.kts) has no gradlew wrapper, and build.gradle.kts:1-5 declares only the Kotlin JVM plugin and mavenCentral with no test dependencies; no task plans that setup. tasks.md:9 (F1) describes a hex-editor procedure with no executable driver, no fixture, no retained evidence path and no Verify command, while Backup.kt:1-17 exposes only library objects. schema.yaml:290-291 requires a deterministic Verify per tracked task. As written the promised verification cannot be executed, so the change's material behaviour stays unproven."
+    },
+    {
+      "index": 3,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "spec.md:7 requires CRC-32 over every preceding byte rendered as exactly eight lowercase hex digits; design.md:15 defines a bespoke algorithm with init and final inversion. tasks.md:5 lists only round-trip, changed-byte and missing-checksum tests, and tasks.md:9 repeats round trip plus changed byte. Dropping the final inversion in the shared Crc32 helper keeps exporter and importer self-consistent, so every listed test and F1 still pass while every exported file violates the CRC-32 requirement. No planned check uses an independent known-answer oracle or an exact exported-byte assertion, so the required behaviour's proof is missing under ordinary exports."
+    }
+  ]
+}
+```
+
+## Verifier output: `BlockerTriageRetry` (counts)
+```json
+{
+  "results": [
+    {
+      "index": 1,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "The planned implementation directly triggers the defect: design.md:13-15 commits to a private, handwritten CRC-32 table and update algorithm, and the complete design has no Build vs. adopt subsection or research record. openspec/schemas/omp-gated/schema.yaml:204-224 explicitly covers newly introduced published algorithms and requires ordered research plus Repository, Platform, Candidates and Decision entries, with an uncovered gap for a build decision. build.gradle.kts:1-5 establishes Kotlin/JVM. This is a settled delivery-design omission, not merely a request for another check; implementing the plan leaves the mandatory justification absent. It blocks the required value proof, and gate.md accepts no residual risk or scope exclusion."
+    },
+    {
+      "index": 2,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "tasks.md:5 invokes ./gradlew test, but the repository root contains no gradlew or wrapper directory, build.gradle.kts:1-5 has no test dependencies, and no task plans that setup. The existing Backup.kt:1-17 supplies library objects only. tasks.md:9 gives a manual export/import and hex-edit description without an executable public-API driver, sample fixture, retained evidence path or Verify command. Thus following the planned verification reaches an unavailable command and an unspecified library QA invocation. schema.yaml:290-291 requires a deterministic Verify command for each tracked task. The F2 follow-up names no concrete check that supplies these missing routes. This leaves material checksum behaviour without executable proof and is blocking."
+    },
+    {
+      "index": 3,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "specs/backup-checksum/spec.md:7 requires CRC-32 over every preceding byte and an eight-digit lowercase hexadecimal trailer; design.md:15 specifies a custom algorithm with final inversion. tasks.md:5 names only round-trip, changed-byte and missing-checksum tests, and tasks.md:9 adds only round-trip and changed-byte QA. Omitting final inversion in the shared calculation preserves exporter/importer agreement and changed-byte rejection while producing nonconforming checksums on ordinary exports; missing-trailer rejection is unaffected. No named test, executable oracle or retained real-session observation checks independently expected CRC-32 values or exact exported bytes, so the planned checks do not catch that scenario. This is a missing proof of material required behaviour and therefore blocking."
+    }
+  ]
+}
+```
+
+## Classification (step 4, from `BlockerTriageRetry`)
+
+| # | Area | Verifier | Class |
+|---|---|---|---|
+| 1 | Build vs. adopt — design.md Decisions | confirmed, blocking true, protected false | **stays a blocker**, fixed within budget |
+| 2 | Verification executability — tasks 1.1 and 2.1 | confirmed, blocking true, protected false | **stays a blocker**, fixed within budget |
+| 3 | Verification discrimination — task 1.1 and checksum requirement | confirmed, blocking true, protected false | **stays a blocker**, fixed within budget |
+
+No blocker is `protected`, and none is in the security scope (review_scope item 4 or CHECK 1), so the security override doesn't apply. No blocker becomes a residual and none is `undecided`, so this round needs no exception ask. Round outcome: REJECT, with three confirmed blocking findings.

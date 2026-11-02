@@ -1,0 +1,15 @@
+I did not create design.md, because none of the conditions in the `design` instruction apply to this change.
+
+Checked against each condition the instruction lists:
+
+| Condition | Applies? | Evidence |
+|---|---|---|
+| Cross-cutting change or new architectural pattern | No | The proposal's only impact is `src/main/kotlin/Backup.kt`, a 17-line file holding `BackupExporter` and `BackupImporter`. |
+| New external dependency | No | CRC-32 is built into the JDK (`java.util.zip.CRC32`), so nothing is added to `build.gradle.kts`. |
+| Significant data model change | No | `Note` stays the same. The backup file just gets a checksum appended. |
+| Security, performance or migration complexity | No | The proposal says backups without a checksum aren't in circulation yet, so there's nothing to migrate. |
+| Ambiguity worth settling before coding | No | The open choices are how the checksum is written into the file and what `CorruptBackup` looks like. Users can see both, so they belong in the `backup-checksum` spec rather than in a design document. |
+
+`openspec status` will keep showing `tasks` as `blocked` with `design` listed as missing, because the `omp-gated` schema (`schema.yaml:314-317`) makes `tasks` depend on `specs`, `design` and `gate`. That status follows from the schema and doesn't mean this decision was wrong. When you reach the tasks step, you'll need to accept that the design step was skipped on purpose, or make design optional in the schema.
+
+The next artifact is `specs` (`openspec instructions specs --change backup-checksum --json`).

@@ -1,0 +1,1 @@
+Create design.md for the OpenSpec change api-token: get the instruction with `openspec instructions design --change api-token --json` and follow it. Write only design.md.

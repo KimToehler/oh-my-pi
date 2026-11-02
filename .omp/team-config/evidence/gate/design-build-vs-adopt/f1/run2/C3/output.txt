@@ -1,0 +1,43 @@
+I sent one `plan-reviewer` task (`CorrectnessLens`) with the exact `context` string from the instruction. Its brief was the review brief and the correctness lens paragraph, word for word, with only the two paths filled in: `/private/tmp/dba-f1/C3` and `/private/tmp/dba-f1/C3/openspec/changes/keycloak-sign-in`. Nothing was edited.
+
+Per your request I skipped steps 1–2 (validation and digest) and lenses 2 and 3. That means this is not a complete review round and the result can't go into `review.md`.
+
+The reviewer returned **REJECT** with 4 blockers. Full output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan has end-to-end application integration and session-lifecycle gaps, an incompatible rollback path, and an incomplete required build-versus-adopt record.",
+  "blockers": [
+    {
+      "area": "Correctness and architecture — application integration",
+      "defect": "The plan assumes existing Android/iOS application shells and a password sign-in screen, but this repository contains only a shared library. Its implementation tasks modify that library and ApiClient without creating or locating the application integration required to launch sign-in, receive redirects, restore the session at startup, and display the signed-in home screen. Following those tasks cannot deliver the required app behavior on either target. The resulting incomplete sign-in experience is reversible through additional implementation.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires browser sign-in, redirect handling and a signed-in home screen. proposal.md:23 assumes Android/iOS app shells, and design.md:39 assumes a password screen to remove. However, settings.gradle.kts:2 includes only ':shared', shared/build.gradle.kts:3 declares an Android library, and the complete application-source search finds only shared/src/commonMain/kotlin/http/Client.kt. tasks.md:5-6 assigns implementation only in ':shared' and ApiClient; design.md:13-31 supplies dependency choices but no host integration design.",
+      "change": "Identify the actual Android and iOS application hosts and their integration locations, or explicitly include their creation in this change. Design and assign the platform browser/redirect setup, sign-in entry point, startup session restoration and auth-state-driven navigation. Reconcile the claimed existing password-screen migration with the code actually available."
+    },
+    {
+      "area": "Correctness — refresh failure semantics",
+      "defect": "Clearing the token store after every failed refresh contradicts the requirement to preserve the session until Keycloak rejects the refresh token. During ordinary offline operation, a timeout or temporary service failure can prevent refresh without Keycloak rejecting anything; the planned behavior then deletes a still-valid refresh token and forces another sign-in. This is recoverable by signing in again, but directly breaks the persistence requirement.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 says the app SHALL keep the user signed in across restarts 'until Keycloak rejects the refresh token'. In contrast, design.md:31 says 'a failed refresh clears the token store and signs the user out', and proposal.md:11 repeats the unconditional failure policy.",
+      "change": "Distinguish definitive refresh-token rejection from transport failure or temporary endpoint unavailability. Preserve the stored session when rejection has not been established, define the unavailable-request behavior, and reserve token deletion/sign-out for the rejection condition specified by the requirement."
+    },
+    {
+      "area": "Correctness — rollback compatibility",
+      "defect": "The stated rollback restores the password-based release even though the plan says the API now accepts only Keycloak access tokens. In the normal contingency of reverting a defective release, users who need to sign in would be returned to an authentication flow the server no longer accepts. The rollback therefore cannot restore service; recovery requires another compatible deployment.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:5 describes the existing username/password API sign-in and states that the API 'now accepts only Keycloak access tokens'. design.md:39 removes the password screen in the new release but declares 'Rollback: the previous release'.",
+      "change": "Replace the previous-release rollback with a concrete compatible recovery path, such as a known-good Keycloak-capable build, or explicitly design any coordinated server compatibility needed to make the previous release usable. Do not present the existing password-based release as a working rollback against a Keycloak-only API."
+    },
+    {
+      "area": "Build vs. adopt — token storage record",
+      "defect": "The token-storage adoption subsection skips the required platform-search stage. It proceeds directly from a repository search that found nothing to adopting an external library, so the plan does not establish whether platform facilities cover the mechanism or what gap requires the library. Under the supplied design instruction, this incomplete record breaks the adoption value proof and blocks implementation as planned.",
+      "evidence": "openspec/changes/keycloak-sign-in/design.md:20-24 contains Repository, Candidates and Decision lines, but no Platform line. openspec/schemas/omp-gated/schema.yaml:216-231 requires ordered repository/dependency, platform and maintained-library searches and explicitly requires a Platform line in each covered mechanism's subsection. The repository result at design.md:22 is 'none', so 'not searched, covered above' would not justify skipping that stage.",
+      "change": "Complete the token-storage subsection with the platform search and documentation references, state what those facilities cover and any remaining gap, and confirm or revise the adoption decision based on that result."
+    }
+  ],
+  "notes": [
+    "The existing-client description is inaccurate: design.md:15 calls Client.kt unauthenticated, but shared/src/commonMain/kotlin/http/Client.kt:10-11 already accepts an optional token and emits a Bearer header. This alone does not block the change; distinguish existing header support from the new session-backed token source and refresh integration.",
+    "Unverified against repository-shipped documentation: whether oidc-ktor supplies proactive refresh before expiry and clears any cached bearer credentials when the token store is cleared. The upstream README describes explicit token-cache invalidation, but no corresponding lifecycle wiring appears in design.md:31. Confirm the selected release's behavior before relying on adoption alone.",
+    "Gate classification is consistent with the delivered behavior: gate.md declares product/auth-secrets-pii, and openspec/config.yaml:1 selects omp-gated without additional classification overrides."
+  ]
+}
+```
