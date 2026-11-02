@@ -79,6 +79,9 @@ describe("hand-calculated two-item dataset", () => {
 		expect(h.microPost.value).toBeNull();
 		expect(h.falseDrop.value).toBeNull();
 		expect(h.historical).toBe(true);
+		// An arm whose trials carry no triage reports no triage counts at all: zeros would read as measured.
+		expect(h.triage).toBeNull();
+		expect(arm_("S").triage).toMatchObject({ retained: 2, falseDrop: 1 });
 	});
 
 	it("sums costs per stage with exclusions and a lower bound for unknown usage", () => {

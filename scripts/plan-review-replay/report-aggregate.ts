@@ -136,7 +136,7 @@ export function scoreArms(
 				its.map(i => i.additionalBlockingDrop),
 				"no discovered independently blocking additional mechanisms or triage unavailable",
 			),
-			triage: triaged.reduce(addCounts, EMPTY_COUNTS),
+			triage: triaged.length === 0 ? null : triaged.reduce(addCounts, EMPTY_COUNTS),
 			pendingFindings: sum(done.map(t => t.findings.pending)),
 			additionalMechanisms: unique(its.flatMap(i => i.additionalMechanisms.map(m => `${i.item}:${m}`))).length,
 		};

@@ -56,11 +56,15 @@ A finding row that records a descriptive historical label rather than an indepen
 
 ### Requirement: Partial post-triage coverage is disclosed
 
-A post-triage figure pooled from fewer trials than the arm or item completed SHALL state the contributing trial count alongside the figure, so a subset result is never read as the full set's result.
+A post-triage figure pooled from fewer trials than the arm or item completed SHALL state the contributing trial count alongside the figure, so a subset result is never read as the full set's result. An arm or item without a single triaged trial SHALL report no post-triage figure or count at all.
 
 #### Scenario: One triaged trial among many
 - **WHEN** one of fourteen completed trials of an arm has a triage outcome
 - **THEN** the arm's post-triage cells carry their one-of-fourteen coverage
+
+#### Scenario: No triaged trial at all
+- **WHEN** no completed trial of an arm has a triage outcome
+- **THEN** the arm's post-triage figures and its triage counts are reported as unavailable, never as zeros
 
 #### Scenario: Negative control
 - **WHEN** a report presents such a pooled value without its coverage

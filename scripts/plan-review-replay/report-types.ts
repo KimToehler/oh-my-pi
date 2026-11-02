@@ -123,7 +123,8 @@ export interface ArmScore {
 	readonly microUnionPost: Ratio;
 	readonly falseDrop: Ratio;
 	readonly falsePositive: Ratio;
-	readonly triage: TriageCounts;
+	/** `null` when no completed trial of this arm has triage: the counts are unavailable, not zero. */
+	readonly triage: TriageCounts | null;
 	/** `null` when no completed trial of this arm has triage: the figure is unavailable, not zero. */
 	readonly additionalBlocking: AdditionalBlocking | null;
 	/** Dropped over discovered blocking additional mechanisms of the triaged trials. */

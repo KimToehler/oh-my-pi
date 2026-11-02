@@ -3969,18 +3969,7 @@
         "value": null,
         "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
-      "triage": {
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "survivingNonBlocker": 0,
-        "downgraded": 0,
-        "falseDrop": 0,
-        "legitimateResidual": 0,
-        "unstatedResidual": 0,
-        "unresolvedDrop": 0
-      },
+      "triage": null,
       "pendingFindings": 29,
       "additionalMechanisms": 0
     },

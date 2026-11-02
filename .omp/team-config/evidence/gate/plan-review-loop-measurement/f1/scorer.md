@@ -177,6 +177,14 @@ Observed on the published run after the fix: S and T each move their one `downgr
 
 Observed on the published run after the fix: `H-Focus`'s off-ledger row changes from six zeros to `n/a (triage unavailable)`, `H-Replay`'s zeros gain their `triaged 1/14 trials` coverage, and the new `unstated residual` column is 0 in both fresh arms. No recall, false-drop or precision figure moves.
 
+## 6f. Fix-wave surfaces (F2 wave 4, third round)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| an arm without any triaged trial reports no triage counts | reduce the empty set into `EMPTY_COUNTS` again | the historical-arm test fails: `H` publishes ten zeros instead of `null` |
+
+Observed on the published run after the fix: `H-Focus`'s arm `triage` object in `summary.json` changes from ten zeros to `null`; `H-Replay` keeps its zeros, because its one empty-triage trial is a measured outcome. `report.md` is byte-identical, and no recall, false-drop or precision figure moves.
+
 ## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.

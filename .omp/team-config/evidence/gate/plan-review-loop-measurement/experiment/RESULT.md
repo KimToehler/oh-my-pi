@@ -114,7 +114,7 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 
 ## Amendments after the input freeze
 
-`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Eight scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and four correct a figure against the contract's or the specification's own wording:
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Nine scorer rules were added after the fresh results existed; five remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and four correct a figure against the contract's or the specification's own wording:
 
 1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
 2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
@@ -124,6 +124,7 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 6. Verifier disposition decides survival, not eligibility. The scorer previously demoted a match the verifier had confirmed as blocking whenever the adjudicator rated that finding below threshold, which published it as a `downgraded` verifier loss plus a `legitimate residual`. The contract's `confirmed-but-nonblocking downgrade` is the verifier's own call, so such a match survives triage — and it still is no retained automatic blocker, because the contract requires an independently blocking finding as well as an independently blocking target. S and T each move their one `downgraded` and `legitimate residual` count to `surviving non-blocker`; no recall, false-drop or precision figure moves.
 7. A below-threshold loss counts as a legitimate residual only when its triage row states a concrete consequence, which the contract's definition requires alongside below-threshold severity; a loss nobody justified is counted separately as `unstated residual`. Both columns are 0 in this run, so no published figure moves.
 8. An arm whose trials carry no triage reports no off-ledger figure. `H-Focus` previously published zeros for discovered, retained and dropped mechanisms although its triage never ran, which reads as a measured result; it now reports `n/a`, and `H-Replay`'s partial zeros carry their `triaged 1/14` coverage. The specification requires exactly that.
+9. An arm whose trials carry no triage reports no target-level triage counts either. `H-Focus` previously published ten zero counts in `summary.json` although its triage never ran; the arm's `triage` object is now `null`. `H-Replay`, whose one empty-triage trial is a measured outcome, keeps its zeros with their `triaged 1/14` coverage. No Markdown figure and no fresh-arm figure moves.
 
 ## Reproduction
 
