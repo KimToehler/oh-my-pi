@@ -44,6 +44,19 @@ Depth `risky`, digest `102212f2bd367462037dd99c5b7abf5c62b4e1b7fe2a44fef5aae6286
 - Answered (`failed` state): `755a369` carries the fix; round 2 ran and its verifier again failed
   twice (`7fd58c4`, `86d2c30`, Awaiting `triage`), and a second resume (263 s) produced `980d9bc`:
   the round-2 finding confirmed, budget spent, **Awaiting `exhaustion`**.
+- **The ask is left unanswered.** That session ended there. A fresh ordinary session was started
+  on a copy of the fixture at `980d9bc` (`$TMPDIR/prp-fix/repo-f1eb-ask`), with the plain
+  instruction and **no answer in the prompt** (33 s). It re-asked the same exhaustion question
+  from the record, quoting the finding, the verifier's reason and the three options verbatim, and
+  added `Override is offered because the finding is not in the security scope and is not
+  protected.` It dispatched nothing, edited nothing and committed nothing:
+  `git diff --exit-code -- openspec/changes/f1eb` exits 0 and `git log --oneline -1` is still
+  `980d9bc`.
+- Answered **Override** on that fixture (47 s): `dc67dcf`, `git diff --stat 980d9bc` shows
+  `openspec/changes/f1eb/review.md | 6 +++---` and nothing else, and `--reviewed` printed
+  `REJECT overridden by the user: this fixture plan is a throwaway review fixture, …`, exit 0.
+- Back on the first fixture, the same ask was instead answered **Fix** and then a second time, to
+  witness the other two branches:
 - Answered **Fix** (1289 s): `b926c55` edits `tasks.md` only (4 insertions, 3 deletions), then
   exactly one **live** delta check ran. It found a new confirmed blocking finding (the new test
   task describes the two-refresh sequence from the opposite end to the requirement), so `b3498d9`
@@ -160,6 +173,21 @@ All under `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb/`.
   blocker text (17-18); **`task TriageF1ebR2Resume`** (19); `wait`; `read history://…`;
   `bash jq …`; three `bash git show` calls comparing the earlier records (23-24); `edit review.md`
   (25) and the commit (26, `980d9bc`, Awaiting `exhaustion`).
+
+### The unanswered-ask resume and its Override
+
+Under `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb-ask/`.
+
+- **Re-ask** (`2026-11-02T08-21-56-203Z_01a19b59-cd6b-71ac-b33b-e1a24e7921c1`, **10 calls**, 33 s),
+  complete list: `read skill://openspec`; `bash openspec instructions review --change f1eb --json`
+  ×2; `read /tmp/f1eb-instruction.md:raw`; `read /tmp/f1eb-template.md:raw`;
+  `read /tmp/f1eb-instruction.md:300-310:raw`; `bash ls -la openspec/changes/f1eb && cat
+  review.md`; `bash V --digest`; `read review.md:32:raw`; `read review.md:raw`. **No `task`, no
+  `edit`, no `write`, no `git` write** — the ask is reconstructed from the record alone.
+- **Override** (`2026-11-02T08-22-48-211Z_01a19b5a-9893-74f8-b6da-b54d61bbfe0e`, 15 calls, 47 s):
+  instruction and template reads (1-7); `bash ls && cat review.md` (8); three `grep`/`read` calls
+  on the validator (9-11); `read review.md:1-12` and `:23` (12-13); **one `edit`** (14);
+  `bash V --reviewed` (15). Again no dispatch.
 
 ### Leg (b)'s two answer sessions
 

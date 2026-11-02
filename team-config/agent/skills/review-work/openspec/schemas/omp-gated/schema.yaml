@@ -587,8 +587,7 @@ artifacts:
          2's digest, or the delta check's own from the fix-delta path), its depth, the
          reviewer ids in dispatch order (scope A then scope B; a retried reviewer is listed with
          its retry's id), `blocker-verifier` and its subagent id (`none` when no finding needed
-         triage, when you are writing the record before the dispatch, or when no attempt
-         returned a result that counted), the round number (the first round of this review is 1, incremented once per
+         triage), the round number (the first round of this review is 1, incremented once per
          full round and once per delta check, never per reviewer item of one round and never for a
          retry; a resume continues the recorded round rather
          than opening a new one, so neither it nor a repeated triage dispatch changes the number),
@@ -601,9 +600,8 @@ artifacts:
          answer remains open, otherwise REJECT.
          `## Blockers`: `none` for OKAY; for REJECT one `### <Scope> (<subagent id>)` subsection
          per rejecting reviewer with its open findings verbatim, each with the verifier's result
-         and reason, or, when Awaiting is `triage`, `not triaged: the verifier has not returned`
-         before the dispatch and `not triaged: the verifier failed twice` after both attempts
-         failed, or `not triaged: the round is incomplete` when Awaiting is `incomplete`.
+         and reason, or `not triaged: the verifier failed twice` when Awaiting is `triage`, or
+         `not triaged: the round is incomplete` when Awaiting is `incomplete`.
          `## Residuals`: every other finding with the verifier's result and reason.
          Override is `none` until the user gives one. Rewrite the record on the same digest when
          an exception answer changes it.
