@@ -55,7 +55,7 @@ Each covered mechanism SHALL get one `### Build vs. adopt: <mechanism>` subsecti
 
 #### Scenario: Partial coverage
 
-- **WHEN** the only maintained candidate is stable on Android and iOS and experimental on desktop, and the change requires stable components on every target including desktop
+- **WHEN** a maintained candidate is stable on Android and iOS and experimental on desktop, and the change requires stable components on every target including desktop
 - **THEN** the decision names the desktop gap with its source and states which part is adopted and which is built or handled otherwise
 
 #### Scenario: Nothing found
@@ -66,7 +66,7 @@ Each covered mechanism SHALL get one `### Build vs. adopt: <mechanism>` subsecti
 #### Scenario: Negative control
 
 - **WHEN** a decision rejects a candidate without a gap, or lists a candidate without its newest release and date
-- **THEN** the correctness lens review of that design MUST fail with REJECT
+- **THEN** the plan review of that design MUST fail with REJECT and a confirmed blocking finding naming the missing gap or fact
 
 ### Requirement: A failed search leaves the decision open
 
@@ -126,14 +126,14 @@ The design instruction SHALL state that everything read during the search (files
 
 ### Requirement: Plan review checks the decision
 
-The plan review's correctness lens SHALL read the `Build vs. adopt` rule from the project's `omp-gated` schema and SHALL return a blocker when the plan introduces a covered mechanism without its decision in `design.md`, when a decision lacks a line or candidate fact the form asks for, when a Decision is still open, or when a build or reject verdict names no gap. A complete decision SHALL produce no such blocker.
+The plan reviewer covering correctness (`standard` all scopes, `risky` scope A) SHALL read the `Build vs. adopt` rule from the project's `omp-gated` schema and SHALL return a blocker, stating its value-proof consequence, when a covered mechanism lacks its decision in `design.md`, a decision lacks a line or candidate fact the form asks for, a Decision is open, or a build or reject verdict names no gap. A complete decision SHALL produce no such blocker.
 
 #### Scenario: Complete decision passes
 
 - **WHEN** the design adopts a maintained OIDC library through a complete `Build vs. adopt` decision
-- **THEN** the correctness lens returns no blocker about that decision
+- **THEN** no blocker about that decision survives the `blocker-verifier` triage as confirmed and blocking
 
 #### Scenario: Negative control
 
 - **WHEN** a plan hand-builds OIDC with PKCE without a `Build vs. adopt` decision, rejects every candidate without naming a gap, omits a form line, or leaves a Decision open
-- **THEN** the correctness lens review MUST fail with REJECT and a blocker naming the missing decision, gap or line, or the open decision
+- **THEN** the plan review MUST fail with REJECT and a blocker, confirmed as blocking by the `blocker-verifier`, naming the missing decision, gap or line, or the open decision
