@@ -43,6 +43,8 @@ Alternative: change the validator in this change, so that it admits two runs of 
 
 An OpenSpec change reads `Depth` from `gate.md`, the same field and rules as `openspec-plan-review` "Review depth follows the change's risk". A plan-mode plan has no such field. Phase 0.5 derives the same value from the plan's class and from whether the plan changes a review, gate or release mechanism. The orchestrator may raise the depth on the final diff and records why in `decision_reason`. It never lowers it. This keeps one depth rule for both plan kinds. The validator already requires both invocations for a class other than `none`, so `risky` by class is enforced. `risky` by mechanism alone, with class `none`, rests on the instruction.
 
+`risky` depth is product work. Under Risk tier `internal-tooling` the validator admits exactly one `implementation-audit` (`validate-gate-record.mjs:660-662`). A plan of that tier that derives or is raised to `risky` therefore goes through the existing re-tier transition first (Phase 0.5 Risk tier: set `- Risk tier: product`, run `GC retier --by <user> --reason <text>`) before any reviewer is dispatched. Without the user's agreement the depth stays `standard` and the gate says why. This reuses the one transition the ledger already has instead of adding a second one.
+
 Alternative: keep Phase 0.5's discretionary "consequence or uncertainty is high" for class `none`. Rejected. It leaves a change to a review mechanism with one reviewer whenever its class is `none`; review-stop-rule was such a change, and its F2 B1 (the early ask ignored Stop) was real. Discretion also drifts toward fewer reviewers (SKILL.md:112).
 
 ### D3: F3 folds into F2. The second lane carries the whole-diff surface and is not a replica
@@ -70,7 +72,9 @@ The gain of two different briefs on one model over a replica pair is unmeasured.
 - `review-effort`: 12 occurrences for `sol:high` against 7 for `sol:medium`, at $0.87 per review.
 - Today's new items: `sol:high` found every target blocker on E1 and D5, plus an extra real blocker on E2, with 0 unsupported.
 
-If a lane's trailer `model_id` or its `resolution.model` is not `onara/cx/gpt-6.1-sol:high`, for example after the retry chain's fallback to `claude-opus-5`, that invocation is INCONCLUSIVE. It gets the bounded fresh retry of Phase 3, as plan-review D10 does. If the pin no longer resolves, the review stops and tells the user.
+The pin is the model and effort in `auditor.md`, read every time from the active agent directory. A model alone is not the measured configuration: effort is resolved separately (`packages/coding-agent/src/task/executor.ts:4732-4744`), and the trailer's `model_id` carries no effort. After each dispatch, the orchestrator reads the dispatch's session file, whose path `read history://<id>` prints, with the same `jq` as plan-review D10. It takes the provider and model of every assistant turn and the dispatch's `thinking_level_change` value, and compares both with the pin. A dispatch with any other model or effort, or a trailer `model_id` naming another model, makes that invocation INCONCLUSIVE. Example: the retry chain's fallback to `claude-opus-5`, or `sol` at `medium`. The invocation then gets the bounded fresh retry of Phase 3.
+
+A `task.agentModelOverrides.auditor` entry wins over the definition (`packages/coding-agent/src/config/model-resolver.ts:1291-1293`). If it names another model or effort, or the definition names no model, the gate dispatches nothing and tells the user which setting conflicts. Plan review takes the override as its pin; this gate takes the definition, because the definition is the reviewed, team-owned choice that D4's evidence supports.
 
 Alternatives:
 - terra plus oracle, as today. Rejected on the pilot data.
@@ -85,12 +89,15 @@ A record needs PASS trailers bound to `reviewed_sha`. A fix after the last wave 
 - `standard`: 1 fix round, so at most 2 waves;
 - `risky`: 2 fix rounds, so at most 3 waves.
 
-This is the same number of fix rounds that plan review allows per depth. A closing wave re-runs every lane of the depth on the fixed tree. If it still fails, the user is asked once with the open blockers and their disposition under `Blocker disposition`:
+This is the same number of fix rounds that plan review allows per depth. A closing wave re-runs every lane of the depth on the fixed tree. If it still fails, the wave is recorded, and the user is asked once before any edit or dispatch, with the open blockers and their disposition under `Blocker disposition`:
 - one more fix round, then the ask again;
-- Override, recorded through Phase 4, with `downgrades` rule `frozen` for every blocker that is not eligible;
-- Stop.
+- re-plan;
+- Stop;
+- Override, only when every open blocker is eligible or covered. It is recorded through Phase 4 with `below-threshold`, `accepted-residual` or `out-of-scope` downgrades, never `frozen`, which belongs to a convergence STOP (SKILL.md:370).
 
-A `gate-convergence` STOP that arrives earlier keeps its existing ask and `GC decide`. A budget ask records nothing in the ledger, because `decide` refuses without a STOP. Fix deltas stay one review per contiguous fix range, as Fix waves step 5 already says.
+An excluded blocker, which on a change of any class other than `none` is every blocker except a verification-only one below the threshold (SKILL.md:429), is never overridden here, even on the user's request (SKILL.md:433, :441). On most `risky` changes the budget ask therefore offers no Override. That is intended: those are the classes where the post-implementation defects were real.
+
+A `gate-convergence` STOP that arrives earlier keeps its existing ask and `GC decide`, including its freeze. A budget ask records nothing in the ledger, because `decide` refuses without a STOP. Fix deltas stay one review per contiguous fix range, as Fix waves step 5 already says.
 
 Alternatives:
 - A product-tier cap inside `gate-convergence.mjs`. Rejected under D1; Slice B can move the budget into GC.
@@ -110,7 +117,12 @@ Alternative: re-run everything per wave, as today. Rejected: plan-review-proport
 
 ### D8: One change, one cutover
 
-All edited files are instruction or configuration text of one gate flow: review-work, integration-review, plan-merge-gate, the schema and its templates, `auditor.md` and the README. Splitting them would ship a state in which `plan-merge-gate.md` still requires F3 while `review-work` no longer briefs for it, or `auditor` moves to `sol:high` while the briefs still assume `oracle`. They are one cutover, not separately shippable subsystems.
+All edited files are instruction or configuration text of one gate flow: review-work, integration-review, plan-merge-gate, the delegation rule, the schema and its templates, `auditor.md` and the README. Splitting them would ship states that contradict each other:
+- `plan-merge-gate.md` still requires F3 while `review-work` no longer briefs for it;
+- `auditor` moves to `sol:high` while the briefs still assume `oracle`;
+- `review-work` dispatches both lanes in one batch while `delegation.md:17-20` forbids a batch of items whose file-sets intersect.
+
+They are one cutover, not separately shippable subsystems. The delegation rule gets one narrow sentence: read-only reviewers of the same committed inputs do not overlap, because none of them edits. Editing tasks keep the serialization rule unchanged. The `omp-gated` plan review already dispatches two read-only reviewers over one change folder in a single batch, so the sentence writes down existing practice.
 
 ### Build vs. adopt
 

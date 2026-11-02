@@ -25,6 +25,11 @@ The F2 gate SHALL take its depth from the change's `gate.md` `Depth` bullet. For
 - **WHEN** a plan-mode plan with Mandatory class `none` changes how a review gate decides
 - **THEN** Phase 0.5 derives `risky` and both invocations run
 
+#### Scenario: Internal-tooling plan at risky depth
+
+- **WHEN** a plan with Risk tier `internal-tooling` derives or is raised to `risky`
+- **THEN** before any reviewer is dispatched, the plan is set to Risk tier `product` and `GC retier` records the user's agreement; without that agreement the gate keeps `standard` and tells the user why
+
 #### Scenario: Negative control
 
 - **WHEN** an orchestrator runs only `implementation-audit` for a change whose `gate.md` says Depth `risky`, because the final diff looks small
@@ -51,12 +56,22 @@ A gated plan SHALL have no separate F3 lane. At `standard` depth the `implementa
 
 ### Requirement: Gate reviewers run on their pinned model
 
-Both F2 invocations SHALL dispatch the `auditor` agent, pinned to one model in its definition. An invocation whose trailer `model_id` or recorded resolution differs from the pin, ignoring the effort suffix, SHALL count as INCONCLUSIVE and get the one bounded fresh retry. When the pin does not resolve, the gate SHALL stop and tell the user.
+Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the model and effort in its definition. A dispatch SHALL count only when every assistant turn in its session file ran on the pinned provider and model at the pinned effort, and its trailer `model_id` names that model. Otherwise the invocation SHALL be INCONCLUSIVE and get the one bounded fresh retry.
 
 #### Scenario: Fallback model
 
 - **WHEN** the retry chain moves a stalled `implementation-audit` dispatch to another model and it returns PASS
 - **THEN** that invocation is INCONCLUSIVE, and one fresh retry runs on the pinned model
+
+#### Scenario: Same model, lower effort
+
+- **WHEN** an `implementation-audit` dispatch ran on the pinned model at effort `medium` while the pin says `high`
+- **THEN** that invocation is INCONCLUSIVE, whatever it returned
+
+#### Scenario: Configuration overrides the pin
+
+- **WHEN** `task.agentModelOverrides.auditor` names a model or effort other than the `auditor` definition, or the definition names no model
+- **THEN** the gate dispatches nothing, and tells the user which setting conflicts with the pin or that the pin is missing
 
 #### Scenario: Retry also substituted
 
@@ -89,12 +104,12 @@ After a failing wave the gate SHALL allow one fix round at `standard` depth and 
 
 ### Requirement: A spent budget asks the user once
 
-When a closing wave fails with the budget spent, the gate SHALL first record the wave. Before any fix, it SHALL ask the user once, showing each open blocker with its disposition under `Blocker disposition`. The options SHALL be one more fix round, Override or Stop. Override SHALL be recorded through Phase 4.
+When a closing wave fails with the budget spent, the gate SHALL first record the wave. Then, before any fix or dispatch, it SHALL ask the user once, showing each open blocker with its disposition under `Blocker disposition`. The options SHALL be one more fix round, re-plan and Stop, plus Override where the next requirement allows it.
 
-#### Scenario: Override after the budget
+#### Scenario: Stop after the budget
 
-- **WHEN** the user answers Override with a reason
-- **THEN** the record carries `override.by`, `override.reason` and one `downgrades` entry per blocker of every FAIL trailer, and it validates as overridden, not as passed
+- **WHEN** the user answers Stop
+- **THEN** no tracked file changes, no reviewer is dispatched, and the gate stays failed
 
 #### Scenario: Nothing is fixed before the answer
 
@@ -104,6 +119,25 @@ When a closing wave fails with the budget spent, the gate SHALL first record the
 #### Scenario: Negative control
 
 - **WHEN** a gate with a spent budget commits a fix for an open blocker and starts another wave before the user has answered
+- **THEN** that gate MUST fail
+
+### Requirement: Override at the budget follows Blocker disposition
+
+The budget ask SHALL offer Override only when every open blocker is eligible or covered under `Blocker disposition`. An Override SHALL be recorded through Phase 4 with one `downgrades` entry per blocker of every FAIL trailer, using `below-threshold`, `accepted-residual` or `out-of-scope`, never `frozen`. A budget ask SHALL NOT override an excluded blocker, even on the user's request.
+
+#### Scenario: Covered blocker at the budget
+
+- **WHEN** the only open blocker after a `standard` closing wave is covered by an `Accepted residual risks` entry, and the user answers Override with a reason
+- **THEN** the record carries `override.by`, `override.reason` and an `accepted-residual` downgrade for that blocker, and validates as overridden, not as passed
+
+#### Scenario: Excluded blocker at the budget
+
+- **WHEN** the open blocker after a `risky` closing wave of a class-`concurrency-state` change names a delivered defect
+- **THEN** the ask offers one more fix round, re-plan and Stop, and no Override
+
+#### Scenario: Negative control
+
+- **WHEN** a budget ask offers Override for an excluded blocker, or records a budget Override with a `frozen` downgrade
 - **THEN** that gate MUST fail
 
 ### Requirement: QA rows follow the depth

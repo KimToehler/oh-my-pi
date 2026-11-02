@@ -14,7 +14,7 @@ The disposition rules SHALL be stated once, in the `Blocker disposition` section
 #### Scenario: Budget ask reads the shared definition
 
 - **WHEN** an F2 gate asks the user after its fix-round budget is spent
-- **THEN** each open blocker is shown with its disposition under the `Blocker disposition` section, and Override is recommended only when every open blocker is eligible or covered
+- **THEN** each open blocker is shown with its disposition under the `Blocker disposition` section, and Override is offered only when every open blocker is eligible or covered, never for an excluded one
 
 #### Scenario: Plan review does not apply the definition
 
