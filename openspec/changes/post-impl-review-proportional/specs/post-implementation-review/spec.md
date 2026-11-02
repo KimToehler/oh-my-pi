@@ -1,0 +1,140 @@
+# Spec Delta
+
+## Purpose
+
+Sets how deep the post-implementation merge gate (F1 manual QA and the F2 `review-work` lanes) reviews a change: which lanes run on which model, how many fix rounds it allows, when the user decides, and which QA rows run and re-run.
+
+## ADDED Requirements
+
+### Requirement: Gate depth follows the change's risk
+
+The F2 gate SHALL take its depth from the change's `gate.md` `Depth` bullet. For a plan-mode plan, Phase 0.5 SHALL derive it by the same rule: `risky` when the Mandatory class is not `none` or the plan changes a review, gate or release mechanism, otherwise `standard`. The orchestrator MAY raise the depth on the final diff, recording why in `decision_reason`, and SHALL NOT lower it.
+
+#### Scenario: Standard change
+
+- **WHEN** a change with Depth `standard` reaches F2
+- **THEN** exactly one `implementation-audit` invocation runs per wave
+
+#### Scenario: Risky change
+
+- **WHEN** a change with Depth `risky` reaches F2
+- **THEN** `implementation-audit` and `strategic-risk-review` are dispatched in one `task` batch, and the `strategic-risk-review` brief carries no audit findings
+
+#### Scenario: Plan-mode plan that changes a gate mechanism
+
+- **WHEN** a plan-mode plan with Mandatory class `none` changes how a review gate decides
+- **THEN** Phase 0.5 derives `risky` and both invocations run
+
+#### Scenario: Negative control
+
+- **WHEN** an orchestrator runs only `implementation-audit` for a change whose `gate.md` says Depth `risky`, because the final diff looks small
+- **THEN** that gate MUST fail
+
+### Requirement: The whole-diff surface is reviewed inside F2
+
+A gated plan SHALL have no separate F3 lane. At `standard` depth the `implementation-audit` brief SHALL carry the whole-diff surface (cross-module seams, consistency, duplication, simplification) as hints in its correctness section. At `risky` depth the `strategic-risk-review` brief SHALL ask four numbered questions covering that surface.
+
+#### Scenario: Gate field for a folded whole-diff review
+
+- **WHEN** a planner writes `gate.md` or a plan's `## Merge gate`
+- **THEN** `Whole-diff review` reads `not needed (whole-diff surface reviewed in F2)`, and the final verification wave lists F1 and F2 only
+
+#### Scenario: On-demand integration review
+
+- **WHEN** the user asks for `integration-review` on a branch outside a merge gate
+- **THEN** it runs as before, and its report is not a gate lane of any plan
+
+#### Scenario: Negative control
+
+- **WHEN** a `risky` gate's `strategic-risk-review` brief asks only for line-level correctness and names no cross-module seam, consistency or simplification question
+- **THEN** review of that instruction MUST fail
+
+### Requirement: Gate reviewers run on their pinned model
+
+Both F2 invocations SHALL dispatch the `auditor` agent, pinned to one model in its definition. An invocation whose trailer `model_id` or recorded resolution differs from the pin, ignoring the effort suffix, SHALL count as INCONCLUSIVE and get the one bounded fresh retry. When the pin does not resolve, the gate SHALL stop and tell the user.
+
+#### Scenario: Fallback model
+
+- **WHEN** the retry chain moves a stalled `implementation-audit` dispatch to another model and it returns PASS
+- **THEN** that invocation is INCONCLUSIVE, and one fresh retry runs on the pinned model
+
+#### Scenario: Retry also substituted
+
+- **WHEN** the fresh retry also runs on a model other than the pin
+- **THEN** the invocation stays INCONCLUSIVE, the gate does not pass, and the user is told which model ran
+
+#### Scenario: Negative control
+
+- **WHEN** a gate record carries a PASS verdict for an invocation whose trailer names a model other than the `auditor` pin
+- **THEN** that gate MUST fail
+
+### Requirement: Fix rounds are bounded by depth
+
+After a failing wave the gate SHALL allow one fix round at `standard` depth and two at `risky` depth. Each fix round SHALL end in a closing wave that re-runs every lane of the depth on the fixed tree. A `gate-convergence` STOP before the budget is spent SHALL keep its existing ask.
+
+#### Scenario: Standard fix round
+
+- **WHEN** a `standard` gate's first wave fails, and its fixes are delta-reviewed and committed
+- **THEN** a second wave runs `implementation-audit` on the fixed tree, and no third wave starts without the user
+
+#### Scenario: Risky budget
+
+- **WHEN** a `risky` gate's second wave fails
+- **THEN** a second fix round and a third wave run, with both lanes
+
+#### Scenario: Negative control
+
+- **WHEN** a `standard` gate starts a third wave after its second wave failed, without asking the user
+- **THEN** that gate MUST fail
+
+### Requirement: A spent budget asks the user once
+
+When a closing wave fails with the budget spent, the gate SHALL first record the wave. Before any fix, it SHALL ask the user once, showing each open blocker with its disposition under `Blocker disposition`. The options SHALL be one more fix round, Override or Stop. Override SHALL be recorded through Phase 4.
+
+#### Scenario: Override after the budget
+
+- **WHEN** the user answers Override with a reason
+- **THEN** the record carries `override.by`, `override.reason` and one `downgrades` entry per blocker of every FAIL trailer, and it validates as overridden, not as passed
+
+#### Scenario: Nothing is fixed before the answer
+
+- **WHEN** the budget is spent and the ask is open
+- **THEN** no tracked file changes and no reviewer is dispatched until the user answers
+
+#### Scenario: Negative control
+
+- **WHEN** a gate with a spent budget commits a fix for an open blocker and starts another wave before the user has answered
+- **THEN** that gate MUST fail
+
+### Requirement: QA rows follow the depth
+
+F1 at `standard` depth SHALL run one row per requirement, plus a row for the happy path, one for the riskiest edge and one for an adjacent regression. At `risky` depth it SHALL run one row per scenario. Each row SHALL keep its artifact under the record's evidence directory.
+
+#### Scenario: Standard QA matrix
+
+- **WHEN** a `standard` change has three requirements with nine scenarios
+- **THEN** F1 runs at least three requirement rows and the three minimum rows, not one row per scenario
+
+#### Scenario: Negative control
+
+- **WHEN** a `risky` change's QA matrix has no row for a requirement's negative-control scenario
+- **THEN** that gate MUST fail
+
+### Requirement: A fix re-runs only the QA rows it can change
+
+A fix SHALL stale a QA row only when its diff can change the behaviour that row observed. Every other row SHALL be carried with a one-line reason. The fix-delta brief SHALL list the carried rows with their reasons, so the delta reviewer can object to a carry.
+
+#### Scenario: Fix outside a row's behaviour
+
+- **WHEN** a fix only changes an error message that no QA row observes
+- **THEN** every row is carried with its reason, and the delta brief lists them
+
+#### Scenario: Objected carry
+
+- **WHEN** the delta reviewer rejects a carry because the fix touches the carried row's behaviour
+- **THEN** that row is re-run before the next wave
+
+#### Scenario: Negative control
+
+- **WHEN** an orchestrator carries a row whose observed transition the fix's diff rewrites, and the delta brief omits that carry
+- **THEN** that gate MUST fail
