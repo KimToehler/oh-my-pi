@@ -1,5 +1,5 @@
 ---
-description: Read before writing or proposing any plan. Every feature plan that will be merged carries the final verification wave (F3, F1, F2) and a `## Merge gate` section, including the abort-rule fields, that validate-gate-record.mjs --plan-only accepts
+description: Read before writing or proposing any plan. Every feature plan that will be merged carries the final verification wave (F1, F2) and a `## Merge gate` section, including the abort-rule fields, that validate-gate-record.mjs --plan-only accepts
 ---
 
 # Plans carry their merge gate
@@ -11,15 +11,14 @@ time, after reviewers were paid for, so get it right at plan time.
 
 ```
 ## Final verification wave
-- [ ] F3. Whole-diff review: `integration-review` over <base>...<head> when Merge gate says needed; otherwise tick with its reason
-- [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`), on the head after F3's last code commit
+- [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
 
 ## Merge gate
 - Author's risk assessment: <what could break, and how badly>
 - Mandatory class: <none | auth-secrets-pii | schema-migration | wire-contract-api | concurrency-state>
 - Risk tier: <product | internal-tooling>
-- Whole-diff review: <needed | not needed + reason>   (needed when the change spans 3+ modules/layers)
+- Whole-diff review: <not needed (whole-diff surface reviewed in F2) | needed>   (default `not needed (whole-diff surface reviewed in F2)`; exactly `needed` asks for an extra on-demand `integration-review`, whose report the record binds)
 - Accepted residual risks: <named risks that may not block a gate wave, or none (<reason>)>
 - Out of scope for blocking: <areas, modes, providers whose findings become follow-ups, or none (<reason>)>
 - Feature-specific criteria:
@@ -35,8 +34,7 @@ time, after reviewers were paid for, so get it right at plan time.
 ```
 
 Every behavioural criterion needs all five fields; the negative control is the one that is most
-often missing and the one that makes the criterion discriminate. Mandatory class other than
-`none` means both reviewers run at F2, no discretion.
+often missing and the one that makes the criterion discriminate. Gate depth is `standard` or `risky`: `standard` runs one `implementation-audit` at F2, `risky` runs it and `strategic-risk-review` together. A Mandatory class other than `none` means `risky`, no discretion; so does a change to a review, gate or release mechanism. The orchestrator may raise the depth, never lower it.
 `auth-secrets-pii` applies when the change touches a real credential, an authentication or authorisation path, or third-party personal data. Classify the value and its reach, never the filename: a provider key or production token read from a local `.env` is real; a synthetic password generated only for disposable local/test services is not.
 Every class is derived from the behaviour and reach of the delivered change, never from the tools used to verify it: an ordinary QA session using its existing provider authentication does not make an instruction-only change `auth-secrets-pii`, and a changed existing state machine keeps `concurrency-state`. `skill://review-work`, section `Change verification`, is the definition.
 
@@ -46,9 +44,10 @@ Every class is derived from the behaviour and reach of the delivered change, nev
   real credential, third-party personal data, tenant isolation, money, an audit trail,
   irreversible state). Full gate; mandatory classes apply. A plan without the field is product.
 - `internal-tooling`: dev, CI, and proof tooling that reaches no protected asset. `Mandatory
-  class` must be exactly `none`. F2 runs exactly one implementation-audit; each gate lane allows
-  two fix rounds, and a third wave that still has blockers stops for freeze or re-plan, with
-  unfixed blockers in the record's `downgrades`. A protected asset in reach makes the plan product.
+  class` must be exactly `none`. Its depth is `standard`: F2 runs exactly one implementation-audit,
+  the budget ask comes after one fix round, and a third wave that still has blockers stops for
+  freeze or re-plan, with unfixed blockers in the record's `downgrades`. A protected asset in
+  reach makes the plan product.
 - `personal`: a local tool for one user opts out with `- Merge gate: not applicable (<reason>)`;
   the validator refuses `Risk tier: personal`.
 - The value is exactly one tier word; the reason goes into `Author's risk assessment`.

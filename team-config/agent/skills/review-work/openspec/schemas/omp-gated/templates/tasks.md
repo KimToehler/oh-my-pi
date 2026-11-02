@@ -12,11 +12,9 @@
 
 ## 3. Final verification
 
-<!-- Keep this group last and renumber it. Drop 3.1 when gate.md says Whole-diff review `not needed`. -->
-- [ ] 3.1 F3. Whole-diff review: `integration-review` over `<base>...HEAD` with this change folder as the plan; fixes delta-reviewed; report (first line `INTEGRATION-REVIEW-REPORT-v1`) written to `.omp/team-config/evidence/gate/<change>/f3-integration-review-report.md` and left unstaged (a staged report makes `GC snapshot` refuse); review-work Phase 5 stages it with the gate record and trailers. Verify: `test "$(head -n 1 .omp/team-config/evidence/gate/<change>/f3-integration-review-report.md)" = INTEGRATION-REVIEW-REPORT-v1`
-- [ ] 3.2 F1. Manual QA on the real surface: <the scenarios, their evidence paths and the observation each must show>. One evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<change>/f1/`), on the head after F3's last code commit; the QA lane judges the observations. Verify: `<command that checks every scenario's evidence path exists>`
+- [ ] 3.1 F1. Manual QA on the real surface: merge the default branch (`<base>`) into the work branch when it is not an ancestor of the head, and commit; then run <the scenarios, their evidence paths and the observation each must show>. One evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<change>/f1/`), on the head after the last code commit; the QA lane judges the observations. Verify: `<command that checks every scenario's evidence path exists>`
 
 ## Workflow follow-up
 
-- F2 merge gate (`review-work`), after 3.2 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
+- F2 merge gate (`review-work`), after 3.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
 - Merge only after the F2 record validates.

@@ -18,6 +18,7 @@ after two failed attempts; `auditor`/`reviewer` are for finished diffs; `plan-re
 `Files:` lines or the scope. Items overlap when their sets intersect, including shared barrels,
 i18n, tokens, and config. Overlapping items go in separate `task` calls, one after the other;
 disjoint items may share a batch. An unknown file-set overlaps everything.
+Items that are read-only reviewers over the same committed inputs (the `review-work` gate lanes, the `omp-gated` plan-review scopes) do not overlap and may share a batch; editing items keep this rule.
 
 **Two or more concurrent editing tasks run isolated.** Pass `isolated: true` on the task item
 (or enable `task.isolation.enabled`), so each child edits its own APFS clone and its changes
