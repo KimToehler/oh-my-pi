@@ -1,0 +1,6 @@
+$ cd <evidence dir>
+$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
+(no output above means no hit)
+$ grep -ro -E "sk-[A-Za-z-]{0,123}" . | sort | uniq -c | wc -l
+22
+(all matches are the words risk-child / risk-review / risk-owned in prose)
