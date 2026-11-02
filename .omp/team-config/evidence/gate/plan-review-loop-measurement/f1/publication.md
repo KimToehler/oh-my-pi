@@ -35,21 +35,28 @@ Fresh claim text is withheld for every item, not only the private ones: it is re
 
 ## Leak scan of every staged file
 
-The first scan covered the seven `experiment/` artifacts only. F2 wave 2 widened it to every published file of this evidence directory, `f1/` included, and that pass found one local path in `f1/adjudication.md` (a `sed` command quoting the snapshot worktree), which is now written as `<local snapshot worktree>/…`. The current state, run from the evidence directory over `experiment/` and `f1/`:
+The first scan covered the seven `experiment/` artifacts only. F2 wave 2 widened it to every file of this evidence directory — `experiment/`, `f1/`, the stored reviewer trailers in `f2/` and the QA captures in `wave-1/` and `wave-2/` — and that pass found one local path in `f1/adjudication.md` (a `sed` command quoting the snapshot worktree), which is now written as `<local snapshot worktree>/…`. The current state, run from the evidence directory:
 
 ```
-$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" experiment f1 | grep -v -E "grep -c|grep -o|grep -rn"
+$ grep -rn -E "backend_kt|nutritrain|ghp_|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
 (no output)
-$ grep -ro -E "sk-[A-Za-z-]{0,12}" experiment f1 | sort | uniq -c
-      1 experiment/dataset.json:sk-child
-      1 experiment/dataset.json:sk-review
-      1 f1/inputs.md:sk-owned
-      3 f1/publication.md:sk-
-      2 f1/publication.md:sk-child
-      2 f1/publication.md:sk-review
+$ grep -ro -E "sk-[A-Za-z-]{0,12}" . | sort | uniq -c
+      1 ./experiment/dataset.json:sk-child
+      1 ./experiment/dataset.json:sk-review
+      1 ./f1/inputs.md:sk-owned
+      3 ./f1/publication.md:sk-
+      3 ./f1/publication.md:sk-child
+      2 ./f1/publication.md:sk-owned
+      3 ./f1/publication.md:sk-review
+      2 ./wave-1/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-review
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-review
 ```
 
-Every `sk-` hit is a substring false positive of the secret pattern: `task-child`, `risk-review`, `task-owned`, plus this file quoting the pattern itself. No private repository path, no home-directory path, no credential pattern survives in any published file. The remaining occurrences of `onara` are model-routing identifiers such as `onara/cx/gpt-6.1-sol`, which are provider pins, not private code.
+The first grep excludes the lines that quote the scan commands themselves; every `sk-` hit is a substring false positive of the secret pattern: `task-child`, `risk-review`, `task-owned`, plus this file and the QA captures quoting the pattern. No private repository path, no home-directory path, no credential pattern survives in any published file. The remaining occurrences of `onara` are model-routing identifiers such as `onara/cx/gpt-6.1-sol`, which are provider pins, not private code.
 
 ## Committed-format reproduction without local raw sessions
 

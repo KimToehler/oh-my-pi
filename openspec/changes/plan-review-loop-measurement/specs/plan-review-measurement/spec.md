@@ -80,7 +80,7 @@ For each completed trial, the report SHALL separate undiscovered targets, pre-tr
 
 ### Requirement: Verifier losses outside the frozen ledger are reported
 
-Independently blocking discoveries that match no frozen target SHALL have their triage outcome reported, deduplicated by mechanism, separately from the target-level false-drop figures and without entering any target denominator. An arm whose triage is unavailable SHALL report no such figure.
+Independently blocking discoveries that match no frozen target SHALL have their triage outcome reported, deduplicated by mechanism within each trial, separately from the target-level false-drop figures and without entering any target denominator. The report SHALL state that measurement unit. An arm whose triage is unavailable SHALL report no such figure.
 
 #### Scenario: Refuted blocking discovery with no target
 - **WHEN** the verifier refutes a finding the adjudicator rated valid and blocking that matches no frozen target

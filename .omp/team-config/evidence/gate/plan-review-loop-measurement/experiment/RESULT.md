@@ -61,14 +61,14 @@ A single S reviewer finds about 15 % of the frozen ledger; three independent S r
 
 Across 20 trials and 100 findings the verifier dropped no independently blocking target. The two post-triage losses (`S-Spt-3`, `T-Smt-1`) are targets the independent adjudicator rated below the current blocking threshold.
 
-The frozen ledger is not the whole verifier story. Of the independently blocking discoveries that match no frozen target — deduplicated by mechanism — the verifier kept 24 of 25 in S and 5 of 5 in T, and refuted one (`Replacement1SSpt3.9`, S/Spt):
+The frozen ledger is not the whole verifier story. Counting the independently blocking discoveries that match no frozen target — deduplicated by mechanism within each trial, then summed over trials — the verifier kept 24 of 25 in S and 5 of 5 in T, and refuted one (`Replacement1SSpt3.9`, S/Spt):
 
 | arm | blocking mechanisms outside the ledger | retained | dropped | drop rate |
 |---|---|---|---|---|
 | S | 25 | 24 | 1 | 1/25 = 4.0% |
 | T | 5 | 5 | 0 | 0/5 = 0.0% |
 
-That single drop is a real verifier loss and is deliberately kept out of the `false drop` column, whose frozen definition is target-level. Both figures are scorer output (`report.md`, `Blocking discoveries outside the frozen ledger`).
+That single drop is a real verifier loss and is deliberately kept out of the `false drop` column, whose frozen definition is target-level. Both figures are scorer output (`report.md`, `Blocking discoveries outside the frozen ledger`), which states the same unit; a mechanism found in two repeats of one plan therefore counts twice, as trial-level recall does.
 
 ## Round records
 

@@ -130,6 +130,9 @@ export function formatMarkdown(s: ScoreSummary): string {
 			]),
 		),
 		"## Blocking discoveries outside the frozen ledger (verifier outcome; not part of any target denominator)",
+		"",
+		"Unit: mechanisms per trial, deduplicated within a trial and summed over trials.",
+		"",
 		...table(
 			["arm", "discovered", "retained", "protected", "undecided", "pending", "dropped", "drop rate"],
 			s.arms.map((a: ArmScore) => [

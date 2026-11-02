@@ -122,6 +122,9 @@ Savings: not measured. Round budgets: counterfactual. No comparison is causal.
 | T-Spt-1 | 3 | 3 | 1 | 0 | 2 | 0 | 0 | 0 |
 
 ## Blocking discoveries outside the frozen ledger (verifier outcome; not part of any target denominator)
+
+Unit: mechanisms per trial, deduplicated within a trial and summed over trials.
+
 | arm | discovered | retained | protected | undecided | pending | dropped | drop rate |
 |---|---|---|---|---|---|---|---|
 | H-Focus | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
