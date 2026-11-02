@@ -1,0 +1,60 @@
+## 1. Goal and behavioural contract
+
+The implementation satisfies both requirements for the declared trusted, non-negative whole-number inputs at ordinary invoice magnitudes.
+
+- `src/fee.ts:7-9` counts complete periods, caps the accumulated percentage, and rounds the final fee down.
+- `src/render.ts:12-16` separates every three-digit group and preserves two decimal places.
+- `src/render.ts:19-24` preserves input order, sums precomputed cents, and handles empty reports without a total.
+- `src/cli.ts:9` prints the rendered text with one newline; `package.json:7` supplies the `render` command.
+
+No substantiated blocker remains from the wave-1 grouping defect.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the complete supplied diff, repository implementations, tests, runtime scripts, and TypeScript configuration. LSP references confirm that the CLI is the only production consumer of `renderReport`; `lateFee` has no production consumer yet.
+
+The cross-module separation is correct: rendering never imports the calculator or derives fees from dates or invoice amounts. Both line amounts and totals use the same formatter. The grouping fix addresses the shared formatting seam rather than special-casing the reported examples.
+
+The tests exercise actual exported implementations without mocks. The new multi-group assertions distinguish the removed implementation from the fixed one.
+
+**Independent adversarial criterion:** fractional-cent contributions must survive accumulation across periods rather than being truncated separately each month. For example, `lateFee(12345, 90)` must return `740`, not `738`. The carried Q1 capture records `740`; `src/fee.ts:7-9` independently supports that result.
+
+## 3. Security and privacy delta
+
+No security-sensitive delta identified. The change introduces no credential, authentication, authorisation, persistence, network access, or third-party personal data. Sample invoice identifiers are synthetic.
+
+The CLI reads an explicitly selected local file. Its unchecked JSON cast is consistent with the trusted-export contract; malformed-input diagnosis is explicitly excluded. No protected-asset exposure is substantiated.
+
+## 4. Verification adequacy
+
+Inspected the retained Q1–Q7 captures, including:
+
+- Sixteen public-API fee cases covering period boundaries, the cap, zero amounts, and rounding.
+- CLI output bytes for the sample, ordinary lines, large amounts, formatting boundaries, empty reports, and unsorted input.
+- Usage-error exit status and the recorded `9 pass / 0 fail` suite result.
+- The wave-1 Q4 failure (`1234,567.89`) and wave-2 correction (`1,234,567.89`).
+
+The Q1 and Q5 carries are justified: the grouping fix does not affect the calculator, and the empty-report return bypasses formatting. I did not execute checks.
+
+**Note — durable coverage:** `src/fee.test.ts:4-14` does not retain the fractional-cent/multiple-period case, and no committed test exercises CLI stdout or exit status. These are worthwhile regression additions, but do not block because the retained real-surface QA exercises those behaviours successfully.
+
+**Note — PRE-EXISTING / OUT-OF-SCOPE:** typechecking remains unavailable because the configured `bun-types` library is absent. The brief identifies this as predating the change; it is not a regression attributable to this diff.
+
+## 5. Final assessment
+
+No substantiated blockers. The reviewed implementation and retained runtime evidence support the declared behaviour. The notes concern future regression protection and an existing verification-environment gap.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Fractional-cent contributions across completed periods must not be discarded separately for each period.
+  positive_witness: lateFee(12345, 90) returns 740 cents, as recorded in the carried Q1 capture.
+  negative_control: Returning 738 cents by multiplying three individually truncated 246-cent period fees MUST fail.
+  observable: The integer returned by the exported calculator; the retained Q1 capture records 740 with failures=0.
+  boundary: Direct public-API invocation of src/fee.ts lateFee.
+END-REVIEW-TRAILER

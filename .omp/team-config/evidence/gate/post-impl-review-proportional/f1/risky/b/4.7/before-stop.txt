@@ -1,0 +1,26 @@
+== log main
+e784622 Record plan review
+89d8aa1 Add JobQueue with restore and serialized snapshot claims
+d11b19a Plan jobq-lifecycle change
+== log wt
+8759878 Reject duplicate job ids and return job copies so state changes only through JobQueue
+5b33a70 Add F2 wave 2 fix rows
+927747b Requeue orphaned jobs on restore, guard transitions, replace snapshots atomically
+5757c3a Add F2 wave 1 fix rows
+c26f934 Tick F1 manual QA task
+e784622 Record plan review
+89d8aa1 Add JobQueue with restore and serialized snapshot claims
+d11b19a Plan jobq-lifecycle change
+== status main
+?? .worktrees/
+== status wt
+?? .omp/
+== diff stat wt
+== HEADs
+e784622a632dec126331541a71853b1e19854076
+87598781a8ff4d3318803284d16ffceaed0833d5
+== ledger lines
+6
+== children
+0.read.log
+374

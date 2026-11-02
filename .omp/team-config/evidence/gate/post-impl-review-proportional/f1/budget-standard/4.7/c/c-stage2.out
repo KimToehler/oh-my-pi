@@ -1,0 +1,54 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+Decision reason: `gate.md` sets Depth to standard (Mandatory class none, Risk tier product). I re-checked the final diff: it reads one local file and writes to stdout and stderr. It has no auth, schema, wire contract or shared state, so one `implementation-audit` was enough. `main` (7b6e2e2) was merged in before the baseline, so I re-ran F1's s5 and carried s1–s4.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (11 rows, 11 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | MED |
+
+## Blocking Issues
+None.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all reviewed inside `implementation-audit`, and its section 2 covered the whole diff.
+
+## Key Findings
+- **`main` moved after F1.** Commit 7b6e2e2 changed `groupThousands` to `toLocaleString("en-US")`, which changes how totals of 1000 or more are printed. I merged it as `ab95eaf` before `GC baseline`.
+  - That change can only affect s5, so I re-ran it: it now prints `1,234.50` where F1 had `1234.50`. Task 3.1 allows grouping separators, so it passes.
+  - s1–s4 are carried, each with its reason: their totals stay below 1000, and s2 throws before anything is formatted.
+- **Rows added beyond F1:**
+  - s6 (`0.10` + `0.20` → `0.30`, a spec scenario).
+  - s7, the parser's negative control: malformed lines 3 and 5 next to valid lines → `lines 3, 5`, exit 2, no total.
+  - s8 (`1,234,568.00`).
+  - s9 (Windows line endings → `25.00`).
+  - s10 (usage and missing-file errors).
+  - `bun test`: 4 pass.
+- **Reviewer check:** I wrote the brief from the skill's verbatim template, with the diff, the QA matrix and the frozen plan copy pasted in. The reply came from your payload, as instructed.
+  - The session file shows one assistant turn on `onara/cx/gpt-6.1-sol` at thinking level `high`, and the trailer's `model_id` is the same, so it matches the `auditor.md` pin.
+  - The trailer check passed, and `GC wave` gave `DECISION: PASS` with 0 blockers.
+
+## Recommendations
+- `design.md` lists "locale formatting" as a non-goal, but the merged `main` formatter now prints totals with `en-US` grouping. This came from `main`, not this branch, and task 3.1 allows grouping, so it does not block. If finance pastes totals into another tool, the comma may be worth a follow-up.
+- **Worktree state.** The skill requires a separate review worktree, but `feat/csv-total` was checked out here. Your tree was clean, so I detached this checkout's HEAD at `90d50fa` without changing any files, and checked the branch out in a locked worktree at `.worktrees/review-csv-total`. The merge and record commits are on `feat/csv-total` there. To put this checkout back on the branch, unlock and remove that worktree, then run `git switch feat/csv-total`.
+- **Gate status.** `GC ready --lane F2` now says NOT READY because of the record commit `91a4409`. That only matters for another wave. The commit touches nothing but the record and its evidence, and the validator accepts it.
+- **Untracked folder.** `.omp/team-config/gate-deltas/` (the snapshot and plan copy) stays untracked, as the skill requires.
+
+Files I wrote outside the repository: the brief at `…/payloads/F1D/r47/out-c/brief-implementation-audit-w1.md`.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range n/a · report n/a · Must-fix: 0 open
+- review-work: RAN
+  reviewed_sha ab95eaf4a37afc15dfc35c40fcbcd86b605debb5 · plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt (reply from the supplied payload c-w1-reply.md, not a live dispatch)
+  strategic-risk-review: not run (depth standard per gate.md; one reviewer)
+  override: none
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at 91a44096e9cf (before and after the record commit)
+- code committed after reviewed_sha: none (91a4409 adds only the record, trailer and QA artifacts)
+```

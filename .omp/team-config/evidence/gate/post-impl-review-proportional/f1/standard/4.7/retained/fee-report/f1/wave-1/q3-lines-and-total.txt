@@ -1,0 +1,14 @@
+F1 QA row Q3 - Lines and total scenario via render command, head 82e54ad9e132e45c633ce56f71e50d19841fb10a
+fixture lines.json:
+  in| { "lines": [ { "id": "a", "dueDate": "2026-01-10", "feeCents": 200 }, { "id": "b", "dueDate": "2026-01-12", "feeCents": 1250 } ] }
+$ bun src/cli.ts <fixtures>/lines.json
+  od|            a  \t   2   0   2   6   -   0   1   -   1   0  \t   2   .   0
+  od|            0  \n   b  \t   2   0   2   6   -   0   1   -   1   2  \t   1
+  od|            2   .   5   0  \n   T   O   T   A   L  \t  \t   1   4   .   5
+  od|            0  \n                                                        
+  od| 
+  out| a	2026-01-10	2.00
+  out| b	2026-01-12	12.50
+  out| TOTAL		14.50
+
+  exit=0

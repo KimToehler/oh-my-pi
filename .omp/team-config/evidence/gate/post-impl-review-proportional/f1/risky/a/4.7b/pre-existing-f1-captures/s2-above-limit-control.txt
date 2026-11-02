@@ -1,0 +1,4 @@
+# Capture on implementation head 0cced13999e9e7f199ee821d3c591981c7d6ea0d (src/quota.ts as of commit 0cced13), 2026-11-02T23:42:54Z
+$ bun -e 'import {remaining} from "./src/quota"; console.log(remaining(12,10))'
+0
+[exit 0]

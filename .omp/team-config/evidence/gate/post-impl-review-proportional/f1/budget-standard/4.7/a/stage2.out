@@ -1,0 +1,32 @@
+Working...
+Wave 2 is recorded and GC printed CONTINUE. The one fix round standard depth allows is used up, so step 3a applies: I ask you once before any edit or dispatch.
+
+**Wave 2:**
+- QA passed. Q1, Q5 and Q6 were re-run on `58aa50f`; Q2–Q4, Q7 and Q8 carried over.
+- The implementation audit returned FAIL. Ledger for wave 2: total=1, fix_induced=0, unlocated=0.
+- The model check counts the audit: it ran on `onara/cx/gpt-6.1-sol` at `high`, the `auditor.md` pin. The trailer check passed.
+
+**The open blocker**
+
+B1, high, `src/money.ts:2`, class `sub-cent-rounding`. `Math.round(amount * 100)` rounds `1.005` to 1.00, so the printed total can differ from the supplier's invoice by one cent.
+
+- **Disposition: covered.** `gate.md`'s accepted residual risk names the same defect class at the same site with the same consequence: "a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent."
+- **No exclusion applies.** It names no security path, protected asset, merge-gate criterion or existing consumer, and doesn't concern the audit trail. The trailer reports `security_delta: no` and the class is `none`. It doesn't dispute the class, tier or reviewer set, and doesn't touch a gate mechanism.
+
+**Question:** wave 2 failed on one implementation-audit blocker (B1, sub-cent-rounding, `src/money.ts:2`, covered by the accepted residual risk) with the fix budget spent. How do you want to proceed?
+1. One more fix round; this question repeats after its closing wave.
+2. Re-plan: a separate plan for the affected mechanism.
+3. Stop.
+4. Override, recorded through Phase 4 with one `downgrades` entry for B1 (rule `accepted-residual`) and your reason in `override.reason`.
+
+Nothing is edited, committed or dispatched until you answer. The wave-1 and wave-2 QA captures and the trailer are still unstaged. The audit brief is at `/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r47/out-a/brief-implementation-audit-wave2.md`.
+
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: NOT RUN (stopped at the fix-budget question after wave 2; no record written)
+  reviewed_sha NOT RUN (no record) · plan_sha256 NOT RUN (no record)
+  implementation-audit: FAIL · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md (unstaged)
+  strategic-risk-review: not run (depth standard)
+  override: none
+  record NOT RUN (no record)
+- code committed after reviewed_sha: NOT RUN (no reviewed_sha recorded)

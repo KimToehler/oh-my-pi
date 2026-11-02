@@ -1,0 +1,69 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The first wave failed manual QA because amounts of a million or more were missing commas. I fixed that, the fix was reviewed, and the second wave passed both QA and the audit.
+
+Decision reason: `gate.md` sets Depth standard (Mandatory class none, Risk tier product). Nothing in the final diff triggers one of the four risky classes, so one `implementation-audit` was enough.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (7 rows, 7 artifacts) | orchestrator | - | - | PASS (wave 2) | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+**Model check:** all 29 auditor turns ran on `onara cx/gpt-6.1-sol` at thinking level `high`. That matches the `auditor.md` pin, and `task.agentModelOverrides` has no `auditor` entry. The `model_id` in the trailer agrees. The trailer check passed.
+
+## Blocking Issues
+None left open. Wave 1 failed QA on head `82e54ad`:
+- **QA4 (spec scenario "Large fee grouped"):** 123456789 cents printed as `1234,567.89`.
+- **QA6:** 100000000 cents printed as `1000,000.00`.
+
+`formatAmount` only put a comma before the last group of three digits. Recording the wave gave `DECISION: CONTINUE`, and I used the one fix round that standard depth allows:
+- **Task 4.1 added to `tasks.md`.** Two new tests in `src/render.test.ts` failed before the fix.
+- **Fix in `2222ab9`:** `src/render.ts` now uses a regex that puts a comma after every group of three digits. All 9 tests pass.
+- **Delta review:** `plan-reviewer` returned OKAY and accepted the Q1 and Q5 carries. Recorded with `GC delta --row 4.1`.
+- **F1 checkbox:** `b18a641` only ticks task 3.1. I exempted it in the ledger with `GC exempt`.
+- **Wave 2:** QA re-run on the fixed code passed and the audit passed. `GC wave` printed `DECISION: PASS`.
+
+## QA matrix (wave 2)
+| # | Scenario | Verdict | Artifact |
+|---|---|---|---|
+| Q1 | `lateFee` called directly: the 3 spec scenarios plus 13 edge cases | PASS (carried: `src/fee.ts` unchanged) | `f1/wave-1/q1-late-fee.txt` |
+| Q2 | `render` on `samples/report.json` | PASS | `f1/wave-2/q2-render-sample.txt` |
+| Q3 | Spec scenario "Lines and total", checked byte for byte | PASS | `f1/wave-2/q3-lines-and-total.txt` |
+| Q4 | Spec scenario "Large fee grouped": `1,234,567.89` | PASS (failed in wave 1) | `f1/wave-2/q4-large-fee-grouped.txt` |
+| Q5 | Empty report prints exactly `No late fees` | PASS (carried: this path returns before `formatAmount`) | `f1/wave-1/q5-empty-report.txt` |
+| Q6 | Amount edges from `0.00` up to `1,000,000,000.00` | PASS (failed in wave 1) | `f1/wave-2/q6-amount-edges.txt` |
+| Q7 | Lines keep their order, usage error exits 2, `bun test` 9/9 | PASS | `f1/wave-2/q7-adjacent.txt` |
+
+All artifact paths are under `.omp/team-config/evidence/gate/fee-report/`.
+
+## Covered by one invocation
+Correctness, architecture and the seams between files, wire contracts, security and privacy, and verification adequacy were all covered by the one `implementation-audit` (sections 1–5).
+
+## Key Findings
+- The auditor's own adversarial check: `lateFee(12345, 90)` must return 740, not 738, so fractional cents are not dropped period by period. The Q1 capture confirms 740.
+- The new tests do catch the old code; both the auditor and the delta reviewer confirmed it.
+
+## Recommendations (non-blocking)
+- **Missing tests (auditor note):** add a committed test for the case that spans several periods with a fractional fee, and one for the CLI's stdout and exit code. Today only the QA captures cover these.
+- **Stale planning review:** adding fix task 4.1 to `tasks.md` makes `review.md` show as stale under `validate-openspec-change.mjs --reviewed`. That check gates `/opsx-apply`, not F2. The F2 gate's own `--plan-only` and full checks pass, and the delta review covered the new task. The schema says never to edit `review.md` to make it pass, so I left it unchanged. If that check must pass, the planning review has to be re-run.
+- **No typecheck:** `tsc --noEmit` fails across the whole project because `bun-types` isn't installed. That was already the case before this change.
+- **No separate review worktree:** I ran the gate in this checkout, which was already on `feat/fee-report`. The skill wants a dedicated, locked review worktree, but this was the only worktree, so `git worktree add` couldn't attach the branch a second time.
+- **Leftover files:** the uncited wave-1 captures (q2, q3, q4, q6, q7) are untracked and stay that way, as the skill requires.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha b18a641142ed8c2ff053ee12807b42bfd7fdd673 · plan_sha256 c341dd1e32b0e5f6a5f6362cb540ea09aef01d381da0f1bc265f4f2b2563101a
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard per gate.md; one reviewer)
+  override: none
+  record .omp/team-config/evidence/gate/fee-report.json · validate-gate-record.mjs exit 0 at bc7ca1ac5c3e9fa1b73c1d07afe998b357244ae6
+- code committed after reviewed_sha: none
+```
+
+The record and evidence are committed in `bc7ca1a`. The validator printed `passed` on the staged record and again after that commit.

@@ -1,0 +1,5 @@
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/q2-render-sample.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/q3-lines-and-total.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/q4-large-fee-grouped.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/q6-amount-edges.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/q7-adjacent.txt

@@ -1,0 +1,7 @@
+     1	BASELINE ab95eaf4a37a recorded
+     2	READY
+     3	SNAPSHOT F2 wave 1 ab95eaf4a37a
+     4	PLAN /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r47-c/.worktrees/review-csv-total/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md
+     5	DECISION: PASS
+     6	WAVE F2 1 total=0 fix_induced=0 unlocated=0
+     7	NOT READY

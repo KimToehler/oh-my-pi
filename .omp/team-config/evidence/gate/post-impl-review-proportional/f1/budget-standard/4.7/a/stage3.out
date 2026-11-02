@@ -1,0 +1,37 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: FAILED, overridden by Tim
+
+The F2 gate for `csv-total` passes as **overridden**, not as a clean PASS. The record validates with exit 0 both before and after the record commit (`1093d69`). The branch is not merged.
+
+Decision reason: `gate.md` sets Depth standard (Mandatory class none, no review, gate or release mechanism changed), and the final diff adds nothing that triggers a mandatory class, so one implementation-audit ran.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (8 rows, 8 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL, overridden | HIGH |
+
+## Blocking Issues
+- **Wave 1, QA6 (fixed in `58aa50f`).** A total of 1,234,567.00 printed as `1234,567.00`. Fix row 1 rewrote `groupThousands` and added a regression test, which failed before the fix. `bun test` now shows 5 pass and 0 fail.
+- **Delta review, first pass: REJECT.** It rejected carrying the s1 happy-path row without re-running it. I re-ran s1 on `58aa50f` (`25.00`, exit 0). A fresh review of the same range returned OKAY.
+- **Wave 2, B1 `sub-cent-rounding` at `src/money.ts:2`.** A price like `1.005` rounds to 1.00. It is left unfixed: `gate.md`'s accepted residual risk names exactly this. It is recorded as one `downgrades` entry (rule `accepted-residual`, disposition `residual`) under `override.by: Tim`.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all covered by the single implementation-audit.
+
+## Recommendations
+- **No separate review worktree.** `feat/csv-total` is checked out in this checkout, the only worktree. Adding another worktree on the same branch would have needed `--force`, so the gate ran here.
+- **Planning review is stale.** Adding fix row 1 to `tasks.md` changed the folder, so `validate-openspec-change.mjs --reviewed` now reports `review.md` as stale. It passed at `ecd418f`; the gate's own plan check passes.
+- **One capture left untracked.** `wave-1/q6-regression-grouping.md`, the failing wave-1 capture, stays untracked because the record doesn't cite it.
+
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 58aa50fd80a17a2228ad58cf1a3b52bebbad35ff · plan_sha256 f268089e44b90af3171fbb3732197de0929b253bedf04e0e2ef63524eaadba6d
+  implementation-audit: FAIL overridden · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md
+  strategic-risk-review: not run (depth standard: Mandatory class none, no review, gate or release mechanism changed)
+  override: by Tim · 1 downgrades (accepted-residual: 1)
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at 1093d697a13123637cc81832b9ba715a8e2095c7
+- code committed after reviewed_sha: none (1093d69 touches only the record, the trailer and the cited QA captures)

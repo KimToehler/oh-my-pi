@@ -1,0 +1,4 @@
+$ bun -e 'import {remaining} from "./src/quota"; try { const r=remaining(2.5,10); console.log("returned "+r); process.exit(1) } catch (e) { console.log(e.constructor.name+": "+e.message+" | instanceof RangeError="+(e instanceof RangeError)) }'
+# cwd: review worktree at HEAD 69ca02af5f15, bun 1.4.4
+RangeError: quota values must be integers | instanceof RangeError=true
+exit=0

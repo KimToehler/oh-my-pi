@@ -1,0 +1,105 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "ab95eaf4a37afc15dfc35c40fcbcd86b605debb5",
+  "diff_base": "7b6e2e22df9ce21abd7238dcef6f65000e9bcb6b",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, Risk tier product); final diff re-classified: one local file in, stdout/stderr out, no auth, schema, wire contract or shared state, so one implementation-audit; main 7b6e2e2 merged before baseline, F1 s5 re-run, s1-s4 carried",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "s1 happy path: widget,19.99 + gadget,5.01 -> 25.00 exit 0 (carried from F1 @19eb3d4: whole part 25 < 1000 never reaches the merged groupThousands)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "4c8a5ebad5bb96779f17f0f19279d225cd3f3a47b0307d4cbf78ddc741bcc28c"
+    },
+    {
+      "name": "s2 malformed price widget,abc -> stderr names line 1, no total, exit 2 (carried from F1 @19eb3d4: parsePrices throws before formatCents)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "61a32aeda34e170747684d4cf9f573cd3ffc133c916d5bf9615f5113fb13e92b"
+    },
+    {
+      "name": "s3 negative control: ten x,0.10 -> 1.00 (carried from F1 @19eb3d4: whole part 1 < 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "c66621a3f1098f4784bdc6bc9aa9e6aadcca3fd8eee802a14e87e07b3633a0f1"
+    },
+    {
+      "name": "s4 empty file -> 0.00 exit 0 (carried from F1 @19eb3d4: whole part 0 < 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "effe00d3b3e4259a524376ddb4a4a153911bc15a3406f53f6fe0e15cccd60fa9"
+    },
+    {
+      "name": "s5 big,1234.50 -> 1,234.50 exit 0 (re-run after merging main 7b6e2e2, which changed groupThousands)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md",
+      "artifact_sha256": "131d36f8dee50b72a513885d9a673f1c36e6854ad129d8a229b7f853dfdb1361"
+    },
+    {
+      "name": "s6 spec 'Cents add exactly': a,0.10 + b,0.20 -> 0.30",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s6-cents-add.md",
+      "artifact_sha256": "c06183f3d9a1ac935c5a9de596d21befa061a3ac8a9f60718b8d5dc63572e7a1"
+    },
+    {
+      "name": "s7 negative control: malformed lines 3 and 5 among valid lines and a blank line -> stderr 'lines 3, 5', no total, exit 2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s7-mixed-malformed.md",
+      "artifact_sha256": "a1aaad5b668567748ef1d0813d070d0d16e1a189fe458296c388469707baa40f"
+    },
+    {
+      "name": "s8 adjacent regression (merged grouping): 1234567.89 + 0.11 -> 1,234,568.00",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s8-grouping-millions.md",
+      "artifact_sha256": "f962f377d4a400466069e33e63bab4eb22f9b5ede532935911ea34e38dc9d588"
+    },
+    {
+      "name": "s9 CRLF input -> 25.00",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s9-crlf.md",
+      "artifact_sha256": "7a14dbec40031cfb6eaff10b1ad11ab6ab1f562958a1cf1353a46ccb9ada2137"
+    },
+    {
+      "name": "s10 CLI error paths: no args -> usage exit 2; missing file -> cannot read exit 2; no stdout",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s10-usage-and-missing-file.md",
+      "artifact_sha256": "3d76f00d71e5f2de1dca491fbda5dc4b9613a3add184b69ee6bd5ddce5803eb3"
+    },
+    {
+      "name": "unit suite: bun test on the reviewed head -> 4 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/bun-test.txt",
+      "artifact_sha256": "4eb2c298ffa1f5117b29699ff3e241cdc8bcf8235e1441a739164b6f7ab1b167"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1 PASS, no blockers; model check: assistant turns onara/cx/gpt-6.1-sol, thinking high, matches auditor pin"
+    }
+  ],
+  "blockers": []
+}

@@ -1,0 +1,126 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "63925f3daa0cee843ee39b21a43818261ab3a695b327a8387d59ed30f8030a71",
+  "reviewed_sha": "ae2afb0be177dd975d32b77c575f296806c33cc9",
+  "diff_base": "2a9922d238ebc1c427bb1aa35881ae0d0d80cde3",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (class none, no review, gate or release mechanism changes); wave 1 QA9 failed and was fixed in 1.3, wave 2 audit FAIL on B1 covered by Accepted residual risks, overridden by Tim at the budget ask",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path (re-run on ae2afb0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q1-happy.md",
+      "artifact_sha256": "5667552dd599435798931c99f2b43970e3b97daac825ebcff587e86a2cafa8c8"
+    },
+    {
+      "name": "QA2 malformed price rejected with its line (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "2bb0e7324e2cf277f7e59e084b5aeb70001093da3d3ad792d8cf02718bbf560b"
+    },
+    {
+      "name": "QA3 ten lines of 0.10 total 1.00 (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "11525ab3a8e2da47652ae3f89df783e5d7ed86f25b626e6718bb5e27e7701ddb"
+    },
+    {
+      "name": "QA4 empty file prints 0.00 (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "efcdae5be453e0570385562f45235f3b117980c4467f533f5b57abf4bee76c2f"
+    },
+    {
+      "name": "QA5 grouped total above 1000 (re-run on ae2afb0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q5-large.md",
+      "artifact_sha256": "092980ffe071df088a5e9168e63804394d54ac02eb022330fdb034d7bc160508"
+    },
+    {
+      "name": "QA6 mixed valid and malformed lines (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q6-mixed-malformed.md",
+      "artifact_sha256": "5aa5b57c0b1b8ac229ff9b2f47318aa0d349fd2d65d85b9ba7fb596a8dd69074"
+    },
+    {
+      "name": "QA7 CRLF line endings (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q7-crlf.md",
+      "artifact_sha256": "35fe03fd7e4f37cf68fb13d7d398eaa16ee18dd136185918097204d280fbb6a5"
+    },
+    {
+      "name": "QA8 cents add exactly, 0.10 + 0.20 (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q8-spec-cents.md",
+      "artifact_sha256": "52a40580bbcd4d849837375052d861cca108e2ee68ffaba5f53a3aba6c4cd0e0"
+    },
+    {
+      "name": "QA9 total of one million or more (re-run after fix 1.3)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q9-million.md",
+      "artifact_sha256": "0cfd94663bfa91bb3a0728a880820f7d52bfbb088f39c70ea09cebeb72734ca0"
+    },
+    {
+      "name": "QA10 summed total crossing one million",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q9b-million-sum.md",
+      "artifact_sha256": "a1df0bc9e0253b305792df5461400e419cdba8f7553356a3dbf2dad56a53e048"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md",
+      "trailer_sha256": "4c09d7eedbe095c1b0ed2e96c6fb72e36b7c25ce43b019012de51806cb9c63f3",
+      "note": "wave 2: B1 sub-cent rounding at src/money.ts:2, covered by gate.md Accepted residual risks"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA9",
+      "severity": "high",
+      "location": "src/format.ts:11",
+      "coverage": "test/csvtotal.test.ts::totals of a million or more group every thousand",
+      "fix_sha": "ae2afb0be177dd975d32b77c575f296806c33cc9"
+    },
+    {
+      "id": "B1",
+      "severity": "high",
+      "location": "src/money.ts:2",
+      "coverage": "not-testable:left unfixed as the accepted sub-cent rounding residual of gate.md"
+    }
+  ],
+  "downgrades": [
+    {
+      "invocation": "implementation-audit",
+      "blocker": "B1",
+      "rule": "accepted-residual",
+      "reason": "gate.md Accepted residual risks names sub-cent rounding in src/money.ts and its one-cent invoice difference",
+      "disposition": "residual"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "the remaining blocker is the accepted residual sub-cent rounding; accept it."
+  }
+}

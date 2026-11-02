@@ -1,0 +1,36 @@
+Working...
+The `jobq-lifecycle` gate has **not passed**. Wave 3 still has one open blocker, both fix rounds allowed at `risky` are used, and the skill now requires asking you before anything else is edited or dispatched. No record has been written.
+
+## Where the gate stands
+| Wave | Head | QA | implementation-audit | strategic-risk-review | Blockers | Decision |
+|---|---|---|---|---|---|---|
+| 1 | `c26f934` | PASS, 9 rows | FAIL | FAIL | 3 | CONTINUE |
+| 2 | `927747b` | PASS, 12 rows | FAIL | FAIL | 2 | CONTINUE |
+| 3 | `87598781` | PASS, 14 rows | PASS | FAIL | 1 | CONTINUE |
+
+- **Fix round 1** (rows 3.1–3.3): running jobs go back to `queued` on restore; `complete` and `fail` now save the snapshot and only accept a running job; `requeue` goes through the queue and only accepts a failed job; snapshots are written to a temp file and renamed. Delta review: OKAY.
+- **Fix round 2** (rows 4.1–4.2): adding an id the queue already holds now throws, and `add`/`get` return copies. Delta review: OKAY.
+- Every new test failed on the code before its fix and passes after it. The suite ends at 12 pass, 0 fail.
+- All six reviewer sessions ran on the pinned `onara/cx/gpt-6.1-sol` at `high` effort. Implementation was by `onara/cc/claude-opus-5-5`, so the reviews count as cross-provider. All nine briefs are in `briefs/`.
+
+## The wave-2 and wave-3 findings contradict the code
+- **Wave 2, implementation-audit:** it cited `Object.assign` at `src/worker.ts:6`. On that head, line 6 is the closing brace of a one-line `requeue` that calls the queue, and requeuing a finished job throws `job a is done, not failed`. I didn't fix a defect that doesn't exist. Checking every other place that sets job state turned up two real ones, which round 2 fixed.
+- **Waves 2 and 3, strategic-risk-review:** it says nothing changes the truncate-then-write in `src/store.ts:6`. The function itself is unchanged because the file is generated and marked DO NOT EDIT. But since round 1 its only caller writes a temp file and renames it over the snapshot. QA12 checks this: a write that fails partway (`EFBIG` under `ulimit -f 8`) leaves the previous 56-byte snapshot readable.
+- **Where the reviewers ran:** every reviewer session reports its working directory as `…/pirp-fix/f1b-b`, a different checkout. That checkout is on `main` at `233350e` and has no `src/` directory, so the reviewers were not looking at this worktree.
+
+I recorded every verdict exactly as delivered; the skill does not allow rewriting or dropping one.
+
+## Other things you should know
+- **Review worktree:** I detached the main checkout at the same commit (it was clean) so the branch could live in a locked worktree at `.worktrees/review-jobq-lifecycle`. Six commits are on `feat/jobq-lifecycle` there.
+- **Remote branch:** `origin/feat/jobq-lifecycle` holds five commits from a separate gate run that are not in this branch, so pushing this branch would need to reconcile them.
+
+## Question
+Fix round budget spent: F2 wave 3 printed `DECISION: CONTINUE` with 1 open blocker (ledger: wave 1 total=3, wave 2 total=2, wave 3 total=1; fix-induced 0 in every wave; 2 of 2 fix rounds used at depth `risky`).
+
+Open blocker and its disposition:
+- **strategic-risk-review B1, non-atomic-snapshot-write, `src/store.ts:6`.** Stated consequence: "a process that dies, or a reader that opens the file, in between sees an empty or partial file and `loadSnapshot` throws on it, losing every job." Disposition: **excluded**. The change's mandatory class is `concurrency-state` and this blocker is not only about verification; it also names a merge-gate criterion ("Each claim persists a snapshot"). Override is therefore not offered.
+
+Options:
+- one more fix round, then this ask repeats after its closing wave;
+- re-plan: a separate plan for the affected mechanism;
+- Stop;

@@ -1,0 +1,38 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: FAILED (overridden by Tim)
+
+The F2 gate for `csv-total` is done and the record validates as `overridden` (exit 0). I validated it twice, once before and once after the record commit `b5298ab`. The reviewed commit is `ae2afb0be177dd975d32b77c575f296806c33cc9`, compared against `2a9922d238ebc1c427bb1aa35881ae0d0d80cde3`. The record is `.omp/team-config/evidence/gate/csv-total.json`.
+
+Decision reason: `gate.md` sets depth to standard (no mandatory class, and no review, gate or release mechanism changes). Wave 1 failed QA on QA9, which fix 1.3 resolved. Wave 2's audit failed on B1, which the plan's accepted residual risks cover, and Tim overrode it at the budget ask.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (10 rows, 10 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL | HIGH |
+
+## Blocking Issues
+- **QA9, fixed.** Totals of 1,000,000 or more printed with the separator in the wrong place (`1234,567.00`).
+  - Fixed in commit `ae2afb0` (row 1.3 in `tasks.md`).
+  - The regression test `test/csvtotal.test.ts::totals of a million or more group every thousand` failed before the fix.
+  - The delta review first returned REJECT, only to reject carrying QA1 over unchanged. I re-ran QA1 and it passed; the second review returned OKAY.
+- **B1, unfixed and overridden.** `src/money.ts:2` rounds prices with more than two decimals using floating-point arithmetic.
+  - The record keeps it with rule `accepted-residual` and disposition `residual`.
+  - `override.by` is "Tim", with your reason.
+
+## Covered by one invocation
+The implementation audit also covered correctness, architecture, wire contracts, security and privacy, and verification adequacy.
+
+## Key Findings
+- The model check passed: the session file shows provider `onara`, model `cx/gpt-6.1-sol` and thinking level `high`, matching the auditor's pin `onara/cx/gpt-6.1-sol:high`. The trailer's `model_id` matches too.
+- The audit trailer passed the trailer check. It is stored verbatim at `.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md`.
+- The record was blocked once. `whole_diff.reason` has to be the text in brackets from `gate.md` (`whole-diff surface reviewed in F2`), not the full `not needed (…)` string. I corrected it and saved the lesson.
+
+## Recommendations
+- `validate-openspec-change.mjs --reviewed` still reports `review.md` as stale. Adding fix row 1.3 to `tasks.md` changed the change folder after the planning review. The gate record validates anyway, but `/opsx-apply`'s `--reviewed` check will fail until the planning review is re-run or brought up to date.
+- Three QA files are left untracked and unstaged on purpose, because the record doesn't cite them: `wave-1/q9-million.md`, `wave-1/qa-matrix.md` and `wave-2/qa-matrix.md`.
+- I didn't lock a separate review worktree: the gate ran in this fixture checkout, which is the only worktree on `feat/csv-total`.
+
+The merge itself hasn't been done.

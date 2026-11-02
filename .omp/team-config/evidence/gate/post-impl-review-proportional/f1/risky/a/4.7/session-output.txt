@@ -1,0 +1,37 @@
+Working...
+Wave 1 of the F2 gate for `quota-remaining` is recorded and passed (`GC wave` printed `DECISION: PASS`, `WAVE F2 1 total=0 fix_induced=0 unlocated=0`). As you asked, I fixed nothing and wrote no record. Nothing is staged or committed.
+
+**Setup**
+- **Worktree:** the review ran in `.worktrees/review-quota-remaining`, locked with reason `review:feat/quota-remaining`. It is a detached checkout at the branch tip `69ca02af5f15`, because `feat/quota-remaining` is already checked out in the main checkout and git refused to check it out a second time.
+- **Diff base:** `6bdaef7` (`origin/main`). `main` is already an ancestor of the head, so no merge or commit was needed before the baseline.
+- **Checks before dispatch:**
+  - `validate-gate-record.mjs --plan-only` → `passed`.
+  - `validate-openspec-change.mjs --reviewed` → `reviewed: OKAY in round 1`; the bundle digest `aea6a9ca…` matches `review.md`.
+  - `GC baseline` recorded `69ca02af5f15`.
+  - `GC ready` → `READY`.
+  - `GC snapshot` → wave 1, `plan_sha256 1e505edc…6ae3`.
+- **Depth:** `risky`, as set in `gate.md`. Mandatory class is `none` and the risk tier is `product`, so both reviewer lanes ran in one batch.
+- **Reviewer model:** the `auditor` pin is `onara/cx/gpt-6.1-sol:high`, with no `task.agentModelOverrides` entry overriding it.
+
+**Results**
+
+| Invocation | Agent | Model | Independence | Verdict |
+|---|---|---|---|---|
+| Manual QA (9 rows, 9 artifacts) | orchestrator | - | - | PASS |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider (diff written by onara/cc/claude-opus-5-5) | PASS |
+| strategic-risk-review | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS |
+
+- **Model check:** both reviewer sessions ran every assistant turn on `onara` / `cx/gpt-6.1-sol` with `thinking_level_change: high`. Both trailers report `model_id` `onara/cx/gpt-6.1-sol`, and both passed the `--trailer` check.
+- **QA:** I re-ran every row in this session rather than reusing the F1 evidence. That evidence came from an earlier session, records outputs without the commands, and has no row for the fractional-usage negative control, even though `tasks.md` 2.1 asks for every scenario. The 9 rows cover:
+  - all four spec scenarios, including both negative controls;
+  - a fractional `limit`;
+  - the boundary at the limit: `remaining(10,10)`, `(11,10)` and `(9,10)`;
+  - `bun test`, which checks that `checkQuota` still works;
+  - the export list;
+  - NaN, Infinity and a numeric-string argument.
+- **Evidence location:** the QA matrix, captures and both trailers are in `.omp/team-config/evidence/gate/quota-remaining/wave-1/`, all unstaged.
+
+**Non-blocking reviewer notes**
+- **Possible mandatory-class correction:** the strategic reviewer thinks `gate.md` should say `wire-contract-api`, because the change adds a public library export. Settle this before writing the record. The record's `mandatory_class` must match `gate.md`, and editing `gate.md` changes `plan_sha256`, which would make wave 1 stale and require a new review. My view: `package.json` is `"private": true`, and `openspec/config.yaml` scopes that class to "externally supported wire/API", so `none` holds. I have not decided it.
+- **F1 overstated:** task 2.1 in `tasks.md` is ticked as complete, but the F1 matrix is missing the fractional-usage negative control and shortens two of its commands.
+- **No automated test:** nothing tests `remaining`, because `test/quota.test.ts` only imports `checkQuota`.

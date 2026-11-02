@@ -1,0 +1,12 @@
+$ validate-gate-record.mjs --record ...
+overridden
+exit=0
+* b5298ab chore(gate): csv-total F2 merge-gate record (override of accepted residual B1)
+* ae2afb0 fix(format): group every thousand in totals of a million or more (F2 wave 1 QA9)
+* ecd418f test(f1): csv-total CLI QA, five scenarios
+* 4e5e75b feat: csv-total CLI, change folder
+* 2a9922d chore: scaffold with omp-gated schema
+$ git status --porcelain
+?? .omp/team-config/evidence/gate/csv-total/wave-1/q9-million.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa-matrix.md
+?? .omp/team-config/evidence/gate/csv-total/wave-2/qa-matrix.md

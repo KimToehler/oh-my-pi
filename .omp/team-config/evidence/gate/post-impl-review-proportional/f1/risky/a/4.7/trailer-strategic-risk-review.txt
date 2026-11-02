@@ -1,0 +1,43 @@
+### 1. Architecture and cross-module seams
+
+The implementation fits the stated scope: a pure, additive export in `src/quota.ts:7–10`, with no state, dependencies, or changes to `checkQuota`. Integer validation precedes subtraction, and zero-clamping implements the specified allowance calculation.
+
+The important seams are:
+- **Specification → implementation:** return values and `RangeError` behavior agree.
+- **Library export → consumers:** the supplied QA checks direct source imports and unchanged existing exports. It does not demonstrate adoption by customer-facing billing displays. The proposal promises an exported helper, not a display migration, so this is a limit on the demonstrated value rather than an implementation defect.
+- **Specification → verification:** F2 covers the scenario omitted from F1.
+
+### 2. Inconsistency, duplication, and simplification
+
+**Note — mandatory-class metadata:** `openspec/changes/quota-remaining/gate.md:3` declares `none`, while `proposal.md:20` and `src/quota.ts:7` introduce a public library export. Under the supplied review-work guidance, that is `wire-contract-api`. Correct the classification before recording the gate. This does not block this review because the declared `risky` depth already invokes both required reviewer lanes; no review coverage was skipped.
+
+**Note — incomplete historical F1 evidence:** `tasks.md:9` marks every-scenario QA complete, but the tracked F1 matrix contains only three rows and omits the fractional-usage scenario at `specs/quota-remaining/spec.md:26–28`. Its rows 2–3 also use abbreviated rather than executable commands. This does not block the current behavior proof because supplied F2 rows 4–5 cover rejection for both arguments. Preserve the distinction between incomplete F1 evidence and the later F2 proof rather than treating F1 as complete.
+
+The production implementation needs no additional abstraction or simplification.
+
+### 3. Highest-consequence production failure
+
+The most consequential supported failure is a customer seeing an incorrect allowance—particularly a negative allowance after exceeding the limit, or a fractional allowance silently accepted from a caller.
+
+The implementation handles both: `src/quota.ts:8` rejects non-integers and line 9 clamps overshoot. Supplied F2 rows 2, 4–6, and 9 report discriminating outcomes for overshoot, fractional arguments, equality, and malformed numeric inputs. No billing mutation, credential handling, authorization change, or persistence path is introduced.
+
+### 4. What line-level review would miss
+
+**Note — no durable regression coverage for the new export:** the changed-file list contains no automated tests, and the supplied QA explicitly says `test/quota.test.ts` tests only existing behavior. Consequently, the green `bun test` result does not protect `remaining`. Add committed behavioral tests for subtraction, clamping, equality, and rejection of either fractional argument. This is non-blocking under the stated threshold: the supplied real-API QA demonstrates current behavior, but future regression detection remains weak.
+
+I reviewed the supplied complete diff, plan artifacts, changed-file list, and nine-row F2 QA matrix. I ran no commands and independently exercised no runtime behavior. No substantiated blocker was identified.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Input rejection must be symmetric between the two argument positions, without silently returning a calculated allowance.
+  positive_witness: Integer arguments (2,10) return 8.
+  negative_control: Either (2.5,10) or (2,10.5) returns 7.5 instead of throwing.
+  observable: Supplied F2 rows 4 and 5 report instanceof RangeError=true; the source validates both arguments before subtraction.
+  boundary: Exported library function src/quota.ts remaining.
+END-REVIEW-TRAILER
