@@ -1,0 +1,52 @@
+## 1. Goal and behavioural contract
+
+The implementation meets the stated contract:
+
+- `src/quota.ts:7–9` exports `remaining`, validates both operands with `Number.isInteger`, throws `RangeError` before subtraction, and returns exactly `Math.max(0, limit - used)`.
+- `checkQuota` remains unchanged at `src/quota.ts:1–4`.
+- No state, persistence, dependencies, or unrelated behaviour was introduced.
+
+No substantiated behavioural blocker found.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the complete supplied diff, local implementation, existing tests, package configuration, OpenSpec bundle, and QA evidence. The function belongs naturally beside `checkQuota`; there is no duplicate implementation, adapter seam, or export barrel requiring migration. The existing test file imports only `checkQuota`; no in-repository consumer needs migration.
+
+The integer checks reject fractional values, `NaN`, and infinities without coercion. Their placement before subtraction also prevents malformed operands from being hidden by clamping. The existing export’s comparison semantics are preserved.
+
+**Note — gate classification:** `openspec/changes/quota-remaining/gate.md:3` declares mandatory class `none`, although `src/quota.ts:7` adds an exported public API. The review-work guidance classifies public API shape changes as `wire-contract-api`. Correct that metadata. This does not block this implementation audit because the declared depth is already risky and the brief requires both reviewer lanes; no resulting review omission is established here.
+
+## 3. Security and privacy delta
+
+No security delta identified. The changed implementation touches no credentials, authentication, authorisation, third-party personal data, or protected storage. It performs validation and arithmetic without I/O.
+
+An additional adversarial criterion appears in the trailer: rejecting object operands must not execute conversion hooks. `Number.isInteger` supports that property by inspection; the supplied QA does not exercise it.
+
+## 4. Verification adequacy
+
+The supplied F2 matrix and captures exercise the actual exported implementation: within-limit and overshoot results, equality, fractional operands in both positions, `NaN`, infinity, and adjacent `checkQuota` behaviour. The existing-suite capture reports two passing tests. These are orchestrator-provided observations; I did not execute checks.
+
+**Note — no durable regression coverage:** `test/quota.test.ts:1–9` contains only `checkQuota` tests. Reverting or breaking `remaining` would therefore leave the committed suite green. Add real-import tests covering return values, boundary behaviour, and rejection in each operand position, with observed RED evidence. This is non-blocking under the supplied threshold because the current implementation and F2 observations substantiate the requested behaviour; it remains a maintenance risk.
+
+**Note — inaccurate historical F1 completion:** `openspec/changes/quota-remaining/tasks.md:9` marks every-scenario F1 verification complete, but `f1/qa-matrix.md:5–7` omits the fractional negative control. Additionally, `f1/s1-within-limit.txt:1` contains explanatory text rather than the output of its listed command. Preserve the provenance distinction and correct the completion claim. This is non-blocking for current behavioural proof because F2 explicitly rejects carrying those captures and supplies fresh observations for all four specified scenarios.
+
+No committed-test RED evidence was supplied, so the review does not establish regression-test discrimination.
+
+## 5. Final assessment
+
+No finding meets the supplied blocking threshold. Residual risks are the absent automated coverage and the gate/evidence metadata inaccuracies above. The verdict below applies to this implementation audit, not completion of the other reviewer lane or validation of the final merge-gate record.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Rejecting a runtime object operand must not invoke its valueOf or toString conversion hooks.
+  positive_witness: A JavaScript object whose valueOf increments a counter and returns 3, supplied as used with limit 10, causes RangeError while the counter remains zero.
+  negative_control: Coercing the object invokes its hook and returns 7 or increments the counter before throwing; either outcome MUST fail.
+  observable: A real-import JavaScript probe records the thrown error type and hook counter; this probe was not executed in the supplied QA, and support is from source inspection only.
+  boundary: JavaScript caller to the exported remaining function, before arithmetic.
+END-REVIEW-TRAILER

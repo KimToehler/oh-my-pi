@@ -1,0 +1,29 @@
+# QA qa4-reject-failed-check-three-approvals
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa4-reject-failed-check-three-approvals.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": false
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "cy"
+    },
+    {
+      "reviewer": "dee"
+    }
+  ]
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa4-reject-failed-check-three-approvals.json
+--- stdout
+REJECT failed checks: tests
+--- stderr
+--- exit 1
+# expected stdout: 'REJECT failed checks: tests' exit 1
+# verdict: PASS

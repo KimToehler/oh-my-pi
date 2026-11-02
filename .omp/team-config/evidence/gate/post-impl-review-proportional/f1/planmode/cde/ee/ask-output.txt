@@ -1,0 +1,16 @@
+Working...
+I'm stopping before running anything because the gate needs your decision first. Nothing has been dispatched, no ledger or record exists, and no tracked file has changed.
+
+**Depth is `risky`.** `scripts/gate.ts` `decide()` controls which release candidates the release gate admits. The diff changes that rule: before, one approval was enough; now it needs at least 2 distinct approvers. The skill makes any change to what a gate admits `risky`, whatever the Mandatory class. At `risky`, F2 runs both `implementation-audit` and `strategic-risk-review`.
+
+**The plan's Risk tier blocks that.** `.omp/plans/gate-quorum.md` line 17 sets `- Risk tier: internal-tooling`. At that tier the validator accepts exactly one `implementation-audit`. So a `risky` gate on this plan has to be moved to Risk tier `product`, with your agreement, before any reviewer is dispatched. The gate can't fall back to `standard`, because that would lower the required depth.
+
+This is a fresh gate: no `GC baseline` exists yet, and `main` is already an ancestor of `HEAD` (`faf45ef`).
+
+**Question:** The `risky` depth needs Risk tier `product`. Do you agree to re-tier `.omp/plans/gate-quorum.md` from `internal-tooling` to `product`?
+
+**Options:**
+1. **Agree.** I edit the plan to `- Risk tier: product` and commit it before the first `GC baseline`, which then records `product`. Your agreement goes into `decision_reason`. Then F1 QA and F2 (both auditor reviews) run as the skill describes.
+2. **Decline.** I dispatch nothing and write no record. `risky` depth needs Risk tier `product`, so you then choose between:
+   - **Re-plan**
+   - **Stop**

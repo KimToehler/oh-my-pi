@@ -1,0 +1,6 @@
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(2.5, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+RangeError: quota values must be integers
+--- stderr
+--- exit 3

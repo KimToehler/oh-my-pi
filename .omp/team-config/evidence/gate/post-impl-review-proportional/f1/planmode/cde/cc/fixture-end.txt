@@ -1,0 +1,8 @@
+7b490ff feat(gate): require two distinct approvers
+ecd378d docs: plan gate-quorum
+ec85cd1 chore: install omp-gated schema
+8b88d41 chore: release gate
+ls: cannot access '.omp/team-config': No such file or directory
+ls: cannot access '/Users/tim/.omp/profiles/pirp-med/agent/sessions/-tmp-pirp-fix-f1c-c-med/2026-11-02T20-15-38-039Z_01a19de7-3637-76b6-a40e-f05bfbdaec3f.jsonl/': Not a directory
+/Users/tim/.omp/profiles/pirp-med/agent/sessions/-tmp-pirp-fix-f1c-c-med/2026-11-02T20-15-38-039Z_01a19de7-3637-76b6-a40e-f05bfbdaec3f/:
+0.read.log

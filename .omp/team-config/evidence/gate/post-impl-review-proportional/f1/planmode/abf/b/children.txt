@@ -1,0 +1,4 @@
+== StrategicRiskReview  (/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-b/2026-11-02T20-17-12-065Z_01a19de8-a581-74c5-9914-d4ff8a24c6dd/StrategicRiskReview.jsonl)
+{"model_change":"onara/cx/gpt-6.1-sol"}
+{"thinking_level_change":"high"}
+assistant turns (provider model):   16 onara cx/gpt-6.1-sol;

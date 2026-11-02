@@ -1,0 +1,43 @@
+Working...
+The F2 gate has not passed. Wave 3 failed after both fix rounds allowed at `risky` depth were used, so the skill now requires me to ask you how to continue (Fix waves step 3a). No gate record has been written or staged.
+
+**Ledger (F2, change `openspec/changes/jobq-lifecycle`, baseline `a13c82b`):**
+
+| Wave | Reviewed SHA | QA | implementation-audit | strategic-risk-review | Blockers (from fixes) | GC decision |
+|---|---|---|---|---|---|---|
+| 1 | `a13c82b` | PASS (10 rows, `f1/`) | FAIL (B1, B2) | FAIL (B1) | 3 (0) | CONTINUE |
+| 2 | `de189bf` | PASS (13 rows, `wave-2/`) | FAIL (B1) | FAIL (B1) | 2 (0) | CONTINUE |
+| 3 | `f0200d7` | PASS (14 rows, `wave-3/`) | PASS | FAIL (B1) | 1 (0) | CONTINUE, budget spent |
+
+- **Fix round 1** (`9744338`, `de189bf`): fix rows 1–3 in `tasks.md` under `## TODOs`. The delta review returned OKAY.
+  - After a restart, jobs left `running` go back to `queued`.
+  - `complete`, `fail` and `requeue` now save the snapshot, and each refuses a job in the wrong state.
+  - `JobQueue` writes the snapshot to a temporary file and renames it over the real one.
+- **Fix round 2** (`426f05b`, `f0200d7`): fix row 4 — `add` and `get` return copies, so callers can't change a job's state directly. The delta review returned OKAY.
+- **Tests:** `bun test` passes 11/11. The 7 new tests failed against the code before the fixes.
+- **Model check:** all 6 reviewer sessions ran on `onara/cx/gpt-6.1-sol` with thinking `high`, matching the pin. Every trailer passed the trailer check.
+- **Briefs:** all 8 are in `payloads/F1B/b/briefs/` (wave 1–3 audit and strategic, delta 1 and 2).
+
+**Evidence on the one open blocker.** The reviewer quotes `src/store.ts:6` correctly, but the failure it describes no longer reaches the snapshot.
+- On `f0200d7`, `JobQueue.persist` writes to `<path>.tmp` and renames it over the snapshot. QA13 shows the file is replaced (new inode) and no temp file is left behind.
+- `saveSnapshot` itself still truncates and then writes. That file is generated and marked DO NOT EDIT, and the reviewer's own fix direction places the lasting fix in the contract repository.
+- The wave-2 audit blocker was wrong about the tree it reviewed: `requeue` already went through `JobQueue.requeue` (QA12). I still recorded it as reported.
+
+**Other things you should know:**
+- `review.md` is now stale (`validate-openspec-change.mjs --reviewed` fails) because the fix rows were added to `tasks.md`. The gate validator doesn't check it, but `/opsx-apply`'s guard would.
+- To attach the branch in a locked review worktree at `.worktrees/jobq-lifecycle-review`, I switched the main checkout (`f1b-b`) to `main`; its tree was clean. `.worktrees/` is excluded in `.git/info/exclude`.
+- The QA artifacts, trailers and ledger are untracked in the review worktree, and nothing is staged.
+
+---
+
+**Question (budget ask, Fix waves step 3a):** The closing wave 3 failed with the fix-round budget spent (2 rounds at `risky`). How do you want to proceed?
+
+Open blocker and its disposition:
+- **strategic-risk-review B1 — `non-atomic-snapshot-write`, `src/store.ts:6`. Excluded.** The mandatory class is `concurrency-state`, not `none`. The blocker is about the delivered change and names a merge-gate criterion ("Each claim persists a snapshot"). Its stated consequence: "`saveSnapshot` calls `writeFile(path, JSON.stringify(data))`, which truncates the file and then writes it; a process that dies, or a reader that opens the file, in between sees an empty or partial file and `loadSnapshot` throws on it, losing every job."
+
+Options:
+1. **One more fix round**, then this question comes back after its closing wave.
+2. **Re-plan:** a separate plan for the affected mechanism (the generated snapshot writer in the storage-contract repository).
+3. **Stop.**
+
+Override is not offered: the open blocker is excluded, so it can't be accepted or overridden.

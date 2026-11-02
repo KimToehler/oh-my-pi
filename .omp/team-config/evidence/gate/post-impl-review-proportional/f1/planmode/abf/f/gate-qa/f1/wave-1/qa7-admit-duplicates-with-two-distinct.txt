@@ -1,0 +1,28 @@
+QA7 admit-duplicates-with-two-distinct
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; command run on a real pty (python os.openpty)
+fixture qa7.json (disposable, synthetic):
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "cy"
+    }
+  ]
+}
+$ bun scripts/gate.ts qa7.json
+ADMIT
+exit status: 0
+expected: stdout `ADMIT`, exit 0
+verdict: PASS

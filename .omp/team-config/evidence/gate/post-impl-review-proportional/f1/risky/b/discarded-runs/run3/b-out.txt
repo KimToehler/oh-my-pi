@@ -1,0 +1,45 @@
+Working...
+# F2 for `jobq-lifecycle` is NOT READY: wave 1 failed and I stopped before fix round 1
+
+Manual QA passed on all 10 rows. Both reviewers returned FAIL. Gate-convergence printed `DECISION: CONTINUE`, so fix rounds are left, but one blocker can't be fixed inside this plan. I've written no gate record.
+
+## Wave 1
+
+| Invocation | Agent | Model (checked against the session file) | Independence | Verdict |
+|---|---|---|---|---|
+| Manual QA (10 rows, 11 artifacts) | orchestrator | - | - | PASS |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol, thinking high: matches the `auditor.md` pin | cross-provider (implemented by onara/cc/claude-opus-5-5) | FAIL (B1, B2) |
+| strategic-risk-review | auditor | onara/cx/gpt-6.1-sol, thinking high: matches the pin | cross-provider | FAIL (B1) |
+
+- **Depth:** `gate.md` sets risky. Class is concurrency-state and Risk tier is product, so both reviewers ran.
+- **Plan check:** `--plan-only` printed `passed`, and `validate-openspec-change --reviewed` printed `reviewed: OKAY in round 1`.
+- **Trailers:** stored verbatim (`cmp` identical) under `.omp/team-config/evidence/jobq-lifecycle/f2/wave-1/`. Both passed the trailer check.
+- **Ledger:** wave 1 is recorded with three blockers, none caused by a fix:
+  - `shared-snapshot-lost-update=src/queue.ts:53`
+  - `illegal-state-transition=src/queue.ts:60,66`
+  - `non-atomic-snapshot-write=src/store.ts:6`
+- **Briefs:** written to `briefs/w1-audit-brief.md` and `briefs/w1-strategic-brief.md`, using the templates copied programmatically from the skill.
+
+## Why I stopped
+- **`shared-snapshot-lost-update` (audit B1):** two instances or processes restored from one snapshot overwrite each other's claims, so a job runs twice.
+  - The reviewer's fix directions are "merge under a lock" or "one record per job". The first is cross-writer coordination; `design.md` lists "Multi-process coordination and distribution" as a Non-Goal. The second changes the layout of the generated, DO-NOT-EDIT `store.ts` contract.
+  - Skill step 4 says a fix like this is not a fix row: "stop and plan it separately".
+  - It also can't be accepted: the class is concurrency-state and "Accepted residual risks" is none, so the blocker is excluded.
+  - So no fix round inside this gate can make it pass while this blocker is open.
+- **The other two blockers can be fixed inside the plan:**
+  - `illegal-state-transition`: allow `complete` and `fail` only from `running`. `requeue` in `src/worker.ts:6` has the same defect (I found that site myself; the reviewer's search only covered `queue.ts`). Close it by moving `requeue` into the queue and allowing it only from `failed`.
+  - `non-atomic-snapshot-write`: write the snapshot to a temp file through `saveSnapshot`, then `rename` it in `queue.ts`, leaving the generated `store.ts` untouched.
+
+## What's in place
+- **Review worktree:** `.worktrees/review-jobq-lifecycle`, on `feat/jobq-lifecycle` and locked. To free the branch for it, I ran `git switch --detach` in your main checkout. It's now detached at `b62efc7`; it was clean and no files changed.
+- **Commit:** `e873d98` "Mark F1 manual QA done" (only the `tasks.md` 2.1 checkbox). The gate baseline is `e873d98`.
+- **F1 QA artifacts:** in `.omp/team-config/evidence/gate/jobq-lifecycle/f1/`, untracked. They get staged in Phase 5.
+- **Not exercised by QA:** whether `complete`/`fail` persist without a later claim, `requeue` of a running job, `add` of an existing id, and a crash during the snapshot write.
+
+## Question
+The skill gives no wording for this decision, so this question is mine:
+
+**`shared-snapshot-lost-update` needs a design decision this plan excludes: single-owner enforcement, or multi-writer snapshot storage, which would touch the generated storage contract. How do you want to proceed?**
+1. **Re-plan:** write a separate plan for snapshot ownership across instances and processes, then come back to this gate.
+2. **Fix round 1 now:** fix only `illegal-state-transition` and `non-atomic-snapshot-write`. The gate still can't pass while `shared-snapshot-lost-update` is open.
+3. **Stop:** the gate stays failed.

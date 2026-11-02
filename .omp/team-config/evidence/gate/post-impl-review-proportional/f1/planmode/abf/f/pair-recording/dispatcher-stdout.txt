@@ -1,0 +1,49 @@
+Working...
+## 1. Goal and behavioural contract
+
+The implementation meets the specified rule for the unchanged `Candidate` shape: `scripts/gate.ts:22–26` excludes the author, deduplicates reviewer strings, and rejects counts below two with the required reason. Failed checks still take precedence (`scripts/gate.ts:18–21`).
+
+The CLI remains unchanged: it reads the positional JSON file, prints the decision, and exits 0 for admission or 1 for rejection (`scripts/gate.ts:31–39`).
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No substantiated correctness blocker found.
+
+Reviewed the complete supplied diff alongside all four changed files and `package.json`. The implementation, tests, and README consistently describe two distinct non-author approvals. Repository-wide search for `decide|approvals|scripts/gate|no approval` found no additional production caller or stale rejection-message consumer.
+
+The change retains existing interfaces and decision shape. Exact, case-sensitive identity comparison matches the plan’s accepted residual risk. The implementation also handles additional approvals correctly: duplicate or author entries do not invalidate an otherwise sufficient set of independent reviewers.
+
+## 3. Security and privacy delta
+
+No security delta under the brief’s definition. This changes the release decision rule, but introduces no credential handling, identity-authentication mechanism, third-party personal data processing, or demonstrated weakening of access to a protected asset.
+
+The candidate file remains trusted as specified. Reviewer authenticity and directory lookups are explicitly outside scope; no new defect is attributed to those existing boundaries.
+
+## 4. Verification adequacy
+
+The five committed tests exercise the real `decide` implementation without mocks: admission, check failure, zero approvals, duplicate reviewers, and self-approval. The supplied QA matrix additionally reports CLI output and exit status for the required scenarios, including a failing check with three independent approvals.
+
+**Note — evidence availability:** The six referenced QA artifacts are absent from the accessible checkout: listing `.omp/**` with hidden and ignored files included returned only the plan. Consequently, I reviewed the supplied matrix but could not independently inspect its transcripts or establish their binding to the reviewed head. This does not establish a behavioural defect and does not block this implementation audit; artifact retention and SHA binding remain unverified merge-gate prerequisites. No commands or tests were run during this read-only review.
+
+**Note — regression coverage:** `scripts/gate.test.ts:11–41` lacks an admission case combining author entries, duplicate entries, and more than two independent reviewers, or a permutation of that same multiset. Such a test would catch accidental raw-length caps and order-sensitive counting. This is non-blocking because the current set-based implementation handles those inputs correctly by inspection.
+
+An additional adversarial criterion is provided below; it is derived from this review rather than copied from the plan. It was inspected statically, not exercised.
+
+## 5. Final verdict
+
+No blocker found in the supplied implementation. Residual verification limitations are identified above; this audit does not claim completion of F1 or F2.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Reordering an approval multiset containing redundant author and duplicate entries must not change the decision or impose an upper approval-count limit.
+  positive_witness: With author ann and all checks true, both approval sequences ann,bob,bob,cy,dee and dee,cy,bob,ann,bob produce ADMIT with exit 0.
+  negative_control: An implementation that rejects either sequence because of an author entry, excess raw approvals, or ordering must fail this criterion.
+  observable: Compare stdout and exit status from the CLI for JSON candidates differing only in approval order; both must produce ADMIT and exit 0.
+  boundary: CLI candidate JSON ingestion through the release admission decision.
+END-REVIEW-TRAILER

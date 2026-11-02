@@ -1,0 +1,49 @@
+No blockers identified within the stated scope and blocking threshold.
+
+### 1. Architecture and cross-module seams
+
+The change holds up for the declared `Candidate` contract:
+
+- `scripts/gate.ts:17–28` remains the single policy implementation. Failed checks reject first; author filtering and reviewer deduplication then determine admission.
+- `scripts/gate.test.ts:1–41` imports the real decision function and asserts returned decisions and rejection reasons, rather than mocking the policy.
+- The CLI adapter at `scripts/gate.ts:31–40` preserves stdout and exit-status behavior.
+- `README.md:3–5` accurately describes the new policy. The plan’s feature-specific criteria match both the implementation and the supplied QA matrix.
+
+The important seam is **JSON input → typed candidate → policy decision**. The stronger counting rule does not strengthen the input boundary or establish reviewer authenticity; those remain explicitly accepted limitations.
+
+### 2. Consistency, duplication, and simplification
+
+There is no material policy inconsistency or unnecessary abstraction. A `Set` directly expresses distinct reviewers, and `REQUIRED_APPROVALS` keeps the comparison and diagnostic synchronized. Explicit expected rejection strings in tests are useful contract assertions, not problematic duplication.
+
+**Note N1 — automated boundary coverage:** `scripts/gate.test.ts:10–41` does not retain automated positive coverage for ignoring the author while still accepting two other reviewers, or accepting sufficient distinct reviewers despite duplicate entries. QA6 covers the former manually. Non-blocking because the current implementation is correct and the reviewed CLI evidence establishes that boundary; automating these cases would improve regression durability.
+
+The plan’s checked F2 box is a status assertion, not independent proof that the entire merge gate has completed. This review does not validate the final SHA-bound gate record.
+
+### 3. Highest-consequence failure mode
+
+The consequential failure would be **false admission with fewer than two independent reviewers**, allowing an under-reviewed release to proceed.
+
+For well-formed candidates, the change handles that risk: filtering excludes the author, and the `Set` prevents repeated approvals from increasing the count. The inspected QA7 artifact confirms that `ann, bob, bob` rejects with count 1. The inspected QA4 artifact confirms that three independent approvals cannot override a failed check. QA6 confirms that an additional author approval does not incorrectly reject an otherwise eligible candidate.
+
+**Note N2 — malformed approval entries can count:** At `scripts/gate.ts:22–23`, an entry without `reviewer` contributes `undefined` to the set when the author is a string. The unchecked JSON assertion at line 37 permits this at runtime. The inspected QA8 artifact demonstrates admission with `[{}, {"reviewer":"bob"}]`. Non-blocking under this brief: the malformed-input variant is outside the claimed contract, the plan explicitly accepts trusting identity fields, and malformed approvals already admitted at the base. The result must not be presented as validation of actual reviewer identities.
+
+### 4. What line-level review could miss
+
+The broader limitation is that this gate proves a relationship among **supplied identity strings**, not that two authenticated people approved a release. Case-sensitive aliases, identity provenance, and candidate-file authenticity remain outside the guarantee. No production authorization integration or protected asset is established by the reviewed fixture.
+
+I reviewed all four changed files, package execution configuration, the supplied QA matrix, and retained captures for QA4, QA6, QA7, QA8, and QA10. The captures inspected identify the supplied reviewed head. I ran no commands and did not independently verify Git ancestry, artifact tracking, RED provenance, or final gate-record validation.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Adding redundant approval records cannot turn an insufficient reviewer set into an admitted candidate.
+  positive_witness: Author ann with approvals ann, bob, cy and passing checks prints ADMIT and exits 0.
+  negative_control: Author ann with approvals ann, bob, bob and passing checks must reject rather than admit based on three raw records.
+  observable: Inspected QA6 records ADMIT with exit 0; inspected QA7 records REJECT needs 2 independent approvals, got 1 with exit 1.
+  boundary: Candidate JSON consumed by the real CLI and its externally visible stdout and process exit status.
+END-REVIEW-TRAILER

@@ -1,0 +1,18 @@
+# qa8-bun-test: mechanical criterion
+# HEAD cadab7323ac71557f20ec65425fb17ebd0b096f2
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+scripts/gate.test.ts:
+(pass) admits with two approvals [0.10ms]
+(pass) refuses one approval [0.02ms]
+(pass) refuses duplicate approver
+(pass) refuses failed check [0.01ms]
+(pass) refuses without approval
+
+ 5 pass
+ 0 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [3.00ms]
+# exit code: 0
+# verdict: PASS

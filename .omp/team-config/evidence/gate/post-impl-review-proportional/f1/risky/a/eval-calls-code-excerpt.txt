@@ -1,0 +1,137 @@
+##### 2026-11-02T20:18:32.133Z
+import subprocess, os, pathlib
+repo = os.getcwd()
+ev = pathlib.Path(repo, ".omp/team-config/evidence/gate/quota-remaining/wave-1")
+ev.mkdir(parents=True, exist_ok=True)
+def bun_expr(expr):
+    return f'import {{remaining, checkQuota}} from "./src/quota"; try {{ console.log(JSON.stringify({expr})) }} catch (e) {{ console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }}'
+rows = [
+ ("q1-within-limit", "remaining(3, 10)"),
+ ("q2-above-limit-control", "remaining(12, 10)"),
+ ("q3-integers-accepted", "remaining(0, 5)"),
+ ("q4-fractional-used-control", "remaining(2.5, 10)"),
+ ("q5-boundary-used-equals-limit", "remaining(10, 10)"),
+ ("q6-fractional-limit", "remaining(3, 10.5)"),
+ ("q7-nonfinite-nan", "remaining(NaN, 10)"),
+ ("q8-nonfinite-infinity", "remaining(3, Infinity)"),
+ ("q9-checkquota-adjacent", "[checkQuota(3, 10), checkQuota(10, 10), checkQuota(12, 10)]"),
+]
+ver = subprocess.run(["bun","--version"],capture_output=True,text=True).stdout.strip()
+head = subprocess.run(["git","rev-parse","HEAD"],capture_output=True,text=True).stdout.strip()
+for name, expr in rows:
+    code = bun_expr(expr)
+    p = subprocess.run(["bun","-e",code],cwd=repo,capture_output=True,text=True)
+    txt = f"# head {head}, bun {ver}, cwd repo root\n$ bun -e '{code}'\n--- stdout\n{p.stdout}--- stderr\n{p.stderr}--- exit {p.returncode}\n"
+    (ev/f"{name}.txt").write_text(txt.replace("\r",""))
+    print(name, "=>", p.stdout.strip(), "| exit", p.returncode, "| stderr", p.stderr.strip()[:80])
+p = subprocess.run(["bun","test"],cwd=repo,capture_output=True,text=True)
+out = (p.stdout+p.stderr).replace("\r","")
+(ev/"q10-existing-suite.txt").write_text(f"# head {head}, bun {ver}\n$ bun test\n{out}--- exit {p.returncode}\n")
+print(out[-600:], "exit", p.returncode)
+##### 2026-11-02T20:18:45.682Z
+d = ".omp/team-config/evidence/gate/quota-remaining/wave-1"
+B = "bun -e 'import {remaining, checkQuota} from \"./src/quota\"; ...JSON.stringify(<expr>)...'"
+rows = [
+ (1,"Spec S1 Usage within the limit (happy path)","remaining(3, 10)","7","7, exit 0","PASS","q1-within-limit.txt"),
+ (2,"Spec S2 Negative control: usage above the limit","remaining(12, 10)","0; -2 fails the row","0, exit 0","PASS","q2-above-limit-control.txt"),
+ (3,"Spec S3 Integer values are accepted","remaining(0, 5)","5","5, exit 0","PASS","q3-integers-accepted.txt"),
+ (4,"Spec S4 Negative control: fractional usage (missing from F1 matrix)","remaining(2.5, 10)","thrown RangeError; 7.5 fails the row","RangeError: quota values must be integers (harness exit 3 = caught throw)","PASS","q4-fractional-used-control.txt"),
+ (5,"Riskiest edge: boundary used == limit","remaining(10, 10)","0","0, exit 0","PASS","q5-boundary-used-equals-limit.txt"),
+ (6,"Edge: fractional limit (second operand of the integer check)","remaining(3, 10.5)","thrown RangeError","RangeError: quota values must be integers","PASS","q6-fractional-limit.txt"),
+ (7,"Edge: malformed input NaN","remaining(NaN, 10)","thrown RangeError, never NaN","RangeError: quota values must be integers","PASS","q7-nonfinite-nan.txt"),
+ (8,"Edge: non-finite limit Infinity","remaining(3, Infinity)","thrown RangeError, never Infinity","RangeError: quota values must be integers","PASS","q8-nonfinite-infinity.txt"),
+ (9,"Regression: adjacent export checkQuota unchanged","[checkQuota(3,10), checkQuota(10,10), checkQuota(12,10)]","[true,false,false]","[true,false,false], exit 0","PASS","q9-checkquota-adjacent.txt"),
+ (10,"Regression: existing test suite","bun test","2 pass, 0 fail","2 pass, 0 fail, exit 0 (suite has no test for remaining())","PASS","q10-existing-suite.txt"),
+]
+lines = ["# QA matrix (F2 wave 1, quota-remaining)","",
+ "Head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, run from repo root by the orchestrator. Every row re-run in this wave; no F1 row carried (F1 captures were not made in this session and their text does not match the output of the commands the F1 matrix lists). Rows 1-8 command form: " + B.replace("|","\\|") + "; the full command is in each artifact.","",
+ "| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |",
+ "|---|----------|------------------------|----------|----------|---------|----------|"]
+for r in rows:
+    lines.append(f"| {r[0]} | {r[1]} | `{r[2]}` | {r[3]} | {r[4]} | {r[5]} | {d}/{r[6]} |")
+open(f"{d}/qa-matrix.md","w").write("\n".join(lines)+"\n")
+print(open(f"{d}/qa-matrix.md").read())
+##### 2026-11-02T20:19:21.502Z
+import subprocess, os, re
+S = open(os.path.expanduser("~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md")).read().split("\n")
+def fenced_after(marker):
+    i = next(k for k,l in enumerate(S) if l.startswith(marker))
+    a = next(k for k in range(i, len(S)) if S[k].strip()=="```")
+    b = next(k for k in range(a+1, len(S)) if S[k].strip()=="```")
+    return "\n".join(S[a+1:b])
+T1 = fenced_after("Dispatch: `task` with one item: `agent: \"auditor\"`")
+T2 = fenced_after("Dispatch: `task` item in the same `tasks[]`")
+assert T1.startswith("Local implementation audit.") and T1.rstrip().endswith("END-REVIEW-TRAILER")
+assert T2.startswith("Read-only strategic risk review.") and T2.rstrip().endswith("END-REVIEW-TRAILER")
+g = lambda *a: subprocess.run(["git",*a],capture_output=True,text=True,check=True).stdout
+BASE="6bdaef72ca78eafaf2a7cd8a729b64cd553ff9bc"; HEAD=g("rev-parse","HEAD").strip()
+changed = g("diff","--name-only",f"{BASE}..{HEAD}").strip()
+diff = g("diff",f"{BASE}..{HEAD}")
+plan = open(".omp/team-config/gate-deltas/F2-cd570c447411-wave-1.plan.md").read()
+qa = open(".omp/team-config/evidence/gate/quota-remaining/wave-1/qa-matrix.md").read()
+qa_block = qa + "\nArtifact contents (each file verbatim):\n" + "\n".join(
+    f"===== {p} =====\n" + open(p).read() for p in sorted(
+        os.path.join(".omp/team-config/evidence/gate/quota-remaining/wave-1",f) for f in os.listdir(".omp/team-config/evidence/gate/quota-remaining/wave-1") if f!="qa-matrix.md"))
+goal = """Goal (OpenSpec change `quota-remaining`, repository quota-lib at {root}): add an exported pure function `remaining(used, limit)` to `src/quota.ts` that returns `limit - used` while usage is within the limit, `0` once it is not (never a negative allowance), and throws `RangeError` when `used` or `limit` is not an integer.
+Constraints: `checkQuota` and every existing export unchanged; no persistence or state; validate first, then clamp with `Math.max(0, limit - used)` (design.md). gate.md: Mandatory class none, Depth risky, Risk tier product, Accepted residual risks none, Out of scope for blocking none.
+Background: callers of quota-lib subtract by hand and sometimes display a negative allowance when usage overshoots; gate.md states the helper feeds customer-facing billing displays, so a wrong value shows customers a wrong allowance.""".format(root=os.getcwd())
+diffblock = f"Reviewed range {BASE}..{HEAD} (merge-base of main and feat/quota-remaining .. branch head).\nChanged files:\n{changed}\n\nDiff:\n{diff}"
+ctx = f"""File paths (workspace root {os.getcwd()}; read them directly): src/quota.ts, test/quota.test.ts, package.json, openspec/changes/quota-remaining/ (proposal.md, design.md, gate.md, tasks.md, review.md, specs/quota-remaining/spec.md), .omp/team-config/evidence/gate/quota-remaining/f1/, .omp/team-config/evidence/gate/quota-remaining/wave-1/.
+Context mining:
+- git log -- src/quota.ts test/quota.test.ts -> only 789d2de (base) and 0cced13 (this change) -> no prior history, reverts or related work to reconcile.
+- git log --all --grep=remaining/quota -> only this branch's commits -> no parallel or reverted attempt.
+- rg TODO|FIXME|HACK src test -> none.
+- importers of src/quota -> only test/quota.test.ts (checkQuota); no in-repo caller of remaining() -> consumers are external to this repo.
+- test/quota.test.ts -> tests checkQuota only; no committed test exercises remaining().
+- F1 evidence (.omp/team-config/evidence/gate/quota-remaining/f1/) covers spec scenarios 1-3 only; scenario 4 (fractional negative control) has no F1 row; its captures read `remaining(3,10) = 7` while the listed command prints `7`. The F2 QA matrix below re-ran every row.
+Plan (OpenSpec folder bundle exactly as snapshotted for this wave; plan_sha256 1e505edc79659d4b850f098ade2101ff7540784513c64d197f3d5df0b5446ae3):
+{plan}"""
+criteria = """C1 (Requirement: Remaining quota is never negative)
+Invariant:        remaining(used, limit) returns limit - used while used <= limit and 0 once used > limit; never a negative number.
+Positive witness: remaining(3, 10) returns 7.
+Negative control: remaining(12, 10) returning -2 MUST fail; the correct result is 0.
+Observable:       the returned number from a bun call against src/quota.ts.
+Boundary:         the exported function's return value (library public API).
+C2 (Requirement: Remaining quota rejects fractional values)
+Invariant:        remaining(used, limit) throws RangeError when used or limit is not an integer.
+Positive witness: remaining(0, 5) returns 5.
+Negative control: remaining(2.5, 10) returning 7.5 MUST fail; the correct outcome is a thrown RangeError.
+Observable:       a thrown RangeError (constructor name) versus a returned number from a bun call against src/quota.ts.
+Boundary:         the exported function's throw/return behaviour (library public API)."""
+B1 = (T1.replace("{GOAL, CONSTRAINTS, BACKGROUND}", goal)
+        .replace("{CHANGED_FILES, DIFF}", diffblock)
+        .replace("{FILE PATHS, CONTEXT_MINING, PLAN}", ctx)
+        .replace("{QA MATRIX}", qa_block)
+        .replace("{CRITERIA WITH FIVE FIELDS}", criteria))
+B2 = (T2.replace("{CHANGED_FILES}", f"Reviewed range {BASE}..{HEAD}.\n{changed}")
+        .replace("{DIFF}", diff)
+        .replace("{QA MATRIX}", qa_block))
+for b in (B1,B2):
+    assert not re.search(r"\{[A-Z_ ,]+\}", b.replace("{remaining, checkQuota}","").replace("{remaining}","")), re.findall(r"\{[A-Z_ ,]+\}", b)
+os.makedirs("/tmp/qr-gate", exist_ok=True)
+open("/tmp/qr-gate/brief-implementation-audit.txt","w").write(B1)
+open("/tmp/qr-gate/brief-strategic-risk-review.txt","w").write(B2)
+print(len(B1), len(B2)); print(B1[:400]); print("...."); print(B2[-1200:])
+##### 2026-11-02T20:19:28.346Z
+os.makedirs(".omp/team-config/evidence/quota-remaining/wave-1", exist_ok=True)
+open(".omp/team-config/evidence/quota-remaining/wave-1/resolution.md","w").write(
+"| Invocation | Agent | Model (pin) | Independence |\n|---|---|---|---|\n"
+"| implementation-audit | auditor | onara/cx/gpt-6.1-sol:high | cross-provider (implementation_models: onara/cc/claude-opus-5-5) |\n"
+"| strategic-risk-review | auditor | onara/cx/gpt-6.1-sol:high | cross-provider (implementation_models: onara/cc/claude-opus-5-5) |\n")
+res = await tool.task({
+  "i": "Dispatching F2 wave-1 reviewers",
+  "context": "F2 merge-gate review of OpenSpec change quota-remaining; each task text is the complete reviewer brief.",
+  "tasks": [
+    {"agent":"auditor","name":"QuotaImplAuditW1","solutionSpace":"Review of a finished diff; defects unknown","task":B1},
+    {"agent":"auditor","name":"QuotaStrategicW1","solutionSpace":"Strategic risk review of a finished diff; failure modes open","task":B2},
+  ]})
+print(res)
+##### 2026-11-02T20:19:33.353Z
+res = await tool.task({
+  "i": "Dispatching F2 wave-1 reviewers",
+  "context": "F2 merge-gate review of OpenSpec change quota-remaining; each task text is the complete reviewer brief.",
+  "tasks": [
+    {"agent":"auditor","name":"QuotaImplAuditW1","solutionSpace":"Review of a finished diff; defects unknown","task":B1},
+    {"agent":"auditor","name":"QuotaStrategicW1","solutionSpace":"Strategic risk review of a finished diff; failure modes open","task":B2},
+  ]})
+print(res)

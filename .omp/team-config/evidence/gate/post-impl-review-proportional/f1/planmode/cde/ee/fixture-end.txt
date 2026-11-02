@@ -1,0 +1,9 @@
+faf45ef feat(gate): require two distinct approvers
+e869793 docs: plan gate-quorum
+dd9596c chore: install omp-gated schema
+6a3071e chore: release gate
+.
+..
+plans
+ls: cannot access '.omp/team-config': No such file or directory
+0.read.log

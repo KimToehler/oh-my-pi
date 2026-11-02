@@ -1,0 +1,9 @@
+# git log --oneline
+69ca02a Record plan review
+6df859a Add F1 QA evidence for quota-remaining
+0cced13 Add remaining() to quota-lib
+30f26b7 Plan quota-remaining change
+6bdaef7 Install omp-gated workflow
+789d2de Base: quota-lib
+# git status --porcelain (only the gate's untracked wave-1 evidence; no tracked change)
+?? .omp/team-config/evidence/gate/quota-remaining/wave-1/

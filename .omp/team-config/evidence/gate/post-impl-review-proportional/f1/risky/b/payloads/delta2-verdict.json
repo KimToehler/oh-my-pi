@@ -1,0 +1,6 @@
+{
+  "verdict": "OKAY",
+  "summary": "Each fix entry named in the brief is implemented by the patches, and nothing in the delta contradicts a plan invariant or a carried QA row.",
+  "blockers": [],
+  "notes": []
+}

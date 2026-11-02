@@ -1,0 +1,7 @@
+* f1e381f qa(csv-total): F1 CLI run on 299d2d6, 5 scenarios recorded; observed 25.00, exit 2 line 1, 1.00, 0.00, 1234.50
+*   299d2d6 Merge branch 'main' into feat/csv-total
+|\  
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema

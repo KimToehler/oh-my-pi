@@ -1,0 +1,42 @@
+
+##### SD=~/.omp/profiles/pirp/agent/skills/review-work; ls $SD/scripts; node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/release-approvals.md
+fixtures
+folder-plan.mjs
+gate-convergence.mjs
+gate-convergence.test.mjs
+gate-layout.mjs
+install-openspec-workflow.mjs
+install-openspec-workflow.test.ts
+plan-contract.mjs
+trailer.mjs
+validate-gate-record.mjs
+validate-gate-record.test.mjs
+validate-openspec-change.mjs
+validate-openspec-change.test.ts
+passed
+
+
+##### SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/gate-convergence.mjs --help 2>&1 | head -60
+gate-convergence: Unknown option '--help'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- "--help"
+
+
+##### SD=~/.omp/profiles/pirp/agent/skills/review-work; git add .omp/plans/release-approvals.md && git commit -q -m "chore(plan): mark final verification wave of release-approvals" && node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/release-approvals.md && git merge-base --is-ancestor main HEAD && echo main-ancestor && GC="node $SD/scripts/gate-convergence.mjs --repo $PWD --plan .omp/plans/release-approvals.md" && $GC baseline --sha HEAD && $GC ready --lane F2 && $GC snapshot --lane F2
+passed
+main-ancestor
+BASELINE 0ab24cbbe1e0 recorded
+READY
+/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-b/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 0ab24cbbe1e0
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-b/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md
+
+
+##### SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt --invocation strategic-risk-review --verdict PASS --plan .omp/plans/release-approvals.md; git check-ignore -q .omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt || echo addable
+passed
+addable
+
+
+##### SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/gate-convergence.mjs --repo "$PWD" --plan .omp/plans/release-approvals.md wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=INCONCLUSIVE --outcome strategic-risk-review=PASS --trailer strategic-risk-review=.omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt; echo "exit=$?"
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+exit=0
+

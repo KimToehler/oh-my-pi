@@ -1,0 +1,27 @@
+commit cadab7323ac71557f20ec65425fb17ebd0b096f2
+Author: Fixture QA <fixture@example.invalid>
+Date:   Mon Nov 2 21:17:12 2026 +0100
+
+    docs(plan): re-tier gate-quorum to product (risky gate depth, agreed by Tim)
+
+diff --git a/.omp/plans/gate-quorum.md b/.omp/plans/gate-quorum.md
+index 59b8311..7317e40 100644
+--- a/.omp/plans/gate-quorum.md
++++ b/.omp/plans/gate-quorum.md
+@@ -8,13 +8,13 @@ The release gate admits a candidate after one approval. Require two distinct app
+ - [x] 2. `scripts/gate.test.ts`: cover two approvals, duplicate approver, one approval
+ 
+ ## Final verification wave
+-- [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/gate-quorum/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
+-- [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
++- [x] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/gate-quorum/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
++- [x] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
+ 
+ ## Merge gate
+ - Author's risk assessment: The gate script decides which release candidates are admitted. A wrong count admits a release with one approval, or refuses a good one. No credentials or personal data involved.
+ - Mandatory class: none
+-- Risk tier: internal-tooling
++- Risk tier: product
+ - Whole-diff review: not needed (whole-diff surface reviewed in F2)
+ - Accepted residual risks: approver identity is a free-form string and is not authenticated against any directory
+ - Out of scope for blocking: the CLI wrapper's JSON input validation

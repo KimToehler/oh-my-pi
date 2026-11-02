@@ -1,0 +1,7 @@
+# qa6-author-plus-two: author approval ignored, two other reviewers still admit
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ cat candidate.json
+{"version":"1.0.0","author":"ann","checks":{"build":true,"tests":true},"approvals":[{"reviewer":"ann"},{"reviewer":"bob"},{"reviewer":"cy"}]}
+$ bun scripts/gate.ts candidate.json
+ADMIT
+exit=0

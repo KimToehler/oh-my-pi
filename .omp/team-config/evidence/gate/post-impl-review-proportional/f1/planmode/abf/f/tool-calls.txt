@@ -1,0 +1,54 @@
+     1	read	skill://review-work
+     2	read	artifact://0:180-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-470
+     4	bash	awk 'NR==172||NR==220||NR==356||NR==380||NR==382||NR==386||NR==433||NR==462||NR==465||NR==466' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+     5	eval	import os ⏎ L=open(os.path.expanduser('~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md')).read().split(
+     6	eval	for n in [220,356]: ⏎     s=L[n-1] ⏎     print(n, s[1400:]) ⏎     print('---') ⏎ print(len(L))
+     7	bash	git status --short; git branch -a; git log --oneline -15; git worktree list; ls -la .omp .omp/plans
+     8	read	.omp/plans/release-approvals.md
+     9	bash	git ls-files; echo ---; git diff --stat main...HEAD; git merge-base --is-ancestor main HEAD && echo main-is-ancestor; git check-ignore -v .omp/plans/release-approvals.md; cat .gitignore; ls ~/.omp/agent/skills/review-work/scripts/ 2>&1; ls -la ~/.omp/agent 2>&1 | head -30
+    10	bash	ls ~/.omp/profiles/pirp/agent/skills/review-work/scripts/ ~/.omp/profiles/pirp/agent/agents 2>&1; diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work 2>&1 | head; echo PI=$PI_CODING_AGENT_DIR OMP=$OMP_AGENT_DIR; env | grep -i -E 'omp|agent_dir|profile' | grep -v -i
+    11	bash	head -20 ~/.omp/profiles/pirp/agent/agents/auditor.md; echo ---; omp config get task.agentModelOverrides 2>&1
+    12	bash	git diff main...HEAD; echo ======; cat scripts/gate.ts; echo =====; cat package.json; git log --format='%H %an %s' main; git log --format='%H %s' -3
+    13	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo . --plan-only --plan .omp/plans/release-approvals.md; echo exit=$?; node $S/gate-convergence.mjs --help 2>&1 | head -60
+    14	grep	~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs;~/.omp/profiles/pirp/agent/skills/review-work/scripts/plan-contract.mjs;~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs
+    15	grep	~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    16	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; wc -l $S/gate-convergence.mjs; node $S/gate-convergence.mjs 2>&1 | head -40
+    17	edit	{"i":"Marking final-wave checkboxes","input":"[.omp/plans/release-approvals.md#A5EF]\nPUT 14.=15:\n+- [x] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`): 
+    18	bash	git add .omp/plans/release-approvals.md && git commit -q -m "plan: mark final verification wave for F2 snapshot" && git log --oneline -1
+    19	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; GC="node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md"; $GC baseline --sha HEAD; echo e=$?; $GC ready --lane F2; echo e=$?
+    20	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md snapshot --lane F2; echo e=$?
+    21	bash	cat .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json; cmp .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md .omp/plans/release-approvals.md && echo same; shasum -a 256 .omp/plans/release-approvals.md
+    22	eval	import json, os, subprocess, tempfile, hashlib ⏎ REPO='/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-f
+    23	eval	import pty, select ⏎ def pty_run(argv): ⏎     m,s=os.openpty() ⏎     p=subprocess.Popen(argv,cwd=REPO,stdin=s,
+    24	eval	import glob ⏎ for f in glob.glob(EV+'/*'): os.remove(f) ⏎ def cli_row(n, name, c, expect_out, expect_exit, scr
+    25	eval	out,code=pty_run(['bun','scripts/gate.ts']) ⏎ ok= 'usage: bun scripts/gate.ts <candidate.json>' in out and cod
+    26	eval	rows=[r for r in rows if r[0] not in (12,13)] ⏎ out,code=pty_run(['bun','scripts/gate.ts']); c12=re.sub(r'\x1b
+    27	eval	for f in sorted(glob.glob(EV+'/*')): ⏎     b=open(f,'rb').read() ⏎     assert b'\r' not in b and b'\x1b' not i
+    28	eval	r=subprocess.run(['git','check-ignore','-v',*sorted(glob.glob(EV+'/*'))],cwd=REPO,capture_output=True,text=Tru
+    29	bash	git log --oneline -20 -- scripts/gate.ts scripts/gate.test.ts README.md .omp/plans/release-approvals.md; git log --all --oneline --grep=approv; git remote -v; grep -n -E 'TODO|FIXME|HACK' scripts/gate.ts scripts/gate.test.ts README.md; grep -rn -E 'gate\.ts|decide\(' --include=* . 2>/dev/null | grep
+    30	eval	BASE=subprocess.run(['git','merge-base','main','HEAD'],cwd=REPO,capture_output=True,text=True).stdout.strip() 
+    31	read	/tmp/f2diff.txt:raw
+    32	eval	print(DIFF.count('diff --git'), DIFF.splitlines()[0][:60], [l[:40] for l in DIFF.splitlines() if l.startswith(
+    33	eval	SK=L ⏎ start=SK.index('Local implementation audit. No PR lookup, remote fetch, file write, or sub-reviewer dis
+    34	eval	REL=lambda p: os.path.relpath(p, REPO) ⏎ desc={1:"admit: author ann, approvals bob+cy, checks all true",2:"neg
+    35	eval	expd[12]="usage line, exit 2 (pty merges stdout and stderr)" ⏎ QA=QA.replace("| usage line on stderr, exit 2 |
+    36	read	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/f-pair-reply.md
+    37	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/f-pair-child-session.jsonl; wc -l $P; jq -c '{type, role: .message.role, provider: .message.provider, model: .message.model, thinking: .thinkingLevel}' $P | sort | uniq -c
+    38	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/f-pair-child-session.jsonl; jq -c 'select(.type=="thinking_level_change" or .type=="model_change" or .type=="session_init" or .type=="session") | del(.systemPrompt?, .tools?) ' $P | cut -c1-600
+    39	eval	import shutil ⏎ RD=REPO+'/.omp/team-config/evidence/release-approvals/wave-1' ⏎ os.makedirs(RD,exist_ok=True) 
+    40	eval	TASK-DISPATCH: "agent":"auditor","agent":"auditor" | res = await tool.task({ ⏎  "i": "Dispatching F2 wave 1 reviewers", ⏎  "context": "# Goal\nRead-only merge-gate review of branch feat/release-approvals. Each tas
+    41	read	proc://
+    42	eval	TASK-DISPATCH: "agent":"auditor","agent":"auditor" | res = await tool.task({ ⏎  "i": "Dispatching F2 wave 1 reviewers", ⏎  "context": "# Goal\nRead-only merge-gate review of branch feat/release-approvals. Each tas
+    43	wait	{"i":"Waiting for reviewer results"}
+    44	read	history://StrategicRiskReviewW1
+    45	bash	F=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-f/2026-11-02T20-24-36-572Z_01a19def-6ddc-7453-926d-09c968f5d93e/StrategicRiskReviewW1.jsonl; jq -c 'select(.type=="model_change" or .type=="thinking_level_change") | {type, model, thinkingLevel, configured}' $F; jq -r 'select(.type=="message" a
+    46	eval	txt = read('agent://StrategicRiskReviewW1') ⏎ print(type(txt), len(txt)); print(txt[:200]); print(txt[-300:])
+    47	eval	TASK-DISPATCH: "agent":"auditor" | open(RD+'/strategic-risk-review-reply.md','w').write(txt if txt.endswith('\n') else txt+'\n') ⏎ res2 = await tool.task({ ⏎  "i": "Retrying strategic-risk-review
+    48	wait	{"i":"Waiting for reviewer results"}
+    49	eval	SESS='/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-f/2026-11-02T20-24-36-572Z_01a19def-6ddc-
+    50	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo . --trailer .omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt --invocation implementation-audit --verdict PASS --plan .omp/plans/release-approvals.md; echo e=$?; git check-i
+    51	wait	{"i":"Waiting for strategic retry"}
+    52	eval	print(read('history://StrategicRiskReviewW1Retry').splitlines()[0][:300]) ⏎ print(mcheck(SESS+'StrategicRiskRe
+    53	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=PASS --outcome strategic-
+    54	bash	rm -f /tmp/f2diff.txt; git status --short; git log --oneline -1

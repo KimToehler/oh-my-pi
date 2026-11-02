@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# mk-session.sh <out.jsonl> <model-suffix: cx/gpt-6.1-sol> <thinking>  -- SYNTHETIC auditor child session, real shape
+out="$1"; model="${2:-cx/gpt-6.1-sol}"; think="${3:-high}"
+{
+echo '{"type":"session","version":3,"id":"synthetic-f1d","timestamp":"2026-11-02T20:30:00.000Z","cwd":"/synthetic","parentSession":"/synthetic/parent.jsonl"}'
+echo '{"type":"model_change","id":"s0000001","parentId":null,"timestamp":"2026-11-02T20:30:00.001Z","model":"onara/'"$model"'","resolvedModelIsFallback":false}'
+echo '{"type":"thinking_level_change","id":"s0000002","parentId":"s0000001","timestamp":"2026-11-02T20:30:00.002Z","thinkingLevel":"'"$think"'","configured":null}'
+echo '{"type":"message","id":"s0000003","parentId":"s0000002","timestamp":"2026-11-02T20:30:01.000Z","message":{"role":"user","content":[{"type":"text","text":"SYNTHETIC: brief delivered out of band"}]}}'
+echo '{"type":"message","id":"s0000004","parentId":"s0000003","timestamp":"2026-11-02T20:30:09.000Z","message":{"role":"assistant","api":"synthetic","provider":"onara","model":"'"${model}"'","content":[{"type":"text","text":"SYNTHETIC: reply delivered out of band"}],"stopReason":"stop"}}'
+} > "$out"

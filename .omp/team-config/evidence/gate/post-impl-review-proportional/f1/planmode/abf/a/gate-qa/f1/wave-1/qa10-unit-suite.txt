@@ -1,0 +1,10 @@
+# qa10-unit-suite: bun test on the reviewed head
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+ 5 pass
+ 0 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [4.00ms]
+exit=0

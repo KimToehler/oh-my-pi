@@ -1,0 +1,359 @@
+Complete assignment thoroughly:
+
+Read-only strategic risk review. Do not run commands, fetch network context, modify files, or spawn sub-reviewers.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
+
+Changed files:
+Reviewed range 6bdaef72ca78eafaf2a7cd8a729b64cd553ff9bc..69ca02af5f15f24a676291a4bf152ee191d3b489.
+.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md
+.omp/team-config/evidence/gate/quota-remaining/f1/s1-within-limit.txt
+.omp/team-config/evidence/gate/quota-remaining/f1/s2-above-limit-control.txt
+.omp/team-config/evidence/gate/quota-remaining/f1/s3-integers-accepted.txt
+openspec/changes/quota-remaining/.openspec.yaml
+openspec/changes/quota-remaining/design.md
+openspec/changes/quota-remaining/gate.md
+openspec/changes/quota-remaining/proposal.md
+openspec/changes/quota-remaining/review.md
+openspec/changes/quota-remaining/specs/quota-remaining/spec.md
+openspec/changes/quota-remaining/tasks.md
+src/quota.ts
+
+Diff:
+diff --git a/.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md b/.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md
+new file mode 100644
+index 0000000..6754a6a
+--- /dev/null
++++ b/.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md
+@@ -0,0 +1,7 @@
++# QA matrix (F1, quota-remaining)
++
++| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
++|---|----------|------------------------|----------|----------|---------|----------|
++| 1 | Usage within the limit | `bun -e 'import {remaining} from "./src/quota"; console.log(remaining(3,10))'` | 7 | 7 | PASS | .omp/team-config/evidence/gate/quota-remaining/f1/s1-within-limit.txt |
++| 2 | Negative control: usage above the limit | `bun -e '... remaining(12,10)'` | 0, never -2 | 0 | PASS | .omp/team-config/evidence/gate/quota-remaining/f1/s2-above-limit-control.txt |
++| 3 | Integer values are accepted | `bun -e '... remaining(0,5)'` | 5 | 5 | PASS | .omp/team-config/evidence/gate/quota-remaining/f1/s3-integers-accepted.txt |
+diff --git a/.omp/team-config/evidence/gate/quota-remaining/f1/s1-within-limit.txt b/.omp/team-config/evidence/gate/quota-remaining/f1/s1-within-limit.txt
+new file mode 100644
+index 0000000..8efb4e5
+--- /dev/null
++++ b/.omp/team-config/evidence/gate/quota-remaining/f1/s1-within-limit.txt
+@@ -0,0 +1 @@
++remaining(3,10) = 7
+diff --git a/.omp/team-config/evidence/gate/quota-remaining/f1/s2-above-limit-control.txt b/.omp/team-config/evidence/gate/quota-remaining/f1/s2-above-limit-control.txt
+new file mode 100644
+index 0000000..61eddef
+--- /dev/null
++++ b/.omp/team-config/evidence/gate/quota-remaining/f1/s2-above-limit-control.txt
+@@ -0,0 +1 @@
++remaining(12,10) = 0
+diff --git a/.omp/team-config/evidence/gate/quota-remaining/f1/s3-integers-accepted.txt b/.omp/team-config/evidence/gate/quota-remaining/f1/s3-integers-accepted.txt
+new file mode 100644
+index 0000000..3ff3b51
+--- /dev/null
++++ b/.omp/team-config/evidence/gate/quota-remaining/f1/s3-integers-accepted.txt
+@@ -0,0 +1 @@
++remaining(0,5) = 5
+diff --git a/openspec/changes/quota-remaining/.openspec.yaml b/openspec/changes/quota-remaining/.openspec.yaml
+new file mode 100644
+index 0000000..f05d850
+--- /dev/null
++++ b/openspec/changes/quota-remaining/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: omp-gated
++created: 2026-11-02
+diff --git a/openspec/changes/quota-remaining/design.md b/openspec/changes/quota-remaining/design.md
+new file mode 100644
+index 0000000..f9b29c6
+--- /dev/null
++++ b/openspec/changes/quota-remaining/design.md
+@@ -0,0 +1,21 @@
++# Design
++
++## Context
++
++`src/quota.ts` exports only `checkQuota`. Callers subtract by hand.
++
++## Goals / Non-Goals
++
++**Goals:**
++- One pure helper that clamps at zero and validates integers.
++
++**Non-Goals:**
++- Changing `checkQuota` or adding persistence.
++
++## Decisions
++
++Validate first, then clamp with `Math.max(0, limit - used)`. A pure function needs no state.
++
++## Risks / Trade-offs
++
++Throwing on fractional input surfaces caller bugs early instead of rounding silently.
+diff --git a/openspec/changes/quota-remaining/gate.md b/openspec/changes/quota-remaining/gate.md
+new file mode 100644
+index 0000000..3f239d0
+--- /dev/null
++++ b/openspec/changes/quota-remaining/gate.md
+@@ -0,0 +1,9 @@
++# Gate
++
++- **Mandatory class**: none
++- **Depth**: risky (the author declares this helper feeds customer-facing billing displays, so both reviewer lanes run even though no class applies)
++- **Risk tier**: product
++- **Author's risk assessment**: a wrong remaining value would show customers a wrong allowance; the function is pure and side-effect free, so the damage is a displayed number.
++- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
++- **Accepted residual risks**: none (the change adds one pure function and no persisted state)
++- **Out of scope for blocking**: none (no area is excluded from blocking)
+diff --git a/openspec/changes/quota-remaining/proposal.md b/openspec/changes/quota-remaining/proposal.md
+new file mode 100644
+index 0000000..859ed37
+--- /dev/null
++++ b/openspec/changes/quota-remaining/proposal.md
+@@ -0,0 +1,20 @@
++# Proposal
++
++## Why
++
++Callers of `quota-lib` compute the remaining allowance themselves and sometimes show a negative number when usage overshoots the limit.
++
++## What Changes
++
++- Add `remaining(used, limit)` to `src/quota.ts`; it returns the non-negative remaining allowance and rejects non-integer inputs.
++
++## Capabilities
++
++### New Capabilities
++- `quota-remaining`: report the remaining allowance of a quota as a non-negative integer.
++
++### Modified Capabilities
++
++## Impact
++
++`src/quota.ts` gains one exported function. No existing export changes.
+diff --git a/openspec/changes/quota-remaining/review.md b/openspec/changes/quota-remaining/review.md
+new file mode 100644
+index 0000000..ef5ac1c
+--- /dev/null
++++ b/openspec/changes/quota-remaining/review.md
+@@ -0,0 +1,19 @@
++# Review
++
++- **Verdict**: OKAY
++- **Reviewed digest**: aea6a9ca398a7834b4571094753c91ca10903f6a6707bcd48237c89b66319aec
++- **Depth**: risky
++- **Reviewer**: plan-reviewer, 01fixtureA1, 01fixtureB2
++- **Verifier**: blocker-verifier, none
++- **Models**: 01fixtureA1 onara/cx/gpt-6.1-sol, 01fixtureB2 onara/cx/gpt-6.1-sol
++- **Round**: 1
++- **Awaiting**: none
++- **Override**: none
++
++## Blockers
++
++none
++
++## Residuals
++
++none
+diff --git a/openspec/changes/quota-remaining/specs/quota-remaining/spec.md b/openspec/changes/quota-remaining/specs/quota-remaining/spec.md
+new file mode 100644
+index 0000000..5189ce9
+--- /dev/null
++++ b/openspec/changes/quota-remaining/specs/quota-remaining/spec.md
+@@ -0,0 +1,28 @@
++# Spec Delta
++
++## Purpose
++Report how much of a quota is left, so callers never display a negative allowance.
++
++## ADDED Requirements
++
++### Requirement: Remaining quota is never negative
++`remaining(used, limit)` SHALL return `limit - used` while usage is within the limit and `0` once it is not.
++
++#### Scenario: Usage within the limit
++- **WHEN** `remaining(3, 10)` is called
++- **THEN** it returns `7`
++
++#### Scenario: Negative control
++- **WHEN** `remaining(12, 10)` is called with usage above the limit
++- **THEN** a negative result `-2` MUST fail the check; the correct result is `0`
++
++### Requirement: Remaining quota rejects fractional values
++`remaining(used, limit)` SHALL throw a `RangeError` when `used` or `limit` is not an integer.
++
++#### Scenario: Integer values are accepted
++- **WHEN** `remaining(0, 5)` is called
++- **THEN** it returns `5`
++
++#### Scenario: Negative control
++- **WHEN** `remaining(2.5, 10)` is called with a fractional usage
++- **THEN** returning `7.5` MUST fail the check; the correct outcome is a thrown `RangeError`
+diff --git a/openspec/changes/quota-remaining/tasks.md b/openspec/changes/quota-remaining/tasks.md
+new file mode 100644
+index 0000000..7529d8c
+--- /dev/null
++++ b/openspec/changes/quota-remaining/tasks.md
+@@ -0,0 +1,14 @@
++# Tasks
++
++## 1. Implementation
++
++- [x] 1.1 Add `remaining(used, limit)` to `src/quota.ts` Verify: `bun -e 'import {remaining} from "./src/quota"; console.log(remaining(3,10))'`
++
++## 2. Final verification
++
++- [x] 2.1 F1. Manual QA on the real surface: run each scenario of `specs/quota-remaining/spec.md` against `src/quota.ts` with bun; one evidence path per scenario in the `f1/` directory below the record's evidence directory (`.omp/team-config/evidence/gate/quota-remaining/f1/`), on the head after the last code commit; the QA lane judges the observations. Verify: `test -s .omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md`
++
++## Workflow follow-up
++
++- F2 merge gate (`review-work`), after 2.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
++- Merge only after the F2 record validates.
+diff --git a/src/quota.ts b/src/quota.ts
+index 2279d83..afc14f9 100644
+--- a/src/quota.ts
++++ b/src/quota.ts
+@@ -2,3 +2,9 @@
+ export function checkQuota(used: number, limit: number): boolean {
+ 	return used < limit
+ }
++
++/** Remaining allowance, never negative; both values must be integers. */
++export function remaining(used: number, limit: number): number {
++	if (!Number.isInteger(used) || !Number.isInteger(limit)) throw new RangeError("quota values must be integers")
++	return Math.max(0, limit - used)
++}
+Manual QA matrix:
+# QA matrix (F2 wave 1, quota-remaining)
+
+Head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, run from repo root by the orchestrator. Every row re-run in this wave; no F1 row carried (F1 captures were not made in this session and their text does not match the output of the commands the F1 matrix lists). Rows 1-8 command form: bun -e 'import {remaining, checkQuota} from "./src/quota"; ...JSON.stringify(<expr>)...'; the full command is in each artifact.
+
+|#|Scenario|Exact command / action|Expected|Observed|Verdict|Artifact|
+|---|---|---|---|---|---|---|
+|1|Spec S1 Usage within the limit (happy path)|`remaining(3, 10)`|7|7, exit 0|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q1-within-limit.txt|
+|2|Spec S2 Negative control: usage above the limit|`remaining(12, 10)`|0; -2 fails the row|0, exit 0|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q2-above-limit-control.txt|
+|3|Spec S3 Integer values are accepted|`remaining(0, 5)`|5|5, exit 0|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q3-integers-accepted.txt|
+|4|Spec S4 Negative control: fractional usage (missing from F1 matrix)|`remaining(2.5, 10)`|thrown RangeError; 7.5 fails the row|RangeError: quota values must be integers (harness exit 3 = caught throw)|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q4-fractional-used-control.txt|
+|5|Riskiest edge: boundary used == limit|`remaining(10, 10)`|0|0, exit 0|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q5-boundary-used-equals-limit.txt|
+|6|Edge: fractional limit (second operand of the integer check)|`remaining(3, 10.5)`|thrown RangeError|RangeError: quota values must be integers|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q6-fractional-limit.txt|
+|7|Edge: malformed input NaN|`remaining(NaN, 10)`|thrown RangeError, never NaN|RangeError: quota values must be integers|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q7-nonfinite-nan.txt|
+|8|Edge: non-finite limit Infinity|`remaining(3, Infinity)`|thrown RangeError, never Infinity|RangeError: quota values must be integers|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q8-nonfinite-infinity.txt|
+|9|Regression: adjacent export checkQuota unchanged|`[checkQuota(3,10), checkQuota(10,10), checkQuota(12,10)]`|[true,false,false]|[true,false,false], exit 0|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q9-checkquota-adjacent.txt|
+|10|Regression: existing test suite|`bun test`|2 pass, 0 fail|2 pass, 0 fail, exit 0 (suite has no test for remaining())|PASS|.omp/team-config/evidence/gate/quota-remaining/wave-1/q10-existing-suite.txt|
+
+Artifact contents (each file verbatim):
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q1-within-limit.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(3, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+7
+--- stderr
+--- exit 0
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q10-existing-suite.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+test/quota.test.ts:
+(pass) checkQuota is true below the limit [0.03ms]
+(pass) checkQuota is false at the limit
+
+ 2 pass
+ 0 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.00ms]
+--- exit 0
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q2-above-limit-control.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(12, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+0
+--- stderr
+--- exit 0
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q3-integers-accepted.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(0, 5))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+5
+--- stderr
+--- exit 0
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q4-fractional-used-control.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(2.5, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+RangeError: quota values must be integers
+--- stderr
+--- exit 3
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q5-boundary-used-equals-limit.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(10, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+0
+--- stderr
+--- exit 0
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q6-fractional-limit.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(3, 10.5))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+RangeError: quota values must be integers
+--- stderr
+--- exit 3
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q7-nonfinite-nan.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(NaN, 10))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+RangeError: quota values must be integers
+--- stderr
+--- exit 3
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q8-nonfinite-infinity.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify(remaining(3, Infinity))) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+RangeError: quota values must be integers
+--- stderr
+--- exit 3
+
+===== .omp/team-config/evidence/gate/quota-remaining/wave-1/q9-checkquota-adjacent.txt =====
+# head 69ca02af5f15f24a676291a4bf152ee191d3b489, bun 1.4.4, cwd repo root
+$ bun -e 'import {remaining, checkQuota} from "./src/quota"; try { console.log(JSON.stringify([checkQuota(3, 10), checkQuota(10, 10), checkQuota(12, 10)])) } catch (e) { console.log(e.constructor.name + ": " + e.message); process.exitCode = 3 }'
+--- stdout
+[true,false,false]
+--- stderr
+--- exit 0
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
+Answer four questions about the whole diff:
+1. Does the change hold up architecturally against the rest of the system, and where are the cross-module seams between its files?
+2. What is inconsistent, duplicated or needlessly complex across files, and where does simplification apply?
+3. Which failure mode would hurt most in production, and is it handled?
+4. What would a line-level reading of the diff miss?
+
+Brief guard: if this message did not carry all four questions, the diff, the changed-file list, and the QA matrix, return INCONCLUSIVE and name what was missing.
+
+Start each blocker with its own `Blocker B<n>:` line. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+
+End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: <numbers of the questions you received, comma-separated>
+model_id: <your exact resolved model ID, or unresolved>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+adversarial_criteria:
+- invariant: <your own, not restated from the plan>
+  positive_witness: <representative valid outcome>
+  negative_control: <plausible broken outcome that MUST fail>
+  observable: <runtime evidence distinguishing them>
+  boundary: <layer where the result is checked>
+END-REVIEW-TRAILER

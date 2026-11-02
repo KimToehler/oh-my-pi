@@ -1,0 +1,25 @@
+QA2 reject-duplicate
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; command run on a real pty (python os.openpty)
+fixture qa2.json (disposable, synthetic):
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "bob"
+    }
+  ]
+}
+$ bun scripts/gate.ts qa2.json
+REJECT needs 2 independent approvals, got 1
+exit status: 1
+expected: stdout `REJECT needs 2 independent approvals, got 1`, exit 1
+verdict: PASS

@@ -1,0 +1,26 @@
+QA10 control-pre-change-admits-duplicate
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; command run on a real pty (python os.openpty)
+control: scripts/gate.ts from main (0bec2da, pre-change) copied to a temp dir; shows rows QA2/QA3 discriminate
+fixture qa10.json (disposable, synthetic):
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "bob"
+    }
+  ]
+}
+$ bun <tmp>/old/gate.ts qa10.json
+ADMIT
+exit status: 0
+expected: stdout `ADMIT`, exit 0
+verdict: PASS

@@ -1,0 +1,101 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": ".omp/plans/gate-quorum.md",
+  "plan_sha256": "ba2dc8e2a011fbb36a932d0c216ac4ecf80092bb43020c270da331d2da9c1fd1",
+  "reviewed_sha": "cadab7323ac71557f20ec65425fb17ebd0b096f2",
+  "diff_base": "ec85cd18dcb1149a100038042ecb5ddf345c7ce4",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "risky: change alters release-gate admission (decide() approval quorum); plan re-tiered internal-tooling->product with Tim's agreement before baseline; mandatory_class reclassified none->auth-secrets-pii on the final diff because strategic-risk-review reported security_delta yes (approval quorum is an authorisation path)",
+  "mandatory_class": "auth-secrets-pii",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path: two distinct approvers admitted (exit 0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa1-two-distinct.txt",
+      "artifact_sha256": "d9a1a656eab3a1d11d015ee68588603e8e82c3f561b96233958c85e3ba7e3328"
+    },
+    {
+      "name": "QA2 negative control: duplicate approver refused (needs 2 approvals, got 1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa2-duplicate.txt",
+      "artifact_sha256": "2173d9ad5f90a3bef0b382e53722fd3dfb047843eacc6f6ab76ef972cec19f30"
+    },
+    {
+      "name": "QA3 negative control: one approval refused (needs 2 approvals, got 1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa3-one.txt",
+      "artifact_sha256": "8bad7d5cf675d9da25a49c68140060a2a2d30ad94da3d94d8b10de147fe3d57d"
+    },
+    {
+      "name": "QA4 boundary: no approvals refused (needs 2 approvals, got 0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa4-empty.txt",
+      "artifact_sha256": "9689e9af77b8eed56111a0237f67aaa8fd27535a25faeef82f00119cfb91960a"
+    },
+    {
+      "name": "QA5 regression: failed check refuses despite two distinct approvers",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa5-failed-check.txt",
+      "artifact_sha256": "a1d333f545ecd80afae0ad1ea3ba89c98985513fb4d2cbf157e3f3d621b8f780"
+    },
+    {
+      "name": "QA6 boundary: three approvals, two distinct, admitted",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa6-three-with-dup.txt",
+      "artifact_sha256": "e924f54f8319b8fcff67da6d6303c57dc579428ae049ffcc7aad792d65e5e091"
+    },
+    {
+      "name": "QA7 regression: stdin input path refuses duplicate approver",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa7-stdin.txt",
+      "artifact_sha256": "762e0ce994f632b1ebfc598146e458401715a62fb46643610ad1c65a59f0a62f"
+    },
+    {
+      "name": "QA8 mechanical criterion: bun test exits 0",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa8-bun-test.txt",
+      "artifact_sha256": "bd8ece825d36dd9244a17b4e1acf9ea8df39db4906d55d6adaec5036686fff96"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "not needed (whole-diff surface reviewed in F2)"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/gate-quorum/wave-1/trailer-implementation-audit.txt",
+      "trailer_sha256": "e8af244dfa9d8b68889deab8e6c497855482b6ace7d3373774c7888b7bd5db9e",
+      "note": "no blockers; notes: failed-check test masks with one approval, no RED transcript, identity residual accepted"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/gate-quorum/wave-1/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "6c1f0b7ff8941f0c6a57c2264bead09c56a4e22398efc5ed04b871e47ef9c6e0",
+      "note": "no blockers; security_delta yes (approval quorum authorisation path); notes: string quorum is not person quorum (accepted residual), masked failed-check test"
+    }
+  ],
+  "blockers": []
+}

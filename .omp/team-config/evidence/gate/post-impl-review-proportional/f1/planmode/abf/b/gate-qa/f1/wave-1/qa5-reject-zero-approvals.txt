@@ -1,0 +1,19 @@
+# QA qa5-reject-zero-approvals
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa5-reject-zero-approvals.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": []
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa5-reject-zero-approvals.json
+--- stdout
+REJECT needs 2 independent approvals, got 0
+--- stderr
+--- exit 1
+# expected stdout: 'REJECT needs 2 independent approvals, got 0' exit 1
+# verdict: PASS

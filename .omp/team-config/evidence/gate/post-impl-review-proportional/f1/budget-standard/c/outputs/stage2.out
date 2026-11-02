@@ -1,0 +1,56 @@
+Working...
+The F2 merge gate for `csv-total` **passed**. QA passed on all 5 rows, the single `implementation-audit` reviewer returned PASS, and `validate-gate-record.mjs` printed `passed` (exit 0) both before and after the record commit `a1719c6`.
+
+**Deviation from the skill.** The skill wants the review done in a separate, locked worktree. `git worktree add .worktrees/review-csv-total feat/csv-total` refused because `feat/csv-total` is already checked out in this checkout (`is already checked out`). This is also the repo's main worktree, which git won't lock. So the gate ran here, in your working directory.
+
+**What I did, in order**
+- **Brought in the latest `main`:** `main` had moved after the F1 QA run. Commit `e1c4b54` changed `groupThousands` in `src/format.ts` to use `toLocaleString("en-US")`, so totals of 1000 or more now print with commas. I merged `main` into the branch as `aba5159`; `bun test` gave 4 pass, 0 fail.
+- **Recorded the gate start:** the starting point (`GC baseline`) was `aba51593da95`, the readiness check returned `READY`, and the wave-1 snapshot fixed `plan_sha256 d218dbf0…cdf5`. The plan-only check and `validate-openspec-change.mjs` both passed beforehand.
+- **QA:** row 5 was re-run on the merged head; rows 1–4 reuse the earlier F1 captures (reasons in the table).
+- **Reviewer:** I wrote the full brief to `…/payloads/F1D/out-c/brief-implementation-audit-w1.md` and took `c-w1-reply.md` as the reviewer's reply.
+- **Model check:** I ran `jq` over `c-sess.jsonl`. Every assistant turn ran on `onara/cx/gpt-6.1-sol` with thinking `high`, and the trailer's `model_id` is `onara/cx/gpt-6.1-sol`. Both match the reviewer's pinned model in `auditor.md` (`onara/cx/gpt-6.1-sol:high`), and the config has no `auditor` override.
+- **Wave recorded:** the trailer check passed, and `GC wave` gave `DECISION: PASS`, with 0 blockers.
+
+## Overall Verdict: PASSED
+
+Decision reason: `gate.md` sets Depth to standard. The merged `main` change adds no mandatory class, so one `implementation-audit` was enough.
+Mandatory class: none
+
+| # | Scenario | Observed | Verdict | Artifact |
+|---|---|---|---|---|
+| QA1 | happy path: `widget,19.99` + `gadget,5.01` | `25.00`, exit 0 | PASS, carried: total is under 1000, so the formatting change is never reached | `f1/s1-happy.md` |
+| QA2 | malformed price: `widget,abc` | exit 2, `error: line 1: malformed price`, no total | PASS, carried: the error is raised before any formatting | `f1/s2-malformed.md` |
+| QA3 | ten lines of `x,0.10` | `1.00` | PASS, carried: total is 1, under 1000 | `f1/s3-cents.md` |
+| QA4 | empty file | `0.00`, exit 0 | PASS, carried: total is 0, under 1000 | `f1/s4-empty.md` |
+| QA5 | `big,1234.50` | `1,234.50`, exit 0 (was `1234.50` before the merge) | PASS, re-run on `aba5159` | `wave-1/s5-large.md` |
+
+All paths are under `.omp/team-config/evidence/gate/csv-total/`.
+
+| Invocation | Agent | Exact model ID | Independence | Verdict |
+|---|---|---|---|---|
+| Manual QA (5 rows, 5 artifacts) | orchestrator | - | - | PASS |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider (diff written by onara/cc/claude-opus-5-5) | PASS |
+
+**Blocking issues:** none.
+
+**Covered by the one reviewer:** correctness, architecture, contracts, security/privacy, verification adequacy, and the merged `src/format.ts` change.
+
+**Non-blocking notes**
+- `design.md` lists "locale formatting" as out of scope, yet `main` now groups thousands. Task 3.1 allows separators, so this is not a defect.
+- No unit test covers totals of 1000 or more.
+
+**Getting the record to validate:** the validator rejected the first two drafts of the gate record. It wanted `whole_diff.reason` to equal `gate.md`'s text exactly (`whole-diff surface reviewed in F2`), and it needed `blockers: []` present. I fixed both, re-staged, and it passed.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha aba51593da95898f6a2a1f9bd90e747d3d26f76d · plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard per gate.md, mandatory class none)
+  override: none
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at a1719c6
+- code committed after reviewed_sha: none (a1719c6 adds only the record, its trailer and the QA5 capture)
+```
+
+`feat/csv-total` can now be merged.

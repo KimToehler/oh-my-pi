@@ -1,0 +1,7 @@
+# qa4-failed-check: one failing check with three independent approvals
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ cat candidate.json
+{"version":"1.0.0","author":"ann","checks":{"build":true,"tests":false},"approvals":[{"reviewer":"bob"},{"reviewer":"cy"},{"reviewer":"dee"}]}
+$ bun scripts/gate.ts candidate.json
+REJECT failed checks: tests
+exit=1

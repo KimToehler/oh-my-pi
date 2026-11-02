@@ -1,0 +1,20 @@
+QA13 bun-test (unit suite, regression)
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; real pty (python os.openpty), ANSI escapes stripped
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+scripts/gate.test.ts:
+✓ admits a candidate with passing checks and two independent approvals [0.14ms]
+✓ rejects a failing check even with enough approvals [0.03ms]
+✓ rejects a candidate without approval [0.01ms]
+✓ rejects duplicate approvals from one reviewer
+✓ rejects the author's own approval
+
+ 5 pass
+ 0 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [3.00ms]
+exit status: 0
+expected: 5 pass, 0 fail, exit 0
+verdict: PASS

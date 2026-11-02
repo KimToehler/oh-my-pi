@@ -1,0 +1,26 @@
+# QA qa3-reject-self-approval
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa3-reject-self-approval.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "ann"
+    },
+    {
+      "reviewer": "bob"
+    }
+  ]
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa3-reject-self-approval.json
+--- stdout
+REJECT needs 2 independent approvals, got 1
+--- stderr
+--- exit 1
+# expected stdout: 'REJECT needs 2 independent approvals, got 1' exit 1
+# verdict: PASS

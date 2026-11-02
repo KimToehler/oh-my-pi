@@ -1,0 +1,113 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": ".omp/plans/release-approvals.md",
+  "plan_sha256": "17af8508c6456613aa5a68eedce0b59ea22f78d5136c5e3dbf5acd8d7dd57363",
+  "reviewed_sha": "31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437",
+  "diff_base": "0bec2da4805cd0bced4be8555c41c19592c582d7",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "risky depth: the change alters a release mechanism (scripts/gate.ts decides what ships); Risk tier product; mandatory class none re-checked on the final diff (no credential, auth path, PII, schema, wire shape or shared state; both trailers security_delta: no)",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path: two distinct non-author approvals admit",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa1-happy-path.txt",
+      "artifact_sha256": "dc043b6efd6834391b43473dc1921ea93bf03b5a5622a3df11f4f68aa0d8c300"
+    },
+    {
+      "name": "QA2 negative control: duplicate approvals reject got 1",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa2-duplicate-approval.txt",
+      "artifact_sha256": "4ee122f4f8edcba4cee44821fcd58893b70342228bece5ae56081f9e143e7b39"
+    },
+    {
+      "name": "QA3 negative control: self-approval rejects got 1",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa3-self-approval.txt",
+      "artifact_sha256": "dbf9a479c49e37dfef603ffb61eb6813ceeb47a7c013d90b04bd099a47970933"
+    },
+    {
+      "name": "QA4 negative control: failing check rejects despite three approvals",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa4-failed-check.txt",
+      "artifact_sha256": "d894643bcd1112c4da01f335998e3d881844e147c8581848d7eac359c77ec79c"
+    },
+    {
+      "name": "QA5 edge: empty approvals reject got 0",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa5-no-approvals.txt",
+      "artifact_sha256": "77c52471e336fc0d569e414e1a1e8d08e05b20c0851ae08d3296db1da4cd15de"
+    },
+    {
+      "name": "QA6 boundary: author approval ignored, two others admit",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa6-author-plus-two.txt",
+      "artifact_sha256": "0947356d54e8715e326f06767f3645b1ae64788de3e99c6ab8bd8c70ed3b0446"
+    },
+    {
+      "name": "QA7 boundary: ann, bob, bob collapses to one independent and rejects",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa7-self-and-duplicate.txt",
+      "artifact_sha256": "e1bcd348c24397f68fcabdfa57adfee8c695db612569916a2297c96924376c19"
+    },
+    {
+      "name": "QA8 malformed approval without reviewer field (observation, outside plan claims; accepted residual)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa8-malformed-reviewer.txt",
+      "artifact_sha256": "b9f697f4c75028986a0d45e75047164b6404f9a3d2a3e3d3337e1b27b5a85161"
+    },
+    {
+      "name": "QA9 regression: CLI usage error exit 2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa9-usage-regression.txt",
+      "artifact_sha256": "12504c5178734336bd380fdf4e68292260e4ac7041e5e6bb9f76b9dea3830d10"
+    },
+    {
+      "name": "QA10 regression: bun test suite passes",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa10-unit-suite.txt",
+      "artifact_sha256": "2e771c604ef51c82e99fd668fdb60f1f1649b05a3599c05f4c0e9d929b41a966"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "not needed (whole-diff surface reviewed in F2)"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "a977b24e27cf825412014e92766a15d8fff037a4597ea4b0f144d6c41c7ec607",
+      "note": "wave 1 bounded retry (first dispatch ran onara/cc/claude-opus-5, failed the Phase 3 model check, kept at .omp/team-config/evidence/release-approvals/wave-1/implementation-audit-reply.md); no blockers; notes: malformed reviewer entries count (QA8, accepted residual), no RED capture"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "70c2398d5c2a2bf64bb1c5f57ab09f9c41d3885e8bf2f1e4cf5393c7ac544097",
+      "note": "no blockers; notes N1 automated boundary coverage, N2 malformed approval entries count (QA8)"
+    }
+  ],
+  "blockers": []
+}

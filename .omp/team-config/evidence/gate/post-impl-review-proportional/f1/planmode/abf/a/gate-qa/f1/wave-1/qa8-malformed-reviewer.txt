@@ -1,0 +1,7 @@
+# qa8-malformed-reviewer: malformed: approval entry without reviewer field plus one reviewer
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ cat candidate.json
+{"version":"1.0.0","author":"ann","checks":{"build":true,"tests":true},"approvals":[{},{"reviewer":"bob"}]}
+$ bun scripts/gate.ts candidate.json
+ADMIT
+exit=0

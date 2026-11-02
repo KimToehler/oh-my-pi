@@ -1,0 +1,61 @@
+## 1. Goal and behavioural contract
+
+The implementation satisfies the requested admission rule for the existing `Candidate` shape:
+
+- `scripts/gate.ts:22–26` excludes the author, deduplicates reviewer strings, and rejects fewer than two independent reviewers with the required count and reason.
+- Failed checks retain precedence and the existing reason format at `scripts/gate.ts:18–21`.
+- The CLI remains unchanged at `scripts/gate.ts:31–39`: positional JSON input, decision output, exit 0/1, and missing-argument usage exit 2.
+
+No blocking contract violation found.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the complete supplied diff, all four changed files, `package.json`, and both plan copies. The implementation, tests, and README consistently describe the same rule. Public types and the `Decision` shape remain unchanged; replacing `"no approval"` is explicitly required.
+
+Language-server references identified the CLI caller. A supplementary repository search for `decide|approvals|scripts/gate|no approval`, excluding evidence and schema material, found only the gate, its tests, package commands, and README—no additional production consumer requiring migration.
+
+The implementation counts eligible distinct reviewers rather than requiring every approval entry to be eligible or unique. This correctly permits surplus self-approvals and duplicates once sufficient independent reviewers exist. The small change introduces no competing abstraction or dependency.
+
+## 3. Security and privacy delta
+
+No credential, authentication/authorisation integration, third-party personal data, or weakened access to a protected asset appears in this diff. The reviewer-count rule becomes stricter.
+
+**Note — PRE-EXISTING / OUT-OF-SCOPE:** `scripts/gate.ts:37` casts parsed JSON to `Candidate` without runtime schema validation. Candidate authenticity and supplied identity fields remain trusted. This does not block: the boundary is unchanged, malformed/schema-invalid inputs are not claimed, and identity authenticity is explicitly excluded from blocking scope.
+
+Case-sensitive identity comparison matches the accepted residual risk.
+
+## 4. Verification adequacy
+
+I inspected all 13 supplied QA artifacts under `.omp/team-config/evidence/gate/release-approvals/f1/wave-1/`. Their contents record the stated reviewed HEAD and agree with the matrix:
+
+- Required admission, duplicate rejection, self-approval rejection, and failing-check rejection exercise the real CLI.
+- Additional captures cover empty approvals, surplus author/duplicate entries, author-only duplicates, multiple failed checks, and usage.
+- QA10 records the old implementation admitting the duplicate fixture.
+- QA13 records five committed tests passing with no failures. The tests import the real implementation without mocks.
+
+My additional adversarial criterion checks that **adding redundant or ineligible approvals cannot revoke an already-valid admission**. QA1 compared with QA6 and QA7 supports this criterion; it distinguishes the implementation from an incorrect “reject any author/duplicate entry” policy.
+
+**Note — precedence regression coverage:** `scripts/gate.test.ts:15–19` and QA4/QA9 test failing checks only with sufficient approvals. Neither combines a failed check with insufficient approvals. Add that combination to pin rejection-reason precedence. This does not block: the existing check-first return is unchanged and directly establishes the required ordering.
+
+**Note — RED evidence limitation:** QA10 demonstrates CLI discrimination for duplicates, but QA11 uses author-only input rather than QA3’s author-plus-reviewer fixture. No supplied artifact records the committed regression tests failing against the pre-change implementation. This does not establish a product defect or block this audit; exact committed-test RED provenance remains unverified.
+
+No tests or commands were executed by this read-only reviewer.
+
+## 5. Final verdict
+
+No substantiated blockers. Implementation and inspected runtime captures support the requested behavior. This audit does not certify completion of the separate strategic review or SHA-bound gate-record validation; the plan’s checked F2 box is not evidence that those steps ran.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Adding redundant or ineligible approval entries to an already admitted candidate must not revoke admission.
+  positive_witness: With passing checks and author ann, bob+cy, ann+bob+cy, and bob+bob+cy each produce ADMIT and exit 0, as recorded in QA1, QA6, and QA7.
+  negative_control: An implementation that rejects ann+bob+cy merely because an author entry exists, or bob+bob+cy merely because a duplicate exists, must fail this criterion.
+  observable: Compare the recorded CLI stdout and exit statuses for QA1, QA6, and QA7; each must remain ADMIT with exit 0.
+  boundary: The real bun scripts/gate.ts candidate.json CLI reading candidate JSON.
+END-REVIEW-TRAILER

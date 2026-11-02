@@ -1,0 +1,189 @@
+Local implementation audit. No PR lookup, remote fetch, file write, or sub-reviewer dispatch.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
+
+Inputs:
+- Goal, constraints, and behavioural contract: Goal (user request and plan): run the merge gate for plan .omp/plans/gate-quorum.md. The plan's goal: "The release gate admits a candidate after one approval. Require two distinct approvers, so a single person cannot admit a release alone." TODO 1: `scripts/gate.ts` counts distinct approvers and admits only with at least 2 (refusal reason `needs 2 approvals, got N`). TODO 2: `scripts/gate.test.ts` covers two approvals, duplicate approver, one approval.
+Constraints: failed checks still refuse first; the CLI contract (README: candidate JSON on stdin or a file, exit 0 admitted, 1 refused, one JSON Decision line on stdout) is kept. Accepted residual risk: approver identity is a free-form string, not authenticated against any directory. Out of scope for blocking: the CLI wrapper's JSON input validation. Mandatory class: none.
+Background: the gate decides which release candidates ship; a wrong count admits a release with one approval or refuses a good one. The plan was re-tiered from internal-tooling to product (commit cadab73, agreed by the user, Tim) because this gate runs at risky depth: the change alters a release mechanism.
+- Changed files and reviewed diff: Changed files:
+- .omp/plans/gate-quorum.md (new)
+- scripts/gate.test.ts (modified)
+- scripts/gate.ts (modified)
+
+Reviewed diff (git diff main...HEAD, ec85cd18dcb1149a100038042ecb5ddf345c7ce4..cadab7323ac71557f20ec65425fb17ebd0b096f2):
+diff --git a/.omp/plans/gate-quorum.md b/.omp/plans/gate-quorum.md
+new file mode 100644
+index 0000000..7317e40
+--- /dev/null
++++ b/.omp/plans/gate-quorum.md
+@@ -0,0 +1,30 @@
++# Gate quorum: require two distinct approvals for a release
++
++## Goal
++The release gate admits a candidate after one approval. Require two distinct approvers, so a single person cannot admit a release alone.
++
++## TODOs
++- [x] 1. `scripts/gate.ts`: count distinct approvers; admit only with at least 2 (refusal reason `needs 2 approvals, got N`)
++- [x] 2. `scripts/gate.test.ts`: cover two approvals, duplicate approver, one approval
++
++## Final verification wave
++- [x] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/gate-quorum/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
++- [x] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
++
++## Merge gate
++- Author's risk assessment: The gate script decides which release candidates are admitted. A wrong count admits a release with one approval, or refuses a good one. No credentials or personal data involved.
++- Mandatory class: none
++- Risk tier: product
++- Whole-diff review: not needed (whole-diff surface reviewed in F2)
++- Accepted residual risks: approver identity is a free-form string and is not authenticated against any directory
++- Out of scope for blocking: the CLI wrapper's JSON input validation
++- Feature-specific criteria:
++  - Invariant: a candidate is admitted only when no check failed and at least two distinct approver strings are present
++    Positive witness: approvals ["a","b"] with passing checks exits 0 with `admitted`
++    Negative control: approvals ["a","a"] or ["a"] admitted with passing checks
++    Observable: exit code and the JSON reason line printed by `bun scripts/gate.ts <file>`
++    Boundary: the CLI entry point of `scripts/gate.ts`
++  - Mechanical: bun test passes
++    Invariant: the unit tests of the gate pass
++    Observable: `bun test` exits 0
++    Boundary: scripts/gate.test.ts
+diff --git a/scripts/gate.test.ts b/scripts/gate.test.ts
+index fba65e4..69a9917 100644
+--- a/scripts/gate.test.ts
++++ b/scripts/gate.test.ts
+@@ -3,12 +3,18 @@ import { decide } from "./gate"
+ 
+ const ok = [{ name: "unit", passed: true }]
+ 
+-test("admits with one approval", () => {
+-  expect(decide({ version: "1.0.0", checks: ok, approvals: ["a"] }).admitted).toBe(true)
++test("admits with two approvals", () => {
++  expect(decide({ version: "1.0.0", checks: ok, approvals: ["a", "b"] }).admitted).toBe(true)
++})
++test("refuses one approval", () => {
++  expect(decide({ version: "1.0.0", checks: ok, approvals: ["a"] }).reason).toBe("needs 2 approvals, got 1")
++})
++test("refuses duplicate approver", () => {
++  expect(decide({ version: "1.0.0", checks: ok, approvals: ["a", "a"] }).admitted).toBe(false)
+ })
+ test("refuses failed check", () => {
+   expect(decide({ version: "1.0.0", checks: [{ name: "unit", passed: false }], approvals: ["a"] }).admitted).toBe(false)
+ })
+ test("refuses without approval", () => {
+-  expect(decide({ version: "1.0.0", checks: ok, approvals: [] }).reason).toBe("no approval")
++  expect(decide({ version: "1.0.0", checks: ok, approvals: [] }).reason).toBe("needs 2 approvals, got 0")
+ })
+diff --git a/scripts/gate.ts b/scripts/gate.ts
+index 42bbbc8..afa8056 100644
+--- a/scripts/gate.ts
++++ b/scripts/gate.ts
+@@ -13,7 +13,8 @@ export interface Decision {
+ export function decide(c: Candidate): Decision {
+   const failed = c.checks.filter((k) => !k.passed).map((k) => k.name)
+   if (failed.length > 0) return { admitted: false, reason: `failed checks: ${failed.join(", ")}` }
+-  if (c.approvals.length < 1) return { admitted: false, reason: "no approval" }
++  const distinct = new Set(c.approvals).size
++  if (distinct < 2) return { admitted: false, reason: `needs 2 approvals, got ${distinct}` }
+   return { admitted: true, reason: "admitted" }
+ }
+ 
+
+- Repository context and plan: File paths: scripts/gate.ts (Candidate, Decision, decide(), CLI entry under import.meta.main), scripts/gate.test.ts (bun:test unit tests), README.md (CLI contract), package.json (`test`: `bun test`), .omp/plans/gate-quorum.md (plan).
+Context mining:
+- git log -- scripts/gate.ts scripts/gate.test.ts -> only 8b88d41 "chore: release gate" (introduced the gate) and b2ead89 (this change) -> no prior reverts or related fixes.
+- git log --all --grep=approv -> only b2ead89 -> no earlier attempt at quorum.
+- TODO/FIXME/HACK in changed files -> none.
+- importers of scripts/gate.ts -> only scripts/gate.test.ts; no other consumer of decide() or of the old reason string "no approval" in the repo.
+- no git remote, so no issue/PR search was possible.
+Plan (immutable wave-1 copy, verbatim):
+# Gate quorum: require two distinct approvals for a release
+
+## Goal
+The release gate admits a candidate after one approval. Require two distinct approvers, so a single person cannot admit a release alone.
+
+## TODOs
+- [x] 1. `scripts/gate.ts`: count distinct approvers; admit only with at least 2 (refusal reason `needs 2 approvals, got N`)
+- [x] 2. `scripts/gate.test.ts`: cover two approvals, duplicate approver, one approval
+
+## Final verification wave
+- [x] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/gate-quorum/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
+- [x] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
+
+## Merge gate
+- Author's risk assessment: The gate script decides which release candidates are admitted. A wrong count admits a release with one approval, or refuses a good one. No credentials or personal data involved.
+- Mandatory class: none
+- Risk tier: product
+- Whole-diff review: not needed (whole-diff surface reviewed in F2)
+- Accepted residual risks: approver identity is a free-form string and is not authenticated against any directory
+- Out of scope for blocking: the CLI wrapper's JSON input validation
+- Feature-specific criteria:
+  - Invariant: a candidate is admitted only when no check failed and at least two distinct approver strings are present
+    Positive witness: approvals ["a","b"] with passing checks exits 0 with `admitted`
+    Negative control: approvals ["a","a"] or ["a"] admitted with passing checks
+    Observable: exit code and the JSON reason line printed by `bun scripts/gate.ts <file>`
+    Boundary: the CLI entry point of `scripts/gate.ts`
+  - Mechanical: bun test passes
+    Invariant: the unit tests of the gate pass
+    Observable: `bun test` exits 0
+    Boundary: scripts/gate.test.ts
+
+- Manual QA matrix and artifacts: Run on HEAD cadab7323ac71557f20ec65425fb17ebd0b096f2 (diff base ec85cd18dcb1149a100038042ecb5ddf345c7ce4 = merge-base with main; main is an ancestor of HEAD, so no merge was needed). Fixtures are disposable JSON files in a temp directory; every artifact holds the input, the command, stdout/stderr and the exit code. No carried rows: every row was run in this wave.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| QA1 | Happy path: two distinct approvers, passing checks | `bun scripts/gate.ts $F` with {"checks":[unit:passed],"approvals":["a","b"]} | exit 0, `{"admitted":true,"reason":"admitted"}` | exit 0, `{"admitted":true,"reason":"admitted"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa1-two-distinct.txt |
+| QA2 | Negative control: duplicate approver | same, approvals ["a","a"] | exit 1, `needs 2 approvals, got 1` | exit 1, `{"admitted":false,"reason":"needs 2 approvals, got 1"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa2-duplicate.txt |
+| QA3 | Negative control: one approval | same, approvals ["a"] | exit 1, `needs 2 approvals, got 1` | exit 1, `{"admitted":false,"reason":"needs 2 approvals, got 1"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa3-one.txt |
+| QA4 | Boundary: no approvals | same, approvals [] | exit 1, `needs 2 approvals, got 0` | exit 1, `{"admitted":false,"reason":"needs 2 approvals, got 0"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa4-empty.txt |
+| QA5 | Regression: failed check takes precedence over two distinct approvers | same, checks [unit:failed], approvals ["a","b"] | exit 1, `failed checks: unit` | exit 1, `{"admitted":false,"reason":"failed checks: unit"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa5-failed-check.txt |
+| QA6 | Boundary: three approvals, two distinct | same, approvals ["a","b","a"] | exit 0, `admitted` | exit 0, `{"admitted":true,"reason":"admitted"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa6-three-with-dup.txt |
+| QA7 | Regression: stdin input path (README contract), duplicate approver | `bun scripts/gate.ts < $F`, approvals ["a","a"] | exit 1, `needs 2 approvals, got 1` | exit 1, `{"admitted":false,"reason":"needs 2 approvals, got 1"}` | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa7-stdin.txt |
+| QA8 | Mechanical criterion: unit tests | `bun test` | exit 0 | exit 0, 5 pass, 0 fail | PASS | .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa8-bun-test.txt |
+- Author-supplied behavioural criteria: From the plan's ## Merge gate, verbatim:
+  - Invariant: a candidate is admitted only when no check failed and at least two distinct approver strings are present
+    Positive witness: approvals ["a","b"] with passing checks exits 0 with `admitted`
+    Negative control: approvals ["a","a"] or ["a"] admitted with passing checks
+    Observable: exit code and the JSON reason line printed by `bun scripts/gate.ts <file>`
+    Boundary: the CLI entry point of `scripts/gate.ts`
+  - Mechanical: bun test passes
+    Invariant: the unit tests of the gate pass
+    Observable: `bun test` exits 0
+    Boundary: scripts/gate.test.ts
+
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
+Review exactly these five sections:
+1. Goal and behavioural contract
+2. Correctness, regressions, architecture, wire contracts
+3. Security and privacy delta
+4. Verification adequacy
+5. Final `PASS | FAIL | INCONCLUSIVE`
+
+In section 2, read the whole diff and not only line by line: look for cross-module seams, consistency, duplication and simplification across files.
+
+Generate at least one adversarial behavioural criterion of your own using Phase 2.5 fields, and make every criterion you emit your own - the validator rejects a trailer carrying any criterion whose invariant is restated from the plan, so quoting one back beside an original does not satisfy the rule. Author-supplied criteria are inputs, never complete review scope.
+
+Security scope: a finding blocks only when it cites changed lines in DIFF_RANGE, or shows change altered exploitability or exposure of pre-existing code. Otherwise label it `PRE-EXISTING / OUT-OF-SCOPE` as a note.
+
+Brief guard: if this message did not carry all five numbered sections, or withheld the QA matrix, return INCONCLUSIVE and name what was missing. Do not answer a narrower brief as if it were the whole assignment.
+
+Return each blocker on its own `Blocker B<n>:` line with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+
+End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: <numbers you received, comma-separated>
+model_id: <your exact resolved model ID, or unresolved>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+adversarial_criteria:
+- invariant: <your own, not restated from the plan>
+  positive_witness: <representative valid outcome>
+  negative_control: <plausible broken outcome that MUST fail>
+  observable: <runtime evidence distinguishing them>
+  boundary: <layer where the result is checked>
+END-REVIEW-TRAILER

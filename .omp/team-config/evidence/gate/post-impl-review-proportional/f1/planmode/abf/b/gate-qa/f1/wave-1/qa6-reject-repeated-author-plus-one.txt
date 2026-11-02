@@ -1,0 +1,29 @@
+# QA qa6-reject-repeated-author-plus-one
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa6-reject-repeated-author-plus-one.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "ann"
+    },
+    {
+      "reviewer": "ann"
+    },
+    {
+      "reviewer": "bob"
+    }
+  ]
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa6-reject-repeated-author-plus-one.json
+--- stdout
+REJECT needs 2 independent approvals, got 1
+--- stderr
+--- exit 1
+# expected stdout: 'REJECT needs 2 independent approvals, got 1' exit 1
+# verdict: PASS

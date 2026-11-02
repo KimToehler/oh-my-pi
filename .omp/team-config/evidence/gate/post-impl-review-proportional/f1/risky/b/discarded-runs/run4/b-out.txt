@@ -1,0 +1,35 @@
+Working...
+I'm stopping at a question from the skill. The gate has not passed and nothing can merge.
+
+**Where it stands** (review worktree `.worktrees/jobq-lifecycle-gate`, branch `gate/jobq-lifecycle`, locked)
+- I did not run `git switch` in the shared checkout. Its files are byte-identical to `HEAD`; its only change is the untracked `.worktrees/` directory. One edit I made there by mistake was put back with an exact edit.
+- The pre-wave checks passed: the plan-only validator, `validate-openspec-change --reviewed`, and `main` is already part of the branch (`dad7547` is an ancestor).
+- **F1:** the 11-row QA matrix failed row 9. `MAX_ATTEMPTS` was declared but nothing read it: after 3 failures plus `requeue`, `claim` still returned `true`. I ticked F1 task 2.1 and committed it as `c5e4f54` (GC baseline).
+- **Wave 1:** QA failed, so no reviewers were dispatched, as the skill requires. The wave-1 briefs were never written and the w1 payloads went unused. `GC wave`: CONTINUE.
+- **Fix round 1:** added fix row 3.1 to `tasks.md` and commit `5addd9a`, which guards `claim` and `requeue` with `MAX_ATTEMPTS`. The new test failed before the fix (5 pass, 1 fail) and passes after it (6 pass). The delta-review brief is in `briefs/delta1-brief.md`; its verdict (OKAY) was stored verbatim and recorded with `GC delta`.
+- **Wave 2** (snapshot `5addd9a`): all 11 QA rows re-run and passed. Briefs are in `briefs/w2-{audit,strategic}-brief.md`. Both sessions ran on the pinned `onara/cx/gpt-6.1-sol` at thinking level `high`. Both trailers were stored verbatim and passed the trailer check. Both reviewers returned **FAIL**.
+- `GC wave` returned **STOP** (exit 3): "fix-induced blockers rose from 0 to 1". The delta-2 and wave-3 payloads are unused until you answer.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: NOT RUN (F2 stopped at wave 2 STOP; no gate record written)
+  implementation-audit: FAIL · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/jobq-lifecycle/wave-2/trailer-implementation-audit.md (unstaged)
+  strategic-risk-review: FAIL · trailer .omp/team-config/evidence/gate/jobq-lifecycle/wave-2/trailer-strategic-risk-review.md (unstaged)
+```
+
+---
+
+**Question:**
+
+F2 convergence STOP for `jobq-lifecycle` at wave 2 (reviewed `5addd9a70c42`). Ledger: wave 1 had 1 blocker, 0 fix-induced, QA FAIL, decision CONTINUE. Wave 2 has 2 blockers, 1 fix-induced, QA PASS, implementation-audit FAIL, strategic-risk-review FAIL. Reason: fix-induced blockers rose from 0 to 1.
+
+I can't recommend or offer freeze. Both open blockers are excluded under Blocker disposition: the mandatory class is `concurrency-state`, both concern the delivered state machine, and the accepted-residual and out-of-scope lists are both `none`:
+- **implementation-audit B1** (`illegal-state-transition`, `src/worker.ts:6`): `requeue` sets `state: "queued"` without checking the current state. A `done` job goes back on the queue and its work runs again.
+- **strategic-risk-review B1** (`non-atomic-snapshot-write`, `src/store.ts:6`): `saveSnapshot` truncates the file and then writes it. A crash or a reader in between sees an empty or partial snapshot, `loadSnapshot` throws, and every job is lost. `store.ts` is generated ("DO NOT EDIT"), so the lasting fix belongs in the contract repository.
+
+How do you want to proceed?
+
+**Options:**
+- **re-plan:** a separate plan for the affected mechanism.
+- **continue:** one more fix wave.

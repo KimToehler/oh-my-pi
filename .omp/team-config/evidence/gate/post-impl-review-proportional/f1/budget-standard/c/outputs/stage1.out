@@ -1,0 +1,23 @@
+Working...
+## Implementation complete: csv-total (schema: omp-gated)
+
+**Progress:** 4/4 tasks complete. `openspec instructions apply` now reports `all_done`.
+
+### Task 3.1 (F1 manual QA)
+- `main` was not part of the work branch's history, so I merged it. The merge commit is `299d2d6`; it brought in only `README.md`.
+- I ran `bun src/cli.ts total FILE` (bun 1.4.4) on head `299d2d6` and wrote one evidence file per scenario to `.omp/team-config/evidence/gate/csv-total/f1/`. Each file holds the head SHA, the command, the input file, the exit code, stdout and stderr, all copied from the actual run:
+
+| Scenario | Exit | stdout | stderr |
+|---|---|---|---|
+| s1-happy | 0 | `25.00` | (none) |
+| s2-malformed | 2 | (none) | `error: line 1: malformed price` |
+| s3-cents | 0 | `1.00` | (none) |
+| s4-empty | 0 | `0.00` | (none) |
+| s5-large | 0 | `1234.50` | (none) |
+
+- The task's Verify command (`test -s` on all five files) passed.
+- Commit `f1e381f` contains the five evidence files and the ticked checkbox in `tasks.md`. The working tree is clean.
+
+The evidence files record only what the commands printed; deciding whether each scenario passes is the QA lane's job. In `src/format.ts`, `groupThousands` returns the number unchanged, so totals are never grouped. The s5 output still meets the task, which allows either form.
+
+As you asked, I stopped here and did not start the F2 merge gate (`review-work`). Run it before merging or archiving.

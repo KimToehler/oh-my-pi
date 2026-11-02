@@ -1,0 +1,32 @@
+Working...
+**REVIEW FAILED in F2 wave 1:** manual QA found a failing row, so no reviewer was dispatched in that wave. The wave-1 implementation-audit reply you named (`a-w1-reply.md`) and its session file went unused. The fix is committed, and the gate is now waiting on the delta review.
+
+**QA matrix, wave 1** (snapshot `d32f7b7`; checks before it passed: `--plan-only` validator, depth `standard`, Risk tier `product`, auditor pin `onara/cx/gpt-6.1-sol:high` with no override, `GC baseline`, `GC ready`)
+
+| # | Scenario | Verdict | Artifact |
+|---|---|---|---|
+| QA1 | s1: `widget,19.99` and `gadget,5.01` print `25.00` | PASS (reused from F1) | `f1/s1-happy.md` |
+| QA2 | s2: `widget,abc` exits 2, names line 1, prints no total | PASS (reused from F1) | `f1/s2-malformed.md` |
+| QA3 | s3: ten lines of `x,0.10` print `1.00` | PASS (reused from F1) | `f1/s3-cents.md` |
+| QA4 | s4: empty file prints `0.00` | PASS (reused from F1) | `f1/s4-empty.md` |
+| QA5 | s5: `big,1234.50` prints `1,234.50` | PASS (reused from F1) | `f1/s5-large.md` |
+| QA6 | Regression check on `src/format.ts`, a file that already existed on `main` and that this change edits | **FAIL** | `wave-1/qa6-adjacent-format.md` |
+
+The F1 rows were captured on `c25a149`. The only later commit, `d32f7b7`, changes `tasks.md` and the evidence files, so those rows carry over unchanged.
+
+The F1 matrix had no row for regressions in neighbouring behaviour, which the skill requires, so I added QA6. On the real CLI, totals of a million or more print a separator in the wrong place: `big,1234567.89` prints `1234,567.89` and `big,12345678.90` prints `12345,678.90`. On `main` these printed `1234567.89`. The broken `groupThousands` regex inserts one comma, before the last three digits only.
+
+**Wave recorded:** `GC wave --outcome qa=FAIL --blocker QA6` returned `DECISION: CONTINUE`, with one fix round left at `standard` depth.
+
+**Fix round 1 (row 4.1), commit `20fb5fb`:**
+- `groupThousands` now uses `/\B(?=(\d{3})+(?!\d))/g`, so it separates every group of three digits.
+- A regression test expects `1,234,567.89` and `12,345,678.90`. It failed on the old code (it received `1234,567.89`) and passes now. Full suite: 5 pass, 0 fail.
+- Row 4.1 is added under a new `## 4. F2 fixes` group in `tasks.md`. Both the `--plan-only` validator and `validate-openspec-change` still pass.
+- The delta patch and manifest are at `.omp/team-config/gate-deltas/F2-4.1-20fb5fb8e973-20261102205824/`.
+
+**Still open:**
+- The delta review by plan-reviewer has no reply file yet, so the brief below is written but not used.
+- Then wave 2: re-run QA5 and QA6 (the fix changes what they show), then the implementation-audit invocation.
+- The skill wants a separate review worktree locked during the gate. It couldn't be made: this checkout is the only worktree and already on `feat/csv-total`, and git refuses to lock the main worktree. All work ran in this checkout.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/out-b/brief-delta-4.1-round-1.md

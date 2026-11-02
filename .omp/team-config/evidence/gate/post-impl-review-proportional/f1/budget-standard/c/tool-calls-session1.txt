@@ -1,0 +1,14 @@
+     1	bash	openspec list --json; openspec status --change csv-total --json; git rev-parse --show-toplevel; git worktree list --porcelain; git status --short; git log --oneline -5
+     2	bash	openspec instructions apply --change csv-total --json
+     3	bash	node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/csv-total; echo "exit=$?"; cat openspec/changes/csv-total/tasks.md openspec/changes/csv-total/proposal.md openspec/changes/csv-t
+     4	read	artifact://2:raw:16-16
+     5	bash	git branch -a; git merge-base --is-ancestor main HEAD; echo "ancestor=$?"; git log --oneline main -3; ls -la src test; cat package.json; ls -la .omp 2>&1
+     6	read	rule://evidence-discipline
+     7	bash	git merge --no-edit main && git log --oneline -4 && cat src/*.ts
+     8	eval	
+     9	bash	test -s .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md && test -s .omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md && test -s .omp/team-config/evidence/gate/csv-total/f1/s3-cents.md && test -s .omp/team-config/
+    10	read	openspec/changes/csv-total/tasks.md:14
+    11	edit	
+    12	read	openspec/changes/csv-total/tasks.md:14:raw
+    13	edit	
+    14	bash	git add .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md .omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md .omp/team-config/evidence/gate/csv-total/f1/s3-cents.md .omp/team-config/evidence/gate/csv-total/f1/s4-emp

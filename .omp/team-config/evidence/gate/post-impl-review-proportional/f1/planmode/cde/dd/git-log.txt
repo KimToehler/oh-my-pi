@@ -1,0 +1,6 @@
+a9ae9a5 2026-11-02 21:24:41 +0100 chore(gate): F2 merge-gate record for gate-quorum
+cadab73 2026-11-02 21:17:12 +0100 docs(plan): re-tier gate-quorum to product (risky gate depth, agreed by Tim)
+b2ead89 2026-11-02 21:15:26 +0100 feat(gate): require two distinct approvers
+cf8d5e9 2026-11-02 21:15:26 +0100 docs: plan gate-quorum
+ec85cd1 2026-11-02 21:15:25 +0100 chore: install omp-gated schema
+8b88d41 2026-11-02 21:15:25 +0100 chore: release gate

@@ -1,0 +1,32 @@
+Working...
+**The gate has stopped and is NOT READY.** No gate record exists. Wave 1 failed manual QA on a real concurrency bug. Fix round 1 is committed, but the delta review I was given for it doesn't describe that fix, so I couldn't record it.
+
+**Wave 1**
+- I ran QA on `347b847`: the spec scenarios plus three extra checks (full lifecycle, two workers claiming one job at once, existing test suite). 8 of 9 checks passed.
+- The concurrent-claim check (Q8) failed. Running `Promise.all([claim(a,w1), claim(a,w2)])` returned `[true,true]` and the owner ended up as `w2`. The cause: `claim` checks the job is `queued` (`src/queue.ts:30`), waits for `saveSnapshot` (`:32`), and only then marks it `running` (`:33-34`). A second claim made during that wait still sees `queued`. This breaks "A queued job is claimed by one worker", so one job runs on two workers.
+- Because QA failed, the skill ends the wave there and dispatches no reviewers. I wrote no wave-1 briefs and left the four wave-1 reply and session files unused.
+- `GC wave --outcome qa=FAIL --blocker QA8` recorded the wave and printed `DECISION: CONTINUE`. Risky depth allows 2 fix rounds.
+
+**Fix round 1 (`a3ce132`)**
+- **Fix row:** task 3.1 is added to `tasks.md` and ticked.
+- **Change:** `claim` now marks the job `running` with its owner before the snapshot write starts. It puts the job back to `queued` with no owner if the write fails. Snapshot writes now run one at a time, so the last file written holds every successful claim.
+- **Tests:** three new regression tests; `bun test` shows 7 pass, 0 fail.
+  - The concurrent-claim and multi-job snapshot tests failed on the old code.
+  - The rollback test passes on the old code, which never marks the job running before the write. I proved it with a mutant instead: it fails with the rollback removed.
+  - The snapshot test failed 5 of 5 runs with the write ordering removed.
+  - For those mutation runs I edited `src/queue.ts` with a throwaway `python3` replace instead of `edit`, then restored it from a backup.
+- **Delta review:** `GC patch` wrote the patches and `briefs/delta1-brief.md` holds the brief. No QA rows were carried; every row gets re-run.
+
+**Why it stopped**
+`delta1-verdict.json` says OKAY, but its summary doesn't match the fix:
+- It says the delta "guards complete and fail", yet the patch doesn't touch `complete` or `fail`.
+- It says "the carried QA rows are not affected", yet the brief carried none.
+
+An OKAY that describes a different patch is not a review of this one, and recording it would mark `a3ce132` reviewed for the whole gate. The skill's rule for a missing structured verdict is one fresh retry, then stop and tell you. A retry would mean a new dispatch, which this run doesn't allow. So I recorded nothing: no `verdict.json`, no `GC delta`. `GC ready --lane F2` prints `NOT READY: unreviewed fix commit a3ce132e30d6`. Waves 2–3, the delta-2 review, the record and validation are therefore not run.
+
+To continue, a fresh delta review of `347b847..a3ce132` using the same brief needs to return a verdict that actually describes the fix. After that: `GC delta --row 3.1`, then wave 2.
+
+**State left behind**
+- Work is in the locked worktree `.worktrees/review-jobq-lifecycle` on `feat/jobq-lifecycle`. Both `347b847` and `a3ce132` are on that branch.
+- To create the worktree I switched the main checkout to `main`, after confirming it had no changes of any kind. Nothing was discarded, and `.worktrees/` is ignored only in `.git/info/exclude`.
+- Wave-1 QA evidence is in `.omp/team-config/evidence/gate/jobq-lifecycle/wave-1/` (`qa-matrix.md`, `q1`–`q9` transcripts, `qa.ts`), unstaged as the skill requires.

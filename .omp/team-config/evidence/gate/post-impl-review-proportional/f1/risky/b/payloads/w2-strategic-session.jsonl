@@ -1,0 +1,5 @@
+{"type": "session", "version": 3, "id": "synthetic-w2-strategic", "timestamp": "2026-11-02T20:00:00.000Z", "cwd": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/f1b-b", "synthetic": true}
+{"type": "model_change", "id": "s1", "parentId": null, "timestamp": "2026-11-02T20:00:00.001Z", "model": "onara/cx/gpt-6.1-sol", "resolvedModelIsFallback": false}
+{"type": "thinking_level_change", "id": "s2", "parentId": "s1", "timestamp": "2026-11-02T20:00:00.002Z", "thinkingLevel": "high", "configured": null}
+{"type": "message", "id": "s3", "parentId": "s2", "timestamp": "2026-11-02T20:00:00.003Z", "message": {"role": "assistant", "api": "openai-responses", "provider": "onara", "model": "cx/gpt-6.1-sol", "content": [{"type": "text", "text": "synthetic reviewer session for the F1 fixed payload w2-strategic"}], "stopReason": "stop"}}
+{"type": "message", "id": "s4", "parentId": "s3", "timestamp": "2026-11-02T20:00:00.004Z", "message": {"role": "assistant", "api": "openai-responses", "provider": "onara", "model": "cx/gpt-6.1-sol", "content": [{"type": "text", "text": "synthetic reviewer session for the F1 fixed payload w2-strategic"}], "stopReason": "stop"}}

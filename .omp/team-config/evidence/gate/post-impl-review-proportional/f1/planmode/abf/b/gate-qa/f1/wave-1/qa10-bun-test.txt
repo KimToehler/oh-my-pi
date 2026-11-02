@@ -1,0 +1,21 @@
+# QA qa10-bun-test
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+$ bun test
+--- stdout
+bun test v1.4.4 (5d9cc0f4f)
+--- stderr
+
+scripts/gate.test.ts:
+(pass) admits a candidate with passing checks and two independent approvals [0.64ms]
+(pass) rejects a failing check even with enough approvals [0.19ms]
+(pass) rejects a candidate without approval [0.01ms]
+(pass) rejects duplicate approvals from one reviewer
+(pass) rejects the author's own approval
+
+ 5 pass
+ 0 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [4.00ms]
+--- exit 0
+# expected: all tests pass, exit 0
+# verdict: PASS

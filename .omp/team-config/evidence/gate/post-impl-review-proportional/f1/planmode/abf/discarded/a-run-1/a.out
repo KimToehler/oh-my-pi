@@ -1,0 +1,49 @@
+Working...
+The F2 gate has not passed. Wave 1 is recorded and `GC wave` returned **`DECISION: CONTINUE`** (`WAVE F2 1 total=1 fix_induced=0 unlocated=1`), so I stopped there as you asked. Nothing is merged and no gate record is written.
+
+## Wave 1 results
+- **Depth:** risky. `scripts/gate.ts` decides what ships, which makes it a release mechanism. The Risk tier was already `product`, so no question to you was needed. Mandatory class stays `none` after re-checking the final diff.
+- **Snapshot:** reviewed head `4be925316356baf5b7871a0bc1d999cbd7a4ec6a`, base `0bec2da4805cd0bced4be8555c41c19592c582d7`. The snapshot hash of the plan is `plan_sha256 17af8508c6456613aa5a68eedce0b59ea22f78d5136c5e3dbf5acd8d7dd57363`.
+
+| Invocation | Agent | Exact model ID | Independence | Verdict |
+|---|---|---|---|---|
+| Manual QA (9 rows, 9 artifacts) | orchestrator | - | - | PASS |
+| implementation-audit | auditor (fixed payload) | `onara/cc/claude-opus-5` | not counted | **INCONCLUSIVE** |
+| strategic-risk-review | auditor (dispatched for real) | `onara/cx/gpt-6.1-sol` | cross-provider | PASS |
+
+- **implementation-audit is INCONCLUSIVE because the payload ran on the wrong model.** Its session file shows the assistant turn on `onara` / `cc/claude-opus-5`, and its trailer says `model_id: onara/cc/claude-opus-5`. The required model is `onara/cx/gpt-6.1-sol:high`, so the reply doesn't count even though it says PASS.
+- **The retry this lane is entitled to was not run.** After a model mismatch the skill allows one fresh retry, but your prompt says not to dispatch implementation-audit in wave 1. I did not use `opus-pass-reply-retry.md`, because you didn't name it. The reply is kept unchanged as git-ignored evidence at `.omp/team-config/evidence/release-approvals/wave-1/implementation-audit-reply.md` and was not submitted as a trailer.
+- **strategic-risk-review passed.** All 5 assistant turns ran on the required model with thinking `high`, and the trailer check passed. The trailer is stored unchanged at `.omp/team-config/evidence/release-approvals/f2/wave-1/trailer-strategic-risk-review.txt`.
+- **QA:** I ran QA1–QA9 through the real CLI with synthetic candidates. They cover:
+  - admit with two independent approvals;
+  - rejecting a duplicate approval, a self-approval, an empty approval list, and the author repeated alongside one reviewer;
+  - admitting a mix of self, duplicate and two distinct reviewers;
+  - a failing check with three approvals;
+  - the usage error with no argument (exit 2);
+  - `bun test` (5 pass).
+
+  The captures are in `.omp/team-config/evidence/gate/release-approvals/wave-1/` and are not staged, as the skill requires until the record phase.
+- **Implementation-audit brief:** written to `/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/a-brief-implementation-audit.md`.
+
+## Non-blocking note from strategic-risk-review
+The plan's F1 line asks for QA evidence under `f1/`, but the skill puts it under `wave-1/`, which I followed. Moving the captures to `f1/` later would not change any plan bytes.
+
+## Repository changes
+- **Main checkout:** I switched it from `feat/release-approvals` to `main` so the branch could be opened in a dedicated review worktree. The tree was fully clean beforehand: no changes, no untracked files, no stashes. The review worktree is `.worktrees/review-release-approvals`, locked as `review:feat/release-approvals`, and I added `.worktrees/` to `.git/info/exclude`.
+- **New commit:** `4be9253 chore(plan): freeze release-approvals plan for F2 merge gate` marks F1 and F2 as done in the plan. The skill requires this before the plan is hashed.
+- **Ledger:** `GC baseline` is recorded at `4be9253`.
+
+## Next step (not taken)
+Wave 1 used none of the fix rounds; risky depth allows two. No code fix is needed. The next wave has to dispatch implementation-audit on `onara/cx/gpt-6.1-sol:high`, and run strategic-risk-review again alongside it. Phase 4 and the record come only after a wave that passes.
+
+```
+Gate proof
+- integration-review: not needed (not needed (whole-diff surface reviewed in F2))
+- review-work: NOT RUN (F2 wave 1 recorded CONTINUE: implementation-audit INCONCLUSIVE on model mismatch; no record written)
+  reviewed_sha NOT RUN (no record) · plan_sha256 17af8508c6456613aa5a68eedce0b59ea22f78d5136c5e3dbf5acd8d7dd57363
+  implementation-audit: NOT RUN (INCONCLUSIVE, ran on onara/cc/claude-opus-5 instead of onara/cx/gpt-6.1-sol)
+  strategic-risk-review: PASS (wave 1 only, no record) · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/release-approvals/f2/wave-1/trailer-strategic-risk-review.txt
+  override: none
+  record NOT RUN (no record written)
+- code committed after reviewed_sha: none
+```

@@ -1,0 +1,48 @@
+No blockers found in the supplied implementation.
+
+### 1. Architecture and cross-file seams
+
+The policy remains centralized in `decide`; the CLI only loads the candidate and translates the decision into stdout and exit status (`scripts/gate.ts:17–39`). The new `Set` correctly counts distinct non-author reviewer strings without changing the candidate schema or exported decision shape.
+
+The seams are consistent:
+- `scripts/gate.test.ts` imports the real decision function and asserts outcomes directly.
+- `README.md:3–5` describes the updated CLI contract.
+- The plan’s admission criteria match the implementation and supplied QA outcomes.
+- `package.json:5` continues to invoke the same CLI and test suite.
+
+### 2. Consistency and simplification
+
+No conflicting policy or unnecessary abstraction was found. `REQUIRED_APPROVALS` supplies both the threshold and rejection message, while tests independently pin the expected contract.
+
+**Note — durable boundary coverage:** `scripts/gate.test.ts:11–41` lacks committed tests for admitting more than two independent reviewers and for admitting two independent reviewers alongside an author approval. QA7 covers the latter manually. These would strengthen future regression protection; they do not block because the current implementation handles both by inspection and the relevant mixed-author CLI behavior has captured evidence.
+
+### 3. Highest-consequence failure mode
+
+The principal risk is falsely admitting a release because duplicate or author approvals inflate the count. `scripts/gate.ts:22–26` handles this correctly by excluding the author and deduplicating reviewers before comparison. QA2 and QA3 capture rejection through the actual CLI, including exit status.
+
+Enough approvals also cannot override a failed check: rejection occurs first at `scripts/gate.ts:18–21`, corroborated by QA4’s three-reviewer failure scenario.
+
+**Note — trust boundary:** reviewer strings are not authenticated or canonicalized. The plan explicitly accepts exact, case-sensitive identities and excludes candidate authenticity and reviewer directory lookups (`.omp/plans/release-approvals.md:23–24`); this is an acknowledged limitation, not a change-induced blocker.
+
+### 4. What line-level review could miss
+
+An author approval must be ignored, not treated as an automatic veto. QA7 demonstrates that important distinction: author plus two independent reviewers still admits.
+
+The surrounding evidence also matters: tests exercise real decision logic rather than mocks, and CLI captures distinguish rejection text from process status. I reviewed the supplied ten-row matrix and directly inspected QA2, QA3, QA4, QA7, and QA10 artifacts; I ran no commands or tests.
+
+The checked F2 checkbox is not independently sufficient evidence of final record validation. This review supplies one required reviewer outcome; it does not certify the completed orchestration or SHA-bound record.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An author's endorsement must be decision-neutral, neither a qualifying vote nor an automatic veto.
+  positive_witness: QA7 admits ann with approvals ann, bob, cy and passing checks.
+  negative_control: QA3 must reject ann with approvals ann, bob despite having two approval entries.
+  observable: QA7 captures ADMIT with exit 0; QA3 captures REJECT needs 2 independent approvals, got 1 with exit 1.
+  boundary: Actual CLI decision output and process exit status.
+END-REVIEW-TRAILER

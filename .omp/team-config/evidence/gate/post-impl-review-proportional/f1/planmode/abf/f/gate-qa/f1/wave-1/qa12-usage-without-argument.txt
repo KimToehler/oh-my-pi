@@ -1,0 +1,8 @@
+QA12 usage-without-argument (regression: adjacent CLI behaviour)
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; real pty (python os.openpty), ANSI escapes stripped
+$ bun scripts/gate.ts
+usage: bun scripts/gate.ts <candidate.json>
+exit status: 2
+expected: usage line, exit 2
+verdict: PASS

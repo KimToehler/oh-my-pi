@@ -1,0 +1,5 @@
+# qa9-usage-regression: CLI without argument keeps usage error
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ bun scripts/gate.ts
+usage: bun scripts/gate.ts <candidate.json>
+exit=2

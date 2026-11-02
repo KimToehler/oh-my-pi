@@ -1,0 +1,33 @@
+## .
+f0200d7 Return job copies so state changes only through JobQueue
+426f05b Add F2 wave 2 fix row
+de189bf Requeue orphaned jobs on restore, guard transitions, replace snapshots atomically
+9744338 Add F2 wave 1 fix rows
+a13c82b Tick F1 manual QA task
+e784622 Record plan review
+89d8aa1 Add JobQueue with restore and serialized snapshot claims
+233350e Install omp-gated workflow
+d11b19a Plan jobq-lifecycle change
+abd17a4 Base: jobq
+-- HEAD 233350e821c684503c0c735e848a6f46b96da5dd branch main
+-- status --porcelain
+-- tracked diff vs HEAD:
+## .worktrees/jobq-lifecycle-review
+f0200d7 Return job copies so state changes only through JobQueue
+426f05b Add F2 wave 2 fix row
+de189bf Requeue orphaned jobs on restore, guard transitions, replace snapshots atomically
+9744338 Add F2 wave 1 fix rows
+a13c82b Tick F1 manual QA task
+e784622 Record plan review
+89d8aa1 Add JobQueue with restore and serialized snapshot claims
+233350e Install omp-gated workflow
+d11b19a Plan jobq-lifecycle change
+abd17a4 Base: jobq
+-- HEAD f0200d7e9ddff55a1ba8b678ef3ba1a50660d699 branch feat/jobq-lifecycle
+-- status --porcelain
+?? .omp/
+-- tracked diff vs HEAD:
+## ledger lines: 6
+## child sessions:
+0.read.log
+## session jsonl lines: 307

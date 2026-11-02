@@ -1,0 +1,39 @@
+     1	read	skill://review-work
+     2	read	artifact://0:180-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-330
+     4	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:330-470
+     5	bash	awk 'NR==220||NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+     6	eval	
+     7	eval	
+     8	bash	git status --short && git log --oneline -15 && git branch -a && git worktree list && ls -la
+     9	bash	git log --graph --all --format='%h %an %ad %s' --date=iso && git show --stat f1e381f 299d2d6 0cd516d cac67ef | cat
+    10	read	rule://worktrees
+    11	bash	cat .gitignore package.json README.md && find .omp openspec src test -type f | sort && git diff --stat main...HEAD | cat
+    12	eval	
+    13	bash	git show e1c4b54 | cat; git log --format=%h -1 -- src/format.ts; awk 'NR==15' openspec/changes/csv-total/tasks.md | cut -c700-
+    14	eval	
+    15	bash	ls ~/.omp/agent/skills/review-work/scripts/; readlink -f ~/.omp/agent/skills/review-work; ls ~/.omp/agent/agents/ 2>/dev/null; find ~/.omp/profiles/pirp/agent -name auditor.md 2>/dev/null; omp config get task.agentModelOverrides; 
+    16	bash	head -20 ~/.omp/profiles/pirp/agent/agents/auditor.md; echo ----; head -20 ~/.omp/agent/agents/auditor.md; echo ----; ls -la ~/.omp/profiles/pirp/agent/skills/review-work; diff -rq ~/.omp/profiles/pirp/agent/skills/review-work ~/.
+    17	bash	git worktree add .worktrees/review-csv-total feat/csv-total; git merge-base --is-ancestor main HEAD; echo "is-ancestor main HEAD: $?"
+    18	bash	SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $SK/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "exit $?"; node $SK/validate-openspec-change.mjs openspec/changes/csv-to
+    19	bash	git log --all --oneline -- src test README.md package.json | cat; git log --all --oneline --grep="total\|cents\|group" | cat; git remote -v; grep -rnE "TODO|FIXME|HACK" src test || echo "no TODO/FIXME/HACK"; grep -rn "formatCents\
+    20	bash	git merge --no-ff --no-edit main && git log --oneline -3 | cat && git diff --stat f1e381f HEAD | cat && bun test 2>&1 | tail -5
+    21	bash	SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; GC="node $SK/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "exit $?"; $GC ready --lane F2; echo "exit $?"
+    22	bash	SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $SK/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total snapshot --lane F2; echo "exit $?"
+    23	bash	cat .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json; echo; wc -c .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; shasum -a 256 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md
+    24	eval	
+    25	bash	ls -la /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/ /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/out-c 2>&1; git merge-base main HEAD; git diff --name-only main...HEAD | cat
+    26	eval	
+    27	eval	
+    28	eval	
+    29	bash	cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md; echo "=====SESS"; cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl
+    30	bash	S=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl; jq -c 'select(.type=="message" and .message.role=="assistant") | {provider:.message.provider, model:.message.model, full:(.message.provider+"/"
+    31	bash	mkdir -p .omp/team-config/evidence/csv-total/f2 && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt && cmp /var/folders
+    32	bash	node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome 
+    33	grep	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs
+    34	eval	
+    35	bash	git add .omp/team-config/evidence/gate/csv-total.json .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt .omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md && git status --short && node ~/.omp/profile
+    36	eval	
+    37	eval	
+    38	bash	git commit -q -m "gate(csv-total): F2 merge-gate record, implementation-audit trailer, QA5 re-run on aba5159" && git log --oneline -3 | cat && git status --short && node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/valida
+    39	read	rule://merge-gate-proof

@@ -1,0 +1,16 @@
+Working...
+The gate is stopped at Phase 0.5, waiting on you. Nothing has been dispatched, committed, baselined or recorded.
+
+**Why it stops here:**
+- **Depth is `risky`.** The diff changes `scripts/gate.ts` `decide()`, the code that decides which release candidates are admitted. It replaces `approvals.length < 1` with a distinct-approver count `< 2`. The skill classes "a review, gate or release mechanism (text or code that decides what a gate admits, who reviews, or what ships)" as `risky`, so both `implementation-audit` and `strategic-risk-review` must run.
+- **The plan's tier doesn't allow that.** `.omp/plans/gate-quorum.md` says `- Risk tier: internal-tooling`, and for that tier the validator accepts exactly one `implementation-audit`.
+- **The skill says to ask you.** A plan of that tier whose depth comes out `risky` has to be moved to `product` with your agreement before any reviewer is dispatched: "Ask the user."
+- **Nothing else is in the way.** No `GC baseline` exists yet, and `main` is already an ancestor of `HEAD` (`b2ead89`), so no merge is needed before F1.
+
+**Question:** This plan's merge gate derives depth `risky`, because it changes a release-gate mechanism, but its Risk tier is `internal-tooling`, which admits only one `implementation-audit`. Do you agree to re-tier the plan to `- Risk tier: product` so the `risky` gate can run both invocations?
+
+**Options:**
+1. **Agree:** I change the plan to `- Risk tier: product` and commit it before the first `GC baseline`, which then records `product`. Your agreement goes in `decision_reason`. Then F1 and F2 run at `risky` depth with `implementation-audit` and `strategic-risk-review` in one batch.
+2. **Decline:** I dispatch nothing and write no record, because `risky` depth needs Risk tier `product` and the gate never falls back to `standard`. You then choose one of:
+   - **Re-plan**
+   - **Stop**

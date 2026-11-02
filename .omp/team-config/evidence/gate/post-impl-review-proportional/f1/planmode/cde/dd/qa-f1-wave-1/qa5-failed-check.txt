@@ -1,0 +1,9 @@
+# qa5-failed-check: regression: failed check refuses even with two distinct approvers (precedence)
+# HEAD cadab7323ac71557f20ec65425fb17ebd0b096f2
+# input file content:
+{"version": "1.0.0", "checks": [{"name": "unit", "passed": false}], "approvals": ["a", "b"]}
+$ bun scripts/gate.ts $FIXTURE_DIR/qa5-failed-check.json
+{"admitted":false,"reason":"failed checks: unit"}
+# exit code: 1
+# expected exit 1, stdout {"admitted":false,"reason":"failed checks: unit"}
+# verdict: PASS

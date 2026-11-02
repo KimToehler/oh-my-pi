@@ -1,0 +1,26 @@
+# QA qa1-admit-two-independent
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa1-admit-two-independent.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "cy"
+    }
+  ]
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa1-admit-two-independent.json
+--- stdout
+ADMIT
+--- stderr
+--- exit 0
+# expected stdout: 'ADMIT' exit 0
+# verdict: PASS

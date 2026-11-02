@@ -1,0 +1,9 @@
+# qa1-two-distinct: happy path: two distinct approvers, passing checks
+# HEAD cadab7323ac71557f20ec65425fb17ebd0b096f2
+# input file content:
+{"version": "1.0.0", "checks": [{"name": "unit", "passed": true}], "approvals": ["a", "b"]}
+$ bun scripts/gate.ts $FIXTURE_DIR/qa1-two-distinct.json
+{"admitted":true,"reason":"admitted"}
+# exit code: 0
+# expected exit 0, stdout {"admitted":true,"reason":"admitted"}
+# verdict: PASS
