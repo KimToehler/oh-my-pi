@@ -58,10 +58,10 @@ One further rule shapes the `post` column: a target is a retained automatic bloc
 
 | arm | retained | protected | surviving non-blocker | undecided | pending | downgraded | false drop | legitimate residual |
 |---|---|---|---|---|---|---|---|---|
-| S | 36 | 0 | 1 | 0 | 0 | 1 | **0** | 1 |
-| T | 10 | 0 | 0 | 0 | 0 | 1 | **0** | 1 |
+| S | 36 | 0 | 2 | 0 | 0 | 0 | **0** | 0 |
+| T | 10 | 0 | 1 | 0 | 0 | 0 | **0** | 0 |
 
-Across 20 trials and 100 findings the verifier dropped no independently blocking target. The two post-triage losses (`S-Spt-3`, `T-Smt-1`) are targets the independent adjudicator rated below the current blocking threshold.
+Across 20 trials and 100 findings the verifier dropped no independently blocking target, and it produced no target-level loss at all. Three discovered targets are not retained automatic blockers although a match of theirs survived triage: the adjudicator rated the target below the current blocking threshold (`S-App-1`), or rated the surviving finding below it while the verifier confirmed the finding as blocking (`S-Spt-3`, `T-Smt-1`). None of the three is a verifier loss — the verifier kept the finding in every case.
 
 The frozen ledger is not the whole verifier story. Counting the independently blocking discoveries that match no frozen target — deduplicated by mechanism within each trial, then summed over trials — the verifier kept 24 of 25 in S and 5 of 5 in T, and refuted one (`Replacement1SSpt3.9`, S/Spt):
 
@@ -109,17 +109,19 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 - **Loop shape not measured.** Each cell is a first-pass single-reviewer replay. Nothing here measures what a multi-round loop converges to, how many rounds it would save, or what a different loop shape would cost.
 - **Historical arms are reference only.** They come from a different era, brief and contract; their findings were never independently adjudicated (`annotated`), so they carry no precision figure, and their triage is unavailable for all but one trial.
 - **Target ledger is a lower bound**, as the additional-defect count shows.
-- **Adjudication is a model judgment**, repeated once on targets (83/85 agreement) and not repeated on findings.
+- **Adjudication is a model judgment**, repeated once on targets (83/85 agreement) and not repeated on findings. Design D3 also asked for blinded historical findings as reference checks; the normalized corpus holds placeholders instead of the original claim text, so they were never adjudicated and the adjudicator has no calibration signal against known labels.
+- **The blocking denominator is not result-independent.** The pre-dispatch freeze fixed every target's ID, evidence and match criteria but left current severity `unresolved`; the determinate assessment came from the same blinded adjudicators that judged that item's fresh findings. A severity baseline fixed before any fresh result exists would be stronger. The round-2 repeat (83/85, both disagreements `blocking` → `below-threshold`) bounds, but does not remove, that exposure.
 
 ## Amendments after the input freeze
 
-`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Five scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and the fifth corrects a figure against the contract's own wording:
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Six scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and two correct a figure against the contract's own wording:
 
 1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
 2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
 3. `targetRepeats` rows plus a derived agreement table, so the repeat reliability quoted above is scorer output rather than prose.
 4. Triage outcomes for independently blocking discoveries outside the frozen ledger, reported separately from the target-level `false drop` the contract defines. Without it the one verifier drop this experiment produced was in no published figure.
 5. Target severity decides retention. The scorer previously classified each matched target with the severity of the surviving finding, which made a `below-threshold` target a retained automatic blocker although the contract requires the target itself to be independently blocking. This is the one amendment that moved a fresh-arm figure: S `macro post` 18.7 % → 18.1 %, `micro post` 12.33/85 → 12/85, `union post` 17/85 → 16/85, trial `S-App-1` post 3/11 → 2/11. Every pre-triage figure, both false-drop columns and the precision columns are unchanged.
+6. Verifier disposition decides survival. The scorer previously demoted a match the verifier had confirmed as blocking whenever the adjudicator rated that finding below threshold, which published it as a `downgraded` verifier loss. The contract's `confirmed-but-nonblocking downgrade` is the verifier's own call, so such a match survives and the target's severity alone decides retention. S and T each lose their one `downgraded` and `legitimate residual` count to `surviving non-blocker`; no recall, false-drop or precision figure moves.
 
 ## Reproduction
 

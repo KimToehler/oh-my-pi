@@ -45,7 +45,12 @@ const RANK: Readonly<Record<FindingClass, number>> = {
 	dropped: 0,
 };
 
-function classify(adj: Adjudication, tri: Triage | undefined): FindingClass {
+/**
+ * Verifier disposition decides survival; the contract's `confirmed-but-nonblocking downgrade` is the
+ * verifier's own call, so a match it confirmed as blocking survives whatever severity the independent
+ * adjudicator gave the finding. Target severity then decides retention, in {@link triageTargets}.
+ */
+function classify(tri: Triage | undefined): FindingClass {
 	if (tri === undefined) return "pending";
 	if (tri.protected && (tri.result !== "confirmed" || !tri.blocking)) return "protected";
 	switch (tri.result) {
@@ -54,7 +59,7 @@ function classify(adj: Adjudication, tri: Triage | undefined): FindingClass {
 		case "refuted":
 			return "dropped";
 		case "confirmed":
-			if (tri.blocking) return adj.blocking === "blocking" ? "retained" : "nonblocking";
+			if (tri.blocking) return "retained";
 			return tri.consequence ? "nonblocking" : "pending";
 	}
 }
@@ -153,7 +158,7 @@ function triageTargets(
 		for (const f of matches) {
 			const adj = index.adjudication.get(f.id);
 			if (adj === undefined) continue;
-			const c = classify(adj, index.triage.get(f.id));
+			const c = classify(index.triage.get(f.id));
 			if (RANK[c] > RANK[best]) best = c;
 		}
 		const blockingTarget = target.blocking === "blocking";
@@ -215,7 +220,7 @@ function triageAdditional(
 		if (adj === undefined || adj.validity !== "valid" || adj.blocking !== "blocking") continue;
 		if (adj.targets.some(t => itemTargets.has(t))) continue;
 		const unit = adj.mechanism === null ? `f:${f.id}` : `m:${adj.mechanism}`;
-		const c = classify(adj, index.triage.get(f.id));
+		const c = classify(index.triage.get(f.id));
 		const prev = best.get(unit);
 		if (prev === undefined || RANK[c] > RANK[prev]) best.set(unit, c);
 	}

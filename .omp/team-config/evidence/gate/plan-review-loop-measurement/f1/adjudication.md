@@ -102,12 +102,13 @@ The terminal-yield path does call `agent.abort(...)`, which is the premise of th
 
 The experiment produced **no false drop against the frozen ledger**: `falseDrop` is 0 in every trial with triage available, and the arm rows report `0/36` (S) and `0/10` (T) across all 20 triaged trials.
 
-Two post-triage losses exist, and both are legitimate residual, not verifier error:
+Since F2 wave 4 there is no target-level post-triage loss at all. Three discovered targets are not retained automatic blockers although a match of theirs survived triage, and the scorer counts each as `survivingNonBlocker`:
 
-- `S-Spt-3` finding `Replacement1SSpt3.8` → target `strength-progression-targets|R22.1`: the verifier confirmed it as blocking, the independent adjudicator rated the target `below-threshold` at current severity. Post recall 4/32 → 3/32, counted as `downgraded` + `legitimateResidual`.
-- `T-Smt-1` finding `TrialTSmt1.4` → target `session-move-tool|R02.2`: same shape; post recall 2/14 → 1/14.
+- `S-Spt-3` finding `Replacement1SSpt3.8` → target `strength-progression-targets|R22.1`: the verifier confirmed it as blocking; the independent adjudicator rated the finding below the current threshold. The verifier kept the finding, so this is no verifier downgrade and no residual loss. Post recall stays 3/32: the target is below threshold and never a retained automatic blocker.
+- `T-Smt-1` finding `TrialTSmt1.4` → target `session-move-tool|R02.2`: same shape; post recall stays 1/14.
+- `S-App-1` finding `RerunSApp1.5` → target `acp-permission-parity|R07.1`: the finding survived as blocking and the target itself is below threshold. The same finding also matches the blocking target `|R02.2`, which is retained.
 
-In both cases the loss comes from the independent severity assessment of the target, not from the verifier dropping a finding the adjudicator considers blocking. `protected`, `undecided`, `pending` and `unresolvedDrop` are 0 in every triaged trial.
+Before wave 4 the first two were published as `downgraded` + `legitimateResidual`, which reads as a verifier loss although the verifier had retained both findings; the frozen contract's downgrade is the verifier's own `confirmed-but-nonblocking` call. `protected`, `undecided`, `pending` and `unresolvedDrop` are 0 in every triaged trial.
 
 The verifier did drop one blocking finding, outside that ledger. `Replacement1SSpt3.9` (S/Spt) was adjudicated `valid`, `blocking`, `kind: additional-defect`, matching no target; the verifier refuted it, unprotected. Counted per mechanism, the verifier kept 24 of 25 such discoveries in S and 5 of 5 in T. Since F2 wave 2 the scorer reports this separately (`report.md`, `Blocking discoveries outside the frozen ledger`), because the frozen contract's `false drop` is defined over targets and would otherwise leave the only verifier loss of the run unreported.
 

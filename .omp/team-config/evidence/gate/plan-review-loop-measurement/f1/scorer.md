@@ -78,7 +78,7 @@ Unit: first-pass-replay. Targets: 4 (blocking 3, below-threshold 1, unresolved 0
 exit=0
 ```
 
-All hand-calculated quantities match. One expectation of mine was wrong and the scorer is right: I expected the macro denominator to be 2 (both items); the scorer reports `1/1` because an item with no completed trial has no computable recall and is excluded from the macro denominator instead of being scored as zero. The same rule produces the real run's macro denominators (S: 5 items, T: 2 items). The duplicate shows up only as `duplicates = 1` and does not inflate recall: `t1` counts once.
+All hand-calculated quantities match. One expectation of mine was wrong and the scorer is right: I expected the macro denominator to be 2 (both items); the scorer reports `1/1` because an item with no completed trial has no computable recall and is excluded from the macro denominator instead of being scored as zero. The same rule produces the real run's macro denominators: S and T both reach all five items, so both are `/5`, while `H-Focus` has no triage at all (`macroPost` denominator 0) and `H-Replay` has one triaged item (`macroPost` denominator 1). The duplicate shows up only as `duplicates = 1` and does not inflate recall: `t1` counts once.
 
 ## 4. Independent recomputation of the published report
 
