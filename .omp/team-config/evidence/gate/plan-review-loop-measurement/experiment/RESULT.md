@@ -45,14 +45,14 @@ One further rule shapes the `post` column: a target is a retained automatic bloc
 | class | S (75 findings) | T (25 findings) |
 |---|---|---|
 | known target (matched the frozen ledger) | 35 | 11 |
-| additional defect (valid, blocking, no target) | 32 | 7 |
+| additional defect (valid, no matching target) | 32 | 7 |
 | useful note | 0 | 2 |
 | unsupported consequence | 5 | 5 |
 | evidence error | 1 | 0 |
 | false claim | 2 | 0 |
 | severity error / pending | 0 | 0 |
 
-39 of 100 fresh findings are independently valid and blocking without matching any frozen target. The 85-target ledger is therefore a lower bound on what these plans contained, and single-reviewer recall against it understates discovery.
+39 of 100 fresh findings are independently valid defects that match no frozen target; 30 of them are independently blocking (S 25, T 5) and nine are below the current threshold (S 7, T 2). The 85-target ledger is therefore a lower bound on what these plans contained, and single-reviewer recall against it understates discovery.
 
 ## Triage
 

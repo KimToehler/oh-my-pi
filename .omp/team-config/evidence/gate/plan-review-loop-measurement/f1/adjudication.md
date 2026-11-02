@@ -96,7 +96,7 @@ The terminal-yield path does call `agent.abort(...)`, which is the premise of th
 
 ## Near miss: valid finding with no target
 
-`Smt-01` and `Smt-03` (different trials, different arms) both report mechanism `M-missing-worktree-parent-dir`: the plan admits a missing target only when its parent's realpath equals `realpath(<primaryRoot>/<worktree.repoDir>)`, and never states what happens when `.worktrees` itself does not exist, which is the state of a fresh checkout. The adjudicator rated both `valid`, `blocking`, `kind: additional-defect`, and recorded that no target in the 14-row ledger describes this mechanism. They therefore raise no recall numerator and are counted once as a distinct additional mechanism, not as a match. Across both rounds, 39 of the 100 fresh findings are independently valid and blocking without a matching target (S 32 of 75, T 7 of 25).
+`Smt-01` and `Smt-03` (different trials, different arms) both report mechanism `M-missing-worktree-parent-dir`: the plan admits a missing target only when its parent's realpath equals `realpath(<primaryRoot>/<worktree.repoDir>)`, and never states what happens when `.worktrees` itself does not exist, which is the state of a fresh checkout. The adjudicator rated both `valid`, `blocking`, `kind: additional-defect`, and recorded that no target in the 14-row ledger describes this mechanism. They therefore raise no recall numerator and are counted once as a distinct additional mechanism, not as a match. Across both rounds, 39 of the 100 fresh findings are independently valid defects with no matching target (S 32 of 75, T 7 of 25); 30 of those are independently blocking (S 25, T 5), which is the population the off-ledger triage table counts.
 
 ## Verifier-loss disposition
 
