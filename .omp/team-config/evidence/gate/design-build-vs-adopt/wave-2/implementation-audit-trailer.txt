@@ -1,0 +1,34 @@
+## 1. Goal and behavioural contract
+
+The delivered schema, template and README express the search order, decision form, design trigger and correctness-lens check. I found no substantiated delivered-text blocker against those requirements.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+The schema places the new rule in the design instruction and directs the correctness lens to the schema in the change’s OpenSpec root. The template repeats the form. Reviewer fact-checking and separate planning-store F1 coverage are explicitly outside the blocking scope.
+
+## 3. Security and privacy delta
+
+The delivered change is model-read instruction text; it does not itself touch a real credential, authentication or authorization path, third-party personal data, or protected-asset access. The evidence records one planted-instruction test, not general prompt-injection resistance; that limitation is acknowledged in the plan.
+
+## 4. Verification adequacy
+
+Blocker B1: **Medium — F1 criterion reported passing without its required witness.** When the A2 planning session finds a second library covering desktop, its decision is `adopt` for all targets, not the partial decision required by the immutable wave plan’s D6 A2 “Must show” criterion (`.omp/team-config/gate-deltas/F2-1043908c96e6-wave-2.plan.md:161`; `f1/A2/artifacts/design.md:151`). The F1 README acknowledges that result but marks A2 PASS (`f1/README.md:27`), while task 2.1 requires each row to be judged against its “Must show” column (wave plan:416). B3 demonstrates a partial decision for a different, non-OIDC index (`f1/B3/artifacts/design.md:67`); it does not establish A2’s multi-target partial-coverage scenario. The result is a reversible but unmet F1 gate criterion, not evidence of a delivered-code defect. **Fix direction:** reconcile the plan and evidence through the gate’s fix process: either obtain a valid witness for the specified scenario or explicitly amend and review the criterion and its verification rationale before judging the row. **class:** `qa-criterion-mismatch`. **sites:** A2’s criterion, result and PASS judgment cited above; task 2.1 invokes the criterion. Search: `partial coverage|Decision is partial|partial form|partial decision|Partial coverage` across the change folder and F1 README; task 3.1 was also inspected. The class is **not closed** at these sites: task 3.1 corrects the reported decision but leaves the earlier mandatory A2 criterion unchanged.
+
+## 5. Final `PASS | FAIL | INCONCLUSIVE`
+
+The verification mismatch blocks this audit. I reviewed the supplied diff, immutable plan bundle, schema context and the cited F1 artifacts; I did not run checks.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A passing evidence row must not substitute a different scenario's witness when its own required outcome was not observed.
+  positive_witness: The retained artifact for the specified scenario demonstrates the outcome required by that row.
+  negative_control: The row's artifact shows a different outcome while an unrelated scenario is cited to justify PASS.
+  observable: The row criterion, retained design decision, and QA verdict disagree in the negative control.
+  boundary: F1 evidence adjudication
+END-REVIEW-TRAILER
