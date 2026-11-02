@@ -1,0 +1,185 @@
+import type { AdjudicationKind, Blocking } from "./types";
+
+/** numerator/denominator pair; value is null with a reason whenever it is not computable. */
+export interface Ratio {
+	readonly numerator: number;
+	readonly denominator: number;
+	readonly value: number | null;
+	readonly reason: string | null;
+}
+
+export interface TriageCounts {
+	readonly retained: number;
+	readonly protected: number;
+	readonly undecided: number;
+	readonly pending: number;
+	/** Discovered targets whose only surviving matches are confirmed but nonblocking. */
+	readonly downgraded: number;
+	/** Independently blocking discovered targets lost by triage (includes downgraded). */
+	readonly falseDrop: number;
+	/** Discovered targets independently below threshold and lost by triage. */
+	readonly legitimateResidual: number;
+	/** Discovered targets with unresolved severity lost by triage; outside the definitive denominator. */
+	readonly unresolvedDrop: number;
+}
+
+export type KindCounts = Readonly<Record<AdjudicationKind, number>>;
+
+export interface FindingCounts {
+	readonly total: number;
+	readonly valid: number;
+	readonly invalid: number;
+	readonly pending: number;
+	/** Valid findings beyond the first per target set or mechanism. */
+	readonly duplicates: number;
+	readonly additionalMechanisms: readonly string[];
+	/** Adjudicated classification per finding; sums to total. */
+	readonly kinds: KindCounts;
+}
+
+export interface TrialScore {
+	readonly id: string;
+	readonly arm: string;
+	readonly item: string;
+	readonly repeat: number;
+	readonly targetCount: number;
+	readonly discovered: readonly string[];
+	/** Targets retained as confirmed blocking; null when triage is unavailable. */
+	readonly retained: readonly string[] | null;
+	readonly undiscovered: number;
+	readonly preRecall: Ratio;
+	readonly postRecall: Ratio;
+	readonly triage: TriageCounts | null;
+	readonly triageReason: string | null;
+	readonly falseDropRate: Ratio;
+	readonly findings: FindingCounts;
+	readonly falsePositiveRate: Ratio;
+}
+
+export interface ItemScore {
+	readonly arm: string;
+	readonly item: string;
+	readonly targetCount: number;
+	readonly completedTrials: number;
+	/** numerator = mean discovered targets per completed trial. */
+	readonly trialMeanPre: Ratio;
+	readonly trialMeanPost: Ratio;
+	readonly unionLabel: string;
+	readonly unionPre: Ratio;
+	readonly unionPost: Ratio;
+	readonly falseDrop: Ratio;
+	readonly additionalMechanisms: readonly string[];
+}
+
+export interface ArmScore {
+	readonly arm: string;
+	readonly historical: boolean;
+	readonly intendedTrials: number;
+	readonly completedTrials: number;
+	readonly excludedTrials: number;
+	readonly missingTrials: number;
+	readonly macroPre: Ratio;
+	readonly macroPost: Ratio;
+	readonly microPre: Ratio;
+	readonly microPost: Ratio;
+	readonly microUnionPre: Ratio;
+	readonly microUnionPost: Ratio;
+	readonly falseDrop: Ratio;
+	readonly falsePositive: Ratio;
+	readonly triage: TriageCounts;
+	readonly pendingFindings: number;
+	readonly additionalMechanisms: number;
+}
+
+export interface CostBucket {
+	readonly attempts: number;
+	readonly unknownCost: number;
+	readonly amount: number;
+}
+
+export interface CostSummary {
+	readonly reviewer: CostBucket;
+	readonly verifier: CostBucket;
+	readonly adjudicator: CostBucket;
+	readonly unsuccessful: CostBucket;
+	readonly total: CostBucket;
+	readonly totalIsLowerBound: boolean;
+	readonly complete: boolean;
+	readonly byArm: readonly { readonly arm: string; readonly bucket: CostBucket }[];
+}
+
+export interface AttemptTiming {
+	readonly attempt: string;
+	readonly stage: string;
+	readonly elapsedMs: number | null;
+	readonly reason: string | null;
+}
+
+export interface Span {
+	readonly ms: number | null;
+	readonly complete: boolean;
+	readonly reason: string | null;
+}
+
+export interface TimingSummary {
+	readonly attempts: readonly AttemptTiming[];
+	readonly trialSpans: readonly { readonly trial: string; readonly span: Span }[];
+	readonly experimentWall: Span;
+	readonly note: string;
+}
+
+export type ChangedAxis = "model" | "effort" | "brief" | "contract" | "rules" | "snapshot" | "triage" | "sampling";
+export type ComparisonLabel = "no-binding-change" | "single-axis" | "confounded";
+
+export interface Comparison {
+	readonly a: string;
+	readonly b: string;
+	readonly changedAxes: readonly ChangedAxis[];
+	readonly label: ComparisonLabel;
+	readonly historicalReference: boolean;
+	readonly asymmetricRepeats: boolean;
+	readonly causalClaim: false;
+	readonly attribution: ChangedAxis | null;
+}
+
+export interface RoundRow {
+	readonly item: string;
+	readonly revision: string;
+	readonly path: string;
+	readonly lastRound: number;
+	readonly workflow: string | null;
+	readonly workflowProvenance: "recorded" | "unknown";
+}
+
+export interface RoundsSummary {
+	readonly observed: readonly RoundRow[];
+	readonly measuredRoundsSaved: "not-measured";
+	readonly fullCycleSavings: "not-measured";
+	readonly budgets: "counterfactual";
+}
+
+export interface Exclusion {
+	readonly kind: "trial" | "attempt";
+	readonly id: string;
+	readonly status: string;
+	readonly reason: string | null;
+}
+
+export interface TargetSummary {
+	readonly total: number;
+	readonly byBlocking: Readonly<Record<Blocking, number>>;
+}
+
+export interface ScoreSummary {
+	readonly version: 1;
+	readonly unit: "first-pass-replay";
+	readonly targets: TargetSummary;
+	readonly trials: readonly TrialScore[];
+	readonly items: readonly ItemScore[];
+	readonly arms: readonly ArmScore[];
+	readonly costs: CostSummary;
+	readonly timing: TimingSummary;
+	readonly comparisons: readonly Comparison[];
+	readonly rounds: RoundsSummary;
+	readonly exclusions: readonly Exclusion[];
+}
