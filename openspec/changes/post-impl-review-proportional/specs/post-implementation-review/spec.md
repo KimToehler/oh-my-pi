@@ -28,7 +28,7 @@ The F2 gate SHALL take its depth from the change's `gate.md` `Depth` bullet. For
 #### Scenario: Internal-tooling plan at risky depth
 
 - **WHEN** a plan with Risk tier `internal-tooling` derives or is raised to `risky`
-- **THEN** before any reviewer is dispatched, the plan is set to Risk tier `product` and `GC retier` records the user's agreement; without that agreement the gate keeps `standard` and tells the user why
+- **THEN** before any reviewer is dispatched the user is asked to re-tier it to `product`; on agreement the plan says `- Risk tier: product` before the gate's first `GC baseline`, or, when a baseline already records `internal-tooling`, `GC retier` records the agreement; on refusal the gate dispatches nothing and stops, and never runs at `standard`
 
 #### Scenario: Negative control
 
@@ -61,7 +61,7 @@ Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the mod
 #### Scenario: Fallback model
 
 - **WHEN** the retry chain moves a stalled `implementation-audit` dispatch to another model and it returns PASS
-- **THEN** that invocation is INCONCLUSIVE, and one fresh retry runs on the pinned model
+- **THEN** that reply is kept as evidence and never submitted as the invocation's trailer, and one fresh retry runs on the pinned model
 
 #### Scenario: Same model, lower effort
 
@@ -76,7 +76,7 @@ Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the mod
 #### Scenario: Retry also substituted
 
 - **WHEN** the fresh retry also runs on a model other than the pin
-- **THEN** the invocation stays INCONCLUSIVE, the gate does not pass, and the user is told which model ran
+- **THEN** the invocation stays INCONCLUSIVE and `GC wave` records it without its trailer, both replies are kept verbatim as evidence, the gate does not pass, and the user is told which model ran
 
 #### Scenario: Negative control
 
