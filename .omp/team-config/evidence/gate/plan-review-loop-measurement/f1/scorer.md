@@ -112,7 +112,7 @@ Published values are `S micro pre 12.666…/85`, `S union pre 18/85`, ledger `85
 
 ```
 $ bun test scripts/score-plan-review-replay.test.ts
-60 pass
+65 pass
 0 fail
 ```
 
@@ -137,6 +137,17 @@ $ bun scripts/score-plan-review-replay.ts report <experiment>/dataset.json --for
 ```
 
 The five recorded round rows and the `round-2` agreement row (`83/85 = 97.6%`, both disagreements named) render from the dataset; S and T figures are byte-identical to the pre-fix report.
+
+## 6b. Fix-wave surfaces (F2 wave 2)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| blocking discoveries outside the ledger counted per mechanism | replace the mechanism key with the finding id in `triageAdditional` | the dedupe test fails: two wordings of one mechanism count twice |
+| only independently blocking rows count as a loss | drop `adj.blocking !== "blocking"` from the filter | the same test fails: a below-threshold mechanism enters the denominator |
+| the off-ledger drop rate has its own denominator | pool `i.falseDrop` instead of `i.additionalBlockingDrop` per arm | the arm test fails: the loss is folded into the target-level rate |
+| the unsuccessful cost row is labelled a subset | remove the label | the cost-label test fails |
+
+Observed on the published run after the fixes: S keeps 24 of 25 blocking mechanisms outside the ledger and drops one (`Replacement1SSpt3.9`), T keeps 5 of 5; both historical arms report `n/a` because their triage is unavailable. The target-level `false drop` cells (`0/36`, `0/10`) and every recall figure are byte-identical to the pre-fix report.
 
 ## 7. Re-read of the upstream F1 evidence
 

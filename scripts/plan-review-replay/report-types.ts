@@ -23,6 +23,21 @@ export interface TriageCounts {
 	readonly unresolvedDrop: number;
 }
 
+/**
+ * Triage outcome of independently blocking discoveries that match no frozen target, deduplicated per
+ * trial by mechanism. They are outside the frozen-ledger denominators, so a loss here is never a
+ * `falseDrop`; it is still a verifier loss and is reported on its own.
+ */
+export interface AdditionalBlocking {
+	readonly discovered: number;
+	readonly retained: number;
+	readonly protected: number;
+	readonly undecided: number;
+	readonly pending: number;
+	/** Refuted, or confirmed as nonblocking. */
+	readonly dropped: number;
+}
+
 export type KindCounts = Readonly<Record<AdjudicationKind, number>>;
 
 export interface FindingCounts {
@@ -54,6 +69,8 @@ export interface TrialScore {
 	readonly triage: TriageCounts | null;
 	readonly triageReason: string | null;
 	readonly falseDropRate: Ratio;
+	/** Null exactly when triage is unavailable. */
+	readonly additionalBlocking: AdditionalBlocking | null;
 	readonly findings: FindingCounts;
 	readonly falsePositiveRate: Ratio;
 }
@@ -72,6 +89,9 @@ export interface ItemScore {
 	readonly unionPre: Ratio;
 	readonly unionPost: Ratio;
 	readonly falseDrop: Ratio;
+	readonly additionalBlocking: AdditionalBlocking;
+	/** Dropped over discovered blocking additional mechanisms of the triaged trials. */
+	readonly additionalBlockingDrop: Ratio;
 	readonly additionalMechanisms: readonly string[];
 }
 
@@ -93,6 +113,9 @@ export interface ArmScore {
 	readonly falseDrop: Ratio;
 	readonly falsePositive: Ratio;
 	readonly triage: TriageCounts;
+	readonly additionalBlocking: AdditionalBlocking;
+	/** Dropped over discovered blocking additional mechanisms of the triaged trials. */
+	readonly additionalBlockingDrop: Ratio;
 	readonly pendingFindings: number;
 	readonly additionalMechanisms: number;
 }

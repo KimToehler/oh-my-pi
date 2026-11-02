@@ -61,6 +61,15 @@ A single S reviewer finds about 15 % of the frozen ledger; three independent S r
 
 Across 20 trials and 100 findings the verifier dropped no independently blocking target. The two post-triage losses (`S-Spt-3`, `T-Smt-1`) are targets the independent adjudicator rated below the current blocking threshold.
 
+The frozen ledger is not the whole verifier story. Of the independently blocking discoveries that match no frozen target — deduplicated by mechanism — the verifier kept 24 of 25 in S and 5 of 5 in T, and refuted one (`Replacement1SSpt3.9`, S/Spt):
+
+| arm | blocking mechanisms outside the ledger | retained | dropped | drop rate |
+|---|---|---|---|---|
+| S | 25 | 24 | 1 | 1/25 = 4.0% |
+| T | 5 | 5 | 0 | 0/5 = 0.0% |
+
+That single drop is a real verifier loss and is deliberately kept out of the `false drop` column, whose frozen definition is target-level. Both figures are scorer output (`report.md`, `Blocking discoveries outside the frozen ledger`).
+
 ## Round records
 
 Each measured plan's archived `review.md` pins the last plan-review round it reached, under the `omp-gated` workflow:
@@ -82,7 +91,7 @@ These are **recorded last rounds, not observed round counts**: the intervening r
 | reviewer | 56 | 47.26 |
 | verifier | 22 | 4.08 |
 | adjudicator | 10 | 19.90 |
-| unsuccessful (excluded attempts, cost retained) | 9 | 31.97 |
+| unsuccessful (subset of the stage rows, excluded attempts whose cost is retained) | 9 | 31.97 |
 | **total** | 88 | **71.25** |
 
 Per-arm: H-Focus 1.07, H-Replay 1.42, S 47.48, T 1.37 USD. All usage was recorded; the total is not a lower bound.
@@ -102,11 +111,12 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 
 ## Amendments after the input freeze
 
-`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Three scorer rules were added after the fresh results existed, each removing an unmeasured claim rather than changing a measured one; no fresh-arm figure in this document moved:
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Four scorer rules were added after the fresh results existed; each removes an unmeasured claim or adds a measured one that the contract's target-level definitions left unreported, and no fresh-arm figure already in this document moved:
 
 1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
 2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
 3. `targetRepeats` rows plus a derived agreement table, so the repeat reliability quoted above is scorer output rather than prose.
+4. Triage outcomes for independently blocking discoveries outside the frozen ledger, reported separately from the target-level `false drop` the contract defines. Without it the one verifier drop this experiment produced was in no published figure.
 
 ## Reproduction
 

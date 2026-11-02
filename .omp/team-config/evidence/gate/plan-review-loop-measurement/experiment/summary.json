@@ -98,7 +98,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Focus-Fmp-1",
@@ -160,7 +161,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Focus-Rtr-1",
@@ -218,7 +220,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Focus-Smt-1",
@@ -279,7 +282,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Focus-Spt-1",
@@ -341,7 +345,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-App-1",
@@ -399,7 +404,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-App-2",
@@ -457,7 +463,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-App-3",
@@ -521,6 +528,14 @@
         "denominator": 0,
         "value": null,
         "reason": "no discovered independently blocking targets"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -579,7 +594,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Fmp-2",
@@ -638,7 +654,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Rtr-1",
@@ -696,7 +713,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Rtr-2",
@@ -754,7 +772,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Rtr-3",
@@ -812,7 +831,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Smt-1",
@@ -867,7 +887,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Smt-2",
@@ -925,7 +946,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Smt-3",
@@ -985,7 +1007,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Spt-1",
@@ -1042,7 +1065,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Spt-2",
@@ -1099,7 +1123,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "H-Replay-Spt-3",
@@ -1154,7 +1179,8 @@
         "denominator": 0,
         "value": null,
         "reason": "historical triage unavailable; not retained by default"
-      }
+      },
+      "additionalBlocking": null
     },
     {
       "id": "S-App-1",
@@ -1230,6 +1256,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1302,6 +1336,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1379,6 +1421,14 @@
         "denominator": 4,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1453,6 +1503,14 @@
         "denominator": 3,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1529,6 +1587,14 @@
         "denominator": 4,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1605,6 +1671,14 @@
         "denominator": 4,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1678,6 +1752,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1748,6 +1830,14 @@
         "denominator": 1,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1820,6 +1910,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1893,6 +1991,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -1966,6 +2072,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2039,6 +2153,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 1,
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2116,6 +2238,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 4,
+        "retained": 4,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2189,6 +2319,14 @@
         "denominator": 1,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 4,
+        "retained": 4,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2267,6 +2405,14 @@
         "denominator": 3,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 4,
+        "retained": 3,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 1
       }
     },
     {
@@ -2337,6 +2483,14 @@
         "denominator": 1,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2409,6 +2563,14 @@
         "denominator": 3,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2481,6 +2643,14 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2554,6 +2724,14 @@
         "denominator": 1,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     },
     {
@@ -2631,6 +2809,14 @@
         "denominator": 3,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 3,
+        "retained": 3,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
       }
     }
   ],
@@ -2672,6 +2858,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -2710,6 +2910,20 @@
         "denominator": 0,
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "additionalMechanisms": []
     },
@@ -2750,6 +2964,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -2789,6 +3017,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -2827,6 +3069,20 @@
         "denominator": 0,
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "additionalMechanisms": []
     },
@@ -2867,6 +3123,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -2905,6 +3175,20 @@
         "denominator": 0,
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "additionalMechanisms": []
     },
@@ -2945,6 +3229,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -2983,6 +3281,20 @@
         "denominator": 0,
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "additionalMechanisms": []
     },
@@ -3023,6 +3335,20 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -3059,6 +3385,20 @@
       "falseDrop": {
         "numerator": 0,
         "denominator": 8,
+        "value": 0,
+        "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 4,
+        "retained": 4,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 4,
         "value": 0,
         "reason": null
       },
@@ -3108,6 +3448,20 @@
         "value": 0,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      },
       "additionalMechanisms": [
         "M-registryless-multileg-fixtures-throw",
         "M-resolver-compresses-below-intersection-min",
@@ -3148,6 +3502,20 @@
       "falseDrop": {
         "numerator": 0,
         "denominator": 5,
+        "value": 0,
+        "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 2,
         "value": 0,
         "reason": null
       },
@@ -3194,6 +3562,20 @@
         "value": 0,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 5,
+        "retained": 5,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0,
+        "reason": null
+      },
       "additionalMechanisms": [
         "M-competing-pending-moves",
         "M-missing-repodir-parent-unadmittable",
@@ -3236,6 +3618,20 @@
         "numerator": 0,
         "denominator": 6,
         "value": 0,
+        "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 12,
+        "retained": 11,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 1
+      },
+      "additionalBlockingDrop": {
+        "numerator": 1,
+        "denominator": 12,
+        "value": 0.08333333333333333,
         "reason": null
       },
       "additionalMechanisms": [
@@ -3289,6 +3685,20 @@
         "value": 0,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": [
         "M-f1-child-evidence-weak"
       ]
@@ -3330,6 +3740,20 @@
         "value": 0,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "additionalMechanisms": []
     },
     {
@@ -3368,6 +3792,20 @@
         "denominator": 2,
         "value": 0,
         "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "additionalMechanisms": [
         "M-repair-blocker-identity-unbound"
@@ -3410,6 +3848,20 @@
         "value": 0,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 2,
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      },
       "additionalMechanisms": [
         "M-missing-worktree-parent-dir",
         "M-rpc-get-state-lacks-cwd",
@@ -3448,6 +3900,20 @@
         "reason": null
       },
       "falseDrop": {
+        "numerator": 0,
+        "denominator": 3,
+        "value": 0,
+        "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 3,
+        "retained": 3,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 3,
         "value": 0,
@@ -3518,6 +3984,20 @@
         "value": null,
         "reason": "no independently adjudicated findings"
       },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+      },
       "triage": {
         "retained": 0,
         "protected": 0,
@@ -3586,6 +4066,20 @@
         "denominator": 0,
         "value": null,
         "reason": "no independently adjudicated findings"
+      },
+      "additionalBlocking": {
+        "discovered": 0,
+        "retained": 0,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null,
+        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
       },
       "triage": {
         "retained": 0,
@@ -3656,6 +4150,20 @@
         "value": 0.09333333333333334,
         "reason": null
       },
+      "additionalBlocking": {
+        "discovered": 25,
+        "retained": 24,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 1
+      },
+      "additionalBlockingDrop": {
+        "numerator": 1,
+        "denominator": 25,
+        "value": 0.04,
+        "reason": null
+      },
       "triage": {
         "retained": 37,
         "protected": 0,
@@ -3723,6 +4231,20 @@
         "numerator": 5,
         "denominator": 25,
         "value": 0.2,
+        "reason": null
+      },
+      "additionalBlocking": {
+        "discovered": 5,
+        "retained": 5,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "dropped": 0
+      },
+      "additionalBlockingDrop": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0,
         "reason": null
       },
       "triage": {

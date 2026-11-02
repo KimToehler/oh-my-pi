@@ -82,7 +82,7 @@ Since F2 wave 1 that distinction is enforced by the data model rather than by th
 `Smt-02` (unblinded: `TrialTSmt1.1`, arm T) matched `session-move-tool|R08.1`, mechanism `M-terminal-abort-cancels-siblings`, severity `blocking`. Its cited line was re-read independently in the frozen snapshot:
 
 ```
-$ sed -n '3923,3929p' /Users/tim/git/oh-my-pi/.worktrees/measurement-smt/packages/coding-agent/src/session/agent-session.ts
+$ sed -n '3923,3929p' <local snapshot worktree>/packages/coding-agent/src/session/agent-session.ts
 		if (event.type === "tool_execution_end" && this.#isTerminalYieldToolResult(event)) {
 			const alreadyTerminated = this.#synchronouslyTerminatedYieldToolCallIds.delete(event.toolCallId);
 			if (!alreadyTerminated) {
@@ -100,7 +100,7 @@ The terminal-yield path does call `agent.abort(...)`, which is the premise of th
 
 ## Verifier-loss disposition
 
-The experiment produced **no false drop**: `falseDrop` is 0 in every trial with triage available, and the arm rows report `0/36` (S) and `0/10` (T) across all 20 triaged trials.
+The experiment produced **no false drop against the frozen ledger**: `falseDrop` is 0 in every trial with triage available, and the arm rows report `0/36` (S) and `0/10` (T) across all 20 triaged trials.
 
 Two post-triage losses exist, and both are legitimate residual, not verifier error:
 
@@ -108,6 +108,8 @@ Two post-triage losses exist, and both are legitimate residual, not verifier err
 - `T-Smt-1` finding `TrialTSmt1.4` → target `session-move-tool|R02.2`: same shape; post recall 2/14 → 1/14.
 
 In both cases the loss comes from the independent severity assessment of the target, not from the verifier dropping a finding the adjudicator considers blocking. `protected`, `undecided`, `pending` and `unresolvedDrop` are 0 in every triaged trial.
+
+The verifier did drop one blocking finding, outside that ledger. `Replacement1SSpt3.9` (S/Spt) was adjudicated `valid`, `blocking`, `kind: additional-defect`, matching no target; the verifier refuted it, unprotected. Counted per mechanism, the verifier kept 24 of 25 such discoveries in S and 5 of 5 in T. Since F2 wave 2 the scorer reports this separately (`report.md`, `Blocking discoveries outside the frozen ledger`), because the frozen contract's `false drop` is defined over targets and would otherwise leave the only verifier loss of the run unreported.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 import { cmp, ratio, sortedBy, sum, unavailable, unique } from "./report-math";
 import type { ArmScore, ItemScore, Ratio, TrialScore } from "./report-types";
-import { addCounts, EMPTY_COUNTS } from "./report-trial";
+import { addAdditional, addCounts, EMPTY_ADDITIONAL, EMPTY_COUNTS } from "./report-trial";
 import type { Arm, Trial } from "./types";
 
 /** Sum numerators and denominators over ratios that are computable. */
@@ -39,6 +39,9 @@ export function scoreItems(completed: readonly TrialScore[]): readonly ItemScore
 		const unionPre = unique(trials.flatMap(t => t.discovered));
 		const unionPost = unique(withTriage.flatMap(t => t.retained ?? []));
 		const noPost = "triage unavailable for every completed trial";
+		const additional = trials
+			.flatMap(t => (t.additionalBlocking === null ? [] : [t.additionalBlocking]))
+			.reduce(addAdditional, EMPTY_ADDITIONAL);
 		out.push({
 			arm: first.arm,
 			item: first.item,
@@ -53,6 +56,12 @@ export function scoreItems(completed: readonly TrialScore[]): readonly ItemScore
 			falseDrop: pool(
 				trials.flatMap(t => (t.triage === null ? [] : [t.falseDropRate])),
 				"no discovered independently blocking targets or triage unavailable",
+			),
+			additionalBlocking: additional,
+			additionalBlockingDrop: ratio(
+				additional.dropped,
+				additional.discovered,
+				"no discovered independently blocking additional mechanisms or triage unavailable",
 			),
 			additionalMechanisms: unique(trials.flatMap(t => t.findings.additionalMechanisms)),
 		});
@@ -111,6 +120,11 @@ export function scoreArms(
 			falsePositive: pool(
 				done.map(t => t.falsePositiveRate),
 				"no independently adjudicated findings",
+			),
+			additionalBlocking: its.map(i => i.additionalBlocking).reduce(addAdditional, EMPTY_ADDITIONAL),
+			additionalBlockingDrop: pool(
+				its.map(i => i.additionalBlockingDrop),
+				"no discovered independently blocking additional mechanisms or triage unavailable",
 			),
 			triage: triaged.reduce(addCounts, EMPTY_COUNTS),
 			pendingFindings: sum(done.map(t => t.findings.pending)),

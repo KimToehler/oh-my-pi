@@ -207,4 +207,51 @@ describe("trial triage semantics", () => {
 		expect(s.findings).toMatchObject({ annotated: 1, invalid: 1, valid: 1, total: 3 });
 		expect(s.falsePositiveRate).toMatchObject({ numerator: 1, denominator: 2, value: 0.5 });
 	});
+
+	it("counts a refuted blocking discovery outside the ledger as its own loss, never as a false drop", () => {
+		const s = single({
+			targets: [target("x", "I", "blocking")],
+			findings: ["f1", "f2", "f3"],
+			adjudications: [
+				adj("f1", { targets: ["x"] }),
+				// Valid, independently blocking, matching no frozen target.
+				adj("f2", { mechanism: "outside" }),
+				adj("f3", { mechanism: "kept" }),
+			],
+			triage: [tri("f1", "confirmed"), tri("f2", "refuted"), tri("f3", "confirmed")],
+		});
+		// The frozen-target denominators stay untouched.
+		expect(s.falseDropRate).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
+		expect(s.triage).toMatchObject({ falseDrop: 0, retained: 1 });
+		// The verifier's loss outside the ledger is visible on its own.
+		expect(s.additionalBlocking).toMatchObject({ discovered: 2, retained: 1, dropped: 1, undecided: 0 });
+	});
+
+	it("deduplicates blocking discoveries outside the ledger by mechanism and keeps the surviving outcome", () => {
+		const s = single({
+			targets: [],
+			findings: ["f1", "f2", "f3", "f4"],
+			adjudications: [
+				adj("f1", { mechanism: "same" }),
+				adj("f2", { mechanism: "same" }),
+				// Below the current blocking threshold: not a verifier loss.
+				adj("f3", { mechanism: "minor", blocking: "below-threshold" }),
+				// Never independently judged: pending, not dropped.
+				adj("f4", { mechanism: "unjudged", validity: "pending" }),
+			],
+			triage: [tri("f1", "refuted"), tri("f2", "confirmed"), tri("f3", "refuted"), tri("f4", "refuted")],
+		});
+		expect(s.additionalBlocking).toMatchObject({ discovered: 1, retained: 1, dropped: 0, pending: 0 });
+	});
+
+	it("has no additional-blocking figure when triage is unavailable", () => {
+		const s = single({
+			targets: [],
+			findings: ["f1"],
+			adjudications: [adj("f1", { mechanism: "outside", validity: "annotated" })],
+			triage: [],
+			trial: { triage: "unavailable", reason: "historical triage unavailable" },
+		});
+		expect(s.additionalBlocking).toBeNull();
+	});
 });

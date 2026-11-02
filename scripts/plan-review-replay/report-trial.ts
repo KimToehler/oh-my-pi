@@ -1,5 +1,5 @@
 import { ratio, sortedBy, unavailable, unique } from "./report-math";
-import type { FindingCounts, TriageCounts, TrialScore } from "./report-types";
+import type { AdditionalBlocking, FindingCounts, TriageCounts, TrialScore } from "./report-types";
 import type { Adjudication, AdjudicationKind, Dataset, Finding, Target, Trial, Triage } from "./types";
 
 export interface Index {
@@ -174,6 +174,56 @@ function triageTargets(
 	return { retained: unique(retained), counts, blockingDiscovered };
 }
 
+export const EMPTY_ADDITIONAL: AdditionalBlocking = {
+	discovered: 0,
+	retained: 0,
+	protected: 0,
+	undecided: 0,
+	pending: 0,
+	dropped: 0,
+};
+
+export function addAdditional(a: AdditionalBlocking, b: AdditionalBlocking): AdditionalBlocking {
+	return {
+		discovered: a.discovered + b.discovered,
+		retained: a.retained + b.retained,
+		protected: a.protected + b.protected,
+		undecided: a.undecided + b.undecided,
+		pending: a.pending + b.pending,
+		dropped: a.dropped + b.dropped,
+	};
+}
+
+/**
+ * Triage outcome of independently blocking discoveries outside the frozen ledger, deduplicated by
+ * mechanism so repeated wordings of one defect count once, as they do for target matches.
+ */
+function triageAdditional(
+	findings: readonly Finding[],
+	itemTargets: ReadonlySet<string>,
+	index: Index,
+): AdditionalBlocking {
+	const best = new Map<string, FindingClass>();
+	for (const f of findings) {
+		const adj = index.adjudication.get(f.id);
+		if (adj === undefined || adj.validity !== "valid" || adj.blocking !== "blocking") continue;
+		if (adj.targets.some(t => itemTargets.has(t))) continue;
+		const unit = adj.mechanism === null ? `f:${f.id}` : `m:${adj.mechanism}`;
+		const c = classify(adj, index.triage.get(f.id));
+		const prev = best.get(unit);
+		if (prev === undefined || RANK[c] > RANK[prev]) best.set(unit, c);
+	}
+	let out = { ...EMPTY_ADDITIONAL, discovered: best.size };
+	for (const c of best.values()) {
+		if (c === "retained") out = { ...out, retained: out.retained + 1 };
+		else if (c === "protected") out = { ...out, protected: out.protected + 1 };
+		else if (c === "undecided") out = { ...out, undecided: out.undecided + 1 };
+		else if (c === "pending") out = { ...out, pending: out.pending + 1 };
+		else out = { ...out, dropped: out.dropped + 1 };
+	}
+	return out;
+}
+
 export function scoreTrial(trial: Trial, index: Index): TrialScore {
 	const targetList = index.targetsByItem.get(trial.item) ?? [];
 	const targets = new Map(targetList.map(t => [t.id, t]));
@@ -215,6 +265,7 @@ export function scoreTrial(trial: Trial, index: Index): TrialScore {
 			triage: null,
 			triageReason: reason,
 			falseDropRate: unavailable(reason),
+			additionalBlocking: null,
 		};
 	}
 	const t = triageTargets(discovered, targets, index);
@@ -225,5 +276,6 @@ export function scoreTrial(trial: Trial, index: Index): TrialScore {
 		triage: t.counts,
 		triageReason: null,
 		falseDropRate: ratio(t.counts.falseDrop, t.blockingDiscovered, "no discovered independently blocking targets"),
+		additionalBlocking: triageAdditional(findings, new Set(targets.keys()), index),
 	};
 }

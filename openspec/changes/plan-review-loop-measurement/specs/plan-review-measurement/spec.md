@@ -78,6 +78,18 @@ For each completed trial, the report SHALL separate undiscovered targets, pre-tr
 - **WHEN** an arm never discovers a target, or drops a target independently judged below the current blocking threshold
 - **THEN** a report counting either case as a false drop MUST fail the target-level count check
 
+### Requirement: Verifier losses outside the frozen ledger are reported
+
+Independently blocking discoveries that match no frozen target SHALL have their triage outcome reported, deduplicated by mechanism, separately from the target-level false-drop figures and without entering any target denominator. An arm whose triage is unavailable SHALL report no such figure.
+
+#### Scenario: Refuted blocking discovery with no target
+- **WHEN** the verifier refutes a finding the adjudicator rated valid and blocking that matches no frozen target
+- **THEN** the report counts it as a dropped blocking mechanism outside the ledger, and the arm's false-drop figure stays unchanged
+
+#### Scenario: Negative control
+- **WHEN** such a loss is folded into the false-drop numerator, or omitted from the report entirely
+- **THEN** the target-level count check MUST fail
+
 ### Requirement: Trial repeats and costs retain their measurement unit
 
 The report SHALL show per-item, per-trial and macro/micro recall, triage-retained recall and false-drop rates with numerators and denominators. Repetition union SHALL be labelled best-of-repeats coverage, not one-round recall. It SHALL report review, verifier, adjudication and failed-attempt costs separately; measured elapsed spans SHALL include waits and tools. Missing historical timing SHALL remain unavailable, never estimated from summed model durations.

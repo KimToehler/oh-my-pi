@@ -134,6 +134,36 @@ describe("hand-calculated two-item dataset", () => {
 		expect(summary.targets).toEqual({ total: 6, byBlocking: { blocking: 4, "below-threshold": 1, unresolved: 1 } });
 	});
 
+	it("pools blocking discoveries outside the ledger per arm and keeps them out of the target denominators", () => {
+		// Given the verifier refutes the one valid blocking mechanism that matches no frozen target.
+		const d = fixture();
+		const dropped = scoreDataset({
+			...d,
+			triage: d.triage.map(t => (t.finding === "f4" ? tri("f4", "refuted") : t)),
+		});
+		const sDropped = dropped.arms.find(a => a.arm === "S");
+		expect(sDropped?.additionalBlocking).toMatchObject({ discovered: 1, retained: 0, dropped: 1 });
+		expect(sDropped?.additionalBlockingDrop).toMatchObject({ numerator: 1, denominator: 1, value: 1 });
+		// The frozen-target figures are unchanged by that loss.
+		expect(sDropped?.falseDrop).toEqual(arm_("S").falseDrop);
+		expect(sDropped?.microPost).toEqual(arm_("S").microPost);
+		// And the retained case is the mirror image.
+		expect(arm_("S").additionalBlocking).toMatchObject({ discovered: 1, retained: 1, dropped: 0 });
+		expect(arm_("S").additionalBlockingDrop).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
+		// A historical arm without triage has nothing to report.
+		expect(arm_("H").additionalBlocking).toMatchObject({ discovered: 0, dropped: 0 });
+		expect(arm_("H").additionalBlockingDrop.value).toBeNull();
+		const md = formatMarkdown(dropped);
+		const row = md.split("\n").find(l => l.startsWith("| S |") && l.includes("| 1 | 0 | 0 | 0 | 0 | 1 |"));
+		expect(row).toBeDefined();
+		expect(md).toContain("## Blocking discoveries outside the frozen ledger");
+	});
+
+	it("marks the unsuccessful cost row as a subset of the stage rows", () => {
+		const md = formatMarkdown(summary);
+		expect(md).toContain("- unsuccessful (subset of the stage rows above, not an additional bucket): 2.0000");
+	});
+
 	it("is invariant under row reordering and renders identically", () => {
 		const d = fixture();
 		const reversed: Dataset = {

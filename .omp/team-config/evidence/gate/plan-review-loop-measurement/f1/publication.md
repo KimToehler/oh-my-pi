@@ -35,26 +35,21 @@ Fresh claim text is withheld for every item, not only the private ones: it is re
 
 ## Leak scan of every staged file
 
-```
-$ grep -c -E "backend_kt|nutritrain|/Users/|sk-|ghp_|api[_-]?key" dataset.json input-manifest.json summary.json RESULT.md report.md protocol.md scoring-contract.md
-dataset.json:2
-input-manifest.json:0
-summary.json:0
-RESULT.md:0
-report.md:0
-protocol.md:0
-scoring-contract.md:0
-```
-
-The two `dataset.json` hits are substring false positives of the `sk-` secret pattern:
+The first scan covered the seven `experiment/` artifacts only. F2 wave 2 widened it to every published file of this evidence directory, `f1/` included, and that pass found one local path in `f1/adjudication.md` (a `sed` command quoting the snapshot worktree), which is now written as `<local snapshot worktree>/…`. The current state, run from the evidence directory over `experiment/` and `f1/`:
 
 ```
-$ grep -o -E "backend_kt|nutritrain|/Users/|sk-[A-Za-z-]{0,12}|ghp_|api[_-]?key" dataset.json | sort | uniq -c
-      1 sk-child
-      1 sk-review
+$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" experiment f1 | grep -v -E "grep -c|grep -o|grep -rn"
+(no output)
+$ grep -ro -E "sk-[A-Za-z-]{0,12}" experiment f1 | sort | uniq -c
+      1 experiment/dataset.json:sk-child
+      1 experiment/dataset.json:sk-review
+      1 f1/inputs.md:sk-owned
+      3 f1/publication.md:sk-
+      2 f1/publication.md:sk-child
+      2 f1/publication.md:sk-review
 ```
 
-(`task-child`, `risk-review`.) No private repository path, no home-directory path, no credential pattern survives in any published file. The remaining occurrences of `onara` are model-routing identifiers such as `onara/cx/gpt-6.1-sol`, which are provider pins, not private code.
+Every `sk-` hit is a substring false positive of the secret pattern: `task-child`, `risk-review`, `task-owned`, plus this file quoting the pattern itself. No private repository path, no home-directory path, no credential pattern survives in any published file. The remaining occurrences of `onara` are model-routing identifiers such as `onara/cx/gpt-6.1-sol`, which are provider pins, not private code.
 
 ## Committed-format reproduction without local raw sessions
 

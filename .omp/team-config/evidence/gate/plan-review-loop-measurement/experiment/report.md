@@ -121,11 +121,19 @@ Savings: not measured. Round budgets: counterfactual. No comparison is causal.
 | T-Smt-1 | 2 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T-Spt-1 | 3 | 3 | 1 | 0 | 2 | 0 | 0 | 0 |
 
+## Blocking discoveries outside the frozen ledger (verifier outcome; not part of any target denominator)
+| arm | discovered | retained | protected | undecided | pending | dropped | drop rate |
+|---|---|---|---|---|---|---|---|
+| H-Focus | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| H-Replay | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| S | 25 | 24 | 0 | 0 | 0 | 1 | 1/25 = 4.0% |
+| T | 5 | 5 | 0 | 0 | 0 | 0 | 0/5 = 0.0% |
+
 ## Costs
 - reviewer: 47.2646 (56 attempts, 0 unknown)
 - verifier: 4.0845 (22 attempts, 0 unknown)
 - adjudicator: 19.8990 (10 attempts, 0 unknown)
-- unsuccessful: 31.9652 (9 attempts, 0 unknown)
+- unsuccessful (subset of the stage rows above, not an additional bucket): 31.9652 (9 attempts, 0 unknown)
 - total: 71.2481 (88 attempts, 0 unknown)
 
 ## Timing
