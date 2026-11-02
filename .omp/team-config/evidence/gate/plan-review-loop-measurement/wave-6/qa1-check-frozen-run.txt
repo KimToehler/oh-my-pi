@@ -1,0 +1,5 @@
+$ git rev-parse HEAD
+387331c2b5b8a40f3f56bf8f200fc52a061edf3d
+$ bun scripts/score-plan-review-replay.ts check runs/plan-review-loop-measurement-20261102
+ok: 140 sources, 5 items, 40 trials, 88 attempts, 210 findings
+exit=0
