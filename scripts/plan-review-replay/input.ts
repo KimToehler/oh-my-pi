@@ -79,7 +79,7 @@ const datasetSchema = type({
 		finding: "string",
 		targets: "string[]",
 		mechanism: "string | null",
-		validity: "'valid' | 'invalid' | 'pending'",
+		validity: "'valid' | 'invalid' | 'pending' | 'annotated'",
 		blocking: BLOCKING,
 		kind: "'known-target' | 'additional-defect' | 'useful-note' | 'evidence-error' | 'unsupported-consequence' | 'false-claim' | 'severity-error' | 'pending'",
 		evidence: "string[]",
@@ -101,6 +101,13 @@ const datasetSchema = type({
 		path: "string",
 		lastRound: "number",
 		workflow: "string | null",
+	}).array(),
+	targetRepeats: type({
+		"+": "reject",
+		target: "string",
+		round: "string",
+		blocking: BLOCKING,
+		source: "string",
 	}).array(),
 });
 const manifestSchema = sourceSchema.array();

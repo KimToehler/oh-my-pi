@@ -105,6 +105,8 @@ function checkAdjudications(data: Dataset, add: AddIssue): void {
 	const byFinding = new Map(data.findings.map(f => [f.id, f]));
 	const trials = new Map(data.trials.map(t => [t.id, t]));
 	const targets = new Map(data.targets.map(t => [t.id, t]));
+	const historicalArms = new Set(data.arms.filter(a => a.historical).map(a => a.id));
+	const historicalTrials = new Set(data.trials.filter(t => historicalArms.has(t.arm)).map(t => t.id));
 	for (const a of data.adjudications) {
 		const f = byFinding.get(a.finding);
 		if (f === undefined) add(`adjudication ${a.finding}: unknown finding`);
@@ -117,14 +119,17 @@ function checkAdjudications(data: Dataset, add: AddIssue): void {
 			}
 		}
 		if (blank(a.reason)) add(`adjudication ${a.finding}: reason required`);
-		if (a.validity !== "valid" && a.targets.length > 0)
-			add(`adjudication ${a.finding}: ${a.validity} finding cannot match targets`);
-		if (a.validity === "valid") {
+		const judged = a.validity === "valid" || a.validity === "annotated";
+		if (!judged && a.targets.length > 0) add(`adjudication ${a.finding}: ${a.validity} finding cannot match targets`);
+		if (judged) {
 			if (a.mechanism === null || blank(a.mechanism))
-				add(`adjudication ${a.finding}: valid finding needs a mechanism`);
+				add(`adjudication ${a.finding}: ${a.validity} finding needs a mechanism`);
 			if (a.evidence.length === 0 || a.evidence.some(blank))
-				add(`adjudication ${a.finding}: valid match needs snapshot evidence`);
+				add(`adjudication ${a.finding}: ${a.validity} match needs snapshot evidence`);
 		}
+		// `annotated` carries no independent judgement, so it may only describe a historical arm's rows.
+		if (a.validity === "annotated" && f !== undefined && historicalTrials.has(f.trial) === false)
+			add(`adjudication ${a.finding}: annotated validity is only for historical reference trials`);
 		if (a.kind === "known-target" && a.targets.length === 0)
 			add(`adjudication ${a.finding}: known-target needs a matched target`);
 		if (a.kind === "additional-defect" && a.targets.length > 0)
@@ -133,6 +138,17 @@ function checkAdjudications(data: Dataset, add: AddIssue): void {
 			add(`adjudication ${a.finding}: invalid finding cannot be ${a.kind}`);
 		if ((a.validity === "pending") !== (a.kind === "pending"))
 			add(`adjudication ${a.finding}: pending finding needs kind pending`);
+	}
+}
+
+function checkTargetRepeats(data: Dataset, add: AddIssue): void {
+	const seen = new Set<string>();
+	for (const r of data.targetRepeats) {
+		const key = `${r.round}\u0000${r.target}`;
+		if (seen.has(key)) add(`target repeat ${r.target}: duplicate assessment in round ${r.round}`);
+		seen.add(key);
+		if (blank(r.round)) add(`target repeat ${r.target}: round required`);
+		if (blank(r.source)) add(`target repeat ${r.target}: source required`);
 	}
 }
 
@@ -148,5 +164,6 @@ export function validateDataset(data: Dataset): void {
 	checkTrials(data, add);
 	checkFindings(data, add);
 	checkAdjudications(data, add);
+	checkTargetRepeats(data, add);
 	if (issues.length > 0) throw new InputError(issues);
 }

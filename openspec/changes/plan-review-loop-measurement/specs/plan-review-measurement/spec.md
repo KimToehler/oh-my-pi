@@ -42,6 +42,30 @@ A known-defect hit SHALL require a recorded finding-to-target adjudication with 
 - **WHEN** a new finding reuses a historical finding ID without a new snapshot-evidenced match
 - **THEN** a report inheriting the historical hit MUST fail the match-contract check; the finding remains unmatched
 
+### Requirement: Unadjudicated rows carry no precision claim
+
+A finding row that records a descriptive historical label rather than an independent judgment SHALL be marked as such. It MAY establish coverage of the frozen ledger, and SHALL be excluded from every precision figure and SHALL be rejected outside a historical reference trial. Repeated independent assessments of a target's severity SHALL be retained as normalized rows, and any agreement figure SHALL be derived from them rather than asserted.
+
+#### Scenario: Historical arm without adjudicated findings
+- **WHEN** an arm's findings carry only descriptive annotations
+- **THEN** the arm reports its coverage and reports no false-positive rate, naming the missing judgment as the reason
+
+#### Scenario: Negative control
+- **WHEN** a report derives a false-positive rate from rows that were never independently judged, or a fresh trial carries such a row
+- **THEN** the precision figure MUST fail its adjudication check and the dataset MUST fail validation
+
+### Requirement: Partial post-triage coverage is disclosed
+
+A post-triage figure pooled from fewer trials than the arm or item completed SHALL state the contributing trial count alongside the figure, so a subset result is never read as the full set's result.
+
+#### Scenario: One triaged trial among many
+- **WHEN** one of fourteen completed trials of an arm has a triage outcome
+- **THEN** the arm's post-triage cells carry their one-of-fourteen coverage
+
+#### Scenario: Negative control
+- **WHEN** a report presents such a pooled value without its coverage
+- **THEN** the coverage check MUST fail
+
 ### Requirement: Triage losses distinguish false drops and legitimate residuals
 
 For each completed trial, the report SHALL separate undiscovered targets, pre-triage discoveries, retained blocking targets, legitimate residuals, undecided losses and false drops. A false drop requires an independently adjudicated, currently blocking defect that was discovered but has no surviving blocking finding after triage. Verifier status alone SHALL NOT determine ground truth. Counts SHALL deduplicate by target and show their denominators.

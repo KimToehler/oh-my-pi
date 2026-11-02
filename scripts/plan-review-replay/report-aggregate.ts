@@ -44,6 +44,7 @@ export function scoreItems(completed: readonly TrialScore[]): readonly ItemScore
 			item: first.item,
 			targetCount: n,
 			completedTrials: trials.length,
+			triagedTrials: withTriage.length,
 			trialMeanPre: ratio(meanPre, n, noTargets),
 			trialMeanPost: withTriage.length === 0 ? unavailable(noPost) : ratio(sum(post) / post.length, n, noTargets),
 			unionLabel: `${trials.length}-repeat best-of-repeats coverage`,
@@ -78,6 +79,7 @@ export function scoreArms(
 			completedTrials: done.length,
 			excludedTrials: mine.filter(t => t.status === "excluded").length,
 			missingTrials: mine.filter(t => t.status === "missing").length,
+			triagedTrials: triaged.length,
 			macroPre: macro(
 				its.map(i => i.trialMeanPre),
 				none,

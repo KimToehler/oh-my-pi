@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { formatMarkdown, scoreDataset } from "./plan-review-replay/report";
 import type { Dataset } from "./plan-review-replay/types";
-import { arm, empty, fixture, item, target, trial } from "./plan-review-replay-report-fixtures";
+import { adj, arm, empty, finding, fixture, item, target, tri, trial } from "./plan-review-replay-report-fixtures";
 
 describe("hand-calculated two-item dataset", () => {
 	const summary = scoreDataset(fixture());
@@ -147,6 +147,7 @@ describe("hand-calculated two-item dataset", () => {
 			adjudications: [...d.adjudications].reverse(),
 			triage: [...d.triage].reverse(),
 			rounds: [...d.rounds].reverse(),
+			targetRepeats: [...d.targetRepeats].reverse(),
 		};
 		const other = scoreDataset(reversed);
 		expect(other).toEqual(summary);
@@ -181,5 +182,109 @@ describe("empty and zero-denominator datasets", () => {
 		const s = scoreDataset(data);
 		expect(s.items.find(i => i.item === "C")?.trialMeanPre.value).toBeNull();
 		expect(s.arms[0]?.macroPre).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
+	});
+
+	it("marks a post-triage figure pooled from a subset with its trial coverage", () => {
+		// Given one arm where only one of two completed trials was triaged.
+		const data: Dataset = {
+			...empty,
+			arms: [arm("H", { historical: true })],
+			items: [item("A")],
+			targets: [target("a1", "A", "blocking"), target("a2", "A", "blocking")],
+			trials: [
+				trial("h1", "H", "A"),
+				trial("h2", "H", "A", { repeat: 2, triage: "unavailable", reason: "historical triage unavailable" }),
+			],
+			findings: [finding("f1", "h1", 1), finding("f2", "h2", 1)],
+			adjudications: [adj("f1", { targets: ["a1"] }), adj("f2", { targets: ["a2"] })],
+			triage: [tri("f1", "confirmed")],
+		};
+		const s = scoreDataset(data);
+		const armRow = s.arms[0];
+		expect(armRow).toMatchObject({ completedTrials: 2, triagedTrials: 1 });
+		expect(s.items[0]).toMatchObject({ completedTrials: 2, triagedTrials: 1 });
+		// Then the rendered post cells disclose that one trial carried them, while pre cells do not.
+		const md = formatMarkdown(s);
+		const armLine = md.split("\n").find(l => l.startsWith("| H |")) ?? "";
+		expect(armLine).toContain("(triaged 1/2 trials)");
+		expect(armLine.split("|")[3]).not.toContain("triaged");
+	});
+
+	it("omits the coverage note when every completed trial was triaged", () => {
+		const data: Dataset = {
+			...empty,
+			arms: [arm("S")],
+			items: [item("A")],
+			targets: [target("a1", "A", "blocking")],
+			trials: [trial("s1", "S", "A")],
+			findings: [finding("f1", "s1", 1)],
+			adjudications: [adj("f1", { targets: ["a1"] })],
+			triage: [tri("f1", "confirmed")],
+		};
+		const md = formatMarkdown(scoreDataset(data));
+		expect(md).not.toContain("triaged");
+	});
+});
+
+describe("repeated target severity assessments", () => {
+	const data = (): Dataset => ({
+		...empty,
+		arms: [arm("S")],
+		items: [item("A")],
+		targets: [target("a1", "A", "blocking"), target("a2", "A", "blocking"), target("a3", "A", "below-threshold")],
+		trials: [trial("s1", "S", "A", { triage: "empty" })],
+		targetRepeats: [
+			{ target: "a3", round: "round-2", blocking: "below-threshold", source: "adj2" },
+			{ target: "a1", round: "round-2", blocking: "blocking", source: "adj2" },
+			{ target: "a2", round: "round-2", blocking: "below-threshold", source: "adj2" },
+		],
+	});
+
+	it("derives agreement against the authoritative ledger without revising it", () => {
+		const s = scoreDataset(data());
+		expect(s.targets.byBlocking).toEqual({ blocking: 2, "below-threshold": 1, unresolved: 0 });
+		const [round] = s.targetRepeats;
+		expect(round).toMatchObject({ round: "round-2", assessed: 3 });
+		expect(round?.agreed).toMatchObject({ numerator: 2, denominator: 3 });
+		expect(round?.disagreements).toEqual([{ target: "a2", authoritative: "blocking", repeat: "below-threshold" }]);
+		expect(round?.byBlocking).toEqual({ blocking: 1, "below-threshold": 2, unresolved: 0 });
+	});
+
+	it("keeps a repeat of an unknown target out of the agreement denominator", () => {
+		const d = data();
+		const s = scoreDataset({
+			...d,
+			targetRepeats: [
+				...d.targetRepeats,
+				{ target: "ghost", round: "round-2", blocking: "blocking", source: "adj2" },
+			],
+		});
+		const [round] = s.targetRepeats;
+		expect(round).toMatchObject({ assessed: 4, unknownTargets: ["ghost"] });
+		expect(round?.agreed).toMatchObject({ numerator: 2, denominator: 3 });
+	});
+
+	it("renders each repeat round with its disagreements", () => {
+		const md = formatMarkdown(scoreDataset(data()));
+		expect(md).toContain("## Target severity repeats");
+		expect(md).toContain("a2: blocking -> below-threshold");
+	});
+
+	it("escapes a pipe inside a cell so the row keeps its column count", () => {
+		// Real target ids are `<item>|<id>`; an unescaped pipe would split the cell.
+		const d = data();
+		const s = scoreDataset({
+			...d,
+			targets: [...d.targets, target("A|t9", "A", "blocking")],
+			targetRepeats: [
+				...d.targetRepeats,
+				{ target: "A|t9", round: "round-2", blocking: "below-threshold", source: "adj2" },
+			],
+		});
+		const line = formatMarkdown(s)
+			.split("\n")
+			.find(l => l.startsWith("| round-2 |"));
+		expect(line).toContain("A\\|t9: blocking -> below-threshold");
+		expect(line?.split(/(?<!\\)\|/)).toHaveLength(7);
 	});
 });

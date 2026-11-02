@@ -27,4 +27,8 @@ Thirty child sessions were individually parsed for session IDs, actual model/eff
 | Rtr | 18 | 2 | 2 |
 | Total | 85 | 23 | 13 |
 
-Actual report: H-Focus `microUnionPre = 23/85 = 0.27058823529411763`; H-Replay `microUnionPre = 13/85 = 0.15294117647058825`. H-Replay has 15 intended / 14 completed / 1 excluded trials. S and T currently show 15 and 5 missing cells respectively, never a completed experiment. No present-verifier retention or loss result is inferred from historical discovery annotations.
+Actual report: H-Focus `microUnionPre = 23/85 = 0.27058823529411763`; H-Replay `microUnionPre = 13/85 = 0.15294117647058825`. H-Replay has 15 intended / 14 completed / 1 excluded trials. At the time of this baseline S and T still showed 15 and 5 missing cells; they were completed later (`f1/replays.md`). No present-verifier retention or loss result is inferred from historical discovery annotations.
+
+## Reclassification of the historical rows (F2 wave 1)
+
+The 44 historical adjudication rows were first stored with `validity: "valid"`, which is wrong on its face: no historical claim was ever adjudicated (`f1/adjudication.md`). That label placed them in the precision denominator, so the report published `false positive 0/24` and `0/20` for the historical arms as if measured. They now carry `validity: "annotated"`, a validity that contributes target coverage but no precision claim, and the scorer rejects it outside a historical-reference trial. The union figures above are unchanged — 23/85 and 13/85 still reproduce — while both historical `false positive` cells are now `n/a (no independently adjudicated findings)`.

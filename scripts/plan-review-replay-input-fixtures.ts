@@ -89,6 +89,7 @@ export function base(): Dataset {
 			{ finding: "f2", result: "refuted", blocking: false, protected: false, consequence: false, reason: "no" },
 		],
 		rounds: [],
+		targetRepeats: [],
 	};
 }
 

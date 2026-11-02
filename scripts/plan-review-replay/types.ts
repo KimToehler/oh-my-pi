@@ -79,7 +79,7 @@ export interface Adjudication {
 	readonly finding: string;
 	readonly targets: readonly string[];
 	readonly mechanism: string | null;
-	readonly validity: "valid" | "invalid" | "pending";
+	readonly validity: "valid" | "invalid" | "pending" | "annotated";
 	readonly blocking: Blocking;
 	readonly kind: AdjudicationKind;
 	readonly evidence: readonly string[];
@@ -92,6 +92,13 @@ export interface Triage {
 	readonly protected: boolean;
 	readonly consequence: boolean;
 	readonly reason: string;
+}
+/** A later independent assessment of a frozen target's current severity. */
+export interface TargetRepeat {
+	readonly target: string;
+	readonly round: string;
+	readonly blocking: Blocking;
+	readonly source: string;
 }
 export interface RoundRecord {
 	readonly item: string;
@@ -112,4 +119,5 @@ export interface Dataset {
 	readonly adjudications: readonly Adjudication[];
 	readonly triage: readonly Triage[];
 	readonly rounds: readonly RoundRecord[];
+	readonly targetRepeats: readonly TargetRepeat[];
 }

@@ -110,6 +110,7 @@ export const empty: Dataset = {
 	adjudications: [],
 	triage: [],
 	rounds: [],
+	targetRepeats: [],
 };
 
 export interface TrialFixture {
@@ -233,5 +234,6 @@ export function fixture(): Dataset {
 			{ item: "B", revision: "r2", path: "p2", lastRound: 17, workflow: null } satisfies RoundRecord,
 			{ item: "A", revision: "r1", path: "p1", lastRound: 3, workflow: "loop-v2" } satisfies RoundRecord,
 		],
+		targetRepeats: [],
 	};
 }

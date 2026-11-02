@@ -112,16 +112,38 @@ Published values are `S micro pre 12.666…/85`, `S union pre 18/85`, ledger `85
 
 ```
 $ bun test scripts/score-plan-review-replay.test.ts
-50 pass
+60 pass
 0 fail
 ```
 
-## 6. Re-read of the upstream F1 evidence
+## 6. Fix-wave surfaces (F2 wave 1 blockers)
+
+Each fix was proven by mutating the fixed line and watching its own test fail, then restoring it:
+
+| fix | mutation | observed failure |
+|---|---|---|
+| `annotated` excluded from precision | `else if (false) annotated++` in `countFindings` | both annotated tests fail; precision counts the descriptive rows again |
+| post-triage coverage | `post()` returns `pct(r)` unconditionally | coverage test fails; rendered row `\| H \| 2/2 \| … \|` carries no `(triaged 1/2 trials)` |
+| repeat agreement denominator | `ratio(b.agreed, b.assessed, …)` | unknown-target test fails; `ghost` row inflates the denominator to 4 |
+
+Observed on the real run after the fixes:
+
+```
+$ bun scripts/score-plan-review-replay.ts check runs/plan-review-loop-measurement-20261102
+ok: 140 sources, 5 items, 40 trials, 88 attempts, 210 findings
+$ bun scripts/score-plan-review-replay.ts report <experiment>/dataset.json --format md | sed -n '9,10p'
+| H-Focus | 5/5 | … | n/a (no independently adjudicated findings) |
+| H-Replay | 14/15 | … | 0/1 = 0.0% (triaged 1/14 trials) | … | n/a (no independently adjudicated findings) |
+```
+
+The five recorded round rows and the `round-2` agreement row (`83/85 = 97.6%`, both disagreements named) render from the dataset; S and T figures are byte-identical to the pre-fix report.
+
+## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.
-- `f1/baseline.md` — Focus 23/85 and Replay union 13/85 reproduced from grouped original annotations; the one historical exclusion is retained with its cost.
+- `f1/baseline.md` — Focus 23/85 and Replay union 13/85 reproduced from grouped original annotations; the one historical exclusion is retained with its cost; the post-hoc reclassification of those rows to `annotated` is declared with its effect.
 - `f1/replays.md` — all 20 intended cells usable: 10 in the first wave, 10 in the authorised resume wave, each on its intended pin; the nine earlier losses stay excluded with their cost, the config setting that caused them is named, and the one cancelled duplicate dispatch (`RerunTFmp1`, no billed request) is recorded rather than hidden.
 - `f1/adjudication.md` — ten adjudicator sessions on the intended pin across two blinded rounds, 100/100 fresh judgments and 85/85 target assessments per round, 83/85 round-2 agreement on target severity, one source-checked positive match, the near-miss class, and zero false drops with the two legitimate residual losses named.
 - `f1/publication.md` — sanitization rules per item privacy, leak scan with the two false positives explained, `report`-based reproduction of `summary.json`.
 
-The observations across these files are actual sessions and justified labels, not test pass counts. Every planned condition of the experiment is now met: 20 of 20 reviewer cells on their intended pins, each triaged, all findings adjudicated, published artifacts reproducing byte-exactly from the published dataset. What the run still does not deliver is the round-record provenance (`rounds.observed` empty), so measured rounds saved and full-cycle savings stay `not-measured` in `RESULT.md` — a stated limitation, not a gap in the tasks.
+The observations across these files are actual sessions and justified labels, not test pass counts. Every planned condition of the experiment is met: 20 of 20 reviewer cells on their intended pins, each triaged, all findings adjudicated, published artifacts reproducing byte-exactly from the published dataset. Five archived round records are now recorded as last rounds with pinned revisions; measured rounds saved and full-cycle savings stay `not-measured`, because no full review-and-fix cycle was replayed.

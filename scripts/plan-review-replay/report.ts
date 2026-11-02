@@ -1,5 +1,5 @@
 import { scoreArms, scoreItems } from "./report-aggregate";
-import { compareArms, listExclusions, summarizeRounds } from "./report-compare";
+import { compareArms, listExclusions, summarizeRounds, summarizeTargetRepeats } from "./report-compare";
 import { summarizeCosts, summarizeTiming } from "./report-cost";
 import { formatMarkdown } from "./report-format";
 import { sortedBy } from "./report-math";
@@ -28,6 +28,7 @@ export function scoreDataset(data: Dataset): ScoreSummary {
 				unresolved: data.targets.filter(t => t.blocking === "unresolved").length,
 			},
 		},
+		targetRepeats: summarizeTargetRepeats(data),
 		trials: scored,
 		items,
 		arms: scoreArms(data.arms, trials, scored, items),

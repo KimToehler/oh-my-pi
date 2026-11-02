@@ -5790,7 +5790,7 @@
         "strength-progression-targets|R10.1"
       ],
       "mechanism": "historical-annotation/F61SptCor.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5804,7 +5804,7 @@
         "strength-progression-targets|R04.1"
       ],
       "mechanism": "historical-annotation/F61SptCor.8",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5818,7 +5818,7 @@
         "strength-progression-targets|R10.1"
       ],
       "mechanism": "historical-annotation/F61SptVer.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5832,7 +5832,7 @@
         "strength-progression-targets|R02.2"
       ],
       "mechanism": "historical-annotation/F61SptVer.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5848,7 +5848,7 @@
         "strength-progression-targets|R17.2"
       ],
       "mechanism": "historical-annotation/F61SptVer.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5862,7 +5862,7 @@
         "strength-progression-targets|R10.1"
       ],
       "mechanism": "historical-annotation/F61SptChk.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -5876,7 +5876,7 @@
         "session-move-tool|R18.1"
       ],
       "mechanism": "historical-annotation/F61SmtCor.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtCor.1"
@@ -5890,7 +5890,7 @@
         "session-move-tool|R02.1"
       ],
       "mechanism": "historical-annotation/F61SmtCor.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtCor.3"
@@ -5904,7 +5904,7 @@
         "session-move-tool|R02.2"
       ],
       "mechanism": "historical-annotation/F61SmtVer.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtVer.1"
@@ -5918,7 +5918,7 @@
         "session-move-tool|R17.2"
       ],
       "mechanism": "historical-annotation/F61SmtVer.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtVer.2"
@@ -5932,7 +5932,7 @@
         "session-move-tool|R05.1"
       ],
       "mechanism": "historical-annotation/F61SmtVer.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtVer.3"
@@ -5946,7 +5946,7 @@
         "session-move-tool|R02.1"
       ],
       "mechanism": "historical-annotation/F61SmtChkb.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61SmtChkb.1"
@@ -5960,7 +5960,7 @@
         "acp-permission-parity|R02.1"
       ],
       "mechanism": "historical-annotation/F61AppCorb.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61AppCorb.2"
@@ -5975,7 +5975,7 @@
         "acp-permission-parity|R07.1"
       ],
       "mechanism": "historical-annotation/F61AppVer.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61AppVer.1"
@@ -5989,7 +5989,7 @@
         "acp-permission-parity|R08.1"
       ],
       "mechanism": "historical-annotation/F61AppVer.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:F61AppVer.2"
@@ -6003,7 +6003,7 @@
         "finish-modality-program-route|R05.2"
       ],
       "mechanism": "historical-annotation/FocusFmpCor.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6017,7 +6017,7 @@
         "finish-modality-program-route|R05.1"
       ],
       "mechanism": "historical-annotation/FocusFmpCor.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6031,7 +6031,7 @@
         "finish-modality-program-route|R03.1"
       ],
       "mechanism": "historical-annotation/FocusFmpCor.4",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6045,7 +6045,7 @@
         "finish-modality-program-route|R09.1"
       ],
       "mechanism": "historical-annotation/FocusFmpVer.4",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6059,7 +6059,7 @@
         "finish-modality-program-route|R09.2"
       ],
       "mechanism": "historical-annotation/FocusFmpVer.5",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6073,7 +6073,7 @@
         "finish-modality-program-route|R05.2"
       ],
       "mechanism": "historical-annotation/FocusFmpChk.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6087,7 +6087,7 @@
         "finish-modality-program-route|R13.1"
       ],
       "mechanism": "historical-annotation/FocusFmpChk.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6101,7 +6101,7 @@
         "review-trailer-repair|R02.1"
       ],
       "mechanism": "historical-annotation/FocusRtrVer.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:FocusRtrVer.1"
@@ -6115,7 +6115,7 @@
         "review-trailer-repair|R05.1"
       ],
       "mechanism": "historical-annotation/FocusRtrVer.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:FocusRtrVer.2"
@@ -6129,7 +6129,7 @@
         "strength-progression-targets|R04.1"
       ],
       "mechanism": "historical-annotation/B61Spt1.5",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6143,7 +6143,7 @@
         "strength-progression-targets|R04.1"
       ],
       "mechanism": "historical-annotation/B61Spt2.6",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6157,7 +6157,7 @@
         "session-move-tool|R08.1"
       ],
       "mechanism": "historical-annotation/B61Smt2.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt2.1"
@@ -6171,7 +6171,7 @@
         "session-move-tool|R18.1"
       ],
       "mechanism": "historical-annotation/B61Smt2.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt2.2"
@@ -6185,7 +6185,7 @@
         "session-move-tool|R08.1"
       ],
       "mechanism": "historical-annotation/B61Smt3.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt3.1"
@@ -6199,7 +6199,7 @@
         "session-move-tool|R18.1"
       ],
       "mechanism": "historical-annotation/B61Smt3.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt3.2"
@@ -6213,7 +6213,7 @@
         "session-move-tool|R02.1"
       ],
       "mechanism": "historical-annotation/B61Smt3.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt3.3"
@@ -6227,7 +6227,7 @@
         "session-move-tool|R02.2"
       ],
       "mechanism": "historical-annotation/B61Smt3.6",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61Smt3.6"
@@ -6241,7 +6241,7 @@
         "acp-permission-parity|R02.1"
       ],
       "mechanism": "historical-annotation/B61App1.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61App1.1"
@@ -6255,7 +6255,7 @@
         "acp-permission-parity|R08.1"
       ],
       "mechanism": "historical-annotation/B61App1.4",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61App1.4"
@@ -6269,7 +6269,7 @@
         "acp-permission-parity|R11.1"
       ],
       "mechanism": "historical-annotation/B61App2bb.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61App2bb.2"
@@ -6283,7 +6283,7 @@
         "acp-permission-parity|R08.1"
       ],
       "mechanism": "historical-annotation/B61App2bb.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:B61App2bb.3"
@@ -6297,7 +6297,7 @@
         "finish-modality-program-route|R05.2"
       ],
       "mechanism": "historical-annotation/ReplayFmp1.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6311,7 +6311,7 @@
         "finish-modality-program-route|R05.1"
       ],
       "mechanism": "historical-annotation/ReplayFmp1.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6325,7 +6325,7 @@
         "finish-modality-program-route|R05.2"
       ],
       "mechanism": "historical-annotation/ReplayFmp2.1",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6339,7 +6339,7 @@
         "finish-modality-program-route|R03.1"
       ],
       "mechanism": "historical-annotation/ReplayFmp2.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6353,7 +6353,7 @@
         "finish-modality-program-route|R05.1"
       ],
       "mechanism": "historical-annotation/ReplayFmp2.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "private-repository-coordinate:1"
@@ -6368,7 +6368,7 @@
         "review-trailer-repair|R12.2"
       ],
       "mechanism": "historical-annotation/ReplayRtr1b.2",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:ReplayRtr1b.2"
@@ -6383,7 +6383,7 @@
         "review-trailer-repair|R12.2"
       ],
       "mechanism": "historical-annotation/ReplayRtr2.3",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:ReplayRtr2.3"
@@ -6398,7 +6398,7 @@
         "review-trailer-repair|R12.2"
       ],
       "mechanism": "historical-annotation/ReplayRtr3.4",
-      "validity": "valid",
+      "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
         "annotation:ReplayRtr3.4"
@@ -8980,5 +8980,553 @@
       "reason": "design.md:25 explicitly moves the no-plan-restatement predicate into trailer.mjs, while :54 promises the existing record suite runs unchanged. tasks.md:7 likewise names that suite without adapting its extraction-sensitive test. validate-gate-record.test.mjs:1376-1385 reads only validatorSource and asserts that it contains the exact criteria.every predicate currently at validate-gate-record.mjs:562. Moving that predicate as required makes the assertion false. This is a deterministic conflict between the planned extraction and its mandatory verification, not a speculative runtime regression; the named test detects the conflict but does not resolve the plan's incompatible requirements."
     }
   ],
-  "rounds": []
+  "rounds": [
+    {
+      "item": "session-move-tool",
+      "revision": "2df8ac2d9b7bb1777aca2b174fb8fe5f8b4acacd",
+      "path": "openspec/changes/archive/2026-10-26-session-move-tool/review.md",
+      "lastRound": 22,
+      "workflow": "omp-gated"
+    },
+    {
+      "item": "review-trailer-repair",
+      "revision": "3d91cdd514c60a56729b7df55bd836046aa26238",
+      "path": "openspec/changes/archive/2026-10-25-review-trailer-repair/review.md",
+      "lastRound": 17,
+      "workflow": "omp-gated"
+    },
+    {
+      "item": "acp-permission-parity",
+      "revision": "53dfd84aaf352db18525e5158a56be7f91689dda",
+      "path": "openspec/changes/archive/2026-10-24-acp-permission-parity/review.md",
+      "lastRound": 12,
+      "workflow": "omp-gated"
+    },
+    {
+      "item": "finish-modality-program-route",
+      "revision": "763479f9bc1535729565a009a742fd4c4a9ef9d8",
+      "path": "openspec/changes/archive/2026-10-26-finish-modality-program-route/review.md",
+      "lastRound": 16,
+      "workflow": "omp-gated"
+    },
+    {
+      "item": "strength-progression-targets",
+      "revision": "bffb00754158598d3c4c87b39556976c979e9cfc",
+      "path": "openspec/changes/archive/2026-10-27-strength-progression-targets/review.md",
+      "lastRound": 40,
+      "workflow": "omp-gated"
+    }
+  ],
+  "targetRepeats": [
+    {
+      "target": "strength-progression-targets|R02.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R02.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R03.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R03.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R04.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R04.2",
+      "round": "round-2",
+      "blocking": "unresolved",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R04.3",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R05.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R05.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R06.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R07.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R07.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R08.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R09.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R09.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R10.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R10.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R11.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R11.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R12.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R13.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R13.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R14.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R16.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R17.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R18.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R18.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R19.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R21.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R22.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R22.3",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "strength-progression-targets|R25.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R02.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R02.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R02.3",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R03.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R05.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R06.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R07.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R08.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R09.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R10.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "acp-permission-parity|R11.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R02.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R03.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R05.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R05.2",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R08.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R08.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R09.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R09.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R12.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "finish-modality-program-route|R13.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R02.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R03.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R04.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R05.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R05.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R06.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R08.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R08.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R08.3",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R09.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R09.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R12.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R12.3",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R12.4",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R13.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R15.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R16.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "review-trailer-repair|R17.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R02.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R02.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R04.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R04.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R05.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R07.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R08.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R11.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R11.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R13.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R17.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R17.2",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R18.1",
+      "round": "round-2",
+      "blocking": "blocking",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    },
+    {
+      "target": "session-move-tool|R20.1",
+      "round": "round-2",
+      "blocking": "below-threshold",
+      "source": "adjudication round 2 (R/target-agreement-round2.json)"
+    }
+  ]
 }

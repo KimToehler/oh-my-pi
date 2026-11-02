@@ -30,6 +30,8 @@ export interface FindingCounts {
 	readonly valid: number;
 	readonly invalid: number;
 	readonly pending: number;
+	/** Descriptive rows that were never independently judged; outside every precision figure. */
+	readonly annotated: number;
 	/** Valid findings beyond the first per target set or mechanism. */
 	readonly duplicates: number;
 	readonly additionalMechanisms: readonly string[];
@@ -61,6 +63,8 @@ export interface ItemScore {
 	readonly item: string;
 	readonly targetCount: number;
 	readonly completedTrials: number;
+	/** Completed trials of this item whose triage outcome exists; denominator coverage for the post figures. */
+	readonly triagedTrials: number;
 	/** numerator = mean discovered targets per completed trial. */
 	readonly trialMeanPre: Ratio;
 	readonly trialMeanPost: Ratio;
@@ -78,6 +82,8 @@ export interface ArmScore {
 	readonly completedTrials: number;
 	readonly excludedTrials: number;
 	readonly missingTrials: number;
+	/** Completed trials of this arm whose triage outcome exists; denominator coverage for the post figures. */
+	readonly triagedTrials: number;
 	readonly macroPre: Ratio;
 	readonly macroPost: Ratio;
 	readonly microPre: Ratio;
@@ -170,10 +176,27 @@ export interface TargetSummary {
 	readonly byBlocking: Readonly<Record<Blocking, number>>;
 }
 
+export interface TargetRepeatDisagreement {
+	readonly target: string;
+	readonly authoritative: Blocking;
+	readonly repeat: Blocking;
+}
+
+/** Agreement of one later independent assessment round with the authoritative target ledger. */
+export interface TargetRepeatRound {
+	readonly round: string;
+	readonly assessed: number;
+	readonly agreed: Ratio;
+	readonly disagreements: readonly TargetRepeatDisagreement[];
+	readonly unknownTargets: readonly string[];
+	readonly byBlocking: Readonly<Record<Blocking, number>>;
+}
+
 export interface ScoreSummary {
 	readonly version: 1;
 	readonly unit: "first-pass-replay";
 	readonly targets: TargetSummary;
+	readonly targetRepeats: readonly TargetRepeatRound[];
 	readonly trials: readonly TrialScore[];
 	readonly items: readonly ItemScore[];
 	readonly arms: readonly ArmScore[];

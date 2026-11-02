@@ -74,6 +74,7 @@ function countFindings(findings: readonly Finding[], index: Index, itemTargets: 
 	let valid = 0;
 	let invalid = 0;
 	let pending = 0;
+	let annotated = 0;
 	const units = new Set<string>();
 	const mechanisms = new Set<string>();
 	const kinds: { -readonly [K in AdjudicationKind]: number } = Object.fromEntries(KIND_KEYS.map(k => [k, 0])) as {
@@ -84,6 +85,7 @@ function countFindings(findings: readonly Finding[], index: Index, itemTargets: 
 		kinds[adj?.kind ?? "pending"]++;
 		if (adj === undefined || adj.validity === "pending") pending++;
 		else if (adj.validity === "invalid") invalid++;
+		else if (adj.validity === "annotated") annotated++;
 		else {
 			valid++;
 			const hit = adj.targets.filter(t => itemTargets.has(t));
@@ -99,6 +101,7 @@ function countFindings(findings: readonly Finding[], index: Index, itemTargets: 
 		valid,
 		invalid,
 		pending,
+		annotated,
 		duplicates: valid - units.size,
 		additionalMechanisms: unique(mechanisms),
 		kinds,
@@ -178,7 +181,9 @@ export function scoreTrial(trial: Trial, index: Index): TrialScore {
 	const discovered = new Map<string, Finding[]>();
 	for (const f of findings) {
 		const adj = index.adjudication.get(f.id);
-		if (adj === undefined || adj.validity !== "valid") continue;
+		// `annotated` rows are descriptive historical labels, never independently judged: they
+		// establish the historical reference coverage but no precision claim (see falsePositiveRate).
+		if (adj === undefined || (adj.validity !== "valid" && adj.validity !== "annotated")) continue;
 		for (const t of adj.targets) {
 			if (!targets.has(t)) continue;
 			const list = discovered.get(t);

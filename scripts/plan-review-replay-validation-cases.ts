@@ -251,6 +251,36 @@ describe("validateDataset", () => {
 		expect(issuesOf({ ...d, adjudications: [{ ...adj, targets: [], kind: "additional-defect" }] })).toEqual([]);
 	});
 
+	test("annotated rows need evidence and belong to historical reference trials only", () => {
+		const d = base();
+		const adj = d.adjudications[0];
+		// The base trial belongs to the fresh arm S, so an annotated row there is a silent recall gift.
+		expectIssue(
+			{ ...d, adjudications: [{ ...adj, validity: "annotated" }] },
+			"annotated validity is only for historical reference trials",
+		);
+		const historical = {
+			...d,
+			trials: [{ ...d.trials[0], arm: "H", triage: "unavailable" as const, reason: "historical" }],
+			triage: [],
+			adjudications: [{ ...adj, validity: "annotated" as const }],
+		};
+		// The same row on a historical reference trial is legitimate (attempt-pin issues of the fixture aside).
+		expect(issuesOf(historical).filter(i => i.includes("annotated"))).toEqual([]);
+		expectIssue(
+			{ ...historical, adjudications: [{ ...adj, validity: "annotated" as const, evidence: [] }] },
+			"annotated match needs snapshot evidence",
+		);
+	});
+
+	test("repeated target assessments are unique per round and carry a source", () => {
+		const d = base();
+		const repeat = { target: "g1", round: "round-2", blocking: "blocking" as const, source: "adj2" };
+		expect(issuesOf({ ...d, targetRepeats: [repeat] })).toEqual([]);
+		expectIssue({ ...d, targetRepeats: [repeat, repeat] }, "duplicate assessment in round round-2");
+		expectIssue({ ...d, targetRepeats: [{ ...repeat, source: " " }] }, "source required");
+	});
+
 	test("triage blocking requires a confirmed result; non-available trials carry no triage rows", () => {
 		const d = base();
 		expectIssue(

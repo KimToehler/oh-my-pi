@@ -1,8 +1,17 @@
-import type { Ratio, ScoreSummary, Span } from "./report-types";
+import type { ArmScore, ItemScore, Ratio, ScoreSummary, Span } from "./report-types";
 
 function pct(r: Ratio): string {
 	if (r.value === null) return `n/a (${r.reason ?? "unavailable"})`;
 	return `${r.numerator}/${r.denominator} = ${(r.value * 100).toFixed(1)}%`;
+}
+
+/**
+ * Post-triage figures pooled over fewer trials than completed are never arm-wide results,
+ * so every such cell carries the trial coverage it was computed from.
+ */
+function post(r: Ratio, triaged: number, completed: number): string {
+	if (r.value === null || triaged === completed) return pct(r);
+	return `${pct(r)} (triaged ${triaged}/${completed} trials)`;
 }
 
 function ms(s: Span): string {
@@ -11,10 +20,12 @@ function ms(s: Span): string {
 }
 
 function table(header: readonly string[], rows: readonly (readonly string[])[]): readonly string[] {
+	// Target ids carry a `|`; an unescaped one would split the cell and corrupt the rendered table.
+	const cell = (text: string) => text.replaceAll("|", "\\|");
 	return [
-		`| ${header.join(" | ")} |`,
+		`| ${header.map(cell).join(" | ")} |`,
 		`|${header.map(() => "---").join("|")}|`,
-		...rows.map(r => `| ${r.join(" | ")} |`),
+		...rows.map(r => `| ${r.map(cell).join(" | ")} |`),
 		"",
 	];
 }
@@ -42,33 +53,44 @@ export function formatMarkdown(s: ScoreSummary): string {
 				"false drop",
 				"false positive",
 			],
-			s.arms.map(a => [
+			s.arms.map((a: ArmScore) => [
 				a.arm,
 				`${a.completedTrials}/${a.intendedTrials}`,
 				pct(a.macroPre),
-				pct(a.macroPost),
+				post(a.macroPost, a.triagedTrials, a.completedTrials),
 				pct(a.microPre),
-				pct(a.microPost),
-				pct(a.falseDrop),
+				post(a.microPost, a.triagedTrials, a.completedTrials),
+				post(a.falseDrop, a.triagedTrials, a.completedTrials),
 				pct(a.falsePositive),
 			]),
 		),
 		"## Items (trial mean vs best-of-repeats union)",
 		...table(
 			["arm", "item", "trial mean pre", "trial mean post", "union", "union pre", "union post"],
-			s.items.map(i => [
+			s.items.map((i: ItemScore) => [
 				i.arm,
 				i.item,
 				pct(i.trialMeanPre),
-				pct(i.trialMeanPost),
+				post(i.trialMeanPost, i.triagedTrials, i.completedTrials),
 				i.unionLabel,
 				pct(i.unionPre),
-				pct(i.unionPost),
+				post(i.unionPost, i.triagedTrials, i.completedTrials),
 			]),
 		),
 		"## Trials",
 		...table(
-			["trial", "pre", "post", "false drop", "protected", "undecided", "pending", "invalid", "pending findings"],
+			[
+				"trial",
+				"pre",
+				"post",
+				"false drop",
+				"protected",
+				"undecided",
+				"pending",
+				"invalid",
+				"annotated",
+				"pending findings",
+			],
 			s.trials.map(t => [
 				t.id,
 				pct(t.preRecall),
@@ -78,6 +100,7 @@ export function formatMarkdown(s: ScoreSummary): string {
 				String(t.triage?.undecided ?? "n/a"),
 				String(t.triage?.pending ?? "n/a"),
 				String(t.findings.invalid),
+				String(t.findings.annotated),
 				String(t.findings.pending),
 			]),
 		),
@@ -137,6 +160,17 @@ export function formatMarkdown(s: ScoreSummary): string {
 		...table(
 			["item", "revision", "path", "last round", "workflow"],
 			s.rounds.observed.map(r => [r.item, r.revision, r.path, String(r.lastRound), r.workflow ?? "unknown"]),
+		),
+		"## Target severity repeats (reproducibility of the ledger, not a revision of it)",
+		...table(
+			["round", "assessed", "agreed with ledger", "disagreements", "unknown targets"],
+			s.targetRepeats.map(r => [
+				r.round,
+				String(r.assessed),
+				pct(r.agreed),
+				r.disagreements.map(d => `${d.target}: ${d.authoritative} -> ${d.repeat}`).join("; ") || "none",
+				r.unknownTargets.join("; ") || "none",
+			]),
 		),
 		"## Exclusions",
 		...table(

@@ -21,18 +21,20 @@ Arms:
 
 Current ledger: 85 targets — 24 independently blocking, 60 below threshold, 1 unresolved. The severity split is the adjudicators' current assessment, not the historical labels; the historical labels remain descriptive references (`blocking: unresolved`) and are never inherited by fresh findings.
 
-A second, independent adjudication round re-assessed all 85 targets on the same frozen ledger and agreed with the first round on **83 of 85** (both disagreements: `blocking` → `below-threshold`). Round 1 stays authoritative because it was fixed before the second-round findings existed.
+A second, independent adjudication round re-assessed all 85 targets on the same frozen ledger and agreed with the first round on **83 of 85 (97.6 %)**; both disagreements move a target from `blocking` to `below-threshold`. Round 1 stays authoritative because it was fixed before the second-round findings existed. The repeated assessments are published as normalized rows (`targetRepeats`), and the scorer derives this agreement and names both disagreeing targets in the report's `Target severity repeats` table.
 
 ## Recall and precision
 
 | arm | macro pre | macro post | micro pre | micro post | union pre | union post | false drop | false positive |
 |---|---|---|---|---|---|---|---|---|
-| H-Focus | 32.4% | n/a (no triage) | 23/85 = 27.1% | n/a | 23/85 | n/a | n/a | 0/24 |
-| H-Replay | 12.9% | 0/1 | 8.5/85 = 10.0% | 0/11 | 13/85 | 0/11 | n/a | 0/20 |
+| H-Focus | 32.4% | n/a (no triage) | 23/85 = 27.1% | n/a | 23/85 | n/a | n/a | n/a |
+| H-Replay | 12.9% | 0/1 (triaged 1/14) | 8.5/85 = 10.0% | 0/11 (triaged 1/14) | 13/85 | 0/11 (triaged 1/14) | n/a | n/a |
 | S | 19.0% | 18.7% | 12.67/85 = 14.9% | 12.33/85 = 14.5% | 18/85 = 21.2% | 17/85 = 20.0% | 0/36 | 7/75 = 9.3% |
 | T | 14.8% | 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 | 5/25 = 20.0% |
 
 `pre` is the reviewer's discovery before triage; `post` is after the current verifier. Macro averages items, micro pools targets (per-item mean over repeats), union takes the best of an item's three repeats.
+
+Two honesty constraints shape the historical rows. Their findings were never independently adjudicated — they carry the original annotations, recorded as `annotated` rather than `valid` — so **no precision figure exists for them**; `false positive` is `n/a`, not `0`. And only one of H-Replay's fourteen completed trials has a triage outcome at all, so every post-triage cell of that arm carries its `triaged 1/14` coverage instead of reading as an arm-wide result.
 
 A single S reviewer finds about 15 % of the frozen ledger; three independent S reviewers on the same plan reach 21 %. The historical three-lens arm reached 27 % — on a different brief, contract and era, so the comparison is not causal.
 
@@ -61,7 +63,17 @@ Across 20 trials and 100 findings the verifier dropped no independently blocking
 
 ## Round records
 
-No round record with pinned provenance was recovered: `rounds.observed` is empty. Measured rounds saved and full-cycle savings remain **not measured**, and the one-full-plus-delta and two-full budgets in the design stay counterfactual.
+Each measured plan's archived `review.md` pins the last plan-review round it reached, under the `omp-gated` workflow:
+
+| item | last round | pinned revision |
+|---|---|---|
+| acp-permission-parity | 12 | `53dfd84aaf35…` |
+| finish-modality-program-route | 16 | `763479f9bc15…` |
+| review-trailer-repair | 17 | `3d91cdd514c6…` |
+| session-move-tool | 22 | `2df8ac2d9b7b…` |
+| strength-progression-targets | 40 | `bffb00754158…` |
+
+These are **recorded last rounds, not observed round counts**: the intervening rounds were never reconstructed, so a last round of 22 is not evidence of 22 successful rounds. No paired full review-and-fix cycle was replayed, so measured rounds saved and full-cycle savings remain **not measured**, and the one-full-plus-delta and two-full budgets in the design stay counterfactual.
 
 ## Cost and time
 
@@ -84,9 +96,17 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 - **No causal claim.** Every arm pair differs in more than one axis; the scorer labels all of them `confounded`. S vs T differs in model and effort; H vs S additionally in brief, contract, rules, era and triage.
 - **No model ranking.** Two models at two efforts on five plans cannot rank models.
 - **Loop shape not measured.** Each cell is a first-pass single-reviewer replay. Nothing here measures what a multi-round loop converges to, how many rounds it would save, or what a different loop shape would cost.
-- **Historical arms are reference only.** They come from a different era, brief and contract, and their triage is unavailable.
+- **Historical arms are reference only.** They come from a different era, brief and contract; their findings were never independently adjudicated (`annotated`), so they carry no precision figure, and their triage is unavailable for all but one trial.
 - **Target ledger is a lower bound**, as the additional-defect count shows.
 - **Adjudication is a model judgment**, repeated once on targets (83/85 agreement) and not repeated on findings.
+
+## Amendments after the input freeze
+
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Three scorer rules were added after the fresh results existed, each removing an unmeasured claim rather than changing a measured one; no fresh-arm figure in this document moved:
+
+1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
+2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
+3. `targetRepeats` rows plus a derived agreement table, so the repeat reliability quoted above is scorer output rather than prose.
 
 ## Reproduction
 

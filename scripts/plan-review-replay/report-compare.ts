@@ -1,6 +1,14 @@
-import { cmp, sortedBy } from "./report-math";
-import type { ChangedAxis, Comparison, Exclusion, ItemScore, RoundsSummary } from "./report-types";
-import type { Arm, Attempt, Dataset, Trial } from "./types";
+import { cmp, ratio, sortedBy } from "./report-math";
+import type {
+	ChangedAxis,
+	Comparison,
+	Exclusion,
+	ItemScore,
+	RoundsSummary,
+	TargetRepeatDisagreement,
+	TargetRepeatRound,
+} from "./report-types";
+import type { Arm, Attempt, Blocking, Dataset, Trial } from "./types";
 
 const AXES: readonly { readonly axis: ChangedAxis; readonly read: (arm: Arm) => string }[] = [
 	{ axis: "model", read: a => a.model },
@@ -65,6 +73,56 @@ export function summarizeRounds(data: Dataset): RoundsSummary {
 		fullCycleSavings: "not-measured",
 		budgets: "counterfactual",
 	};
+}
+
+/**
+ * Agreement of each repeated target-assessment round with the authoritative ledger.
+ * A repeat never changes a target's severity; it only measures how reproducible that severity is.
+ */
+export function summarizeTargetRepeats(data: Dataset): readonly TargetRepeatRound[] {
+	const severity = new Map(data.targets.map(t => [t.id, t.blocking]));
+	const rounds = new Map<
+		string,
+		{
+			assessed: number;
+			agreed: number;
+			dis: TargetRepeatDisagreement[];
+			unknown: string[];
+			by: Record<Blocking, number>;
+		}
+	>();
+	for (const row of sortedBy(data.targetRepeats, r => `${r.round}\u0000${r.target}`)) {
+		let bucket = rounds.get(row.round);
+		if (bucket === undefined) {
+			bucket = {
+				assessed: 0,
+				agreed: 0,
+				dis: [],
+				unknown: [],
+				by: { blocking: 0, "below-threshold": 0, unresolved: 0 },
+			};
+			rounds.set(row.round, bucket);
+		}
+		bucket.assessed++;
+		bucket.by[row.blocking]++;
+		const authoritative = severity.get(row.target);
+		if (authoritative === undefined) {
+			bucket.unknown.push(row.target);
+			continue;
+		}
+		if (authoritative === row.blocking) bucket.agreed++;
+		else bucket.dis.push({ target: row.target, authoritative, repeat: row.blocking });
+	}
+	return [...rounds.entries()]
+		.sort(([x], [y]) => cmp(x, y))
+		.map(([round, b]) => ({
+			round,
+			assessed: b.assessed,
+			agreed: ratio(b.agreed, b.assessed - b.unknown.length, "no repeated assessment of a known target"),
+			disagreements: b.dis,
+			unknownTargets: b.unknown,
+			byBlocking: b.by,
+		}));
 }
 
 export function listExclusions(trials: readonly Trial[], attempts: readonly Attempt[]): readonly Exclusion[] {

@@ -175,4 +175,36 @@ describe("trial triage semantics", () => {
 		expect(s.falsePositiveRate.value).toBeNull();
 		expect(s.falseDropRate.value).toBeNull();
 	});
+
+	it("keeps annotated rows out of precision while they still establish coverage", () => {
+		// Given a historical reference trial whose rows are descriptive labels, never independently judged.
+		const s = single({
+			targets: [target("x", "I", "blocking"), target("y", "I", "blocking")],
+			findings: ["f1", "f2"],
+			adjudications: [adj("f1", { targets: ["x"], validity: "annotated" }), adj("f2", { validity: "annotated" })],
+			triage: [],
+			trial: { triage: "unavailable", reason: "historical triage unavailable" },
+		});
+		// Then they count as coverage of the frozen ledger.
+		expect(s.preRecall).toMatchObject({ numerator: 1, denominator: 2 });
+		expect(s.findings).toMatchObject({ annotated: 2, valid: 0, invalid: 0, pending: 0 });
+		// But no precision figure may be derived from rows nobody adjudicated.
+		expect(s.falsePositiveRate.value).toBeNull();
+		expect(s.falsePositiveRate.reason).toBe("no independently adjudicated findings");
+	});
+
+	it("computes precision from adjudicated rows only when annotated rows share the trial", () => {
+		const s = single({
+			targets: [target("x", "I", "blocking")],
+			findings: ["f1", "f2", "f3"],
+			adjudications: [
+				adj("f1", { targets: ["x"], validity: "annotated" }),
+				adj("f2", { validity: "invalid" }),
+				adj("f3", { mechanism: "new" }),
+			],
+			triage: [tri("f3", "confirmed")],
+		});
+		expect(s.findings).toMatchObject({ annotated: 1, invalid: 1, valid: 1, total: 3 });
+		expect(s.falsePositiveRate).toMatchObject({ numerator: 1, denominator: 2, value: 0.5 });
+	});
 });
