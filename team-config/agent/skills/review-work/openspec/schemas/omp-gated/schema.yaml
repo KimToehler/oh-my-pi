@@ -451,7 +451,14 @@ artifacts:
          from an incomplete round. A round with no blocker and nothing carried is OKAY; go to step 7.
       4. Verifier triage, before any fix, ask or edit. Number the round's blockers 1 to N across
          reviewers in reviewer order (carried findings first, then scope A before scope B).
-         Dispatch one fresh task item,
+         Before the dispatch, write review.md for this round (step 7) and commit it with Verdict
+         REJECT, Awaiting `triage`, `- **Verifier**: blocker-verifier, none` and every blocker of
+         the round verbatim under `## Blockers`, each carrying `not triaged: the verifier has not
+         returned` where the verifier's result will stand. The triage is another fallible task, so
+         a session interrupted or cancelled while it runs must leave the round's rejection
+         durable: without that commit an earlier OKAY record stays current on the unchanged digest
+         and `--reviewed` keeps authorizing apply over blockers that were already delivered.
+         Then dispatch one fresh task item,
          `agent: "blocker-verifier"`, `solutionSpace: "Triage of plan-review blockers; outcomes
          unknown"`, with the brief below, the two paths and every blocker copied verbatim from the
          delivered payload (`read agent://<id>`), never retyped, paraphrased or filtered. Carry no
@@ -474,14 +481,14 @@ artifacts:
          that ran on another model gets one fresh retry with the same brief. Never read a missing
          entry as a refutation. If the retry
          is also missing or incomplete, the round is not incomplete as in step 3: its reviewers
-         delivered their verdicts and those verdicts reject. Write review.md for the round
-         (step 7) and commit it with Verdict REJECT, Awaiting `triage` and every blocker of the
-         round verbatim under `## Blockers`, each carrying `not triaged: the verifier failed
-         twice` where the verifier's result would stand, so no earlier OKAY stays current and
-         `--reviewed` fails. Then tell the user which triage failed and stop: dispatch nothing
-         further, ask nothing and edit no artifact. A session resuming that record on the
-         unchanged digest dispatches triage again for exactly its untriaged findings and
-         continues at this step, dispatching no reviewer and adding no finding.
+         delivered their verdicts and those verdicts reject. Rewrite the record committed before
+         the dispatch so every untriaged blocker carries `not triaged: the verifier failed twice`
+         instead, keeping Verdict REJECT and Awaiting `triage`, and commit it, so no earlier OKAY
+         stays current and `--reviewed` fails. Then tell the user which triage failed and stop:
+         dispatch nothing further, ask nothing and edit no artifact. A session resuming a record
+         with Awaiting `triage` on the unchanged digest, whichever marker its findings carry,
+         dispatches triage again for exactly its untriaged findings and continues at this step,
+         dispatching no reviewer and adding no finding.
 
          Then classify each blocker:
          - `confirmed` with `blocking` true: it stays a blocker and is fixed within the budget.
@@ -493,7 +500,8 @@ artifacts:
          - Overriding both: a finding whose area is in the security scope or whose `protected` is
            true becomes a residual only after step 5's ask is answered `keep`, never before and
            never because its consequence reads as small.
-      5. Write review.md for this round (step 7) and commit it, before any fix or ask. Then:
+      5. Write review.md for this round (step 7) with the triage results and commit it, before any
+         fix or ask; it replaces the pre-triage record step 4 committed, on the same digest. Then:
          - Exception asks, one `ask` per finding, each quoting the finding's area, defect and
            evidence verbatim with the verifier's reason, for a finding in the security scope
            (review_scope item 4 or CHECK 1) or with `protected` true that the verifier did not
@@ -521,7 +529,8 @@ artifacts:
            its delta check) with a confirmed blocking finding open: edit no artifact and dispatch
            nothing, and go to the exhaustion ask (step 6) on the bytes the round reviewed, so an
            Override accepts exactly them. Only the answer Fix authorizes the edits below.
-         - Budget left, or the exhaustion ask answered Fix: fix every confirmed blocking finding
+         - Budget left, the exhaustion ask answered Fix, or an exception or scope ask answered Fix
+           on a spent budget: fix every confirmed blocking finding
            in the artifacts (never in source code) and the
            findings answered Fix. A finding whose fix needs a scope decision the artifacts leave
            open is never fixed before the user answers the ask that names its alternatives. Confirmed
@@ -540,8 +549,10 @@ artifacts:
              one fresh plan-reviewer item with the delta brief below. The
              delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
              through step 4 and this step like a round.
-           - After an exhaustion Fix, the successor is that one more delta check, whatever the
-             depth: the budget is already spent and only the user's answer extended it.
+           - After an exhaustion Fix, or a Fix answer to an exception or scope ask on a spent
+             budget, the successor is that one more delta check, whatever the depth: the budget is
+             already spent and only the user's answer extended it. Each such answer extends it
+             once, and the delta check covers every edit the answers authorized.
 
          Delta brief (substitute the `{...}` inputs, change nothing else):
 

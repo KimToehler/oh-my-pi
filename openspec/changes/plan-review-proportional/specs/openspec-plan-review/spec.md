@@ -124,12 +124,12 @@ A blocker SHALL stay blocking only when the verifier confirms a concrete failure
 
 ### Requirement: Fix budget per depth
 
-Confirmed blocking findings SHALL be fixed and committed without asking while budget remains. `standard`: one fresh `plan-reviewer` then checks the fix delta under PROCESS 4: the fixed findings verbatim from the record as fix entries, plus `git diff <c> -- <change dir>` without `review.md`, where `<c>` is the commit that recorded the round. `risky`: round 2 is a full fresh two-reviewer round on the new digest. No further dispatch SHALL follow without the user's answer.
+Confirmed blocking findings SHALL be fixed and committed without asking while budget remains. `standard`: one fresh `plan-reviewer` then checks the fix delta under PROCESS 4. `risky`: round 2 is a full fresh two-reviewer round on the new digest. No further dispatch SHALL follow without the user's answer, and a Fix answer to an exhaustion, exception or scope ask on a spent budget SHALL authorize its edits and exactly one further delta check.
 
 #### Scenario: Standard change with fixes
 
 - **WHEN** round 1 of a `standard` change leaves two confirmed blocking findings
-- **THEN** both are fixed, the validator passes, and one delta check runs on the new digest; its findings are triaged like a round
+- **THEN** both are fixed, the validator passes, and one delta check runs on the new digest, built from the fixed findings verbatim as fix entries plus `git diff <c> -- <change dir>` without `review.md`, where `<c>` is the commit that recorded the round; its findings are triaged like a round
 
 #### Scenario: Risky change with fixes
 
@@ -141,9 +141,14 @@ Confirmed blocking findings SHALL be fixed and committed without asking while bu
 - **WHEN** round 1 of a `risky` change leaves only residuals
 - **THEN** the review is OKAY after round 1 and no round 2 is dispatched
 
+#### Scenario: Exception answered Fix with the budget spent
+
+- **WHEN** the delta check of a `standard` change leaves only an undecided finding whose consequence meets the threshold, and the user answers Fix to its exception ask
+- **THEN** the artifacts are fixed and exactly one further delta check runs on the new digest, and no further dispatch follows it without another answer
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches a third full round of a `risky` change or a second delta check of a `standard` change before the user answered the exhaustion ask, ends a `risky` review OKAY after round-1 fixes without round 2, answers them with a one-reviewer delta check, or builds a delta check from a diff base other than the recording commit
+- **WHEN** an instruction dispatches a third full round of a `risky` change or a second delta check of a `standard` change before the user answered the exhaustion ask or answered Fix to an exception or scope ask on a spent budget, ends a `risky` review OKAY after round-1 fixes without round 2, answers them with a one-reviewer delta check, offers a Fix answer it cannot carry out, or builds a delta check from a diff base other than the recording commit
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Reviewed bytes are committed
@@ -220,16 +225,21 @@ When the budget is spent with a confirmed blocking finding open, the instruction
 
 ### Requirement: A round is recorded before any fix or ask
 
-Before any fix or ask that follows a round or delta check, the instruction SHALL write `review.md` with that round's digest, verdict, depth, reviewer and verifier ids, each dispatch's models, Blockers (confirmed blocking findings and findings awaiting an exception answer, verbatim, grouped by reviewer) and Residuals (every other finding with the verifier's result and reason), so a Stop or an interrupted session leaves no earlier OKAY current and no unanswered exception authorizes apply.
+Before any fix or ask that follows a round or delta check, the instruction SHALL write `review.md` with that round's digest, verdict, depth, reviewer and verifier ids, each dispatch's models, Blockers and Residuals, so a Stop or an interrupted session leaves no earlier OKAY current. A round whose reviewers delivered blockers SHALL be recorded REJECT with Awaiting `triage` before the verifier is dispatched, and the post-triage record replaces it on the same digest.
 
 #### Scenario: Earlier OKAY stays superseded
 
 - **WHEN** a plan with a current OKAY `review.md` is reviewed again unchanged, the round leaves a confirmed blocking finding, and the user later answers Stop
-- **THEN** `review.md` already records that round's REJECT, so `--reviewed` fails and apply is not authorized
+- **THEN** `review.md` already records that round's REJECT with the confirmed finding and every finding awaiting an exception answer verbatim under Blockers, grouped by reviewer, and every other finding under Residuals with the verifier's result and reason, so `--reviewed` fails and no unanswered exception authorizes apply
+
+#### Scenario: Session dies while the verifier runs
+
+- **WHEN** a plan with a current OKAY `review.md` is reviewed again unchanged, the round's reviewers deliver blockers, and the session is interrupted after the verifier is dispatched and before any result is recorded
+- **THEN** the record committed before that dispatch already holds REJECT with Awaiting `triage` and the untriaged blockers, so `--reviewed` fails and a later session resumes the triage instead of applying
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction edits an artifact or asks the user before writing the round's REJECT, drops a residual from the record, or records a finding awaiting an exception answer outside Blockers
+- **WHEN** an instruction edits an artifact or asks the user before writing the round's REJECT, dispatches the verifier before the round's rejection is committed, drops a residual from the record, or records a finding awaiting an exception answer outside Blockers
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Resume from the record
