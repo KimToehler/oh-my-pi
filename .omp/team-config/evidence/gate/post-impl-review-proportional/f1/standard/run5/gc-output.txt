@@ -1,0 +1,32 @@
+# call 24: ['baseline', 'ready']
+BASELINE 663cc2e1499c recorded
+rc=0
+READY
+rc=0
+
+# call 25: ['snapshot']
+SNAPSHOT F2 wave 1 663cc2e1499c
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r5/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.plan.md
+rc=0
+
+# call 38: ['wave']
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+rc=0
+
+# call 50: ['patch']
+rc=0
+
+# call 54: ['delta']
+CompletedProcess(args='node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r5/.worktrees/review-late-fee-report --plan openspec/changes/late-fee-report delta --lane F2 --dir /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r5/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-4.2-3eb170111b53-20261102213443 --row 4.2; echo rc=$?', returncode=0, stdout='RECORDED fix_delta_review rows=4.2 round=1 verdict=OKAY\nrc=0\n', stderr='')
+
+# call 55: ['ready', 'snapshot']
+READY
+SNAPSHOT F2 wave 2 3eb170111b53
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r5/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md
+rc=0
+
+# call 69: ['wave']
+DECISION: PASS
+WAVE F2 2 total=0 fix_induced=0 unlocated=0
+rc=0

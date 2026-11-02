@@ -1,0 +1,7 @@
+$ git rev-parse HEAD
+dc48c96069a38593b40650b61f442f250be0c16f
+$ cat empty.json
+[]
+$ bun src/cli.ts empty.json --as-of 2026-02-20
+TOTAL		0.00
+exit=0

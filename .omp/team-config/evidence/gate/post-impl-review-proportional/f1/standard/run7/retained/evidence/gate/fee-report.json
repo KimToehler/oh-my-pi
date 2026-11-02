@@ -1,0 +1,90 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/fee-report",
+  "plan_sha256": "100d980a686befe3a528991fd4e8504868c536a9bf9d3f3839df9d090ee5f6ae",
+  "reviewed_sha": "5871014a9a3c82119e0fd227885b9ede004779b4",
+  "diff_base": "85d72a39c903cdf2a590ced47d0bf8f77d41febb",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard: Mandatory class none on the final diff (no auth, credential, PII, schema, externally supported wire/API or shared state; new standalone CLI and library) and no review, gate or release mechanism changes, so one implementation-audit; wave 1 failed QA3/QA5, fixed in b38f716, wave 2 passed",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 lateFee requirement via public API, 13 QA-chosen cases incl. period, cap and rounding boundaries",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa1-latefee-api.txt",
+      "artifact_sha256": "983ab552e98908586124ba35e11320bf58afcb65662937ba859386dc959a293d"
+    },
+    {
+      "name": "QA2 render command happy path on samples/report.json",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa2-cli-sample.txt",
+      "artifact_sha256": "41b3c3cc2d01471f3fb9c957d08208bc69bdba450f176a48fd06eb07835543a4"
+    },
+    {
+      "name": "QA3 render command, spec scenario Large fee grouped (123456789 cents)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa3-cli-large-fee.txt",
+      "artifact_sha256": "56d09ee92fc26aae70e36c4bd5b8179a261630bf685daead9fc261caa9ee40ce"
+    },
+    {
+      "name": "QA4 render command negative control: report with no lines renders exactly No late fees",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa4-cli-empty.txt",
+      "artifact_sha256": "830f414d72368f26ec8b9b43752f166103971ee18716d4391b52ffd63c443d3e"
+    },
+    {
+      "name": "QA5 render command grouping boundaries 5, 99999, 100000, 100000000 cents",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa5-cli-grouping-bounds.txt",
+      "artifact_sha256": "af5490e3a64382e84278cc4752c4df5161197772f61ebba05a41b99cf78475c6"
+    },
+    {
+      "name": "QA6 regression: bun test suite and render usage error exit 2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa6-regression.txt",
+      "artifact_sha256": "748769c2d8870f816a316628fae57e1a7c126fa4d7b0f815255bfecbb2b4203e"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt",
+      "trailer_sha256": "8171bcc7ba5b7ea89cf9edbf94ceec6023cac656641527545d1197f5f1101b7c",
+      "note": "no blockers; notes N1 (review.md planning-review provenance stale/re-stamped) and N2 (fee rounding/cap boundaries and CLI covered by manual QA only) in the trailer artifact"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA3",
+      "severity": "high",
+      "location": "src/render.ts:15",
+      "coverage": "src/render.test.ts::every group of three integer digits is separated",
+      "fix_sha": "b38f71699a854ea303f3edc420a3d5465f9e879d"
+    },
+    {
+      "id": "QA5",
+      "severity": "high",
+      "location": "src/render.ts:15",
+      "coverage": "src/render.test.ts::every group of three integer digits is separated",
+      "fix_sha": "b38f71699a854ea303f3edc420a3d5465f9e879d"
+    }
+  ]
+}

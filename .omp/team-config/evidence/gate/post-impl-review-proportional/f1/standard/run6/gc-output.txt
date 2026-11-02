@@ -1,0 +1,22 @@
+# call 24: []
+652:    console.log("RECORDED risk_tier_change internal-tooling -> product")
+
+# call 38: ['baseline', 'ready', 'snapshot']
+BASELINE 23695863d943 recorded
+READY
+SNAPSHOT F2 wave 1 23695863d943
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r6/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.plan.md
+
+# call 40: ['wave']
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+
+# call 55: ['delta', 'ready', 'snapshot']
+}RECORDED fix_delta_review rows=1.2 round=1 verdict=OKAY
+READY
+SNAPSHOT F2 wave 2 418158c10d6d
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r6/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md
+
+# call 68: ['wave']
+DECISION: PASS
+WAVE F2 2 total=0 fix_induced=0 unlocated=0

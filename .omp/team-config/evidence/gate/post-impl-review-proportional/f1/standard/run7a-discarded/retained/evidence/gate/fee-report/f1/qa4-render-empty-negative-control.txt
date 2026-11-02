@@ -1,0 +1,11 @@
+row: QA4
+command: bun src/cli.ts /tmp/feereport-qa/fixtures/empty.json (in a pty)
+--- input /tmp/feereport-qa/fixtures/empty.json
+{"lines":[]}
+head: 7e122430af7fd360e66c47d1aad818bf34579531
+--- observed (cat -vet: ^I = TAB, $ = end of line)
+No late fees$
+
+--- expected (cat -vet)
+No late fees$
+verdict: PASS (byte-equal)

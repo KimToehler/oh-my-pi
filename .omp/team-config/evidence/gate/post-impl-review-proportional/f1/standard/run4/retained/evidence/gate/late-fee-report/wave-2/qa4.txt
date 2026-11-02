@@ -1,0 +1,26 @@
+# QA4: UTC calendar days across a DST change in the runner's zone
+# head: b5e75eb50c865195adff06ec2ffae8f115084ee8
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa4-dst.json
+[
+  {
+    "id": "DST",
+    "amountCents": 10000,
+    "dueDate": "2026-03-01"
+  }
+]
+
+$ TZ=Europe/Berlin bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa4-dst.json --as-of 2026-03-31
+DST	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=America/New_York bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa4-dst.json --as-of 2026-03-31
+DST	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=Europe/Berlin bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa4-dst.json --as-of 2026-03-30
+TOTAL		0.00
+[exit 0]
+

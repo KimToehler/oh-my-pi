@@ -1,0 +1,29 @@
+# call 19: []
+
+
+# call 24: ['baseline', 'ready', 'snapshot']
+BASELINE 6d8a0daf7759 recorded
+READY
+SNAPSHOT F2 wave 1 6d8a0daf7759
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r2/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.plan.md
+
+# call 30: ['wave']
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+
+# call 56: ['patch']
+
+
+# call 60: ['delta']
+OKAY
+RECORDED fix_delta_review rows=4.1 round=1 verdict=OKAY
+
+# call 61: ['baseline', 'ready', 'snapshot']
+BASELINE 6d8a0daf7759 existing
+READY
+SNAPSHOT F2 wave 2 e5a6dbdc43c4
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r2/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md
+
+# call 72: ['wave']
+DECISION: CONTINUE
+WAVE F2 2 total=1 fix_induced=0 unlocated=0

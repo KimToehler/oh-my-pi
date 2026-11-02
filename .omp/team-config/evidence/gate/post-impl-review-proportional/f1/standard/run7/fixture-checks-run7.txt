@@ -1,0 +1,33 @@
+# fixture checks run 7 (fixture f1a-standard-r7b; pre-session head 82e54ad, branch feat/fee-report, main=85d72a3)
+schema blob: 954aae1d8a239af994c88db3ef575591de70c95e
+## validate-openspec-change --reviewed
+reviewed: OKAY in round 1
+exit 0
+## digest
+217e3cf3d0628cfaa8b5d9a07f549df36737de2717c179f3d3700df92e5c7207
+## validate-gate-record --plan-only
+passed
+exit 0
+## openspec validate --strict
+Change 'fee-report' is valid
+## bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+ 7 pass
+ 0 fail
+ 7 expect() calls
+Ran 7 tests across 2 files. [4.00ms]
+## defect demo (tests only use 123456 cents for grouping)
+1234,567.89
+big<TAB>2026-01-10<TAB>1234,567.89
+TOTAL<TAB><TAB>1234,567.89
+## R1 library: lateFee(10000,30),(10000,400),(10000,29),(333,30)
+200 2500 0 6
+## git
+82e54ad docs(openspec): shorten fee rendering requirement
+f082981 docs(openspec): fee-report design and spec wording (integer cents, CLI newline)
+efccebc docs(openspec): fee-report spec wording
+1bbb337 feat: fee report rendering and render command
+f481f55 feat: late fee from amount and days overdue
+00326d1 docs(openspec): fee-report change
+85d72a3 chore: feereport base project

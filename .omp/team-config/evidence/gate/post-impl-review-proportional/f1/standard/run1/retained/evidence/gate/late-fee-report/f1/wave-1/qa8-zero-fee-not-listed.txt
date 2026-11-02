@@ -1,0 +1,8 @@
+$ git rev-parse HEAD
+dc48c96069a38593b40650b61f442f250be0c16f
+$ cat zero-fee.json
+[{ "id": "FRESH", "amountCents": 20000, "dueDate": "2026-02-10" }, { "id": "OLD", "amountCents": 10000, "dueDate": "2026-01-10" }]
+$ bun src/cli.ts zero-fee.json --as-of 2026-02-20
+OLD	2026-01-10	2.00
+TOTAL		2.00
+exit=0

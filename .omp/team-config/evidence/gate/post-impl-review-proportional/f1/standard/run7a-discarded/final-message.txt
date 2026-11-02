@@ -1,0 +1,56 @@
+Working...
+**The F2 gate has not passed.** Wave 2 failed the `implementation-audit` with two blockers, and the `standard` budget of one fix round is used up. Nothing has been edited or dispatched since wave 2 was recorded, and no gate record exists.
+
+## Question (review-work, Fix waves step 3a)
+
+Wave 2 failed with the fix budget spent. How do you want to proceed?
+
+- one more fix round, then this ask repeats after its closing wave;
+- re-plan: a separate plan for the affected mechanism;
+- Stop;
+
+Override is not offered. The skill allows it only when every open blocker is eligible or covered, and neither blocker is.
+
+## Open blockers
+
+**B1 · `cli-appended-newline` · `src/cli.ts:9` — excluded**
+- `console.log` adds a newline, so an empty report prints `No late fees\n`, not exactly `No late fees`.
+- That breaks the spec's Negative control for "Fee report rendering", which is a review criterion of this gate.
+- My QA4 check expected the trailing newline too, so it missed this; the reviewer is right about that.
+
+**B2 · `float-money-path` · `src/fee.ts:9`, `src/render.ts:13` — not eligible, not covered**
+- Both lines divide by 100 with floating-point division before rounding down. That breaks the design goal "integer-cent arithmetic only; no floating point enters the money path".
+- The reviewer does not claim any amount comes out wrong. My own reasoning, not tested: rounding down that division gives the right answer for any whole number of cents below 2^53.
+- Accepted residual risks and Out of scope for blocking are both `none`, so nothing covers it.
+
+## Gate history
+
+| Wave | Head | QA | `implementation-audit` | GC decision |
+|---|---|---|---|---|
+| 1 | `efccebc` | **FAIL**: QA3, QA6 (`1234,567.89` should be `1,234,567.89`) | not dispatched | CONTINUE |
+| fix | `7e12243` | row 2.2: regex grouping plus a render test, which failed before the fix | delta review **OKAY** | — |
+| 2 | `f4ba7ce` | **PASS**, 7/7 rows | **FAIL**: B1, B2 | CONTINUE (budget spent) |
+
+- **Wave 2 QA:** the 7 rows ran on `7e12243`. They were carried to `f4ba7ce` because that commit only ticks checkbox 3.1, which I exempted in the ledger.
+- **Auditor:** model check passed. All 28 turns ran on `onara/cx/gpt-6.1-sol` at thinking `high`. Independence is cross-provider, since the diff was written by `onara/cc/claude-opus-5-5`.
+- **Delta review:** the first reviewer reached OKAY, but the harness rejected all six of its result submissions. The one allowed fresh retry returned OKAY, stored verbatim in `verdict.json`.
+- **Tests:** suite at 8 pass, 0 fail. `tsc` can't run here because `bun-types` isn't installed.
+
+## Changes to the repository
+
+- **Main checkout:** to create the review worktree, I switched it from `feat/fee-report` to `main`; the tree was fully clean. The locked review worktree is at `.worktrees/review-fee-report`, and `.worktrees/` now shows as untracked in the main checkout.
+- **New commits on `feat/fee-report`:** `7e12243` (the fix) and `f4ba7ce` (ticks F1 task 3.1).
+- **Evidence:** the QA captures in `wave-1/` and `f1/` and the trailer are left unstaged until the record step.
+- **Planning review:** `review.md` is now stale. Adding fix row 2.2 changed the change folder, so `validate-openspec-change.mjs --reviewed` exits 1. The gate validator doesn't check it, but the planning review needs to be re-run.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: NOT RUN (gate open: F2 wave 2 implementation-audit FAIL, budget spent, awaiting user choice; no record written)
+  reviewed_sha f4ba7ce6f7a3cc31b87fb264a7cb028abfd61267 · plan_sha256 1c8301509c3f97bfa332f9fa49e2d29e356b049e00908e232bf47db262fa2ba5
+  implementation-audit: FAIL · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/fee-report/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard)
+  override: none
+  record NOT RUN (no record written)
+- code committed after reviewed_sha: none
+```

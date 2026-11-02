@@ -1,0 +1,13 @@
+## git log (review worktree)
+f4ba7ce docs(openspec): fee-report F1 manual QA done
+7e12243 fix: group every three integer digits in fee amounts
+efccebc docs(openspec): fee-report spec wording
+1bbb337 feat: fee report rendering and render command
+f481f55 feat: late fee from amount and days overdue
+00326d1 docs(openspec): fee-report change
+85d72a3 chore: feereport base project
+## git status --porcelain
+?? .omp/
+## main checkout
+?? .worktrees/
+main

@@ -1,0 +1,24 @@
+# git log --oneline (review worktree)
+056a463 chore(gate): F2 merge-gate record for late-fee-report
+3eb1701 fix(fee): keep the capped fee exact above 32-bit cents-percent products
+663cc2e feat: overdue report and report command
+8fdec6f feat: late fee per invoice
+548c383 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+
+# git status --porcelain --ignored (review worktree)
+?? .omp/team-config/evidence/gate/late-fee-report/wave-1/
+!! .omp/team-config/gate-deltas/
+!! .omp/team-config/ledger.jsonl
+
+# fixture main checkout
+?? .worktrees/
+663cc2e feat: overdue report and report command
+
+# validate-gate-record.mjs --repo <worktree> --record .omp/team-config/evidence/gate/late-fee-report.json --plan openspec/changes/late-fee-report
+passed
+exit=0
+
+# validate-openspec-change.mjs --reviewed (planning review binding after fix row)
+exit=1
+review.md: stale: the change changed after review (reviewed 4e629d43d0d7f8c1d176f9de1dae3ff00943f8c140382171dc534942b4469417, current 148b7cfc6cf4799965a0452f85f71122d04a41873959eaacb1af23562ded7683); re-run the review

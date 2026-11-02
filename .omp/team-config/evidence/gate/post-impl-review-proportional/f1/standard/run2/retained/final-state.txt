@@ -1,0 +1,17 @@
+# git log --oneline (review worktree)
+e5a6dbd docs(openspec): F1 manual QA done on 5cf07eb
+5cf07eb fix: count days overdue in UTC calendar days
+eeb867d docs(openspec): F2 fix row 4.1 for UTC calendar days
+6d8a0da feat: overdue report and report command
+358f9c5 feat: late fee per invoice
+85f3b75 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+
+# git status --porcelain --ignored (review worktree)
+?? .omp/
+!! .omp/team-config/gate-deltas/
+!! .omp/team-config/ledger.jsonl
+
+# fixture main checkout
+?? .worktrees/
+6d8a0da feat: overdue report and report command

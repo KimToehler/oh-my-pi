@@ -1,0 +1,3 @@
+session file: ~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r2/2026-11-02T20-30-50-802Z_01a19df5-23b2-77fa-92cb-91643da42687.jsonl
+wall time: 1947 s
+fixture: $TMPDIR/pirp-fix/f1a-standard-r2

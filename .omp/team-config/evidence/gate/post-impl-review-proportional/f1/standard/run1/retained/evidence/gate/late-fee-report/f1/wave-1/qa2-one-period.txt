@@ -1,0 +1,8 @@
+$ git rev-parse HEAD
+dc48c96069a38593b40650b61f442f250be0c16f
+$ cat one-period.json
+[{ "id": "P1", "amountCents": 10000, "dueDate": "2026-01-10" }]
+$ bun src/cli.ts one-period.json --as-of 2026-02-15
+P1	2026-01-10	2.00
+TOTAL		2.00
+exit=0

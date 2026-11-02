@@ -1,0 +1,17 @@
+row: QA1
+head: 7e122430af7fd360e66c47d1aad818bf34579531
+command: bun /tmp/feereport-qa/fixtures/fee-probe.ts (imports /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7/.worktrees/review-fee-report/src/fee.ts)
+lateFee(10000, 30) = 200; expected 200; PASS
+lateFee(10000, 400) = 2500; expected 2500; PASS
+lateFee(10000, 29) = 0; expected 0; PASS
+lateFee(10000, 0) = 0; expected 0; PASS
+lateFee(10000, 59) = 200; expected 200; PASS
+lateFee(10000, 60) = 400; expected 400; PASS
+lateFee(10000, 360) = 2400; expected 2400; PASS
+lateFee(10000, 389) = 2400; expected 2400; PASS
+lateFee(10000, 390) = 2500; expected 2500; PASS
+lateFee(999, 30) = 19; expected 19; PASS
+lateFee(12345, 90) = 740; expected 740; PASS
+lateFee(0, 1000) = 0; expected 0; PASS
+lateFee(123456789, 10000) = 30864197; expected 30864197; PASS
+verdict: PASS

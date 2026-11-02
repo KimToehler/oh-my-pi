@@ -1,0 +1,14 @@
+# QA2 render command on samples/report.json (expected total 2500+1250+200 = 3950 cents)
+HEAD 82e54ad9e132e45c633ce56f71e50d19841fb10a
+cwd: review worktree (repo root)
+
+$ bun src/cli.ts samples/report.json
+exit=0
+stdout repr: 'inv-7\t2026-01-10\t25.00\ninv-3\t2026-01-12\t12.50\ninv-9\t2026-02-01\t2.00\nTOTAL\t\t39.50\n'
+stdout:
+inv-7	2026-01-10	25.00
+inv-3	2026-01-12	12.50
+inv-9	2026-02-01	2.00
+TOTAL		39.50
+
+expected: 'inv-7\t2026-01-10\t25.00\ninv-3\t2026-01-12\t12.50\ninv-9\t2026-02-01\t2.00\nTOTAL\t\t39.50\n'

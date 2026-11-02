@@ -1,0 +1,32 @@
+[
+  {
+    "id": "b",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "BIG",
+    "amountCents": 50000,
+    "dueDate": "2026-01-15"
+  },
+  {
+    "id": "z",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "a",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "B",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "zero-fee",
+    "amountCents": 99999,
+    "dueDate": "2026-02-10"
+  }
+]

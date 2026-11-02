@@ -1,0 +1,12 @@
+[
+  {
+    "id": "DST-autumn-30d",
+    "amountCents": 10000,
+    "dueDate": "2026-10-01"
+  },
+  {
+    "id": "DST-autumn-29d",
+    "amountCents": 10000,
+    "dueDate": "2026-10-02"
+  }
+]

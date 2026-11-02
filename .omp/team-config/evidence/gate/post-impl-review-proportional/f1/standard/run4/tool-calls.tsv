@@ -1,0 +1,63 @@
+1	read	skill://review-work
+2	read	skill://review-work:180-330
+3	read	skill://review-work:318-470
+4	bash	git status --short && git log --oneline -15 && git branch -a && git worktree list && ls -la && ls openspec openspec/changes 2>/dev/null
+5	read	rule://worktrees
+6	bash	cat .gitignore package.json tsconfig.json openspec/config.yaml; ls -R openspec/changes src samples; ls openspec/schemas
+7	bash	cd openspec/changes/late-fee-report && for f in proposal.md design.md gate.md tasks.md review.md specs/late-fees/spec.md; do echo "=== $f"; cat $f; done
+8	bash	for f in src/*.ts samples/invoices.json; do echo "=== $f"; cat $f; done; git log --stat --format='--- %H %s' | cat
+9	bash	S=~/.omp/agent/skills/review-work; ls -la $S $S/scripts; readlink -f $S; omp config get task.agentModelOverrides; find ~/.omp/agent ~/.omp/profiles/pirp/agent -maxdepth 2 -name auditor.md 2>/dev/null
+10	bash	P=~/.omp/profiles/pirp/agent; ls -la $P/skills/review-work $P/skills/review-work/scripts 2>&1 | cat; readlink -f $P/skills/review-work; diff -rq $P/skills/review-work ~/.omp/agent/skills/review-work 2>&1 | grep -v fixtures | cat; 
+11	bash	env | grep -i -E 'omp|pirp|profile' | cut -c1-150; P=~/.omp/profiles/pirp/agent/skills/review-work/openspec/schemas/omp-gated; G=~/.omp/agent/skills/review-work/openspec/schemas/omp-gated; for d in $P $G; do diff -rq $d openspec/s
+12	bash	git worktree add -b review/late-fee-report .worktrees/review-late-fee-report feat/late-fee-report && git worktree lock .worktrees/review-late-fee-report --reason "review:feat/late-fee-report" && git worktree list && git status --s
+13	bash	W=.worktrees/review-late-fee-report; cd $W && git merge-base --is-ancestor main HEAD && echo main-is-ancestor; git merge-base main HEAD; git diff --name-only main...HEAD; git log --all --oneline --grep="late" | cat; grep -rn "TODO
+14	bash	S=~/.omp/profiles/pirp/agent/skills/review-work; R=$PWD; node $S/scripts/validate-gate-record.mjs --repo $R --plan-only --plan openspec/changes/late-fee-report; echo "exit $?"; node $S/scripts/validate-openspec-change.mjs openspec
+15	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; grep -n "usage\|Usage\|--[a-z-]*" $S/gate-convergence.mjs | grep -iE "usage|case '|argv|ledger|join\(" | head -50
+16	bash	node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --help 2>&1 | head -40; grep -n "gate-convergence\|ledger" ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-layout.mjs
+17	bash	S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; cat $S/gate-layout.mjs; grep -n "^function\|^async function\|case \"" $S/gate-convergence.mjs | head -60
+18	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/late-fee-report"; $GC baseline --sha HEAD; echo "exit $?"; $GC ready --lane F2; echo "exit $?"; $GC snapsh
+19	bash	bun --version; node --version; bun test 2>&1 | tail -5; bunx tsc --noEmit -p . 2>&1 | tail -3
+20	eval	Running F1 QA rows
+21	eval	QA7 default as-of, QA8 regression
+22	write	.worktrees/review-late-fee-report/.omp/team-config/evidence/gate/late-fee-report/wave-1/qa-matrix.md
+23	edit	Fixing QA2 expected text :: [.worktrees/review-late-fee-report/.omp/team-config/evidence/gate/late-fee-report/wave-1/qa-matrix.m
+24	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/late-fee-report"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.snapsh
+25	todo	Planning fix round and wave 2
+26	read	.worktrees/review-late-fee-report/openspec/changes/late-fee-report/tasks.md:15-22
+27	edit	Adding TODOs row 4.2 :: [.worktrees/review-late-fee-report/openspec/changes/late-fee-report/tasks.md#A29E]
+28	edit	Adding cap rounding regression test :: [.worktrees/review-late-fee-report/src/fee.test.ts#0000]
+29	edit	Adding cap rounding regression test :: [.worktrees/review-late-fee-report/src/fee.test.ts#A6F5]
+30	bash	bun test src/fee.test.ts 2>&1 | grep -E "pass|fail|Expected|Received" 
+31	edit	Flooring the capped fee :: [.worktrees/review-late-fee-report/src/fee.ts#0000]
+32	edit	Flooring the capped fee :: [.worktrees/review-late-fee-report/src/fee.ts#92C1]
+33	bash	bun test src/fee.test.ts 2>&1 | grep -E "^ *[0-9]+ (pass|fail)"; bun test 2>&1 | grep -E "^ *[0-9]+ (pass|fail)"; S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-openspec-change.mjs openspec/changes/late-
+34	grep	Checking whether gate scripts require fresh review.md
+35	bash	git add src/fee.ts src/fee.test.ts openspec/changes/late-fee-report/tasks.md && git commit -q -m "fix(fee): round the capped late fee down to whole cents" -m "F2 wave 1 QA3: Math.round rounded 25% of an amount not divisible by 4 u
+36	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/late-fee-report"; TS=$(date -u +%Y%m%d%H%M%S); H=$(git rev-parse HEAD | cut -c1-12); $GC patch --base fcb3
+37	bash	cat .omp/team-config/gate-deltas/F2-4.2-b5e75eb50c86-20261102212207/manifest.json; ls -la .omp/team-config/gate-deltas/F2-4.2-b5e75eb50c86-20261102212207/
+38	task	plan-reviewer:DeltaReview42
+39	bash	mkdir -p /tmp/lfr-gate && git diff 7c09518d3c7862ed6cc7ce68289b1493299bf9ad..HEAD > /tmp/lfr-gate/diff.patch && git diff --name-only 7c09518d3c7862ed6cc7ce68289b1493299bf9ad..HEAD > /tmp/lfr-gate/files.txt && wc -l /tmp/lfr-gate/*
+40	wait	Waiting for delta review
+41	bash	D=.omp/team-config/gate-deltas/F2-4.2-b5e75eb50c86-20261102212207; cp agent://DeltaReview42 $D/verdict.json && cat $D/verdict.json && GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $
+42	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/late-fee-report"; git merge-base --is-ancestor main HEAD && echo main-ancestor; $GC ready --lane F2; echo 
+43	todo	Marking fix round done
+44	eval	Wave 2 QA rows
+45	bash	wc -c .omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md /tmp/lfr-gate/diff.patch; head -20 .omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md; python3 -c "import json;d=json.load(open('.omp/team-config/gate-delt
+46	eval	Writing wave-2 matrix
+47	eval	Building verbatim auditor brief
+48	eval	[tool.task dispatch] Dispatching implementation-audit
+49	todo	Marking wave-2 QA done
+50	wait	Waiting for implementation-audit
+51	bash	mkdir -p .omp/team-config/evidence/late-fee-report/f2 && cp agent://ImplAuditW2 .omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt && tail -18 .omp/team-config/evidence/late-fee-report/f2/trailer-impleme
+52	read	history://ImplAuditW2
+53	bash	F=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r4/2026-11-02T21-18-54-195Z_01a19e21-22f3-761b-902f-c6f06a9e8d51/ImplAuditW2.jsonl; jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.prov
+54	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/late-fee-report"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.snapsh
+55	eval	Writing gate record
+56	bash	E=.omp/team-config/evidence/gate/late-fee-report; git add .omp/team-config/evidence/gate/late-fee-report.json .omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt $E/wave-2/qa1.txt $E/wave-2/qa2.txt $E/wav
+57	eval	Fixing whole_diff reason
+58	bash	git add .omp/team-config/evidence/gate/late-fee-report.json && node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo $PWD --record .omp/team-config/evidence/gate/late-fee-report.json --plan
+59	bash	git commit -q -m "chore(gate): F2 merge-gate record for late-fee-report" && git log --oneline -3 | cat && node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo $PWD --record .omp/team-confi
+60	read	rule://merge-gate-proof
+61	todo	Closing remaining todos
+62	todo	Closing fix round todos
+63	todo	Closing wave 2 todos

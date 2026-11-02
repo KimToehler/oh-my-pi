@@ -1,0 +1,75 @@
+^Drepo HEAD: a0ccec20abe7bee717bd656a008665926b8149d0
+runner clock (UTC): 2026-11-02T21:08:09Z; runner zone: Europe/Berlin
+
+$ cat /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/order.json
+[
+  { "id": "b", "amountCents": 10000, "dueDate": "2026-01-05" },
+  { "id": "INV-9", "amountCents": 10000, "dueDate": "2026-01-05" },
+  { "id": "B", "amountCents": 10000, "dueDate": "2026-01-05" },
+  { "id": "INV-10", "amountCents": 10000, "dueDate": "2026-01-05" },
+  { "id": "late", "amountCents": 10000, "dueDate": "2026-01-01" },
+  { "id": "big", "amountCents": 90000, "dueDate": "2026-01-20" },
+  { "id": "zero", "amountCents": 10000, "dueDate": "2026-02-01" }
+]
+[exit 0]
+
+$ bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/order.json --as-of 2026-02-20
+big	2026-01-20	18.00
+late	2026-01-01	2.00
+B	2026-01-05	2.00
+INV-10	2026-01-05	2.00
+INV-9	2026-01-05	2.00
+b	2026-01-05	2.00
+TOTAL		28.00
+[exit 0]
+
+$ cat /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/order-reversed.json
+[
+  {
+    "id": "zero",
+    "amountCents": 10000,
+    "dueDate": "2026-02-01"
+  },
+  {
+    "id": "big",
+    "amountCents": 90000,
+    "dueDate": "2026-01-20"
+  },
+  {
+    "id": "late",
+    "amountCents": 10000,
+    "dueDate": "2026-01-01"
+  },
+  {
+    "id": "INV-10",
+    "amountCents": 10000,
+    "dueDate": "2026-01-05"
+  },
+  {
+    "id": "B",
+    "amountCents": 10000,
+    "dueDate": "2026-01-05"
+  },
+  {
+    "id": "INV-9",
+    "amountCents": 10000,
+    "dueDate": "2026-01-05"
+  },
+  {
+    "id": "b",
+    "amountCents": 10000,
+    "dueDate": "2026-01-05"
+  }
+]
+[exit 0]
+
+$ bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/order-reversed.json --as-of 2026-02-20
+big	2026-01-20	18.00
+late	2026-01-01	2.00
+B	2026-01-05	2.00
+INV-10	2026-01-05	2.00
+INV-9	2026-01-05	2.00
+b	2026-01-05	2.00
+TOTAL		28.00
+[exit 0]
+

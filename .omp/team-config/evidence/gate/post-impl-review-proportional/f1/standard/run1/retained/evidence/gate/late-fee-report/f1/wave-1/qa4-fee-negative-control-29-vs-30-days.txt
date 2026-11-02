@@ -1,0 +1,8 @@
+$ git rev-parse HEAD
+dc48c96069a38593b40650b61f442f250be0c16f
+$ cat boundary.json
+[{ "id": "D29", "amountCents": 10000, "dueDate": "2026-01-17" }, { "id": "D30", "amountCents": 10000, "dueDate": "2026-01-16" }]
+$ bun src/cli.ts boundary.json --as-of 2026-02-15
+D30	2026-01-16	2.00
+TOTAL		2.00
+exit=0

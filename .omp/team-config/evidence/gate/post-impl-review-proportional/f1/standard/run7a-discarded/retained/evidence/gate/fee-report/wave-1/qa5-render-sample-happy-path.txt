@@ -1,0 +1,23 @@
+row: QA5
+command: bun src/cli.ts samples/report.json (in a pty)
+--- input samples/report.json
+{
+  "lines": [
+    { "id": "inv-7", "dueDate": "2026-01-10", "feeCents": 2500 },
+    { "id": "inv-3", "dueDate": "2026-01-12", "feeCents": 1250 },
+    { "id": "inv-9", "dueDate": "2026-02-01", "feeCents": 200 }
+  ]
+}
+head: efccebc15cbd61b8660585fc320ce33eda80b4cd
+--- observed (cat -vet: ^I = TAB, $ = end of line)
+inv-7^I2026-01-10^I25.00$
+inv-3^I2026-01-12^I12.50$
+inv-9^I2026-02-01^I2.00$
+TOTAL^I^I39.50$
+
+--- expected (cat -vet)
+inv-7^I2026-01-10^I25.00$
+inv-3^I2026-01-12^I12.50$
+inv-9^I2026-02-01^I2.00$
+TOTAL^I^I39.50$
+verdict: PASS (byte-equal)

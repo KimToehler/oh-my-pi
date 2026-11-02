@@ -1,0 +1,40 @@
+repo HEAD: 145e0c2d914492ca69891951f776e2e472fcf8e9
+runner clock (UTC): 2026-11-02T21:11:40Z; runner zone: Europe/Berlin
+
+$ cat /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/boundaries.json
+[
+  { "id": "D29", "amountCents": 10000, "dueDate": "2026-01-10" },
+  { "id": "D30", "amountCents": 10000, "dueDate": "2026-01-09" },
+  { "id": "ROUND", "amountCents": 12345, "dueDate": "2026-01-09" },
+  { "id": "CAP", "amountCents": 10000, "dueDate": "2024-06-01" },
+  { "id": "FUTURE", "amountCents": 10000, "dueDate": "2026-03-01" },
+  { "id": "LEAP", "amountCents": 10000, "dueDate": "2024-02-01" }
+]
+[exit 0]
+
+$ bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/boundaries.json --as-of 2026-02-08
+LEAP	2024-02-01	25.00
+CAP	2024-06-01	25.00
+ROUND	2026-01-09	2.46
+D30	2026-01-09	2.00
+TOTAL		54.46
+[exit 0]
+
+$ cat /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/dst.json
+[ { "id": "DST", "amountCents": 10000, "dueDate": "2026-03-01" } ]
+[exit 0]
+
+$ env TZ=Europe/Berlin bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/dst.json --as-of 2026-03-31
+DST	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ env TZ=America/New_York bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/dst.json --as-of 2026-03-31
+DST	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ env TZ=Europe/Berlin bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/dst.json --as-of 2026-03-30
+TOTAL		0.00
+[exit 0]
+

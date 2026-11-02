@@ -1,0 +1,37 @@
+# call 18: []
+
+
+# call 19: []
+
+
+# call 21: []
+
+
+# call 25: ['baseline', 'ready', 'snapshot']
+BASELINE dc48c96069a3 recorded
+READY
+SNAPSHOT F2 wave 1 dc48c96069a3
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.plan.md
+
+# call 28: ['wave']
+DECISION: CONTINUE
+WAVE F2 1 total=2 fix_induced=0 unlocated=2
+
+# call 44: ['patch']
+
+
+# call 50: []
+0 RECORDED fix_delta_review rows=2.2 round=1 verdict=OKAY
+
+# call 55: ['patch']
+
+
+# call 63: ['exempt', 'ready', 'snapshot']
+RECORDED delta_exemption c2c2f92579a0
+READY
+SNAPSHOT F2 wave 2 c2c2f92579a0
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard/.worktrees/review-late-fee-report/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md
+
+# call 74: ['wave']
+DECISION: STOP fix-induced blockers rose from 0 to 1
+WAVE F2 2 total=1 fix_induced=1 unlocated=0

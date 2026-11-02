@@ -1,0 +1,18 @@
+# git log --oneline (review worktree)
+c2c2f92 docs(openspec): tick F1 task 3.1
+951b31a test(report): due-date tie-break test opposes id order
+6bb9989 fix(report): order equal late fees by due date, then id
+dc48c96 feat: overdue report and report command
+b3edec9 feat: late fee per invoice
+fabe305 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+
+# git status --porcelain --ignored (review worktree)
+?? .omp/
+!! .omp/team-config/gate-deltas/
+!! .omp/team-config/ledger.jsonl
+
+# fixture main checkout
+?? .worktrees/
+feat/late-fee-report
+dc48c96 feat: overdue report and report command

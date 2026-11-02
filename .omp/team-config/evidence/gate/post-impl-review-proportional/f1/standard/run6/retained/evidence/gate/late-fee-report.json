@@ -1,0 +1,77 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/late-fee-report",
+  "plan_sha256": "f560f43232b9f17ba554a94fc1044e3eda9d79d82d79bf1e364a1bc0cdcdee3d",
+  "reviewed_sha": "418158c10d6d8c905f6d376c026cf6eb1491da0f",
+  "diff_base": "7c09518d3c7862ed6cc7ce68289b1493299bf9ad",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard: Mandatory class none and no review, gate or release mechanism changes; the final diff (local CLI, integer-cent fee, report ordering, UTC date fix) adds no auth, schema, external wire contract or shared state, so standard stands",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path: sample report via report command",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/f1/qa1-sample-report.txt",
+      "artifact_sha256": "101cf2a8bd1af6efe697820f3139d1e9efc90340d1b5ffbeebc368fc816903ab"
+    },
+    {
+      "name": "QA2 requirement Late fee per invoice: period, 29-day negative control, 30-day boundary, cap, round down, not yet due",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/f1/qa2-fee-rule.txt",
+      "artifact_sha256": "2ff95f39d62380a0c62068302b129384e15de7b06bbfe99d8366f5e14a3250d6"
+    },
+    {
+      "name": "QA3 riskiest edge: 30 UTC calendar days across DST in CET, America/New_York and UTC (wave 1 failure, fixed in 418158c)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/f1/qa3-utc-days-dst.txt",
+      "artifact_sha256": "7c8565206f83088b36f1acef70fda468b79726344f55aef5750284a29d96ca66"
+    },
+    {
+      "name": "QA4 requirement Overdue report ordering: fee desc, due date, code-unit id, input-order independence, zero-fee negative control, total",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/f1/qa4-report-ordering.txt",
+      "artifact_sha256": "b4b4ed168123a38d068d9cc77fa200b0e568e95613a1b7f7b3ad6282220578b8"
+    },
+    {
+      "name": "QA5 regression: usage error exit 2 and full bun test suite",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/f1/qa5-regression-cli-and-suite.txt",
+      "artifact_sha256": "4b98f9c297a8b51de78c807309a6fff87ef34e7f304af405f29f3dc7521131f3"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "84c99730a5908f17174f796d8277272e081dc9cf5475d04be7cf8aa97f38d766",
+      "note": "F2 wave 2 on 418158c; no blockers; notes: numeric safe-integer range undocumented, report rendering/input preservation lack direct unit tests, openspec review.md digest stale after fix row 1.2"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA3",
+      "severity": "high",
+      "location": "src/invoice.ts:11",
+      "coverage": "src/fee.test.ts::30 UTC calendar days across a daylight-saving change charge one period",
+      "fix_sha": "418158c10d6d8c905f6d376c026cf6eb1491da0f"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+fixture dst-spring.json: [{"id":"SPRING-30D","amountCents":10000,"dueDate":"2026-03-01"}]
+2026-03-01 -> 2026-03-31 is 30 UTC calendar days: expected SPRING-30D 2.00, TOTAL 2.00 in every zone
+
+### spring DST, system zone
+$ bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-spring.json --as-of 2026-03-31
+TOTAL		0.00
+[exit 0]
+
+### spring DST, TZ=Europe/Berlin
+$ env TZ=Europe/Berlin bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-spring.json --as-of 2026-03-31
+TOTAL		0.00
+[exit 0]
+
+### spring DST, TZ=America/New_York
+$ env TZ=America/New_York bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-spring.json --as-of 2026-03-31
+TOTAL		0.00
+[exit 0]
+
+### spring DST, TZ=UTC
+$ env TZ=UTC bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-spring.json --as-of 2026-03-31
+SPRING-30D	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+fixture dst-autumn.json: [{"id":"AUTUMN-29D","amountCents":10000,"dueDate":"2026-10-02"}]
+2026-10-02 -> 2026-10-31 is 29 UTC calendar days: expected no line, TOTAL 0.00 in every zone
+
+### autumn DST, system zone
+$ bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-autumn.json --as-of 2026-10-31
+TOTAL		0.00
+[exit 0]
+
+### autumn DST, TZ=UTC
+$ env TZ=UTC bun src/cli.ts /tmp/lfr-fixtures.zk5NCL/dst-autumn.json --as-of 2026-10-31
+TOTAL		0.00
+[exit 0]
+

@@ -1,0 +1,49 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The merge gate passed on the second wave, after one fix round. The fixed code and the gate record are on a new branch, `review/late-fee-report`; `feat/late-fee-report` has not moved from `fcb3ef6`.
+
+Decision reason: `gate.md` sets Depth standard, Mandatory class none and Risk tier product. The final diff is a local command-line fee report with no auth, schema, wire contract or shared state, so one `implementation-audit` was enough.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (8 rows, 8 artifacts, wave 2) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+None open. History of the one blocker:
+- **Wave 1 QA3 failed.** `src/fee.ts:11` rounded the capped 25% fee with `Math.round`, so fees were rounded up when the amount isn't divisible by 4:
+  - 10002 → 2501 and 10003 → 2501 (should be 2500);
+  - a 3-cent invoice was listed with a 1-cent fee (should be 0 and not listed).
+
+  I recorded the wave (`GC wave` → CONTINUE).
+- **Fix round 1.** I added TODOs row 4.2 to `tasks.md` and wrote a regression test, which failed first (2501). Then I changed the line to `Math.floor`, and all 9 tests pass. That is commit `b5e75eb`. A `plan-reviewer` delta review returned OKAY and was recorded with `GC delta`.
+- **Wave 2.** All 8 QA rows re-ran and passed; nothing was carried over from wave 1. The auditor returned PASS with no blockers, and `GC wave` returned `DECISION: PASS`.
+
+## Covered by one invocation
+Correctness, architecture and wire contracts, security and privacy, verification adequacy, and the whole-diff seams were all covered by the single `implementation-audit` (sections 1–5).
+
+## Key Findings
+- **Model check:** all 31 auditor turns ran on `onara` / `cx/gpt-6.1-sol` with thinking level `high`, matching the pin in the profile's `auditor.md`. There is no `auditor` override.
+- **N1 (note, not blocking):** the fee math uses JavaScript floating-point division plus `Math.floor`, with no safe-integer limit. That doesn't strictly match `design.md`'s "integer division" wording, but the auditor found no realistic invoice size that gives a wrong result.
+- **N2 (note, not blocking):** no test asserts that `buildReport` leaves its input unchanged. The code does build a separate array before sorting.
+
+## Recommendations
+- **Merge:** take `review/late-fee-report` (fast-forward `feat/late-fee-report` to `68de067`). The skill requires a separate review worktree, and the feat branch was already checked out in the main checkout. I didn't run `git checkout main` there to free it, because of the destructive-git rule.
+- **Planning review:** adding row 4.2 to `tasks.md` makes `review.md`'s reviewed digest stale (`validate-openspec-change.mjs --reviewed` now reports stale). The F2 gate scripts don't check that digest. Re-run the plan review if your OpenSpec workflow requires it before archiving.
+- **Leftover files:** the review worktree `.worktrees/review-late-fee-report` is still locked. The wave-1 QA files, the wave-2 fixtures and `qa-matrix.md` are untracked on purpose: the record doesn't cite them, so the skill says not to stage them.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha b5e75eb50c865195adff06ec2ffae8f115084ee8 · plan_sha256 e7198af769d234d353cfc0971283a81a9d5066dc24beb6f6611e3e4a58994ee4
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard per gate.md, mandatory class none)
+  override: none
+  record .omp/team-config/evidence/gate/late-fee-report.json · validate-gate-record.mjs exit 0 at 68de067 (and before the record commit)
+- code committed after reviewed_sha: none
+```

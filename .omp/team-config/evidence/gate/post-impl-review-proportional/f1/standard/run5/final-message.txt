@@ -1,0 +1,54 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The gate passed on the second wave. The first wave's QA found a real fee bug, which I fixed in this gate's one allowed fix round. The gate record validates (exit 0) both before and after its commit.
+
+Decision reason: `gate.md` sets Depth to `standard` (Mandatory class `none`, Risk tier `product`, no review, gate or release mechanism changed). The final diff adds no auth path, schema, wire contract or shared state, so I did not raise the depth.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (7 rows, 7 artifacts, wave 2) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+**Model check:** the auditor matched its pin `onara/cx/gpt-6.1-sol:high`. All 32 assistant turns in its session ran on that model, reasoning effort was `high`, there was no fallback, and no override exists for `auditor`.
+
+## Blocking Issues
+
+All fixed.
+
+- **QA6 (wave 1, at `663cc2e`): FAIL.** `src/fee.ts:12` computed `(amountCents * percent) | 0`, which cuts the product down to a 32-bit integer. From 85,899,346 cents at the 25% cap the fee came out negative. The report's fee > 0 filter then dropped those invoices, and the total was 234748.36 instead of 699496.72.
+  - **How it went:** the wave was recorded as `CONTINUE`, and I added fix row 4.2 to `tasks.md`. A new regression test failed first on the old code (it got `-21474837`), then I fixed it in `3eb1701`.
+  - **Checks:** the full suite passes (9 pass, 0 fail). The `plan-reviewer` delta review returned OKAY, and every QA row was re-run in wave 2.
+
+## Covered by one invocation
+
+Correctness, architecture and wire contracts, security and privacy, and verification adequacy were all covered by the single `implementation-audit`.
+
+## Key Findings
+
+None of these block:
+- **N1:** amounts are exact only up to JavaScript's safe-integer limit (2^53), and nothing states that upper bound.
+- **N2:** the typecheck cannot run (this was already true before this change). `tsconfig.json` needs `bun-types`, which is not installed, and `package.json` declares no devDependencies.
+- **N3:** the auditor noted that the regression test failing before the fix isn't shown in the stored evidence. I did see it fail in this session, but that run isn't in the stored evidence.
+
+## Recommendations
+
+- **`review.md` is now stale.** Adding row 4.2 to `tasks.md` changed the folder's digest, so `validate-openspec-change.mjs --reviewed` reports `review.md` out of date. The F2 validator passes, and the skill says the planning review is not this gate. It needs a re-run only if a later step in your workflow checks it.
+- **QA evidence is in `wave-2/`, not `f1/`.** Task 3.1 names `f1/`, but the skill puts QA captures under `wave-<n>/`. The wave-1 captures are left unstaged because the record doesn't cite them.
+- **Checkout state:** the main checkout is now a detached HEAD at `663cc2e`, with no file changes, so the review worktree could own the branch. The branch is checked out in the locked worktree `.worktrees/review-late-fee-report`. To get the main checkout back on the branch, unlock and remove that worktree, then switch to the branch.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range 7c09518d3c7862ed6cc7ce68289b1493299bf9ad...3eb170111b53cd7933a5cd8346b72fe32e866c7c · report none · Must-fix: 0 open / 0 fixed
+- review-work: RAN
+  reviewed_sha 3eb170111b53cd7933a5cd8346b72fe32e866c7c · plan_sha256 81574015b22678a6f8c9179e4e0f7f75a555ad97ed946ab870f6a37fc997ed22
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/late-fee-report/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: one reviewer) · trailer none
+  override: none
+  record .omp/team-config/evidence/gate/late-fee-report.json · validate-gate-record.mjs exit 0 at 056a463
+- code committed after reviewed_sha: none
+```

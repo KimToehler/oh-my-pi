@@ -1,0 +1,58 @@
+TZ(effective)=CET cwd=review-late-fee-report head=a8cbb6c
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-1/order-a.json
+[
+  {
+    "id": "b",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "BIG",
+    "amountCents": 50000,
+    "dueDate": "2026-01-15"
+  },
+  {
+    "id": "z",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "a",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "B",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "zero-fee",
+    "amountCents": 99999,
+    "dueDate": "2026-02-10"
+  }
+]
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-1/order-a.json --as-of 2026-02-20
+BIG	2026-01-15	10.00
+z	2026-01-10	2.00
+B	2026-01-12	2.00
+a	2026-01-12	2.00
+b	2026-01-12	2.00
+TOTAL		18.00
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-1/order-b.json --as-of 2026-02-20
+BIG	2026-01-15	10.00
+z	2026-01-10	2.00
+B	2026-01-12	2.00
+a	2026-01-12	2.00
+b	2026-01-12	2.00
+TOTAL		18.00
+[exit 0]
+
+$ diff <(bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-1/order-a.json --as-of 2026-02-20) <(bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-1/order-b.json --as-of 2026-02-20) && echo IDENTICAL for both input orders
+IDENTICAL for both input orders
+[exit 0]

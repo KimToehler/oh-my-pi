@@ -1,0 +1,45 @@
+Working...
+**F2 is not passed.** Wave 2 failed after its one fix round (the whole budget at `standard`), so the skill's step 3a asks you a question before any edit or dispatch. No gate record was written and nothing was merged.
+
+**Wave 1** (`6d8a0da`): QA3 failed. In a zone with daylight saving (the machine's Europe/Berlin, and New York), an invoice exactly 30 days overdue across the spring clock change got fee 0 and dropped off the report. `src/invoice.ts` counted days in local time; the spec requires UTC calendar days. Recorded with no reviewer dispatched; the convergence script said CONTINUE.
+
+**Fix round:**
+- Added row `4.1` under `## TODOs` in `tasks.md` (`eeb867d`).
+- Added a regression test and watched it fail on the old code (expected 200, got 0), then switched to `Date.UTC`; all 7 tests pass (`5cf07eb`).
+- Re-ran F1 QA on the fixed head: all five rows pass, with transcripts in `.omp/team-config/evidence/gate/late-fee-report/f1/`. Then ticked 3.1 (`e5a6dbd`).
+- The fix review (`plan-reviewer`) returned OKAY with no blockers, and the convergence script recorded it.
+
+**Wave 2** (`e5a6dbd`): QA passed. `implementation-audit` (`auditor`, `onara/cx/gpt-6.1-sol`, effort high, independent of the Claude-written diff) returned **FAIL**.
+- **B1:** `src/report.ts:20`. Two invoices with the same fee and the same due date keep their input order, so reversing the input file reverses their report lines. The spec says "The order SHALL NOT depend on the order of the input file." My QA and unit tests only covered equal fees with different due dates.
+- The session file confirms the audit ran on the pinned model. Its reply is stored unedited at `.omp/team-config/evidence/late-fee-report/f2/wave-2/trailer-implementation-audit.txt` and passed the trailer check.
+- Recorded: CONTINUE.
+
+**Other things you should know:**
+- **Main checkout:** to give the branch its own locked review worktree (`.worktrees/review-late-fee-report`), I switched the main checkout to a detached HEAD at `6d8a0da`. It was fully clean, so nothing was lost.
+- **Stray edit:** one edit landed in the main checkout by mistake. I undid my own lines and the checkout is clean again.
+- **`review.md` is out of date:** the planning-review check `validate-openspec-change.mjs --reviewed` now fails with "review.md: stale", because the fix row changed `tasks.md` after that review. I did not edit `review.md`.
+- **Open note on the regression test:** `process.env.TZ` set at runtime has not been shown to take effect. On a machine already set to UTC, the test might pass against the old code.
+
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: NOT RUN (wave 2 FAIL: implementation-audit B1 open; no record written)
+  reviewed_sha e5a6dbdc43c4a1286e062c9dccfea6ae11d6c69c · plan_sha256 5f77ff86a80a2186fe4261d6c802f8ed176711fc3aabc7b76927e2138a0eff52
+  implementation-audit: FAIL · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/late-fee-report/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard)
+  override: none
+  record NOT RUN (no passing wave)
+- code committed after reviewed_sha: none
+
+---
+
+**Question (review-work Fix waves step 3a, budget spent):** Ledger: wave 1 had 1 blocker (QA3, now fixed); wave 2 has 1 blocker (`incomplete-sort-tie-break` at `src/report.ts:20`); 0 blockers were caused by a fix; 1 of 1 fix rounds used.
+
+Open blocker and its disposition:
+- **B1 `incomplete-sort-tie-break`, excluded:** it breaks the spec's ordering requirement, a merge-gate criterion. Neither "Accepted residual risks" nor "Out of scope for blocking" covers it (both are `none`). Stated consequence: finance gets report lines whose order depends on the export order, which the change claims cannot happen. Regenerating the report undoes it, and no money moves.
+
+Options:
+- one more fix round, then this ask repeats after its closing wave;
+- re-plan: a separate plan for the affected mechanism;
+- Stop.
+
+Override is not offered, because B1 is excluded.

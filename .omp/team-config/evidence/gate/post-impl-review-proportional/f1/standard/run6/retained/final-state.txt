@@ -1,0 +1,32 @@
+# git log --oneline (review worktree)
+5eefd14 chore(gate): F2 merge-gate record for late-fee-report
+418158c fix: count days overdue in UTC calendar days (F2 wave 1 QA3, task 1.2)
+2369586 docs(openspec): tick F1 task 3.1 for late-fee-report
+a8cbb6c feat: overdue report and report command
+cb28ea4 feat: late fee per invoice
+2c423a8 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+
+# git status --porcelain --ignored (review worktree)
+?? .omp/team-config/evidence/gate/late-fee-report/f1/dst-autumn-cases.json
+?? .omp/team-config/evidence/gate/late-fee-report/f1/dst-cases.json
+?? .omp/team-config/evidence/gate/late-fee-report/f1/fee-cases.json
+?? .omp/team-config/evidence/gate/late-fee-report/f1/order-a.json
+?? .omp/team-config/evidence/gate/late-fee-report/f1/order-b.json
+?? .omp/team-config/evidence/gate/late-fee-report/f1/qa-matrix.md
+?? .omp/team-config/evidence/gate/late-fee-report/wave-1/
+!! .omp/team-config/gate-deltas/
+!! .omp/team-config/ledger.jsonl
+
+# fixture main checkout
+?? .worktrees/
+main
+7c09518 chore: latefee base project
+
+# validate-gate-record.mjs --repo <worktree> --record ... --plan openspec/changes/late-fee-report
+passed
+exit=0
+
+# validate-openspec-change.mjs --reviewed
+exit=1
+review.md: stale: the change changed after review (reviewed f0eeeb1467dcb0d9f46c39ed87680ba9d21161b80aca1f12001907fa0184fd83, current 077fd719cf5fb6b0f6cd34ae36d34a269f0d0fe2909bd0e17c97adf5ab4f0032); re-run the review

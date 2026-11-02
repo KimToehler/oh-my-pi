@@ -1,0 +1,52 @@
+# QA2: late fee per invoice: one period 200, cap 2500, 29d none, 30d/59d/60d period boundaries, rounding down
+# head: b5e75eb50c865195adff06ec2ffae8f115084ee8
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa2-fee.json
+[
+  {
+    "id": "ONE-PERIOD",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "OVER-A-YEAR",
+    "amountCents": 10000,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "DAY-29",
+    "amountCents": 10000,
+    "dueDate": "2026-01-17"
+  },
+  {
+    "id": "DAY-30",
+    "amountCents": 10000,
+    "dueDate": "2026-01-16"
+  },
+  {
+    "id": "DAY-59",
+    "amountCents": 10000,
+    "dueDate": "2025-12-18"
+  },
+  {
+    "id": "DAY-60",
+    "amountCents": 10000,
+    "dueDate": "2025-12-17"
+  },
+  {
+    "id": "FLOOR-CENTS",
+    "amountCents": 12345,
+    "dueDate": "2026-01-10"
+  }
+]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa2-fee.json --as-of 2026-02-15
+OVER-A-YEAR	2025-01-01	25.00
+DAY-60	2025-12-17	4.00
+FLOOR-CENTS	2026-01-10	2.46
+DAY-59	2025-12-18	2.00
+ONE-PERIOD	2026-01-10	2.00
+DAY-30	2026-01-16	2.00
+TOTAL		37.46
+[exit 0]
+

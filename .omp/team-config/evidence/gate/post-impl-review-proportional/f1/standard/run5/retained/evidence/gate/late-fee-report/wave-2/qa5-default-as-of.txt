@@ -1,0 +1,51 @@
+QA5 default as-of is the UTC date: run without --as-of; due-30d-utc (30 days before the UTC date) listed 2.00, due-29d-utc not listed, even with TZ=Pacific/Kiritimati whose local date is the next day; equals the explicit --as-of UTC-date run. 23:30Z scenario covered by src/today.test.ts
+
+$ cat /tmp/latefee-qa/qa5-default-w2.json
+[
+ {
+  "id": "due-30d-utc",
+  "amountCents": 10000,
+  "dueDate": "2026-10-03"
+ },
+ {
+  "id": "due-29d-utc",
+  "amountCents": 10000,
+  "dueDate": "2026-10-04"
+ }
+]
+[exit 0]
+
+$ date -u +%FT%TZ
+2026-11-02T21:51:17Z
+[exit 0]
+
+$ TZ=Pacific/Kiritimati date +%FT%T%z
+2026-11-03T11:51:17+1400
+[exit 0]
+
+$ TZ=Pacific/Kiritimati bun src/cli.ts /tmp/latefee-qa/qa5-default-w2.json
+due-30d-utc	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=America/Los_Angeles bun src/cli.ts /tmp/latefee-qa/qa5-default-w2.json
+due-30d-utc	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ bun src/cli.ts /tmp/latefee-qa/qa5-default-w2.json --as-of 2026-11-02
+due-30d-utc	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ bun test src/today.test.ts
+bun test v1.4.4 (5d9cc0f4f)
+
+src/today.test.ts:
+(pass) formats the UTC date as YYYY-MM-DD [0.38ms]
+
+ 1 pass
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [8.00ms]
+[exit 0]

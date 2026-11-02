@@ -1,0 +1,83 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/late-fee-report",
+  "plan_sha256": "cc47bd6539978326ef81b6522f80c7c46c3c6db73a8172b42b58715fdaa2639b",
+  "reviewed_sha": "145e0c2d914492ca69891951f776e2e472fcf8e9",
+  "diff_base": "7c09518d3c7862ed6cc7ce68289b1493299bf9ad",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, Risk tier product); the final diff adds no persisted or transmitted field, recipient, auth path, schema, wire contract or shared mutable state, so depth stays standard: one implementation-audit; F2 wave 1 QA4 failed and was fixed by 4.2, wave 2 passed",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path: sample invoices via report command",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-happy.txt",
+      "artifact_sha256": "68a65abe50c95f0dbe55ec023c0fbf4fdb287f9db699890193eabfb63c1736bd"
+    },
+    {
+      "name": "QA2 requirement Late fee per invoice: 29/30-day boundary, round-down, cap, not yet due, leap year, DST in runner zone",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-fee.txt",
+      "artifact_sha256": "b6034d0a47f06b3220cb2f34baba5e06fd5385e89cc24918d8427b224c0dbdad"
+    },
+    {
+      "name": "QA3 requirement Overdue report: fee desc, due date asc, id code-unit order, zero fee omitted, input-order independence",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-order.txt",
+      "artifact_sha256": "c2e217e4af50b45c20e68665496ecef89bacfb12b46cc464ea2b6a7c90ac9013"
+    },
+    {
+      "name": "QA4 requirement Overdue report: default as-of is today's UTC date when the runner's local date differs (failed in wave 1, fixed by 4.2)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-default-asof.txt",
+      "artifact_sha256": "89de0f868209abce001481e99a5ede6ff6899f65aabe9dc637c80fda0ad40251"
+    },
+    {
+      "name": "QA5 edge: empty input and malformed arguments",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-edge.txt",
+      "artifact_sha256": "632dc907fc20513455c27208bef65c8bd6f13ed467e8219fdf541fc61262bfef"
+    },
+    {
+      "name": "QA6 regression: full bun test suite on the fixed tree",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa-regression.txt",
+      "artifact_sha256": "39b25d67b1d4dbbc43522a458d83f51ea11323d7f21075fea5516b090d8059e3"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "aad3117a65f8fc1542cab9a14b66b1be6d291d22b72d749fbe2ad168366af262",
+      "note": "no blockers; notes N1 implicit numeric range, N2 leap witness capped, N3 no input-immutability assertion; trailer file holds the verbatim reply"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA4",
+      "severity": "high",
+      "location": "src/today.ts:3",
+      "coverage": "src/today.test.ts::the default as-of date is the UTC calendar date, not the runner's local date",
+      "fix_sha": "145e0c2d914492ca69891951f776e2e472fcf8e9"
+    }
+  ]
+}

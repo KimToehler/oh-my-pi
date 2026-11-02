@@ -1,0 +1,17 @@
+# QA4 render command on a report with no lines (negative control)
+HEAD 5871014a9a3c82119e0fd227885b9ede004779b4
+cwd: review worktree (repo root)
+
+$ cat /tmp/fee-qa/empty.json
+exit=0
+stdout repr: '{ "lines": [] }\n'
+stdout:
+{ "lines": [] }
+
+$ bun src/cli.ts /tmp/fee-qa/empty.json
+exit=0
+stdout repr: 'No late fees\n'
+stdout:
+No late fees
+
+expected: 'No late fees\n'
