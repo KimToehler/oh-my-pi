@@ -38,7 +38,7 @@ Fresh claim text is withheld for every item, not only the private ones: it is re
 The first scan covered the seven `experiment/` artifacts only. F2 wave 2 widened it to every file of this evidence directory — `experiment/`, `f1/`, the stored reviewer trailers in `f2/` and the QA captures in `wave-1/` and `wave-2/` — and that pass found one local path in `f1/adjudication.md` (a `sed` command quoting the snapshot worktree), which is now written as `<local snapshot worktree>/…`. The current state, run from the evidence directory:
 
 ```
-$ grep -rn -E "backend_kt|nutritrain|ghp_|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
+$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
 (no output)
 $ grep -ro -E "sk-[A-Za-z-]{0,12}" . | sort | uniq -c
       1 ./experiment/dataset.json:sk-child
