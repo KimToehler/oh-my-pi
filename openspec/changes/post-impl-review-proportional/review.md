@@ -1,0 +1,75 @@
+# Review
+
+- **Verdict**: REJECT
+- **Reviewed digest**: 1c56c029071ed3feefa7630f9c40394c1a95d488514b9a81b91e04c94ef613de
+- **Depth**: risky
+- **Reviewer**: plan-reviewer, PlanRevScopeA, PlanRevScopeB
+- **Verifier**: blocker-verifier, none
+- **Models**: PlanRevScopeA onara/cx/gpt-6.1-sol; PlanRevScopeB onara/cx/gpt-6.1-sol
+- **Round**: 1
+- **Awaiting**: triage
+- **Override**: none
+
+## Blockers
+
+### Scope A (PlanRevScopeA)
+
+1. **Area**: CHECK 6 — Budget Override / design D5 and task 2.3
+   **Defect**: The new budget-exhaustion path authorizes outcomes that the shared Blocker disposition rules expressly forbid. D5 assigns rule `frozen` to every non-eligible blocker, without excluding excluded blockers or requiring a convergence STOP. In normal use, a risky closing wave can leave a real delivered concurrency defect, a security finding, or an audit-trail defect; accepting the offered Override would then settle an explicitly non-overridable finding. This can admit defective work and a misleading gate record; correcting the instructions is reversible, but consequences in merged product work need not be.
+   **Evidence**: openspec/changes/post-impl-review-proportional/design.md:88-93 offers Override with `frozen` for every non-eligible blocker and explicitly records no convergence decision. tasks.md:11 adds that path to Phase 4. The unchanged team-config/agent/skills/review-work/SKILL.md:370 permits `frozen` at a convergence STOP and prohibits an ordinary override of an uncovered non-eligible blocker; :433 prohibits overriding an excluded blocker at any path; :439-441 restrict offering Override and the user's explicit-request exception. The modified requirement in specs/review-blocker-disposition/spec.md also requires the budget ask to use that shared definition. validate-gate-record.mjs:769-792 validates the downgrade shape, not these semantic restrictions, so it does not prevent this bypass.
+   **Change**: Keep the budget ask within the shared disposition rules: offer Override only when every remaining blocker is eligible or covered, never override an excluded blocker, and do not label an ordinary budget Override as a convergence freeze. Specify the legal disposition for each supported outcome without changing the out-of-scope disposition rules.
+   - not triaged: the verifier has not returned
+
+2. **Area**: CHECK 2 — Reviewer identity / pinned-model requirement and task 2.2
+   **Defect**: Ignoring the effort suffix makes a lower-effort review indistinguishable from the measured `sol:high` configuration. A supported `task.agentModelOverrides.auditor` setting selecting the same model at `:medium` overrides the new frontmatter pin, yet passes the planned comparison. Thus the gate can count a review on the configuration D4 explicitly measured as weaker. This breaks the strongest-measured-reviewer goal; the configuration is reversible, but any missed defect can already have merged.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:54 explicitly ignores the effort suffix; tasks.md:10 repeats that comparison. design.md:66-73 instead pins `sol:high` and cites 12 findings for high versus 7 for medium. packages/coding-agent/src/config/model-resolver.ts:1291-1293 gives settings overrides precedence over agent frontmatter, and task/structured-subagent.ts:423-445 supplies that override. task/executor.ts:4732-4744 resolves the effort separately, and :3156-3159 exposes resolved model identity and resolved thinking level separately. sdk.ts:2372-2375 renders the model identity without an effort field, so checking only the reviewer's model_id cannot establish high effort.
+   **Change**: Treat effective reasoning effort as a separate required input to the pin check. Compare the runtime-resolved model and effort against the installed auditor selector, using existing task/session provenance rather than inferring effort from model_id. Add a same-model/different-effort negative control; this can remain instruction-only.
+   - not triaged: the verifier has not returned
+
+3. **Area**: Correctness — Parallel risky dispatch / tasks 2.1–2.2
+   **Defect**: The required parallel dispatch conflicts with a rule injected before every task spawn. Both risky reviewers consume the same changed-file set, but that rule mandates serial task calls whenever file sets intersect, without a read-only-review exception. An orchestrator following the existing rule cannot satisfy the new one-batch requirement; following the new skill violates the injected rule. This affects every ordinary risky gate and defeats the planned parallel-lane behaviour. The damage is reversible workflow failure or serialization.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:19-22 requires both invocations in one task batch; tasks.md:9-10 implements that requirement. team-config/agent/rules/delegation.md:2-6 declares an always-injected tool:task rule, and :17-20 says overlapping file sets never share a batch and must run one after another. Its procedure-specific exception at :34-37 applies to the review-brief paragraph, not the overlap prohibition. delegation.md is absent from the planned edit list.
+   **Change**: Reconcile the delegation rule in this cutover, narrowly allowing concurrent read-only reviews of the same immutable inputs while retaining the prohibition for overlapping editing tasks, or choose a design that does not require a prohibited batch.
+   - not triaged: the verifier has not returned
+
+4. **Area**: CHECK 6 — Internal-tooling depth raising / design D2 and task 2.1
+   **Defect**: The new depth rule permits raising an internal-tooling change from standard to risky but leaves its tier unchanged and supplies no re-tier transition. That supported path dispatches both invocations and then cannot produce a valid record, because internal-tooling admits exactly one implementation-audit. Task 2.1 explicitly retains the existing Risk tier paragraph, so the delivered instructions simultaneously require both reviewer sets. A normal orchestrator raising review depth because of uncertainty therefore reaches a closing gate that always blocks. This is reversible but breaks the claimed instruction-only compatibility.
+   **Evidence**: openspec/changes/post-impl-review-proportional/design.md:44 permits raising depth on the final diff; specs/post-implementation-review/spec.md:11 applies that permission without a tier exception; tasks.md:9 keeps Risk tier while introducing the depth rule. team-config/agent/skills/review-work/SKILL.md:114 and rules/plan-merge-gate.md:48-50 require exactly one implementation-audit for internal-tooling. scripts/validate-gate-record.mjs:661-663 rejects any internal-tooling record with a second invocation. The existing security-delta re-tier instruction does not cover a discretionary depth increase without a security delta.
+   **Change**: Define this transition explicitly within the current contracts: before raising an internal-tooling gate to risky, update its plan to product and perform the existing GC retier/review transition, or explicitly constrain depth raising for that tier. Align the retained Risk tier text and plan-mode/OpenSpec paths.
+   - not triaged: the verifier has not returned
+
+### Scope B (PlanRevScopeB)
+
+5. **Area**: Verification — fix-round budget and exhaustion ask
+   **Defect**: F1-B does not distinguish the new budget mechanism from the existing convergence STOP. In the intended one-defect fixture, retaining one blocker through wave 3 triggers the old STOP. An implementation without the new budget could therefore reach an ask through the old mechanism. F1-A also finishes with wave 2 PASS, so it never tests the standard-depth exhaustion boundary. This leaves the central bounded-loop behaviour unproven; the verification gap is reversible before delivery.
+   **Evidence**: openspec/changes/post-impl-review-proportional/tasks.md:24 specifies a passing standard closing wave; :25 specifies one planted defect and FAIL payloads with one blocker in waves 2 and 3. team-config/agent/skills/review-work/scripts/gate-convergence.mjs:283-296 stops at wave 3 when its blocker count is at least wave 1's count, or earlier when fix-induced blockers rise. The required independent budget transition is specified in specs/post-implementation-review/spec.md:71-107.
+   **Change**: Add a standard fixture whose closing wave fails while GC still returns CONTINUE. For risky exhaustion, prescribe blocker counts and actual fix/delta steps that avoid both GC STOP predicates through wave 3. Retain the GC decisions and subsequent tool order so the observed ask is demonstrably caused by the new budget. Keep a separate adjacent control for the existing GC STOP.
+   - not triaged: the verifier has not returned
+
+6. **Area**: Verification — depth-dependent QA scope
+   **Defect**: No planned session establishes the new requirement-versus-scenario QA sizing rule. F1-A explicitly uses only two QA rows, which cannot satisfy the standard rule's three minimum rows plus requirement coverage. F1-B supplies no requirement/scenario inventory or expected QA matrix. Leaving the old sizing behaviour unchanged could pass the listed checks. This breaks proof of the QA-scope requirement; the gap is reversible.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:109-121 requires standard requirement rows plus three minimum rows, gives a three-requirement/nine-scenario example, and requires rejection when risky QA omits a negative-control row. tasks.md:24 specifies only two rows; :25 specifies no QA coverage inventory. Task 2.3's Verify at tasks.md:11 checks neither row counts nor their mapping.
+   **Change**: Use a fixture with explicit requirements and scenarios and retain the generated matrix and row artifacts. Exercise standard sizing and risky scenario coverage, including an omitted negative-control row that must not be accepted. Preserve the selective-rerun test by choosing touched and carried rows within a conforming matrix.
+   - not triaged: the verifier has not returned
+
+7. **Area**: Verification — standard-depth replacement for F3
+   **Defect**: The standard audit's whole-diff surface has no discriminating check. Task 2.2 searches all of Phase 2 for seams and simplification, while F1-B inspects only the strategic brief. An implementation that adds the terms solely to strategic-risk-review and leaves the standard audit unchanged passes these checks; F1-A does not require inspection of its audit brief. Standard gates could lose the separate F3 surface without proving its replacement. This is a reversible material-proof gap.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:33-35 explicitly requires whole-diff hints in the standard audit's correctness section. tasks.md:10 checks p2.includes("seams") and p2.includes("simplification") across the entire phase. tasks.md:24 checks standard dispatches and outcomes but not its brief; :25 explicitly checks the strategic four-question brief only.
+   **Change**: Check the delivered audit and strategic brief sections separately. In F1-A retain and inspect the actual standard audit dispatch brief for all four whole-diff hints in its correctness section. Ensure omission from that brief fails verification even when the strategic brief remains correct; no model-behaviour re-scoring tool is needed.
+   - not triaged: the verifier has not returned
+
+8. **Area**: Verification — bounded fail-closed model retry
+   **Defect**: F1-C proves only an initial off-pin reply followed by a successful pinned retry. It cannot expose accepting a second off-pin PASS or repeatedly retrying after the permitted retry is exhausted. Those are the riskiest branches of the newly introduced fail-closed instruction, and neither has planned evidence. The missing proof is reversible before delivery.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:54 requires stopping when the pin cannot resolve; :61-69 requires a substituted retry to remain INCONCLUSIVE and prohibits an off-pin PASS gate. tasks.md:26 instead requires the retry to resolve successfully. The existing validator test at team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:807-811 compares trailer and resolution models with each other, not with the auditor pin.
+   **Change**: Add a fresh ordinary-session case where both the first result and its single retry are off-pin. Retain both results, dispatch order, the final INCONCLUSIVE outcome, user-facing model identification and absence of another retry or passing gate. Also exercise inability to resolve/read the pin if that stop behaviour is delivered by this task.
+   - not triaged: the verifier has not returned
+
+9. **Area**: Verification — rejecting an unsafe carried QA row
+   **Defect**: F1-A covers a successful safe carry but never exercises the delta reviewer's objection or the orchestrator's response. An implementation that writes carry reasons yet ignores a rejected carry can satisfy every planned observation. That leaves the safeguard against carrying stale QA evidence unproven. The verification gap is reversible.
+   **Evidence**: openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md:132-135 requires an objected row to rerun before the next wave; :137-140 supplies the unsafe-carry negative control. tasks.md:24 only requires carrying an unaffected row and rerunning the already-identified touched row. Task 2.3's Verify at tasks.md:11 checks the carried-row placeholder and wording, not the rejection/rerun path.
+   **Change**: Add a case in which a proposed carry covers behaviour changed by the fix and the delta reviewer rejects it. Retain the proposed carry, rejection, successful rerun artifact and ordering before the closing wave. Keep F1-A's safe-carry case as the adjacent positive control.
+   - not triaged: the verifier has not returned
+
+## Residuals
+
+none
