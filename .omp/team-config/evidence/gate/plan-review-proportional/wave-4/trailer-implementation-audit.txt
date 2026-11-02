@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+The delivered instruction implements depth-based dispatch, verifier triage, bounded fix paths and recorded resume states. The supplied F1 artifacts exercise the standard and risky paths, triage failure and recovery, incomplete rounds, security findings and exhaustion asks.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+**Non-blocking migration risk:** `schema.yaml:332–345` reads `Depth` before dispatch but does not explicitly tell a re-review to add it when absent. The validator deliberately accepts older `gate.md` files without that field (`validate-openspec-change.mjs:166–175`), while the migration plan expects re-review to add it (`design.md:106`). The agent may infer the intended classification, but the missing-field transition is not explicit; this is not a demonstrated failed review.
+
+**Non-blocking resume risk:** The incomplete-round resume instruction does not repeat the clean-worktree check (`schema.yaml:619–627`). The F1 instruction review relies on digest equality to close that concern, but the digest deliberately normalizes task checkboxes (`validate-openspec-change.mjs:342–357`). An uncommitted checkbox-only edit therefore need not change the digest. This is a local, reversible state and does not by itself establish an incorrect review verdict.
+
+## 3. Security and privacy delta
+
+The delivered change does not itself touch a real credential, an authentication or authorization path, third-party personal data, or access to a protected asset. The security fixture is a plan-level test; its evidence reports that no credential value was used.
+
+## 4. Verification adequacy
+
+Reviewed the supplied diff, plan, QA matrix, schema transitions, verifier and reviewer contracts, validator, and relevant F1 artifacts. The QA matrix reports passing suites and task checks; I did not independently run them. The retained security and failure-path evidence includes real-session outcomes, while some reviewer results were deliberately seeded and are identified as such.
+
+## 5. Final
+
+No blocker substantiated. Residual risks are noted above; the verdict is in the trailer.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A review resumed from an older change preserves a meaningful distinction between an absent depth classification and a deliberately selected depth before dispatch.
+  positive_witness: An in-flight change without Depth receives an explicit classification based on its class and reach before its reviewer dispatch.
+  negative_control: The same change is dispatched with no recorded classification or is silently assigned standard despite changing a gate mechanism.
+  observable: Compare the committed gate.md, the pre-dispatch digest, and the dispatched reviewer items in a retained session.
+  boundary: OpenSpec review instruction at the legacy gate.md to reviewer-dispatch transition.
+END-REVIEW-TRAILER
