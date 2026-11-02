@@ -158,12 +158,22 @@ Observed on the published run after the fixes: S keeps 24 of 25 blocking mechani
 
 Observed on the published run after the fix: trial `S-App-1` post 3/11 → 2/11, S `macro post` 18.7 % → 18.1 %, `micro post` 12.33/85 → 12/85, `union post` 17/85 → 16/85, S `retained` 37 → 36 with one `survivingNonBlocker`. Exactly one finding/target pair in the run is affected (`RerunSApp1.5` matching `acp-permission-parity|R02.2` blocking and `|R07.1` below threshold); every pre-triage figure, both false-drop columns and both precision columns are unchanged.
 
+## 6d. Fix-wave surfaces (F2 wave 4)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| a match the verifier confirmed as blocking survives triage, whatever severity the adjudicator gave that finding | return `retained` from verifier disposition alone again | the survival test fails: the target is reported as retained and post recall reads 1/1 |
+| retention still needs an independently blocking finding as well as an independently blocking target | — | with the qualifying duplicate removed, the same target must not be retained |
+| the stale `T: 2 items` macro denominator | — | published `summary.json` reports `/5` for both fresh arms |
+
+Observed on the published run after the fix: S and T each move their one `downgraded` and `legitimateResidual` count to `survivingNonBlocker` (S 2, T 1); no recall, false-drop or precision figure moves, because no target in the run is independently blocking with only a below-threshold surviving match.
+
 ## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.
 - `f1/baseline.md` — Focus 23/85 and Replay union 13/85 reproduced from grouped original annotations; the one historical exclusion is retained with its cost; the post-hoc reclassification of those rows to `annotated` is declared with its effect.
 - `f1/replays.md` — all 20 intended cells usable: 10 in the first wave, 10 in the authorised resume wave, each on its intended pin; the nine earlier losses stay excluded with their cost, the config setting that caused them is named, and the one cancelled duplicate dispatch (`RerunTFmp1`, no billed request) is recorded rather than hidden.
-- `f1/adjudication.md` — ten adjudicator sessions on the intended pin across two blinded rounds, 100/100 fresh judgments and 85/85 target assessments per round, 83/85 round-2 agreement on target severity, one source-checked positive match, the near-miss class, and zero false drops with the two legitimate residual losses named.
+- `f1/adjudication.md` — ten adjudicator sessions on the intended pin across two blinded rounds, 100/100 fresh judgments and 85/85 target assessments per round, 83/85 round-2 agreement on target severity, one source-checked positive match, the near-miss class, and zero false drops. Since F2 wave 4 there is no target-level loss at all: the two rows formerly published as legitimate residual losses are matches the verifier confirmed as blocking, now counted as surviving non-blockers.
 - `f1/publication.md` — sanitization rules per item privacy, leak scan with the two false positives explained, `report`-based reproduction of `summary.json`.
 
-The observations across these files are actual sessions and justified labels, not test pass counts. Every planned condition of the experiment is met: 20 of 20 reviewer cells on their intended pins, each triaged, all findings adjudicated, published artifacts reproducing byte-exactly from the published dataset. Five archived round records are now recorded as last rounds with pinned revisions; measured rounds saved and full-cycle savings stay `not-measured`, because no full review-and-fix cycle was replayed.
+The observations across these files are actual sessions and justified labels, not test pass counts. The measured conditions of the experiment are met: 20 of 20 reviewer cells on their intended pins, each triaged, all fresh findings adjudicated, published artifacts reproducing byte-exactly from the published dataset. Two planned conditions were not met as designed and are recorded as execution deviations on their task rows, as limitations in `RESULT.md` and as accepted residual risks in `gate.md`: the pre-dispatch ledger left current target severity `unresolved`, so the blocking denominator was resolved by the same blinded adjudicators that saw that item's fresh findings, and design D3's historical reference checks were never adjudicated. Five archived round records are now recorded as last rounds with pinned revisions; measured rounds saved and full-cycle savings stay `not-measured`, because no full review-and-fix cycle was replayed.

@@ -104,9 +104,9 @@ The experiment produced **no false drop against the frozen ledger**: `falseDrop`
 
 Since F2 wave 4 there is no target-level post-triage loss at all. Three discovered targets are not retained automatic blockers although a match of theirs survived triage, and the scorer counts each as `survivingNonBlocker`:
 
-- `S-Spt-3` finding `Replacement1SSpt3.8` → target `strength-progression-targets|R22.1`: the verifier confirmed it as blocking; the independent adjudicator rated the finding below the current threshold. The verifier kept the finding, so this is no verifier downgrade and no residual loss. Post recall stays 3/32: the target is below threshold and never a retained automatic blocker.
+- `S-Spt-3` finding `Replacement1SSpt3.8` → target `strength-progression-targets|R22.1`: the verifier confirmed the finding as blocking; the adjudicator rated both the finding and the target below the current threshold. The verifier kept the finding, so this is no verifier downgrade and no residual loss, and the target is no retained automatic blocker either. Post recall stays 3/32.
 - `T-Smt-1` finding `TrialTSmt1.4` → target `session-move-tool|R02.2`: same shape; post recall stays 1/14.
-- `S-App-1` finding `RerunSApp1.5` → target `acp-permission-parity|R07.1`: the finding survived as blocking and the target itself is below threshold. The same finding also matches the blocking target `|R02.2`, which is retained.
+- `S-App-1` finding `RerunSApp1.5` → target `acp-permission-parity|R07.1`: the finding is independently blocking and survived, the target itself is below threshold. The same finding also matches the blocking target `|R02.2`, which is retained.
 
 Before wave 4 the first two were published as `downgraded` + `legitimateResidual`, which reads as a verifier loss although the verifier had retained both findings; the frozen contract's downgrade is the verifier's own `confirmed-but-nonblocking` call. `protected`, `undecided`, `pending` and `unresolvedDrop` are 0 in every triaged trial.
 

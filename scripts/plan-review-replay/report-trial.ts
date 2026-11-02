@@ -34,10 +34,11 @@ export function buildIndex(data: Dataset): Index {
 	};
 }
 
-type FindingClass = "retained" | "protected" | "undecided" | "pending" | "nonblocking" | "dropped";
+type FindingClass = "retained" | "survived" | "protected" | "undecided" | "pending" | "nonblocking" | "dropped";
 // Higher rank wins when several findings match one target.
 const RANK: Readonly<Record<FindingClass, number>> = {
-	retained: 5,
+	retained: 6,
+	survived: 5,
 	protected: 4,
 	undecided: 3,
 	pending: 2,
@@ -46,11 +47,12 @@ const RANK: Readonly<Record<FindingClass, number>> = {
 };
 
 /**
- * Verifier disposition decides survival; the contract's `confirmed-but-nonblocking downgrade` is the
- * verifier's own call, so a match it confirmed as blocking survives whatever severity the independent
- * adjudicator gave the finding. Target severity then decides retention, in {@link triageTargets}.
+ * The contract's retained automatic blocker needs all three: an independently blocking finding, an
+ * independently blocking target, and a verifier that confirmed the finding as blocking. The verifier's
+ * own `confirmed-but-nonblocking` call is the only downgrade, so a match it confirmed as blocking
+ * survives even when the adjudicator rated that finding lower - it is then `survived`, never a loss.
  */
-function classify(tri: Triage | undefined): FindingClass {
+function classify(adj: Adjudication, tri: Triage | undefined): FindingClass {
 	if (tri === undefined) return "pending";
 	if (tri.protected && (tri.result !== "confirmed" || !tri.blocking)) return "protected";
 	switch (tri.result) {
@@ -59,7 +61,7 @@ function classify(tri: Triage | undefined): FindingClass {
 		case "refuted":
 			return "dropped";
 		case "confirmed":
-			if (tri.blocking) return "retained";
+			if (tri.blocking) return adj.blocking === "blocking" ? "retained" : "survived";
 			return tri.consequence ? "nonblocking" : "pending";
 	}
 }
@@ -140,8 +142,9 @@ export function addCounts(a: TriageCounts, b: TriageCounts): TriageCounts {
 }
 
 /**
- * Triage outcome per discovered target; independent valid adjudications only. A retained automatic
- * blocker needs both sides to be blocking: the surviving match and the target's own severity.
+ * Triage outcome per discovered target; independent valid adjudications only. Retention needs the
+ * target's own severity on top of a match that qualifies as a retained automatic blocker; a match
+ * that merely survived triage is neither retention nor a loss.
  */
 function triageTargets(
 	discovered: ReadonlyMap<string, readonly Finding[]>,
@@ -158,7 +161,7 @@ function triageTargets(
 		for (const f of matches) {
 			const adj = index.adjudication.get(f.id);
 			if (adj === undefined) continue;
-			const c = classify(index.triage.get(f.id));
+			const c = classify(adj, index.triage.get(f.id));
 			if (RANK[c] > RANK[best]) best = c;
 		}
 		const blockingTarget = target.blocking === "blocking";
@@ -170,10 +173,15 @@ function triageTargets(
 			undecided: "undecided",
 			pending: "pending",
 		};
-		const key = best === "retained" && !blockingTarget ? "survivingNonBlocker" : step[best];
+		const retainable = best === "retained" && blockingTarget;
+		const key = retainable
+			? "retained"
+			: best === "retained" || best === "survived"
+				? "survivingNonBlocker"
+				: step[best];
 		const delta: { -readonly [K in keyof TriageCounts]?: number } = {};
 		if (key !== undefined) delta[key] = 1;
-		if (best === "retained" && blockingTarget) retained.push(id);
+		if (retainable) retained.push(id);
 		if (lost) {
 			if (blockingTarget) delta.falseDrop = 1;
 			else if (target.blocking === "below-threshold") delta.legitimateResidual = 1;
@@ -220,7 +228,8 @@ function triageAdditional(
 		if (adj === undefined || adj.validity !== "valid" || adj.blocking !== "blocking") continue;
 		if (adj.targets.some(t => itemTargets.has(t))) continue;
 		const unit = adj.mechanism === null ? `f:${f.id}` : `m:${adj.mechanism}`;
-		const c = classify(index.triage.get(f.id));
+		// `adj.blocking` is `blocking` here, so `classify` can only return `retained`, never `survived`.
+		const c = classify(adj, index.triage.get(f.id));
 		const prev = best.get(unit);
 		if (prev === undefined || RANK[c] > RANK[prev]) best.set(unit, c);
 	}

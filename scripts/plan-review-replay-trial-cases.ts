@@ -69,7 +69,7 @@ describe("trial triage semantics", () => {
 		expect(pending.triage).toMatchObject({ pending: 1, falseDrop: 0, downgraded: 0 });
 	});
 
-	it("keeps a verifier-confirmed blocking match whatever severity the adjudicator gave the finding", () => {
+	it("counts a verifier-confirmed match of a below-threshold finding as survival, not retention or loss", () => {
 		const s = single({
 			targets: [target("x", "I", "blocking")],
 			findings: ["f1"],
@@ -77,9 +77,31 @@ describe("trial triage semantics", () => {
 			adjudications: [adj("f1", { targets: ["x"], blocking: "below-threshold" })],
 			triage: [tri("f1", "confirmed")],
 		});
-		// The contract's downgrade is the verifier's own call, so this is no verifier loss.
+		// A retained automatic blocker needs an independently blocking finding as well.
+		expect(s.retained).toEqual([]);
+		// The verifier kept the finding, so this is no downgrade and no false drop either.
+		expect(s.triage).toMatchObject({
+			retained: 0,
+			survivingNonBlocker: 1,
+			downgraded: 0,
+			falseDrop: 0,
+			legitimateResidual: 0,
+		});
+		expect(s.postRecall).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
+	});
+
+	it("retains the target when a second matching finding qualifies on all three conditions", () => {
+		const s = single({
+			targets: [target("x", "I", "blocking")],
+			findings: ["f1", "f2"],
+			adjudications: [
+				adj("f1", { targets: ["x"], blocking: "below-threshold" }),
+				adj("f2", { targets: ["x"], blocking: "blocking" }),
+			],
+			triage: [tri("f1", "confirmed"), tri("f2", "confirmed")],
+		});
 		expect(s.retained).toEqual(["x"]);
-		expect(s.triage).toMatchObject({ retained: 1, downgraded: 0, falseDrop: 0, legitimateResidual: 0 });
+		expect(s.triage).toMatchObject({ retained: 1, survivingNonBlocker: 0, falseDrop: 0 });
 	});
 
 	it("never counts undiscovered or below-threshold targets as false drops", () => {
