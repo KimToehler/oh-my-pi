@@ -1,0 +1,22 @@
+$ cd <evidence dir>
+$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
+(no output above means no hit)
+$ grep -ro -E "sk-[A-Za-z-]{0,123}" . | sort | uniq -c
+      1 ./experiment/dataset.json:sk-child
+      1 ./experiment/dataset.json:sk-review
+      1 ./f1/inputs.md:sk-owned
+      5 ./f1/publication.md:sk-
+      5 ./f1/publication.md:sk-child
+      3 ./f1/publication.md:sk-owned
+      5 ./f1/publication.md:sk-review
+      2 ./wave-1/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-1/qa5-publication-leak-scan.txt:sk-review
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-child
+      1 ./wave-2/qa5-publication-leak-scan.txt:sk-review
+      5 ./wave-3/qa5-publication-leak-scan.txt:sk-
+      4 ./wave-3/qa5-publication-leak-scan.txt:sk-child
+      2 ./wave-3/qa5-publication-leak-scan.txt:sk-owned
+      4 ./wave-3/qa5-publication-leak-scan.txt:sk-review
+      1 ./wave-4/qa5-publication-leak-scan.txt:sk-

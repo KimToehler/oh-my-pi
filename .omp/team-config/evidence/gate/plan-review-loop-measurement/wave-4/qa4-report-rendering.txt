@@ -1,0 +1,15 @@
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format md | sed -n "/## Trials/,/## Finding kinds/p"
+## Trials
+| trial | pre | post | false drop | protected | surviving non-blocker | undecided | pending | invalid | annotated | pending findings |
+|---|---|---|---|---|---|---|---|---|---|---|
+| H-Focus-App-1 | 4/11 = 36.4% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 3 | 6 |
+| H-Focus-Fmp-1 | 6/10 = 60.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 7 | 6 |
+| H-Focus-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 4 |
+| H-Focus-Smt-1 | 5/14 = 35.7% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 6 | 4 |
+| H-Focus-Spt-1 | 6/32 = 18.8% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 6 | 9 |
+| H-Replay-App-1 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 2 |
+| H-Replay-App-2 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 2 |
+| H-Replay-App-3 | 0/11 = 0.0% | 0/11 = 0.0% | n/a (no discovered independently blocking targets) | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| H-Replay-Fmp-1 | 2/10 = 20.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 0 |
+| H-Replay-Fmp-2 | 3/10 = 30.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 3 | 2 |
+| H-Replay-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 2 |
