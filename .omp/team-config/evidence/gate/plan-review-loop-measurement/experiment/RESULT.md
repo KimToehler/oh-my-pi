@@ -1,12 +1,12 @@
-# Plan-review loop measurement — result (interim)
+# Plan-review loop measurement — result
 
 Run `plan-review-loop-measurement-20261102`, scored by `scripts/score-plan-review-replay.ts`. Everything below is produced by that scorer from `dataset.json` in this directory; `summary.json` and `report.md` are its own output.
 
-**Status: interim.** 10 of the 20 intended fresh reviewer cells are usable (S 8/15, T 2/5). Four S cells are excluded for a mid-run model substitution, six were never dispatched after the dispatch ceiling was reached. The user settled the gap by scope change rather than by re-running cells, so this artifact is an honest partial measurement, not the completed 20-cell design.
+**All 20 intended fresh reviewer cells completed on their intended pin** (S 15/15, T 5/5), each followed by the current blocker verifier. Nine earlier dispatches were lost to a local retry rule, were excluded with their cost retained, and were re-run after that rule was corrected.
 
 ## What was measured
 
-One fresh single reviewer per cell on a frozen round-1 plan, followed by the current blocker verifier, against a frozen ledger of 85 latent targets recovered from five historical plan reviews (`f1/inputs.md`). Independent blinded adjudication assigns every fresh finding a validity, a current severity and a classification, and re-assesses every target's current severity (`f1/adjudication.md`).
+One fresh single reviewer per cell on a frozen round-1 plan, followed by the current blocker verifier, against a frozen ledger of 85 latent targets recovered from five historical plan reviews (`f1/inputs.md`). Independent blinded adjudication in two rounds assigns every fresh finding a validity, a current severity and a classification, and re-assesses every target's current severity (`f1/adjudication.md`).
 
 Arms:
 
@@ -14,42 +14,50 @@ Arms:
 |---|---|---|---|
 | H-Focus | historical reference (3 lenses, 2026-10 corpus) | mixed historical | 5/5 |
 | H-Replay | historical reference (replay bench) | mixed historical | 14/15 |
-| S | one fresh reviewer, standard depth | `gpt-6.1-sol` / high | 8/15 |
-| T | one fresh reviewer, same brief | `gpt-6.1-terra` / medium | 2/5 |
+| S | one fresh reviewer, standard depth | `gpt-6.1-sol` / high | 15/15 |
+| T | one fresh reviewer, same brief | `gpt-6.1-terra` / medium | 5/5 |
 
 ## Denominators
 
 Current ledger: 85 targets — 24 independently blocking, 60 below threshold, 1 unresolved. The severity split is the adjudicators' current assessment, not the historical labels; the historical labels remain descriptive references (`blocking: unresolved`) and are never inherited by fresh findings.
 
-Historical reference denominators are the same 85 targets, with per-arm reachable subsets: H-Focus 85, H-Replay 85, S 85, T 46 (two items only).
+A second, independent adjudication round re-assessed all 85 targets on the same frozen ledger and agreed with the first round on **83 of 85** (both disagreements: `blocking` → `below-threshold`). Round 1 stays authoritative because it was fixed before the second-round findings existed.
 
 ## Recall and precision
 
-| arm | macro pre | macro post | micro pre | micro post | union pre | false drop | false positive |
-|---|---|---|---|---|---|---|---|
-| H-Focus | 32.4% | n/a (no triage) | 23/85 = 27.1% | n/a | 23/85 | n/a | 0/24 |
-| H-Replay | 12.9% | 0/1 | 8.5/85 = 10.0% | 0/11 | 13/85 | n/a | 0/20 |
-| S | 20.9% | 22.2% | 14/85 = 16.5% | 11.5/71 = 16.2% | 16/85 = 18.8% | 0/17 | 4/41 = 9.8% |
-| T | 11.8% | 8.3% | 5/46 = 10.9% | 4/46 = 8.7% | 5/46 | 0/4 | 2/14 = 14.3% |
+| arm | macro pre | macro post | micro pre | micro post | union pre | union post | false drop | false positive |
+|---|---|---|---|---|---|---|---|---|
+| H-Focus | 32.4% | n/a (no triage) | 23/85 = 27.1% | n/a | 23/85 | n/a | n/a | 0/24 |
+| H-Replay | 12.9% | 0/1 | 8.5/85 = 10.0% | 0/11 | 13/85 | 0/11 | n/a | 0/20 |
+| S | 19.0% | 18.7% | 12.67/85 = 14.9% | 12.33/85 = 14.5% | 18/85 = 21.2% | 17/85 = 20.0% | 0/36 | 7/75 = 9.3% |
+| T | 14.8% | 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 | 5/25 = 20.0% |
 
-`pre` is the reviewer's discovery before triage; `post` is after the current verifier. Macro averages items, micro pools targets, union takes the best of an item's repeats.
+`pre` is the reviewer's discovery before triage; `post` is after the current verifier. Macro averages items, micro pools targets (per-item mean over repeats), union takes the best of an item's three repeats.
+
+A single S reviewer finds about 15 % of the frozen ledger; three independent S reviewers on the same plan reach 21 %. The historical three-lens arm reached 27 % — on a different brief, contract and era, so the comparison is not causal.
 
 ## Finding classification (fresh arms, adjudicated)
 
-| class | S (41 findings) | T (14 findings) |
+| class | S (75 findings) | T (25 findings) |
 |---|---|---|
-| known target (matched the frozen ledger) | 20 | 5 |
-| additional defect (valid, blocking, no target) | 17 | 6 |
-| useful note | 0 | 1 |
-| unsupported consequence | 2 | 2 |
+| known target (matched the frozen ledger) | 35 | 11 |
+| additional defect (valid, blocking, no target) | 32 | 7 |
+| useful note | 0 | 2 |
+| unsupported consequence | 5 | 5 |
+| evidence error | 1 | 0 |
 | false claim | 2 | 0 |
-| evidence error / severity error / pending | 0 | 0 |
+| severity error / pending | 0 | 0 |
 
-20 of 55 fresh findings are independently valid and blocking without matching any frozen target. The 85-target ledger is therefore a lower bound on what these plans contained, and single-reviewer recall against it understates discovery.
+39 of 100 fresh findings are independently valid and blocking without matching any frozen target. The 85-target ledger is therefore a lower bound on what these plans contained, and single-reviewer recall against it understates discovery.
 
 ## Triage
 
-Across all triaged trials: 17 retained (S) and 4 (T); 0 protected; 0 undecided; 0 pending; 0 false drops. Two losses occurred (`S-Spt-3`, `T-Smt-1`), both because the independent adjudicator rated the matched target below the current blocking threshold — legitimate residual, not verifier error.
+| arm | retained | protected | undecided | pending | downgraded | false drop | legitimate residual |
+|---|---|---|---|---|---|---|---|
+| S | 37 | 0 | 0 | 0 | 1 | **0** | 1 |
+| T | 10 | 0 | 0 | 0 | 1 | **0** | 1 |
+
+Across 20 trials and 100 findings the verifier dropped no independently blocking target. The two post-triage losses (`S-Spt-3`, `T-Smt-1`) are targets the independent adjudicator rated below the current blocking threshold.
 
 ## Round records
 
@@ -59,26 +67,26 @@ No round record with pinned provenance was recovered: `rounds.observed` is empty
 
 | stage | attempts | USD |
 |---|---|---|
-| reviewer | 46 | 40.33 |
-| verifier | 10 | 2.37 |
-| adjudicator | 5 | 9.99 |
+| reviewer | 56 | 47.26 |
+| verifier | 22 | 4.08 |
+| adjudicator | 10 | 19.90 |
 | unsuccessful (excluded attempts, cost retained) | 9 | 31.97 |
-| **total** | 61 | **52.69** |
+| **total** | 88 | **71.25** |
 
-Per-arm: H-Focus 1.07, H-Replay 1.42, S 39.67, T 0.53 USD. All usage was recorded; the total is not a lower bound.
+Per-arm: H-Focus 1.07, H-Replay 1.42, S 47.48, T 1.37 USD. All usage was recorded; the total is not a lower bound.
 
-Experiment wall envelope 12,015,442 ms (≈3 h 20 min) across concurrent dispatch. Per-trial spans are published where both dispatch and terminal timestamps exist; historical trials have none and are marked unavailable rather than reconstructed from response durations.
+Per usable cell: an S reviewer costs ≈0.9 USD and a T reviewer ≈0.14 USD; a verifier pass ≈0.14 USD. The 31.97 USD `unsuccessful` bucket (45 % of total spend) bought nothing — a local retry rule switched models mid-stream on a transient `stream_disconnected` (`f1/replays.md`). It is an operational finding about the harness, not about review depth.
 
-The `unsuccessful` bucket is the dominant cost: 61% of spend bought nothing, caused by a local retry rule that switched models on a transient `stream_disconnected` (`f1/replays.md`). It is an operational finding about the harness, not about review depth.
+Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatch. Per-trial spans are published where both dispatch and terminal timestamps exist; historical trials have none and are marked unavailable rather than reconstructed from response durations.
 
 ## Limitations (design D6)
 
-- **No causal claim.** Every arm pair differs in more than one axis; the scorer labels all of them `confounded`. S vs T differs in model, effort and repeat count; H vs S additionally in brief, contract, rules, era and triage.
-- **No model ranking.** Two models at two efforts on 10 cells cannot rank models.
-- **Asymmetric repeats.** S has 1–2 usable repeats per item, T has 1 on two items. Union figures are best-of-repeats on unequal samples.
+- **No causal claim.** Every arm pair differs in more than one axis; the scorer labels all of them `confounded`. S vs T differs in model and effort; H vs S additionally in brief, contract, rules, era and triage.
+- **No model ranking.** Two models at two efforts on five plans cannot rank models.
 - **Loop shape not measured.** Each cell is a first-pass single-reviewer replay. Nothing here measures what a multi-round loop converges to, how many rounds it would save, or what a different loop shape would cost.
 - **Historical arms are reference only.** They come from a different era, brief and contract, and their triage is unavailable.
 - **Target ledger is a lower bound**, as the additional-defect count shows.
+- **Adjudication is a model judgment**, repeated once on targets (83/85 agreement) and not repeated on findings.
 
 ## Reproduction
 
@@ -87,4 +95,4 @@ bun scripts/score-plan-review-replay.ts report dataset.json --format json | cmp 
 bun scripts/score-plan-review-replay.ts report dataset.json --format md
 ```
 
-This directory carries digests of all 112 inputs but not their bytes: plan fixtures, briefs and raw sessions stay in the local run directory, two of the five plans belong to a private repository. `check` (which re-hashes supplied bytes) therefore runs only against that local run directory; `report` runs here and reproduces `summary.json` exactly.
+This directory carries digests of all 140 inputs but not their bytes: plan fixtures, briefs and raw sessions stay in the local run directory, two of the five plans belong to a private repository. `check` (which re-hashes supplied bytes) therefore runs only against that local run directory; `report` runs here and reproduces `summary.json` exactly.

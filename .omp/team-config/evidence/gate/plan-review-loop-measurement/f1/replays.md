@@ -1,7 +1,7 @@
 # F1 evidence: fresh replay dispatch (task 2.1)
 
 Run: `runs/plan-review-loop-measurement-20261102` (gitignored raw sessions; normalized dataset is committed).
-Status: **10 of 20 intended reviewer cells usable; 4 excluded, 6 never dispatched.** The user closed the gap by scope change, not by recovery (see "Scope change" below), so the published result is an honest interim measurement, not the full 20-cell design.
+Status: **complete — all 20 intended reviewer cells usable.** Ten cells ran in the first wave; the remaining ten (six never dispatched, four lost to a mid-run model substitution) ran in the authorised resume wave below, after the retry rule that caused the substitutions was corrected.
 
 ## Fixtures and inputs unchanged
 
@@ -116,17 +116,37 @@ Raw transcripts stay local under `runs/plan-review-loop-measurement-20261102/raw
 | TrialSApp1 | `raw/TrialSApp1.jsonl` | `c78681f70da7750c…` |
 | TrialSSpt1 | `raw/TrialSSpt1.jsonl` | `7f8c5461d7ab9760…` |
 
-## Scope change (user decision, 2026-11-02)
+## Resume wave (user-authorised, 2026-11-02)
 
-Task 2.1 allows an incomplete dispatch to be settled either by recovering the cells or by a user scope change. The user chose the second: after the fallback diagnosis (`runs/plan-review-loop-measurement-20261102/fallback-diagnosis.md`) showed that the nine lost dispatches were caused by a local retry rule and not by the measured axis, the instruction was to change the setting and resume with the blinded adjudication, not to re-run the five lost `sol` cells.
+Task 2.1 allows an incomplete dispatch to be settled either by recovering the cells or by a user scope change. After the fallback diagnosis (`runs/plan-review-loop-measurement-20261102/fallback-diagnosis.md`) showed that the nine lost dispatches were caused by a local retry rule and not by the measured axis, the user authorised changing that setting and re-running the outstanding cells with a ceiling of 20 USD above the incurred spend.
 
 The setting changed in `~/.omp/agent/config.yml` is `retry.fallbackOn: any` → `retry.fallbackOn: usage-limit`, so a transient `stream_disconnected` no longer switches the session to another model mid-task. That file is outside this repository and outside the frozen inputs; no fixture, brief, agent contract or model pin of this experiment was touched, and no excluded attempt was re-scored.
 
-Consequence for the published numbers: the S arm rests on 8 of 15 cells and the T arm on 2 of 5. Per-item repeats are asymmetric, so arm comparisons stay descriptive, as design D6 already requires.
+Ten reviewer cells and twelve verifier passes ran in this wave; every one held its intended pin, so none is excluded. Two of the verifier passes repair earlier gaps: `S-Rtr-1` lost its first verifier to the same substitution, and `S-Smt-3` had never been triaged.
 
-After the adjudication stage the same frozen-input check still passes with the adjudicator sessions added:
+| attempt | trial | stage | actual pin | cost | dispatched | terminal |
+|---|---|---|---|---|---|---|
+| TrialSSmt1 | S-Smt-1 | reviewer | sol:high | $0.93 | 14:45:45.041Z | 14:56:11.231Z |
+| TrialSRtr2 | S-Rtr-2 | reviewer | sol:high | $0.51 | 14:45:45.041Z | 14:54:08.000Z |
+| TrialSApp2 | S-App-2 | reviewer | sol:high | $0.86 | 14:45:45.041Z | 15:11:49.595Z |
+| TrialTFmp1 | T-Fmp-1 | reviewer | terra:medium | $0.15 | 14:45:45.041Z | 14:48:22.089Z |
+| TrialTRtr1 | T-Rtr-1 | reviewer | terra:medium | $0.09 | 14:55:24.461Z | 14:56:44.444Z |
+| TrialTApp1 | T-App-1 | reviewer | terra:medium | $0.17 | 15:14:07.143Z | 15:16:57.260Z |
+| RerunSFmp2 | S-Fmp-2 | reviewer | sol:high | $0.78 | 14:50:13.813Z | 15:32:03.060Z |
+| RerunSSmt2 | S-Smt-2 | reviewer | sol:high | $1.19 | 14:58:04.120Z | 15:31:45.776Z |
+| RerunSSpt1 | S-Spt-1 | reviewer | sol:high | $1.13 | 15:13:03.750Z | 15:42:25.936Z |
+| RerunSApp1 | S-App-1 | reviewer | sol:high | $1.11 | 15:33:29.499Z | 16:02:07.677Z |
+| VerifyTFmp1 … VerifyRerunSRtr1 | 12 trials | verifier | sol:medium | $1.72 total | 14:48:25.555Z | 16:20:30.707Z |
+
+Resume reviewer and verifier spend: **$8.65**; second adjudication round: **$9.91**; both inside the authorised 20 USD. All timestamps are 2026-11-02 UTC.
+
+One dispatch error is recorded rather than hidden: `RerunTFmp1` was launched by a scheduler that did not yet exclude cells completed earlier in the same wave. It was cancelled immediately, no model request was billed, and it appears in `dispatch-ledger.json` with decision `cancelled`. The scheduler was fixed to skip completed cells before any further dispatch.
+
+Consequence for the published numbers: S rests on 15 of 15 cells and T on 5 of 5, three repeats per item for S and one for T. Arm comparisons stay descriptive, as design D6 requires.
+
+After the resume wave and the second adjudication round, the frozen-input check still passes:
 
 ```
 $ bun scripts/score-plan-review-replay.ts check runs/plan-review-loop-measurement-20261102
-ok: 112 sources, 5 items, 40 trials, 61 attempts, 165 findings
+ok: 140 sources, 5 items, 40 trials, 88 attempts, 210 findings
 ```

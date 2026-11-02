@@ -567,6 +567,13 @@
     "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition. Name/model frontmatter only differ from captured standard contract; production config unchanged."
   },
   {
+    "id": "experiment-agent/measurement-adjudicator",
+    "path": null,
+    "sha256": "d54354fba27c80aa21e33b0b21461288969ff6625b23954bc5e2c752842264a9",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition, written at the adjudication stage after the reviewer-input freeze; frozen before the first adjudicator dispatch. Production config unchanged."
+  },
+  {
     "id": "execution/TrialTSmt1",
     "path": null,
     "sha256": "219a434459000ea7bfa54b272c77d2ae8fe727b1c74a7a78087435c5e8d19a84",
@@ -780,6 +787,195 @@
     "id": "execution/AdjSpt",
     "path": null,
     "sha256": "e17366348a11e3314d66a95a7e4a25c90658a32c1055ca19826c380de7c7bf0c",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/TrialTFmp1",
+    "path": null,
+    "sha256": "d727a147af160be7c5ee01c19969395b910a26602c153230dab7599b2c9666d1",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifyTFmp1",
+    "path": null,
+    "sha256": "cc4d47bfa50f6230214c92517471c53bfd96c59dc2ab37a49d3ea52fb2b13d5e",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSRtr2",
+    "path": null,
+    "sha256": "9b318248c7f95836b8589c77d1f9c2aa13a6953474b187fedb3e1676f37f0127",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySRtr2",
+    "path": null,
+    "sha256": "6e687774b1249c9e260280b1df463d5a947af2edb849ab9a2cf6e1a16246a394",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSSmt1",
+    "path": null,
+    "sha256": "c63dca85aeef2dbd865a67167d8a3670ea8310afea5fd8dce079a81588738234",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialTRtr1",
+    "path": null,
+    "sha256": "f76b57c4bc90769c80e14d864aaaca87046e2695d87addfe0ee70c53e55d020d",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSmt1",
+    "path": null,
+    "sha256": "cbf83fdbf9e82b20bba7ffc4e3209bb98fa5ddb35ddfecc9145f20aaebd92fc7",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSApp2",
+    "path": null,
+    "sha256": "55ddfd46bca4407a31f13439f9cc014aea8ab0330b1548480d21901daadf28b9",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifyTRtr1",
+    "path": null,
+    "sha256": "313ecf964be4a2647f75b15b61b86476c16c6e5e26365a44562e34154d3732ce",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySApp2",
+    "path": null,
+    "sha256": "18e168b4e31c7557f1e12a98e88713432e8d0a458ef70147ae5f6f3c11c19a7e",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialTApp1",
+    "path": null,
+    "sha256": "da21fdc5d01b8852799068b9ace6d01b5161efcc54d035406d4fc385c3623065",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/RerunSSmt2",
+    "path": null,
+    "sha256": "94c1de1a9c0e894157c9dd60877a0b9a80396528c692c009ad9025a13febbd91",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/RerunSFmp2",
+    "path": null,
+    "sha256": "ccc6413705a98c9d24129d16bfd8af907644976b945e3578e3738f73ae3b5612",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSmt2",
+    "path": null,
+    "sha256": "3d2a4913e579a029d64b1ef58396b366c4ee6086804e998ac4e206c43e5cd7d1",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifyTApp1",
+    "path": null,
+    "sha256": "4d2505cba7c1ad6208bd94293503202f9f78cd817ed7d90b6633b82df16489c6",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/RerunSSpt1",
+    "path": null,
+    "sha256": "245753deea96c731c0a6df13bb35d7c2ab1dd41d9d8167096556e54c1cdaae92",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSpt1",
+    "path": null,
+    "sha256": "3727edbe93cd355a25dd526442e709cbd6d659078c3d61c00d7934a4667570e1",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySFmp2",
+    "path": null,
+    "sha256": "9c98d262e7a451e68f81c755a8c7ada1f8a287564c734be33bb2dad5f8598f7c",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySSmt3",
+    "path": null,
+    "sha256": "3350c071893ba5134a04b1b9eb9dcb9453acbb629bf3af38aedc3b1c0045291b",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/RerunSApp1",
+    "path": null,
+    "sha256": "1a97d713b7e2272428be8af4744d77e6ead8865bd4d1ccc75327a2e4bf4834ca",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySApp1",
+    "path": null,
+    "sha256": "959a3e4de00faf89983ee2fe902c08b565db1547e48667c50aa5b158cb61dab7",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifyRerunSRtr1",
+    "path": null,
+    "sha256": "6b48e9009e1eaff4b3fdece979c0e94867ac0c4a54c4f6477dccc5515f892b3c",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/Adj2Rtr",
+    "path": null,
+    "sha256": "4bc7459c3baa54d220532095d7f71f90d9837fd001dfab58226ee639578c6649",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Fmp",
+    "path": null,
+    "sha256": "c7e25094a84c2e2ab16007562f69298df0211911371ba2c8c0c77f38eceb90c4",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Smt",
+    "path": null,
+    "sha256": "e42fc4941b6afcabc1bce47935ac4a1af8c47cc59d29b1b69fb3a8d7549a5ec2",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2App",
+    "path": null,
+    "sha256": "1db7bb968d383f6cc7414d17f7e6eab66f8ec1369cbc631c84249eedbd5d605c",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Spt",
+    "path": null,
+    "sha256": "122105575be3f632fc60cbb21799a4f4531c5b4c905c46b8ab3fa7ac5103d3e7",
     "provided": false,
     "provenance": "Actual completed native adjudicator session; raw remains local."
   }

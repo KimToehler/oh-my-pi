@@ -10,7 +10,7 @@ Observed:
 
 ```
 $ bun scripts/score-plan-review-replay.ts check runs/plan-review-loop-measurement-20261102
-ok: 112 sources, 5 items, 40 trials, 61 attempts, 165 findings
+ok: 140 sources, 5 items, 40 trials, 88 attempts, 210 findings
 exit=0
 ```
 
@@ -20,17 +20,30 @@ Matches.
 
 Expected: `check` names the mutated source, prints both digests and exits nonzero.
 
-Observed:
+Observed, re-run against the completed run:
 
 ```
-$ cp -R runs/plan-review-loop-measurement-20261102 /tmp/mutcheck
-$ echo "" >> /tmp/mutcheck/fixtures/Rtr/tasks.md
-$ bun scripts/score-plan-review-replay.ts check /tmp/mutcheck
-error: source Rtr/tasks.md: sha256 mismatch for fixtures/Rtr/tasks.md (expected d933b928f56ff7c4845df09f63f500e74d810592d53684b6b4accbc82e671a07, got 366a0dfbd34abf3ff6ba7f7948f3985302bec6f0e230e8ba944558181ef0fb24)
+$ cp -R runs/plan-review-loop-measurement-20261102 /tmp/tamper-run
+$ printf '\n<!-- tampered -->\n' >> /tmp/tamper-run/fixtures/Rtr/gate.md
+$ bun scripts/score-plan-review-replay.ts check /tmp/tamper-run
+error: source Rtr/gate.md: sha256 mismatch for fixtures/Rtr/gate.md (expected 9a29aac03632d91015ad17f6d0e4af5f1ab94e80236b10a51b3b54808232c31e, got f454d6e4aa9d3016b243c4ef557d58ccc0e1882e7cfb636575317c14a0feb445)
 exit=1
 ```
 
 Matches. The copy was discarded; the frozen run is unchanged (block 1 reran after this test with the same `ok:` line).
+
+## 2b. Determinism of the report
+
+Expected: two consecutive `report --format json` runs on the same dataset are byte-identical.
+
+Observed:
+
+```
+$ bun scripts/score-plan-review-replay.ts report R/dataset.json --format json > /tmp/d1.json
+$ bun scripts/score-plan-review-replay.ts report R/dataset.json --format json > /tmp/d2.json
+$ cmp /tmp/d1.json /tmp/d2.json && echo identical
+identical
+```
 
 ## 3. Hand-calculated duplicate / false-drop / pending case
 
@@ -83,17 +96,17 @@ summary.json reproduced, exit=0
 Recount with a separate ad-hoc script reading only `dataset.json` (no scorer import):
 
 ```
-S union targets 16 · targets total 85 · blocking 24
+S union targets 18 · targets total 85 · blocking 24 · below-threshold 60 · unresolved 1
 per item, discovered per completed trial:
-  review-trailer-repair          2+2 → mean 2
-  finish-modality-program-route  3+4 → mean 3.5
-  acp-permission-parity          4   → mean 4
-  strength-progression-targets   4+1 → mean 2.5
-  session-move-tool              2   → mean 2
-micro pre numerator 14
+  review-trailer-repair          2+2+1 / 3 → mean 1.667
+  finish-modality-program-route  3+4+4 / 3 → mean 3.667
+  acp-permission-parity          4+2+3 / 3 → mean 3.000
+  strength-progression-targets   4+1+2 / 3 → mean 2.333
+  session-move-tool              2+2+2 / 3 → mean 2.000
+micro pre numerator 12.667
 ```
 
-Published values are `S micro pre 14/85`, `S union pre 16/85`, ledger `85 (blocking 24, below-threshold 60, unresolved 1)`. The independent recount reproduces the numerator 14 and the union 16, so the published micro figure is the per-item mean over repeats, not a sum of per-trial hits (that sum is 22).
+Published values are `S micro pre 12.666…/85`, `S union pre 18/85`, ledger `85 (blocking 24, below-threshold 60, unresolved 1)`. The independent recount reproduces all three, so the published micro figure is the per-item mean over repeats, not a sum of per-trial hits (that sum is 38).
 
 ## 5. Suite
 
@@ -107,8 +120,8 @@ $ bun test scripts/score-plan-review-replay.test.ts
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.
 - `f1/baseline.md` — Focus 23/85 and Replay union 13/85 reproduced from grouped original annotations; the one historical exclusion is retained with its cost.
-- `f1/replays.md` — 10 of 20 intended cells usable, 4 excluded for mid-run model substitution, 6 never dispatched; the scope change that closed the gap is recorded with the setting that was changed and what was not changed.
-- `f1/adjudication.md` — five adjudicator sessions on the intended pin, 55/55 judgments and 85/85 target assessments, one source-checked positive match, the near-miss class, and zero false drops with the two legitimate residual losses named.
+- `f1/replays.md` — all 20 intended cells usable: 10 in the first wave, 10 in the authorised resume wave, each on its intended pin; the nine earlier losses stay excluded with their cost, the config setting that caused them is named, and the one cancelled duplicate dispatch (`RerunTFmp1`, no billed request) is recorded rather than hidden.
+- `f1/adjudication.md` — ten adjudicator sessions on the intended pin across two blinded rounds, 100/100 fresh judgments and 85/85 target assessments per round, 83/85 round-2 agreement on target severity, one source-checked positive match, the near-miss class, and zero false drops with the two legitimate residual losses named.
 - `f1/publication.md` — sanitization rules per item privacy, leak scan with the two false positives explained, `report`-based reproduction of `summary.json`.
 
-The observations across these files are actual sessions, complete or explicitly incomplete cells and justified labels, not test pass counts. The one unmet planned condition is the cell count: 10 of 20 reviewer cells. `publication.md` and `RESULT.md` both state it, and task 3.1 stays unchecked for that reason.
+The observations across these files are actual sessions and justified labels, not test pass counts. Every planned condition of the experiment is now met: 20 of 20 reviewer cells on their intended pins, each triaged, all findings adjudicated, published artifacts reproducing byte-exactly from the published dataset. What the run still does not deliver is the round-record provenance (`rounds.observed` empty), so measured rounds saved and full-cycle savings stay `not-measured` in `RESULT.md` — a stated limitation, not a gap in the tasks.

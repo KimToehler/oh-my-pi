@@ -13,9 +13,9 @@ scoring-contract.md
 summary.json
 ```
 
-## Task status: not complete under its own criterion
+## Task status: complete under its own criterion
 
-Task 3.1 requires completion of the 20 intended reviewer cells and states that a cap-limited result is an honest interim artifact, not completion of the task. The run has 10 usable cells (S 8/15, T 2/5). The artifact is published and complete in content, but the checkbox stays open until the user either authorises the remaining cells or amends the task. `RESULT.md` leads with the interim status; no number in it is presented as a 20-cell result.
+Task 3.1 requires completion of the 20 intended reviewer cells. All 20 ran on their intended pin (S 15/15, T 5/5) after the authorised resume wave (`f1/replays.md`), and every one is followed by a verifier pass. No number in `RESULT.md` rests on a partial arm.
 
 ## Sanitization applied
 
@@ -65,8 +65,8 @@ $ bun scripts/score-plan-review-replay.ts report dataset.json --format json | cm
 cmp ok
 ```
 
-(`cmp` printed nothing and exited 0; `cmp ok` is the shell's confirmation.) The Markdown rendering of the same dataset is published as `report.md`; its arm table is identical to the local run's, for example `S | 8/15 | … | 14/85 = 16.5% | 11.5/71 = 16.2% | … | 0/17 = 0.0% | 4/41 = 9.8%`.
+(`cmp` printed nothing and exited 0; `cmp ok` is the shell's confirmation.) The Markdown rendering of the same dataset is published as `report.md`; its arm table is identical to the local run's, for example `S | 15/15 | … | 12.67/85 = 14.9% | 12.33/85 = 14.5% | … | 0/36 = 0.0% | 7/75 = 9.3%`.
 
 ## Content coverage
 
-`RESULT.md` carries: all 20 intended cells with their exclusion or missing status, the current ledger denominators (85 targets; 24 blocking, 60 below threshold, 1 unresolved) and the historical reference denominators, the empty round-record set with `measuredRoundsSaved: not-measured`, stage costs (reviewer 40.33, verifier 2.37, adjudicator 9.99, unsuccessful 31.97, total 52.69 USD), the 12,015,442 ms wall envelope with the note that concurrent stage times are not wall time, and the design D6 limitations (no causal claim, no model ranking, asymmetric repeats, loop shape unmeasured, historical arms reference only, target ledger a lower bound).
+`RESULT.md` carries: all 20 intended cells on their intended pin, the current ledger denominators (85 targets; 24 blocking, 60 below threshold, 1 unresolved) with the 83/85 round-2 repeat agreement, the historical reference denominators, the empty round-record set with `measuredRoundsSaved: not-measured`, stage costs (reviewer 47.26, verifier 4.08, adjudicator 19.90, unsuccessful 31.97, total 71.25 USD), the 19,466,782 ms wall envelope with the note that concurrent stage times are not wall time, and the design D6 limitations (no causal claim, no model ranking, loop shape unmeasured, historical arms reference only, target ledger a lower bound, adjudication a model judgment).

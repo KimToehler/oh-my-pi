@@ -1108,6 +1108,152 @@
       }
     },
     {
+      "id": "S-App-1",
+      "arm": "S",
+      "item": "acp-permission-parity",
+      "repeat": 1,
+      "targetCount": 11,
+      "discovered": [
+        "acp-permission-parity|R02.2",
+        "acp-permission-parity|R07.1",
+        "acp-permission-parity|R08.1"
+      ],
+      "undiscovered": 8,
+      "preRecall": {
+        "numerator": 3,
+        "denominator": 11,
+        "value": 0.2727272727272727,
+        "reason": null
+      },
+      "findings": {
+        "total": 5,
+        "valid": 5,
+        "invalid": 0,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-acp-default-hard-override",
+          "M-prelude-tool-context-no-ui",
+          "M-v2-cancel-normalized-to-reject"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 3,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 0,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0,
+        "reason": null
+      },
+      "retained": [
+        "acp-permission-parity|R02.2",
+        "acp-permission-parity|R07.1",
+        "acp-permission-parity|R08.1"
+      ],
+      "postRecall": {
+        "numerator": 3,
+        "denominator": 11,
+        "value": 0.2727272727272727,
+        "reason": null
+      },
+      "triage": {
+        "retained": 3,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S-App-2",
+      "arm": "S",
+      "item": "acp-permission-parity",
+      "repeat": 2,
+      "targetCount": 11,
+      "discovered": [
+        "acp-permission-parity|R02.1",
+        "acp-permission-parity|R08.1"
+      ],
+      "undiscovered": 9,
+      "preRecall": {
+        "numerator": 2,
+        "denominator": 11,
+        "value": 0.18181818181818182,
+        "reason": null
+      },
+      "findings": {
+        "total": 4,
+        "valid": 3,
+        "invalid": 1,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-speculative-launch-skips-denial"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 1,
+          "useful-note": 0,
+          "evidence-error": 1,
+          "unsupported-consequence": 0,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 1,
+        "denominator": 4,
+        "value": 0.25,
+        "reason": null
+      },
+      "retained": [
+        "acp-permission-parity|R02.1",
+        "acp-permission-parity|R08.1"
+      ],
+      "postRecall": {
+        "numerator": 2,
+        "denominator": 11,
+        "value": 0.18181818181818182,
+        "reason": null
+      },
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
       "id": "S-App-3",
       "arm": "S",
       "item": "acp-permission-parity",
@@ -1257,6 +1403,81 @@
       }
     },
     {
+      "id": "S-Fmp-2",
+      "arm": "S",
+      "item": "finish-modality-program-route",
+      "repeat": 2,
+      "targetCount": 10,
+      "discovered": [
+        "finish-modality-program-route|R02.1",
+        "finish-modality-program-route|R03.1",
+        "finish-modality-program-route|R05.1",
+        "finish-modality-program-route|R05.2"
+      ],
+      "undiscovered": 6,
+      "preRecall": {
+        "numerator": 4,
+        "denominator": 10,
+        "value": 0.4,
+        "reason": null
+      },
+      "findings": {
+        "total": 5,
+        "valid": 5,
+        "invalid": 0,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "MECH-concierge-knowledge-behaviour-unproven"
+        ],
+        "kinds": {
+          "known-target": 4,
+          "additional-defect": 1,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 0,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0,
+        "reason": null
+      },
+      "retained": [
+        "finish-modality-program-route|R02.1",
+        "finish-modality-program-route|R03.1",
+        "finish-modality-program-route|R05.1",
+        "finish-modality-program-route|R05.2"
+      ],
+      "postRecall": {
+        "numerator": 4,
+        "denominator": 10,
+        "value": 0.4,
+        "reason": null
+      },
+      "triage": {
+        "retained": 4,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 4,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
       "id": "S-Fmp-3",
       "arm": "S",
       "item": "finish-modality-program-route",
@@ -1375,20 +1596,101 @@
         "value": 0.25,
         "reason": null
       },
-      "retained": null,
+      "retained": [
+        "review-trailer-repair|R02.1",
+        "review-trailer-repair|R03.1"
+      ],
       "postRecall": {
-        "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "Verifier runtime fell back to claude-opus-5 (stream_disconnected); attempt VerifySRtr1 excluded and replacement budget exhausted."
+        "numerator": 2,
+        "denominator": 18,
+        "value": 0.1111111111111111,
+        "reason": null
       },
-      "triage": null,
-      "triageReason": "Verifier runtime fell back to claude-opus-5 (stream_disconnected); attempt VerifySRtr1 excluded and replacement budget exhausted.",
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
       "falseDropRate": {
         "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "Verifier runtime fell back to claude-opus-5 (stream_disconnected); attempt VerifySRtr1 excluded and replacement budget exhausted."
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S-Rtr-2",
+      "arm": "S",
+      "item": "review-trailer-repair",
+      "repeat": 2,
+      "targetCount": 18,
+      "discovered": [
+        "review-trailer-repair|R02.1"
+      ],
+      "undiscovered": 17,
+      "preRecall": {
+        "numerator": 1,
+        "denominator": 18,
+        "value": 0.05555555555555555,
+        "reason": null
+      },
+      "findings": {
+        "total": 3,
+        "valid": 2,
+        "invalid": 1,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-extraction-breaks-source-assertion"
+        ],
+        "kinds": {
+          "known-target": 1,
+          "additional-defect": 1,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 1,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 1,
+        "denominator": 3,
+        "value": 0.3333333333333333,
+        "reason": null
+      },
+      "retained": [
+        "review-trailer-repair|R02.1"
+      ],
+      "postRecall": {
+        "numerator": 1,
+        "denominator": 18,
+        "value": 0.05555555555555555,
+        "reason": null
+      },
+      "triage": {
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0,
+        "reason": null
       }
     },
     {
@@ -1463,6 +1765,150 @@
       }
     },
     {
+      "id": "S-Smt-1",
+      "arm": "S",
+      "item": "session-move-tool",
+      "repeat": 1,
+      "targetCount": 14,
+      "discovered": [
+        "session-move-tool|R08.1",
+        "session-move-tool|R18.1"
+      ],
+      "undiscovered": 12,
+      "preRecall": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "findings": {
+        "total": 5,
+        "valid": 4,
+        "invalid": 1,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-missing-repodir-parent-unadmittable",
+          "M-shared-helper-drops-cli-modes"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 2,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 1,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 1,
+        "denominator": 5,
+        "value": 0.2,
+        "reason": null
+      },
+      "retained": [
+        "session-move-tool|R08.1",
+        "session-move-tool|R18.1"
+      ],
+      "postRecall": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S-Smt-2",
+      "arm": "S",
+      "item": "session-move-tool",
+      "repeat": 2,
+      "targetCount": 14,
+      "discovered": [
+        "session-move-tool|R08.1",
+        "session-move-tool|R18.1"
+      ],
+      "undiscovered": 12,
+      "preRecall": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "findings": {
+        "total": 4,
+        "valid": 4,
+        "invalid": 0,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-missing-repodir-parent-unadmittable",
+          "M-shared-helper-drops-cli-modes"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 2,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 0,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 4,
+        "value": 0,
+        "reason": null
+      },
+      "retained": [
+        "session-move-tool|R08.1",
+        "session-move-tool|R18.1"
+      ],
+      "postRecall": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
       "id": "S-Smt-3",
       "arm": "S",
       "item": "session-move-tool",
@@ -1506,20 +1952,108 @@
         "value": 0,
         "reason": null
       },
-      "retained": null,
+      "retained": [
+        "session-move-tool|R08.1",
+        "session-move-tool|R18.1"
+      ],
       "postRecall": {
-        "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "Reviewer on pin; verifier not dispatched after the $30 ceiling was exceeded."
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
       },
-      "triage": null,
-      "triageReason": "Reviewer on pin; verifier not dispatched after the $30 ceiling was exceeded.",
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
       "falseDropRate": {
         "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "Reviewer on pin; verifier not dispatched after the $30 ceiling was exceeded."
+        "denominator": 2,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "S-Spt-1",
+      "arm": "S",
+      "item": "strength-progression-targets",
+      "repeat": 1,
+      "targetCount": 32,
+      "discovered": [
+        "strength-progression-targets|R04.1",
+        "strength-progression-targets|R12.1"
+      ],
+      "undiscovered": 30,
+      "preRecall": {
+        "numerator": 2,
+        "denominator": 32,
+        "value": 0.0625,
+        "reason": null
+      },
+      "findings": {
+        "total": 8,
+        "valid": 8,
+        "invalid": 0,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-coach-qa-retention",
+          "M-loop-unbounded-week",
+          "M-negative-load",
+          "M-rpe-floor-contradiction",
+          "M-target-rpe-unwired",
+          "M-timed-history-dropped"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 5,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 1,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 8,
+        "value": 0,
+        "reason": null
+      },
+      "retained": [
+        "strength-progression-targets|R04.1",
+        "strength-progression-targets|R12.1"
+      ],
+      "postRecall": {
+        "numerator": 2,
+        "denominator": 32,
+        "value": 0.0625,
+        "reason": null
+      },
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0,
+        "reason": null
       }
     },
     {
@@ -1667,6 +2201,217 @@
       "falseDropRate": {
         "numerator": 0,
         "denominator": 3,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "T-App-1",
+      "arm": "T",
+      "item": "acp-permission-parity",
+      "repeat": 1,
+      "targetCount": 11,
+      "discovered": [
+        "acp-permission-parity|R02.2"
+      ],
+      "undiscovered": 10,
+      "preRecall": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "findings": {
+        "total": 4,
+        "valid": 2,
+        "invalid": 2,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-f1-child-evidence-weak"
+        ],
+        "kinds": {
+          "known-target": 1,
+          "additional-defect": 0,
+          "useful-note": 1,
+          "evidence-error": 0,
+          "unsupported-consequence": 2,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 2,
+        "denominator": 4,
+        "value": 0.5,
+        "reason": null
+      },
+      "retained": [
+        "acp-permission-parity|R02.2"
+      ],
+      "postRecall": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "triage": {
+        "retained": 1,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "T-Fmp-1",
+      "arm": "T",
+      "item": "finish-modality-program-route",
+      "repeat": 1,
+      "targetCount": 10,
+      "discovered": [
+        "finish-modality-program-route|R03.1",
+        "finish-modality-program-route|R05.1",
+        "finish-modality-program-route|R05.2"
+      ],
+      "undiscovered": 7,
+      "preRecall": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "findings": {
+        "total": 3,
+        "valid": 3,
+        "invalid": 0,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [],
+        "kinds": {
+          "known-target": 3,
+          "additional-defect": 0,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 0,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 3,
+        "value": 0,
+        "reason": null
+      },
+      "retained": [
+        "finish-modality-program-route|R03.1",
+        "finish-modality-program-route|R05.1",
+        "finish-modality-program-route|R05.2"
+      ],
+      "postRecall": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "triage": {
+        "retained": 3,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 3,
+        "value": 0,
+        "reason": null
+      }
+    },
+    {
+      "id": "T-Rtr-1",
+      "arm": "T",
+      "item": "review-trailer-repair",
+      "repeat": 1,
+      "targetCount": 18,
+      "discovered": [
+        "review-trailer-repair|R02.1",
+        "review-trailer-repair|R03.1"
+      ],
+      "undiscovered": 16,
+      "preRecall": {
+        "numerator": 2,
+        "denominator": 18,
+        "value": 0.1111111111111111,
+        "reason": null
+      },
+      "findings": {
+        "total": 4,
+        "valid": 3,
+        "invalid": 1,
+        "pending": 0,
+        "duplicates": 0,
+        "additionalMechanisms": [
+          "M-repair-blocker-identity-unbound"
+        ],
+        "kinds": {
+          "known-target": 2,
+          "additional-defect": 1,
+          "useful-note": 0,
+          "evidence-error": 0,
+          "unsupported-consequence": 1,
+          "false-claim": 0,
+          "severity-error": 0,
+          "pending": 0
+        }
+      },
+      "falsePositiveRate": {
+        "numerator": 1,
+        "denominator": 4,
+        "value": 0.25,
+        "reason": null
+      },
+      "retained": [
+        "review-trailer-repair|R02.1",
+        "review-trailer-repair|R03.1"
+      ],
+      "postRecall": {
+        "numerator": 2,
+        "denominator": 18,
+        "value": 0.1111111111111111,
+        "reason": null
+      },
+      "triage": {
+        "retained": 2,
+        "protected": 0,
+        "undecided": 0,
+        "pending": 0,
+        "downgraded": 0,
+        "falseDrop": 0,
+        "legitimateResidual": 0,
+        "unresolvedDrop": 0
+      },
+      "triageReason": null,
+      "falseDropRate": {
+        "numerator": 0,
+        "denominator": 2,
         "value": 0,
         "reason": null
       }
@@ -2205,61 +2950,65 @@
       "arm": "S",
       "item": "acp-permission-parity",
       "targetCount": 11,
-      "completedTrials": 1,
+      "completedTrials": 3,
       "trialMeanPre": {
-        "numerator": 4,
+        "numerator": 3,
         "denominator": 11,
-        "value": 0.36363636363636365,
+        "value": 0.2727272727272727,
         "reason": null
       },
       "trialMeanPost": {
-        "numerator": 4,
+        "numerator": 3,
         "denominator": 11,
-        "value": 0.36363636363636365,
+        "value": 0.2727272727272727,
         "reason": null
       },
-      "unionLabel": "1-repeat best-of-repeats coverage",
+      "unionLabel": "3-repeat best-of-repeats coverage",
       "unionPre": {
-        "numerator": 4,
+        "numerator": 5,
         "denominator": 11,
-        "value": 0.36363636363636365,
+        "value": 0.45454545454545453,
         "reason": null
       },
       "unionPost": {
-        "numerator": 4,
+        "numerator": 5,
         "denominator": 11,
-        "value": 0.36363636363636365,
+        "value": 0.45454545454545453,
         "reason": null
       },
       "falseDrop": {
         "numerator": 0,
-        "denominator": 4,
+        "denominator": 8,
         "value": 0,
         "reason": null
       },
       "additionalMechanisms": [
+        "M-acp-default-hard-override",
+        "M-prelude-tool-context-no-ui",
         "M-prelude-ui-elicitation-gated",
-        "M-v2-cancel-normalized"
+        "M-speculative-launch-skips-denial",
+        "M-v2-cancel-normalized",
+        "M-v2-cancel-normalized-to-reject"
       ]
     },
     {
       "arm": "S",
       "item": "finish-modality-program-route",
       "targetCount": 10,
-      "completedTrials": 2,
+      "completedTrials": 3,
       "trialMeanPre": {
-        "numerator": 3.5,
+        "numerator": 3.6666666666666665,
         "denominator": 10,
-        "value": 0.35,
+        "value": 0.36666666666666664,
         "reason": null
       },
       "trialMeanPost": {
-        "numerator": 3.5,
+        "numerator": 3.6666666666666665,
         "denominator": 10,
-        "value": 0.35,
+        "value": 0.36666666666666664,
         "reason": null
       },
-      "unionLabel": "2-repeat best-of-repeats coverage",
+      "unionLabel": "3-repeat best-of-repeats coverage",
       "unionPre": {
         "numerator": 4,
         "denominator": 10,
@@ -2274,20 +3023,234 @@
       },
       "falseDrop": {
         "numerator": 0,
-        "denominator": 7,
+        "denominator": 11,
         "value": 0,
         "reason": null
       },
       "additionalMechanisms": [
         "M-registryless-multileg-fixtures-throw",
-        "M-resolver-compresses-below-intersection-min"
+        "M-resolver-compresses-below-intersection-min",
+        "MECH-concierge-knowledge-behaviour-unproven"
       ]
     },
     {
       "arm": "S",
       "item": "review-trailer-repair",
       "targetCount": 18,
-      "completedTrials": 2,
+      "completedTrials": 3,
+      "trialMeanPre": {
+        "numerator": 1.6666666666666667,
+        "denominator": 18,
+        "value": 0.0925925925925926,
+        "reason": null
+      },
+      "trialMeanPost": {
+        "numerator": 1.6666666666666667,
+        "denominator": 18,
+        "value": 0.0925925925925926,
+        "reason": null
+      },
+      "unionLabel": "3-repeat best-of-repeats coverage",
+      "unionPre": {
+        "numerator": 2,
+        "denominator": 18,
+        "value": 0.1111111111111111,
+        "reason": null
+      },
+      "unionPost": {
+        "numerator": 2,
+        "denominator": 18,
+        "value": 0.1111111111111111,
+        "reason": null
+      },
+      "falseDrop": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0,
+        "reason": null
+      },
+      "additionalMechanisms": [
+        "M-extraction-breaks-source-assertion",
+        "M-extraction-breaks-source-test",
+        "M-retained-redispatch-branch"
+      ]
+    },
+    {
+      "arm": "S",
+      "item": "session-move-tool",
+      "targetCount": 14,
+      "completedTrials": 3,
+      "trialMeanPre": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "trialMeanPost": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "unionLabel": "3-repeat best-of-repeats coverage",
+      "unionPre": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "unionPost": {
+        "numerator": 2,
+        "denominator": 14,
+        "value": 0.14285714285714285,
+        "reason": null
+      },
+      "falseDrop": {
+        "numerator": 0,
+        "denominator": 6,
+        "value": 0,
+        "reason": null
+      },
+      "additionalMechanisms": [
+        "M-competing-pending-moves",
+        "M-missing-repodir-parent-unadmittable",
+        "M-missing-worktree-parent-dir",
+        "M-shared-helper-drops-cli-modes"
+      ]
+    },
+    {
+      "arm": "S",
+      "item": "strength-progression-targets",
+      "targetCount": 32,
+      "completedTrials": 3,
+      "trialMeanPre": {
+        "numerator": 2.3333333333333335,
+        "denominator": 32,
+        "value": 0.07291666666666667,
+        "reason": null
+      },
+      "trialMeanPost": {
+        "numerator": 2,
+        "denominator": 32,
+        "value": 0.0625,
+        "reason": null
+      },
+      "unionLabel": "3-repeat best-of-repeats coverage",
+      "unionPre": {
+        "numerator": 5,
+        "denominator": 32,
+        "value": 0.15625,
+        "reason": null
+      },
+      "unionPost": {
+        "numerator": 4,
+        "denominator": 32,
+        "value": 0.125,
+        "reason": null
+      },
+      "falseDrop": {
+        "numerator": 0,
+        "denominator": 6,
+        "value": 0,
+        "reason": null
+      },
+      "additionalMechanisms": [
+        "A01-qa-evidence-not-retained",
+        "A02-rpe-floor-exceeds-row-rpe",
+        "A03-target-rpe-not-bound",
+        "A04-negative-target-load",
+        "A06-finite-loop-unwrapped-week",
+        "M-coach-qa-retention",
+        "M-loop-unbounded-week",
+        "M-negative-load",
+        "M-rpe-floor-contradiction",
+        "M-target-rpe-unwired",
+        "M-timed-history-dropped"
+      ]
+    },
+    {
+      "arm": "T",
+      "item": "acp-permission-parity",
+      "targetCount": 11,
+      "completedTrials": 1,
+      "trialMeanPre": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "trialMeanPost": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "unionLabel": "1-repeat best-of-repeats coverage",
+      "unionPre": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "unionPost": {
+        "numerator": 1,
+        "denominator": 11,
+        "value": 0.09090909090909091,
+        "reason": null
+      },
+      "falseDrop": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0,
+        "reason": null
+      },
+      "additionalMechanisms": [
+        "M-f1-child-evidence-weak"
+      ]
+    },
+    {
+      "arm": "T",
+      "item": "finish-modality-program-route",
+      "targetCount": 10,
+      "completedTrials": 1,
+      "trialMeanPre": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "trialMeanPost": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "unionLabel": "1-repeat best-of-repeats coverage",
+      "unionPre": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "unionPost": {
+        "numerator": 3,
+        "denominator": 10,
+        "value": 0.3,
+        "reason": null
+      },
+      "falseDrop": {
+        "numerator": 0,
+        "denominator": 3,
+        "value": 0,
+        "reason": null
+      },
+      "additionalMechanisms": []
+    },
+    {
+      "arm": "T",
+      "item": "review-trailer-repair",
+      "targetCount": 18,
+      "completedTrials": 1,
       "trialMeanPre": {
         "numerator": 2,
         "denominator": 18,
@@ -2300,7 +3263,7 @@
         "value": 0.1111111111111111,
         "reason": null
       },
-      "unionLabel": "2-repeat best-of-repeats coverage",
+      "unionLabel": "1-repeat best-of-repeats coverage",
       "unionPre": {
         "numerator": 2,
         "denominator": 18,
@@ -2320,93 +3283,7 @@
         "reason": null
       },
       "additionalMechanisms": [
-        "M-extraction-breaks-source-test",
-        "M-retained-redispatch-branch"
-      ]
-    },
-    {
-      "arm": "S",
-      "item": "session-move-tool",
-      "targetCount": 14,
-      "completedTrials": 1,
-      "trialMeanPre": {
-        "numerator": 2,
-        "denominator": 14,
-        "value": 0.14285714285714285,
-        "reason": null
-      },
-      "trialMeanPost": {
-        "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "triage unavailable for every completed trial"
-      },
-      "unionLabel": "1-repeat best-of-repeats coverage",
-      "unionPre": {
-        "numerator": 2,
-        "denominator": 14,
-        "value": 0.14285714285714285,
-        "reason": null
-      },
-      "unionPost": {
-        "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "triage unavailable for every completed trial"
-      },
-      "falseDrop": {
-        "numerator": 0,
-        "denominator": 0,
-        "value": null,
-        "reason": "no discovered independently blocking targets or triage unavailable"
-      },
-      "additionalMechanisms": [
-        "M-competing-pending-moves",
-        "M-missing-worktree-parent-dir"
-      ]
-    },
-    {
-      "arm": "S",
-      "item": "strength-progression-targets",
-      "targetCount": 32,
-      "completedTrials": 2,
-      "trialMeanPre": {
-        "numerator": 2.5,
-        "denominator": 32,
-        "value": 0.078125,
-        "reason": null
-      },
-      "trialMeanPost": {
-        "numerator": 2,
-        "denominator": 32,
-        "value": 0.0625,
-        "reason": null
-      },
-      "unionLabel": "2-repeat best-of-repeats coverage",
-      "unionPre": {
-        "numerator": 4,
-        "denominator": 32,
-        "value": 0.125,
-        "reason": null
-      },
-      "unionPost": {
-        "numerator": 3,
-        "denominator": 32,
-        "value": 0.09375,
-        "reason": null
-      },
-      "falseDrop": {
-        "numerator": 0,
-        "denominator": 4,
-        "value": 0,
-        "reason": null
-      },
-      "additionalMechanisms": [
-        "A01-qa-evidence-not-retained",
-        "A02-rpe-floor-exceeds-row-rpe",
-        "A03-target-rpe-not-bound",
-        "A04-negative-target-load",
-        "A06-finite-loop-unwrapped-week"
+        "M-repair-blocker-identity-unbound"
       ]
     },
     {
@@ -2636,59 +3513,59 @@
       "arm": "S",
       "historical": false,
       "intendedTrials": 15,
-      "completedTrials": 8,
-      "excludedTrials": 4,
-      "missingTrials": 3,
+      "completedTrials": 15,
+      "excludedTrials": 0,
+      "missingTrials": 0,
       "macroPre": {
-        "numerator": 1.0457296176046176,
+        "numerator": 0.9477603415103414,
         "denominator": 5,
-        "value": 0.2091459235209235,
+        "value": 0.18955206830206828,
         "reason": null
       },
       "macroPost": {
-        "numerator": 0.8872474747474748,
-        "denominator": 4,
-        "value": 0.2218118686868687,
+        "numerator": 0.9373436748436748,
+        "denominator": 5,
+        "value": 0.18746873496873495,
         "reason": null
       },
       "microPre": {
-        "numerator": 14,
+        "numerator": 12.666666666666666,
         "denominator": 85,
-        "value": 0.16470588235294117,
+        "value": 0.14901960784313725,
         "reason": null
       },
       "microPost": {
-        "numerator": 11.5,
-        "denominator": 71,
-        "value": 0.1619718309859155,
+        "numerator": 12.333333333333332,
+        "denominator": 85,
+        "value": 0.14509803921568626,
         "reason": null
       },
       "microUnionPre": {
-        "numerator": 16,
+        "numerator": 18,
         "denominator": 85,
-        "value": 0.18823529411764706,
+        "value": 0.21176470588235294,
         "reason": null
       },
       "microUnionPost": {
-        "numerator": 13,
-        "denominator": 71,
-        "value": 0.18309859154929578,
+        "numerator": 17,
+        "denominator": 85,
+        "value": 0.2,
         "reason": null
       },
       "falseDrop": {
         "numerator": 0,
-        "denominator": 17,
+        "denominator": 36,
         "value": 0,
         "reason": null
       },
       "falsePositive": {
-        "numerator": 4,
-        "denominator": 41,
-        "value": 0.0975609756097561,
+        "numerator": 7,
+        "denominator": 75,
+        "value": 0.09333333333333334,
         "reason": null
       },
       "triage": {
-        "retained": 17,
+        "retained": 37,
         "protected": 0,
         "undecided": 0,
         "pending": 0,
@@ -2698,65 +3575,65 @@
         "unresolvedDrop": 0
       },
       "pendingFindings": 0,
-      "additionalMechanisms": 13
+      "additionalMechanisms": 27
     },
     {
       "arm": "T",
       "historical": false,
       "intendedTrials": 5,
-      "completedTrials": 2,
+      "completedTrials": 5,
       "excludedTrials": 0,
-      "missingTrials": 3,
+      "missingTrials": 0,
       "macroPre": {
-        "numerator": 0.23660714285714285,
-        "denominator": 2,
-        "value": 0.11830357142857142,
+        "numerator": 0.7386273448773448,
+        "denominator": 5,
+        "value": 0.14772546897546895,
         "reason": null
       },
       "macroPost": {
-        "numerator": 0.16517857142857142,
-        "denominator": 2,
-        "value": 0.08258928571428571,
+        "numerator": 0.6671987734487734,
+        "denominator": 5,
+        "value": 0.1334397546897547,
         "reason": null
       },
       "microPre": {
-        "numerator": 5,
-        "denominator": 46,
-        "value": 0.10869565217391304,
+        "numerator": 11,
+        "denominator": 85,
+        "value": 0.12941176470588237,
         "reason": null
       },
       "microPost": {
-        "numerator": 4,
-        "denominator": 46,
-        "value": 0.08695652173913043,
+        "numerator": 10,
+        "denominator": 85,
+        "value": 0.11764705882352941,
         "reason": null
       },
       "microUnionPre": {
-        "numerator": 5,
-        "denominator": 46,
-        "value": 0.10869565217391304,
+        "numerator": 11,
+        "denominator": 85,
+        "value": 0.12941176470588237,
         "reason": null
       },
       "microUnionPost": {
-        "numerator": 4,
-        "denominator": 46,
-        "value": 0.08695652173913043,
+        "numerator": 10,
+        "denominator": 85,
+        "value": 0.11764705882352941,
         "reason": null
       },
       "falseDrop": {
         "numerator": 0,
-        "denominator": 4,
+        "denominator": 10,
         "value": 0,
         "reason": null
       },
       "falsePositive": {
-        "numerator": 2,
-        "denominator": 14,
-        "value": 0.14285714285714285,
+        "numerator": 5,
+        "denominator": 25,
+        "value": 0.2,
         "reason": null
       },
       "triage": {
-        "retained": 4,
+        "retained": 10,
         "protected": 0,
         "undecided": 0,
         "pending": 0,
@@ -2766,24 +3643,24 @@
         "unresolvedDrop": 0
       },
       "pendingFindings": 0,
-      "additionalMechanisms": 7
+      "additionalMechanisms": 9
     }
   ],
   "costs": {
     "reviewer": {
-      "attempts": 46,
+      "attempts": 56,
       "unknownCost": 0,
-      "amount": 40.33365140000001
+      "amount": 47.264552
     },
     "verifier": {
-      "attempts": 10,
+      "attempts": 22,
       "unknownCost": 0,
-      "amount": 2.37000425
+      "amount": 4.08454505
     },
     "adjudicator": {
-      "attempts": 5,
+      "attempts": 10,
       "unknownCost": 0,
-      "amount": 9.990683200000001
+      "amount": 19.898970400000003
     },
     "unsuccessful": {
       "attempts": 9,
@@ -2791,9 +3668,9 @@
       "amount": 31.965201650000004
     },
     "total": {
-      "attempts": 61,
+      "attempts": 88,
       "unknownCost": 0,
-      "amount": 52.69433885000001
+      "amount": 71.24806745000001
     },
     "totalIsLowerBound": false,
     "complete": true,
@@ -2817,23 +3694,53 @@
       {
         "arm": "S",
         "bucket": {
-          "attempts": 22,
+          "attempts": 38,
           "unknownCost": 0,
-          "amount": 39.67443945000001
+          "amount": 47.47919065
         }
       },
       {
         "arm": "T",
         "bucket": {
-          "attempts": 4,
+          "attempts": 10,
           "unknownCost": 0,
-          "amount": 0.5342262
+          "amount": 1.3749164
         }
       }
     ]
   },
   "timing": {
     "attempts": [
+      {
+        "attempt": "Adj2App",
+        "stage": "adjudicator",
+        "elapsedMs": 423321,
+        "reason": null
+      },
+      {
+        "attempt": "Adj2Fmp",
+        "stage": "adjudicator",
+        "elapsedMs": 295466,
+        "reason": null
+      },
+      {
+        "attempt": "Adj2Rtr",
+        "stage": "adjudicator",
+        "elapsedMs": 246046,
+        "reason": null
+      },
+      {
+        "attempt": "Adj2Smt",
+        "stage": "adjudicator",
+        "elapsedMs": 317559,
+        "reason": null
+      },
+      {
+        "attempt": "Adj2Spt",
+        "stage": "adjudicator",
+        "elapsedMs": 594992,
+        "reason": null
+      },
       {
         "attempt": "AdjApp",
         "stage": "adjudicator",
@@ -3063,9 +3970,39 @@
         "reason": null
       },
       {
+        "attempt": "RerunSApp1",
+        "stage": "reviewer",
+        "elapsedMs": 1718178,
+        "reason": null
+      },
+      {
+        "attempt": "RerunSFmp2",
+        "stage": "reviewer",
+        "elapsedMs": 2509247,
+        "reason": null
+      },
+      {
+        "attempt": "RerunSSmt2",
+        "stage": "reviewer",
+        "elapsedMs": 2021656,
+        "reason": null
+      },
+      {
+        "attempt": "RerunSSpt1",
+        "stage": "reviewer",
+        "elapsedMs": 1762186,
+        "reason": null
+      },
+      {
         "attempt": "TrialSApp1",
         "stage": "reviewer",
         "elapsedMs": 2131061,
+        "reason": null
+      },
+      {
+        "attempt": "TrialSApp2",
+        "stage": "reviewer",
+        "elapsedMs": 1564554,
         "reason": null
       },
       {
@@ -3099,9 +4036,21 @@
         "reason": null
       },
       {
+        "attempt": "TrialSRtr2",
+        "stage": "reviewer",
+        "elapsedMs": 502959,
+        "reason": null
+      },
+      {
         "attempt": "TrialSRtr3",
         "stage": "reviewer",
         "elapsedMs": 585616,
+        "reason": null
+      },
+      {
+        "attempt": "TrialSSmt1",
+        "stage": "reviewer",
+        "elapsedMs": 626190,
         "reason": null
       },
       {
@@ -3135,6 +4084,24 @@
         "reason": null
       },
       {
+        "attempt": "TrialTApp1",
+        "stage": "reviewer",
+        "elapsedMs": 170117,
+        "reason": null
+      },
+      {
+        "attempt": "TrialTFmp1",
+        "stage": "reviewer",
+        "elapsedMs": 157048,
+        "reason": null
+      },
+      {
+        "attempt": "TrialTRtr1",
+        "stage": "reviewer",
+        "elapsedMs": 79983,
+        "reason": null
+      },
+      {
         "attempt": "TrialTSmt1",
         "stage": "reviewer",
         "elapsedMs": 68094,
@@ -3144,6 +4111,24 @@
         "attempt": "TrialTSpt1",
         "stage": "reviewer",
         "elapsedMs": 117477,
+        "reason": null
+      },
+      {
+        "attempt": "VerifyRerunSRtr1",
+        "stage": "verifier",
+        "elapsedMs": 1874952,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySApp1",
+        "stage": "verifier",
+        "elapsedMs": 105954,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySApp2",
+        "stage": "verifier",
+        "elapsedMs": 121602,
         "reason": null
       },
       {
@@ -3159,6 +4144,12 @@
         "reason": null
       },
       {
+        "attempt": "VerifySFmp2",
+        "stage": "verifier",
+        "elapsedMs": 1018853,
+        "reason": null
+      },
+      {
         "attempt": "VerifySFmp3",
         "stage": "verifier",
         "elapsedMs": 101492,
@@ -3171,9 +4162,39 @@
         "reason": null
       },
       {
+        "attempt": "VerifySRtr2",
+        "stage": "verifier",
+        "elapsedMs": 68563,
+        "reason": null
+      },
+      {
         "attempt": "VerifySRtr3",
         "stage": "verifier",
         "elapsedMs": 1025510,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySSmt1",
+        "stage": "verifier",
+        "elapsedMs": 103068,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySSmt2",
+        "stage": "verifier",
+        "elapsedMs": 80732,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySSmt3",
+        "stage": "verifier",
+        "elapsedMs": 82746,
+        "reason": null
+      },
+      {
+        "attempt": "VerifySSpt1",
+        "stage": "verifier",
+        "elapsedMs": 130213,
         "reason": null
       },
       {
@@ -3186,6 +4207,24 @@
         "attempt": "VerifySSpt3",
         "stage": "verifier",
         "elapsedMs": 144354,
+        "reason": null
+      },
+      {
+        "attempt": "VerifyTApp1",
+        "stage": "verifier",
+        "elapsedMs": 982363,
+        "reason": null
+      },
+      {
+        "attempt": "VerifyTFmp1",
+        "stage": "verifier",
+        "elapsedMs": 75856,
+        "reason": null
+      },
+      {
+        "attempt": "VerifyTRtr1",
+        "stage": "verifier",
+        "elapsedMs": 972869,
         "reason": null
       },
       {
@@ -3365,7 +4404,7 @@
       {
         "trial": "S-App-1",
         "span": {
-          "ms": 2131061,
+          "ms": 14403816,
           "complete": true,
           "reason": null
         }
@@ -3373,9 +4412,9 @@
       {
         "trial": "S-App-2",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 1699013,
+          "complete": true,
+          "reason": null
         }
       },
       {
@@ -3397,7 +4436,7 @@
       {
         "trial": "S-Fmp-2",
         "span": {
-          "ms": 2053498,
+          "ms": 13819999,
           "complete": true,
           "reason": null
         }
@@ -3413,7 +4452,7 @@
       {
         "trial": "S-Rtr-1",
         "span": {
-          "ms": 466359,
+          "ms": 17066643,
           "complete": true,
           "reason": null
         }
@@ -3421,9 +4460,9 @@
       {
         "trial": "S-Rtr-2",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 576181,
+          "complete": true,
+          "reason": null
         }
       },
       {
@@ -3437,15 +4476,15 @@
       {
         "trial": "S-Smt-1",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 734555,
+          "complete": true,
+          "reason": null
         }
       },
       {
         "trial": "S-Smt-2",
         "span": {
-          "ms": 4232651,
+          "ms": 15533877,
           "complete": true,
           "reason": null
         }
@@ -3453,7 +4492,7 @@
       {
         "trial": "S-Smt-3",
         "span": {
-          "ms": 634680,
+          "ms": 12332990,
           "complete": true,
           "reason": null
         }
@@ -3461,7 +4500,7 @@
       {
         "trial": "S-Spt-1",
         "span": {
-          "ms": 1716991,
+          "ms": 12251364,
           "complete": true,
           "reason": null
         }
@@ -3485,25 +4524,25 @@
       {
         "trial": "T-App-1",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 1158364,
+          "complete": true,
+          "reason": null
         }
       },
       {
         "trial": "T-Fmp-1",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 236370,
+          "complete": true,
+          "reason": null
         }
       },
       {
         "trial": "T-Rtr-1",
         "span": {
-          "ms": null,
-          "complete": false,
-          "reason": "attempts missing from dataset"
+          "ms": 1056215,
+          "complete": true,
+          "reason": null
         }
       },
       {
@@ -3524,7 +4563,7 @@
       }
     ],
     "experimentWall": {
-      "ms": 12015442,
+      "ms": 19466782,
       "complete": true,
       "reason": null
     },
@@ -3573,7 +4612,7 @@
       ],
       "label": "confounded",
       "historicalReference": true,
-      "asymmetricRepeats": true,
+      "asymmetricRepeats": false,
       "causalClaim": false,
       "attribution": null
     },
@@ -3638,66 +4677,6 @@
       "id": "H-Replay-Fmp-3",
       "status": "excluded",
       "reason": "Original wrong-pin exclusion retained."
-    },
-    {
-      "kind": "trial",
-      "id": "S-App-1",
-      "status": "excluded",
-      "reason": "Actual pin/tool-grant mismatch"
-    },
-    {
-      "kind": "trial",
-      "id": "S-App-2",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
-    },
-    {
-      "kind": "trial",
-      "id": "S-Fmp-2",
-      "status": "excluded",
-      "reason": "Actual pin/tool-grant mismatch"
-    },
-    {
-      "kind": "trial",
-      "id": "S-Rtr-2",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
-    },
-    {
-      "kind": "trial",
-      "id": "S-Smt-1",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
-    },
-    {
-      "kind": "trial",
-      "id": "S-Smt-2",
-      "status": "excluded",
-      "reason": "Actual pin/tool-grant mismatch"
-    },
-    {
-      "kind": "trial",
-      "id": "S-Spt-1",
-      "status": "excluded",
-      "reason": "Actual pin/tool-grant mismatch"
-    },
-    {
-      "kind": "trial",
-      "id": "T-App-1",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
-    },
-    {
-      "kind": "trial",
-      "id": "T-Fmp-1",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
-    },
-    {
-      "kind": "trial",
-      "id": "T-Rtr-1",
-      "status": "missing",
-      "reason": "Planned cell; not yet dispatched."
     },
     {
       "kind": "attempt",

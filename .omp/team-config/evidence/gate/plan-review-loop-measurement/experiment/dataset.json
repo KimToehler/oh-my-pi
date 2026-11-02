@@ -569,6 +569,13 @@
       "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition. Name/model frontmatter only differ from captured standard contract; production config unchanged."
     },
     {
+      "id": "experiment-agent/measurement-adjudicator",
+      "path": null,
+      "sha256": "d54354fba27c80aa21e33b0b21461288969ff6625b23954bc5e2c752842264a9",
+      "provided": false,
+      "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition, written at the adjudication stage after the reviewer-input freeze; frozen before the first adjudicator dispatch. Production config unchanged."
+    },
+    {
       "id": "execution/TrialTSmt1",
       "path": null,
       "sha256": "219a434459000ea7bfa54b272c77d2ae8fe727b1c74a7a78087435c5e8d19a84",
@@ -782,6 +789,195 @@
       "id": "execution/AdjSpt",
       "path": null,
       "sha256": "e17366348a11e3314d66a95a7e4a25c90658a32c1055ca19826c380de7c7bf0c",
+      "provided": false,
+      "provenance": "Actual completed native adjudicator session; raw remains local."
+    },
+    {
+      "id": "execution/TrialTFmp1",
+      "path": null,
+      "sha256": "d727a147af160be7c5ee01c19969395b910a26602c153230dab7599b2c9666d1",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifyTFmp1",
+      "path": null,
+      "sha256": "cc4d47bfa50f6230214c92517471c53bfd96c59dc2ab37a49d3ea52fb2b13d5e",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/TrialSRtr2",
+      "path": null,
+      "sha256": "9b318248c7f95836b8589c77d1f9c2aa13a6953474b187fedb3e1676f37f0127",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifySRtr2",
+      "path": null,
+      "sha256": "6e687774b1249c9e260280b1df463d5a947af2edb849ab9a2cf6e1a16246a394",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/TrialSSmt1",
+      "path": null,
+      "sha256": "c63dca85aeef2dbd865a67167d8a3670ea8310afea5fd8dce079a81588738234",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/TrialTRtr1",
+      "path": null,
+      "sha256": "f76b57c4bc90769c80e14d864aaaca87046e2695d87addfe0ee70c53e55d020d",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifySSmt1",
+      "path": null,
+      "sha256": "cbf83fdbf9e82b20bba7ffc4e3209bb98fa5ddb35ddfecc9145f20aaebd92fc7",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/TrialSApp2",
+      "path": null,
+      "sha256": "55ddfd46bca4407a31f13439f9cc014aea8ab0330b1548480d21901daadf28b9",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifyTRtr1",
+      "path": null,
+      "sha256": "313ecf964be4a2647f75b15b61b86476c16c6e5e26365a44562e34154d3732ce",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/VerifySApp2",
+      "path": null,
+      "sha256": "18e168b4e31c7557f1e12a98e88713432e8d0a458ef70147ae5f6f3c11c19a7e",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/TrialTApp1",
+      "path": null,
+      "sha256": "da21fdc5d01b8852799068b9ace6d01b5161efcc54d035406d4fc385c3623065",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/RerunSSmt2",
+      "path": null,
+      "sha256": "94c1de1a9c0e894157c9dd60877a0b9a80396528c692c009ad9025a13febbd91",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/RerunSFmp2",
+      "path": null,
+      "sha256": "ccc6413705a98c9d24129d16bfd8af907644976b945e3578e3738f73ae3b5612",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifySSmt2",
+      "path": null,
+      "sha256": "3d2a4913e579a029d64b1ef58396b366c4ee6086804e998ac4e206c43e5cd7d1",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/VerifyTApp1",
+      "path": null,
+      "sha256": "4d2505cba7c1ad6208bd94293503202f9f78cd817ed7d90b6633b82df16489c6",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/RerunSSpt1",
+      "path": null,
+      "sha256": "245753deea96c731c0a6df13bb35d7c2ab1dd41d9d8167096556e54c1cdaae92",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifySSpt1",
+      "path": null,
+      "sha256": "3727edbe93cd355a25dd526442e709cbd6d659078c3d61c00d7934a4667570e1",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/VerifySFmp2",
+      "path": null,
+      "sha256": "9c98d262e7a451e68f81c755a8c7ada1f8a287564c734be33bb2dad5f8598f7c",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/VerifySSmt3",
+      "path": null,
+      "sha256": "3350c071893ba5134a04b1b9eb9dcb9453acbb629bf3af38aedc3b1c0045291b",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/RerunSApp1",
+      "path": null,
+      "sha256": "1a97d713b7e2272428be8af4744d77e6ead8865bd4d1ccc75327a2e4bf4834ca",
+      "provided": false,
+      "provenance": "Actual completed native task session; raw remains local."
+    },
+    {
+      "id": "execution/VerifySApp1",
+      "path": null,
+      "sha256": "959a3e4de00faf89983ee2fe902c08b565db1547e48667c50aa5b158cb61dab7",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/VerifyRerunSRtr1",
+      "path": null,
+      "sha256": "6b48e9009e1eaff4b3fdece979c0e94867ac0c4a54c4f6477dccc5515f892b3c",
+      "provided": false,
+      "provenance": "Actual native current-verifier session; raw local."
+    },
+    {
+      "id": "execution/Adj2Rtr",
+      "path": null,
+      "sha256": "4bc7459c3baa54d220532095d7f71f90d9837fd001dfab58226ee639578c6649",
+      "provided": false,
+      "provenance": "Actual completed native adjudicator session; raw remains local."
+    },
+    {
+      "id": "execution/Adj2Fmp",
+      "path": null,
+      "sha256": "c7e25094a84c2e2ab16007562f69298df0211911371ba2c8c0c77f38eceb90c4",
+      "provided": false,
+      "provenance": "Actual completed native adjudicator session; raw remains local."
+    },
+    {
+      "id": "execution/Adj2Smt",
+      "path": null,
+      "sha256": "e42fc4941b6afcabc1bce47935ac4a1af8c47cc59d29b1b69fb3a8d7549a5ec2",
+      "provided": false,
+      "provenance": "Actual completed native adjudicator session; raw remains local."
+    },
+    {
+      "id": "execution/Adj2App",
+      "path": null,
+      "sha256": "1db7bb968d383f6cc7414d17f7e6eab66f8ec1369cbc631c84249eedbd5d605c",
+      "provided": false,
+      "provenance": "Actual completed native adjudicator session; raw remains local."
+    },
+    {
+      "id": "execution/Adj2Spt",
+      "path": null,
+      "sha256": "122105575be3f632fc60cbb21799a4f4531c5b4c905c46b8ab3fa7ac5103d3e7",
       "provided": false,
       "provenance": "Actual completed native adjudicator session; raw remains local."
     }
@@ -3218,6 +3414,573 @@
       "cost": 4.286174600000001,
       "reason": null,
       "provenance": "{\"session\":\"raw/AdjSpt.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"e17366348a11e3314d66a95a7e4a25c90658a32c1055ca19826c380de7c7bf0c\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialTFmp1",
+      "item": "finish-modality-program-route",
+      "trial": "T-Fmp-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-terra",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-terra"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:45:45.041Z",
+      "terminal": "2026-11-02T14:48:22.089Z",
+      "cost": 0.14986719999999998,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialTFmp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"d727a147af160be7c5ee01c19969395b910a26602c153230dab7599b2c9666d1\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifyTFmp1",
+      "item": "finish-modality-program-route",
+      "trial": "T-Fmp-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:48:25.555Z",
+      "terminal": "2026-11-02T14:49:41.411Z",
+      "cost": 0.15631360000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifyTFmp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"cc4d47bfa50f6230214c92517471c53bfd96c59dc2ab37a49d3ea52fb2b13d5e\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialSRtr2",
+      "item": "review-trailer-repair",
+      "trial": "S-Rtr-2",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T14:45:45.041Z",
+      "terminal": "2026-11-02T14:54:08.000Z",
+      "cost": 0.5121148,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialSRtr2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"9b318248c7f95836b8589c77d1f9c2aa13a6953474b187fedb3e1676f37f0127\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySRtr2",
+      "item": "review-trailer-repair",
+      "trial": "S-Rtr-2",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:54:12.659Z",
+      "terminal": "2026-11-02T14:55:21.222Z",
+      "cost": 0.09063480000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySRtr2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"6e687774b1249c9e260280b1df463d5a947af2edb849ab9a2cf6e1a16246a394\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialSSmt1",
+      "item": "session-move-tool",
+      "trial": "S-Smt-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T14:45:45.041Z",
+      "terminal": "2026-11-02T14:56:11.231Z",
+      "cost": 0.9335351999999999,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialSSmt1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"c63dca85aeef2dbd865a67167d8a3670ea8310afea5fd8dce079a81588738234\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialTRtr1",
+      "item": "review-trailer-repair",
+      "trial": "T-Rtr-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-terra",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-terra"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:55:24.461Z",
+      "terminal": "2026-11-02T14:56:44.444Z",
+      "cost": 0.08742599999999998,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialTRtr1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"f76b57c4bc90769c80e14d864aaaca87046e2695d87addfe0ee70c53e55d020d\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySSmt1",
+      "item": "session-move-tool",
+      "trial": "S-Smt-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:56:16.528Z",
+      "terminal": "2026-11-02T14:57:59.596Z",
+      "cost": 0.16218600000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySSmt1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"cbf83fdbf9e82b20bba7ffc4e3209bb98fa5ddb35ddfecc9145f20aaebd92fc7\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialSApp2",
+      "item": "acp-permission-parity",
+      "trial": "S-App-2",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T14:45:45.041Z",
+      "terminal": "2026-11-02T15:11:49.595Z",
+      "cost": 0.8636503999999997,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialSApp2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"55ddfd46bca4407a31f13439f9cc014aea8ab0330b1548480d21901daadf28b9\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifyTRtr1",
+      "item": "review-trailer-repair",
+      "trial": "T-Rtr-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T14:56:47.807Z",
+      "terminal": "2026-11-02T15:13:00.676Z",
+      "cost": 0.13024960000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifyTRtr1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"313ecf964be4a2647f75b15b61b86476c16c6e5e26365a44562e34154d3732ce\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySApp2",
+      "item": "acp-permission-parity",
+      "trial": "S-App-2",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:12:02.452Z",
+      "terminal": "2026-11-02T15:14:04.054Z",
+      "cost": 0.14434360000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySApp2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"18e168b4e31c7557f1e12a98e88713432e8d0a458ef70147ae5f6f3c11c19a7e\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "TrialTApp1",
+      "item": "acp-permission-parity",
+      "trial": "T-App-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-terra",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-terra"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:14:07.143Z",
+      "terminal": "2026-11-02T15:16:57.260Z",
+      "cost": 0.16690059999999998,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/TrialTApp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"da21fdc5d01b8852799068b9ace6d01b5161efcc54d035406d4fc385c3623065\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "RerunSSmt2",
+      "item": "session-move-tool",
+      "trial": "S-Smt-2",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T14:58:04.120Z",
+      "terminal": "2026-11-02T15:31:45.776Z",
+      "cost": 1.1917184,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/RerunSSmt2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"94c1de1a9c0e894157c9dd60877a0b9a80396528c692c009ad9025a13febbd91\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "RerunSFmp2",
+      "item": "finish-modality-program-route",
+      "trial": "S-Fmp-2",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T14:50:13.813Z",
+      "terminal": "2026-11-02T15:32:03.060Z",
+      "cost": 0.7817760000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/RerunSFmp2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"ccc6413705a98c9d24129d16bfd8af907644976b945e3578e3738f73ae3b5612\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySSmt2",
+      "item": "session-move-tool",
+      "trial": "S-Smt-2",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:32:02.202Z",
+      "terminal": "2026-11-02T15:33:22.934Z",
+      "cost": 0.117486,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySSmt2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"3d2a4913e579a029d64b1ef58396b366c4ee6086804e998ac4e206c43e5cd7d1\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifyTApp1",
+      "item": "acp-permission-parity",
+      "trial": "T-App-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:17:03.144Z",
+      "terminal": "2026-11-02T15:33:25.507Z",
+      "cost": 0.14993320000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifyTApp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"4d2505cba7c1ad6208bd94293503202f9f78cd817ed7d90b6633b82df16489c6\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "RerunSSpt1",
+      "item": "strength-progression-targets",
+      "trial": "S-Spt-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T15:13:03.750Z",
+      "terminal": "2026-11-02T15:42:25.936Z",
+      "cost": 1.1337784,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/RerunSSpt1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"245753deea96c731c0a6df13bb35d7c2ab1dd41d9d8167096556e54c1cdaae92\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySSpt1",
+      "item": "strength-progression-targets",
+      "trial": "S-Spt-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:42:38.282Z",
+      "terminal": "2026-11-02T15:44:48.495Z",
+      "cost": 0.1775392,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySSpt1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"3727edbe93cd355a25dd526442e709cbd6d659078c3d61c00d7934a4667570e1\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySFmp2",
+      "item": "finish-modality-program-route",
+      "trial": "S-Fmp-2",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:32:08.125Z",
+      "terminal": "2026-11-02T15:49:06.978Z",
+      "cost": 0.21633999999999998,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySFmp2.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"9c98d262e7a451e68f81c755a8c7ada1f8a287564c734be33bb2dad5f8598f7c\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySSmt3",
+      "item": "session-move-tool",
+      "trial": "S-Smt-3",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:49:15.799Z",
+      "terminal": "2026-11-02T15:50:38.545Z",
+      "cost": 0.1274632,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySSmt3.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"3350c071893ba5134a04b1b9eb9dcb9453acbb629bf3af38aedc3b1c0045291b\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "RerunSApp1",
+      "item": "acp-permission-parity",
+      "trial": "S-App-1",
+      "stage": "reviewer",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T15:33:29.499Z",
+      "terminal": "2026-11-02T16:02:07.677Z",
+      "cost": 1.1101335999999997,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/RerunSApp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"1a97d713b7e2272428be8af4744d77e6ead8865bd4d1ccc75327a2e4bf4834ca\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifySApp1",
+      "item": "acp-permission-parity",
+      "trial": "S-App-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T16:02:13.049Z",
+      "terminal": "2026-11-02T16:03:59.003Z",
+      "cost": 0.14333439999999997,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifySApp1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"959a3e4de00faf89983ee2fe902c08b565db1547e48667c50aa5b158cb61dab7\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "VerifyRerunSRtr1",
+      "item": "review-trailer-repair",
+      "trial": "S-Rtr-1",
+      "stage": "verifier",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cx/gpt-6.1-sol",
+      "expectedEffort": "medium",
+      "actualModels": [
+        "onara/cx/gpt-6.1-sol"
+      ],
+      "actualEfforts": [
+        "medium"
+      ],
+      "dispatched": "2026-11-02T15:49:15.755Z",
+      "terminal": "2026-11-02T16:20:30.707Z",
+      "cost": 0.09871720000000002,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/VerifyRerunSRtr1.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"6b48e9009e1eaff4b3fdece979c0e94867ac0c4a54c4f6477dccc5515f892b3c\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented native task request\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "Adj2Rtr",
+      "item": "review-trailer-repair",
+      "trial": null,
+      "stage": "adjudicator",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cc/claude-opus-5-5",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cc/claude-opus-5-5"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T16:21:28.985Z",
+      "terminal": "2026-11-02T16:25:35.031Z",
+      "cost": 1.157531,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/Adj2Rtr.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"4bc7459c3baa54d220532095d7f71f90d9837fd001dfab58226ee639578c6649\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "Adj2Fmp",
+      "item": "finish-modality-program-route",
+      "trial": null,
+      "stage": "adjudicator",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cc/claude-opus-5-5",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cc/claude-opus-5-5"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T16:21:33.517Z",
+      "terminal": "2026-11-02T16:26:28.983Z",
+      "cost": 1.5948594000000003,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/Adj2Fmp.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"c7e25094a84c2e2ab16007562f69298df0211911371ba2c8c0c77f38eceb90c4\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "Adj2Smt",
+      "item": "session-move-tool",
+      "trial": null,
+      "stage": "adjudicator",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cc/claude-opus-5-5",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cc/claude-opus-5-5"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T16:21:29.028Z",
+      "terminal": "2026-11-02T16:26:46.587Z",
+      "cost": 1.9020458000000005,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/Adj2Smt.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"e42fc4941b6afcabc1bce47935ac4a1af8c47cc59d29b1b69fb3a8d7549a5ec2\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "Adj2App",
+      "item": "acp-permission-parity",
+      "trial": null,
+      "stage": "adjudicator",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cc/claude-opus-5-5",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cc/claude-opus-5-5"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T16:21:33.492Z",
+      "terminal": "2026-11-02T16:28:36.813Z",
+      "cost": 2.2109080000000003,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/Adj2App.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"1db7bb968d383f6cc7414d17f7e6eab66f8ec1369cbc631c84249eedbd5d605c\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
+    },
+    {
+      "id": "Adj2Spt",
+      "item": "strength-progression-targets",
+      "trial": null,
+      "stage": "adjudicator",
+      "historical": false,
+      "status": "completed",
+      "expectedModel": "onara/cc/claude-opus-5-5",
+      "expectedEffort": "high",
+      "actualModels": [
+        "onara/cc/claude-opus-5-5"
+      ],
+      "actualEfforts": [
+        "high"
+      ],
+      "dispatched": "2026-11-02T16:21:33.552Z",
+      "terminal": "2026-11-02T16:31:28.544Z",
+      "cost": 3.042943000000001,
+      "reason": null,
+      "provenance": "{\"session\":\"raw/Adj2Spt.jsonl\",\"originalSession\":\"local-path-redacted\",\"sha256\":\"122105575be3f632fc60cbb21799a4f4531c5b4c905c46b8ab3fa7ac5103d3e7\",\"usage\":\"sum assistant usage.cost.total\",\"dispatch\":\"instrumented request before task invocation\",\"terminal\":\"yield toolResult timestamp\"}"
     }
   ],
   "trials": [
@@ -3566,23 +4329,24 @@
       "reviewAttempts": [
         "TrialSRtr1"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Verifier runtime fell back to claude-opus-5 (stream_disconnected); attempt VerifySRtr1 excluded and replacement budget exhausted."
+      "verifierAttempt": "VerifyRerunSRtr1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-Smt-2",
       "arm": "S",
       "item": "session-move-tool",
       "repeat": 2,
-      "status": "excluded",
+      "status": "completed",
       "reviewAttempts": [
         "TrialSSmt2",
-        "Replacement3SSmt2"
+        "Replacement3SSmt2",
+        "RerunSSmt2"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Actual pin/tool-grant mismatch"
+      "verifierAttempt": "VerifySSmt2",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-Smt-3",
@@ -3593,9 +4357,9 @@
       "reviewAttempts": [
         "TrialSSmt3"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Reviewer on pin; verifier not dispatched after the $30 ceiling was exceeded."
+      "verifierAttempt": "VerifySSmt3",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-Fmp-3",
@@ -3628,59 +4392,67 @@
       "arm": "S",
       "item": "session-move-tool",
       "repeat": 1,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialSSmt1"
+      ],
+      "verifierAttempt": "VerifySSmt1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-Fmp-2",
       "arm": "S",
       "item": "finish-modality-program-route",
       "repeat": 2,
-      "status": "excluded",
+      "status": "completed",
       "reviewAttempts": [
-        "TrialSFmp2"
+        "TrialSFmp2",
+        "RerunSFmp2"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Actual pin/tool-grant mismatch"
+      "verifierAttempt": "VerifySFmp2",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "T-Fmp-1",
       "arm": "T",
       "item": "finish-modality-program-route",
       "repeat": 1,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialTFmp1"
+      ],
+      "verifierAttempt": "VerifyTFmp1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-App-1",
       "arm": "S",
       "item": "acp-permission-parity",
       "repeat": 1,
-      "status": "excluded",
+      "status": "completed",
       "reviewAttempts": [
-        "TrialSApp1"
+        "TrialSApp1",
+        "RerunSApp1"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Actual pin/tool-grant mismatch"
+      "verifierAttempt": "VerifySApp1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "T-App-1",
       "arm": "T",
       "item": "acp-permission-parity",
       "repeat": 1,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialTApp1"
+      ],
+      "verifierAttempt": "VerifyTApp1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "T-Spt-1",
@@ -3700,46 +4472,53 @@
       "arm": "S",
       "item": "strength-progression-targets",
       "repeat": 1,
-      "status": "excluded",
+      "status": "completed",
       "reviewAttempts": [
-        "TrialSSpt1"
+        "TrialSSpt1",
+        "RerunSSpt1"
       ],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Actual pin/tool-grant mismatch"
+      "verifierAttempt": "VerifySSpt1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-Rtr-2",
       "arm": "S",
       "item": "review-trailer-repair",
       "repeat": 2,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialSRtr2"
+      ],
+      "verifierAttempt": "VerifySRtr2",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "T-Rtr-1",
       "arm": "T",
       "item": "review-trailer-repair",
       "repeat": 1,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialTRtr1"
+      ],
+      "verifierAttempt": "VerifyTRtr1",
+      "triage": "available",
+      "reason": null
     },
     {
       "id": "S-App-2",
       "arm": "S",
       "item": "acp-permission-parity",
       "repeat": 2,
-      "status": "missing",
-      "reviewAttempts": [],
-      "verifierAttempt": null,
-      "triage": "unavailable",
-      "reason": "Planned cell; not yet dispatched."
+      "status": "completed",
+      "reviewAttempts": [
+        "TrialSApp2"
+      ],
+      "verifierAttempt": "VerifySApp2",
+      "triage": "available",
+      "reason": null
     }
   ],
   "findings": [
@@ -4732,6 +5511,276 @@
       "trial": "S-Smt-3",
       "index": 4,
       "description": "Fresh finding TrialSSmt3.4 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialTFmp1.1",
+      "trial": "T-Fmp-1",
+      "index": 1,
+      "description": "Fresh finding TrialTFmp1.1 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "TrialTFmp1.2",
+      "trial": "T-Fmp-1",
+      "index": 2,
+      "description": "Fresh finding TrialTFmp1.2 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "TrialTFmp1.3",
+      "trial": "T-Fmp-1",
+      "index": 3,
+      "description": "Fresh finding TrialTFmp1.3 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "TrialSRtr2.1",
+      "trial": "S-Rtr-2",
+      "index": 1,
+      "description": "Fresh finding TrialSRtr2.1 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialSRtr2.2",
+      "trial": "S-Rtr-2",
+      "index": 2,
+      "description": "Fresh finding TrialSRtr2.2 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialSRtr2.3",
+      "trial": "S-Rtr-2",
+      "index": 3,
+      "description": "Fresh finding TrialSRtr2.3 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialSSmt1.1",
+      "trial": "S-Smt-1",
+      "index": 1,
+      "description": "Fresh finding TrialSSmt1.1 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialSSmt1.2",
+      "trial": "S-Smt-1",
+      "index": 2,
+      "description": "Fresh finding TrialSSmt1.2 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialSSmt1.3",
+      "trial": "S-Smt-1",
+      "index": 3,
+      "description": "Fresh finding TrialSSmt1.3 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialSSmt1.4",
+      "trial": "S-Smt-1",
+      "index": 4,
+      "description": "Fresh finding TrialSSmt1.4 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialSSmt1.5",
+      "trial": "S-Smt-1",
+      "index": 5,
+      "description": "Fresh finding TrialSSmt1.5 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "TrialTRtr1.1",
+      "trial": "T-Rtr-1",
+      "index": 1,
+      "description": "Fresh finding TrialTRtr1.1 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialTRtr1.2",
+      "trial": "T-Rtr-1",
+      "index": 2,
+      "description": "Fresh finding TrialTRtr1.2 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialTRtr1.3",
+      "trial": "T-Rtr-1",
+      "index": 3,
+      "description": "Fresh finding TrialTRtr1.3 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialTRtr1.4",
+      "trial": "T-Rtr-1",
+      "index": 4,
+      "description": "Fresh finding TrialTRtr1.4 (item Rtr); claim text retained locally."
+    },
+    {
+      "id": "TrialSApp2.1",
+      "trial": "S-App-2",
+      "index": 1,
+      "description": "Fresh finding TrialSApp2.1 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialSApp2.2",
+      "trial": "S-App-2",
+      "index": 2,
+      "description": "Fresh finding TrialSApp2.2 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialSApp2.3",
+      "trial": "S-App-2",
+      "index": 3,
+      "description": "Fresh finding TrialSApp2.3 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialSApp2.4",
+      "trial": "S-App-2",
+      "index": 4,
+      "description": "Fresh finding TrialSApp2.4 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialTApp1.1",
+      "trial": "T-App-1",
+      "index": 1,
+      "description": "Fresh finding TrialTApp1.1 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialTApp1.2",
+      "trial": "T-App-1",
+      "index": 2,
+      "description": "Fresh finding TrialTApp1.2 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialTApp1.3",
+      "trial": "T-App-1",
+      "index": 3,
+      "description": "Fresh finding TrialTApp1.3 (item App); claim text retained locally."
+    },
+    {
+      "id": "TrialTApp1.4",
+      "trial": "T-App-1",
+      "index": 4,
+      "description": "Fresh finding TrialTApp1.4 (item App); claim text retained locally."
+    },
+    {
+      "id": "RerunSSmt2.1",
+      "trial": "S-Smt-2",
+      "index": 1,
+      "description": "Fresh finding RerunSSmt2.1 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSmt2.2",
+      "trial": "S-Smt-2",
+      "index": 2,
+      "description": "Fresh finding RerunSSmt2.2 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSmt2.3",
+      "trial": "S-Smt-2",
+      "index": 3,
+      "description": "Fresh finding RerunSSmt2.3 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSmt2.4",
+      "trial": "S-Smt-2",
+      "index": 4,
+      "description": "Fresh finding RerunSSmt2.4 (item Smt); claim text retained locally."
+    },
+    {
+      "id": "RerunSFmp2.1",
+      "trial": "S-Fmp-2",
+      "index": 1,
+      "description": "Fresh finding RerunSFmp2.1 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "RerunSFmp2.2",
+      "trial": "S-Fmp-2",
+      "index": 2,
+      "description": "Fresh finding RerunSFmp2.2 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "RerunSFmp2.3",
+      "trial": "S-Fmp-2",
+      "index": 3,
+      "description": "Fresh finding RerunSFmp2.3 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "RerunSFmp2.4",
+      "trial": "S-Fmp-2",
+      "index": 4,
+      "description": "Fresh finding RerunSFmp2.4 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "RerunSFmp2.5",
+      "trial": "S-Fmp-2",
+      "index": 5,
+      "description": "Fresh finding RerunSFmp2.5 (item Fmp); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.1",
+      "trial": "S-Spt-1",
+      "index": 1,
+      "description": "Fresh finding RerunSSpt1.1 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.2",
+      "trial": "S-Spt-1",
+      "index": 2,
+      "description": "Fresh finding RerunSSpt1.2 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.3",
+      "trial": "S-Spt-1",
+      "index": 3,
+      "description": "Fresh finding RerunSSpt1.3 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.4",
+      "trial": "S-Spt-1",
+      "index": 4,
+      "description": "Fresh finding RerunSSpt1.4 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.5",
+      "trial": "S-Spt-1",
+      "index": 5,
+      "description": "Fresh finding RerunSSpt1.5 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.6",
+      "trial": "S-Spt-1",
+      "index": 6,
+      "description": "Fresh finding RerunSSpt1.6 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.7",
+      "trial": "S-Spt-1",
+      "index": 7,
+      "description": "Fresh finding RerunSSpt1.7 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSSpt1.8",
+      "trial": "S-Spt-1",
+      "index": 8,
+      "description": "Fresh finding RerunSSpt1.8 (item Spt); claim text retained locally."
+    },
+    {
+      "id": "RerunSApp1.1",
+      "trial": "S-App-1",
+      "index": 1,
+      "description": "Fresh finding RerunSApp1.1 (item App); claim text retained locally."
+    },
+    {
+      "id": "RerunSApp1.2",
+      "trial": "S-App-1",
+      "index": 2,
+      "description": "Fresh finding RerunSApp1.2 (item App); claim text retained locally."
+    },
+    {
+      "id": "RerunSApp1.3",
+      "trial": "S-App-1",
+      "index": 3,
+      "description": "Fresh finding RerunSApp1.3 (item App); claim text retained locally."
+    },
+    {
+      "id": "RerunSApp1.4",
+      "trial": "S-App-1",
+      "index": 4,
+      "description": "Fresh finding RerunSApp1.4 (item App); claim text retained locally."
+    },
+    {
+      "id": "RerunSApp1.5",
+      "trial": "S-App-1",
+      "index": 5,
+      "description": "Fresh finding RerunSApp1.5 (item App); claim text retained locally."
     }
   ],
   "adjudications": [
@@ -6317,6 +7366,816 @@
         "private-repository-coordinate:3"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialSRtr2.1",
+      "targets": [
+        "review-trailer-repair|R02.1"
+      ],
+      "mechanism": "M-guidance-redispatch-survives-check",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "team-config/agent/skills/review-work/SKILL.md:325",
+        "openspec/changes/review-trailer-repair/tasks.md:19",
+        "openspec/changes/review-trailer-repair/design.md:31-41",
+        "openspec/changes/review-trailer-repair/specs/review-trailer/spec.md:62-79",
+        "openspec/changes/review-trailer-repair/tasks.md:25"
+      ],
+      "reason": "SKILL.md:325 tells the operator to re-dispatch a FAIL whose Blocker lines and trailer blockers disagree, using the words 're-dispatch it like a missing trailer'. Task 4.1 replaces only the later sentence 'A reply carrying no trailer is the same case …', and D4 never mentions this clause. Under D1, blocker reconciliation is a trailer rule (reconcileBlockers runs inside the check), so this reply states one verdict and fails the trailer check, which spec:63 makes repair-eligible. The edited guidance therefore still prescribes a fresh re-dispatch first for a normal input. The tasks.md:19 Verify tests only the literal old sentence and marker substrings, so it exits 0 and misses the spec:77-79 negative control. The s3 run at tasks.md:25 sends the repair message by hand and never tests the decision. This is the same mechanism as R02.1, with a concrete witness, and it breaks the change's goal for this reply class."
+    },
+    {
+      "finding": "TrialSRtr2.3",
+      "targets": [],
+      "mechanism": "M-extraction-breaks-source-assertion",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:47-48",
+        "team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:1377-1387",
+        "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:562",
+        "openspec/changes/review-trailer-repair/design.md:25",
+        "openspec/changes/review-trailer-repair/design.md:53",
+        "openspec/changes/review-trailer-repair/tasks.md:7"
+      ],
+      "reason": "The test reads validate-gate-record.mjs (test.mjs:48) and asserts that it contains the literal criteria.every(... !planText.includes(criterion.invariant)) predicate. D1 moves the 'no invariant restated from the plan' rule into trailer.mjs, and design.md:53 promises the existing suite runs unchanged. So task 1.1's Verify fails on a behaviour-preserving extraction unless the test changes or dead text stays behind. The failure is loud and fail-closed, and the implementer fixes it at once by pointing the assertion at trailer.mjs. It does not break the goal or reach a protected asset."
+    },
+    {
+      "finding": "TrialTRtr1.3",
+      "targets": [
+        "review-trailer-repair|R03.1"
+      ],
+      "mechanism": "M-live-repair-not-triggered",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/review-trailer-repair/tasks.md:25",
+        "openspec/changes/review-trailer-repair/specs/review-trailer/spec.md:62-71",
+        "openspec/changes/review-trailer-repair/tasks.md:19"
+      ],
+      "reason": "In s3-live-repair, an ordinary auditor reply is stored and TRAILER REPAIR. is sent unconditionally. Nothing requires the first reply to fail --trailer or to be missing its trailer, so the {CHECK FINDING} slot has no real finding. Nothing records that repair came before any fresh task dispatch, and the fallback on a failed repair (spec:69-71) is never run. The only other guidance check, the tasks.md:19 Verify, matches text. No check the plan runs would fail if the core repair-first behaviour on a malformed reply did not work, so the value proof for the change's central behaviour is missing."
+    },
+    {
+      "finding": "TrialSRtr2.2",
+      "targets": [],
+      "mechanism": null,
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "openspec/changes/review-trailer-repair/gate.md:3-5",
+        "team-config/agent/skills/review-work/scripts/gate-convergence.mjs:501-547",
+        "team-config/agent/skills/review-work/SKILL.md:345",
+        "openspec/changes/review-trailer-repair/design.md:18"
+      ],
+      "reason": "It is true that D3 adds another precondition that refuses before append. But `wave` already refuses on many input conditions before it appends: malformed or duplicate outcomes, a missing required outcome, FAIL without blockers, PASS with blockers, and unreviewed state (gate-convergence.mjs:501-547). The new check adds no state, no transition, no decision and no persisted event shape (design.md:18; gate.md:5). The repository's own reclassification triggers (SKILL.md:345: new persisted field, new shared mutable state, schema, wire contract and so on) do not fire. The finding asserts, without support, that an input-validation guard makes this a concurrency/state-machine change whose 'none' class causes a policy violation."
+    },
+    {
+      "finding": "TrialTRtr1.2",
+      "targets": [],
+      "mechanism": null,
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "openspec/changes/review-trailer-repair/gate.md:3-5",
+        "team-config/agent/skills/review-work/scripts/gate-convergence.mjs:501-547",
+        "team-config/agent/skills/review-work/SKILL.md:345",
+        "openspec/config.yaml:12"
+      ],
+      "reason": "Same claim as Rtr2-04: adding an input-validation refusal to a command that already refuses on many inputs before append is not shown to be a state-machine change under the repository's classification triggers (SKILL.md:345). The cited config.yaml:9-11 also points at the spec rule and the 'gate:' key; the full-review rule is on line 12. The claimed bypass of mandatory review is unsupported."
+    },
+    {
+      "finding": "TrialTRtr1.1",
+      "targets": [],
+      "mechanism": "M-repair-blocker-identity-unbound",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/review-trailer-repair/design.md:31-39",
+        "openspec/changes/review-trailer-repair/design.md:50",
+        "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:481-497",
+        "team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:572-599",
+        "team-config/agent/skills/review-work/SKILL.md:341",
+        "team-config/agent/skills/review-work/SKILL.md:406",
+        "openspec/changes/review-trailer-repair/gate.md:7"
+      ],
+      "reason": "D4 checks the repair reply alone. reconcileBlockers compares that artifact's own narrative with its own trailer (lines 572-599), and the original reply is kept only as git-ignored local evidence. A repair reply that drops B2 from both its copied Blocker lines and its trailer therefore passes. The Accepted residual risks (gate.md:7) do not cover a dropped blocker. Harm needs a FAIL, a copy omission and then an override; on that path SKILL.md:341 asks for downgrades only for the trailer's blockers. Even then, fix waves read the original reply (design.md:50) and the GC wave's --blocker entries are taken from the reviewer's sites (SKILL.md:406), so the loss is limited to the record's downgrade list. The defect is real; the threshold trigger is narrow."
+    },
+    {
+      "finding": "TrialTRtr1.4",
+      "targets": [
+        "review-trailer-repair|R02.1"
+      ],
+      "mechanism": "M-guidance-redispatch-survives-check",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/review-trailer-repair/tasks.md:19",
+        "openspec/changes/review-trailer-repair/specs/review-trailer/spec.md:77-79",
+        "team-config/agent/skills/review-work/SKILL.md:325"
+      ],
+      "reason": "The tasks.md:19 Verify rejects only the literal sentence 'A reply carrying no trailer is the same case' and requires substrings such as 'TRAILER REPAIR. Your review is finished' and 'ask the same reviewer for its trailer'. Any other wording that still directs a fresh re-dispatch first passes. That is what spec:77-79 says the check must reject. The gap is concrete: after task 4.1, 're-dispatch it like a missing trailer' (SKILL.md:325) remains and passes this check. This is the same mechanism as R02.1."
+    },
+    {
+      "finding": "TrialSSmt1.1",
+      "targets": [
+        "session-move-tool|R08.1"
+      ],
+      "mechanism": "M-terminal-abort-cancels-siblings",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:62-64",
+        "openspec/changes/session-move-tool/specs/session-relocation/spec.md:54-58",
+        "packages/coding-agent/src/session/agent-session.ts:5565-5575",
+        "packages/coding-agent/src/session/agent-session.ts:3924-3930",
+        "packages/agent/src/agent-loop.ts:3310-3312",
+        "packages/agent/src/agent-loop.ts:3346-3348",
+        "packages/agent/src/agent-loop.ts:3633-3636",
+        "packages/coding-agent/src/tools/bash.ts:1601-1621",
+        "openspec/changes/session-move-tool/tasks.md:21"
+      ],
+      "reason": "D1 reuses the terminal-yield path. That path calls agent.abort(TERMINAL_TOOL_RESULT_ABORT_REASON), which aborts the run controller. The batch runs in parallel (Promise.allSettled), and the loop gives every non-interruptible sibling the external run signal (nonInterruptibleSignal = signal). Bash passes that signal into executeBash. So a still-running foreground bash is cancelled. The spec requires already-running calls in the same batch to finish. The mechanism matches R08.1 (terminal abort reaching sibling tools); only the witness sibling differs, bash here and read there. The defect is in the design, and an ordinary multi-tool batch triggers it."
+    },
+    {
+      "finding": "RerunSSmt2.3",
+      "targets": [],
+      "mechanism": "M-missing-repodir-parent-unadmittable",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:111-115",
+        "openspec/changes/session-move-tool/tasks.md:27",
+        "openspec/changes/session-move-tool/specs/session-relocation/spec.md:30-31",
+        "openspec/changes/session-move-tool/tasks.md:41",
+        "crates/pi-vcs/src/git/mutate.rs:677"
+      ],
+      "reason": "D4 admits a missing target only when its parent's realpath equals realpath(<primaryRoot>/<worktree.repoDir>). When `.worktrees` does not exist yet, neither realpath resolves. Task 5.1 orders this validation before addRepoWorktree and gives no rule for a missing parent, so the first session_move into a fresh repository is rejected even though the native creator would create the parents (create_dir_all). The F1 fixture already contains `.worktrees/a`, so F1 cannot show the failure. Any repository that has never used the worktree directory triggers it, and the 'missing worktree is created' goal fails there. No target hypothesis covers this mechanism."
+    },
+    {
+      "finding": "TrialSSmt1.4",
+      "targets": [],
+      "mechanism": "M-shared-helper-drops-cli-modes",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:121-127",
+        "openspec/changes/session-move-tool/tasks.md:11",
+        "packages/coding-agent/src/cli/worktree-cli.ts:118-129",
+        "packages/coding-agent/src/cli/worktree-cli.ts:130-136",
+        "packages/coding-agent/test/cli/worktree-add-hook.test.ts:35-38",
+        "packages/coding-agent/src/task/settings.ts:76-80"
+      ],
+      "reason": "Task 2.1 moves the CLI core into addRepoWorktree({repository,path,branch,base,settings}). Under that contract a missing branch is based on primaryRoot HEAD, and an existing branch plus a base is an error. The current CLI supports -B force reset, --detach, inferred detached commit checkout, and a caller-relative \"HEAD\" base, and the contract can express none of them. worktree.clone defaults to true, so the bash rewrite routes ordinary agent `git worktree add -b x path` calls through this CLI. Run from a linked worktree, such a call would silently be based on main's HEAD. This breaks an existing consumer, and the CLI is not excluded from blocking. It is a contract defect, so the --detach hook test sitting in task 2.1's Verify does not resolve it. No target covers it."
+    },
+    {
+      "finding": "RerunSSmt2.4",
+      "targets": [],
+      "mechanism": "M-shared-helper-drops-cli-modes",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:121-126",
+        "openspec/changes/session-move-tool/tasks.md:11",
+        "packages/coding-agent/src/cli/worktree-cli.ts:49-57",
+        "packages/coding-agent/src/cli/worktree-cli.ts:118-133",
+        "packages/coding-agent/test/cli/worktree-add-hook.test.ts:36-39",
+        "packages/coding-agent/test/tools/bash-worktree-rewrite.test.ts:7-11"
+      ],
+      "reason": "Same mechanism as Smt2-03. AddWorktreeOptions exposes forceBranch, detach and commit. The CLI resolves defaults from the invoking checkout's HEAD. The planned helper contract cannot represent these modes and changes the default base. The bash-rewrite test only compares rewritten strings, so it would not detect a change in behaviour. Normal CLI and bash-rewrite use regresses an existing consumer."
+    },
+    {
+      "finding": "TrialSSmt1.3",
+      "targets": [
+        "session-move-tool|R18.1"
+      ],
+      "mechanism": "M-relocator-installed-after-tool-build",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:88-91",
+        "openspec/changes/session-move-tool/tasks.md:21",
+        "openspec/changes/session-move-tool/tasks.md:28",
+        "openspec/changes/session-move-tool/tasks.md:33-35",
+        "packages/coding-agent/src/sdk.ts:2568",
+        "packages/coding-agent/src/sdk.ts:4728",
+        "packages/coding-agent/src/session/agent-session.ts:3180-3182",
+        "packages/coding-agent/src/sdk.ts:3737-3777"
+      ],
+      "reason": "Task 5.2 builds session_move only when the session has a relocator. createTools runs at sdk.ts:2568, before AgentSession construction at :4728. Hosts install the relocator later through setSessionRelocator, which follows setPlanProposalHandler and only assigns a field. The only late-registration path reconciles SETTINGS_GATED_BUILTIN_TOOL_NAMES, and no task extends it. So normal TUI, ACP and RPC sessions never register the tool. This is R18.1's mechanism: a tool omitted at creation that a later installation cannot restore."
+    },
+    {
+      "finding": "TrialSSmt1.5",
+      "targets": [],
+      "mechanism": "M-headless-prompt-refresh-unverified",
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:18-20",
+        "packages/coding-agent/src/session/session-tools.ts:2080-2093",
+        "packages/coding-agent/src/slash-commands/builtin-lifecycle.ts:850-861",
+        "packages/coding-agent/src/session/agent-session.ts:7078-7096",
+        "openspec/changes/session-move-tool/tasks.md:17"
+      ],
+      "reason": "The design's claim that the prompt is rebuilt before every prompt is imprecise, because the base prompt is cached. But the plan reuses rescopeHeadlessToCwd for ACP and RPC (task 3.1), and that function calls session.refreshSkillsAndCommands(), which explicitly rebuilds the system prompt for the current cwd. The scenario where the headless rescope leaves the cached source prompt in place therefore needs an implementer to drop an existing call. No plan text produces it. What remains is a verification-depth note, not a supported failure."
+    },
+    {
+      "finding": "TrialSSmt1.2",
+      "targets": [],
+      "mechanism": "M-missing-repodir-parent-unadmittable",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:111-115",
+        "openspec/changes/session-move-tool/tasks.md:27",
+        "openspec/changes/session-move-tool/tasks.md:41",
+        "packages/coding-agent/src/session/session-worktree.ts:148-151"
+      ],
+      "reason": "Same mechanism as Smt2-02. The realpath-equality admission rule has no branch for a configured worktree directory that does not exist. The existing /wt helper creates the parent with recursive mkdir before worktreeAdd, but the plan validates before any creation and defines no missing-parent path. The first worktree creation in a repository without `.worktrees` is rejected, and the F1 fixture pre-creates `.worktrees/a`."
+    },
+    {
+      "finding": "RerunSSmt2.2",
+      "targets": [
+        "session-move-tool|R18.1"
+      ],
+      "mechanism": "M-relocator-installed-after-tool-build",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:75-91",
+        "openspec/changes/session-move-tool/tasks.md:28",
+        "openspec/changes/session-move-tool/tasks.md:33-35",
+        "packages/coding-agent/src/sdk.ts:2568",
+        "packages/coding-agent/src/sdk.ts:4728-4863",
+        "packages/coding-agent/src/modes/interactive-mode.ts:1882-1896",
+        "packages/coding-agent/src/modes/rpc/rpc-mode.ts:1344",
+        "packages/coding-agent/src/session/agent-session.ts:3180-3182",
+        "packages/coding-agent/src/session/session-tools.ts:1978-1986"
+      ],
+      "reason": "InteractiveMode and runRpcMode receive an AgentSession that is already constructed, and its built-ins were created at sdk.ts:2568. A relocator installed afterwards cannot satisfy a build-time availability gate, and the plan specifies no reconcile through reconcileBuiltinTools or the registry mutation. Under normal startup the tool is absent, so this matches R18.1."
+    },
+    {
+      "finding": "RerunSSmt2.1",
+      "targets": [
+        "session-move-tool|R08.1"
+      ],
+      "mechanism": "M-terminal-abort-cancels-siblings",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/session-move-tool/design.md:24-27",
+        "openspec/changes/session-move-tool/design.md:62-64",
+        "packages/coding-agent/src/session/agent-session.ts:5565-5575",
+        "packages/agent/src/agent.ts:1553-1554",
+        "packages/agent/src/agent-loop.ts:3310-3312",
+        "packages/agent/src/agent-loop.ts:3537-3545",
+        "packages/agent/src/agent-loop.ts:3633-3636",
+        "packages/coding-agent/src/tools/bash.ts:1601-1621",
+        "openspec/changes/session-move-tool/specs/session-relocation/spec.md:54-58"
+      ],
+      "reason": "Agent.abort aborts the run's controller. That controller's signal is the nonInterruptibleSignal handed to bash and other side-effecting siblings, and calls that have not started yet are skipped as aborted. The design's claim that the batch finishes is therefore false for running signal-aware siblings, which contradicts spec.md:54. This is R08.1's mechanism."
+    },
+    {
+      "finding": "TrialTApp1.3",
+      "targets": [
+        "acp-permission-parity|R02.2"
+      ],
+      "mechanism": "M-revive-path-bridge-untested",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/specs/acp-client-bridge/spec.md:10",
+        "openspec/changes/acp-permission-parity/tasks.md:27",
+        "openspec/changes/acp-permission-parity/tasks.md:28",
+        "openspec/changes/acp-permission-parity/design.md:49",
+        "packages/coding-agent/src/task/persisted-revive.ts:228-285",
+        "packages/coding-agent/src/task/executor.ts:4218-4223"
+      ],
+      "reason": "The spec names revived agents as bridge consumers. Task 4.2 tests only a direct child, the disk fallback, a write, bash, a prompt, isolation and a vibe worker, and task 4.1 has no revive case. Persisted revive builds its session options inline rather than through the spawn builder, so a field missing on that path passes every planned check. This is the same gap as R02.2: no proof for the revival construction paths."
+    },
+    {
+      "finding": "TrialSApp2.1",
+      "targets": [],
+      "mechanism": "M-speculative-launch-skips-denial",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/design.md:43-44",
+        "openspec/changes/acp-permission-parity/tasks.md:27",
+        "packages/coding-agent/src/speculation/host.ts:216-233",
+        "packages/coding-agent/src/task/speculative-launch.ts:300-309",
+        "packages/coding-agent/src/task/settings.ts:268-271",
+        "openspec/changes/acp-permission-parity/specs/tool-approval/spec.md:63"
+      ],
+      "reason": "The plan only checks denials in ExtensionToolWrapper.execute. authorizeLaunch's policy gate calls resolveApproval and checks lifecycle handlers, but never consults a denial ledger. Speculative launch is on by default and calls launcher.start before the finalized call reaches the wrapper. In a yolo child, task resolves to allow, so a child whose ancestor said always reject to task can still start a grandchild that does work before the finalized call is denied. That breaks the inherited-denial requirement on an authorization path, and no planned spawn site or test covers speculation/host.ts."
+    },
+    {
+      "finding": "RerunSApp1.1",
+      "targets": [],
+      "mechanism": "M-acp-default-hard-override",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/design.md:56",
+        "openspec/changes/acp-permission-parity/tasks.md:21",
+        "packages/coding-agent/src/config/settings.ts:903-919",
+        "packages/coding-agent/src/config/settings.ts:1001-1033",
+        "packages/coding-agent/src/task/structured-subagent.ts:360"
+      ],
+      "reason": "D7 uses cfgToolsApprovalMode.override. That writes the runtime-override layer, which outranks global and project config. Only soft pins are released by global writes or disk reloads, and pinDefaultValue can pin only the schema default. A stricter mode configured during a running ACP session is therefore masked until a new session starts. The mechanism is real, but the trigger is a mid-session config change. A new session applies the configured value, so the session-start precedence that the spec and tests target still holds. Below threshold."
+    },
+    {
+      "finding": "TrialTApp1.2",
+      "targets": [],
+      "mechanism": null,
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "packages/coding-agent/src/tools/approval.ts:730-734",
+        "openspec/changes/acp-permission-parity/design.md:39"
+      ],
+      "reason": "requestApproval already validates answers against the prompt. It returns session only when the prompt offered a session label, and a grant only when its scope is among the offered grants; anything else becomes deny. A client returning a known but unoffered session or grant ID therefore gets a denied call, not authorization, and grants are recorded against the call's own resolved args, not a client-chosen target. The claimed consent bypass does not follow."
+    },
+    {
+      "finding": "TrialTApp1.4",
+      "targets": [],
+      "mechanism": "M-f1-child-evidence-weak",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "useful-note",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/tasks.md:35",
+        "openspec/changes/acp-permission-parity/design.md:23",
+        "openspec/changes/acp-permission-parity/tasks.md:27",
+        "openspec/changes/acp-permission-parity/tasks.md:28"
+      ],
+      "reason": "ACP frames do not show a child's local bash or its denial, and a parent read and a child read produce the same kind of fs/read_text_file frame. So the F1 excerpts alone are weak evidence for scenarios (b) and (d). However, the named behaviour failures are already caught by checks the plan runs: task 4.1 tests that a task child's bash is denied and task 4.2 tests that a child read returns the unsaved content. Under condition 3 this is a request for a different check, so it is a note, not a blocker."
+    },
+    {
+      "finding": "RerunSApp1.2",
+      "targets": [],
+      "mechanism": "M-prelude-tool-context-no-ui",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "packages/coding-agent/src/modes/acp/acp-agent.ts:2709-2710",
+        "packages/coding-agent/src/tools/context.ts:34-60",
+        "packages/coding-agent/src/eval/js/tool-bridge.ts:220-225",
+        "packages/coding-agent/src/eval/preludes.ts:101-107",
+        "packages/coding-agent/src/tools/browser/prelude-definition.ts:36",
+        "packages/coding-agent/src/tools/browser/settings.ts:8-10",
+        "openspec/changes/acp-permission-parity/design.md:36",
+        "openspec/changes/acp-permission-parity/specs/acp-tool-permissions/spec.md:56"
+      ],
+      "reason": "ACP calls setToolUIContext only when the client supports form elicitation. Otherwise the ToolContextStore keeps ui undefined and hasUI false. Eval preludes read their UI from session.getToolContext(), and approvePreludeInvocation throws locally when the UI is absent. The browser prelude is exec tier and enabled by default, so under the new ACP default write mode a browser call from eval on a client without elicitation is rejected and no session/request_permission is sent. That breaks the requirement that approvals work without elicitation on a path D2 explicitly includes, and today's default yolo runs these calls. No planned task changes how the tool context is installed."
+    },
+    {
+      "finding": "TrialSApp2.4",
+      "targets": [
+        "acp-permission-parity|R08.1"
+      ],
+      "mechanism": "M-edit-locations-lost",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/design.md:31",
+        "openspec/changes/acp-permission-parity/design.md:36",
+        "openspec/changes/acp-permission-parity/tasks.md:18",
+        "packages/coding-agent/src/session/acp-permission-gate.ts:25-45",
+        "packages/coding-agent/src/session/acp-permission-gate.ts:102-150",
+        "packages/coding-agent/src/session/session-tools.ts:980-983",
+        "packages/coding-agent/src/edit/schemas.ts:33-47",
+        "packages/coding-agent/src/edit/settings.ts:39-41",
+        "openspec/changes/acp-permission-parity/specs/acp-tool-permissions/spec.md:56"
+      ],
+      "reason": "After getPermissionIntent is deleted, extractPermissionLocations on raw args sees no top-level path in input-only hashline, apply_patch or sloppy payloads, and hashline is the default mode. Destructive-edit requests therefore carry empty locations. The old proxy supplied paths parsed by editInspect, including move destinations. Same mechanism and consequence as R08.1."
+    },
+    {
+      "finding": "TrialSApp2.3",
+      "targets": [],
+      "mechanism": null,
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "evidence-error",
+      "evidence": [
+        "packages/coding-agent/src/tools/bash.ts:603",
+        "packages/coding-agent/src/tools/xdev.ts:85-88",
+        "packages/coding-agent/src/extensibility/extensions/wrapper.ts:359-381"
+      ],
+      "reason": "The reported witness, write xd://bash, cannot occur: bash has loadMode \"essential\" and isMountableUnderXdev mounts only discoverable tools, so bash is never an xd:// device. Double prompts for other devices under an explicit user policy are existing behaviour that the wrapper keeps on purpose, and they are identical in the TUI, so they do not contradict the plan's parity goal."
+    },
+    {
+      "finding": "RerunSApp1.5",
+      "targets": [
+        "acp-permission-parity|R02.2",
+        "acp-permission-parity|R07.1"
+      ],
+      "mechanism": "M-revive-path-bridge-untested",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/tasks.md:27",
+        "openspec/changes/acp-permission-parity/tasks.md:28",
+        "packages/coding-agent/src/task/executor.ts:4191-4225",
+        "packages/coding-agent/src/task/persisted-revive.ts:228-285",
+        "openspec/changes/acp-permission-parity/specs/acp-client-bridge/spec.md:10"
+      ],
+      "reason": "Accurate: tasks 4.1 and 4.2 have no warm-revive, persisted-revive, restore or workpool follow-up controls, and no eval-child bridge case. Persisted revive is a distinct construction path. The revival part matches R02.2 and the eval-child bridge part matches R07.1. The finding blocks because of the revival gap."
+    },
+    {
+      "finding": "TrialTApp1.1",
+      "targets": [],
+      "mechanism": null,
+      "validity": "invalid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "packages/coding-agent/src/internal-urls/xd-protocol.ts:45-49",
+        "packages/coding-agent/src/internal-urls/xd-protocol.ts:100-110",
+        "packages/coding-agent/src/tools/xdev.ts:475-487",
+        "packages/coding-agent/src/tools/approval.ts:385-401",
+        "openspec/changes/acp-permission-parity/design.md:43"
+      ],
+      "reason": "In a yolo child the outer write gate does lose the device policyKey. But the device call is then dispatched to the device's own wrapped tool, and per D4 every wrapper checks denials before any prompt and regardless of policy, using subject = tool.name, which is the device name. The parent recorded its denial under the device name at the same tier, so the inner wrapper still denies the call. The claimed descendant bypass does not follow."
+    },
+    {
+      "finding": "TrialSApp2.2",
+      "targets": [
+        "acp-permission-parity|R02.1"
+      ],
+      "mechanism": "M-deny-session-normalized-away",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/design.md:39",
+        "openspec/changes/acp-permission-parity/design.md:44",
+        "openspec/changes/acp-permission-parity/tasks.md:13",
+        "openspec/changes/acp-permission-parity/tasks.md:18",
+        "packages/coding-agent/src/tools/approval.ts:730-734"
+      ],
+      "reason": "requestApproval maps every answer other than once, an offered session or an offered grant to \"deny\". The plan never tells implementers to let \"deny-session\" through, so the wrapper never sees it, nothing is recorded, and the next bash call prompts again. Same mechanism as R02.1. The plan leaves out a rule it depends on, so its tests do not settle the defect."
+    },
+    {
+      "finding": "RerunSApp1.3",
+      "targets": [],
+      "mechanism": "M-v2-cancel-normalized-to-reject",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "packages/coding-agent/src/modes/acp/acp-event-mapper-v2.ts:39",
+        "packages/coding-agent/src/modes/acp/acp-event-mapper-v2.ts:175-184",
+        "packages/coding-agent/test/acp-event-mapper-v2.test.ts:318",
+        "openspec/changes/acp-permission-parity/design.md:39",
+        "openspec/changes/acp-permission-parity/tasks.md:22",
+        "openspec/changes/acp-permission-parity/specs/acp-tool-permissions/spec.md:94-98"
+      ],
+      "reason": "The v2 adapter turns a cancelled outcome into a selected \"reject_once\". Under D3's new IDs that ID is unknown, so a v2 client's cancellation becomes a ToolError (failed) instead of cancelled, and task 3.5 does not address this. The signal half is weaker: the ACP approve can use the record's turn abort controller, and task 3.1 tests an aborted turn. Every outcome is fail-closed and the call never runs, so the only cost is a wrong status label. Below threshold."
+    },
+    {
+      "finding": "RerunSApp1.4",
+      "targets": [
+        "acp-permission-parity|R08.1"
+      ],
+      "mechanism": "M-edit-locations-lost",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "openspec/changes/acp-permission-parity/design.md:31",
+        "openspec/changes/acp-permission-parity/design.md:36",
+        "packages/coding-agent/src/session/acp-permission-gate.ts:102-150",
+        "packages/coding-agent/src/session/session-tools.ts:980-983",
+        "packages/coding-agent/src/edit/schemas.ts:19-47",
+        "packages/coding-agent/test/agent-session-acp-permission.test.ts:500-502",
+        "packages/coding-agent/test/agent-session-acp-permission.test.ts:570-572"
+      ],
+      "reason": "Same mechanism as R08.1. Input-only edit payloads lose all locations, and a patch-mode rename keeps the top-level path but loses the destination held in edits[].rename. The existing location assertions sit in the test file that task 3.1 rewrites, and the new acp approve tests do not assert locations."
+    },
+    {
+      "finding": "RerunSFmp2.1",
+      "targets": [
+        "finish-modality-program-route|R05.2"
+      ],
+      "mechanism": "MECH-strength-guard-unavailable-tag",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.1",
+      "targets": [
+        "finish-modality-program-route|R05.2"
+      ],
+      "mechanism": "MECH-strength-guard-unavailable-tag",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.4",
+      "targets": [
+        "finish-modality-program-route|R02.1"
+      ],
+      "mechanism": "MECH-facade-failure-record-missed",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.3",
+      "targets": [
+        "finish-modality-program-route|R05.1"
+      ],
+      "mechanism": "MECH-explicit-horizon-dropped-by-resolver",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8",
+        "private-repository-coordinate:9"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.3",
+      "targets": [
+        "finish-modality-program-route|R03.1"
+      ],
+      "mechanism": "MECH-every-child-bounds-contradiction",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.2",
+      "targets": [
+        "finish-modality-program-route|R03.1"
+      ],
+      "mechanism": "MECH-every-child-bounds-contradiction",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8",
+        "private-repository-coordinate:9",
+        "private-repository-coordinate:10",
+        "private-repository-coordinate:11",
+        "private-repository-coordinate:12"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.5",
+      "targets": [],
+      "mechanism": "MECH-concierge-knowledge-behaviour-unproven",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.2",
+      "targets": [
+        "finish-modality-program-route|R05.1"
+      ],
+      "mechanism": "MECH-explicit-horizon-dropped-by-resolver",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.1",
+      "targets": [],
+      "mechanism": "M-target-rpe-unwired",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.7",
+      "targets": [
+        "strength-progression-targets|R04.1"
+      ],
+      "mechanism": "M-progress-denominator",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.8",
+      "targets": [],
+      "mechanism": "M-coach-qa-retention",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "unsupported-consequence",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.3",
+      "targets": [],
+      "mechanism": "M-negative-load",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.4",
+      "targets": [],
+      "mechanism": "M-rpe-floor-contradiction",
+      "validity": "valid",
+      "blocking": "below-threshold",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.2",
+      "targets": [],
+      "mechanism": "M-loop-unbounded-week",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.6",
+      "targets": [],
+      "mechanism": "M-timed-history-dropped",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "additional-defect",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.5",
+      "targets": [
+        "strength-progression-targets|R12.1"
+      ],
+      "mechanism": "M-deload-null-multiplier",
+      "validity": "valid",
+      "blocking": "blocking",
+      "kind": "known-target",
+      "evidence": [
+        "private-repository-coordinate:1",
+        "private-repository-coordinate:2",
+        "private-repository-coordinate:3",
+        "private-repository-coordinate:4",
+        "private-repository-coordinate:5",
+        "private-repository-coordinate:6",
+        "private-repository-coordinate:7",
+        "private-repository-coordinate:8"
+      ],
+      "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     }
   ],
   "triage": [
@@ -6695,6 +8554,430 @@
       "protected": false,
       "consequence": false,
       "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialTFmp1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialSRtr2.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "The concrete reconciliation-failure path exists: team-config/agent/skills/review-work/SKILL.md:325 explicitly directs re-dispatch when inline blocker IDs disagree with the trailer. tasks.md:19 replaces only the later missing-trailer sentence, and its Verify command checks that sentence's absence and repair text's presence, not the reconciliation instruction. D4's repair-first procedure would consequently coexist with an explicit immediate re-dispatch instruction for an eligible malformed trailer. This contradicts specs/review-trailer/spec.md:65-79, including its required failing negative control. tasks.md:25's s3 live QA manually sends repair regardless of the original reply's validity and does not exercise dispatch selection or failed-repair fallback. Ordinary malformed FAIL replies therefore expose both a delivered guidance contradiction and missing proof of the material repair-first behavior."
+    },
+    {
+      "finding": "TrialSRtr2.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "gate.md:3-5 classifies this product-tier change as none specifically because the new precondition adds no state or transition. But design.md:29 D3 changes whether an existing persisted transition is admitted: a reviewer PASS/FAIL without a valid trailer currently reaches gate-convergence.mjs:550-563's gate_wave append and convergence decision, whereas D3 refuses it before append. This is a change to an existing state machine's transition guard, not merely unchanged event serialization. openspec/config.yaml:12 requires full review for state-machine changes, and team-config/agent/skills/review-work/SKILL.md:92-98 requires both reviewer invocations. The planned classification permits omission of a mandatory reviewer for the gate's audit-trail change. Later detection does not resolve that incorrect delivered gate classification."
+    },
+    {
+      "finding": "TrialSRtr2.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "design.md:25 D1 moves every record-independent trailer rule, explicitly including rejection of plan-restated criteria, into trailer.mjs; the predicate currently resides at validate-gate-record.mjs:562. validate-gate-record.test.mjs:1376-1385 reads only the validator source and asserts that it literally contains that predicate. Implementing the extraction without migrating this test therefore fails tasks.md:7's prescribed existing-suite verification despite preserving behavior. design.md:53 expressly promises that suite runs unchanged, and no task names the necessary source-assertion migration. This is a concrete inconsistency in the prescribed extraction and its mandatory verification; the fact that running the suite exposes it does not resolve the delivery defect."
+    },
+    {
+      "finding": "TrialSSmt1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D1 (design.md:60-64) extends the existing terminal-result predicate while promising batch completion. agent-session.ts:5562-5576 calls agent.abort from that hook; agent.ts:1553-1554 aborts the run controller. agent-loop.ts:3309-3348 assigns the run signal to ordinary sibling tools and :3633-3636 passes it to execute; bash.ts:1601-1625 supplies that signal to foreground execution. Thus a foreground command still running when session_move succeeds receives cancellation. This contradicts the batch-completion requirement in specs/session-relocation/spec.md:54-55 during ordinary concurrent tool use. The planned relative-read test does not resolve this design defect."
+    },
+    {
+      "finding": "TrialSSmt1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D4 (design.md:111-117) requires resolving both the missing target's parent and the configured worktree directory with realpath. Task 5.1 (tasks.md:27) performs this validation before creation and specifies no establishment of an absent configured parent. With no .worktrees directory, that sequence fails before addRepoWorktree can create the first worktree. The existing helper explicitly creates its parent before adding a worktree (session-worktree.ts:149-154), but that does not repair the planned pre-creation validation. This ordinary fresh-checkout state breaks the missing-worktree creation goal; the real-session fixture in tasks.md:41 already has .worktrees/a."
+    },
+    {
+      "finding": "TrialSSmt1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Design D2 and tasks 5.2 and 6.1-6.3 combine construction only when a relocator is installed with installation through an already-created AgentSession. sdk.ts:2568 constructs built-in tools before constructing AgentSession at :4728. The cited setter precedent only stores its handler (agent-session.ts:3180-3182), while late built-in reconciliation is a distinct settings-gated mechanism (sdk.ts:3738-3777). The plan specifies neither supplying capability before construction nor reconciling the registry after installation. Following its specified startup sequence therefore omits session_move on ordinary host startup, defeating the feature. Later checks detecting absence do not resolve this delivery-contract defect."
+    },
+    {
+      "finding": "TrialSSmt1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D5 (design.md:121-127) and task 2.1 replace the shared CLI core with a branch/base contract whose default is the primary checkout's HEAD and whose existing-branch-plus-base policy is rejection. The existing CLI supports force-reset branch creation, explicit detach, commit/tag detached targets, and caller-relative HEAD defaults (worktree-cli.ts:118-137). The proposed contract supplies no detach or force mode and no preservation adapter. A normal --detach invocation is already exercised by worktree-add-hook.test.ts:35-38. This breaks supported CLI consumers outside the gate's /move and /wt exclusions. Running that existing test can expose the defect but does not resolve the contradictory shared-helper design."
+    },
+    {
+      "finding": "TrialSSmt1.5",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Task 6.1 explicitly tests destination-only rules and relative reads for TUI, whereas tasks 6.2-6.3 require only ACP notifications/cwd and RPC events/state; task 7.3's ACP scenario likewise retains continuation-update evidence, not the first request's destination context. Existing checks named in task 3.1 do not assert first-continuation destination prompt content; acp-builtins.test.ts:170 even supplies a no-op refreshBaseSystemPrompt fixture. A headless continuation with updated cwd/events but cached source context can therefore satisfy the specified checks while violating specs/session-relocation/spec.md:84-96. The universal rebuild claim in design.md:17-20 is unsupported: session-tools.ts:2080-2093 can return the cached base prompt, and :2173-2177 requires explicit refresh after relevant side effects. This is a missing proof of material headless behavior, not merely a preference for a different test."
+    },
+    {
+      "finding": "TrialTRtr1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "Design.md D4 (lines 29-39) preserves the original separately but checks only the repair artifact with the original verdict; neither D1 nor D2 accepts original blocker identities. validate-gate-record.mjs:481-497,572-599 reconciles only the supplied artifact's narrative and trailer. A FAIL repair containing B1 alone therefore passes despite an original B1/B2 reply, allowing the eventual disposition to omit B2. Gate.md's accepted risk permits retaining only each blocker's first line, not dropping blockers. This is a realistic repair error weakening the review audit trail."
+    },
+    {
+      "finding": "TrialTRtr1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Gate.md:3-5 sets product tier and mandatory class none on the premise that the new precondition adds no transition. However, design.md D3 changes the admission guard for recording an F2 wave: missing or invalid trailers now prevent the gate_wave append and decision implemented at gate-convergence.mjs:471-563. Changing which inputs permit a state-machine transition changes its behavior even without adding event shapes or states. openspec/config.yaml:9-11 requires full review for state-machine changes, while the gate plans only an implementation audit. This bypasses a mandatory merge-gate review in ordinary operation."
+    },
+    {
+      "finding": "TrialTRtr1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Tasks.md:25 prescribes a live auditor reply followed directly by a repair message and a successful standalone check; it does not require that the original fail validation, that orchestration choose repair before redispatch, or that a failed repair cause bounded fresh dispatch. Its other scenarios test malformed artifacts and GC separately, not these agent-workflow branches. Specs/review-trailer/spec.md:62-71 requires the trigger and fallback, but those criteria are not executed checks. Even an orchestration workflow that never repairs invalid replies or never falls back could satisfy the named live QA. The missing real-session proof concerns the change's central material behavior."
+    },
+    {
+      "finding": "TrialTRtr1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Tasks.md:19 rejects only the literal old Phase 3 sentence and otherwise checks repair-related substrings; task 4.2 likewise checks sentence/prefix presence. Guidance could retain the repair message and required rule text while adding a differently worded instruction to redispatch first, and all those commands would pass. This directly contradicts specs/review-trailer/spec.md:77-79, whose negative control requires the guidance check itself to fail whenever shipped guidance still prescribes redispatch first. No task runs an alternate-wording broken fixture; the defect breaks an explicit verification criterion under ordinary instruction edits."
+    },
+    {
+      "finding": "TrialSApp2.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "The streamed-launch bypass is supported by the repository. speculation/host.ts:216-242 authorizes launches using lifecycle handlers and resolveApproval only; task/speculative-launch.ts:300-309 then calls launcher.start, and task/index.ts:875-898 starts the run outside ExtensionToolWrapper.execute. task/settings.ts:268-271 enables this normally. Design D4 places the live denial check in the wrapper, while D5 and task 4.1 propagate ledgers but do not add a denial check to speculative admission. Thus a running yolo child can speculatively start a task grandchild after an ancestor records a task denial, before finalized dispatch rejects it. That violates the inherited-denial requirement in specs/tool-approval/spec.md:62-63; later cancellation cannot undo completed effects. This is a delivered authorization-path omission, not merely a request for additional verification."
+    },
+    {
+      "finding": "TrialSApp2.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "tools/approval.ts:724-734 preserves only once, an offered session approval, and recognized grants; deny-session falls through to deny. Design D3 introduces that answer, but D4 records the session denial only after requestApproval returns it. Tasks 2.2 and 3.1 specify changing the answer type, wrapper/runner, ACP adapter and request metadata without specifying preservation in this normalizer. Following that described cutover denies the immediate bash call but loses the session decision, so a subsequent bash prompts again, contradicting the session-rejection contract. The planned regression could expose the omission, but this finding concerns the missing delivered normalization rule; detection does not resolve that design gap."
+    },
+    {
+      "finding": "TrialSApp2.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "internal-urls/xd-protocol.ts:31-49 retains only the device tier and policyKey for outer write approval, losing override semantics; :100-110 dispatches the inner wrapped tool with xdevApproved. wrapper.ts:359-381 suppresses tier-only prompts but explicitly retains user-policy and override prompts. Consequently an explicit bash prompt policy prompts at both gates, and a critical mounted bash command gets a mode-raised outer prompt plus its inner override prompt. approval.ts:461-468 permits session options on that outer mode-raised prompt. D1 removes the ACP-specific proxy, not these two approval paths, and tasks 3.1-3.3 specify no mounted-dispatch cutover. The resulting extra dialogs and session-capable critical-command dialog contradict D1's single-gate goal and the required critical-command option set. No command bypass is needed for this contract failure."
+    },
+    {
+      "finding": "TrialSApp2.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "edit/schemas.ts:33-46 defines apply_patch and hashline edits as input-only payloads. acp-permission-gate.ts:123-151 extracts only explicitPaths or top-level path fields; it cannot recover paths embedded in input. The existing getEditDestructiveIntent at :25-44 parses fileOps and includes move destinations, and session-tools.ts:984-988 supplies those parsed paths to the extractor. Design D1 deletes that intent source and moves the extractor, while D2/task 3.1 derive locations from call args without a replacement parsed-path source. Ordinary input-based deletion and move prompts therefore carry empty locations, breaking specs/acp-tool-permissions/spec.md:55-56 and the editor-facing location contract. D6's descriptive reason is not a replacement structured location handoff."
+    },
+    {
+      "finding": "RerunSSmt2.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D1 explicitly reuses the terminal-result mechanism while promising sibling completion (design.md:24-28,60-64). That mechanism immediately calls agent.abort (agent-session.ts:5562-5573), which aborts the controller (agent.ts:1553-1554). Siblings receive the shared signal (agent-loop.ts:3309-3312,3633-3636), and bash passes it to foreground execution (tools/bash.ts:1601-1620). Thus a session_move finishing before a running signal-aware sibling cancels that sibling rather than letting it finish, contradicting spec.md:54-58. This is a delivered ordering defect, not merely missing verification; ordinary multi-tool batches trigger it and break the batch-completion goal."
+    },
+    {
+      "finding": "RerunSSmt2.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Design D2 and tasks 4.1,5.2,6.1-6.3 combine handler-dependent tool construction with host installation after session creation, without specifying catalog reconciliation. sdk.ts:2568 constructs tools before AgentSession construction completes at :4863; InteractiveMode receives that existing session at interactive-mode.ts:1881-1898, as does RPC at rpc-mode.ts:1344. The cited setter precedent only assigns fields (agent-session.ts:3180-3182), whereas live tool reconciliation is explicitly separate (sdk.ts:3733-3757). Following the specified lifecycle leaves session_move absent at normal startup. Planned end-to-end checks may reveal this, but do not resolve the delivered lifecycle contradiction; it defeats availability in the intended hosts."
+    },
+    {
+      "finding": "RerunSSmt2.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D4 (design.md:111-116) admits a missing target only through realpath of its parent and the configured worktree root; task 5.1 performs that validation before creation. For a fresh repository without .worktrees, both realpath operations fail and no specified step establishes or canonicalizes the missing parent. This prevents the missing-target creation promised by spec.md:31, even though native creation supports missing parents through create_dir_all (mutate.rs:677). Task 7.3 starts with an existing .worktrees/a, so its creation QA does not exercise this first-use state. The missing admission rule is a delivery defect under ordinary first use and breaks autonomous worktree creation."
+    },
+    {
+      "finding": "RerunSSmt2.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D5 (design.md:121-126) and task 2.1 move the CLI core into a request with only repository/path/branch/base/settings, impose primary-root HEAD defaulting and existing-branch reuse, and specify no adapter preserving CLI ref-selection semantics. The existing CLI exposes forceBranch and detach (worktree-cli.ts:49-57), implements forced branch creation/reset and detached checkout (:118-129), and defaults branch creation to the invoking checkout's HEAD (:121,133). Ordinary --detach, -B, -b existing-branch, or add-from-linked-checkout calls therefore cannot retain their current contracts under the specified helper policy. The existing --detach test (worktree-add-hook.test.ts:36-39) may detect part of the regression, but detection does not fix this delivered design gap. Existing CLI consumers are within scope and the regression meets the blocking threshold."
+    },
+    {
+      "finding": "TrialTApp1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "The identity mismatch is concrete. design.md:42-43 keys denials by `resolved.policyKey ?? tool.name`, and D5 inherits that same subject. xd-protocol.ts:45-49 supplies a device name as policyKey, and approval.ts:444-451 preserves it for a mode-raised parent prompt. But approval.ts:385-401 returns no policyKey in yolo without an applicable user policy, so the child's check uses `write` instead of the denied device name. approval.ts:340-345,425-433 also allows a fallback `write` policy to change the resolved key. This violates the explicit device-and-tier inheritance requirement in specs/tool-approval/spec.md:62-63 during ordinary device use by descendants. It is a delivered authorization defect, not merely missing test coverage; planned checks do not resolve the contradictory identity rule."
+    },
+    {
+      "finding": "TrialTApp1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "design.md:38 defines globally recognized option IDs and specifies rejection only for an unknown ID, without restricting selection to the options emitted for that request. Thus a client can return the recognized `session` ID to a destructive per-call request that offered only once/deny, and the stated mapping returns a session answer. This conflicts with specs/acp-tool-permissions/spec.md:89-91, which requires rejection of any ID absent from the request. Task 3.1 tests an unknown ID and the offered option list, but not admission of a known, unoffered ID. The blocker identifies a concrete authorization contract defect in the proposed mapping; the requirement alone does not implement the missing admission rule."
+    },
+    {
+      "finding": "TrialTApp1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "Tasks 4.1-4.2 explicitly require wiring separate workpool, isolation, restore, persisted-revive and executor-revive sites, but their named tests do not exercise inherited denials on those paths or bridge inheritance on restoration/revival. An omitted parent ledger at a revival site therefore permits a revived child's otherwise allowed yolo bash call after the parent denied bash, without failing the listed task/grandchild/vibe/eval tests. Similarly, omitted bridge propagation on revival leaves the child using disk instead of the editor buffer, contrary to specs/acp-client-bridge/spec.md:9-10. Task 5.3 exercises task children only; the existing task tests contain no ledger/client-bridge inheritance coverage that closes these gaps. These are missing proofs of material supported behavior, including an authorization boundary, rather than a demand for a different equivalent check."
+    },
+    {
+      "finding": "TrialTApp1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "Task 5.3 requires only a PASS/FAIL line and ACP frame excerpt for child bash denial and unsaved-buffer reading; its Verify command merely counts PASS lines. design.md:23-24 explicitly excludes forwarding child prompts and subagent progress rendering, so those retained frames need not establish that the child attempted bash, received a denial, or actually consumed the unsaved content. A run in which the child never attempts bash or reads the buffer can therefore leave no discriminating retained evidence for these scenarios. The task does not require child tool/session artifacts or observable outputs and side effects that distinguish that run from success. Unit tests do not supply the missing real-session evidence. This leaves the two central subagent value claims unproved, one concerning inherited authorization denials."
+    },
+    {
+      "finding": "RerunSSpt1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.5",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.6",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.7",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSSpt1.8",
+      "result": "refuted",
+      "blocking": false,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "RerunSFmp2.5",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Triage reasoning retained locally; private-repository claim text is not published."
+    },
+    {
+      "finding": "TrialSSmt3.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D1 (design.md:62-70) explicitly chooses generalising the terminal-result predicate while promising that sibling calls finish. The existing qualifying-result path immediately calls agent.abort (agent-session.ts:5564-5573), which unconditionally aborts the controller (agent.ts:1553-1554). Siblings receive that signal (agent-loop.ts:3309-3312,3348,3637-3641); running reads check it (read.ts:591,718,2941), and queued calls are skipped when it is aborted (agent-loop.ts:3534-3543). Thus an ordinarily slower or queued sibling can be cancelled rather than completed. This contradicts the delivered batch-completion contract, not merely its verification; task 4.1's checks do not resolve the contradictory mechanism. It breaks the core ordering/completion goal and is not an accepted residual risk."
+    },
+    {
+      "finding": "TrialSSmt3.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "Design D2 (design.md:75-90) and task 5.2 gate construction on an installed relocator, whereas tasks 6.1-6.3 install that handler on an existing session. sdk.ts:2568 creates tools before constructing AgentSession at :4728 and making it available at :4863; ACP likewise receives an already-created session at acp-agent.ts:1493-1496. The cited setter precedent only assigns fields (agent-session.ts:3180-3182). No task specifies rebuilding/reconciling tools upon installation or removal, or supplying host capability before construction. Following the stated lifecycle therefore omits the tool on ordinary startup. Host tests might expose this later, but detection does not resolve this delivery-design gap. Ordinary availability is an explicit requirement, so this is blocking."
+    },
+    {
+      "finding": "TrialSSmt3.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "D4 (design.md:111-115) requires realpath of the configured worktree directory for a missing target, and task 5.1 repeats validation before creation. With a fresh repository lacking .worktrees, that realpath cannot succeed; neither D4 nor the creation tasks define safe creation or ancestor-based validation of the missing parent. The missing-worktree requirement includes this ordinary state without restricting creation to repositories already having a worktree directory. Task 7.3's real-surface fixture already contains .worktrees/a, and the named creation scenarios do not repair the missing validation rule. This blocks the principal first-create workflow. protected is true because the finding is explicitly in CHECK 4, independently of its local, reversible consequence."
+    },
+    {
+      "finding": "TrialSSmt3.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D2 defines requestSessionMove as recording a singular pending move and returning whether a relocator is installed (design.md:75-76); D3 consumes that move for one continuation (:95-101). Task 5.1 places the request after optional creation, and tasks 4.1-4.3 provide no reservation, conflicting-request rejection, or selection policy. The existing scheduler defaults tools to shared and executes shared calls concurrently (agent-loop.ts:3838-3856). Two calls to distinct valid targets can therefore both create their worktrees and record success while later completion overwrites the singular destination. Nothing in the plan assigns exclusive execution or otherwise admits only one request before side effects. This is a concrete ordinary parallel-batch state that violates the per-success target contract; a later test detecting it would not supply the missing delivery rule. It is not covered by the gate's exclusions or accepted residual risks."
+    },
+    {
+      "finding": "RerunSApp1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "D7 (design.md:56; task 3.4) explicitly installs a hard runtime override. settings.ts:903-919 leaves that override intact on a global settings write; :1001-1033 releases only soft pins on persisted configuration changes. Thus starting unconfigured and subsequently setting always-ask leaves implicit write authoritative, contrary to specs/acp-tool-permissions/spec.md:9. This is a delivered precedence defect, not merely a request for additional tests; ordinary settings changes can leave writes unapproved."
+    },
+    {
+      "finding": "RerunSApp1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "design.md D2 and task 3.1 include eval preludes but do not change the independent tool-context activation. acp-agent.ts:2697-2712 installs that context only when form elicitation is supported; tools/context.ts:34-48 otherwise supplies undefined UI and hasUI=false. eval/preludes.ts:101-107 rejects a required approval in precisely that state. Adding runner approve alone therefore leaves the supported no-elicitation nested eval path unusable. Tasks 3.1/3.3 and QA 5.3 exercise outer eval approval, not this nested prompt."
+    },
+    {
+      "finding": "RerunSApp1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "D3 promises distinct cancellation and an aborted-turn race, but task 3.1 adds call metadata without signal plumbing. wrapper.ts:438-443 and approval.ts:699-731 currently neither forward the execution signal nor race the approval. Independently, acp-event-mapper-v2.ts:175-183 maps cancelled to selected/reject_once, inconsistent with D3's new option IDs and the cancellation contract in specs/acp-tool-permissions/spec.md:94-102. Task 3.5 changes request shape and unknown outcomes without directing preservation of cancellation. These are defects in the specified shared-path cutover; the cancellation tests planned in 3.1 would detect a defect but do not resolve the missing design plumbing."
+    },
+    {
+      "finding": "RerunSApp1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "D1 removes getPermissionIntent and D2/task 3.1 derive locations from raw call args via extractPermissionLocations. acp-permission-gate.ts:105-150 only examines top-level path fields without explicitPaths. edit/schemas.ts:16-44 stores patch rename destinations inside edits and represents apply_patch/hashline/sloppy with input alone, so the proposed extraction demonstrably drops those targets. Existing assertions at agent-session-acp-permission.test.ts:470-503 and :536-572 establish supported navigation metadata that this cutover loses; rewriting the file without preserving those assertions does not repair the delivered metadata defect."
+    },
+    {
+      "finding": "RerunSApp1.5",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "Tasks 4.1/4.2 enumerate broad implementation sites but their executed controls cover initial task/live-child/grandchild/vibe/eval denial and task/vibe bridge behavior, not revival/restore/workpool or eval-child bridge I/O. executor.ts:4191-4225 independently reconstructs warm sessions, persisted-revive.ts:228 onward independently creates cold sessions, and follow-up uses ensureLive at executor.ts:3823-3827 rather than initial runSubprocess. Omitting inherited fields from those constructions can therefore leave the listed new tests and QA 5.3 green while revived children bypass denials or miss editor buffers. Task 5.1's existing-suite run does not supply a named control for these new material inheritance behaviors. This leaves missing proof on ordinary supported paths, with no applicable exclusion in gate.md."
+    },
+    {
+      "finding": "TrialSRtr1.1",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "tasks.md:19 replaces the missing-trailer sentence and changes the messaging prohibition, but does not reconcile SKILL.md:325's separate instruction to re-dispatch a FAIL with mismatched narrative/trailer blocker IDs. validate-gate-record.mjs:590-598 rejects precisely that mismatch, making it eligible for design.md D4's repair procedure. Thus an ordinary malformed FAIL encounters contradictory first-action instructions, violating the repair-before-redispatch requirement at specs/review-trailer/spec.md:62-79. This is a delivery contradiction, not a missing-check finding; later verification does not resolve it."
+    },
+    {
+      "finding": "TrialSRtr1.2",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "consequence": false,
+      "reason": "gate.md:3-5 declares product/none on the premise that no state or transition is added. However, design.md:29 changes admission to the existing gate_wave transition: malformed or absent required trailers prevent append. gate-convergence.mjs:471-475 derives wave numbering from those events, :547-563 appends convergence decisions, and :566-590 consumes stopped waves. This changes an existing state machine's transition condition, irrespective of unchanged event shapes. openspec/config.yaml:13 and SKILL.md:98-104 require full review for state-machine changes. The classification therefore permits omission of a mandatory strategic review of the named audit-trail change."
+    },
+    {
+      "finding": "TrialSRtr1.3",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "tasks.md:19-20 checks specific phrases and markers, not all contrary routing instructions; SKILL.md:325's blocker-mismatch redispatch instruction passes those checks unchanged. tasks.md:25's s3 directly sends the repair message to an auditor and checks its answer, without requiring an initial malformed reply or observing an orchestrator choose repair, fallback after failed/verdict-changing repair, or reject no/conflicting-verdict repair. The other named scenarios and suite runs do not exercise those model-driven choices. Consequently none of the planned checks establishes the central routing behaviour or its riskiest fallback branches, as required by review-work's Change verification section. Spec scenarios alone are criteria, not executed checks. This is missing proof of material workflow behaviour."
+    },
+    {
+      "finding": "TrialSRtr1.4",
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "consequence": false,
+      "reason": "design.md:25 explicitly moves the no-plan-restatement predicate into trailer.mjs, while :54 promises the existing record suite runs unchanged. tasks.md:7 likewise names that suite without adapting its extraction-sensitive test. validate-gate-record.test.mjs:1376-1385 reads only validatorSource and asserts that it contains the exact criteria.every predicate currently at validate-gate-record.mjs:562. Moving that predicate as required makes the assertion false. This is a deterministic conflict between the planned extraction and its mandatory verification, not a speculative runtime regression; the named test detects the conflict but does not resolve the plan's incompatible requirements."
     }
   ],
   "rounds": []
