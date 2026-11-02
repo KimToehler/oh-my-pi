@@ -63,7 +63,7 @@ The first grep excludes the lines that quote the scan commands themselves; every
 The published dataset carries digests but no input bytes, so `report` is the reproduction surface and `check` stays with the local run directory. Run from the published directory:
 
 ```
-$ cd .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment
+$ cd <repo>/.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment
 $ bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
 cmp ok
 ```

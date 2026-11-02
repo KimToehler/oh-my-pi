@@ -38,6 +38,6 @@ F3 whole-diff review is not needed: the single scorer, its tests and result arti
 
 ## Workflow follow-up
 
-- F2 merge gate: run review-work after 4.1 with the folder frozen, class none and Risk tier internal-tooling (one implementation-audit). It is never a checkbox. Write and validate the SHA-bound team-config.merge-gate/v3 record and stage its cited artifacts; merge only after it passes.
+- F2 merge gate: run review-work after 4.1 with the folder frozen, class none and Risk tier product (re-tiered after wave 3, so the gate wave needs both an implementation-audit and a strategic-risk-review). It is never a checkbox. Write and validate the SHA-bound team-config.merge-gate/v3 record and stage its cited artifacts; merge only after it passes.
 - Any workflow/model recommendation from the results is a separate change; no automatic rollout or edits to the current loop.
 - Archive and sync the plan-review-measurement spec only after the repository merge gate is satisfied.
