@@ -1,0 +1,44 @@
+$ sed -n "6,13p" report.md
+## Arms
+| arm | trials done/intended | macro pre | macro post | micro pre | micro post | false drop | false positive |
+|---|---|---|---|---|---|---|---|
+| H-Focus | 5/5 | 1.619390331890332/5 = 32.4% | n/a (no completed trials with a computable denominator) | 23/85 = 27.1% | n/a (no completed trials with a computable denominator) | n/a (no discovered independently blocking targets or triage unavailable) | n/a (no independently adjudicated findings) |
+| H-Replay | 14/15 | 0.6460137085137085/5 = 12.9% | 0/1 = 0.0% (triaged 1/14 trials) | 8.5/85 = 10.0% | 0/11 = 0.0% (triaged 1/14 trials) | n/a (no discovered independently blocking targets or triage unavailable) | n/a (no independently adjudicated findings) |
+| S | 15/15 | 0.9477603415103414/5 = 19.0% | 0.9373436748436748/5 = 18.7% | 12.666666666666666/85 = 14.9% | 12.333333333333332/85 = 14.5% | 0/36 = 0.0% | 7/75 = 9.3% |
+| T | 5/5 | 0.7386273448773448/5 = 14.8% | 0.6671987734487734/5 = 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 = 0.0% | 5/25 = 20.0% |
+
+
+$ sed -n "/## Blocking discoveries outside/,/^## Costs/p" report.md
+## Blocking discoveries outside the frozen ledger (verifier outcome; not part of any target denominator)
+
+Unit: mechanisms per trial, deduplicated within a trial and summed over trials.
+
+| arm | discovered | retained | protected | undecided | pending | dropped | drop rate |
+|---|---|---|---|---|---|---|---|
+| H-Focus | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| H-Replay | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| S | 25 | 24 | 0 | 0 | 0 | 1 | 1/25 = 4.0% |
+| T | 5 | 5 | 0 | 0 | 0 | 0 | 0/5 = 0.0% |
+
+## Costs
+$ grep -n "unsuccessful" report.md
+139:- unsuccessful (subset of the stage rows above, not an additional bucket): 31.9652 (9 attempts, 0 unknown)
+
+$ sed -n "/## Rounds/,/^## /p" report.md
+## Rounds (recorded last rounds; savings not measured)
+| item | revision | path | last round | workflow |
+|---|---|---|---|---|
+| acp-permission-parity | 53dfd84aaf352db18525e5158a56be7f91689dda | openspec/changes/archive/2026-10-24-acp-permission-parity/review.md | 12 | omp-gated |
+| finish-modality-program-route | 763479f9bc1535729565a009a742fd4c4a9ef9d8 | openspec/changes/archive/2026-10-26-finish-modality-program-route/review.md | 16 | omp-gated |
+| review-trailer-repair | 3d91cdd514c60a56729b7df55bd836046aa26238 | openspec/changes/archive/2026-10-25-review-trailer-repair/review.md | 17 | omp-gated |
+| session-move-tool | 2df8ac2d9b7bb1777aca2b174fb8fe5f8b4acacd | openspec/changes/archive/2026-10-26-session-move-tool/review.md | 22 | omp-gated |
+| strength-progression-targets | bffb00754158598d3c4c87b39556976c979e9cfc | openspec/changes/archive/2026-10-27-strength-progression-targets/review.md | 40 | omp-gated |
+
+## Target severity repeats (reproducibility of the ledger, not a revision of it)
+$ sed -n "/## Target severity repeats/,/^## /p" report.md
+## Target severity repeats (reproducibility of the ledger, not a revision of it)
+| round | assessed | agreed with ledger | disagreements | unknown targets |
+|---|---|---|---|---|
+| round-2 | 85 | 83/85 = 97.6% | strength-progression-targets\|R05.1: blocking -> below-threshold; strength-progression-targets\|R10.1: blocking -> below-threshold | none |
+
+## Exclusions

@@ -517,6 +517,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1231,20 +1232,20 @@
       },
       "retained": [
         "acp-permission-parity|R02.2",
-        "acp-permission-parity|R07.1",
         "acp-permission-parity|R08.1"
       ],
       "postRecall": {
-        "numerator": 3,
+        "numerator": 2,
         "denominator": 11,
-        "value": 0.2727272727272727,
+        "value": 0.18181818181818182,
         "reason": null
       },
       "triage": {
-        "retained": 3,
+        "retained": 2,
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 1,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1325,6 +1326,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1410,6 +1412,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1492,6 +1495,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1576,6 +1580,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1660,6 +1665,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1741,6 +1747,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1819,6 +1826,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1899,6 +1907,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -1980,6 +1989,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2061,6 +2071,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2142,6 +2153,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2227,6 +2239,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2308,6 +2321,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2394,6 +2408,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 1,
         "falseDrop": 0,
         "legitimateResidual": 1,
@@ -2472,6 +2487,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2552,6 +2568,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2632,6 +2649,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -2713,6 +2731,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 1,
         "falseDrop": 0,
         "legitimateResidual": 1,
@@ -2798,6 +2817,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -3364,9 +3384,9 @@
         "reason": null
       },
       "trialMeanPost": {
-        "numerator": 3,
+        "numerator": 2.6666666666666665,
         "denominator": 11,
-        "value": 0.2727272727272727,
+        "value": 0.2424242424242424,
         "reason": null
       },
       "unionLabel": "3-repeat best-of-repeats coverage",
@@ -3377,9 +3397,9 @@
         "reason": null
       },
       "unionPost": {
-        "numerator": 5,
+        "numerator": 4,
         "denominator": 11,
-        "value": 0.45454545454545453,
+        "value": 0.36363636363636365,
         "reason": null
       },
       "falseDrop": {
@@ -4003,6 +4023,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -4086,6 +4107,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
@@ -4109,9 +4131,9 @@
         "reason": null
       },
       "macroPost": {
-        "numerator": 0.9373436748436748,
+        "numerator": 0.9070406445406445,
         "denominator": 5,
-        "value": 0.18746873496873495,
+        "value": 0.1814081289081289,
         "reason": null
       },
       "microPre": {
@@ -4121,9 +4143,9 @@
         "reason": null
       },
       "microPost": {
-        "numerator": 12.333333333333332,
+        "numerator": 12,
         "denominator": 85,
-        "value": 0.14509803921568626,
+        "value": 0.1411764705882353,
         "reason": null
       },
       "microUnionPre": {
@@ -4133,9 +4155,9 @@
         "reason": null
       },
       "microUnionPost": {
-        "numerator": 17,
+        "numerator": 16,
         "denominator": 85,
-        "value": 0.2,
+        "value": 0.18823529411764706,
         "reason": null
       },
       "falseDrop": {
@@ -4165,10 +4187,11 @@
         "reason": null
       },
       "triage": {
-        "retained": 37,
+        "retained": 36,
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 1,
         "downgraded": 1,
         "falseDrop": 0,
         "legitimateResidual": 1,
@@ -4252,6 +4275,7 @@
         "protected": 0,
         "undecided": 0,
         "pending": 0,
+        "survivingNonBlocker": 0,
         "downgraded": 1,
         "falseDrop": 0,
         "legitimateResidual": 1,

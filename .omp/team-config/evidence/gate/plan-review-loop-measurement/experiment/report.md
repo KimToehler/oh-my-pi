@@ -8,7 +8,7 @@ Savings: not measured. Round budgets: counterfactual. No comparison is causal.
 |---|---|---|---|---|---|---|---|
 | H-Focus | 5/5 | 1.619390331890332/5 = 32.4% | n/a (no completed trials with a computable denominator) | 23/85 = 27.1% | n/a (no completed trials with a computable denominator) | n/a (no discovered independently blocking targets or triage unavailable) | n/a (no independently adjudicated findings) |
 | H-Replay | 14/15 | 0.6460137085137085/5 = 12.9% | 0/1 = 0.0% (triaged 1/14 trials) | 8.5/85 = 10.0% | 0/11 = 0.0% (triaged 1/14 trials) | n/a (no discovered independently blocking targets or triage unavailable) | n/a (no independently adjudicated findings) |
-| S | 15/15 | 0.9477603415103414/5 = 19.0% | 0.9373436748436748/5 = 18.7% | 12.666666666666666/85 = 14.9% | 12.333333333333332/85 = 14.5% | 0/36 = 0.0% | 7/75 = 9.3% |
+| S | 15/15 | 0.9477603415103414/5 = 19.0% | 0.9070406445406445/5 = 18.1% | 12.666666666666666/85 = 14.9% | 12/85 = 14.1% | 0/36 = 0.0% | 7/75 = 9.3% |
 | T | 5/5 | 0.7386273448773448/5 = 14.8% | 0.6671987734487734/5 = 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 = 0.0% | 5/25 = 20.0% |
 
 ## Items (trial mean vs best-of-repeats union)
@@ -24,7 +24,7 @@ Savings: not measured. Round budgets: counterfactual. No comparison is causal.
 | H-Replay | review-trailer-repair | 2/18 = 11.1% | n/a (triage unavailable for every completed trial) | 3-repeat best-of-repeats coverage | 2/18 = 11.1% | n/a (triage unavailable for every completed trial) |
 | H-Replay | session-move-tool | 2/14 = 14.3% | n/a (triage unavailable for every completed trial) | 3-repeat best-of-repeats coverage | 4/14 = 28.6% | n/a (triage unavailable for every completed trial) |
 | H-Replay | strength-progression-targets | 0.6666666666666666/32 = 2.1% | n/a (triage unavailable for every completed trial) | 3-repeat best-of-repeats coverage | 1/32 = 3.1% | n/a (triage unavailable for every completed trial) |
-| S | acp-permission-parity | 3/11 = 27.3% | 3/11 = 27.3% | 3-repeat best-of-repeats coverage | 5/11 = 45.5% | 5/11 = 45.5% |
+| S | acp-permission-parity | 3/11 = 27.3% | 2.6666666666666665/11 = 24.2% | 3-repeat best-of-repeats coverage | 5/11 = 45.5% | 4/11 = 36.4% |
 | S | finish-modality-program-route | 3.6666666666666665/10 = 36.7% | 3.6666666666666665/10 = 36.7% | 3-repeat best-of-repeats coverage | 4/10 = 40.0% | 4/10 = 40.0% |
 | S | review-trailer-repair | 1.6666666666666667/18 = 9.3% | 1.6666666666666667/18 = 9.3% | 3-repeat best-of-repeats coverage | 2/18 = 11.1% | 2/18 = 11.1% |
 | S | session-move-tool | 2/14 = 14.3% | 2/14 = 14.3% | 3-repeat best-of-repeats coverage | 2/14 = 14.3% | 2/14 = 14.3% |
@@ -36,47 +36,47 @@ Savings: not measured. Round budgets: counterfactual. No comparison is causal.
 | T | strength-progression-targets | 3/32 = 9.4% | 3/32 = 9.4% | 1-repeat best-of-repeats coverage | 3/32 = 9.4% | 3/32 = 9.4% |
 
 ## Trials
-| trial | pre | post | false drop | protected | undecided | pending | invalid | annotated | pending findings |
-|---|---|---|---|---|---|---|---|---|---|
-| H-Focus-App-1 | 4/11 = 36.4% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 3 | 6 |
-| H-Focus-Fmp-1 | 6/10 = 60.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 7 | 6 |
-| H-Focus-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 2 | 4 |
-| H-Focus-Smt-1 | 5/14 = 35.7% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 6 | 4 |
-| H-Focus-Spt-1 | 6/32 = 18.8% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 6 | 9 |
-| H-Replay-App-1 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 2 | 2 |
-| H-Replay-App-2 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 2 | 2 |
-| H-Replay-App-3 | 0/11 = 0.0% | 0/11 = 0.0% | n/a (no discovered independently blocking targets) | 0 | 0 | 0 | 0 | 0 | 0 |
-| H-Replay-Fmp-1 | 2/10 = 20.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 2 | 0 |
-| H-Replay-Fmp-2 | 3/10 = 30.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 3 | 2 |
-| H-Replay-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 1 | 2 |
-| H-Replay-Rtr-2 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 1 | 2 |
-| H-Replay-Rtr-3 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 1 | 3 |
-| H-Replay-Smt-1 | 0/14 = 0.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 0 | 4 |
-| H-Replay-Smt-2 | 2/14 = 14.3% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 2 | 3 |
-| H-Replay-Smt-3 | 4/14 = 28.6% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 4 | 2 |
-| H-Replay-Spt-1 | 1/32 = 3.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 1 | 4 |
-| H-Replay-Spt-2 | 1/32 = 3.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 1 | 5 |
-| H-Replay-Spt-3 | 0/32 = 0.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | 0 | 0 | 6 |
-| S-App-1 | 3/11 = 27.3% | 3/11 = 27.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-App-2 | 2/11 = 18.2% | 2/11 = 18.2% | 0/2 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-App-3 | 4/11 = 36.4% | 4/11 = 36.4% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Fmp-1 | 3/10 = 30.0% | 3/10 = 30.0% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Fmp-2 | 4/10 = 40.0% | 4/10 = 40.0% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Fmp-3 | 4/10 = 40.0% | 4/10 = 40.0% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Rtr-1 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-Rtr-2 | 1/18 = 5.6% | 1/18 = 5.6% | 0/1 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-Rtr-3 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-Smt-1 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-Smt-2 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Smt-3 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Spt-1 | 2/32 = 6.3% | 2/32 = 6.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| S-Spt-2 | 1/32 = 3.1% | 1/32 = 3.1% | 0/1 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| S-Spt-3 | 4/32 = 12.5% | 3/32 = 9.4% | 0/3 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| T-App-1 | 1/11 = 9.1% | 1/11 = 9.1% | 0/1 = 0.0% | 0 | 0 | 0 | 2 | 0 | 0 |
-| T-Fmp-1 | 3/10 = 30.0% | 3/10 = 30.0% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| T-Rtr-1 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 1 | 0 | 0 |
-| T-Smt-1 | 2/14 = 14.3% | 1/14 = 7.1% | 0/1 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 |
-| T-Spt-1 | 3/32 = 9.4% | 3/32 = 9.4% | 0/3 = 0.0% | 0 | 0 | 0 | 2 | 0 | 0 |
+| trial | pre | post | false drop | protected | surviving non-blocker | undecided | pending | invalid | annotated | pending findings |
+|---|---|---|---|---|---|---|---|---|---|---|
+| H-Focus-App-1 | 4/11 = 36.4% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 3 | 6 |
+| H-Focus-Fmp-1 | 6/10 = 60.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 7 | 6 |
+| H-Focus-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 4 |
+| H-Focus-Smt-1 | 5/14 = 35.7% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 6 | 4 |
+| H-Focus-Spt-1 | 6/32 = 18.8% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 6 | 9 |
+| H-Replay-App-1 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 2 |
+| H-Replay-App-2 | 2/11 = 18.2% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 2 |
+| H-Replay-App-3 | 0/11 = 0.0% | 0/11 = 0.0% | n/a (no discovered independently blocking targets) | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| H-Replay-Fmp-1 | 2/10 = 20.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 0 |
+| H-Replay-Fmp-2 | 3/10 = 30.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 3 | 2 |
+| H-Replay-Rtr-1 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 2 |
+| H-Replay-Rtr-2 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 2 |
+| H-Replay-Rtr-3 | 2/18 = 11.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 3 |
+| H-Replay-Smt-1 | 0/14 = 0.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 0 | 4 |
+| H-Replay-Smt-2 | 2/14 = 14.3% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 2 | 3 |
+| H-Replay-Smt-3 | 4/14 = 28.6% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 4 | 2 |
+| H-Replay-Spt-1 | 1/32 = 3.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 4 |
+| H-Replay-Spt-2 | 1/32 = 3.1% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 1 | 5 |
+| H-Replay-Spt-3 | 0/32 = 0.0% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 0 | 6 |
+| S-App-1 | 3/11 = 27.3% | 2/11 = 18.2% | 0/2 = 0.0% | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| S-App-2 | 2/11 = 18.2% | 2/11 = 18.2% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-App-3 | 4/11 = 36.4% | 4/11 = 36.4% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Fmp-1 | 3/10 = 30.0% | 3/10 = 30.0% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Fmp-2 | 4/10 = 40.0% | 4/10 = 40.0% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Fmp-3 | 4/10 = 40.0% | 4/10 = 40.0% | 0/4 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Rtr-1 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-Rtr-2 | 1/18 = 5.6% | 1/18 = 5.6% | 0/1 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-Rtr-3 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-Smt-1 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-Smt-2 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Smt-3 | 2/14 = 14.3% | 2/14 = 14.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Spt-1 | 2/32 = 6.3% | 2/32 = 6.3% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| S-Spt-2 | 1/32 = 3.1% | 1/32 = 3.1% | 0/1 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| S-Spt-3 | 4/32 = 12.5% | 3/32 = 9.4% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| T-App-1 | 1/11 = 9.1% | 1/11 = 9.1% | 0/1 = 0.0% | 0 | 0 | 0 | 0 | 2 | 0 | 0 |
+| T-Fmp-1 | 3/10 = 30.0% | 3/10 = 30.0% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| T-Rtr-1 | 2/18 = 11.1% | 2/18 = 11.1% | 0/2 = 0.0% | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| T-Smt-1 | 2/14 = 14.3% | 1/14 = 7.1% | 0/1 = 0.0% | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| T-Spt-1 | 3/32 = 9.4% | 3/32 = 9.4% | 0/3 = 0.0% | 0 | 0 | 0 | 0 | 2 | 0 | 0 |
 
 ## Finding kinds
 | trial | known target | additional | useful note | evidence error | consequence | false claim | severity | pending |

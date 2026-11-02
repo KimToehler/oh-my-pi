@@ -1,0 +1,9 @@
+$ grep -c -E "backend_kt|nutritrain|/Users/|ghp_" dataset.json summary.json report.md input-manifest.json RESULT.md
+dataset.json:0
+summary.json:0
+report.md:0
+input-manifest.json:0
+RESULT.md:0
+$ grep -o -E "sk-[A-Za-z-]{0,12}|api[_-]?key" dataset.json | sort | uniq -c
+      1 sk-child
+      1 sk-review

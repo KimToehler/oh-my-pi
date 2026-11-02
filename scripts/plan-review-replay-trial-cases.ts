@@ -254,4 +254,27 @@ describe("trial triage semantics", () => {
 		});
 		expect(s.additionalBlocking).toBeNull();
 	});
+
+	it("retains only the blocking target when one finding matches targets of different severity", () => {
+		const s = single({
+			targets: [target("x", "I", "blocking"), target("y", "I", "below-threshold")],
+			findings: ["f1"],
+			// One finding, adjudicated blocking, matching both targets.
+			adjudications: [adj("f1", { targets: ["x", "y"] })],
+			triage: [tri("f1", "confirmed")],
+		});
+		expect(s.discovered).toEqual(["x", "y"]);
+		// The finding's severity may not make the below-threshold target a retained automatic blocker.
+		expect(s.retained).toEqual(["x"]);
+		expect(s.postRecall).toMatchObject({ numerator: 1, denominator: 2, value: 0.5 });
+		// Nor is that target a loss: its match survived.
+		expect(s.triage).toMatchObject({
+			retained: 1,
+			survivingNonBlocker: 1,
+			legitimateResidual: 0,
+			falseDrop: 0,
+			downgraded: 0,
+		});
+		expect(s.falseDropRate).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
+	});
 });

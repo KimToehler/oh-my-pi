@@ -29,7 +29,7 @@ A second, independent adjudication round re-assessed all 85 targets on the same 
 |---|---|---|---|---|---|---|---|---|
 | H-Focus | 32.4% | n/a (no triage) | 23/85 = 27.1% | n/a | 23/85 | n/a | n/a | n/a |
 | H-Replay | 12.9% | 0/1 (triaged 1/14) | 8.5/85 = 10.0% | 0/11 (triaged 1/14) | 13/85 | 0/11 (triaged 1/14) | n/a | n/a |
-| S | 19.0% | 18.7% | 12.67/85 = 14.9% | 12.33/85 = 14.5% | 18/85 = 21.2% | 17/85 = 20.0% | 0/36 | 7/75 = 9.3% |
+| S | 19.0% | 18.1% | 12.67/85 = 14.9% | 12/85 = 14.1% | 18/85 = 21.2% | 16/85 = 18.8% | 0/36 | 7/75 = 9.3% |
 | T | 14.8% | 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 | 5/25 = 20.0% |
 
 `pre` is the reviewer's discovery before triage; `post` is after the current verifier. Macro averages items, micro pools targets (per-item mean over repeats), union takes the best of an item's three repeats.
@@ -37,6 +37,8 @@ A second, independent adjudication round re-assessed all 85 targets on the same 
 Two honesty constraints shape the historical rows. Their findings were never independently adjudicated — they carry the original annotations, recorded as `annotated` rather than `valid` — so **no precision figure exists for them**; `false positive` is `n/a`, not `0`. And only one of H-Replay's fourteen completed trials has a triage outcome at all, so every post-triage cell of that arm carries its `triaged 1/14` coverage instead of reading as an arm-wide result.
 
 A single S reviewer finds about 15 % of the frozen ledger; three independent S reviewers on the same plan reach 21 %. The historical three-lens arm reached 27 % — on a different brief, contract and era, so the comparison is not causal.
+
+One further rule shapes the `post` column: a target is a retained automatic blocker only when the target itself is independently blocking, not merely because a surviving finding was. Exactly one pair in the run is affected (`RerunSApp1.5` matches a blocking and a below-threshold target), and it is counted as a surviving non-blocker rather than as retention or as a loss.
 
 ## Finding classification (fresh arms, adjudicated)
 
@@ -54,10 +56,10 @@ A single S reviewer finds about 15 % of the frozen ledger; three independent S r
 
 ## Triage
 
-| arm | retained | protected | undecided | pending | downgraded | false drop | legitimate residual |
-|---|---|---|---|---|---|---|---|
-| S | 37 | 0 | 0 | 0 | 1 | **0** | 1 |
-| T | 10 | 0 | 0 | 0 | 1 | **0** | 1 |
+| arm | retained | protected | surviving non-blocker | undecided | pending | downgraded | false drop | legitimate residual |
+|---|---|---|---|---|---|---|---|---|
+| S | 36 | 0 | 1 | 0 | 0 | 1 | **0** | 1 |
+| T | 10 | 0 | 0 | 0 | 0 | 1 | **0** | 1 |
 
 Across 20 trials and 100 findings the verifier dropped no independently blocking target. The two post-triage losses (`S-Spt-3`, `T-Smt-1`) are targets the independent adjudicator rated below the current blocking threshold.
 
@@ -111,18 +113,21 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 
 ## Amendments after the input freeze
 
-`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Four scorer rules were added after the fresh results existed; each removes an unmeasured claim or adds a measured one that the contract's target-level definitions left unreported, and no fresh-arm figure already in this document moved:
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Five scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and the fifth corrects a figure against the contract's own wording:
 
 1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
 2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
 3. `targetRepeats` rows plus a derived agreement table, so the repeat reliability quoted above is scorer output rather than prose.
 4. Triage outcomes for independently blocking discoveries outside the frozen ledger, reported separately from the target-level `false drop` the contract defines. Without it the one verifier drop this experiment produced was in no published figure.
+5. Target severity decides retention. The scorer previously classified each matched target with the severity of the surviving finding, which made a `below-threshold` target a retained automatic blocker although the contract requires the target itself to be independently blocking. This is the one amendment that moved a fresh-arm figure: S `macro post` 18.7 % → 18.1 %, `micro post` 12.33/85 → 12/85, `union post` 17/85 → 16/85, trial `S-App-1` post 3/11 → 2/11. Every pre-triage figure, both false-drop columns and the precision columns are unchanged.
 
 ## Reproduction
 
+Run from this directory (`.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/`), with `<repo>` the repository root:
+
 ```
-bun scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
-bun scripts/score-plan-review-replay.ts report dataset.json --format md
+bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
+bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format md | cmp - report.md
 ```
 
 This directory carries digests of all 140 inputs but not their bytes: plan fixtures, briefs and raw sessions stay in the local run directory, two of the five plans belong to a private repository. `check` (which re-hashes supplied bytes) therefore runs only against that local run directory; `report` runs here and reproduces `summary.json` exactly.

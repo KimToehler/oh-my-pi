@@ -147,7 +147,16 @@ The five recorded round rows and the `round-2` agreement row (`83/85 = 97.6%`, b
 | the off-ledger drop rate has its own denominator | pool `i.falseDrop` instead of `i.additionalBlockingDrop` per arm | the arm test fails: the loss is folded into the target-level rate |
 | the unsuccessful cost row is labelled a subset | remove the label | the cost-label test fails |
 
-Observed on the published run after the fixes: S keeps 24 of 25 blocking mechanisms outside the ledger and drops one (`Replacement1SSpt3.9`), T keeps 5 of 5; both historical arms report `n/a` because their triage is unavailable. The target-level `false drop` cells (`0/36`, `0/10`) and every recall figure are byte-identical to the pre-fix report.
+Observed on the published run after the fixes: S keeps 24 of 25 blocking mechanisms outside the ledger and drops one (`Replacement1SSpt3.9`), T keeps 5 of 5; both historical arms report `n/a` because their triage is unavailable. The target-level `false drop` cells (`0/36`, `0/10`) and every recall figure were byte-identical to the pre-fix report at this point; the post-triage figures moved later, in wave 3 (section 6c).
+
+## 6c. Fix-wave surfaces (F2 wave 3)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| a retained automatic blocker needs a blocking target, not only a blocking finding | classify every matched target with the finding's severity again | the mixed-severity test fails: the below-threshold target is reported as retained and post recall reads 2/2 |
+| the reproduction commands name one working directory | — | run from the published directory, both commands reproduce their artifact byte-exactly (`wave-4/qa3`) |
+
+Observed on the published run after the fix: trial `S-App-1` post 3/11 → 2/11, S `macro post` 18.7 % → 18.1 %, `micro post` 12.33/85 → 12/85, `union post` 17/85 → 16/85, S `retained` 37 → 36 with one `survivingNonBlocker`. Exactly one finding/target pair in the run is affected (`RerunSApp1.5` matching `acp-permission-parity|R02.2` blocking and `|R07.1` below threshold); every pre-triage figure, both false-drop columns and both precision columns are unchanged.
 
 ## 7. Re-read of the upstream F1 evidence
 

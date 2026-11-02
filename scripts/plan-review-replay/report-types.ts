@@ -13,6 +13,11 @@ export interface TriageCounts {
 	readonly protected: number;
 	readonly undecided: number;
 	readonly pending: number;
+	/**
+	 * Discovered targets that are not independently blocking yet keep a surviving blocking match.
+	 * They are neither retained automatic blockers nor triage losses.
+	 */
+	readonly survivingNonBlocker: number;
 	/** Discovered targets whose only surviving matches are confirmed but nonblocking. */
 	readonly downgraded: number;
 	/** Independently blocking discovered targets lost by triage (includes downgraded). */

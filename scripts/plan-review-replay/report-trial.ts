@@ -113,6 +113,7 @@ export const EMPTY_COUNTS: TriageCounts = {
 	protected: 0,
 	undecided: 0,
 	pending: 0,
+	survivingNonBlocker: 0,
 	downgraded: 0,
 	falseDrop: 0,
 	legitimateResidual: 0,
@@ -125,6 +126,7 @@ export function addCounts(a: TriageCounts, b: TriageCounts): TriageCounts {
 		protected: a.protected + b.protected,
 		undecided: a.undecided + b.undecided,
 		pending: a.pending + b.pending,
+		survivingNonBlocker: a.survivingNonBlocker + b.survivingNonBlocker,
 		downgraded: a.downgraded + b.downgraded,
 		falseDrop: a.falseDrop + b.falseDrop,
 		legitimateResidual: a.legitimateResidual + b.legitimateResidual,
@@ -132,7 +134,10 @@ export function addCounts(a: TriageCounts, b: TriageCounts): TriageCounts {
 	};
 }
 
-/** Triage outcome per discovered target; independent valid adjudications only. */
+/**
+ * Triage outcome per discovered target; independent valid adjudications only. A retained automatic
+ * blocker needs both sides to be blocking: the surviving match and the target's own severity.
+ */
 function triageTargets(
 	discovered: ReadonlyMap<string, readonly Finding[]>,
 	targets: ReadonlyMap<string, Target>,
@@ -151,7 +156,8 @@ function triageTargets(
 			const c = classify(adj, index.triage.get(f.id));
 			if (RANK[c] > RANK[best]) best = c;
 		}
-		if (target.blocking === "blocking") blockingDiscovered++;
+		const blockingTarget = target.blocking === "blocking";
+		if (blockingTarget) blockingDiscovered++;
 		const lost = best === "dropped" || best === "nonblocking";
 		const step: Partial<Record<FindingClass, keyof TriageCounts>> = {
 			retained: "retained",
@@ -159,12 +165,12 @@ function triageTargets(
 			undecided: "undecided",
 			pending: "pending",
 		};
-		const key = step[best];
+		const key = best === "retained" && !blockingTarget ? "survivingNonBlocker" : step[best];
 		const delta: { -readonly [K in keyof TriageCounts]?: number } = {};
 		if (key !== undefined) delta[key] = 1;
-		if (best === "retained") retained.push(id);
+		if (best === "retained" && blockingTarget) retained.push(id);
 		if (lost) {
-			if (target.blocking === "blocking") delta.falseDrop = 1;
+			if (blockingTarget) delta.falseDrop = 1;
 			else if (target.blocking === "below-threshold") delta.legitimateResidual = 1;
 			else delta.unresolvedDrop = 1;
 			if (best === "nonblocking") delta.downgraded = 1;

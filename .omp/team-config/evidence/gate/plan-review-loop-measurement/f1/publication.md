@@ -63,11 +63,12 @@ The first grep excludes the lines that quote the scan commands themselves; every
 The published dataset carries digests but no input bytes, so `report` is the reproduction surface and `check` stays with the local run directory. Run from the published directory:
 
 ```
-$ bun scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
+$ cd .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment
+$ bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
 cmp ok
 ```
 
-(`cmp` printed nothing and exited 0; `cmp ok` is the shell's confirmation.) The Markdown rendering of the same dataset is published as `report.md`; its arm table is identical to the local run's, for example `S | 15/15 | … | 12.67/85 = 14.9% | 12.33/85 = 14.5% | … | 0/36 = 0.0% | 7/75 = 9.3%`.
+(`cmp` printed nothing and exited 0; `cmp ok` is the shell's confirmation. `<repo>` is the repository root; the scorer path is the only one that is not relative to this directory.) The Markdown rendering of the same dataset is published as `report.md`; its arm table is identical to the local run's, for example `S | 15/15 | … | 12.67/85 = 14.9% | 12/85 = 14.1% | … | 0/36 = 0.0% | 7/75 = 9.3%`.
 
 ## Content coverage
 
