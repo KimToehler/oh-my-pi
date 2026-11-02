@@ -1,5 +1,5 @@
 import { cmp, ratio, sortedBy, sum, unavailable, unique } from "./report-math";
-import type { ArmScore, ItemScore, Ratio, TrialScore } from "./report-types";
+import type { AdditionalBlocking, ArmScore, ItemScore, Ratio, TrialScore } from "./report-types";
 import { addAdditional, addCounts, EMPTY_ADDITIONAL, EMPTY_COUNTS } from "./report-trial";
 import type { Arm, Trial } from "./types";
 
@@ -39,9 +39,10 @@ export function scoreItems(completed: readonly TrialScore[]): readonly ItemScore
 		const unionPre = unique(trials.flatMap(t => t.discovered));
 		const unionPost = unique(withTriage.flatMap(t => t.retained ?? []));
 		const noPost = "triage unavailable for every completed trial";
-		const additional = trials
-			.flatMap(t => (t.additionalBlocking === null ? [] : [t.additionalBlocking]))
-			.reduce(addAdditional, EMPTY_ADDITIONAL);
+		// An arm or item whose trials carry no triage reports no off-ledger figure at all: a zero here
+		// would read as "nothing discovered or dropped" for a stage that never ran.
+		const withAdditional = trials.flatMap(t => (t.additionalBlocking === null ? [] : [t.additionalBlocking]));
+		const additional = withAdditional.length === 0 ? null : withAdditional.reduce(addAdditional, EMPTY_ADDITIONAL);
 		out.push({
 			arm: first.arm,
 			item: first.item,
@@ -58,15 +59,24 @@ export function scoreItems(completed: readonly TrialScore[]): readonly ItemScore
 				"no discovered independently blocking targets or triage unavailable",
 			),
 			additionalBlocking: additional,
-			additionalBlockingDrop: ratio(
-				additional.dropped,
-				additional.discovered,
-				"no discovered independently blocking additional mechanisms or triage unavailable",
-			),
+			additionalBlockingDrop:
+				additional === null
+					? unavailable(noPost)
+					: ratio(
+							additional.dropped,
+							additional.discovered,
+							"no discovered independently blocking additional mechanisms or triage unavailable",
+						),
 			additionalMechanisms: unique(trials.flatMap(t => t.findings.additionalMechanisms)),
 		});
 	}
 	return out.sort((a, b) => cmp(a.arm, b.arm) || cmp(a.item, b.item));
+}
+
+/** `null` unless at least one item of the arm has a triaged trial; zeros would read as measured. */
+function armAdditional(items: readonly ItemScore[]): AdditionalBlocking | null {
+	const present = items.flatMap(i => (i.additionalBlocking === null ? [] : [i.additionalBlocking]));
+	return present.length === 0 ? null : present.reduce(addAdditional, EMPTY_ADDITIONAL);
 }
 
 export function scoreArms(
@@ -121,7 +131,7 @@ export function scoreArms(
 				done.map(t => t.falsePositiveRate),
 				"no independently adjudicated findings",
 			),
-			additionalBlocking: its.map(i => i.additionalBlocking).reduce(addAdditional, EMPTY_ADDITIONAL),
+			additionalBlocking: armAdditional(its),
 			additionalBlockingDrop: pool(
 				its.map(i => i.additionalBlockingDrop),
 				"no discovered independently blocking additional mechanisms or triage unavailable",

@@ -147,7 +147,7 @@ The five recorded round rows and the `round-2` agreement row (`83/85 = 97.6%`, b
 | the off-ledger drop rate has its own denominator | pool `i.falseDrop` instead of `i.additionalBlockingDrop` per arm | the arm test fails: the loss is folded into the target-level rate |
 | the unsuccessful cost row is labelled a subset | remove the label | the cost-label test fails |
 
-Observed on the published run after the fixes: S keeps 24 of 25 blocking mechanisms outside the ledger and drops one (`Replacement1SSpt3.9`), T keeps 5 of 5; both historical arms report `n/a` because their triage is unavailable. The target-level `false drop` cells (`0/36`, `0/10`) and every recall figure were byte-identical to the pre-fix report at this point; the post-triage figures moved later, in wave 3 (section 6c).
+Observed on the published run after the fixes: S keeps 24 of 25 blocking mechanisms outside the ledger and drops one (`Replacement1SSpt3.9`), T keeps 5 of 5. The historical arms carried a `n/a` drop rate here but still published zero counts; since wave 4 (section 6e) `H-Focus` reports `n/a` in every cell and `H-Replay`'s zeros carry their `triaged 1/14` coverage. The target-level `false drop` cells (`0/36`, `0/10`) and every recall figure were byte-identical to the pre-fix report at this point; the post-triage figures moved later, in wave 3 (section 6c).
 
 ## 6c. Fix-wave surfaces (F2 wave 3)
 
@@ -167,6 +167,15 @@ Observed on the published run after the fix: trial `S-App-1` post 3/11 → 2/11,
 | the stale `T: 2 items` macro denominator | — | published `summary.json` reports `/5` for both fresh arms |
 
 Observed on the published run after the fix: S and T each move their one `downgraded` and `legitimateResidual` count to `survivingNonBlocker` (S 2, T 1); no recall, false-drop or precision figure moves, because no target in the run is independently blocking with only a below-threshold surviving match.
+
+## 6e. Fix-wave surfaces (F2 wave 4, second round)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| a below-threshold loss is legitimate only with a stated consequence | drop the consequence condition again | the consequence-free residual test fails: a refuted loss nobody justified is published as `legitimateResidual` |
+| an arm without triage reports no off-ledger figure | sum the trials regardless of availability again | the aggregate test fails: the historical arm publishes zeros instead of `n/a` |
+
+Observed on the published run after the fix: `H-Focus`'s off-ledger row changes from six zeros to `n/a (triage unavailable)`, `H-Replay`'s zeros gain their `triaged 1/14 trials` coverage, and the new `unstated residual` column is 0 in both fresh arms. No recall, false-drop or precision figure moves.
 
 ## 7. Re-read of the upstream F1 evidence
 

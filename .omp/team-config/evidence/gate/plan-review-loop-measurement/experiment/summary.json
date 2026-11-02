@@ -521,6 +521,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1249,6 +1250,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1330,6 +1332,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1416,6 +1419,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1499,6 +1503,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1584,6 +1589,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1669,6 +1675,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1751,6 +1758,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1830,6 +1838,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1911,6 +1920,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -1993,6 +2003,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2075,6 +2086,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2157,6 +2169,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2243,6 +2256,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2325,6 +2339,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2412,6 +2427,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2491,6 +2507,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2572,6 +2589,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2653,6 +2671,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2735,6 +2754,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2821,6 +2841,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "triageReason": null,
@@ -2878,19 +2899,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -2931,19 +2945,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -2984,19 +2991,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3037,19 +3037,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3090,19 +3083,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3196,19 +3182,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3249,19 +3228,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3302,19 +3274,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -3355,19 +3320,12 @@
         "value": null,
         "reason": "no discovered independently blocking targets or triage unavailable"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
         "value": null,
-        "reason": "no discovered independently blocking additional mechanisms or triage unavailable"
+        "reason": "triage unavailable for every completed trial"
       },
       "additionalMechanisms": []
     },
@@ -4004,14 +3962,7 @@
         "value": null,
         "reason": "no independently adjudicated findings"
       },
-      "additionalBlocking": {
-        "discovered": 0,
-        "retained": 0,
-        "protected": 0,
-        "undecided": 0,
-        "pending": 0,
-        "dropped": 0
-      },
+      "additionalBlocking": null,
       "additionalBlockingDrop": {
         "numerator": 0,
         "denominator": 0,
@@ -4027,6 +3978,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "pendingFindings": 29,
@@ -4111,6 +4063,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "pendingFindings": 37,
@@ -4195,6 +4148,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "pendingFindings": 0,
@@ -4279,6 +4233,7 @@
         "downgraded": 0,
         "falseDrop": 0,
         "legitimateResidual": 0,
+        "unstatedResidual": 0,
         "unresolvedDrop": 0
       },
       "pendingFindings": 0,

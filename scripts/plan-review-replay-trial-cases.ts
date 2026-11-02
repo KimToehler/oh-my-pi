@@ -117,6 +117,17 @@ describe("trial triage semantics", () => {
 		expect(s.falseDropRate.reason).not.toBeNull();
 	});
 
+	it("does not call a below-threshold loss legitimate when its triage states no consequence", () => {
+		const s = single({
+			targets: [target("v", "I", "below-threshold")],
+			findings: ["f1"],
+			adjudications: [adj("f1", { targets: ["v"] })],
+			triage: [tri("f1", "refuted", { consequence: false })],
+		});
+		// The contract requires below-threshold severity *and* a concrete stated consequence.
+		expect(s.triage).toMatchObject({ legitimateResidual: 0, unstatedResidual: 1, falseDrop: 0 });
+	});
+
 	it("counts adjudication kinds separately from validity", () => {
 		const s = single({
 			targets: [target("x", "I", "blocking")],

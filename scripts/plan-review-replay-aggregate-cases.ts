@@ -150,9 +150,10 @@ describe("hand-calculated two-item dataset", () => {
 		// And the retained case is the mirror image.
 		expect(arm_("S").additionalBlocking).toMatchObject({ discovered: 1, retained: 1, dropped: 0 });
 		expect(arm_("S").additionalBlockingDrop).toMatchObject({ numerator: 0, denominator: 1, value: 0 });
-		// A historical arm without triage has nothing to report.
-		expect(arm_("H").additionalBlocking).toMatchObject({ discovered: 0, dropped: 0 });
+		// A historical arm without triage reports no figure at all: a zero would read as measured.
+		expect(arm_("H").additionalBlocking).toBeNull();
 		expect(arm_("H").additionalBlockingDrop.value).toBeNull();
+		expect(formatMarkdown(summary)).toContain("| H | n/a (triage unavailable) |");
 		const md = formatMarkdown(dropped);
 		const row = md.split("\n").find(l => l.startsWith("| S |") && l.includes("| 1 | 0 | 0 | 0 | 0 | 1 |"));
 		expect(row).toBeDefined();

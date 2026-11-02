@@ -124,6 +124,7 @@ export const EMPTY_COUNTS: TriageCounts = {
 	downgraded: 0,
 	falseDrop: 0,
 	legitimateResidual: 0,
+	unstatedResidual: 0,
 	unresolvedDrop: 0,
 };
 
@@ -137,6 +138,7 @@ export function addCounts(a: TriageCounts, b: TriageCounts): TriageCounts {
 		downgraded: a.downgraded + b.downgraded,
 		falseDrop: a.falseDrop + b.falseDrop,
 		legitimateResidual: a.legitimateResidual + b.legitimateResidual,
+		unstatedResidual: a.unstatedResidual + b.unstatedResidual,
 		unresolvedDrop: a.unresolvedDrop + b.unresolvedDrop,
 	};
 }
@@ -183,9 +185,13 @@ function triageTargets(
 		if (key !== undefined) delta[key] = 1;
 		if (retainable) retained.push(id);
 		if (lost) {
+			// The contract calls a loss legitimate only with below-threshold severity *and* a concrete
+			// stated consequence; a loss nobody justified is counted, never relabelled as justified.
+			const stated = matches.some(f => index.triage.get(f.id)?.consequence === true);
 			if (blockingTarget) delta.falseDrop = 1;
-			else if (target.blocking === "below-threshold") delta.legitimateResidual = 1;
-			else delta.unresolvedDrop = 1;
+			else if (target.blocking !== "below-threshold") delta.unresolvedDrop = 1;
+			else if (stated) delta.legitimateResidual = 1;
+			else delta.unstatedResidual = 1;
 			if (best === "nonblocking") delta.downgraded = 1;
 		}
 		counts = addCounts(counts, { ...EMPTY_COUNTS, ...delta });

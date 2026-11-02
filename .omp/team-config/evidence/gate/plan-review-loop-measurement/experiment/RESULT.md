@@ -56,10 +56,10 @@ One further rule shapes the `post` column: a target is a retained automatic bloc
 
 ## Triage
 
-| arm | retained | protected | surviving non-blocker | undecided | pending | downgraded | false drop | legitimate residual |
-|---|---|---|---|---|---|---|---|---|
-| S | 36 | 0 | 2 | 0 | 0 | 0 | **0** | 0 |
-| T | 10 | 0 | 1 | 0 | 0 | 0 | **0** | 0 |
+| arm | retained | protected | surviving non-blocker | undecided | pending | downgraded | false drop | legitimate residual | unstated residual |
+|---|---|---|---|---|---|---|---|---|---|
+| S | 36 | 0 | 2 | 0 | 0 | 0 | **0** | 0 | 0 |
+| T | 10 | 0 | 1 | 0 | 0 | 0 | **0** | 0 | 0 |
 
 Across 20 trials and 100 findings the verifier dropped no independently blocking target, and it produced no target-level loss at all. Three discovered targets are not retained automatic blockers although a match of theirs survived triage: the adjudicator rated the target below the current blocking threshold (`S-App-1`), or rated the surviving finding below it while the verifier confirmed the finding as blocking (`S-Spt-3`, `T-Smt-1`). None of the three is a verifier loss — the verifier kept the finding in every case.
 
@@ -70,7 +70,7 @@ The frozen ledger is not the whole verifier story. Counting the independently bl
 | S | 25 | 24 | 1 | 1/25 = 4.0% |
 | T | 5 | 5 | 0 | 0/5 = 0.0% |
 
-That single drop is a real verifier loss and is deliberately kept out of the `false drop` column, whose frozen definition is target-level. Both figures are scorer output (`report.md`, `Blocking discoveries outside the frozen ledger`), which states the same unit; a mechanism found in two repeats of one plan therefore counts twice, as trial-level recall does.
+That single drop is a real verifier loss and is deliberately kept out of the `false drop` column, whose frozen definition is target-level. Both figures are scorer output (`report.md`, `Blocking discoveries outside the frozen ledger`), which states the same unit; a mechanism found in two repeats of one plan therefore counts twice, as trial-level recall does. The historical arms are absent from this table on purpose: `H-Focus` has no triage in any trial and reports `n/a` rather than a zero, and `H-Replay`'s zeros carry their `triaged 1/14` coverage.
 
 ## Round records
 
@@ -114,7 +114,7 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 
 ## Amendments after the input freeze
 
-`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Six scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and two correct a figure against the contract's own wording:
+`scoring-contract.md` was frozen before any trial and its bytes are unchanged. Eight scorer rules were added after the fresh results existed; four remove an unmeasured claim or add a measured one the contract's target-level definitions left unreported, and four correct a figure against the contract's or the specification's own wording:
 
 1. `annotated` validity for rows that were never independently judged. The 44 historical annotation rows previously carried `valid`, which placed them in the precision denominator; the historical arms' `false positive` is now `n/a` instead of `0`.
 2. Post-triage coverage. Figures pooled from fewer trials than the arm completed now render their contributing trial count.
@@ -122,6 +122,8 @@ Experiment wall envelope 19,466,782 ms (≈5 h 24 min) across concurrent dispatc
 4. Triage outcomes for independently blocking discoveries outside the frozen ledger, reported separately from the target-level `false drop` the contract defines. Without it the one verifier drop this experiment produced was in no published figure.
 5. Target severity decides retention. The scorer previously classified each matched target with the severity of the surviving finding, which made a `below-threshold` target a retained automatic blocker although the contract requires the target itself to be independently blocking. This is the one amendment that moved a fresh-arm figure: S `macro post` 18.7 % → 18.1 %, `micro post` 12.33/85 → 12/85, `union post` 17/85 → 16/85, trial `S-App-1` post 3/11 → 2/11. Every pre-triage figure, both false-drop columns and the precision columns are unchanged.
 6. Verifier disposition decides survival, not eligibility. The scorer previously demoted a match the verifier had confirmed as blocking whenever the adjudicator rated that finding below threshold, which published it as a `downgraded` verifier loss plus a `legitimate residual`. The contract's `confirmed-but-nonblocking downgrade` is the verifier's own call, so such a match survives triage — and it still is no retained automatic blocker, because the contract requires an independently blocking finding as well as an independently blocking target. S and T each move their one `downgraded` and `legitimate residual` count to `surviving non-blocker`; no recall, false-drop or precision figure moves.
+7. A below-threshold loss counts as a legitimate residual only when its triage row states a concrete consequence, which the contract's definition requires alongside below-threshold severity; a loss nobody justified is counted separately as `unstated residual`. Both columns are 0 in this run, so no published figure moves.
+8. An arm whose trials carry no triage reports no off-ledger figure. `H-Focus` previously published zeros for discovered, retained and dropped mechanisms although its triage never ran, which reads as a measured result; it now reports `n/a`, and `H-Replay`'s partial zeros carry their `triaged 1/14` coverage. The specification requires exactly that.
 
 ## Reproduction
 

@@ -137,16 +137,22 @@ export function formatMarkdown(s: ScoreSummary): string {
 		"",
 		...table(
 			["arm", "discovered", "retained", "protected", "undecided", "pending", "dropped", "drop rate"],
-			s.arms.map((a: ArmScore) => [
-				a.arm,
-				String(a.additionalBlocking.discovered),
-				String(a.additionalBlocking.retained),
-				String(a.additionalBlocking.protected),
-				String(a.additionalBlocking.undecided),
-				String(a.additionalBlocking.pending),
-				String(a.additionalBlocking.dropped),
-				post(a.additionalBlockingDrop, a.triagedTrials, a.completedTrials),
-			]),
+			s.arms.map((a: ArmScore) => {
+				const b = a.additionalBlocking;
+				const cover =
+					a.triagedTrials === a.completedTrials ? "" : ` (triaged ${a.triagedTrials}/${a.completedTrials} trials)`;
+				const cell = (n: number) => (b === null ? "n/a (triage unavailable)" : `${n}${cover}`);
+				return [
+					a.arm,
+					cell(b?.discovered ?? 0),
+					cell(b?.retained ?? 0),
+					cell(b?.protected ?? 0),
+					cell(b?.undecided ?? 0),
+					cell(b?.pending ?? 0),
+					cell(b?.dropped ?? 0),
+					post(a.additionalBlockingDrop, a.triagedTrials, a.completedTrials),
+				];
+			}),
 		),
 		"## Costs",
 		`- reviewer: ${money(c.reviewer)}`,

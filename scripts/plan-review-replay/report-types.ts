@@ -22,8 +22,13 @@ export interface TriageCounts {
 	readonly downgraded: number;
 	/** Independently blocking discovered targets lost by triage (includes downgraded). */
 	readonly falseDrop: number;
-	/** Discovered targets independently below threshold and lost by triage. */
+	/**
+	 * Discovered targets independently below threshold and lost by triage, with a stated consequence.
+	 * The frozen contract requires both before a loss may be called legitimate.
+	 */
 	readonly legitimateResidual: number;
+	/** Below-threshold losses whose triage row states no consequence; not a justified residual. */
+	readonly unstatedResidual: number;
 	/** Discovered targets with unresolved severity lost by triage; outside the definitive denominator. */
 	readonly unresolvedDrop: number;
 }
@@ -94,7 +99,8 @@ export interface ItemScore {
 	readonly unionPre: Ratio;
 	readonly unionPost: Ratio;
 	readonly falseDrop: Ratio;
-	readonly additionalBlocking: AdditionalBlocking;
+	/** `null` when no completed trial of this item has triage: the figure is unavailable, not zero. */
+	readonly additionalBlocking: AdditionalBlocking | null;
 	/** Dropped over discovered blocking additional mechanisms of the triaged trials. */
 	readonly additionalBlockingDrop: Ratio;
 	readonly additionalMechanisms: readonly string[];
@@ -118,7 +124,8 @@ export interface ArmScore {
 	readonly falseDrop: Ratio;
 	readonly falsePositive: Ratio;
 	readonly triage: TriageCounts;
-	readonly additionalBlocking: AdditionalBlocking;
+	/** `null` when no completed trial of this arm has triage: the figure is unavailable, not zero. */
+	readonly additionalBlocking: AdditionalBlocking | null;
 	/** Dropped over discovered blocking additional mechanisms of the triaged trials. */
 	readonly additionalBlockingDrop: Ratio;
 	readonly pendingFindings: number;

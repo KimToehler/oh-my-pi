@@ -127,8 +127,8 @@ Unit: mechanisms per trial, deduplicated within a trial and summed over trials.
 
 | arm | discovered | retained | protected | undecided | pending | dropped | drop rate |
 |---|---|---|---|---|---|---|---|
-| H-Focus | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
-| H-Replay | 0 | 0 | 0 | 0 | 0 | 0 | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| H-Focus | n/a (triage unavailable) | n/a (triage unavailable) | n/a (triage unavailable) | n/a (triage unavailable) | n/a (triage unavailable) | n/a (triage unavailable) | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
+| H-Replay | 0 (triaged 1/14 trials) | 0 (triaged 1/14 trials) | 0 (triaged 1/14 trials) | 0 (triaged 1/14 trials) | 0 (triaged 1/14 trials) | 0 (triaged 1/14 trials) | n/a (no discovered independently blocking additional mechanisms or triage unavailable) |
 | S | 25 | 24 | 0 | 0 | 0 | 1 | 1/25 = 4.0% |
 | T | 5 | 5 | 0 | 0 | 0 | 0 | 0/5 = 0.0% |
 
