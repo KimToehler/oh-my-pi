@@ -1,2 +1,2 @@
-$ git diff --quiet 9565a314226c5191a9f2bac34145b17784b6e5bc HEAD -- team-config/agent/skills/review-work/openspec/schemas/omp-gated team-config/README.md
+$ git diff --quiet 0d4701f5342d9907287b3b34370165ac95e0b6b7 HEAD -- team-config/agent/skills/review-work/openspec/schemas/omp-gated team-config/agent/agents/blocker-verifier.md team-config/README.md
 exit 0

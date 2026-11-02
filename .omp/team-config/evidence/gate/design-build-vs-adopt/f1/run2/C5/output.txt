@@ -1,0 +1,25 @@
+The correctness-lens reviewer (`CorrectnessLens`) returned **REJECT** with 2 blockers. I sent its brief and lens paragraph verbatim, with only the repository root and change directory filled in. Nothing was edited. Steps 1–2 (validation and digest) were not run, and items 2–3 were not dispatched, so this is not a complete round and no review.md was written. Full output below:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The service-level approach matches the existing password-check flow, but the plan assumes a nonexistent UI integration and misclassifies the changed sign-in boundary.",
+  "blockers": [
+    {
+      "area": "Correctness / end-to-end result handling",
+      "defect": "The promised handling of TrialEnded has no implementation path in this repository. Following the implementation task produces the service result without the upgrade navigation or trial-ended message the design promises. This is a missing consumer integration, not merely a missing verification command; it is reversible through a coordinated implementation.",
+      "evidence": "openspec/changes/trial-expiry/design.md:19 says “the UI maps it to the existing upgrade screen,” and tasks.md:9 expects a visible trial-ended message. However, tasks.md:5 implements only the result and service check. settings.gradle.kts:2 includes only :shared, shared/build.gradle.kts:3 declares an Android library, and the complete source/reference search finds no UI, upgrade screen, or SignInResult consumer. The existing result is declared and returned only in shared/src/commonMain/kotlin/auth/SignInService.kt:5-17.",
+      "change": "Identify the actual UI consumer and upgrade-screen implementation, and include its TrialEnded handling in the coordinated design and tasks. If that consumer lives outside this repository, name the required external change and release dependency rather than assuming the integration already exists."
+    },
+    {
+      "area": "Correctness / gate classification",
+      "defect": "Mandatory class none is inconsistent with the delivered change: this modifies the existing authentication/admission path. Not copying or storing a credential does not make a sign-in refusal change exempt. Under normal implementation, the incorrect classification selects insufficient gate review; this is reversible by correcting the classification before implementation.",
+      "evidence": "openspec/changes/trial-expiry/gate.md:3 sets class none, justified at gate.md:5 because the change “handles no credential.” But shared/src/commonMain/kotlin/auth/SignInService.kt:14-17 accepts a password, checks it, and decides whether to return SignedIn; design.md:15 adds a new admission decision directly to that flow. openspec/config.yaml:1 selects omp-gated, whose schema.yaml:253 requires classification by delivered behaviour and reach, not merely credential handling. The review-work skill's Phase 0.5 explicitly includes changes to an authentication or authorisation path in auth-secrets-pii.",
+      "change": "Set Mandatory class to auth-secrets-pii and correct the risk assessment to describe the changed sign-in admission boundary. Retain product risk tier and use the corresponding two-reviewer gate."
+    }
+  ],
+  "notes": [
+    "Unverified: design.md:23 claims that the API repeats the trial check on every request. The repository contains only an HTTP client (shared/src/commonMain/kotlin/http/Client.kt:8-11), not the server-side enforcement. This does not independently block the stated service-level requirement or its explicit exclusion of already-signed-in sessions, but the claimed mitigation needs an external source reference."
+  ]
+}
+```

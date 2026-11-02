@@ -1,0 +1,37 @@
+The correctness reviewer (`CorrectnessLens`, plan-reviewer) returned **REJECT** with 3 blockers. I dispatched only item 1, as asked. Its task was the brief and the correctness lens paragraph verbatim, with Repository root `/private/tmp/dba-f1/C2` and Change directory `/private/tmp/dba-f1/C2/openspec/changes/keycloak-sign-in`. The `context` was the exact prescribed string. I didn't run steps 1–2 (`V` and `V --digest`), so no digest is tied to this result. I didn't write `review.md` and edited nothing.
+
+Full reviewer output:
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The plan does not connect the shared library to runnable Android/iOS sign-in surfaces, clears valid sessions on transient refresh failures despite the requirement, and lacks the required justification for building the OIDC flow.",
+  "blockers": [
+    {
+      "area": "Correctness and architecture — application integration",
+      "defect": "The planned implementation stops at a shared library, but the requirement needs application entry points, browser/redirect handling and signed-in navigation. In this repository there are no existing app shells to receive the promised changes. Completing the listed implementation tasks therefore does not deliver the normal user sign-in path on either target. This is reversible through additional implementation, but it prevents the stated feature from being delivered.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires the browser login to return to the app and show the signed-in home screen. openspec/changes/keycloak-sign-in/proposal.md:23 names Android and iOS app shells as affected components, while settings.gradle.kts:2 includes only :shared and shared/build.gradle.kts:3 configures it as com.android.library. The source inventory contains only shared/src/commonMain/kotlin/http/Client.kt, with no application caller. openspec/changes/keycloak-sign-in/tasks.md:5-6 plans only shared auth implementation and ApiClient changes; design.md:40 also assumes an existing password screen that is absent from this repository.",
+      "change": "Identify the actual Android and iOS host applications and include their coordinated changes, or explicitly plan their creation here. Specify the sign-in entry point, platform browser/callback integration, startup session restoration and navigation to signed-in/signed-out screens. Include implementation tasks for those changes rather than assuming existing shells."
+    },
+    {
+      "area": "Correctness — refresh failure semantics",
+      "defect": "The design signs the user out on every refresh failure, whereas the requirement keeps the session until Keycloak rejects the refresh token. An ordinary network outage, timeout or temporary server failure during refresh would delete a still-valid persisted session without any token rejection. Signing in again can recover access, but the required session continuity is broken.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 says the app SHALL keep the user signed in across restarts 'until Keycloak rejects the refresh token'. In contrast, openspec/changes/keycloak-sign-in/design.md:32 says 'a failed refresh clears the token store and signs the user out', and proposal.md:11 likewise makes every failed refresh a sign-out condition.",
+      "change": "Distinguish definitive refresh-token rejection from transport and temporary service failures. Clear the persisted session on rejection; retain it on transient failure and define how the current API operation reports failure without using an expired access token. Make the proposal and design agree with the requirement."
+    },
+    {
+      "area": "Architecture — Build vs. adopt value proof",
+      "defect": "The sign-in subsection chooses to build a covered authentication/protocol mechanism without recording any gap that requires custom implementation. Both candidate rejections lack their gaps, and the kotlin-multiplatform-oidc candidate lacks its newest release and date. These are explicitly required decision inputs, so applying this plan would build the flow without the required cheaper-alternative justification.",
+      "evidence": "openspec/changes/keycloak-sign-in/design.md:17 rejects both kotlin-multiplatform-oidc and AppAuth-Android without explaining either rejection; its first candidate supplies no newest release or release date. design.md:18 then chooses to build the authorization-code/PKCE flow without a gap. openspec/schemas/omp-gated/schema.yaml:218-222 requires those candidate facts, a gap for each rejection and build decision, and prohibits building auth/protocol mechanisms when an earlier stage covers them.",
+      "change": "Complete the candidate record with the required release facts and concrete coverage gaps. Adopt an existing implementation if it covers the requirements; retain a custom build only if the record establishes a required capability that none of the searched stages provides."
+    }
+  ],
+  "notes": [
+    "The existing-client description is inaccurate: design.md:5,15 describes no auth code/an unauthenticated client, but shared/src/commonMain/kotlin/http/Client.kt:10-11 already accepts a caller-supplied token and emits a Bearer header. This does not block by itself because it supplies no OIDC flow, persistence or refresh; preserve that distinction when designing the session-to-client integration.",
+    "Unverified: design.md:32 assumes oidc-ktor provides refresh before expiry. The repository has no installed implementation or shipped documentation establishing that timing guarantee. Library-behaviour uncertainty alone is not a blocker, but proactive expiry handling should not be assumed from bearer-refresh support.",
+    "design.md:40 and gate.md:6 describe rollback/reversion through the previous app version, while proposal.md:5 says that version's password-auth API is no longer accepted. The stated rollback would not restore sign-in without a compatible backend or token-capable release. This is a nonblocking recovery limitation here because the backend cutover predates the planned change and rollback availability is not a requirement."
+  ]
+}
+```
+
+The output parsed as a valid structured verdict, so no retry is needed. A full round still needs the verification and checks lenses (items 2 and 3) dispatched together in one batch with this one.

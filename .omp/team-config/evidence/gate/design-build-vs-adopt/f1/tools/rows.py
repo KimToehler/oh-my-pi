@@ -404,6 +404,7 @@ The app SHALL sign the user in through Keycloak with the OpenID Connect authoriz
 GATE_SIGNIN = """# Gate
 
 - **Mandatory class**: auth-secrets-pii
+- **Depth**: risky (the class is auth-secrets-pii)
 - **Risk tier**: product
 - **Author's risk assessment**: Sign-in and token storage handle the user's tokens; a defect can lock users out or expose a refresh token on the device. Revertible by shipping the previous app version; tokens issued meanwhile stay valid until Keycloak expires them.
 - **Whole-diff review**: needed (auth flow, token storage and the REST client span three layers)
@@ -562,6 +563,7 @@ SPEC_TRIAL = """# Spec Delta
 GATE_TRIAL = """# Gate
 
 - **Mandatory class**: none
+- **Depth**: standard (the class is none and no review, gate or release mechanism changes)
 - **Risk tier**: product
 - **Author's risk assessment**: A wrong comparison locks out paying or in-trial users, or lets ended trials in. Revertible by shipping the previous version. Class `none`: the change adds a refusal to an existing sign-in path and handles no credential.
 - **Whole-diff review**: not needed (one function in one module)
@@ -588,7 +590,7 @@ DESIGN_C5 = """# Design
 
 ## Context
 
-See proposal.md - Why. `SignInService.signIn` (`shared/src/commonMain/kotlin/auth/SignInService.kt:14`) checks the password and returns `SignedIn`; `Account` carries `plan` and `trialEndsAtMillis` (`shared/src/commonMain/kotlin/account/Account.kt:6`).
+See proposal.md - Why. `SignInService.signIn` (`shared/src/commonMain/kotlin/auth/SignInService.kt:17`) checks the password and returns `SignedIn`; `SignInService` already takes the app's `AppClock` (`SignInService.kt:15`, `shared/src/commonMain/kotlin/time/AppClock.kt`); `Account` carries `plan` and `trialEndsAtMillis` (`shared/src/commonMain/kotlin/account/Account.kt:6`).
 
 ## Goals / Non-Goals
 
@@ -598,7 +600,7 @@ Goals: refuse ended trials at sign-in. Non-Goals: ending sessions of users alrea
 
 ### D1. Check after the password
 
-The trial check runs after the password matched, so an ended trial is only revealed to someone who knows the password. `SignInService` gets a `now: () -> Long` constructor parameter (defaulting to `kotlin.time.Clock.System`), so tests set the time.
+The trial check runs after the password matched, so an ended trial is only revealed to someone who knows the password. It compares `trialEndsAtMillis` with the injected `clock.nowMillis()`, so tests set the time through the existing `AppClock` parameter.
 
 ### D2. Result type
 
@@ -621,6 +623,80 @@ CHANGES = {
     "backup-checksum": {"proposal.md": PROPOSAL_CHECKSUM},
     "upload-dedupe": {"proposal.md": PROPOSAL_DEDUPE},
 }
+
+SPEC_CHECKSUM = """# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: Backups carry a CRC-32 checksum
+
+`BackupExporter.export` SHALL append a final line `crc32:<8 lowercase hex digits>` holding the CRC-32 of every byte before that line, and `BackupImporter.import` SHALL refuse a file whose last line is missing or does not match with `CorruptBackup`.
+
+#### Scenario: Round trip
+
+- **WHEN** a backup of three notes is exported and imported unchanged
+- **THEN** import returns the same three notes
+
+#### Scenario: Negative control
+
+- **WHEN** one byte of an exported backup's note lines is changed before import
+- **THEN** import MUST fail with `CorruptBackup`, and a successful import fails the test
+"""
+
+GATE_CHECKSUM = """# Gate
+
+- **Mandatory class**: none
+- **Depth**: standard (the class is none and no review, gate or release mechanism changes)
+- **Risk tier**: product
+- **Author's risk assessment**: A wrong checksum refuses valid backups or imports corrupt ones. Revertible by shipping the previous version; no backup with a checksum is in circulation yet. Class `none`: a local file format detail, no credential, migration, wire contract or shared state.
+- **Whole-diff review**: not needed (one file in one module)
+- **Accepted residual risks**: none (no residual risk is accepted before review)
+- **Out of scope for blocking**: none (the change has no scope exclusions)
+"""
+
+TASKS_CHECKSUM = """# Tasks
+
+## 1. Checksum
+
+- [ ] 1.1 Add the checksum line to `BackupExporter.export` and its check to `BackupImporter.import` as design.md decides, with unit tests for a round trip, a changed byte and a missing checksum line. Verify: `./gradlew test`
+
+## 2. Final verification
+
+- [ ] 2.1 F1. Manual QA: export a backup from the sample notes, import it, then flip one byte with a hex editor and see the import refused with `CorruptBackup`.
+
+## Workflow follow-up
+
+- F2 merge gate (`review-work`) after 2.1.
+"""
+
+DESIGN_C8 = """# Design
+
+## Context
+
+See proposal.md - Why. `src/main/kotlin/Backup.kt` holds `BackupExporter` and `BackupImporter` for the line-based backup file.
+
+## Goals / Non-Goals
+
+Goals: detect truncated or altered backups on import. Non-Goals: repairing damaged backups, encryption.
+
+## Decisions
+
+### D1. CRC-32 written in `Backup.kt`
+
+A private `Crc32` object in `Backup.kt` builds the 256-entry lookup table for the reflected polynomial `0xEDB88320` on first use and updates the running value byte by byte (`crc = table[(crc xor b) and 0xFF] xor (crc ushr 8)`), starting at `0xFFFFFFFF` and inverting at the end. Export appends `crc32:<hex>`; import recomputes it over every byte before the last line and refuses a mismatch with `CorruptBackup`.
+
+### D2. Checksum line last
+
+The checksum is the file's last line, so a truncated file loses or breaks it and fails the check.
+
+## Risks / Trade-offs
+
+- [CRC-32 does not detect deliberate tampering] → Backups are not a security boundary; the check targets transfer damage.
+
+## Migration Plan
+
+Ship in the next release. Rollback: the previous release.
+"""
 
 
 def signin_complete(design):
@@ -650,12 +726,17 @@ ROWS = {
     "C3": (kmp(), *signin_complete(DESIGN_C3)),
     "C4": (kmp(), *signin_complete(DESIGN_C4)),
     "C5": (
-        {**kmp(), **ACCOUNT},
+        {**kmp(), **ACCOUNT_CLOCK},
         "trial-expiry",
         {"proposal.md": PROPOSAL_TRIAL, "specs/trial-expiry/spec.md": SPEC_TRIAL, "gate.md": GATE_TRIAL, "tasks.md": TASKS_TRIAL, "design.md": DESIGN_C5},
     ),
     "C6": (kmp(), *signin_complete(DESIGN_C6)),
     "C7": (kmp(), *signin_complete(None)),
+    "C8": (
+        JVM_BACKUP,
+        "backup-checksum",
+        {"proposal.md": PROPOSAL_CHECKSUM, "specs/backup-checksum/spec.md": SPEC_CHECKSUM, "gate.md": GATE_CHECKSUM, "tasks.md": TASKS_CHECKSUM, "design.md": DESIGN_C8},
+    ),
 }
 
 

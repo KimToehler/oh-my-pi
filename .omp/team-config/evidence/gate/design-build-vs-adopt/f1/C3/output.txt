@@ -1,43 +1,198 @@
-I sent one `plan-reviewer` task (`CorrectnessLens`) with the exact `context` string from the instruction. Its brief was the review brief and the correctness lens paragraph, word for word, with only the two paths filled in: `/private/tmp/dba-f1/C3` and `/private/tmp/dba-f1/C3/openspec/changes/keycloak-sign-in`. Nothing was edited.
+I ran the full step-3 round and the step-4 triage. All 9 blockers came back `confirmed` with `blocking: true`, so all 9 stay blockers. Per your instructions I made no commits, wrote no review.md and edited nothing. You only asked for steps 3 and 4, so I did not run steps 1–2 (the validator, the commit and the `V --digest` digest) either, which means this round has no digest tied to it.
 
-Per your request I skipped steps 1–2 (validation and digest) and lenses 2 and 3. That means this is not a complete review round and the result can't go into `review.md`.
+**Setup**
+- **Depth:** `risky`, from `gate.md:4` ("the class is auth-secrets-pii"). That means two fresh plan-reviewer items in one task call: scope A then scope B. Neither item carried a `model`, and the context line was exactly as the instruction specifies.
+- **Paths:**
+  - Repository root: `/private/tmp/dba-f1/C3`
+  - Change directory: `/private/tmp/dba-f1/C3/openspec/changes/keycloak-sign-in`
+- **Model check:** all three runs used the pinned model, so all three results count and no retry was needed. The provider and model come from each run's session file, and the pins come from the configuration.
 
-The reviewer returned **REJECT** with 4 blockers. Full output:
+| Dispatch | Ran on | Pin | Source of pin |
+|---|---|---|---|
+| PlanReviewScopeA | `onara/cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:high` | `task.agentModelOverrides` |
+| PlanReviewScopeB | `onara/cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:high` | `task.agentModelOverrides` |
+| BlockerTriage | `onara/cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:medium` | `agents/blocker-verifier.md:5` |
+
+- **Verifier brief:** I built it in the eval kernel directly from `agent://PlanReviewScopeA/blockers` and `agent://PlanReviewScopeB/blockers`. Each blocker was serialised from the delivered JSON object, nothing was retyped, and the result went to the verifier with no `model`. Blockers 1–4 are scope A's and 5–9 are scope B's.
+- **Triage result:** it counts. It has exactly one entry for each index 1–9, with no duplicates and no other indices.
+
+## Scope A — PlanReviewScopeA (REJECT)
 
 ```json
 {
   "verdict": "REJECT",
-  "summary": "The plan has end-to-end application integration and session-lifecycle gaps, an incompatible rollback path, and an incomplete required build-versus-adopt record.",
+  "summary": "The plan has a session-lifetime contradiction, omits the application integration needed to complete sign-in on either target, lacks the required platform-stage record for token storage, and does not provide the required credential-flow inventory and containment controls.",
   "blockers": [
     {
-      "area": "Correctness and architecture — application integration",
-      "defect": "The plan assumes existing Android/iOS application shells and a password sign-in screen, but this repository contains only a shared library. Its implementation tasks modify that library and ApiClient without creating or locating the application integration required to launch sign-in, receive redirects, restore the session at startup, and display the signed-in home screen. Following those tasks cannot deliver the required app behavior on either target. The resulting incomplete sign-in experience is reversible through additional implementation.",
-      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires browser sign-in, redirect handling and a signed-in home screen. proposal.md:23 assumes Android/iOS app shells, and design.md:39 assumes a password screen to remove. However, settings.gradle.kts:2 includes only ':shared', shared/build.gradle.kts:3 declares an Android library, and the complete application-source search finds only shared/src/commonMain/kotlin/http/Client.kt. tasks.md:5-6 assigns implementation only in ':shared' and ApiClient; design.md:13-31 supplies dependency choices but no host integration design.",
-      "change": "Identify the actual Android and iOS application hosts and their integration locations, or explicitly include their creation in this change. Design and assign the platform browser/redirect setup, sign-in entry point, startup session restoration and auth-state-driven navigation. Reconcile the claimed existing password-screen migration with the code actually available."
+      "area": "CHECK 4 — Refresh-failure decision",
+      "defect": "The design signs users out on any failed refresh, whereas the requirement keeps them signed in until Keycloak rejects the refresh token. Ordinary mobile connectivity loss during refresh therefore deletes a potentially valid session without a Keycloak rejection. The damage is recoverable by signing in again, but directly violates the persistence criterion.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 requires persistence “until Keycloak rejects the refresh token.” openspec/changes/keycloak-sign-in/design.md:31 instead says “a failed refresh clears the token store and signs the user out”; proposal.md:11 repeats that broader rule. A timeout or offline refresh is a concrete failure with no rejection from Keycloak.",
+      "change": "Define the refresh outcome predicate explicitly: distinguish definitive refresh-token rejection from transport failures, unavailable services, malformed responses and an in-progress refresh. Preserve the session credentials on recoverable or undecidable outcomes, expose temporary unavailability, and clear the session only on the decided terminal outcomes. Include controls demonstrating that temporary connectivity loss does not sign the user out and definitive rejection does."
     },
     {
-      "area": "Correctness — refresh failure semantics",
-      "defect": "Clearing the token store after every failed refresh contradicts the requirement to preserve the session until Keycloak rejects the refresh token. During ordinary offline operation, a timeout or temporary service failure can prevent refresh without Keycloak rejecting anything; the planned behavior then deletes a still-valid refresh token and forces another sign-in. This is recoverable by signing in again, but directly breaks the persistence requirement.",
-      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:7 says the app SHALL keep the user signed in across restarts 'until Keycloak rejects the refresh token'. In contrast, design.md:31 says 'a failed refresh clears the token store and signs the user out', and proposal.md:11 repeats the unconditional failure policy.",
-      "change": "Distinguish definitive refresh-token rejection from transport failure or temporary endpoint unavailability. Preserve the stored session when rejection has not been established, define the unavailable-request behavior, and reserve token deletion/sign-out for the rejection condition specified by the requirement."
+      "area": "CHECK 6 / Boundary — Missing end-to-end platform integration",
+      "defect": "The requirement depends on application entry points that neither exist in this repository nor have implementation work assigned. The plan's two implementation tasks stop at :shared and ApiClient, leaving no designed path from an Android/iOS application through browser launch and redirect handling to the signed-in screen and startup restoration. Normal sign-in cannot reach the promised application outcome through the planned code alone. This is a functional scope gap, not merely a missing QA command.",
+      "evidence": "openspec/changes/keycloak-sign-in/specs/keycloak-sign-in/spec.md:11-12 requires the browser redirect to reach the app and show the signed-in home screen. proposal.md:23 explicitly includes Android and iOS app shells, but tasks.md:5-6 assigns only shared-module functionality and ApiClient changes. settings.gradle.kts:2 includes only :shared; shared/build.gradle.kts:3 applies com.android.library, and lines 7-9 declare library targets. Repository enumeration found no host applications, manifests, iOS application configuration, screens or application lifecycle entry points. Consequently no application code Boundary is locatable for this criterion.",
+      "change": "Resolve the host-application prerequisite in the plan and assign the required integration work. Name the Android and iOS code/configuration boundaries for browser launch, callback registration and delivery, pending-login recovery, session restoration and signed-in navigation. Also specify the public Keycloak client configuration and redirect registration those paths consume. If the hosts live elsewhere, identify their actual locations and coordinated delivery rather than assuming they already exist here."
     },
     {
-      "area": "Correctness — rollback compatibility",
-      "defect": "The stated rollback restores the password-based release even though the plan says the API now accepts only Keycloak access tokens. In the normal contingency of reverting a defective release, users who need to sign in would be returned to an authentication flow the server no longer accepts. The rollback therefore cannot restore service; recovery requires another compatible deployment.",
-      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:5 describes the existing username/password API sign-in and states that the API 'now accepts only Keycloak access tokens'. design.md:39 removes the password screen in the new release but declares 'Rollback: the previous release'.",
-      "change": "Replace the previous-release rollback with a concrete compatible recovery path, such as a known-good Keycloak-capable build, or explicitly design any coordinated server compatibility needed to make the previous release usable. Do not present the existing password-based release as a working rollback against a Keycloak-only API."
+      "area": "Build vs. adopt — Token-storage search record",
+      "defect": "The token-storage mechanism skips the required Platform line and proceeds directly from a repository search to adopting an open-source library. This breaks the explicitly required cheaper-stage value proof even if the chosen library is otherwise suitable.",
+      "evidence": "openspec/changes/keycloak-sign-in/design.md:20-24 contains Repository, Candidates and Decision lines but no Platform line. openspec/schemas/omp-gated/schema.yaml:204-219 requires searching repository/installed dependencies, then platform/standard library, then maintained libraries, and requires a Platform entry in each covered mechanism's subsection. The repository stage records “none,” so “not searched, covered above” would not apply.",
+      "change": "Research and record the platform-stage result for secure token persistence on both Android and iOS, with documentation URLs and the coverage or gap that justifies proceeding to the library stage. Keep the subsection's final decision consistent with that research."
     },
     {
-      "area": "Build vs. adopt — token storage record",
-      "defect": "The token-storage adoption subsection skips the required platform-search stage. It proceeds directly from a repository search that found nothing to adopting an external library, so the plan does not establish whether platform facilities cover the mechanism or what gap requires the library. Under the supplied design instruction, this incomplete record breaks the adoption value proof and blocks implementation as planned.",
-      "evidence": "openspec/changes/keycloak-sign-in/design.md:20-24 contains Repository, Candidates and Decision lines, but no Platform line. openspec/schemas/omp-gated/schema.yaml:216-231 requires ordered repository/dependency, platform and maintained-library searches and explicitly requires a Platform line in each covered mechanism's subsection. The repository result at design.md:22 is 'none', so 'not searched, covered above' would not justify skipping that stage.",
-      "change": "Complete the token-storage subsection with the platform search and documentation references, state what those facilities cover and any remaining gap, and confirm or revise the adoption decision based on that result."
+      "area": "CHECK 1 — Credential holders, sinks and containment",
+      "defect": "Delivered functionality stores and transmits real access and refresh tokens, but the plan supplies no searched holder/sink inventory, inherited containment chokepoint or sentinel-leak control. Choosing a secure storage library addresses only one sink; it does not decide which network destinations, caches, diagnostics and retained artifacts may contain credentials. This gap reaches protected credentials during ordinary sign-in and API use; disclosure would not be undone merely by reverting the app.",
+      "evidence": "openspec/changes/keycloak-sign-in/proposal.md:10-12 introduces persisted tokens, refresh-token transmission and Bearer authorization. design.md:18-31 selects libraries without the required inventory or containment policy. The existing path already holds a caller-supplied token and copies it into an Authorization header through an injected HttpClient and configurable baseUrl (shared/src/commonMain/kotlin/http/Client.kt:9-11). The sole negative control concerns mismatched state (specs/keycloak-sign-in/spec.md:14-17), not credential disclosure.",
+      "change": "Record the existing token argument/header/request holders and the planned authorization transaction, token responses, platform stores, refresh request, session/client caches and API request holders. Enumerate their destinations and diagnostic/output/artifact sinks, explicitly marking authorized storage/transmission and exclusions with reasons. Name the shared containment boundary future paths inherit, including destination restrictions and diagnostic handling, and add a sentinel control covering every relevant input and scanning all non-authorized artifacts and outputs for zero disclosure."
     }
   ],
   "notes": [
-    "The existing-client description is inaccurate: design.md:15 calls Client.kt unauthenticated, but shared/src/commonMain/kotlin/http/Client.kt:10-11 already accepts an optional token and emits a Bearer header. This alone does not block the change; distinguish existing header support from the new session-backed token source and refresh integration.",
-    "Unverified against repository-shipped documentation: whether oidc-ktor supplies proactive refresh before expiry and clears any cached bearer credentials when the token store is cleared. The upstream README describes explicit token-cache invalidation, but no corresponding lifecycle wiring appears in design.md:31. Confirm the selected release's behavior before relying on adoption alone.",
-    "Gate classification is consistent with the delivered behavior: gate.md declares product/auth-secrets-pii, and openspec/config.yaml:1 selects omp-gated without additional classification overrides."
+    "Mechanical-check applicability: CHECK 1, CHECK 4 and CHECK 6 trigger as reported. CHECK 2 introduces no separate hash, cache-key or recorded-provenance scheme; the state comparison is transaction admission and is covered by CHECK 4. CHECK 3 has no enumerated forbidden set. CHECK 5 introduces no mutable checked-object reference whose later use is specified separately. CHECK 7/8 warrant making token authority and precedence explicit when replacing ApiClient's nullable caller-supplied token with session integration; no in-repository callers establish a concrete competing-source or silent-fallback regression, so this remains nonblocking.",
+    "Process applicability: PROCESS 1 applies to the requirement/negative-control criterion; findings about accepted residual risks and blocking exclusions were not used as blockers. PROCESS 2 has no open contingency. PROCESS 3 triggers for the separately testable authentication mechanisms; proposal.md:5 and design.md:39 identify a shared Keycloak-only release cutover, although its coupling rationale should be explicit. PROCESS 4 is inapplicable because this is not a fix delta; PROCESS 5 is inapplicable because the tier is product. DOMAIN 1–6 do not trigger: there is no metaharness change or planned managed/containerized agent, verifier or benchmark run.",
+    "The gate classification is appropriate: openspec/config.yaml selects omp-gated, and gate.md:3-7 correctly classifies delivered authentication/token handling as product, auth-secrets-pii and risky, with whole-diff review needed.",
+    "The description of the existing client as unauthenticated is inaccurate: design.md:15 conflicts with Client.kt:10-11, which already accepts an optional token and forwards it as Bearer authorization. This does not alone block because task 1.2 can replace that read path, but the design should distinguish existing caller-supplied forwarding from the new session-owned integration.",
+    "unverified: adoption alone provides proactive refresh before expiry, complete session/cache invalidation, and system-browser-only behavior. Upstream documentation describes platform setup, a separate synchronized refresh handler, Ktor token caching and an Android WebView fallback. Those external library behavior claims are not treated as blockers without repository-shipped supporting evidence; the plan should pin the intended configuration and integration rather than infer these guarantees from artifact names."
   ]
 }
 ```
+
+## Scope B — PlanReviewScopeB (REJECT)
+
+```json
+{
+  "verdict": "REJECT",
+  "summary": "The verification plan lacks runnable starting points, does not specify tests that discriminate several required behaviours, omits the required F3 review, and provides no retained F1 evidence or evidence checks.",
+  "blockers": [
+    {
+      "area": "Executability — tasks 1.1 and 1.2",
+      "defect": "Both implementation tasks use a verification executable absent from the repository. Following the plan literally cannot execute either task's Verify command; no task establishes the missing build entry point. This is a reversible verification blocker.",
+      "evidence": "openspec/changes/keycloak-sign-in/tasks.md:5-6 both specify `./gradlew :shared:allTests`. Repository inspection found no `gradlew`, `gradlew.bat`, or `gradle/` directory; the supplied build files are settings.gradle.kts and shared/build.gradle.kts.",
+      "change": "Provide a reproducible Gradle entry point before these tasks, or identify an existing executable build environment and use its actual command. State the platform prerequisites needed to run the configured Android and iOS tests."
+    },
+    {
+      "area": "Executability — task 2.1 real-surface QA",
+      "defect": "The planned emulator/simulator run has no runnable application target. Completing the listed tasks, which only implement shared-library behaviour, still leaves no app to install, launch, redirect back into, or inspect for the signed-in home screen. Thus neither specification scenario can be demonstrated through the planned real surface. The missing verification setup is reversible.",
+      "evidence": "settings.gradle.kts:2 includes only `:shared`; shared/build.gradle.kts:3 applies `com.android.library`, and :7-9 declare library targets. Repository inspection found no Android manifest or Xcode project. Nevertheless, openspec/changes/keycloak-sign-in/tasks.md:10 requires Android-emulator and iOS-simulator app QA, while :5-6 name only shared implementation and ApiClient work. proposal.md:23 mentions app shells but no task supplies or identifies them.",
+      "change": "Identify concrete runnable Android and iOS hosts, their locations, installation/launch commands, redirect setup, and disposable Keycloak/API test configuration. If the hosts must be created or wired, include that work before F1 rather than assuming an existing app."
+    },
+    {
+      "area": "Quality and verification — tasks 1.1 and 1.2",
+      "defect": "The specified tests do not prove the implementation tasks' results. Task 1.1 names only state-check unit tests; task 1.2 names no tests. A passing state test can coexist with broken persistence, refresh, refresh-failure cleanup, or Bearer-header integration. Moreover, F1's API call after expiry cannot distinguish required pre-expiry refresh from refresh that happens only after expiry. These realistic implementation regressions can pass the planned automated checks, and the timing regression can pass F1 as written. The resulting evidence gap is reversible.",
+      "evidence": "openspec/changes/keycloak-sign-in/tasks.md:5 specifies only `unit tests for the state check`; :6 merely reruns the same suite for ApiClient. At :10, refresh QA waits past the access-token lifetime before calling the API. However, proposal.md:10-12 requires persistence, refresh before expiry, sign-out on failure, and Bearer authorization; design.md:31 also requires clearing the token store on refresh failure. The current request boundary is shared/src/commonMain/kotlin/http/Client.kt:9-11.",
+      "change": "Name and wire tests that exercise the production integration for session restoration, refresh timing, rejected-refresh cleanup/sign-out, and outgoing ApiClient Authorization headers. Use controlled time and observable refresh requests to distinguish pre-expiry from post-expiry refresh. Keep the state test, but assert that a mismatched redirect cannot reach token exchange or storage. Associate each Verify command with these discriminating tests."
+    },
+    {
+      "area": "Quality and verification — missing F3 task",
+      "defect": "The gate declares whole-diff review necessary, but the task list never schedules it or checks its report. Executing the listed workflow proceeds directly from implementation to F1 and F2, omitting the declared cross-layer review and its evidence. This breaks the configured verification workflow and is reversible.",
+      "evidence": "openspec/changes/keycloak-sign-in/gate.md:7 says `Whole-diff review: needed`. tasks.md:8-14 contains only F1 and the F2 follow-up. openspec/config.yaml:1 selects `omp-gated`; openspec/schemas/omp-gated/schema.yaml:299-306 requires the F3 task when whole-diff review is needed. templates/tasks.md:16 specifies integration-review, a report beginning `INTEGRATION-REVIEW-REPORT-v1`, and its Verify check.",
+      "change": "Add the F3 integration-review task before F1, naming the reviewed base/range, this change folder as plan, delta-review handling for fixes, and the report path and header check. Keep the report unstaged until F2 as the template requires, and run F1 against the head after F3's final code change."
+    },
+    {
+      "area": "Quality and verification — task 2.1 evidence",
+      "defect": "F1 lists observations but specifies neither retained evidence nor a Verify command. Even a sincere manual run leaves no defined artifacts establishing which platform and build were exercised, whether the required transitions occurred, or how 'no token is stored' was observed. F2 is consequently given no task-defined evidence of the material behaviours. This is a reversible evidence gap, not a demand to automate judgment of the manual observations.",
+      "evidence": "openspec/changes/keycloak-sign-in/tasks.md:10 ends with the manual scenarios and contains no evidence paths or `Verify:` command. openspec/schemas/omp-gated/schema.yaml:291 requires a deterministic Verify command per tracked task. templates/tasks.md:17 requires one F1 evidence path per scenario, the expected observation, and a command checking every scenario's evidence exists.",
+      "change": "Define per-platform evidence for successful sign-in, restart restoration, refresh, rejected-refresh sign-out, and mismatched-state rejection. Specify concrete actions and retained observations, including how token-store non-mutation is established without exposing token values. Add a Verify command checking all required evidence artifacts; leave behavioural judgment to the real-surface QA lane."
+    }
+  ],
+  "notes": [
+    "Requirement mapping — `Keycloak sign-in` (spec.md:5-7): implementation task 1.1 and manual task 2.1 are the intended coverage. The only identified automated test is an unnamed state-check unit test; restoration and continued-session behaviour have manual steps but no named automated tests.",
+    "Scenario mapping — `Sign-in succeeds` (spec.md:9-12): tasks 1.1 and 2.1 cover implementation and browser/redirect/home-screen QA respectively. No end-to-end test is named, and the runnable-surface and evidence blockers prevent this planned manual witness from being established.",
+    "Scenario mapping — `Negative control` (spec.md:14-17): task 1.1 names state-check unit tests; task 2.1 names a tampered-state redirect and rejection/no-storage observation. This is a relevant negative input, but no test name, production storage assertion, or retained manual storage observation is specified.",
+    "Gate classification is consistent with openspec/config.yaml:1 and the selected schema: gate.md:3-5 declares auth-secrets-pii, risky depth, and product tier for delivered authentication/token handling. F2 is correctly a workflow follow-up rather than a checkbox; it does not replace the missing F3 task or F1 evidence."
+  ]
+}
+```
+
+## Verifier — BlockerTriage
+
+```json
+{
+  "results": [
+    {
+      "index": 1,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "The spec requires persistence until Keycloak rejects the refresh token (specs/keycloak-sign-in/spec.md:7), but design.md:31 and proposal.md:11 prescribe sign-out on any failed refresh. An ordinary offline refresh or timeout satisfies that broader predicate without a rejection and loses a valid session. This is a delivered-rule contradiction, not merely missing verification; subsequent checks cannot resolve it."
+    },
+    {
+      "index": 2,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "The promised app callback and signed-in home screen exist as criteria (spec.md:11-12), but tasks.md:5-6 assign only shared-module implementation and ApiClient changes. Repository enumeration contains no hosts, screens or platform entry points; settings.gradle.kts:2 includes only :shared, whose build.gradle.kts:3 applies com.android.library. Proposal.md:23 mentions app shells without identifying or assigning them. Normal sign-in therefore lacks the application integration required to achieve the goal."
+    },
+    {
+      "index": 3,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "The token-storage subsection at design.md:20-24 goes from Repository: none directly to Candidates and Decision, omitting Platform. The selected omp-gated schema (config.yaml:1) explicitly requires the ordered repository/platform/library search and a Platform entry (schema.yaml:204-219). This is a concrete missing cheaper-stage value proof for secure token persistence, not a stylistic preference."
+    },
+    {
+      "index": 4,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "Proposal.md:10-12 introduces persistent credentials, refresh transmission and Bearer headers. Client.kt:9-11 already accepts a token and sends it through an injected HttpClient to a configurable baseUrl. Design.md:13-35 selects libraries and discusses redirect interception but defines no holder/sink inventory, destination or diagnostic containment boundary, or credential-disclosure control. The sole negative control (spec.md:14-17) checks state mismatch. Ordinary credential handling therefore reaches protected assets without the material containment decisions and proof the finding identifies; secure storage alone does not cover the other holders and sinks."
+    },
+    {
+      "index": 5,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "Tasks.md:5-6 both require ./gradlew :shared:allTests. Complete repository enumeration shows settings.gradle.kts and shared/build.gradle.kts but no gradlew, gradlew.bat or gradle directory, and no task supplies a wrapper or alternative build entry point. Literal execution fails before either required verification can run, blocking the planned evidence."
+    },
+    {
+      "index": 6,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "Task 2.1 (tasks.md:10) requires installed Android and iOS applications for browser callback, navigation and restart QA. The repository contains only a shared Android library and iOS library targets (settings.gradle.kts:2; shared/build.gradle.kts:3,7-9), and tasks.md:5-6 neither create nor identify runnable hosts. No planned check supplies that prerequisite. Consequently the required real-surface scenarios cannot be executed through the planned deliverables."
+    },
+    {
+      "index": 7,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "The decisive uncovered regression is refresh timing: proposal.md:11 and design.md:31 require refresh before expiry, but tasks.md:10 waits past expiry before an API call. Refresh performed only after expiry can pass that QA, while tasks.md:5 names only state-check unit tests and :6 names no additional tests. F1 does exercise restoration, rejection sign-out and an API call, so those are not wholly untested; nevertheless its observations do not discriminate pre-expiry from post-expiry refresh. That material timing proof remains missing."
+    },
+    {
+      "index": 8,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "Gate.md:7 declares whole-diff review needed, but tasks.md:8-14 schedules only F1 followed by F2. Schema.yaml:299-306 requires F3 when needed, and templates/tasks.md:16 defines its integration-review report and header check. Thus executing the listed tasks omits a declared required review lane and its evidence, breaking the configured merge workflow."
+    },
+    {
+      "index": 9,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "Tasks.md:10 specifies manual observations but no retained evidence paths or Verify command. Schema.yaml:291 requires a deterministic Verify command for every tracked task; templates/tasks.md:17 specifically requires per-scenario F1 evidence and an existence check. No other task retains platform/build observations or establishes token-store non-mutation. F2's generic review-work follow-up does not supply task-defined evidence for this F1 run, leaving the required material behaviour proof undefined."
+    }
+  ]
+}
+```
+
+## Classification (step 4)
+
+| # | Reviewer | Area | Verifier | protected | Class |
+|---|---|---|---|---|---|
+| 1 | Scope A | CHECK 4 — Refresh-failure decision | confirmed, blocking | true | **blocker** |
+| 2 | Scope A | CHECK 6 / Boundary — Missing end-to-end platform integration | confirmed, blocking | true | **blocker** |
+| 3 | Scope A | Build vs. adopt — Token-storage search record | confirmed, blocking | true | **blocker** |
+| 4 | Scope A | CHECK 1 — Credential holders, sinks and containment (security scope) | confirmed, blocking | true | **blocker** |
+| 5 | Scope B | Executability — tasks 1.1 and 1.2 | confirmed, blocking | false | **blocker** |
+| 6 | Scope B | Executability — task 2.1 real-surface QA | confirmed, blocking | false | **blocker** |
+| 7 | Scope B | Quality and verification — tasks 1.1 and 1.2 | confirmed, blocking | true | **blocker** |
+| 8 | Scope B | Quality and verification — missing F3 task | confirmed, blocking | false | **blocker** |
+| 9 | Scope B | Quality and verification — task 2.1 evidence | confirmed, blocking | true | **blocker** |
+
+- **Residuals:** none, because no finding came back refuted or non-blocking.
+- **Exception asks:** none. Every finding is confirmed blocking, so the protected/security-scope override doesn't change anything. That rule only governs when a finding may become a residual.
+- **Verdict:** this round's verdict would be REJECT.
+
+Blockers 2 and 6 will likely need step 5's scope ask before they can be fixed. The plan doesn't say whether the Android and iOS host apps are built in this repository or live somewhere else. I did not ask that or do any other step-5 work.

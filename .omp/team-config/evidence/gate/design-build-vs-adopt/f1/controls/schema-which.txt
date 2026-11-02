@@ -38,42 +38,47 @@ Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/B3/openspec/schemas/omp-gated
 
-== C0 (/tmp/dba-f1/C0)
+== C0 (/tmp/dba-f1/C0, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C0/openspec/schemas/omp-gated
 
-== C1 (/tmp/dba-f1/C1)
+== C1 (/tmp/dba-f1/C1, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C1/openspec/schemas/omp-gated
 
-== C2 (/tmp/dba-f1/C2)
+== C2 (/tmp/dba-f1/C2, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C2/openspec/schemas/omp-gated
 
-== C3 (/tmp/dba-f1/C3)
+== C3 (/tmp/dba-f1/C3, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C3/openspec/schemas/omp-gated
 
-== C4 (/tmp/dba-f1/C4)
+== C4 (/tmp/dba-f1/C4, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C4/openspec/schemas/omp-gated
 
-== C5 (/tmp/dba-f1/C5)
+== C5 (/tmp/dba-f1/C5, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C5/openspec/schemas/omp-gated
 
-== C6 (/tmp/dba-f1/C6)
+== C6 (/tmp/dba-f1/C6, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C6/openspec/schemas/omp-gated
 
-== C7 (/tmp/dba-f1/C7)
+== C7 (/tmp/dba-f1/C7, C rows commit 0d4701f534)
 Schema: omp-gated
 Source: project
 Path: /private/tmp/dba-f1/C7/openspec/schemas/omp-gated
+
+== C8 (/tmp/dba-f1/C8, C rows commit 0d4701f534)
+Schema: omp-gated
+Source: project
+Path: /private/tmp/dba-f1/C8/openspec/schemas/omp-gated

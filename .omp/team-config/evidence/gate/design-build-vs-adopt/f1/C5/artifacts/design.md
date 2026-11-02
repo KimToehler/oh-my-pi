@@ -2,7 +2,7 @@
 
 ## Context
 
-See proposal.md - Why. `SignInService.signIn` (`shared/src/commonMain/kotlin/auth/SignInService.kt:14`) checks the password and returns `SignedIn`; `Account` carries `plan` and `trialEndsAtMillis` (`shared/src/commonMain/kotlin/account/Account.kt:6`).
+See proposal.md - Why. `SignInService.signIn` (`shared/src/commonMain/kotlin/auth/SignInService.kt:17`) checks the password and returns `SignedIn`; `SignInService` already takes the app's `AppClock` (`SignInService.kt:15`, `shared/src/commonMain/kotlin/time/AppClock.kt`); `Account` carries `plan` and `trialEndsAtMillis` (`shared/src/commonMain/kotlin/account/Account.kt:6`).
 
 ## Goals / Non-Goals
 
@@ -12,7 +12,7 @@ Goals: refuse ended trials at sign-in. Non-Goals: ending sessions of users alrea
 
 ### D1. Check after the password
 
-The trial check runs after the password matched, so an ended trial is only revealed to someone who knows the password. `SignInService` gets a `now: () -> Long` constructor parameter (defaulting to `kotlin.time.Clock.System`), so tests set the time.
+The trial check runs after the password matched, so an ended trial is only revealed to someone who knows the password. It compares `trialEndsAtMillis` with the injected `clock.nowMillis()`, so tests set the time through the existing `AppClock` parameter.
 
 ### D2. Result type
 

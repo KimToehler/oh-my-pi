@@ -1,25 +1,101 @@
-The correctness-lens reviewer (`CorrectnessLens`) returned **REJECT** with 2 blockers. I sent its brief and lens paragraph verbatim, with only the repository root and change directory filled in. Nothing was edited. Steps 1–2 (validation and digest) were not run, and items 2–3 were not dispatched, so this is not a complete round and no review.md was written. Full output below:
+I ran steps 3 and 4 at the `standard` depth gate.md names. All 4 blockers came back `confirmed` with `blocking: true`, so all 4 stay blockers to be fixed in the artifacts. Nothing was edited or committed, and no review.md was written. Steps 1–2 (the validator, the commit and the digest) did not run, so this round has no reviewed digest.
+
+**Dispatch.** gate.md:4 reads `- **Depth**: standard`, so the round was one fresh `plan-reviewer` item (`TrialExpiryReview`). Its brief was the review brief and the all-scopes paragraph, verbatim, with the paths `/private/tmp/dba-f1/C5` and `/private/tmp/dba-f1/C5/openspec/changes/trial-expiry` filled in. `context` was the exact sentence step 3 prescribes. Neither the reviewer item nor the verifier item carried a `model`. The verifier brief was built in code from `agent://TrialExpiryReview/blockers`, so each blocker went out as its delivered JSON object, unchanged.
+
+**Model check.** Both dispatches ran on their pinned model, so both results count:
+- **Reviewer:** ran on `onara/cx/gpt-6.1-sol`. The pin is `task.agentModelOverrides.plan-reviewer = onara/cx/gpt-6.1-sol:high`.
+- **Verifier:** ran on `onara/cx/gpt-6.1-sol`. The pin is `model: onara/cx/gpt-6.1-sol:medium` in `agents/blocker-verifier.md`.
+
+## Reviewer output (TrialExpiryReview, plan-reviewer)
 
 ```json
 {
   "verdict": "REJECT",
-  "summary": "The service-level approach matches the existing password-check flow, but the plan assumes a nonexistent UI integration and misclassifies the changed sign-in boundary.",
+  "summary": "The sign-in and clock claims match the source, but the plan misclassifies an authentication change, assumes a UI that is absent, and does not provide executable, sufficiently discriminating verification.",
   "blockers": [
     {
-      "area": "Correctness / end-to-end result handling",
-      "defect": "The promised handling of TrialEnded has no implementation path in this repository. Following the implementation task produces the service result without the upgrade navigation or trial-ended message the design promises. This is a missing consumer integration, not merely a missing verification command; it is reversible through a coordinated implementation.",
-      "evidence": "openspec/changes/trial-expiry/design.md:19 says “the UI maps it to the existing upgrade screen,” and tasks.md:9 expects a visible trial-ended message. However, tasks.md:5 implements only the result and service check. settings.gradle.kts:2 includes only :shared, shared/build.gradle.kts:3 declares an Android library, and the complete source/reference search finds no UI, upgrade screen, or SignInResult consumer. The existing result is declared and returned only in shared/src/commonMain/kotlin/auth/SignInService.kt:5-17.",
-      "change": "Identify the actual UI consumer and upgrade-screen implementation, and include its TrialEnded handling in the coordinated design and tasks. If that consumer lives outside this repository, name the required external change and release dependency rather than assuming the integration already exists."
+      "area": "Security and gate classification",
+      "defect": "The change modifies authentication admission but declares Mandatory class `none` and Depth `standard`. Normal sign-in will exercise the changed authorization decision; following this classification omits the mandatory higher-risk review. This is correctable before implementation.",
+      "evidence": "openspec/changes/trial-expiry/gate.md:3-6 explicitly justifies `none` because the change adds a refusal to an existing sign-in path. shared/src/commonMain/kotlin/auth/SignInService.kt:17-20 is that authentication path and processes the password. openspec/config.yaml:1 selects `omp-gated`; openspec/schemas/omp-gated/schema.yaml:253 incorporates the review-work classification and :255 requires `risky` for a non-none class. /Users/tim/.omp/agent/skills/review-work/SKILL.md:105 expressly includes changes to an authentication or authorisation path, not only new credential handling.",
+      "change": "Set Mandatory class to `auth-secrets-pii`, Depth to `risky`, and correct the risk assessment. Use the corresponding required review depth."
     },
     {
-      "area": "Correctness / gate classification",
-      "defect": "Mandatory class none is inconsistent with the delivered change: this modifies the existing authentication/admission path. Not copying or storing a credential does not make a sign-in refusal change exempt. Under normal implementation, the incorrect classification selects insufficient gate review; this is reversible by correcting the classification before implementation.",
-      "evidence": "openspec/changes/trial-expiry/gate.md:3 sets class none, justified at gate.md:5 because the change “handles no credential.” But shared/src/commonMain/kotlin/auth/SignInService.kt:14-17 accepts a password, checks it, and decides whether to return SignedIn; design.md:15 adds a new admission decision directly to that flow. openspec/config.yaml:1 selects omp-gated, whose schema.yaml:253 requires classification by delivered behaviour and reach, not merely credential handling. The review-work skill's Phase 0.5 explicitly includes changes to an authentication or authorisation path in auth-secrets-pii.",
-      "change": "Set Mandatory class to auth-secrets-pii and correct the risk assessment to describe the changed sign-in admission boundary. Retain product risk tier and use the corresponding two-reviewer gate."
+      "area": "Correctness and executability — nonexistent UI integration",
+      "defect": "The design promises an existing upgrade-screen mapping, and F1 requires an Android sign-in UI, trial-ended message and home screen, but this repository supplies none of those surfaces. Implementing task 1.1 alone cannot deliver the promised UI behavior or make task 2.1 executable. This is a reversible planning/integration gap, not a request to invent an application.",
+      "evidence": "openspec/changes/trial-expiry/design.md:19 claims that the UI maps the new result to an existing upgrade screen; openspec/changes/trial-expiry/tasks.md:9 requires emulator-based screen navigation. settings.gradle.kts:1-2 includes only `:shared`, and shared/build.gradle.kts:1-4 defines an Android library, not an application. The complete repository inventory contains only the shared library and OpenSpec artifacts; the source search finds SignInResult only in shared/src/commonMain/kotlin/auth/SignInService.kt:7-20, with no UI consumer or upgrade screen.",
+      "change": "Identify the actual consuming application and screen/handler, make that source available to implementation, and add the result-mapping task plus concrete launch and QA steps. If only the library is intended, explicitly reconcile the design and verification scope instead of claiming nonexistent screen integration."
+    },
+    {
+      "area": "Quality and verification — tests do not discriminate required behavior",
+      "defect": "All listed tests can pass with the expiry check placed before password verification, exposing trial status for a wrong password. They can also pass with `<=` instead of the specified strict-before comparison. Wrong-password attempts and sign-in exactly at expiry are realistic inputs; these regressions violate the stated ordering and time boundary while escaping every planned check. Code behavior is reversible, but an authentication-status disclosure cannot be recalled.",
+      "evidence": "openspec/changes/trial-expiry/specs/trial-expiry/spec.md:7 requires an expiry strictly before the current time and checking after the password matched; design.md:13-15 explains the disclosure protection. tasks.md:5 lists only yesterday, tomorrow and paid-account tests, and tasks.md:9 adds only expired and in-trial successful-password QA. Neither distinguishes a pre-password guard or a `<=` comparison. The existing wrong-password refusal is shared/src/commonMain/kotlin/auth/SignInService.kt:19.",
+      "change": "Add a wrong-password test for an expired trial that must return WrongCredentials, and fixed-clock tests immediately before, exactly at, and immediately after expiry. Include a paid account with a past expiry value to prove that plan selection, rather than timestamp alone, controls refusal. Require the ordering and boundary tests to fail against those specific broken implementations."
+    },
+    {
+      "area": "Executability — verification commands and evidence",
+      "defect": "Task 1.1's sole Verify command cannot start from this checkout because `./gradlew` is absent, and no task supplies the missing test/build prerequisites. Task 2.1 has no required Verify command or retained evidence destination. Consequently, normal execution of this plan cannot produce its claimed verification proof; these are reversible tooling and planning defects.",
+      "evidence": "openspec/changes/trial-expiry/tasks.md:5 specifies `./gradlew :shared:allTests`, but the complete root inventory contains only settings.gradle.kts, shared/ and openspec/, with no wrapper script or wrapper files. shared/build.gradle.kts:10-21 configures production source-set dependencies but no test dependency/setup. tasks.md:9 ends with prose rather than a Verify command, contrary to openspec/schemas/omp-gated/schema.yaml:291; it also names no retained QA artifact.",
+      "change": "Provide a runnable build/test entry point and explicitly plan the required test source-set/dependency setup. Give each tracked task an executable Verify command that proves its result. For F1, specify the actual launch/actions, expected observations and retained evidence path; any evidence check must establish more than the mere existence of a capture."
     }
   ],
   "notes": [
-    "Unverified: design.md:23 claims that the API repeats the trial check on every request. The repository contains only an HTTP client (shared/src/commonMain/kotlin/http/Client.kt:8-11), not the server-side enforcement. This does not independently block the stated service-level requirement or its explicit exclusion of already-signed-in sessions, but the claimed mitigation needs an external source reference."
+    "CHECK 1 triggers on the authentication path: searched holders are signIn's password argument, PasswordCheck.matches' argument, and the account object containing email; observable results currently contain only account ID or status. No new password sink is proposed. The holder/sink inventory and sentinel control are absent, but no additional disclosure path is evidenced, so that inventory gap alone is nonblocking.",
+    "CHECK 4 triggers on the expired-trial admission predicate. The normal dated cases are decidable, but Account.trialEndsAtMillis is nullable (shared/src/commonMain/kotlin/account/Account.kt:6), and null handling is unspecified; this is nonblocking absent evidence that ordinary trial records omit it. CHECK 5 applies to the checked account subsequently used: the existing single-read immutable Account already preserves the bytes used; no mutable-source re-read is proposed.",
+    "CHECK 2, 3, 6, 7 and 8 have no delivered-change trigger: no sameness key, forbidden enumeration, multiple independent admission entry paths, duplicated derivation, new exposing option, implicit selection or runtime fallback is introduced. The criterion's named boundary is locatable at SignInService.signIn, shared/src/commonMain/kotlin/auth/SignInService.kt:17.",
+    "PROCESS 1 applies through gate.md and the spec-derived criterion; its observable boundary and negative control are identifiable. PROCESS 2–5 and DOMAIN 1–6 do not trigger. Build vs. adopt does not trigger for the proposed domain-specific comparison and result case using the existing clock; implementing a new UI mechanism would require reassessment.",
+    "Unverified: design.md:23 claims that the external API repeats the expiry check on every request; no server implementation or shipped API contract substantiates that mitigation. Also, the new capability lacks the Purpose section required by openspec/schemas/omp-gated/schema.yaml:114-120, risking an archive-time placeholder. Neither independently blocks the sign-in requirement."
   ]
 }
 ```
+
+## Verifier output (TrialExpiryTriage, blocker-verifier)
+
+The result has exactly one entry for each index 1–4 and no duplicates, so it counts.
+
+```json
+{
+  "results": [
+    {
+      "index": 1,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "All conditions hold. gate.md:3-6 declares none/standard specifically because this adds a refusal to an existing sign-in path, but design.md:13-15 changes authentication admission in SignInService.kt:17-20. review-work Phase 0.5 explicitly includes existing authentication/authorisation paths, and schema.yaml:253-255 requires risky depth for a non-none class. Ordinary sign-in exercises this path; the incorrect classification omits required higher-risk review. No scope exclusion or accepted residual risk covers it."
+    },
+    {
+      "index": 2,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "All conditions hold. design.md:19 promises mapping TrialEnded to an existing upgrade screen, and tasks.md:9 requires emulator navigation and visible sign-in outcomes. settings.gradle.kts:1-2 includes only :shared; shared/build.gradle.kts:1-4 defines an Android library. The complete shared source inventory contains only account, auth, HTTP and clock code, with no application or UI implementation. Task 1.1 supplies no consuming UI integration or application prerequisite. Thus the promised UI delivery and named F1 run are not executable from the supplied repository, breaking the planned value proof."
+    },
+    {
+      "index": 3,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": true,
+      "reason": "All conditions hold. spec.md:7 requires a strictly-before comparison after a matched password; design.md:13-15 explicitly protects trial-status disclosure. tasks.md:5 names only yesterday, tomorrow and paid-account tests, and tasks.md:9 names expired/in-trial UI QA without wrong-password or equality cases. A guard before password verification and a <= comparison both survive those named checks. No task names an executed ordering or equality test; the requirement itself is not verification. Wrong-password attempts and the exact injected-clock expiry boundary expose material missing proof, including an authentication-status disclosure."
+    },
+    {
+      "index": 4,
+      "result": "confirmed",
+      "blocking": true,
+      "protected": false,
+      "reason": "All conditions hold. tasks.md:5 invokes ./gradlew :shared:allTests, but the complete root inventory has only settings.gradle.kts, shared/ and openspec/, with no wrapper entry point or wrapper files. shared/build.gradle.kts:10-21 declares production dependencies only, and no task supplies test/build prerequisites. tasks.md:9 has neither the executable Verify command required by schema.yaml:291 nor a retained QA evidence path. Normal execution therefore cannot start its sole test command or produce the specified final verification proof; the later generic F2 follow-up supplies neither missing prerequisite."
+    }
+  ]
+}
+```
+
+## Step 4 classification
+
+| # | Area | Verifier | Classification |
+|---|---|---|---|
+| 1 | Security and gate classification | confirmed, blocking true, protected true | **Blocker**, fixed within the budget. It is in the security scope and protected, so it can never become a residual through an Override, only through a `keep` answer. |
+| 2 | Correctness and executability — nonexistent UI integration | confirmed, blocking true, protected false | **Blocker**, fixed within the budget. Its fix needs a scope decision the artifacts leave open (consuming app vs. library-only), so it goes to a step 5 scope ask before any fix. |
+| 3 | Quality and verification — tests do not discriminate required behavior | confirmed, blocking true, protected true | **Blocker**, fixed within the budget. Like #1, it can never reach an Override. |
+| 4 | Executability — verification commands and evidence | confirmed, blocking true, protected false | **Blocker**, fixed within the budget. |
+
+There are no residuals, no exception asks and nothing `undecided`. The round's verdict is REJECT.
+
+Blocker 1 says the change should be `auth-secrets-pii` / `risky`. If that fix is made, step 5 says a `standard` review whose fix raises it to `risky` runs a second full two-reviewer round, not a delta check.
