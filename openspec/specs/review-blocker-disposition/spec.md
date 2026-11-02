@@ -5,25 +5,6 @@ Defines which reviewer blockers must be fixed before a review or gate proceeds, 
 
 ## Requirements
 
-### Requirement: One authoritative disposition definition
-
-The disposition rules SHALL be stated once, in a `Blocker disposition` section of the `review-work` skill. The `omp-gated` review instruction and `integration-review/SKILL.md` SHALL reference that section through the skill (`skill://review-work`), so it resolves from the active agent directory, SHALL treat every blocker as not eligible when the section cannot be read and tell the user so once per review, and SHALL add only their lane's decision points, never a restated or divergent definition.
-
-#### Scenario: Plan review reads the shared definition
-
-- **WHEN** the `omp-gated` review instruction decides whether a blocker is Accept-eligible, in the default agent directory or a profile
-- **THEN** it applies the `Blocker disposition` section of the `review-work` skill installed in the active agent directory
-
-#### Scenario: Section cannot be read
-
-- **WHEN** plan review or the F3 STOP cannot read the `Blocker disposition` section
-- **THEN** every blocker is handled as not eligible, plan review fixes them without an early ask and F3 offers no freeze, and the instruction tells the user once per review that the section was unreadable and Accept is off
-
-#### Scenario: Negative control
-
-- **WHEN** the schema or `integration-review/SKILL.md` states its own eligibility test, exclusion list or ambiguity default
-- **THEN** review of that instruction MUST fail
-
 ### Requirement: Accept eligibility is the negation of the blocking threshold
 
 The definition SHALL make a blocker Accept-eligible only when it misses both limbs of the blocking threshold in `review-work/SKILL.md` and no exclusion applies; a severity label, the lens, the wording or any other predicate SHALL never make it eligible, and exclusions take precedence. A missing proof of any material behaviour or failure mode SHALL break the value proof; only a gap in the form of evidence for a behaviour that stays proven SHALL count as weaker proof.
@@ -142,7 +123,7 @@ The definition SHALL treat as not eligible a blocker that states no consequence,
 
 ### Requirement: Every accept path recommends only eligible blockers
 
-Instructions SHALL apply eligibility wherever a blocker can stay unfixed: plan-review Accept and Override, the F2 Phase 4 override, F2 and F3 freeze, and delta accept. Accept or freeze SHALL be recommended and offered only for blockers that are eligible or covered; a decision leaving several blockers at once needs every one so. Otherwise the orchestrator SHALL offer fix, re-plan or stop (or the options the lane's tier still allows), naming each blocker and its stated consequence.
+Instructions SHALL apply eligibility wherever a blocker can stay unfixed: the F2 Phase 4 override, F2 and F3 freeze, and delta accept. Accept or freeze SHALL be recommended and offered only for blockers that are eligible or covered; a decision leaving several blockers at once needs every one so. Otherwise the orchestrator SHALL offer fix, re-plan or stop (or the options the lane's tier still allows), naming each blocker and its stated consequence.
 
 #### Scenario: F3 STOP with a non-eligible Must-fix
 
@@ -185,12 +166,12 @@ A blocker SHALL count as covered only when an Accepted residual risks or Out of 
 
 ### Requirement: The user's explicit acceptance is recorded
 
-Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker that no exclusion names possible at plan-review Accept and Override, F2 and F3 freeze, and delta accept, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence. The F2 Phase 4 override SHALL NOT accept a non-eligible, uncovered blocker; the user's options there are fix, another wave or re-plan.
+Instructions SHALL keep the user's explicit request to accept or freeze a non-eligible blocker that no exclusion names possible at F2 and F3 freeze and delta accept, and SHALL record it in that path's existing record with the user's reason in their words and the blocker's stated consequence. The F2 Phase 4 override SHALL NOT accept a non-eligible, uncovered blocker; the user's options there are fix, another wave or re-plan.
 
 #### Scenario: User insists on accepting
 
 - **WHEN** the user explicitly asks to accept or freeze a non-eligible blocker at one of those paths
-- **THEN** the orchestrator records it in that path's existing record (`gate.md` Override, the `downgrades` entry with rule `frozen`, the F3 report follow-up list or `GC accept --reason`) with the user's reason and the blocker's stated consequence
+- **THEN** the orchestrator records it in that path's existing record (the `downgrades` entry with rule `frozen`, the F3 report follow-up list or `GC accept --reason`) with the user's reason and the blocker's stated consequence
 
 #### Scenario: Insisting at the F2 Phase 4 override
 
@@ -208,8 +189,8 @@ A blocker an exclusion names SHALL never be accepted, frozen or overridden at an
 
 #### Scenario: Insisting on an excluded blocker
 
-- **WHEN** the user asks to accept a blocker that names a security path at plan review
-- **THEN** the orchestrator writes no `gate.md` entry for it and offers fix, re-plan or stop
+- **WHEN** the user asks to freeze an F3 Must-fix class that names a security path
+- **THEN** the orchestrator records no freeze for it and offers fix, re-plan or stop
 
 #### Scenario: Negative control
 
@@ -233,4 +214,28 @@ The definition SHALL forbid answering an Accept-eligible blocker by adding a mec
 #### Scenario: Negative control
 
 - **WHEN** an instruction permits adding an unrequested mechanism for an Accept-eligible blocker because it is small, or refuses a check needed to fix a blocking defect
+- **THEN** review of that instruction MUST fail
+
+### Requirement: One disposition definition for the post-implementation lanes
+
+The disposition rules SHALL be stated once, in the `Blocker disposition` section of the `review-work` skill, for F2 (Phase 4 and fix waves), F2 delta reviews and F3. `integration-review/SKILL.md` SHALL reference it through `skill://review-work`, add only its lane's decision points, and treat every blocker as not eligible when the section cannot be read, telling the user once per review. Plan review of `omp-gated` changes SHALL NOT apply it.
+
+#### Scenario: F3 reads the shared definition
+
+- **WHEN** the F3 STOP of `integration-review` decides whether a Must-fix class may be frozen, in the default agent directory or a profile
+- **THEN** it applies the `Blocker disposition` section of the `review-work` skill installed in the active agent directory
+
+#### Scenario: Plan review does not apply the definition
+
+- **WHEN** the `omp-gated` review instruction handles a plan-review finding
+- **THEN** it uses the verifier triage of `openspec-plan-review` and decides no Accept eligibility
+
+#### Scenario: Section cannot be read
+
+- **WHEN** an F2 decision or the F3 STOP cannot read the `Blocker disposition` section
+- **THEN** every blocker is handled as not eligible, F3 offers no freeze, and the instruction tells the user once per review that the section was unreadable and Accept is off
+
+#### Scenario: Negative control
+
+- **WHEN** `integration-review/SKILL.md` states its own eligibility test, exclusion list or ambiguity default, or the `omp-gated` review instruction applies Accept eligibility to a plan-review finding
 - **THEN** review of that instruction MUST fail
