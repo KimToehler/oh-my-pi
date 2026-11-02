@@ -91,6 +91,38 @@ Round 1, digest `4a388f6beb49d9a0aa00513aaa2b2e7879a24d4494731939e6ded6dcb2adee6
 
 Wall time 1819 s, one session, no ask at any point.
 
+### Retained session and tool-call order (run C)
+
+Session
+`~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1a3/2026-11-01T22-27-29-149Z_01a19939-90fd-709a-832c-696d68fbc65c`,
+61 calls. The ordering that matters, with the call numbers of that session:
+
+```
+ 1 read skill://openspec
+ 2-6 openspec instructions review --change f1a3 --json; read the instruction and the template
+ 7-9 ls change folder; git status --porcelain; validator; V --digest
+10 task: plan-reviewer                      <- round 1, one reviewer (depth standard)
+11 wait / 12 read history://GlamorousPig
+13-14 jq provider+model on the child session  (off-pin -> discarded)
+15 task: plan-reviewer                      <- retry (EthicalConstrictor)
+16-18 wait; read history://EthicalConstrictor:1-3; jq provider+model  (on the pin)
+19-20 grep the profile's agents/ for the verifier pin; jq .blockers from the child session
+21-27 eval: build and write review.md from the delivered payload verbatim
+28 bash git add review.md && git commit            <- PRE-TRIAGE RECORD (d68c668)
+29-30 eval: build the verifier brief; dispatch blocker-verifier
+31-36 wait; jq provider+model (first attempt off-pin, discarded); retry; jq again (EagerSkunk, on pin)
+37 eval: write the triaged review.md / 38 git commit                (5c44d1c)
+39-46 read proposal, spec, design, tasks, src/day-list.ts, test, package.json; grep the schema
+47-53 edit: the fixes, change folder only
+54-55 validator; git add -- <change folder files> && git commit      (cfa573b)
+56 bash git diff <recording commit> -- openspec/changes/f1a3 ':!…/review.md'   <- delta base
+57-59 eval: dispatch the delta reviewer; wait; jq provider+model (FreshPigeon, on pin)
+60 write review.md / 61 git add && git commit                        (a1d457f)
+```
+
+Every edit (47-53) comes after the pre-triage record at 28 and the triage record at 38; the delta
+diff at 56 is taken against the commit that recorded round 1, not against the branch point.
+
 ## What these runs show
 
 - Depth `standard` read from `gate.md`; one reviewer per round; every counted dispatch on its pin.

@@ -87,7 +87,81 @@ the budget is spent after the round-1 fix delta check. Schema blob as above, com
   artifacts, and it buys exactly one more delta check — not a new full round, and not an unbounded
   loop.
 
-## Retained tool calls — leg (b)'s two answer sessions
+## Retained tool calls
+
+### Legs (a), (c) and (d)
+
+**Leg (a)** — `-tmp-prp-fix-repo-f1ea/2026-11-02T04-06-49-598Z_01a19a70-3dfe-730e-8ad5-1155b8478a01`,
+27 calls: instruction and template reads (1-11); `bash` digest of every change file and
+`V --digest` (12-16); `bash omp config get task.agentModelOverrides` and the verifier pin
+(17-18); `read history://SeedScopeA1` (19); **`write review.md`** (20) and
+`git commit` (21) — the pre-triage record `760616c`, before any verifier; **`task F1eTriageR1`**
+(22); `wait`; `read history://F1eTriageR1`; `bash jq … provider + model` (25);
+**`write review.md`** (26) and the commit (27) — `3dd2b12`, OKAY with both findings refuted.
+One `task` call in the session, and it is the verifier.
+
+**Leg (c)** — `-tmp-prp-fix-repo-f1ec/2026-11-02T04-06-57-132Z_01a19a70-5b6c-77bb-b853-237e80f4ebb4`,
+28 calls: instruction, template and `gate.md` reads plus the payload (1-8); two validator calls
+(9-10); `read history://SeedScopeA3` (11); two `grep` calls on the validator (12-13);
+**`write review.md`** (14) and `git commit` (15) — the pre-triage record `6ccd5f8`;
+**`task blocker-verifier`** (16); `wait`; `read history://PrimitiveTyrannosaurus` and two
+`jq … provider + model` calls (18-20) — off the pin, discarded; **`task blocker-verifier`** again
+(21, `PotentialHorse`); `wait`; `bash ls <session dir>`; `read history://PotentialHorse:1`;
+`bash jq …` (25); two `edit` calls on `review.md` (26-27) and the commit (28) — `b1d4b9e`,
+Awaiting `exception`.
+The answer session
+(`2026-11-02T04-25-05-554Z_01a19a80-f712-758d-b420-28c561804c6b`, 13 calls) reads the instruction
+and the record, runs `V --digest`, **writes `review.md` once**, runs `V --reviewed` and commits
+(`b33f2e1`). No `task` call: Keep dispatches nothing.
+
+**Leg (d)** — `-tmp-prp-fix-repo-f1ee/2026-11-02T04-45-11-210Z_01a19a93-5caa-74cd-be42-10f6c0e51a8d`,
+46 calls. The ordering that matters:
+
+```
+21 write review.md / 22 git commit        <- round 1 pre-triage record (7be739b)
+23 task: F1eeTriage1 / 24 wait / 25 read history:// / 26 jq provider+model
+27 edit review.md / 28 git commit         <- triage record (ed5b1c6)
+30-33 edit tasks.md, proposal.md          <- the round-1 fix, change folder only
+34 validator / 35 cat <delta payload>
+36 write review.md / 37 git commit        <- delta-check record (ce5b877)
+38 task: F1eeTriage2 ... 42 task: F1eeTriage2Retry (first attempt off-pin)
+45 edit review.md / 46 git commit         <- Awaiting exception (6d9d025)
+```
+
+The answer session (`2026-11-02T05-05-08-155Z_01a19aa5-a03b-7769-a194-9b4c3142b4c7`, 23 calls):
+instruction and record reads (1-14), **two `edit` calls on `design.md` only** (15-16), the commit
+(17, `90ce052`), the delta payload and the pin check (18-19), `read history://EeScopeA3` (20),
+`write review.md` (21) and the commit (22, `f0788f2`). The first artifact edit is call 15 — after
+the answer — and exactly one delta check follows it.
+
+### Leg (b)'s earlier sessions
+
+All under `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb/`.
+
+- **Round 1** (`2026-11-02T04-06-53-094Z_01a19a70-4ba6-75e8-b865-28d65640bbf6`, 21 calls): the
+  instruction and payload reads, `read history://SeedScopeA4`, `eval` writing the record,
+  `git commit` at call 11 (`778e92c`, the pre-triage record), then the verifier at 13-14
+  (`ShrillHummingbird`), its D10 jq check at 16, the retry at 17-18, the second jq at 19-20, and
+  the failed-twice record at 21 (`d8ac2f3`). The record commit precedes both verifier dispatches.
+- **Round-1 triage resume** (`2026-11-02T04-39-46-811Z_01a19a8e-697b-7231-a259-5a699eb95990`,
+  22 calls): instruction, pin and payload reads; one `edit` restoring the record's marker and
+  `git commit` (15); **`task TriageF1ebR1`** (16) — the only dispatch; `wait`;
+  `read history://TriageF1ebR1`; `bash jq …`; `edit review.md` (21) and the commit (22,
+  `2220a0b`, Awaiting `scope`). No reviewer dispatch on a resume.
+- **The scope answer and round 2**
+  (`2026-11-02T04-42-58-094Z_01a19a91-54ae-761d-90b2-bdb25f75612b`, 42 calls): the instruction
+  paged in six `awk` calls (8-13); the fixes as `edit` calls on `design.md`, `spec.md`, `tasks.md`
+  and `gate.md` (20-26) with the validator (27) and one commit (28, `755a369`); the round-2
+  payload (29-30); `eval` writing the pre-triage record (31) and its commit (32, `7fd58c4`);
+  **`task TriageF1ebR2`** (34), jq (37), **`task TriageF1ebR2Retry`** (38) — both off the pin —
+  and the failed-twice record (41-42, `86d2c30`).
+- **Round-2 triage resume** (`2026-11-02T05-16-38-342Z_01a19ab0-2846-73f5-8ce0-7fa0ee7afb7e`,
+  26 calls): `read agent://SeedScopeB5` and `glob **/f1eb-round2.json` to recover the delivered
+  blocker text (17-18); **`task TriageF1ebR2Resume`** (19); `wait`; `read history://…`;
+  `bash jq …`; three `bash git show` calls comparing the earlier records (23-24); `edit review.md`
+  (25) and the commit (26, `980d9bc`, Awaiting `exhaustion`).
+
+### Leg (b)'s two answer sessions
 
 Session paths under
 `~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb/`.
