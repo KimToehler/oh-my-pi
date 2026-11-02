@@ -1,12 +1,12 @@
 # F1-D: the other review lanes are unchanged
 
-Date: 2026-11-01, re-run for row 4.11 on the head after 4.7's last code commit
-(`d7246ce425`, lane F3 closed PASS in wave 4).
+Date: 2026-11-02, re-run for row 5.33 on the head that carries the wave-3 text
+(`b7cd4fd13a`).
 
 Schema blob the delivered instruction of this head carries:
 
 ```
-f7ad8d3534d80e841900f9d9cb878514945da9d4
+b0f3c2009a7bd3d89e60438b34011efdbdbaff0b
 ```
 
 (`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`.)

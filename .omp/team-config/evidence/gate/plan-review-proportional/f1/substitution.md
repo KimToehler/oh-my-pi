@@ -117,6 +117,28 @@ with `Verdict: REJECT without a user override`. No fix, no ask, no further dispa
 - Two such verifier attempts produce the committed REJECT with Awaiting `triage` and a `Models`
   line that names every dispatch, its model and `(no verdict)`.
 
+## Text basis, and what covers this scenario on the current head
+
+Both runs above are from 2026-11-01 and used the instruction of blob
+`f7ad8d3534d80e841900f9d9cb878514945da9d4`. Rows 5.30 and 5.31 changed the text afterwards: a
+round's blockers are now committed **before** the verifier is dispatched, and a post-budget Fix is
+bounded to one delta check. Neither touches the pin rule this scenario tests (route 11, lines
+94-106 and 155-158 of the current instruction, see `.../f1/instruction-review.md`), so the rule is
+unchanged — but the record shape in (b) is the pre-5.30 one: today the same run would commit a
+pre-triage record first.
+
+That newer shape is witnessed live on the current blob
+(`b0f3c2009a7bd3d89e60438b34011efdbdbaff0b`) by three re-run scenarios, all of which hit off-pin
+dispatches without anyone planting them:
+
+- `.../f1/failed-triage.md`: two verifier attempts `(no verdict)`, pre-triage record first, then
+  `not triaged: the verifier failed twice` on the same digest.
+- `.../f1/risky.md` and `.../f1/security.md`: six off-pin reviewer and verifier dispatches
+  discarded and retried across the two scenarios, including both delta-check attempts of one
+  session, which ended the session instead of recording an uncounted OKAY.
+- `.../f1/seeded.md` leg (b): four off-pin verifier attempts across two rounds, each recorded and
+  resumable.
+
 ## Honest notes
 
 - The substitution is a real fallback: the router has no `openai` credentials in this profile, so

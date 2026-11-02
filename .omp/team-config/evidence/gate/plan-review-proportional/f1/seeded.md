@@ -1,127 +1,143 @@
-# F1-E: seeded rounds
+# F1-E: seeded reviewer results, four transitions on one plan
 
-Date: 2026-11-01, re-run for row 4.11 on the delivered text of this head. Deployment as in F1-A
-(`.../f1/standard.md`, "Deployment deviation"): the branch installed into the disposable profile
-`prp`, every session run as `env -u PI_PROFILE -u OMP_PROFILE omp --profile prp`.
+Date: 2026-11-02, re-run for row 5.33 on the delivered text of this head, plus one new leg (d) for
+row 5.31. All four legs ran on the fixed text of this head, the blob below. Deployment as in F1-A
+(`.../f1/standard.md`, "Deployment deviation").
 
-Schema the sessions ran on, installed into each fixture with `install-openspec-workflow.mjs`
-(`d2cbe90` in `repo-f1ea`, `393b96d` in `repo-f1eb`, `fad3202` in `repo-f1ec`):
-
-```
-f7ad8d3534d80e841900f9d9cb878514945da9d4
-```
-
-(`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`.)
-
-In all three scenarios the session was told exactly one substitution: wherever the instruction
-dispatches `plan-reviewer` items for a round, take that round's reviewer results from a payload
-file (`$TMPDIR/prp-fix/payloads/*.json`, one entry per reviewer with `scope`, `id`, `result`)
-instead of dispatching. Everything else ran for real: the validator, the digest, the commits, the
-`blocker-verifier` dispatch, the fixes, the record and `--reviewed`. All three scenarios
-ran on the fixed text of this head, after every F2 wave-1 fix.
-
-## (a) All-residual exit — `$TMPDIR/prp-fix/repo-f1ea`, change `f1e`
-
-Payload `f1e-a-round1.json`: a `risky` round 1, scope A (`SeedScopeA1`) and scope B
-(`SeedScopeB1`), each REJECT with one blocker whose cited line does not say what the blocker
-claims.
-
-Observed (90.8 s): depth `risky` read from `gate.md`, digest `102212f2…62ac`; verifier
-`IntimateKoala` dispatched for real, on its pin, with both findings numbered; **both refuted**,
-non-blocking, not protected. Record `b80812c`: Verdict OKAY, Round 1, Awaiting `none`,
-`## Blockers` none, both findings under `## Residuals` with the verifier's result and reason. No
-ask, no round 2, no artifact edited. `--reviewed` printed `reviewed: OKAY in round 1`.
-
-## (b) Exhaustion and resume — `$TMPDIR/prp-fix/repo-f1eb`, change `f1eb`
-
-Payloads `f1eb-round1.json` (scope A `SeedScopeA4` REJECT: no failure transition for the newest
-refresh; scope B `SeedScopeB4` OKAY) and `f1eb-round2.json` (scope A `SeedScopeA5` OKAY; scope B
-`SeedScopeB5` REJECT: no Verify command in the plan runs a test).
-
-**Round 1** (1102.7 s). Depth `risky` from `gate.md`. The first verifier attempt
-(`EstimatedHarrier`) ran partly on `onara/cc/claude-opus-5` and did not count; the retry
-(`MightySnail`), on its pin, **confirmed, blocking**, not protected. Record committed as `276b6f9`
-(REJECT, Round 1, Awaiting `scope`) **before any edit**. The fix needs a scope decision the
-artifacts leave open (what the store does when the newest refresh's source rejects), so the session
-printed the **scope ask**: the finding verbatim with the verifier's reason, two named alternatives
-and Stop — and **no "keep as a residual" option**, because the finding is confirmed.
-
-**Round 2** (133.9 s). The QA lane answered alternative 1 (`failed` state). The fix landed in
-`8a62f46`, artifacts only. A full fresh round on the new digest `d9e198f8…f78f`; verifier
-`PainfulPlatypus` confirmed scope B's finding, blocking, not protected. The `risky` budget is two
-full rounds, both spent, so the record was committed **before** the ask as `1c20b36`: REJECT,
-Round 2, Awaiting `exhaustion`, the finding under `## Blockers` with the verifier's reason.
-`--reviewed` exited 1. The session printed the exhaustion ask with Fix, Override and Stop and
-edited nothing first.
-
-**Resume.** That session ended unanswered. A **fresh** session on the same fixture (42.9 s) read
-the record, confirmed the recorded digest still equals `V --digest`, and re-asked the same ask from
-`review.md` alone. Retained tool calls, its complete list in order:
+Schema the sessions ran on, installed into each fixture and committed there:
 
 ```
-1 read skill://openspec
-2 bash openspec instructions review --change f1eb --json
-3 eval
-4 read artifact://0:raw:18-19
-5 bash ls + cat review.md + git log + git status
-6 bash validate + --digest + --reviewed
-7 bash git show 276b6f9:…/review.md + git show --stat 1c20b36 8a62f46
-8 read openspec/changes/f1eb/review.md:raw
+b0f3c2009a7bd3d89e60438b34011efdbdbaff0b
 ```
 
-**No `task` call: no reviewer and no verifier was dispatched, and no file was edited.**
+## Why the reviewer results are seeded
 
-**Override.** The QA lane answered Override with a reason. Commit `abe3434` changed `review.md`
-only (3 insertions, 3 deletions):
+Legs (a)-(c) use one plan and one digest and differ only in what the reviewers return. A live
+dispatch cannot be steered that way. The prompts replace **only** the `plan-reviewer` dispatch with
+a payload file of verbatim reviewer results; the validator, the digest, `git`, the
+`blocker-verifier` dispatch, the fixes, the record and `--reviewed` all run for real. The record
+says so: the Models line marks those ids `unverified (result supplied by payload file; no session
+file to check against the pin)`. Leg (d) uses payloads the same way, on its own fixture.
+
+Legs (a)-(c): `$TMPDIR/prp-fix/repo-f1e{a,b,c}`, change `f1e`, Mandatory class `concurrency-state`,
+Depth `risky`, digest `102212f2bd367462037dd99c5b7abf5c62b4e1b7fe2a44fef5aae628634162ac`.
+
+## (a) Both findings refuted — OKAY in round 1 (123 s)
+
+- Two seeded REJECTs; `760616c` records them **before the verifier**, Awaiting `triage`, each
+  `not triaged`.
+- The live verifier `F1eTriageR1` (on the pin) refuted both.
+- `3dd2b12`: Verdict **OKAY**, Round 1, Awaiting `none`, both findings under `## Residuals`.
+  `--reviewed` exit 0.
+- Shows: a round whose every finding is refuted ends the review in round 1 — the reviewer's verdict
+  does not survive the verifier.
+
+## (b) A twice-failed verifier, then the exhaustion ask twice (1962 + 176 + 2015 + 263 + 1289 + 67 s)
+
+- `778e92c` pre-triage record; both verifier attempts (`ShrillHummingbird`,
+  `ProgressiveSwordfish`) left the pin mid-run, so neither counted.
+- `d8ac2f3` records exactly that: Awaiting `triage`, Verifier `none`, the blocker marked
+  `not triaged: the verifier failed twice`, and the session **stopped** instead of inventing a
+  triage (row 5.25).
+- Resumed (176 s): `2e4873e` the resumed pre-dispatch record, then `2220a0b` the triage record with
+  the finding confirmed, Awaiting `scope`, and the scope ask printed verbatim.
+- Answered (`failed` state): `755a369` carries the fix; round 2 ran and its verifier again failed
+  twice (`7fd58c4`, `86d2c30`, Awaiting `triage`), and a second resume (263 s) produced `980d9bc`:
+  the round-2 finding confirmed, budget spent, **Awaiting `exhaustion`**.
+- Answered **Fix** (1289 s): `b926c55` edits `tasks.md` only (4 insertions, 3 deletions), then
+  exactly one **live** delta check ran. It found a new confirmed blocking finding (the new test
+  task describes the two-refresh sequence from the opposite end to the requirement), so `b3498d9`
+  and `22813e8` record it and the exhaustion ask is put **again** — the budget stays spent, and
+  every further edit needs another answer.
+- Answered **Override** (67 s): `2671dce` records the reason verbatim with the artifacts
+  unchanged; `--reviewed` printed `REJECT overridden by the user: …` and exited 0.
+- Shows: a twice-failed verifier is a recorded, resumable state, not a silent pass; Fix on a spent
+  budget buys exactly one delta check and no more; and when that delta check finds something, the
+  loop is bounded by a user answer each time, never by the session.
+
+## (c) An undecided finding on a spent budget, answered Keep (1064 + 53 s)
+
+- Seeded round 1 contains one finding whose evidence lives in a private monorepo
+  (`../timesheet-sync/src/lease.ts:48`).
+- `6ccd5f8` pre-triage record; the live verifier `PotentialHorse` (after one off-pin discard)
+  returned **undecided**: condition 2 cannot be settled from this repository.
+- `b1d4b9e`: Awaiting `exception`, and the session printed the exception ask with Fix / Keep as a
+  residual / Stop.
+- Answered **Keep**: `b33f2e1` moves the finding to `## Residuals` with the answer, Verdict OKAY,
+  Round 1, Awaiting `none`. `--reviewed` printed `reviewed: OKAY in round 1`, exit 0.
+- Shows: an undecided finding is neither a blocker nor dropped; it becomes a user decision, and
+  Keep ends the review without a further dispatch.
+
+## (d) The same ask answered **Fix** — one more delta check (1178 + 91 s)
+
+Fixture `$TMPDIR/prp-fix/repo-f1ee`, change `f1ee` (Mandatory class `none`, Depth `standard`), so
+the budget is spent after the round-1 fix delta check. Schema blob as above, committed `8271e7d`.
+
+- Round 1 (seeded, one confirmed blocker: every check in the plan passes whatever the week boundary
+  does): `7be739b` pre-triage, `ed5b1c6` triage, `cbfb2e9` the fix.
+- The delta check (seeded) returns a new finding citing a private monorepo consumer; `ce5b877`
+  records it, the live verifier `F1eeTriage2Retry` returns **undecided**, `6d9d025` sets Awaiting
+  `exception`. The printed ask names the consequence verbatim:
+  `1. **Fix**: I change the artifacts using one of these two approaches. The fix is then followed
+  by one more delta check.`
+- Answered **Fix (approach a)**: `90ce052` edits `design.md` only (7 insertions), then exactly one
+  delta check runs (`EeScopeA3`, OKAY) and `f0788f2` records Verdict OKAY, **Round 3**, Awaiting
+  `none`, Override `none`. `--reviewed` printed `reviewed: OKAY in round 3`, exit 0.
+- Shows row 5.31's successor state: Fix on a spent budget is allowed, the fix is bounded to the
+  artifacts, and it buys exactly one more delta check — not a new full round, and not an unbounded
+  loop.
+
+## Retained tool calls — leg (b)'s two answer sessions
+
+Session paths under
+`~/.omp/profiles/prp/agent/sessions/-tmp-prp-fix-repo-f1eb/`.
+
+**Fix answer** (`2026-11-02T05-21-17-268Z_01a19ab4-69d4-735a-bf7c-91aa44f129cf`, 30 calls, 1289 s),
+in order: `read skill://openspec`; `bash openspec instructions review --change f1eb --json`;
+`eval` (the same instruction as JSON); `bash ls openspec/changes/f1eb && git log && git status
+--porcelain`; `read review.md`; `bash V --digest`; `read review.md:22:raw`; three `bash` reads of
+`package.json`, `src/day-list.ts` and the recording commit; `bash` probe of `bun test` on an empty
+file; **`write tasks.md`**, `bash V`, `write tasks.md`, `bash V`;
+`bash git add openspec/changes/f1eb/tasks.md && git commit` (`b926c55`); `bash grep ^model
+blocker-verifier.md`; **`task DeltaF1ebR3`**; `wait`; `read history://DeltaF1ebR3`; `bash jq … provider
++ model` (the D10 check); `read agent://DeltaF1ebR3/blockers`; `write review.md`;
+`bash git commit` (`b3498d9`); **`task TriageF1ebR3`**; `wait`; `read history://TriageF1ebR3:1-2`;
+`bash jq …`; two `edit` calls on `review.md`; `bash git commit` (`22813e8`).
+
+The first artifact edit is call 11, after the answer; the delta reviewer is dispatched at call 17,
+after the fix commit at 15; and exactly one reviewer dispatch appears in the whole session.
+
+**Override answer** (`2026-11-02T05-43-03-174Z_01a19ac8-5706-72f7-817d-f59261e6d814`, 22 calls,
+67 s), in order: `read skill://openspec`; two `bash openspec instructions review` calls; `read` of
+the delivered instruction in two halves and of the record template; six `bash sed` reads of the
+instruction's later sections; `write xd://report_issue`; `bash cat review.md && git status`;
+`bash V --digest`; three `grep`/`read` calls on `validate-openspec-change.mjs`; `read review.md`;
+**one `edit`** recording the Override; `bash V --reviewed`.
+
+No `task` call appears at all: Override dispatches nothing and edits no artifact.
+
+**Retained outputs.**
 
 ```
-$ git show --stat HEAD
- openspec/changes/f1eb/review.md | 6 +++---
-$ V --digest openspec/changes/f1eb
-d9e198f809c3c4fa6b54806460e87981d5c91958fccbe03df017891dceb3f78f     (unchanged)
-$ V --reviewed openspec/changes/f1eb
-reviewed: REJECT overridden by the user: This fixture plan is a throwaway QA artifact … (exit 0)
+$ node … validate-openspec-change.mjs --reviewed openspec/changes/f1eb
+reviewed: REJECT overridden by the user: the task's wording and the requirement describe the same
+two-refresh sequence from opposite ends, the implementer has both texts in front of them, and I
+accept the risk that the task wording is read the wrong way around.
+exit 0
+
+$ git show --stat b926c55          # the Fix answer's only artifact edit
+ openspec/changes/f1eb/tasks.md | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
 ```
 
-Verdict stays REJECT with the blocker listed verbatim, Awaiting back to `none`, Override holding
-the user's own words, digest unchanged.
+Digests: round 2 `1fe2557bb9756f415cd314a0fbb646da3c8655c865e1999bd1b2c45c280a3e46`, the delta
+check after the Fix `6c69e15a42628e4cec0e0b2758b40056a5dbe90bdf48dc38ffdfdbeadb73ce93`.
 
-## (c) Undecided finding — `$TMPDIR/prp-fix/repo-f1ec`, change `f1e`
-
-Payload `f1e-c-round1.json`: a `risky` round 1 with one non-security blocker (`SeedScopeA3`) whose
-stated consequence meets the threshold and whose only evidence lies **outside** the fixture
-repository (`../timesheet-sync/src/lease.ts:48` in a private monorepo).
-
-Observed (111.8 s): verifier `F1eTriageRound1`, on its pin, returned **`undecided`** with the
-reason that condition 2 cannot be settled from this repository. Record `92f1c79`: Verdict REJECT,
-Round 1, Awaiting `exception`, the finding under `## Blockers` — not under Residuals — with the
-verifier's reason, committed **before** the ask. `--reviewed` failed while unanswered:
-
-```
-review.md Verdict: REJECT without a user override; fix the blockers and re-run the review, or ask the user
-```
-
-The ask offered exactly **Fix, keep as a residual with your reason, Stop**. The QA lane answered
-keep with a reason; the rewritten record `48d965b` is **OKAY**, Awaiting `none`, with the finding
-under `## Residuals` carrying both the verifier's `undecided` reason and
-`Exception answer: keep as a residual. User's reason: "…"`. `--reviewed` exits 0.
-
-## What the QA lane judges
-
-- Two refuted findings end the review OKAY in round 1 with both under Residuals, no ask and no
-  second round.
-- A confirmed finding whose fix needs an open scope decision produces a scope ask with named
-  alternatives and **no keep option**, and the fix lands only after the answer.
-- With the budget spent the record precedes the ask, the artifacts stay untouched, a fresh session
-  re-asks from the record alone without dispatching anything, and Override records the user's words
-  against the unchanged digest.
-- An `undecided` finding whose consequence meets the threshold stays under `## Blockers` with a
-  REJECT record until the user answers, and only the answer `keep` moves it to Residuals.
 
 ## Honest notes
 
-- The payload reviewers have no session file, so the `Models` line names no model for them. Each
-  session wrote that explicitly ("result read from payload file, no session") rather than naming a
-  model it never observed — the behaviour row 2.5's template asks for.
-- One verifier attempt in (b) left its pinned model mid-run and was retried; that is the router's
-  own fallback, not part of the scenario.
+- Leg (d) needed a second fixture. The first attempt (`repo-f1ed`) planted a weaker round-1 defect
+  and the live verifier refuted it, so the review ended OKAY in round 1 and never reached the
+  budget. That run is real and is left in place; it is not evidence for this row.
+- Across these four legs, six dispatches left the pinned model mid-run and were discarded. Every
+  one of them cost wall time and some cost an extra session; none produced a counted verdict.

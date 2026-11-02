@@ -1,122 +1,68 @@
-# F1-B: a `risky` review, two full rounds, then the exhaustion ask
+# F1-B: a `risky` review, two full rounds
 
-Date: 2026-11-01, re-run for row 4.11 on the delivered text of this head. Deployment as in F1-A
-(`.../f1/standard.md`, "Deployment deviation").
+Date: 2026-11-02, re-run for row 5.33 on the delivered text of this head (the row 4.11 run is
+superseded: rows 5.30-5.31 changed step 4's record ordering and step 5's budget branch). Deployment
+as in F1-A (`.../f1/standard.md`, "Deployment deviation").
 
-Schema the sessions ran on, installed into the fixture and committed there as `54d539e`:
+Schema the sessions ran on, installed into the fixture and committed there as `6108bc3`:
 
 ```
-f7ad8d3534d80e841900f9d9cb878514945da9d4
+b0f3c2009a7bd3d89e60438b34011efdbdbaff0b
 ```
 
-(`git rev-parse HEAD:team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml`.)
+(`git rev-parse HEAD:openspec/schemas/omp-gated/schema.yaml` in the fixture, the same bytes as
+`team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` at this head.)
 
 ## Fixture
 
 `$TMPDIR/prp-fix/repo-f1b`, change `f1b`: the refresh-store plan, **Mandatory class
 `concurrency-state`, Depth `risky`** in `gate.md`, digest
 `102212f2bd367462037dd99c5b7abf5c62b4e1b7fe2a44fef5aae628634162ac` at round 1. The planted gaps are
-real: the plan's tests never drive a superseded refresh that settles while the newest is pending,
+real: the plan's design defines only `idle -> refreshing -> ready` with no failure transition,
 task 1.2's Verify only checks that the test file exists, and there is no F1/F2 final verification.
 
-## Session 1 — round 1 is incomplete
+## Session 1 — round 1 (1757 s)
 
-`…/sessions/-tmp-prp-fix-repo-f1b/2026-11-01T19-26-22-268Z…`, 1602 s.
+- Scope A and scope B dispatched in **one batch**. The first scope-A dispatch (`WispyPartridge`)
+  left its pin mid-run and was discarded `(no verdict)`; the retry `FoolishPartridge` and
+  `BasicFlyingfish` both ran on the pin and both rejected.
+- `6c231e0` **before the verifier was dispatched**: REJECT, `Verifier: blocker-verifier, none`,
+  Awaiting `triage`, both scopes' findings verbatim under `## Blockers`, each marked
+  `not triaged: the verifier has not returned` (row 5.30).
+- Verifier: first attempt `WillowyMoose` off its pin `(no verdict)`, retry `PlainCricket` on the
+  pin: finding 1 **confirmed, blocking**, finding 2 refuted.
+- `c8f7530` the triage record on the same digest: Awaiting `scope`, finding 1 under `## Blockers`
+  with the verifier's reason, finding 2 moved to `## Residuals`.
+- The session printed the **scope ask** (what the store does when the current refresh's source
+  rejects) with two named alternatives and Stop, and edited nothing.
 
-```
-13  task plan-reviewer/F1bScopeA, plan-reviewer/F1bScopeB     <- scope A and B in ONE batch
-14  wait
-17  wait
-20  task plan-reviewer/F1bScopeARetry
-21  wait
-```
+## Session 2 — the answer, the fixes and round 2 (402 s)
 
-Depth `risky` was read from `gate.md`. Scope A ran partly on `onara/cc/claude-opus-5` → no verdict;
-its retry hit the provider's output size limit six times (17727 tokens against a 16384 cap) and
-returned nothing. Scope B, on its pin, returned REJECT with three blockers.
+- The QA lane answered alternative 1 (an `error` state). `64cb9b1` carries the fixes, change folder
+  only: the error state, the overlap scenarios and the missing final verification.
+- Round 2 is a **full fresh two-reviewer round** on the new digest
+  `70b4581d7cadc8e84041d3fb0bebfeff00c4a09a63176d801223c029e117460b`: `ProductiveSailfish` and
+  `MuddyNarwhal`, both on the pin, both OKAY.
+- `cf011f4`: Verdict OKAY, Round 2, Awaiting `none`, Blockers none, round 1's refuted finding still
+  under `## Residuals`. `--reviewed` printed `reviewed: OKAY in round 2`, exit 0.
 
-Record `1195dcf`: REJECT, Round 1, **Awaiting `incomplete`**, Verifier `none`, scope B's three
-blockers verbatim with `not triaged: the round is incomplete`, and a `Models` line carrying
-`(no verdict)` on both failed scope A attempts. No verifier ran; `--reviewed` exits 1.
+## What this run shows
 
-## Session 2 — the resume re-runs round 1 and asks a scope question
-
-`…T19-53-15-824Z…`, 381 s.
-
-```
-17  task plan-reviewer/F1bRerunScopeA, plan-reviewer/F1bRerunScopeB    <- one batch again
-18,21 wait
-23-28 eval/wait   -> blocker-verifier F1bTriage (dispatched from an eval cell with the fixed brief)
-```
-
-Same round number, fresh reviewers, both on their pins, both REJECT. The verifier took **all seven
-findings** — the three carried from the incomplete round plus one from scope A and three from scope
-B — and confirmed every one as blocking, none protected.
-
-Record `7da60ca`: REJECT, **Round 1** (not 2: the re-run is the same round), Awaiting `scope`,
-Verifier `F1bTriage`, `Models` listing all six dispatches of both attempts with their `(no verdict)`
-marks. Finding 4 needs a decision the artifacts leave open (what the store does when the newest
-refresh fails), so the session printed the **scope ask**: the finding verbatim with the verifier's
-reason, two named alternatives and Stop — **and no "keep as a residual" option**, because the
-finding is confirmed. Nothing was edited.
-
-## Session 3 — the answer, the fix, round 2, the exhaustion ask
-
-`…T19-59-52-376Z…`, 2979 s. The QA lane answered the scope ask with alternative 1 (add an `error`
-state that only the newest refresh can reach, last totals kept, `refresh()` rejects with the
-source's error).
-
-- Fix `9390de2`: all seven findings, **change folder only** (`proposal.md`, the spec, `design.md`,
-  `gate.md`, `tasks.md`), no source code.
-- Round 2 on the new digest
-  `7b075d2ea97dba0a757a9bd85404135ecd62e08c472ec0755577f3e9b1adf02a`:
-
-```
-29  task plan-reviewer/F1bR2ScopeA, plan-reviewer/F1bR2ScopeB   <- two FRESH reviewers, one batch
-36  task plan-reviewer/F1bR2ScopeARetry        (scope A's first run left the pin)
-42  task blocker-verifier/F1bR2Triage          (left the pin -> no verdict)
-46  task blocker-verifier/F1bR2TriageRetry     (on the pin -> counts)
-```
-
-Scope B found one blocker; the retried scope A found none; the verifier's retry confirmed it,
-blocking, not protected.
-
-Record `8ba2079`:
-
-```
-- **Verdict**: REJECT
-- **Reviewed digest**: 7b075d2e…f02a
-- **Depth**: risky
-- **Reviewer**: plan-reviewer, F1bR2ScopeARetry, F1bR2ScopeB
-- **Verifier**: blocker-verifier, F1bR2TriageRetry
-- **Models**: F1bR2ScopeA … onara/cc/claude-opus-5 (no verdict); F1bR2ScopeB …; F1bR2ScopeARetry …; F1bR2Triage … onara/cc/claude-opus-5 (no verdict); F1bR2TriageRetry …
-- **Round**: 2
-- **Awaiting**: exhaustion
-```
-
-committed **before** the ask and before any further edit. A `risky` review's budget is two full
-rounds, both spent, so the session printed the exhaustion ask with the finding verbatim, the
-verifier's reason and the options Fix, Override, Stop — and stopped, artifacts untouched.
-
-## What the QA lane judges
-
-- Depth `risky` read from `gate.md`; scope A and scope B dispatched **in one batch** in every round.
-- The record is committed before the first artifact edit of its round, and the fix touches only the
-  change folder.
-- Round 2 dispatches **fresh** reviewers with new ids on the **new digest**.
-- At most two full rounds: after round 2 the session asks instead of running a third.
-- The exhaustion ask appears only because a confirmed blocking finding is still open, it quotes the
-  finding and the verifier's reason, and it offers Fix, Override and Stop with the reviewed bytes
-  unchanged (row 5.25's ordering).
+- A `risky` round dispatches both scopes in one batch, and a dispatch off its pin is discarded with
+  `(no verdict)` and retried (two of six dispatches here).
+- The round's rejection is committed **before** the verifier runs, and the post-triage record
+  replaces it on the same digest.
+- A confirmed finding whose fix needs an open scope decision produces a scope ask with named
+  alternatives; the fix lands only after the answer.
+- Round 2 is full and fresh, and a clean round 2 ends the review OKAY without an exhaustion ask:
+  the budget was not spent on a second REJECT this time.
 
 ## Honest notes
 
-- The ask was left unanswered: the row's subject is the round structure and the budget, and the
-  answer paths are covered live by F1-C (Override, `.../f1/security.md`) and F1-E (b) (Override
-  after a resume, `.../f1/seeded.md`).
-- Four dispatches across the three sessions left their pinned model mid-run, and one hit the
-  provider's output-size limit. All are real infrastructure behaviour, not planted; each cost one
-  dispatch and the instruction's retry rule recovered every time.
-- The verifier of session 2 was dispatched from an `eval` cell rather than the `task` tool, after
-  the brief was assembled there; the record names it (`F1bTriage`) and its model was read from its
-  own session file.
+- The round-2 reviewers left three non-blocking notes in the record (the return value of a
+  superseded `refresh()`, the store's constructor shape, and that two evidence checks only prove a
+  file is non-empty). The session recorded them and acted on none, because the round was OKAY.
+- The earlier run of this scenario (row 4.11) ended at an exhaustion ask after a second REJECT.
+  Same fixture, same text for the budget rule, different model draws: the budget rule was not
+  reached here, so this file no longer witnesses the exhaustion path. F1-E (b)
+  (`.../f1/seeded.md`) witnesses it on this head instead.
