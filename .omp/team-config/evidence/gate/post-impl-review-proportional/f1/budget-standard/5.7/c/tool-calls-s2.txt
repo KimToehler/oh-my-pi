@@ -1,0 +1,42 @@
+1	read	skill://review-work
+2	read	artifact://0:176-470
+3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-330
+4	bash	git status --short && git log --oneline -10 && git branch -a && git worktree list
+5	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:172-172
+6	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:181-181
+7	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:220-220
+8	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:334-470
+9	bash	awk 'NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+10	eval	import os ⏎ L=open(os.path.expanduser('~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md')).read().split('\\n') ⏎ for n in [356,380,382,386,390,396,433,462,465,466]: ⏎     s=L[n-1] ⏎     if len(s)>700: ⏎         for i in range(700, len(s), 700): ⏎             print(n, '…', s[i:i+700]) ⏎         
+11	bash	git show --stat --format='%H %s' HEAD HEAD~1 0cd516d cac67ef a951855 | cat; git ls-files | cat
+12	eval	import subprocess ⏎ for f in ["openspec/changes/csv-total/.openspec.yaml","openspec/changes/csv-total/gate.md","openspec/changes/csv-total/proposal.md","openspec/changes/csv-total/design.md","openspec/changes/csv-total/review.md","openspec/changes/csv-total/specs/csv-total/spec.md","openspec/changes
+13	eval	t=open("openspec/changes/csv-total/tasks.md").read().split("\\n") ⏎ for l in t: ⏎     if l.startswith("- [x] 3.1"): ⏎         for i in range(0,len(l),600): print(l[i:i+600]) ⏎ import glob ⏎ for f in sorted(glob.glob(".omp/team-config/evidence/gate/csv-total/f1/*")): ⏎     print("=====",f); print(open
+14	read	rule://worktrees
+15	bash	git show 066253a | cat
+16	bash	ls ~/.omp/agent/skills/review-work/scripts/ && grep -n "team-config\\|git-common-dir\\|commonDir\\|ledger" ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs | cut -c1-200 | awk 'NR<=60'
+17	bash	awk 'NR>=50&&NR<=70' ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs
+18	bash	ls -la ~/.omp/agent ~/.omp/agent/skills | awk 'NR<=12'; ls ~/.omp/profiles/pirp/agent/agents/ 2>&1 | cat; ls ~/.omp/agent/agents 2>&1 | cat; echo "$OMP_AGENT_DIR $PI_CODING_AGENT_DIR"; omp config get task.agentModelOverrides 2>&1 | cat
+19	bash	awk 'NR<=12' ~/.omp/profiles/pirp/agent/agents/auditor.md; ls ~/.omp/profiles/pirp/agent/skills/review-work/scripts/ | cat; diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work | cat; diff -q ~/.omp/agent/agents/auditor.md ~/.omp/profiles/pirp/agent/agents/auditor.m
+20	bash	git status --short --untracked-files=all | cat; echo "---"; git stash list | cat; grep -n "^model" ~/.omp/agent/agents/auditor.md
+21	bash	git switch main && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list | cat
+22	eval	import subprocess, os ⏎ W="/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r57-c/.worktrees/review-csv-total" ⏎ SD=os.path.expanduser("~/.omp/profiles/pirp/agent/skills/review-work") ⏎ PLAN="openspec/changes/csv-total" ⏎ def sh(c, cwd=W): ⏎     r=subprocess.run(c,shell=True,cwd
+23	eval	sh("git merge --no-edit main && git log --oneline -3 | cat && git diff 55e3e3b HEAD --stat | cat")
+24	eval	sh(f"{GC} baseline --sha HEAD") ⏎ sh(f"{GC} ready --lane F2")
+25	eval	r=sh(f"{GC} snapshot --lane F2")
+26	eval	import tempfile, hashlib ⏎ d=tempfile.mkdtemp(prefix="csvtotal-f2-") ⏎ inp=os.path.join(d,"s5-large.csv"); open(inp,"w").write("big,1234.50\\n") ⏎ head=subprocess.run("git rev-parse HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip() ⏎ bv=subprocess.run("bun --version",shell=True,cap
+27	eval	EV=os.path.join(W,".omp/team-config/evidence/gate/csv-total") ⏎ os.makedirs(f"{EV}/wave-1",exist_ok=True) ⏎ def sha(p): return hashlib.sha256(open(p,"rb").read()).hexdigest() ⏎ f1={k:f".omp/team-config/evidence/gate/csv-total/f1/{k}.md" for k in ["s1-happy","s2-malformed","s3-cents","s4-empty","s5-l
+28	eval	inp2=os.path.join(d,"r2-cents-030.csv"); open(inp2,"w").write("a,0.10\\nb,0.20\\n") ⏎ q=subprocess.run(f"bun src/cli.ts total {inp2}",shell=True,cwd=W,capture_output=True,text=True) ⏎ print(repr(q.stdout),repr(q.stderr),q.returncode) ⏎ r2=r2.replace(f"""Not separately captured: the `a,0.10` + `b,0.20`
+29	eval	base=subprocess.run("git merge-base main HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip() ⏎ print(base) ⏎ sh(f"git diff --name-only {base}...HEAD") ⏎ sh(f"for f in $(git diff --name-only {base}...HEAD); do echo \\"## $f\\"; git log --oneline -5 -- $f; done") ⏎ sh("git log --all --o
+30	eval	diff=subprocess.run(f"git diff {base}...HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout ⏎ changed=subprocess.run(f"git diff --name-only {base}...HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip() ⏎ mergediff=subprocess.run("git diff 55e3e3b HEAD",shell=True,cwd=W,captu
+31	eval	A={ "r1":".omp/team-config/evidence/gate/csv-total/wave-1/r1-parsed-strictly.md", ⏎     "r2":".omp/team-config/evidence/gate/csv-total/wave-1/r2-exact-cents.md", ⏎     "s1":f1["s1-happy"], "s2":f1["s2-malformed"], ⏎     "s5":".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md"} ⏎ AS={k:sha(
+32	eval	SK=open(os.path.join(SD,"SKILL.md")).read() ⏎ start=SK.index("```\\nLocal implementation audit.")+4 ⏎ end=SK.index("END-REVIEW-TRAILER\\n```",start)+len("END-REVIEW-TRAILER") ⏎ tmpl=SK[start:end] ⏎ assert tmpl.count("{GOAL, CONSTRAINTS, BACKGROUND}")==1 ⏎ goal=f""" ⏎ GOAL (proposal.md): Finance reconc
+33	bash	cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md; echo "=== SESSION"; wc -l /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl; jq -c '{type, provider: (.message.provider // .provider), model: (.message.model // .model), role
+34	bash	jq -c 'del(.message.content) | del(.message.usage)' /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl | cut -c1-400
+35	bash	jq -c 'select(.type!="message")' /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl | cut -c1-400
+36	eval	import shutil ⏎ TR=".omp/team-config/evidence/gate/csv-total/f2/trailer-implementation-audit.txt" ⏎ os.makedirs(os.path.dirname(os.path.join(W,TR)),exist_ok=True) ⏎ shutil.copyfile("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md", os.path.join(W,TR)) ⏎ sh(f"cmp
+37	eval	SNAP=f"{W}/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json" ⏎ sh(f"{GC} wave --lane F2 --snapshot {SNAP} --outcome qa=PASS --outcome implementation-audit=PASS --trailer implementation-audit={TR}")
+38	eval	import json ⏎ snap=json.load(open(SNAP)); print({k:v for k,v in snap.items() if k!="plan_copy"} if len(str(snap))<3000 else list(snap.keys())) ⏎ print(sha(SNAP_PLAN))
+39	eval	REC=".omp/team-config/evidence/gate/csv-total.json" ⏎ rows=[("R1 Requirement: Price lines are parsed strictly (s1, s2 carried)","r1"), ⏎       ("R2 Requirement: Totals are exact in cents (s3, s4 carried; 0.30 captured at reviewed head)","r2"), ⏎       ("Happy path: widget,19.99 + gadget,5.01 prints 
+40	eval	record["blockers"]=[] ⏎ open(os.path.join(W,REC),"w").write(json.dumps(record,indent=2)+"\\n") ⏎ sh(f"git add -- {REC}") ⏎ sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --record {REC} --plan {PLAN}")
+41	eval	sh('git commit -q -m "gate(csv-total): F2 merge-gate record, wave 1 PASS at 60d56444ecce (implementation-audit PASS, QA 5/5)" && git log --oneline -3 | cat && git status --short | cat') ⏎ sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --record {REC} --plan {PLAN}") ⏎ sh("git rev-parse ma
+42	read	rule://merge-gate-proof

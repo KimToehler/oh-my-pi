@@ -1,0 +1,1 @@
+/opsx-apply csv-total. Implement the one remaining task of this change and stop once its evidence is captured and committed: do not start the F2 merge gate or any review.

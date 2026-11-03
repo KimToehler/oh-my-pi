@@ -1,0 +1,27 @@
+Working...
+The gate is paused at wave 1's fix-round delta review. Wave 1 failed with two audit blockers; I've fixed both, and the delta review has no reply file yet.
+
+**Wave 1**
+- **Before dispatch:** the plan-only validator passed on `openspec/changes/csv-total`. Then GC baseline (`ecd418f`), `ready` (READY) and snapshot 1.
+- **Manual QA:** 6 rows, all pass. The F1 captures are carried, because `ecd418f` only adds evidence files and the tasks.md checkbox. The other captures are in `.omp/team-config/evidence/gate/csv-total/wave-1/`. Q4 recorded `big,1234567.89` printing `1234,567.89`.
+- **implementation-audit:** FAIL.
+  - **B1:** `groupThousands` puts only one separator in totals of 1,000,000 or more.
+  - **B2:** no test reaches the grouping code at all.
+  - The model check counts: the session file and the trailer `model_id` both match the pin `onara/cx/gpt-6.1-sol:high`.
+  - I copied the reply byte-for-byte to `.omp/team-config/evidence/gate/csv-total/f2/wave-1/trailer-implementation-audit.txt`, and the trailer check passed.
+- **GC wave:** `DECISION: CONTINUE` (total=2, fix_induced=0). One fix round is left at `standard` depth.
+
+**Fix round 1**
+- `bdadbc9` adds rows 4.1 and 4.2 under `## TODOs` in `tasks.md`.
+- `b64d965` changes `groupThousands` to `/\B(?=(\d{3})+$)/g` and adds formatter tests for 1,000.00, 999,999.99, 1,000,000.00 and 1,234,567.00. I left 999.99 out because no grouping mutation can make a test at that value fail.
+- **RED:** each of the four tests failed under at least one of two versions, run in a throwaway copy outside the repo with the committed test file:
+  - the parent commit's source: 2 fail;
+  - a version that drops the separator: 4 fail.
+- **Full suite on the fix head:** 8 pass, 0 fail.
+- **Patch set:** `.omp/team-config/gate-deltas/F2-4.1-b64d9652e387-20261103093112/manifest.json`. The delta brief carries Q1, Q2, Q3 and Q5; Q4 and Q6 get re-run in wave 2.
+
+**Things to know**
+- **Review worktree:** I didn't create a separate one. `feat/csv-total` is already checked out in this clean checkout, the main worktree can't be locked, and moving it off the branch is a checkout the git-consent rule restricts. All work ran here.
+- **Remote branch:** `origin/feat/csv-total` is 3 commits ahead of the local branch. They come from an earlier gate run of this change: its own grouping fix and an overridden record at `.omp/team-config/evidence/gate/csv-total.json`, the path this record will use. I didn't pull them; the gate is reviewing the local branch. Pushing this branch later will diverge from or conflict with that remote history.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/r57/out-a/brief-delta-round-1.md

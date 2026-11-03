@@ -1,0 +1,45 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: FAILED, overridden
+
+The gate did not pass. The record validates as `overridden` (exit 0), both before and after the record commit `dd6dceb`. The one blocker left unfixed is the sub-cent rounding residual that `gate.md` already accepts, and Tim overrode it at the fix-round budget ask.
+
+Decision reason: Depth standard from gate.md (Mandatory class none, no review, gate or release mechanism changed; final diff re-classified: none); F2 wave 2 FAIL B1 sub-cent-rounding is covered by gate.md Accepted residual risks and was overridden by Tim at the fix-round budget ask.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (6 rows, 6 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL, overridden | HIGH |
+
+The audit verdicts and both delta reviews came from the fixed reply files you named; no reviewer was dispatched.
+
+## Blocking Issues
+- **Wave 1 B1, misgrouped-large-total** (`src/format.ts:11`): fixed in `b64d965` (row 4.1).
+- **Wave 1 B2, large-total-branch-untested:** fixed in `b64d965` (row 4.2). I saw each of the four new tests fail when the grouping logic was broken.
+- **Wave 2 B1, sub-cent-rounding** (`src/money.ts:2`): not fixed. It is covered by `gate.md` Accepted residual risks, and the record carries it as an `accepted-residual` downgrade (disposition `residual`), overridden by Tim.
+
+## Covered by one invocation
+`implementation-audit` also covered correctness, architecture, wire contracts, security/privacy and verification adequacy.
+
+## Key Findings
+- **Fix round 1:** the first delta review rejected one QA carry (F1 s1). I re-ran that row as `wave-2/q3-happy.md` with no code change, and the re-review of the same range was OKAY.
+- **Wave 2 QA:** every grouping boundary prints correctly, from `999.99` up to `1,234,567.89`. A three-decimal price is still rounded per line (`0.125` + `0.125` prints `0.26`); that is the accepted residual.
+
+## Recommendations
+- **Before pushing:** `origin/feat/csv-total` holds three commits from an earlier, separate gate run that are not on the local branch, including a record at the same path, `.omp/team-config/evidence/gate/csv-total.json`. Pushing this branch will diverge from that history and conflict at that file. Decide which history to keep before you push.
+- **Review worktree:** I did not create a separate one. The branch is already checked out in this clean checkout, and switching it falls under the git-consent rule, so all gate work ran here.
+- **Left unstaged on purpose:** the uncited wave-1 captures (`q4`, `q6`) and the wave-1 trailer. The record doesn't cite them, so they are not committed.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha b64d9652e387f2768741b29deb16c5e84e924c10 · plan_sha256 f2eb7c63f31338f568487dbd1d737b2998a8e6dce7a6daead991e0dd09acb90e
+  implementation-audit: FAIL overridden · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/csv-total/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: one reviewer)
+  override: by Tim · 1 downgrades (accepted-residual: 1)
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at dd6dcebfb1a9d9be4452c024fe856a51470a2a0b
+- code committed after reviewed_sha: none
+```

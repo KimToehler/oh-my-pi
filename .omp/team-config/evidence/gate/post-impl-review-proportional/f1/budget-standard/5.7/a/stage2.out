@@ -1,0 +1,23 @@
+Working...
+I recorded wave 2: `DECISION: CONTINUE` (1 blocker). The `standard` budget of one fix round is now spent, so Fix waves step 3a has me ask you once, before any edit or dispatch. Nothing is staged or committed for the record yet.
+
+**Where the gate stands**
+- **Wave 1:** QA passed; implementation-audit FAIL (B1 misgrouped-large-total, B2 large-total-branch-untested).
+- **Fix round 1:** `bdadbc9` and `b64d965` fix both. The first delta review was REJECT on one QA carry (F1 s1). I re-ran that row: `25.00`, exit 0. The re-review of the same range was OKAY.
+- **Wave 2** on `b64d965`:
+  - QA passed on all 6 rows. Q3, Q4 and Q6 were re-run, with every large-total grouping boundary correct. Q1, Q2 and Q5 were carried.
+  - implementation-audit FAIL with one new blocker in code the fix round didn't touch.
+  - Trailer check passed.
+  - Ledger: wave 2, total=1, fix_induced=0, unlocated=0.
+
+**Open blocker and its disposition**
+- **B1, sub-cent-rounding** (`src/money.ts:2`, high): `Math.round(amount * 100)` rounds a price with more than two decimals in binary floating point. So `1.005` becomes 1.00 instead of 1.01, and the printed total can differ from the supplier's invoice by one cent.
+- **Disposition: covered.** The `Accepted residual risks` entry in `gate.md` names the same defect class and consequence: "a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent."
+- **No exclusion applies:** the trailer says `security_delta: no`, the mandatory class is `none`, the blocker cites no merge-gate criterion, protected asset or existing consumer, it doesn't touch the audit trail, and it disputes nothing in the plan.
+
+**Question:** The F2 fix-round budget is spent and wave 2 failed on one blocker, B1 sub-cent-rounding, which `gate.md`'s Accepted residual risks covers. How do you want to proceed?
+
+1. **One more fix round:** fix B1 (reject prices with more than two decimals, or round in decimal arithmetic), get a delta review, then a closing wave 3. This question comes back after that wave.
+2. **Re-plan:** a separate plan for the price-rounding mechanism.
+3. **Stop:** the gate stays failed and no tracked file changes.
+4. **Override** (recommended, because B1 is covered): I write the Phase 4 record with `override` (your name and reason) and one `downgrades` entry for B1, rule `accepted-residual`, disposition `residual`. Then I stage and validate it and commit. It is reported as overridden, never as PASS.

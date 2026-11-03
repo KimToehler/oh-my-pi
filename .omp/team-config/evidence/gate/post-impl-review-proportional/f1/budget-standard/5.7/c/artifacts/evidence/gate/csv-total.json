@@ -1,0 +1,69 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "60d56444eccee97bb24e5c51c3be2653eb256229",
+  "diff_base": "066253a8a5790957bd2e058fac5b086c75de4ccb",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard: Mandatory class none, Risk tier product, no review/gate/release mechanism; final diff (standalone CLI plus merged groupThousands formatting) adds no auth, schema, wire/API or shared-state surface, so depth stays standard",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "R1 Requirement: Price lines are parsed strictly (s1, s2 carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/r1-parsed-strictly.md",
+      "artifact_sha256": "f2c8b6d9d4a562ac73d8f796a401d6f72e976cf3e5c7f29794b2825021ed3d5c"
+    },
+    {
+      "name": "R2 Requirement: Totals are exact in cents (s3, s4 carried; 0.30 captured at reviewed head)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/r2-exact-cents.md",
+      "artifact_sha256": "96b586910da119f549c6afcd9cf942624fe37dcda31cce906de30803f35cf84f"
+    },
+    {
+      "name": "Happy path: widget,19.99 + gadget,5.01 prints 25.00 (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "b30ebd8fb38f75b33dad36beb474ae8b5bb12fb62a94c584408fc6e91df7675a"
+    },
+    {
+      "name": "Riskiest edge: malformed price widget,abc exits 2 naming line 1, no total (carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "72fb98e7d8270de3a1fa29aa2acf3988fa70078da6bc8d504da6384d48eca0eb"
+    },
+    {
+      "name": "Regression on adjacent behaviour: big,1234.50 through merged groupThousands prints 1,234.50 (re-run)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md",
+      "artifact_sha256": "73f344c8726efaecb2cf4a695c7a3c1c0f1db313d0ea4a6139b8dd6c25ed6f89"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/csv-total/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1 PASS, no blockers; reply stored verbatim at the trailer artifact"
+    }
+  ],
+  "blockers": []
+}
