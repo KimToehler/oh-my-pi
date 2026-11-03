@@ -1,0 +1,107 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/plan-review-loop-measurement",
+  "plan_sha256": "b1d284612250746e6aef1e01d9fb6fbdf31dec34fc593b780746276a81801cc5",
+  "reviewed_sha": "ad0d381e75b868572881715f4b926053268acacc",
+  "diff_base": "3b2ab9b8739c7c6762958dc6d97abf4b5725c523",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class none, Risk tier product (re-tiered after F2 wave 3 when a third fix round was needed), so both invocations run; F2 wave 4 recorded DECISION: PASS with QA and both reviewers PASS.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 frozen-run integrity check: 140 sources, 5 items, 40 trials, 88 attempts, 210 findings",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa1-check-frozen-run.txt",
+      "artifact_sha256": "e74fe43c8e83c38057359f4cc67f93b3164ccf840582f5dd480cfc80cd6f1255"
+    },
+    {
+      "name": "Q2 tamper detection: a mutated supplied input fails the digest check, exit 1",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa2-check-tamper-detection.txt",
+      "artifact_sha256": "36491c2385fa52194dd0d2d765ea56d667d39efd977830e688e1519947aefb5c"
+    },
+    {
+      "name": "Q3 published reproduction: publish and both report formats reproduce the committed artifacts byte-exactly",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa3-published-reproduction.txt",
+      "artifact_sha256": "fa3e22cbcb09ec63be8a0169cfa5b15c9e6f1a9eb88e8b6c2d39f3d469e8b5ec"
+    },
+    {
+      "name": "Q4 contract suite: 75 pass, 0 fail",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa4-contract-suite.txt",
+      "artifact_sha256": "8db20cf0bfbe872f46a63e6759310f9a46ffb353c527b6233a96a4da0c34c5ea"
+    },
+    {
+      "name": "Q5 publication leak scan over the published evidence directory; the leak-scan captures themselves are excluded because they quote earlier scan output including absolute local paths",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa5-publication-leak-scan.txt",
+      "artifact_sha256": "1d44f4219b5d8cba872715d0f1bd809ca2f3541e353739efa685e671d46e2cfd"
+    },
+    {
+      "name": "Q6 arm completeness: per-arm discovery, triage and additional-defect severity counts recomputed from the published dataset",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa6-arm-completeness.txt",
+      "artifact_sha256": "de32d54b563a3a3706e219a823da43bd755dfc1adbf47af294301755ca0b3f35"
+    },
+    {
+      "name": "Q7 trial-span coverage: 20/20 fresh spans complete, 20 historical spans unavailable without timestamps",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/wave-15/qa7-trial-span-coverage.txt",
+      "artifact_sha256": "b239417d7de2bba4e24746d2b8fb534f47a14b73ff454ee98666da9c4857ec60"
+    },
+    {
+      "name": "Q8 F1 scorer re-verification: real CLI on the frozen run, hand-calculated cases, mutation surfaces per fix wave",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/f1/scorer.md",
+      "artifact_sha256": "4be56328bbe4b59397c8a0ab7a695f8e935becfa6fb54b8366e49422edda6023"
+    },
+    {
+      "name": "Q9 F1 publication inspection: per-field sanitization rules, leak scan, reproduction",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/f1/publication.md",
+      "artifact_sha256": "79270f13bdb94b3d29a155b4c4a31309d352f6e1efb7eea8582f43f25b67a9da"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "one standalone scorer with its contract tests and the experiment/result artifacts it reads; no third independently testable runtime layer"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/f2/trailer-implementation-audit-wave-4.txt",
+      "trailer_sha256": "6b4c4a8037e5ce88eb9cf4c436ad1f3e44d46c2237c0afc2220d518be731f3b6",
+      "note": "no blockers; one non-blocking note: the leak scan excludes lines containing publication-leak-scan, while wave-9 and wave-10 captures quote absolute local worktree paths, so the matrix claim is narrower than stated there"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/plan-review-loop-measurement/f2/trailer-strategic-risk-review-wave-4.txt",
+      "trailer_sha256": "27afb94d9c5c5683a03bb206c32e64a2c88684acb10a15f4f7eb401eefc0e093",
+      "note": "no blockers; notes: reproducing summary.json proves the published arithmetic, not the absence of adjudication bias, and publish.ts trusts the explicit privateItems classification rather than detecting secrets"
+    }
+  ],
+  "blockers": []
+}
