@@ -90,7 +90,7 @@ After a failing wave the gate SHALL allow one fix round at `standard` depth and 
 #### Scenario: Standard fix round
 
 - **WHEN** a `standard` gate's first wave fails, and its fixes are delta-reviewed and committed
-- **THEN** a second wave re-runs QA on the fixed tree and, when QA passes, `implementation-audit`, and no third wave starts without the user
+- **THEN** a second wave re-runs QA on the fixed tree and, when QA passes, `implementation-audit`, and no third wave starts without the user, except the repeat of an incomplete closing wave
 
 #### Scenario: Risky budget
 
@@ -123,7 +123,7 @@ When a closing wave fails with the budget spent, the gate SHALL first record the
 
 ### Requirement: An incomplete closing wave is repeated, not asked about
 
-A closing wave with an INCONCLUSIVE invocation is incomplete, not failed. It SHALL get no budget ask and no Override. The gate SHALL record it, tell the user which model and effort ran, commit no fix, and repeat the wave on the same tree once the pin resolves, without spending a fix round.
+A closing wave with an INCONCLUSIVE invocation is incomplete, not failed. It SHALL get no budget ask and no Override. The gate SHALL record it, tell the user why the invocation is INCONCLUSIVE (for a pin mismatch, which model and effort ran), commit no fix, and repeat the wave on the same tree once that cause is resolved; the repeat SHALL spend no fix round and SHALL NOT count as a budget wave.
 
 #### Scenario: Incomplete closing wave
 
