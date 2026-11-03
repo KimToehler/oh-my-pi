@@ -1,0 +1,6 @@
+$ bun /tmp/qa9.js   # trial spans against every attempt bound to the trial
+--- output ---
+S-Rtr-3: unlisted bound attempts VerifySRtr3/verifier/excluded span {"ms":2373611,"complete":true,"reason":null}
+S-Rtr-1: unlisted bound attempts VerifySRtr1/verifier/excluded span {"ms":17066643,"complete":true,"reason":null}
+spans not complete: 20 (H-Focus-App-1, H-Focus-Fmp-1, H-Focus-Rtr-1 …) - all historical trials without timestamps
+fresh spans complete: 20/20
