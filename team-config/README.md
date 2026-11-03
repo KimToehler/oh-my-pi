@@ -109,6 +109,9 @@ The default gate record location is `.omp/team-config/evidence/gate/<plan basena
 - Model roles, approval mode, bash patterns: edit `~/.omp/agent/config.yml` directly.
   After a team change to `seed/config.yml`, compare with
   `diff ~/.omp/agent/config.yml team-config/seed/config.yml` and merge what you want.
+  A config that predates `retry.fallbackOn: usage-limit` still switches models on any
+  provider error, so a pinned reviewer can answer from the next chain entry; merge that
+  key if you run gates.
 - Do not edit shipped files in `~/.omp/agent`; the next deploy replaces them (with a backup).
   Change them here and open a PR instead.
 
