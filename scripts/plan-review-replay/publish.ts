@@ -21,6 +21,8 @@ const LOCAL_PATH = /\/Users\/[^\s"]+/g;
 const PLAN_COORDINATE = /^openspec\/changes\/([^/]+)\/[^:]+(:.*)?$/;
 /** A coordinate that names a row of the experiment itself, never repository content. */
 const INTERNAL_COORDINATE = /^(annotation|trial|finding|attempt|triage|target):/;
+/** The fixed sentence every annotated row carries; it names the experiment decision and quotes nothing. */
+const ANNOTATION_TEMPLATE = /^Historical target annotation reproduced as descriptive reference\b/;
 
 function digest(text: string): string {
 	return createHash("sha256").update(text).digest("hex").slice(0, 8);
@@ -86,9 +88,11 @@ function publishTarget(target: Target, options: PublishOptions): Target {
 function publishAdjudication(a: Adjudication, item: string | undefined, options: PublishOptions): Adjudication {
 	const isPrivate = item !== undefined && options.privateItems.includes(item);
 	const evidence = a.evidence.map(e => publishCoordinate(e, isPrivate, item ?? ""));
-	// An annotated row reproduces a historical annotation; its rationale is the template sentence that
-	// says so and quotes nothing, so withholding it would hide an experiment decision, not private text.
-	if (!isPrivate || a.validity === "annotated") return { ...a, evidence, reason: redactLocalPaths(a.reason) };
+	// An annotated row reproduces a historical annotation through a fixed template sentence that quotes
+	// nothing, so withholding it would hide an experiment decision. Only that sentence is exempt: any
+	// other annotated prose is reviewer text and stays withheld like every private claim.
+	const template = a.validity === "annotated" && ANNOTATION_TEMPLATE.test(a.reason);
+	if (!isPrivate || template) return { ...a, evidence, reason: redactLocalPaths(a.reason) };
 	return {
 		...a,
 		evidence,

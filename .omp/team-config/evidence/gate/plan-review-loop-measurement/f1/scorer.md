@@ -211,8 +211,10 @@ Observed after the fix: regenerating `experiment/dataset.json` with `publish` ch
 | the plan-coordinate exemption covers only the item's own change | accept any `openspec/changes/<name>/…` path | the publication test fails: a foreign change's plan file is published verbatim for a private item |
 | an `annotated` adjudication publishes its template rationale | withhold it like fresh private prose | the publication test fails: the historical-annotation reason is replaced by the withholding sentence |
 | span completeness reads the pointed verifier attempt, not the pointer | restore `verifierAttempt === null` as the only unfinished state | the timing test fails: a trial selecting a failed verifier publishes a complete span |
+| the annotated exemption covers only the fixed template sentence | exempt every annotated reason | the publication test fails: free-form annotated prose of a private item is published |
+| the same exemption is not dropped | withhold every annotated reason | the publication test fails: the template rationale disappears from the published row |
 
-Observed after the fix: regenerating `experiment/dataset.json` changes 20 adjudication rows — the annotated private rows regain their template rationale — and nothing else; `summary.json` and `report.md` still reproduce byte-exactly. No trial of this run points at a non-completed verifier, so no published span changes either.
+Observed after the fix: regenerating `experiment/dataset.json` changes 20 adjudication rows — the annotated private rows regain their template rationale — and nothing else; `summary.json` and `report.md` still reproduce byte-exactly. No trial of this run points at a non-completed verifier and all 44 annotated rows carry the template, so no published span and no further row changes.
 
 ## 7. Re-read of the upstream F1 evidence
 

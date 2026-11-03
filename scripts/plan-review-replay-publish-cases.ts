@@ -48,6 +48,7 @@ function dataset(): Dataset {
 			...d.findings,
 			{ id: "f-priv", trial: "t-priv", index: 1, description: "SecretService.load leaks" },
 			{ id: "h-priv", trial: "t-priv", index: 2, description: "Historical annotated finding h-priv." },
+			{ id: "h-priv2", trial: "t-priv", index: 3, description: "Historical annotated finding h-priv2." },
 		],
 		adjudications: [
 			...d.adjudications,
@@ -70,6 +71,16 @@ function dataset(): Dataset {
 				kind: "known-target",
 				evidence: ["annotation:h1"],
 				reason: "Historical target annotation reproduced as descriptive reference.",
+			},
+			{
+				finding: "h-priv2",
+				targets: ["p1"],
+				mechanism: "historical-annotation/h-priv2",
+				validity: "annotated",
+				blocking: "unresolved",
+				kind: "known-target",
+				evidence: ["annotation:h2"],
+				reason: "SecretService.load was annotated here by a reviewer",
 			},
 		],
 	};
@@ -116,11 +127,14 @@ describe("publication sanitizer", () => {
 		expect(adj?.evidence[0]).toBe("annotation:x");
 	});
 
-	it("publishes the rationale of a reproduced historical annotation", () => {
+	it("publishes the template rationale of an annotation but not other annotated prose", () => {
 		// The annotated template quotes nothing; withholding it would hide an experiment decision.
-		const annotated = out.adjudications.find(a => a.validity === "annotated");
+		const annotated = out.adjudications.find(a => a.finding === "h-priv");
 		expect(annotated?.reason).toBe("Historical target annotation reproduced as descriptive reference.");
 		expect(annotated?.evidence).toEqual(["annotation:h1"]);
+		// Anything else on an annotated row is reviewer prose and stays withheld like any private claim.
+		const freeform = out.adjudications.find(a => a.finding === "h-priv2");
+		expect(freeform?.reason).not.toContain("SecretService");
 	});
 
 	it("drops local paths from source metadata and never ships supplied bytes", () => {
