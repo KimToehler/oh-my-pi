@@ -204,6 +204,15 @@ Observed on the published run after the fix: every trial span in `summary.json` 
 
 Observed after the fix: regenerating `experiment/dataset.json` with `publish` changes exactly the intended rows — 42 private targets and 69 private adjudications regain real or pseudonymized coordinates, 51 public fresh findings regain their description, and sources, attempts and triage rows are byte-identical to the previously published ones. `summary.json` and `report.md` reproduce byte-exactly, so no figure moves.
 
+## 6i. Fix-wave surfaces (F2 wave 5, second round)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| the plan-coordinate exemption covers only the item's own change | accept any `openspec/changes/<name>/…` path | the publication test fails: a foreign change's plan file is published verbatim for a private item |
+| an `annotated` adjudication publishes its template rationale | withhold it like fresh private prose | the publication test fails: the historical-annotation reason is replaced by the withholding sentence |
+
+Observed after the fix: regenerating `experiment/dataset.json` changes 20 adjudication rows — the annotated private rows regain their template rationale — and nothing else; `summary.json` and `report.md` still reproduce byte-exactly.
+
 ## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.

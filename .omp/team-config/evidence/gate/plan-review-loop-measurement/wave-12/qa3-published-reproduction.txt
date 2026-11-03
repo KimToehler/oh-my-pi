@@ -1,0 +1,7 @@
+# every command runs from the repository root
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format json | cmp - .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/summary.json
+cmp ok (exit 0)
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format md | cmp - .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/report.md
+cmp ok (exit 0)
+$ bun scripts/score-plan-review-replay.ts publish runs/plan-review-loop-measurement-20261102 --private strength-progression-targets,finish-modality-program-route | cmp - .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json
+cmp ok (exit 0)
