@@ -96,11 +96,15 @@ Independently blocking discoveries that match no frozen target SHALL have their 
 
 ### Requirement: Trial repeats and costs retain their measurement unit
 
-The report SHALL show per-item, per-trial and macro/micro recall, triage-retained recall and false-drop rates with numerators and denominators. Repetition union SHALL be labelled best-of-repeats coverage, not one-round recall. It SHALL report review, verifier, adjudication and failed-attempt costs separately; measured elapsed spans SHALL include waits and tools. Missing historical timing SHALL remain unavailable, never estimated from summed model durations.
+The report SHALL show per-item, per-trial and macro/micro recall, triage-retained recall and false-drop rates with numerators and denominators. Repetition union SHALL be labelled best-of-repeats coverage, not one-round recall. It SHALL report review, verifier, adjudication and failed-attempt costs separately; measured elapsed spans SHALL include waits and tools. A trial span SHALL cover every attempt bound to that trial, including failed and excluded ones, and SHALL NOT be called complete while the trial's verifier stage never completed. Missing historical timing SHALL remain unavailable, never estimated from summed model durations.
 
 #### Scenario: Repetition union is not typical recall
 - **WHEN** disjoint targets are found in three repeats on one item
 - **THEN** each repeat's recall and their union are separate figures, and the union is labelled three-repeat coverage
+
+#### Scenario: Failed verifier after a completed reviewer
+- **WHEN** a trial's reviewer completes and its only verifier attempt fails
+- **THEN** the trial span covers both attempts and is reported incomplete, never as a reviewer-only complete span
 
 #### Scenario: Negative control
 - **WHEN** a historical arm has no retained dispatch-to-terminal timestamps

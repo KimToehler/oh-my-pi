@@ -78,16 +78,32 @@ export function summarizeTiming(attempts: readonly Attempt[], trials: readonly T
 		};
 	});
 	const trialSpans = sortedBy(trials, t => t.id).map(t => {
-		const ids = t.verifierAttempt === null ? t.reviewAttempts : [...t.reviewAttempts, t.verifierAttempt];
+		// Every attempt bound to the trial, not only the selected ones: a failed or excluded reviewer or
+		// verifier call consumed trial time, and dropping it would publish a shorter span as the whole trial.
+		const listed = [...t.reviewAttempts, ...(t.verifierAttempt === null ? [] : [t.verifierAttempt])];
+		const bound = attempts.filter(a => a.trial === t.id).map(a => a.id);
+		const ids = [...new Set([...listed, ...bound])];
 		const mine = ids.flatMap(id => {
 			const a = byId.get(id);
 			return a === undefined ? [] : [a];
 		});
+		const unfinishedVerifier =
+			t.verifierAttempt === null && mine.some(a => a.stage === "verifier" && a.status !== "completed");
 		const span =
 			mine.length < ids.length || mine.length === 0
 				? ({ ms: null, complete: false, reason: "attempts missing from dataset" } satisfies Span)
 				: envelope(mine, "no trial attempt has usable timestamps");
-		return { trial: t.id, span };
+		return {
+			trial: t.id,
+			span:
+				unfinishedVerifier && span.ms !== null
+					? {
+							ms: span.ms,
+							complete: false,
+							reason: "verifier stage never completed; span covers the attempts that ran",
+						}
+					: span,
+		};
 	});
 	return {
 		attempts: timings,

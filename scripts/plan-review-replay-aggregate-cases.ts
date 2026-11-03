@@ -1,7 +1,18 @@
 import { describe, expect, it } from "bun:test";
 import { formatMarkdown, scoreDataset } from "./plan-review-replay/report";
 import type { Dataset } from "./plan-review-replay/types";
-import { adj, arm, empty, finding, fixture, item, target, tri, trial } from "./plan-review-replay-report-fixtures";
+import {
+	adj,
+	arm,
+	attempt,
+	empty,
+	finding,
+	fixture,
+	item,
+	target,
+	tri,
+	trial,
+} from "./plan-review-replay-report-fixtures";
 
 describe("hand-calculated two-item dataset", () => {
 	const summary = scoreDataset(fixture());
@@ -103,6 +114,29 @@ describe("hand-calculated two-item dataset", () => {
 		expect(t.trialSpans.find(s => s.trial === "hA1")?.span).toMatchObject({ ms: null, complete: false });
 		// envelope 00:00:00..00:04:00, not the sum of 60+90+120+210 s; adjudicator lacks timestamps
 		expect(t.experimentWall).toMatchObject({ ms: 240_000, complete: false });
+	});
+
+	it("covers a failed verifier attempt in the trial span and never calls that span complete", () => {
+		// A reviewer that completed and a verifier that failed afterwards: the trial consumed both, and no
+		// verifier outcome exists, so the reviewer-only interval must not be published as the whole trial.
+		const data: Dataset = {
+			...empty,
+			arms: [arm("S")],
+			items: [item("A")],
+			trials: [trial("t1", "S", "A", { reviewAttempts: ["rev"], triage: "unavailable", reason: "verifier failed" })],
+			attempts: [
+				attempt("rev", { trial: "t1", dispatched: "2026-01-01T00:00:00Z", terminal: "2026-01-01T00:01:00Z" }),
+				attempt("ver", {
+					trial: "t1",
+					stage: "verifier",
+					status: "failed",
+					dispatched: "2026-01-01T00:01:00Z",
+					terminal: "2026-01-01T00:03:00Z",
+				}),
+			],
+		};
+		const span = scoreDataset(data).timing.trialSpans.find(s => s.trial === "t1")?.span;
+		expect(span).toMatchObject({ ms: 180_000, complete: false });
 	});
 
 	it("labels confounded comparisons and never claims causality", () => {

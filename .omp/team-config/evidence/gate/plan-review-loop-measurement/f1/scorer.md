@@ -185,6 +185,14 @@ Observed on the published run after the fix: `H-Focus`'s off-ledger row changes 
 
 Observed on the published run after the fix: `H-Focus`'s arm `triage` object in `summary.json` changes from ten zeros to `null`; `H-Replay` keeps its zeros, because its one empty-triage trial is a measured outcome. `report.md` is byte-identical, and no recall, false-drop or precision figure moves.
 
+## 6g. Fix-wave surfaces (F2 wave 4, fourth round)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| a trial span covers every bound attempt and is incomplete while the verifier stage never completed | restore the selected-attempts envelope | the failed-verifier timing test fails: the reviewer-only 60 s interval is published as a complete span instead of 180 s incomplete |
+
+Observed on the published run after the fix: every trial span in `summary.json` is byte-identical, because this run's two replaced verifier attempts (`VerifySRtr1`, `VerifySRtr3`, both `excluded`) ran inside their trial's envelope and every fresh trial has a completed verifier.
+
 ## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.
