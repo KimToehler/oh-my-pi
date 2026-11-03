@@ -464,10 +464,19 @@ function isEmbeddedAddonFileCurrent(targetPath, file) {
 	}
 }
 
+/**
+ * Write an extracted addon atomically, dated like the binary it came from: its
+ * content is that old. A copy dated by the write itself would look modified
+ * after this process started, and the subagent workers' code-skew check
+ * (coding-agent `thread/code-skew.ts`) would then refuse every worker on the
+ * first run of each release.
+ */
 function writeEmbeddedAddonFile(targetPath, content) {
 	const tempPath = `${targetPath}.tmp.${process.pid}.${Date.now()}`;
 	try {
 		fs.writeFileSync(tempPath, content, { mode: 0o755 });
+		const { mtime } = fs.statSync(process.execPath);
+		fs.utimesSync(tempPath, mtime, mtime);
 		fs.renameSync(tempPath, targetPath);
 	} catch (err) {
 		try {
