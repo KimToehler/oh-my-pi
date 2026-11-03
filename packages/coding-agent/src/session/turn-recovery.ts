@@ -107,12 +107,14 @@ const HTTP2_STREAM_RESET_ERROR_RE =
 	/stream closed with error code\s+nghttp2_(?:internal_error|refused_stream)|nghttp2_(?:internal_error|refused_stream)|HTTP2(?:StreamReset|RefusedStream)/i;
 // Gateway/provider closes a stream mid-generation without its terminal chunk
 // (openai-completions "finish_reason", openai/azure responses "terminal
-// response event", Codex "terminal completion event", Cursor "turnEnded" —
-// an HTTP/2 reset can settle as the stream end rather than the RST error).
+// response event" or the raw `response.completed` event name a gateway reports
+// via the `stream_disconnected` error code, Codex "terminal completion event",
+// Cursor "turnEnded" — an HTTP/2 reset can settle as the stream end rather than
+// the RST error).
 // Same transport-failure class as the stall/reset entries: retriable, and
 // eligible for preserved-turn continuation on resolved tool turns.
 const PREMATURE_STREAM_CLOSE_ERROR_RE =
-	/(?:stream closed before a (?:finish_reason|terminal response event)|Codex stream ended before terminal completion event|Cursor stream ended before turnEnded)/i;
+	/(?:stream closed before (?:a (?:finish_reason|terminal response event)|response\.completed)|stream_disconnected|Codex stream ended before terminal completion event|Cursor stream ended before turnEnded)/i;
 
 /**
  * Bare abort sentinels with no provider reason: our own `"Request was aborted"`
@@ -1723,21 +1725,33 @@ export class TurnRecovery {
 		);
 	}
 	/**
-	 * First-attempt mid-stream socket drop with streamed progress: the transport
-	 * died after the model had already emitted reasoning or tool calls, so the
-	 * failure says nothing about model health — retry the same model once before
-	 * consulting the fallback chain. A drop with no streamed content keeps the
-	 * immediate fallback (a different route may genuinely help), as do later
+	 * First-attempt mid-stream transport drop with streamed progress: the
+	 * transport died after the model had already emitted reasoning or tool calls,
+	 * so the failure says nothing about model health — retry the same model once
+	 * before consulting the fallback chain. A drop with no streamed content keeps
+	 * the immediate fallback (a different route may genuinely help), as do later
 	 * attempts. Never applies once the retry budget is spent (e.g.
 	 * `retry.maxRetries: 0`): there is no same-model retry left, so the
-	 * fallback-chain consult is the only recovery. Mirrors the stall handler's
-	 * socket check, extended to turns with tool calls.
+	 * fallback-chain consult is the only recovery. Covers the same family as the
+	 * stall handler ({@link TurnRecovery.#isMidStreamTransportFailure}: stall,
+	 * HTTP/2 reset, envelope truncation, premature close, socket close),
+	 * extended to turns with tool calls — a gateway that cuts a 15-minute
+	 * reasoning stream otherwise burned the whole turn on a substituted model.
 	 */
-	#isFirstAttemptMidStreamSocketDrop(message: AssistantMessage, id: number, retryBudgetExhausted: boolean): boolean {
+	#isFirstAttemptMidStreamTransportDrop(
+		message: AssistantMessage,
+		id: number,
+		retryBudgetExhausted: boolean,
+	): boolean {
 		if (this.#retryAttempt !== 1 || retryBudgetExhausted) return false;
 		if (message.stopReason !== "error" || !AIError.retriable(id)) return false;
 		if (this.#host.streamingEditAbortTriggered()) return false;
-		if (!isUnexpectedSocketCloseMessage(message.errorMessage ?? "")) return false;
+		if (
+			!isUnexpectedSocketCloseMessage(message.errorMessage ?? "") &&
+			!this.#isMidStreamTransportFailure(message, id)
+		) {
+			return false;
+		}
 		return message.content.some(
 			block =>
 				(block.type === "thinking" && block.thinking.trim().length > 0) ||
@@ -2836,7 +2850,7 @@ export class TurnRecovery {
 				!sameModelSteerReplay &&
 				!waitForSiblingCredential &&
 				!refusalWalkRepeats &&
-				!this.#isFirstAttemptMidStreamSocketDrop(message, id, retryBudgetExhausted)
+				!this.#isFirstAttemptMidStreamTransportDrop(message, id, retryBudgetExhausted)
 			) {
 				if (classifierRefusal) {
 					this.#refusalWalkTried.add(refusalWalkKey);
