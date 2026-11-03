@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Publication may remove explanatory content but must commute with scoring, leaving the complete computed summary unchanged.
+  positive_witness: Private descriptions, reasoning and source coordinates are sanitized while target identities, mechanism equivalence, dispositions, costs and timing preserve the same computed summary.
+  negative_control: Sanitization merges two distinct mechanism identities or changes a target severity, producing different scored counts; this MUST fail the preservation check.
+  observable: Equality of scoreDataset results before and after publication distinguishes preservation from changed measurement; the retained publication contract case checks scoring-field preservation and wave-15 QA3 records byte-exact published reproduction.
+  boundary: scripts/plan-review-replay/publish.ts::publishDataset and scripts/plan-review-replay/report.ts::scoreDataset
+END-REVIEW-TRAILER

@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Reordering attempt rows must not change the experiment cost total, and the separately displayed unsuccessful cost must not be added to that total a second time.
+  positive_witness: A completed attempt and an excluded retry contribute once each to their stage and to the total, regardless of row order.
+  negative_control: Adding the excluded retry again as an independent unsuccessful-stage expense changes the total and MUST fail.
+  observable: JSON stage costs, unsuccessful subset and total, compared across the original and reordered datasets.
+  boundary: Scorer cost aggregation and report rendering.
+END-REVIEW-TRAILER
