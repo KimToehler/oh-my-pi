@@ -1,0 +1,25 @@
+F2 isn't finished. Wave 1's implementation-audit returned FAIL with one blocker, I committed the fix, and the gate is now waiting on the delta review of that fix. No gate record has been written yet.
+
+**Where it runs.** I did the review in a separate locked worktree at `.worktrees/review-csv-total`, on a new branch `review/csv-total` that starts at `feat/csv-total`'s head. Your checkout is untouched and still on `feat/csv-total`; the fix commits are only on `review/csv-total`. No destructive git command ran: I had considered switching your checkout to `main` and dropped it.
+
+**Before wave 1.** The plan-only check of `openspec/changes/csv-total` passed. Depth is `standard`, mandatory class `none`, risk tier `product`. `main` is already an ancestor of the head. The baseline, ready check and wave-1 snapshot are recorded at `63687cd`.
+
+**Wave 1 QA: 5 rows, all PASS.**
+- **Reused F1 captures:** I reused the five F1 captures (s1–s5) instead of re-running them. The only commit after they were taken adds the evidence files and the `tasks.md` checkbox, and the CLI reads neither.
+- **New captures:** F1 had none of these, so I ran them: `a,0.10`+`b,0.20`, a file mixing valid, blank and malformed lines, a set of malformed price variants, a CRLF file, and a comparison of `formatCents` against `main` (identical below 1,000.00, grouped above) plus `bun test`.
+- **Unjudged observation:** `widget,1,234.50` prints `234.50` with exit 0, because the parser splits at the last comma. The spec doesn't define lines with more than one comma, so I didn't judge it. The CLI's own output for totals of 1,000.00 and up uses that same comma, and I passed this to the reviewer.
+
+**Wave 1 implementation-audit: FAIL, blocker B1.** The model check counts it: provider and model `onara/cx/gpt-6.1-sol`, thinking level `high`, matching the trailer and the `auditor.md` pin. The trailer check passed and the wave is recorded; the convergence script printed `DECISION: CONTINUE`.
+
+B1 is `src/cli.ts:15`: when a file can't be read because of permissions (`EACCES`), the CLI said "no such file".
+
+**Fix round 1.**
+- I added task 4.1 under a new `## 4. F2 fixes` section in `tasks.md`.
+- I wrote `test/cli.test.ts` and saw it fail against the old code with `no such file`.
+- I fixed `cli.ts` to print `permission denied` (commit `f93afea`); the full suite passes, 5 tests.
+- `12d38d8` only rewords row 4.1: the plan check rejected `<file>` as placeholder text, so it now reads `FILE`.
+- The delta patch for `63687cd..12d38d8` is written.
+
+**Planning review now out of date.** Adding row 4.1 means `review.md`'s recorded digest no longer matches the change folder, so `validate-openspec-change.mjs --reviewed` now fails with "stale". The F2 plan-only check still passes.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D-d/out-d/brief-delta-round1.md

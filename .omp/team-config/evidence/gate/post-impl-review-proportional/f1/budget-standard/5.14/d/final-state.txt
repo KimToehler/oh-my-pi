@@ -1,0 +1,31 @@
+$ git log --oneline --all --graph (fixture root)
+* 12d38d8 docs(openspec): fix row 4.1 names FILE without angle brackets
+* f93afea fix(cli): report EACCES as permission denied (F2 4.1)
+* 63687cd test(f1): csv-total CLI QA, five scenarios
+* 5b0f706 feat: csv-total CLI, change folder
+* 1cdbf10 chore: scaffold with omp-gated schema
+$ git status --short (fixture root)
+?? .worktrees/
+$ git branch -a
+* feat/csv-total
+  main
++ review/csv-total
+$ git -C .worktrees/review-csv-total log --oneline
+12d38d8 docs(openspec): fix row 4.1 names FILE without angle brackets
+f93afea fix(cli): report EACCES as permission denied (F2 4.1)
+63687cd test(f1): csv-total CLI QA, five scenarios
+5b0f706 feat: csv-total CLI, change folder
+1cdbf10 chore: scaffold with omp-gated schema
+$ git -C review worktree status --short
+?? .omp/team-config/evidence/csv-total/
+?? .omp/team-config/evidence/gate/csv-total/wave-1/
+?? .omp/team-config/evidence/gate/csv-total/wave-2/
+$ git remote -v
+$ git log --format=%h %cd (commit times)
+12d38d8 2026-11-03T15:14:43+01:00 docs(openspec): fix row 4.1 names FILE without angle brackets
+f93afea 2026-11-03T15:14:27+01:00 fix(cli): report EACCES as permission denied (F2 4.1)
+63687cd 2026-11-03T15:07:18+01:00 test(f1): csv-total CLI QA, five scenarios
+1cdbf10 2026-11-03T15:07:18+01:00 chore: scaffold with omp-gated schema
+5b0f706 2026-11-03T15:07:18+01:00 feat: csv-total CLI, change folder
+$ ls record
+ls: cannot access '.worktrees/review-csv-total/.omp/team-config/evidence/gate/*.json': No such file or directory
