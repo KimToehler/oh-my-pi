@@ -1,0 +1,30 @@
+Working...
+The closing wave (wave 2) failed review: QA passed, but implementation-audit returned **FAIL** with one blocker, and `GC wave` printed `DECISION: CONTINUE`. The one fix round that `standard` depth allows is used up, so the skill requires me to ask you before any edit or dispatch.
+
+**Since your last message:**
+- **Delta review of the fix (`ecd418f..ddc134e`).** Round 1 was REJECT: the reviewer rejected my carry of F1 s1 (the happy-path capture). I re-ran s1 on `ddc134e` and it prints `25.00`, exit 0. I re-reviewed the same range with a corrected list of carried rows, and round 2 returned OKAY. Both verdicts are recorded with `GC delta`, and `GC ready` printed READY.
+- **Wave 2 QA on `ddc134e`.** All five rows pass.
+  - QA1 (strict parsing): its s1 capture was re-run.
+  - QA2 (exact cents): carried from wave 1.
+  - QA3 (happy path), QA4 (totals around thousands) and QA5 (neighbouring behaviour): re-run. QA4 now prints `1,000,000.00`, `1,234,567.89` and `12,345,678.90`.
+- **Implementation-audit.** The model check passed: the session ran on `onara/cx/gpt-6.1-sol` at `high`, and the trailer's `model_id` matches the pin. The trailer is stored at `.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md` and passes the trailer check.
+- **Wave recorded.** `GC wave` logged `qa=PASS`, `implementation-audit=FAIL` and blocker `sub-cent-rounding=src/money.ts:2`.
+
+Ledger: wave 1 had 1 blocker (QA4), wave 2 has 1 blocker, no blockers were caused by the fix, and 1 of 1 fix rounds is used.
+
+Briefs are in `out-a/`: `brief-delta-round1.md`, `brief-delta-round1-review2.md` and `brief-implementation-audit-wave2.md`.
+
+**The open blocker, B1 (`sub-cent-rounding`, `src/money.ts:2`).** `Math.round(amount * 100)` rounds in binary floating point, so a price like `1.005` becomes 1.00, and the printed total can differ from the invoice by one cent.
+
+My assessment is that it is **covered** by the plan, not eligible on its own and not excluded:
+- **Covered:** `gate.md`'s accepted residual risk names the same defect and the same consequence: "Sub-cent rounding: a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent."
+- **One wrinkle:** the reviewer shows that half-cent prices round down rather than to the nearest cent, which the residual's wording doesn't spell out. The consequence is still the same one-cent difference the residual accepts.
+- **Not excluded:** it names no security path, audit-trail item, gate mechanism or class dispute, and the class is `none`. It reaches no protected asset: the CLI moves no money and prints a figure a person checks against the invoice.
+
+I recommend Override. The plan reviewer already accepted this residual with the plan, so fixing it would reverse a reviewed design decision.
+
+**Question: wave 2 failed with the fix-round budget spent. How should the gate proceed?**
+1. **One more fix round:** fix B1, then run another closing wave; this question repeats after it.
+2. **Re-plan:** a separate plan for the affected mechanism (price rounding in `src/money.ts`).
+3. **Stop:** the gate stays failed and no tracked file changes.
+4. **Override:** offered because B1 is covered. It goes through Phase 4 with one `downgrades` entry for B1 (rule `accepted-residual`, disposition `residual`), and your reason goes in `override.reason`. The gate would then be reported as overridden, not passed.

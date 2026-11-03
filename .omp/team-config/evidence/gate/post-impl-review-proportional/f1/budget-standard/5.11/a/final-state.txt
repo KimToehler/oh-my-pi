@@ -1,0 +1,17 @@
+$ node validate-gate-record.mjs --repo . --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total
+overridden
+exit=0
+
+$ git log --oneline
+2c554dc chore(gate): csv-total F2 record, overridden (accepted sub-cent-rounding residual)
+ddc134e fix(format): group every thousand in totals of one million and more
+ecd418f test(f1): csv-total CLI QA, five scenarios
+4e5e75b feat: csv-total CLI, change folder
+2a9922d chore: scaffold with omp-gated schema
+$ git status --short
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa1-parse-strict.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa3-happy-path.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa4-boundary-large-totals.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa5-regression-adjacent.md
+$ git worktree list
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a 2c554dc [feat/csv-total]

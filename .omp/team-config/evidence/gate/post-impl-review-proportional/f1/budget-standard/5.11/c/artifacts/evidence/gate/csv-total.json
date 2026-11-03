@@ -1,0 +1,69 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "f09ecefde27c257583c9a30824a656479b241ead",
+  "diff_base": "d5da87c69d4db85d6c12d8a37c933181d2dba35f",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard; Mandatory class none re-checked on the final diff incl. merged main (local CLI, no auth/schema/wire/state change); one implementation-audit",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 Requirement: Price lines are parsed strictly (carried from F1 on d0c56d3)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa1-r1-parse-strict.md",
+      "artifact_sha256": "fca6c1e1d6cad024f59ded4b54bba1ae504a2cac4795de59688d6a7429b3e500"
+    },
+    {
+      "name": "QA2 Requirement: Totals are exact in cents (0.30 re-observed on reviewed head; s3/s4 carried)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa2-r2-exact-cents.md",
+      "artifact_sha256": "d47f200a67c52a11e5fbe0282cac67295a7fd1a7af813066a7c0c3043e29f4a3"
+    },
+    {
+      "name": "QA3 Happy path widget,19.99 + gadget,5.01 prints 25.00 (carried from F1 on d0c56d3)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "0c01d2c9a0942f732ca06910549e53fb134bf1ca140eef1fcd40bd16bd697841"
+    },
+    {
+      "name": "QA4 Riskiest edge: 1000 grouping boundary from merged main (999.99, 1,000.00, 1,234,567.89)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa4-edge-grouping-boundary.md",
+      "artifact_sha256": "193bbde84889f203c518e6a70f11b5cbf1a951b10067f41c873f8ec94e19a572"
+    },
+    {
+      "name": "QA5 Adjacent regression: s5 big,1234.50 re-run after merging main prints 1,234.50",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa5-s5-large-rerun.md",
+      "artifact_sha256": "aaedeee4bc57faf292e43deb7e7f337525b38f450b9c32569911f991cff2634a"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1, no blockers; trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt"
+    }
+  ],
+  "blockers": []
+}

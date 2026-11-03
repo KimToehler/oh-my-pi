@@ -1,0 +1,25 @@
+$ validate-gate-record.mjs --repo . --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total (cwd review worktree)
+passed
+exit=0
+$ git log --oneline --graph --all
+* 4600a88 gate(csv-total): F2 wave 1 record, implementation-audit trailer, QA evidence
+*   f09ecef Merge branch 'main' into feat/csv-total
+|\  
+| * d5da87c feat: group thousands in formatted totals of 1000 or more
+* | a56d6c1 qa(csv-total): F1 five CLI scenarios on d0c56d3 match expected output; negative controls red
+* | d0c56d3 Merge branch 'main' into feat/csv-total
+|\| 
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema
+$ git status --short
+$ git worktree list
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-c                             d5da87c [main]
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-c/.worktrees/review-csv-total 4600a88 [feat/csv-total] locked
+$ git ls-tree -r --name-only f09ecef .omp
+.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md
+.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md
+.omp/team-config/evidence/gate/csv-total/f1/s3-cents.md
+.omp/team-config/evidence/gate/csv-total/f1/s4-empty.md
+.omp/team-config/evidence/gate/csv-total/f1/s5-large.md

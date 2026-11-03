@@ -1,0 +1,23 @@
+1	bash	openspec list --json && openspec status --change csv-total --json && git rev-parse --show-toplevel && git worktree list --porcelain
+2	bash	openspec instructions apply --change csv-total --json
+3	read	.
+4	bash	node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed openspec/changes/csv-total; echo "exit=$?"; node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/csv-total; echo "exit=$?"
+5	read	openspec/changes/csv-total/tasks.md
+6	read	openspec/changes/csv-total/gate.md
+7	read	openspec/changes/csv-total/specs/csv-total/spec.md
+8	read	openspec/changes/csv-total/tasks.md:raw:14
+9	read	openspec/changes/csv-total/design.md
+10	read	openspec/changes/csv-total/proposal.md
+11	read	openspec/changes/csv-total/review.md
+12	bash	git log --oneline --all --graph -15 && git status --short && cat .gitignore openspec/config.yaml && git merge-base --is-ancestor main HEAD; echo "ancestor=$?"
+13	read	rule://evidence-discipline
+14	bash	git show --stat cac67ef && cat src/*.ts test/*.ts package.json
+15	grep	~/.omp/agent/skills/review-work
+16	bash	git merge --no-edit main && git log --oneline -3 && git merge-base --is-ancestor main HEAD && echo ancestor-ok && bun test 2>&1 | tail -n 4
+17	eval	import subprocess, os, shutil, re, tempfile, pathlib ⏎ repo = pathlib.Path.cwd() ⏎ def sh(*a, cwd=repo): return subprocess.run(a, cwd=cwd, capture_output=True, text=True) ⏎ head = sh("git","rev-parse","HEAD").stdout.strip() ⏎ subject = sh("git","log","-1","--format=%s").stdout.strip() ⏎ dirty = sh("
+18	eval	S[0].update(mut=("cents.ts","roundToCents(Number(text))","roundToCents(parseInt(text))"), why="decimal part dropped") ⏎ S[2].update(mut=("price.ts","prices.reduce((total, price) => total + price.cents, 0)","Math.round(prices.reduce((total, price) => total + price.cents / 100, 0) * 100) / 100 * 100 =
+19	read	.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md
+20	bash	test -s .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md && test -s .omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md && test -s .omp/team-config/evidence/gate/csv-total/f1/s3-cents.md && test -s .omp/team-config/evidence/gate/csv-total/f1/s4-empty.md && test -s .omp/team-config/evi
+21	edit	{"i":"Ticking task 3.1","input":"[openspec/changes/csv-total/tasks.md#920F]\\nPUT 14.=14:\\n+- [x] 3.1 F1. Manual QA on the real surface: merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; then run `bun src/cli.ts total FILE` on five scenarios an
+22	bash	D=.omp/team-config/evidence/gate/csv-total/f1 && git add -- $D/s1-happy.md $D/s2-malformed.md $D/s3-cents.md $D/s4-empty.md $D/s5-large.md openspec/changes/csv-total/tasks.md && git commit -q -m "qa(csv-total): F1 five CLI scenarios on d0c56d3 match expected output; negative controls red" && git sho
+23	eval	shutil.rmtree(work); print(work.exists())

@@ -1,0 +1,488 @@
+=== read
+{"path":"skill://review-work","i":"Reading review-work skill"}
+=== read
+{"path":"artifact://0:176-471","i":"Reading elided skill section"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-471:raw","i":"Reading elided skill section"}
+=== bash
+wc -l /Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md; ls /Users/tim/.omp/profiles/pirp/agent/skills/review-work/ /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-320","i":"Reading skill middle part 1"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:320-471","i":"Reading skill middle part 2"}
+=== bash
+awk 'NR==172||NR==181||NR==220||NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466{print NR": "$0"\n"}' /Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+=== bash
+awk 'NR==172||NR==181||NR==220||NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466{print NR": "$0"\n"}' /Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md | fold -s -w 300
+=== bash
+git status --short --branch; git log --oneline -15; git worktree list; ls -la; ls openspec openspec/changes 2>&1
+=== write
+{"path":"xd://report_issue","content":"read: `SKILL.md:176-471:raw` and `artifact://0:176-471` returned the unrelated text \"* Fix waves: delta review and convergence (F2)\\nclean — nothing to commit\" instead of the requested line range; the non-raw `:176-320` read of the same file worked.","i":"Reporting read tool anomaly"}
+=== bash
+git branch -a -vv; cat .gitignore package.json; find .omp openspec src test -type f | sort; git show --stat --format='%H %s' HEAD HEAD~1 HEAD~2 | cat
+=== bash
+for f in openspec/changes/csv-total/.openspec.yaml openspec/changes/csv-total/proposal.md openspec/changes/csv-total/design.md openspec/changes/csv-total/gate.md openspec/changes/csv-total/review.md openspec/changes/csv-total/specs/csv-total/spec.md openspec/changes/csv-total/tasks.md openspec/config.yaml; do echo "===== $f"; cat "$f"; done
+=== bash
+fold -s -w 250 openspec/changes/csv-total/tasks.md | sed -n '10,20p'; for f in src/*.ts test/*.ts; do echo "===== $f"; cat -n "$f"; done; for f in .omp/team-config/evidence/gate/csv-total/f1/*.md; do echo "===== $f"; cat "$f"; done
+=== read
+{"path":"rule://worktrees","i":"Reading worktrees rule"}
+=== bash
+git diff main...HEAD --stat | cat; git diff main...HEAD -- src/format.ts | cat; od -c .omp/team-config/evidence/gate/csv-total/f1/s4-empty.md | sed -n '1,12p'; grep -c 'x,0.10' .omp/team-config/evidence/gate/csv-total/f1/s3-cents.md; git merge-base --is-ancestor main HEAD && echo ANCESTOR
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; ls -la ~/.omp/agent/skills/review-work 2>&1 | head -3; node $S/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "exit=$?"; node $S/validate-openspec-change.mjs --reviewed openspec/changes/csv-total; echo "exit=$?"
+=== bash
+diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work && echo SAME; ls ~/.omp/profiles/pirp/agent/agents/ ~/.omp/agent/agents/ 2>&1; omp config get task.agentModelOverrides 2>&1
+=== bash
+sed -n '1,15p' ~/.omp/profiles/pirp/agent/agents/auditor.md; diff ~/.omp/profiles/pirp/agent/agents/auditor.md ~/.omp/agent/agents/auditor.md && echo AUDITOR_SAME; ls -la /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/ /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511 2>&1
+=== bash
+git log --oneline -20 -- src test openspec/changes/csv-total | cat; git log --all --oneline --grep="csv\|total\|cents" | cat; grep -rn "TODO\|FIXME\|HACK" src test || echo "no TODO/FIXME/HACK"; grep -rln "groupThousands\|formatCents\|roundToCents\|toCents\|parsePrices" --include=*.ts . | grep -v node_modules; git remote -v | cat; command -v gh bun; bun --version
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; GC="node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "exit=$?"; $GC ready --lane F2; echo "exit=$?"
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total snapshot --lane F2; echo "exit=$?"; git status --short | cat
+=== write
+{"path":"/tmp/csvtotal-qa/run.sh","content":"#!/bin/bash\n# One-off QA capture helper: run the CLI on a synthetic input and print input, command, stdout, stderr, exit verbatim.\n# usage: run.sh <label> <input-file>\nset -u\nlabel=$1; input=$2\nout=$(mktemp); err=$(mktemp)\nbun src/cli.ts total \"$input\" >\"$out\" 2>\"$err\"; code=$?\nprintf '### %s\\n\\nInput (`%s`, %s bytes, %s lines):\\n```\\n' \"$label\" \"$input\" \"$(wc -c <\"$input\" | tr -d ' ')\" \"$(wc -l <\"$input\" | tr -d ' ')\"\ncat -A \"$input\" 2>/dev/null || cat -vet \"$input\"\nprintf '```\\n\\nCommand: `bun src/cli.ts total %s`\\n\\nstdout:\\n```\\n%s\\n```\\nstderr:\\n```\\n%s\\n```\\nexit: %s\\n\\n' \"$input\" \"$(cat \"$out\")\" \"$(cat \"$err\")\" \"$code\"\nrm -f \"$out\" \"$err\"\n","i":"Writing throwaway QA capture helper"}
+=== edit
+{"i":"Using portable cat -vet","input":"[/tmp/csvtotal-qa/run.sh#C3E0]\nPUT 8.=8:\n+cat -vet \"$input\"\n"}
+=== read
+{"path":"/tmp/csvtotal-qa/run.sh","i":"Re-reading helper"}
+=== edit
+{"i":"Restoring header line","input":"[/tmp/csvtotal-qa/run.sh#8FC2]\nPUT 8.=9:\n+printf '### %s\\n\\nInput (`%s`, %s bytes, %s lines; `cat -vet`, `$` marks a line end):\\n```\\n' \"$label\" \"$input\" \"$(wc -c <\"$input\" | tr -d ' ')\" \"$(wc -l <\"$input\" | tr -d ' ')\"\n+cat -vet \"$input\"\n"}
+=== eval
+import os
+d="/tmp/csvtotal-qa"
+inputs={
+ "r1-mixed.csv":"widget,19.99\nbad,abc\ngadget,5.01\n",
+ "r1-multi-blank.csv":"\nwidget,19.99\n\nfoo,\ngadget,5.01\nnocomma\n   \nbar,1.2.3\n",
+ "r1-blank-only-valid.csv":"\n\nwidget,19.99\n\n\ngadget,5.01\n\n",
+ "r2-cents.csv":"a,0.10\nb,0.20\n",
+ "e-999.csv":"a,999.99\n",
+ "e-1000.csv":"a,1000.00\n",
+ "e-999999.csv":"a,999999.99\n",
+ "e-1000000.csv":"a,1000000.00\n",
+ "e-1234567.csv":"a,1000000.00\nb,234567.89\n",
+ "e-12345678.csv":"a,12345678.90\n",
+ "g-small.csv":"a,0.05\n",
+ "g-crlf.csv":"widget,19.99\r\ngadget,5.01\r\n",
+}
+for n,c in inputs.items():
+    open(os.path.join(d,n),"w",newline="").write(c)
+print(sorted(os.listdir(d)))
+=== bash
+D=/tmp/csvtotal-qa-r511a; mkdir -p $D && for f in run.sh r1-mixed.csv r1-multi-blank.csv r1-blank-only-valid.csv r2-cents.csv e-999.csv e-1000.csv e-999999.csv e-1000000.csv e-1234567.csv e-12345678.csv g-small.csv g-crlf.csv; do mv /tmp/csvtotal-qa/$f $D/; done; ls $D
+=== bash
+D=/tmp/csvtotal-qa-r511a; for f in r1-mixed r1-multi-blank r1-blank-only-valid r2-cents e-999 e-1000 e-999999 e-1000000 e-1234567 e-12345678 g-small g-crlf; do bash $D/run.sh $f $D/$f.csv > $D/$f.out; done; for f in $D/*.out; do echo "== $f"; grep -A1 -E '^(stdout|stderr):' $f | grep -v -E '^(stdout|stderr):|^--$|^```$'; grep '^exit' $f; done
+=== bash
+cd /tmp/csvtotal-qa-r511a && for f in *.out; do printf '%s | ' "$f"; awk '/^stdout:/{getline;getline;o=$0} /^stderr:/{getline;getline;e=$0} /^exit:/{x=$2} END{printf "stdout=[%s] stderr=[%s] exit=%s\n",o,e,x}' "$f"; done
+=== grep
+{"pattern":"(?i)todos|fix row|fix wave|F2","path":"openspec/schemas/omp-gated/schema.yaml","i":"Finding fix-row rules in schema"}
+=== read
+{"path":"openspec/schemas/omp-gated/schema.yaml:280-340","i":"Reading schema tasks rules"}
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; grep -n "TODOs\|--row\|rowId\|fix row\|tasks.md" $S/gate-convergence.mjs $S/folder-plan.mjs $S/plan-contract.mjs | cut -c1-220 | head -40
+=== read
+{"path":"/Users/tim/.omp/agent/skills/review-work/scripts/gate-convergence.mjs:280-330","i":"Reading GC delta row handling"}
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; grep -n "Final verification\|TODOs\|## \\\\d\|heading\|F1\b\|Workflow follow-up" $S/validate-openspec-change.mjs | cut -c1-240 | head -40
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; grep -n "tasks" $S/validate-openspec-change.mjs | cut -c1-240 | head -40
+=== read
+{"path":"/Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:110-140,345-380","i":"Reading tasks validation and review digest"}
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; grep -n "checkReview\|reviewDigest\|review.md" $S/*.mjs | grep -v test | cut -c1-220
+=== bash
+D=/tmp/csvtotal-qa-r511a; bun test 2>&1 | tr -d '\r' > $D/bun-test.out; echo "exit=$?" ; cat $D/bun-test.out; bun src/cli.ts 2>$D/usage.err >$D/usage.outp; echo "usage exit=$?"; cat $D/usage.err; bun src/cli.ts total $D/does-not-exist.csv 2>$D/missing.err >$D/missing.outp; echo "missing exit=$?"; cat $D/missing.err
+=== bash
+D=/tmp/csvtotal-qa-r511a; bun test > $D/bun-test.out 2>&1; echo "bun test exit=$?" >> $D/bun-test.out; git show main:src/format.ts > $D/format-main.ts; cp src/format.ts $D/format-head.ts; cat > $D/parity.ts <<'EOF'
+// One-off QA helper: compare main's formatCents with HEAD's for every total from 0.00 to 999.99.
+import { formatCents as before } from "./format-main"
+import { formatCents as after } from "./format-head"
+let diff = 0
+for (let cents = 0; cents < 100000; cents++) if (before(cents) !== after(cents)) diff++
+console.log(`compared 100000 totals (0.00..999.99): ${diff} differ; sample ${after(5)} ${after(99999)}`)
+console.log(`at 1000.00 and above (intended change): main ${before(100000)} head ${after(100000)}`)
+EOF
+bun $D/parity.ts | tee $D/parity.out; cat $D/bun-test.out | tr -d '\r'
+=== eval
+import os, subprocess
+D="/tmp/csvtotal-qa-r511a"
+repo=os.getcwd() if os.path.exists("openspec") else "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a"
+W=os.path.join(repo,".omp/team-config/evidence/gate/csv-total/wave-1")
+os.makedirs(W,exist_ok=True)
+head=subprocess.check_output(["git","-C",repo,"rev-parse","HEAD"],text=True).strip()
+def cap(n): return open(f"{D}/{n}.out").read()
+CARRY="carried, not re-run: the only commit after its capture head 4e5e75b is ecd418f, which adds F1 evidence files and ticks tasks.md 3.1; it changes no file under src/ or test/, so it cannot change what the row observed"
+hdr=lambda title: f"# F2 wave 1 QA: {title}\n\nReviewed head: {head}\nChannel: CLI, `bun src/cli.ts total <file>` from the repository root, stdout, stderr and exit code captured separately (non-interactive command; no pty behaviour involved). Inputs are synthetic files under /tmp.\n\n"
+files={}
+files["qa1-parse-strict.md"]=hdr("Requirement \"Price lines are parsed strictly\"")+f"""Scenarios of the requirement, in one row:
+
+1. Valid lines are summed: `.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md` (tracked at the reviewed head) observed stdout `25.00`, exit 0. {CARRY}.
+2. Malformed price rejected with its line number: `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md` (tracked) observed stdout empty, stderr `error: line 1: malformed price`, exit 2. {CARRY}.
+3. Negative control (a malformed line is never counted as zero or skipped): fresh capture `r1-mixed` below, a malformed line between two valid lines.
+4. Each malformed line is named and blank lines are ignored: fresh captures `r1-multi-blank` (blank lines 1, 3, 7 and malformed lines 4, 6, 8) and `r1-blank-only-valid` (blank lines around valid lines).
+
+Expected: 3 prints no total, names line 2, exits 2; `r1-multi-blank` names lines 4, 6 and 8 and no blank line, prints no total, exits 2; `r1-blank-only-valid` prints `25.00`, exits 0.
+
+{cap('r1-mixed')}{cap('r1-multi-blank')}{cap('r1-blank-only-valid')}Verdict: PASS. No total is printed when any line is malformed, every malformed line is named by its 1-based line number, blank lines are skipped without shifting the numbering.
+"""
+files["qa2-exact-cents.md"]=hdr("Requirement \"Totals are exact in cents\"")+f"""Scenarios of the requirement, in one row:
+
+1. Cents add exactly (`a,0.10` and `b,0.20` print `0.30`): fresh capture `r2-cents` below (F1 did not capture this scenario).
+2. Empty file prints `0.00`, exit 0: `.omp/team-config/evidence/gate/csv-total/f1/s4-empty.md` (tracked) observed stdout `0.00`, exit 0. {CARRY}.
+3. Negative control (ten lines of `x,0.10` print `1.00`, never `0.9999999999999999` or `1`): `.omp/team-config/evidence/gate/csv-total/f1/s3-cents.md` (tracked) observed stdout `1.00`, exit 0. {CARRY}.
+
+Expected: `r2-cents` prints `0.30`, exit 0.
+
+{cap('r2-cents')}Verdict: PASS.
+"""
+files["qa3-happy-path.md"]=hdr("Happy path named by the goal")+f"""Goal: total a `name,price` supplier file in exact cents and print it with two decimals.
+
+1. `.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md` (tracked): `widget,19.99` and `gadget,5.01` observed stdout `25.00`, stderr empty, exit 0. {CARRY}.
+2. Same file with CRLF line endings, as spreadsheet exports write it: fresh capture `g-crlf` below. Expected `25.00`, exit 0.
+
+{cap('g-crlf')}Verdict: PASS.
+"""
+files["qa4-boundary-large-totals.md"]=hdr("Riskiest edge: totals across the thousands boundary of the changed formatter")+f"""Why this edge: the diff changes `groupThousands` in `src/format.ts:11` (pre-existing on `main`, where it returned the digits unchanged) to insert a separator, and every total of 1000.00 or more goes through it. F1 s5 only exercised a four-digit total.
+
+Expected (requirement "Totals are exact in cents": the total printed with exactly two decimals; F1 s5 allows grouping separators): the printed figure carries the exact digits of the total and two decimals, either ungrouped or with a separator after every group of three integer digits counted from the decimal point (`1,000,000.00`, `1,234,567.89`, `12,345,678.90`). A separator anywhere else is a misrendered figure.
+
+1. `.omp/team-config/evidence/gate/csv-total/f1/s5-large.md` (tracked): `big,1234.50` observed stdout `1,234.50`, exit 0. {CARRY}.
+2. Fresh captures below: 999.99, 1000.00, 999999.99, 1000000.00, 1234567.89 (two lines), 12345678.90.
+
+{cap('e-999')}{cap('e-1000')}{cap('e-999999')}{cap('e-1000000')}{cap('e-1234567')}{cap('e-12345678')}Observed: up to 999,999.99 the grouping is correct. From 1,000,000.00 on, only the last separator is inserted: `1000,000.00`, `1234,567.89`, `12345,678.90`. Cause: the regex `/(\\d)(?=(\\d{{3}})$)/` in `src/format.ts:11` has no global flag and anchors one lookahead at the end, so it inserts exactly one separator.
+
+Verdict: FAIL. A total of one million or more is printed with a separator that is neither absent nor a thousands separator (`1234,567.89`); a reader comparing it with the invoice sees a figure in no standard notation, and in comma-decimal notation it reads as a different amount. This breaks the change's goal (a total finance compares with the invoice) for an ordinary input size.
+"""
+files["qa5-regression-adjacent.md"]=hdr("Regression on adjacent behaviour")+f"""Adjacent behaviour the change could have broken: `formatCents` in `src/format.ts` existed on `main` before this change; the diff edits the file. The CLI error paths and the unit suite are the other neighbours.
+
+1. `formatCents` output for every total 0.00..999.99 compared between `main:src/format.ts` and the reviewed head (one-off script importing both files, not committed):
+
+```
+{open(D+'/parity.out').read().rstrip()}
+```
+
+2. Small total through the CLI, fresh capture `g-small`:
+
+{cap('g-small')}3. Usage error: `bun src/cli.ts` (no arguments) -> stdout empty, stderr `{open(D+'/usage.err').read().strip()}`, exit 2. Missing file: `bun src/cli.ts total /tmp/csvtotal-qa-r511a/does-not-exist.csv` -> stdout empty, stderr `{open(D+'/missing.err').read().strip()}`, exit 2.
+
+4. Unit suite, `bun test`:
+
+```
+{open(D+'/bun-test.out').read().replace(chr(13),'').rstrip()}
+```
+
+Verdict: PASS. Totals below 1000.00 render byte-identically to `main`; the only change above it is the intended grouping (covered by QA4); error paths exit 2 with a message; the suite passes.
+"""
+for n,c in files.items():
+    open(os.path.join(W,n),"w",newline="\n").write(c)
+print(head, sorted(os.listdir(W)))
+=== bash
+cat .omp/team-config/evidence/gate/csv-total/wave-1/qa4-boundary-large-totals.md; grep -c $'\r' .omp/team-config/evidence/gate/csv-total/wave-1/*.md; git status --short --ignored .omp | cat
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome qa=FAIL --blocker QA4; echo "exit=$?"
+=== todo
+{"op":"init","i":"Tracking fix round 1","list":[{"phase":"F2 fix round 1","items":["4.1 Fix groupThousands (QA4): add tasks.md row, RED test, fix, full suite, commit","Delta review brief for fix range (plan-reviewer), await reply"]}]}
+=== edit
+{"i":"Adding regression test first","input":"[test/csvtotal.test.ts#0000]\nPUT >16:\n+test(\"totals of one million and more group every thousand\", () => {\n+  expect(formatCents(99999999)).toBe(\"999,999.99\")\n+  expect(formatCents(100000000)).toBe(\"1,000,000.00\")\n+  expect(formatCents(123456789)).toBe(\"1,234,567.89\")\n+  expect(formatCents(1234567890)).toBe(\"12,345,678.90\")\n+})\n"}
+=== edit
+{"i":"Adding regression test first","input":"[test/csvtotal.test.ts#721F]\nPUT >16:\n+test(\"totals of one million and more group every thousand\", () => {\n+  expect(formatCents(99999999)).toBe(\"999,999.99\")\n+  expect(formatCents(100000000)).toBe(\"1,000,000.00\")\n+  expect(formatCents(123456789)).toBe(\"1,234,567.89\")\n+  expect(formatCents(1234567890)).toBe(\"12,345,678.90\")\n+})\n"}
+=== bash
+bun test 2>&1 | tr -d '\r' | grep -E "pass|fail|Expected|Received|error" | head -12
+=== read
+{"path":"src/format.ts","i":"Reading formatter before fix"}
+=== edit
+{"i":"Grouping every thousand","input":"[src/format.ts#B018]\nPUT 9.=11:\n+// Renders a whole number of 1000 or more with a separator before every group of three digits.\n+export function groupThousands(whole: number): string {\n+  return String(whole).replace(/\\B(?=(\\d{3})+$)/g, \",\")\n"}
+=== read
+{"path":"openspec/changes/csv-total/tasks.md:10-19","i":"Reading tasks.md tail"}
+=== edit
+{"i":"Adding F2 fix row to tasks.md","input":"[openspec/changes/csv-total/tasks.md#2293]\nPUT >15:\n+## 4. F2 fix round 1\n+\n+- [x] 4.1 Fix F2 wave 1 blocker QA4: `groupThousands` in `src/format.ts` inserted only the separator before the last three integer digits, so a total of 1,000,000.00 or more printed as `1234,567.89`; insert a separator before every group of three integer digits (`1,234,567.89`), keep totals below 1,000.00 unchanged, and add a unit test for totals from 999,999.99 to 12,345,678.90. QA4 is re-run in the closing F2 wave. Verify: `bun test`\n+\n"}
+=== bash
+bun test 2>&1 | tr -d '\r' | grep -E "pass|fail|Ran"; D=/tmp/csvtotal-qa-r511a; cp src/format.ts $D/format-head.ts && bun $D/parity.ts; node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs openspec/changes/csv-total; echo "openspec exit=$?"; node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "plan-only exit=$?"
+=== bash
+git add src/format.ts test/csvtotal.test.ts openspec/changes/csv-total/tasks.md && git commit -q -m "fix(format): group every thousand in totals of one million and more
+
+F2 wave 1 QA4: groupThousands inserted only the last separator, so
+1234567.89 printed as 1234,567.89. Tasks row 4.1." && git log --oneline -3 | cat && git status --short | cat
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; H=$(git rev-parse HEAD); B=$(git rev-parse HEAD~1); TS=$(date -u +%Y%m%d%H%M%S); node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total patch --base $B --head $H --out .omp/team-config/gate-deltas/F2-4.1-${H:0:12}-$TS; echo "exit=$?"; echo "base=$B head=$H"
+=== bash
+cat .omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-20261103124818/manifest.json; ls .omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-20261103124818/; ls -la /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511/out-a/
+=== eval
+import re
+repo="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a"
+gate=open(f"{repo}/openspec/changes/csv-total/gate.md").read()
+spec=open(f"{repo}/openspec/changes/csv-total/specs/csv-total/spec.md").read()
+tasks=open(f"{repo}/openspec/changes/csv-total/tasks.md").read()
+lines=gate.split("\n")
+i=next(k for k,l in enumerate(lines) if l.startswith("- **Accepted residual risks**"))
+residual="\n".join(lines[i:i+2])
+oos=next(l for l in lines if l.startswith("- **Out of scope for blocking**"))
+reqs=spec[spec.index("### Requirement: Price lines"):].rstrip()
+fixrow=next(l for l in tasks.split("\n") if l.startswith("- [x] 4.1 "))
+invariants=f"""Feature-specific criteria: not in plan (gate.md carries no `Feature-specific criteria` field; for this OpenSpec folder the review criteria are the `### Requirement:` blocks of `openspec/changes/csv-total/specs/csv-total/spec.md`, verbatim:)
+
+{reqs}
+
+{residual}
+{oos}"""
+carried="""- QA1 (requirement "Price lines are parsed strictly"; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa1-parse-strict.md`): carried - every total it observed is below 1,000.00 (`25.00`) or no total at all (exit 2), and `formatCents` calls `groupThousands` only when the whole part is 1000 or more, a guard this range does not touch; the range does not touch `src/price.ts`, `src/cents.ts`, `src/money.ts` or `src/cli.ts`.
+- QA2 (requirement "Totals are exact in cents"; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa2-exact-cents.md`): carried - its totals `0.30`, `0.00` and `1.00` are below 1,000.00, so they never reach the changed `groupThousands`; parsing and summing are untouched.
+- QA3 (happy path; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa3-happy-path.md`): carried - its totals are `25.00` (LF and CRLF input), below 1,000.00, so they never reach the changed `groupThousands`.
+- QA4 (riskiest edge, totals across the thousands boundary; failed in wave 1): not carried, re-run in the closing wave - the range changes exactly the code it observed.
+- QA5 (regression on adjacent behaviour; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa5-regression-adjacent.md`): not carried, re-run in the closing wave - the range changes `src/format.ts`, which its main-vs-head comparison imports, and adds a test, which changes its `bun test` capture."""
+brief=f"""Review this fix delta. Workspace root: {repo}. Plan: openspec/changes/csv-total.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+{invariants}
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+{fixrow}
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+{carried}
+Commit range ecd418fce4a870f089788aa2102397d42c8ea37c..ddc134eacefc3ada4e7cb21962f3846be52ae3c9, commits ddc134eacefc3ada4e7cb21962f3846be52ae3c9.
+The diff is one patch file per commit, in commit order, each with its commit header. Read {repo}/.omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-20261103124818/manifest.json, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.
+"""
+out="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511/out-a/brief-delta-round1.md"
+open(out,"w").write(brief)
+print(brief)
+=== todo
+{"op":"done","task":"4.1 Fix groupThousands (QA4): add tasks.md row, RED test, fix, full suite, commit","i":"Marking fix row done"}
+=== todo
+{"op":"block","task":"Delta review brief for fix range (plan-reviewer), await reply","reason":"No reply file named yet for the round-1 delta review","i":"Blocking on delta reply"}
+=== bash
+cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta1-reject.json
+=== bash
+python3 -m json.tool /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta1-reject.json | fold -s -w 250
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; DIR=.omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-20261103124818; cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta1-reject.json $DIR/verdict.json && cmp $DIR/verdict.json /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta1-reject.json && node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total delta --lane F2 --dir $DIR --row 4.1; echo "exit=$?"; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total ready --lane F2; echo "ready exit=$?"
+=== bash
+D=/tmp/csvtotal-qa-r511a; git rev-parse HEAD; printf 'widget,19.99\ngadget,5.01\n' > $D/s1-happy.csv; bash $D/run.sh s1-happy $D/s1-happy.csv > $D/w2-s1-happy.out; bash $D/run.sh g-crlf $D/g-crlf.csv > $D/w2-g-crlf.out; grep -A1 -E '^stdout:' $D/w2-s1-happy.out $D/w2-g-crlf.out | grep -v '```\|stdout:' ; grep -A1 -E '^stdout:|^stderr:' $D/w2-s1-happy.out; grep exit $D/w2-*.out
+=== bash
+cat /tmp/csvtotal-qa-r511a/w2-s1-happy.out /tmp/csvtotal-qa-r511a/w2-g-crlf.out
+=== bash
+W=.omp/team-config/evidence/gate/csv-total/wave-2; D=/tmp/csvtotal-qa-r511a; mkdir -p $W; { printf '# F2 wave 2 QA: Happy path named by the goal\n\nReviewed head: %s\nChannel: CLI, `bun src/cli.ts total <file>` from the repository root, stdout, stderr and exit code captured separately (non-interactive command; no pty behaviour involved). Inputs are synthetic files under /tmp.\n\nRe-run on the fixed head because the round-1 delta review rejected the carry of F1 s1 (`f1/s1-happy.md`, captured at 4e5e75b): `src/format.ts`, through which every printed total passes, changed in ddc134e. Goal: total a `name,price` supplier file in exact cents and print it with two decimals.\n\n1. F1 s1 input re-run (`widget,19.99` and `gadget,5.01`). Expected `25.00`, stderr empty, exit 0.\n2. Same file with CRLF line endings, as spreadsheet exports write it. Expected `25.00`, exit 0.\n\n' "$(git rev-parse HEAD)"; cat $D/w2-s1-happy.out $D/w2-g-crlf.out; printf 'Verdict: PASS.\n'; } > $W/qa3-happy-path.md; grep -c $'\r' $W/qa3-happy-path.md; head -5 $W/qa3-happy-path.md
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; TS=$(date -u +%Y%m%d%H%M%S); node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total patch --base ecd418fce4a870f089788aa2102397d42c8ea37c --head ddc134eacefc3ada4e7cb21962f3846be52ae3c9 --out .omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-$TS; echo "exit=$?"
+=== eval
+out="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511/out-a/"
+b=open(out+"brief-delta-round1.md").read()
+start=b.index("- QA1 (requirement"); end=b.index("Commit range ")
+carried="""- QA1 (requirement "Price lines are parsed strictly"): scenario 1 (F1 s1, valid lines summed) is not carried: it is re-run on ddc134e after the round-1 delta review rejected its carry, capture in `.omp/team-config/evidence/gate/csv-total/wave-2/qa3-happy-path.md`. The row's other captures are carried from `.omp/team-config/evidence/gate/csv-total/wave-1/qa1-parse-strict.md` and `f1/s2-malformed.md` - they print no total at all (exit 2) or `25.00`, and the range does not touch `src/price.ts`, `src/cents.ts`, `src/money.ts` or `src/cli.ts`.
+- QA2 (requirement "Totals are exact in cents"; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa2-exact-cents.md`): carried - its totals `0.30`, `0.00` and `1.00` are below 1,000.00, so they never reach the changed `groupThousands`; parsing and summing are untouched.
+- QA3 (happy path): not carried - re-run on ddc134e after the round-1 delta review rejected the carry of its F1 s1 capture; new artifact `.omp/team-config/evidence/gate/csv-total/wave-2/qa3-happy-path.md` (s1 input prints `25.00`, exit 0; CRLF input prints `25.00`, exit 0).
+- QA4 (riskiest edge, totals across the thousands boundary; failed in wave 1): not carried, re-run in the closing wave - the range changes exactly the code it observed.
+- QA5 (regression on adjacent behaviour; artifact `.omp/team-config/evidence/gate/csv-total/wave-1/qa5-regression-adjacent.md`): not carried, re-run in the closing wave - the range changes `src/format.ts`, which its main-vs-head comparison imports, and adds a test, which changes its `bun test` capture.
+"""
+b2=b[:start]+carried+b[end:]
+b2=b2.replace("F2-4.1-ddc134eacefc-20261103124818","F2-4.1-ddc134eacefc-20261103125052")
+assert b2.count("20261103125052")==1
+open(out+"brief-delta-round1-review2.md","w").write(b2)
+print(b2[b2.index("QA rows carried"):])
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta2-ok.json; cat $P; echo; DIR=.omp/team-config/gate-deltas/F2-4.1-ddc134eacefc-20261103125052; cp $P $DIR/verdict.json && cmp $P $DIR/verdict.json && node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total delta --lane F2 --dir $DIR --row 4.1; echo "exit=$?"; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total ready --lane F2; echo "ready exit=$?"
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; git merge-base --is-ancestor main HEAD && echo ANCESTOR; git status --short | cat; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total snapshot --lane F2; echo "exit=$?"
+=== bash
+D=/tmp/csvtotal-qa-r511a; for f in e-999 e-1000 e-999999 e-1000000 e-1234567 e-12345678 g-small; do bash $D/run.sh $f $D/$f.csv > $D/w2-$f.out; done; printf 'big,1234.50\n' > $D/s5-large.csv; bash $D/run.sh s5-large $D/s5-large.csv > $D/w2-s5-large.out; cp src/format.ts $D/format-head.ts; bun $D/parity.ts > $D/w2-parity.out; bun src/cli.ts 2>$D/w2-usage.err >$D/w2-usage.outp; echo "usage exit=$?" > $D/w2-usage.code; bun src/cli.ts total $D/does-not-exist.csv 2>$D/w2-missing.err >$D/w2-missing.outp; echo "missing exit=$?" > $D/w2-missing.code; bun test > $D/w2-bun-test.out 2>&1; echo "bun test exit=$?" >> $D/w2-bun-test.out; cd $D; for f in w2-*.out; do printf '%s | ' "$f"; awk '/^stdout:/{getline;getline;o=$0} /^stderr:/{getline;getline;e=$0} /^exit:/{x=$2} END{printf "stdout=[%s] stderr=[%s] exit=%s\n",o,e,x}' "$f"; done; cat w2-parity.out w2-usage.err w2-usage.code w2-usage.outp w2-missing.err w2-missing.code w2-missing.outp; tr -d '\r' < w2-bun-test.out
+=== eval
+import os, subprocess
+D="/tmp/csvtotal-qa-r511a"
+repo="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a"
+W=repo+"/.omp/team-config/evidence/gate/csv-total/wave-2"
+W1=repo+"/.omp/team-config/evidence/gate/csv-total/wave-1"
+head=subprocess.check_output(["git","-C",repo,"rev-parse","HEAD"],text=True).strip()
+cap=lambda n: open(f"{D}/{n}.out").read()
+rd=lambda p: open(p).read()
+hdr=lambda t: f"# F2 wave 2 QA: {t}\n\nReviewed head: {head}\nChannel: CLI, `bun src/cli.ts total <file>` from the repository root, stdout, stderr and exit code captured separately (non-interactive command; no pty behaviour involved). Inputs are synthetic files under /tmp.\n\n"
+f={}
+f["qa1-parse-strict.md"]=hdr("Requirement \"Price lines are parsed strictly\"")+f"""Scenario 1 (valid lines are summed) is re-run on this head: the round-1 delta review rejected the carry of F1 s1. The row's other captures are carried from wave 1 (head ecd418f): fix commit ddc134e changes only `groupThousands` in `src/format.ts`, reached only for totals of 1,000.00 or more, plus a test and tasks.md; every other capture of this row prints no total (exit 2) or `25.00`, and the round-1 delta review (round 2, OKAY) accepted that carry.
+
+## Re-run on {head[:12]}: scenario 1, F1 s1 input
+
+{cap('w2-s1-happy')}Expected `25.00`, exit 0: PASS.
+
+## Carried from wave 1, verbatim (`wave-1/qa1-parse-strict.md`)
+
+{rd(W1+'/qa1-parse-strict.md')}
+Row verdict: PASS.
+"""
+f["qa4-boundary-large-totals.md"]=hdr("Riskiest edge: totals across the thousands boundary of the changed formatter")+f"""Re-run after fix commit ddc134e (tasks.md 4.1), which changed exactly the code this row observed; failed in wave 1 (`1234,567.89`).
+
+Expected (requirement "Totals are exact in cents": the total printed with exactly two decimals; F1 s5 allows grouping separators): the exact digits of the total and two decimals, with a separator before every group of three integer digits counted from the decimal point, or none.
+
+{cap('w2-e-999')}{cap('w2-e-1000')}{cap('w2-s5-large')}{cap('w2-e-999999')}{cap('w2-e-1000000')}{cap('w2-e-1234567')}{cap('w2-e-12345678')}Observed: `999.99`, `1,000.00`, `1,234.50`, `999,999.99`, `1,000,000.00`, `1,234,567.89`, `12,345,678.90`, all exit 0, stderr empty.
+
+Verdict: PASS.
+"""
+f["qa5-regression-adjacent.md"]=hdr("Regression on adjacent behaviour")+f"""Re-run after fix commit ddc134e, which changes `src/format.ts` (pre-existing on `main`) and adds a test.
+
+1. `formatCents` output for every total 0.00..999.99 compared between `main:src/format.ts` and this head (one-off script importing both files, not committed):
+
+```
+{rd(D+'/w2-parity.out').rstrip()}
+```
+
+2. Small total through the CLI:
+
+{cap('w2-g-small')}3. Usage error: `bun src/cli.ts` (no arguments) -> stdout empty, stderr `{rd(D+'/w2-usage.err').strip()}`, {rd(D+'/w2-usage.code').strip()}. Missing file: `bun src/cli.ts total /tmp/csvtotal-qa-r511a/does-not-exist.csv` -> stdout empty, stderr `{rd(D+'/w2-missing.err').strip()}`, {rd(D+'/w2-missing.code').strip()}.
+
+4. Unit suite, `bun test`:
+
+```
+{rd(D+'/w2-bun-test.out').replace(chr(13),'').rstrip()}
+```
+
+Verdict: PASS. Totals below 1000.00 render byte-identically to `main`; error paths exit 2 with a message; the suite passes.
+"""
+for n,c in f.items(): open(os.path.join(W,n),"w",newline="\n").write(c)
+assert os.path.getsize(D+"/w2-usage.outp")==0 and os.path.getsize(D+"/w2-missing.outp")==0
+print(sorted(os.listdir(W)))
+=== bash
+P=.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md; wc -l -c $P; head -15 $P; git diff --name-only main...HEAD | cat; git diff main...HEAD | wc -l; git merge-base main HEAD
+=== eval
+import subprocess
+repo="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a"
+sk=open("/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md").read().split("\n")
+s=sk.index("### `implementation-audit`")
+a=sk.index("```",s)+1; z=sk.index("```",a)
+tmpl="\n".join(sk[a:z])
+assert tmpl.startswith("Local implementation audit.") and tmpl.rstrip().endswith("END-REVIEW-TRAILER")
+g=lambda *c: subprocess.check_output(["git","-C",repo,*c],text=True)
+head=g("rev-parse","HEAD").strip(); base=g("merge-base","main","HEAD").strip()
+changed=g("diff","--name-only",f"{base}...{head}")
+diff=g("diff",f"{base}...{head}")
+plan=open(repo+"/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md").read()
+goal=f"""
+GOAL (proposal.md, Why/What Changes): Finance reconciles supplier price files by hand against the invoice. Add a `csvtotal total <file>` command that sums the prices of a `name,price` file in exact cents and prints the total with two decimals; reject a malformed price line with exit code 2 and a message naming the line.
+CONSTRAINTS (design.md, spec): prices are scaled to whole cents on parse and summed as integers; formatting happens once, on the total. Non-goals: quoted CSV fields, currencies other than a bare decimal, locale formatting. Blank lines are ignored; every malformed line is named; no total is printed when any line is malformed.
+BACKGROUND (gate.md): Mandatory class none, Depth standard, Risk tier product. Author's risk assessment: a wrong total reaches a finance reconciliation (a malformed line counted as a number, a total that drifts by a cent, a wrong line number in the error); the CLI reads one local file, writes to stdout/stderr, holds no credential or personal data and changes no shared state. Accepted residual risk: sub-cent rounding per line (`src/money.ts`). Out of scope for blocking: none.
+"""
+diffblock=f"""
+Reviewed range DIFF_RANGE = {base}..{head} (merge-base with `main` .. reviewed head; `main` is an ancestor of the head). Workspace root: {repo} (you can read files there).
+
+Changed files (`git diff --name-only {base[:12]}...{head[:12]}`):
+```
+{changed.rstrip()}
+```
+
+Diff (`git diff {base[:12]}...{head[:12]}`), verbatim:
+```diff
+{diff.rstrip()}
+```
+"""
+ctx=f"""
+File paths to read: src/cli.ts, src/price.ts, src/cents.ts, src/money.ts, src/format.ts, test/csvtotal.test.ts, package.json, openspec/changes/csv-total/ (plan folder).
+CONTEXT_MINING (source -> finding -> why it matters):
+- `git log` -> three commits: 2a9922d scaffold on `main` (introduced `src/format.ts` with `formatCents` and an identity `groupThousands`), 4e5e75b feature, ecd418f F1 evidence, ddc134e F2 fix round 1 -> `src/format.ts` is pre-existing code the change edits, not a new file as proposal.md's Impact says.
+- `grep` for formatCents/groupThousands/parsePrices/toCents/roundToCents -> only src/*.ts and test/csvtotal.test.ts use them -> no other consumer of the edited formatter.
+- `grep TODO|FIXME|HACK` in src/ and test/ -> none.
+- No git remote; no issue or PR tracker reachable -> no external history.
+- Plan review (`review.md`) -> OKAY, round 1, no blockers or residuals.
+- F2 wave 1 -> QA4 FAILED: totals of 1,000,000.00 or more printed as `1234,567.89` (one separator only). Fixed in ddc134e (tasks.md 4.1, regex `/\\B(?=(\\d{{3}})+$)/g`, plus a unit test). Delta review of ecd418f..ddc134e: round 1 REJECT on the carry of F1 s1 (re-run since), round 2 OKAY.
+- Tests: one unit file, no CLI-level test; the CLI is exercised only by manual QA.
+
+PLAN (the immutable wave-2 copy of the OpenSpec change folder, bundle as the gate binds it; `.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md`), verbatim:
+```
+{plan.rstrip()}
+```
+"""
+qa=f"""
+Manual QA matrix, F2 wave 2 on {head} (run by the orchestrator through the real CLI `bun src/cli.ts total <file>`; artifacts under {repo}/.omp/team-config/evidence/gate/csv-total/, readable by you):
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| QA1 | Requirement "Price lines are parsed strictly": valid lines summed; malformed line 1; negative control (malformed line between valid lines); every malformed line named, blank lines ignored | `bun src/cli.ts total` on `widget,19.99`+`gadget,5.01`; `widget,abc`; `widget,19.99`/`bad,abc`/`gadget,5.01`; a file with blank lines 1,3,7 and malformed lines 4,6,8; blank lines around two valid lines | `25.00` exit 0; no total, stderr names line 1, exit 2; no total, names line 2, exit 2; names lines 4, 6, 8, exit 2; `25.00` exit 0 | `25.00` exit 0 (re-run on this head); `error: line 1: malformed price` exit 2; `error: line 2: malformed price` exit 2, stdout empty; `error: lines 4, 6, 8: malformed price` exit 2; `25.00` exit 0 | PASS | wave-2/qa1-parse-strict.md |
+| QA2 | Requirement "Totals are exact in cents": `0.10`+`0.20`; empty file; negative control ten × `x,0.10` | `bun src/cli.ts total` on each file | `0.30`; `0.00` exit 0; `1.00` | `0.30`; `0.00` exit 0; `1.00` | PASS | wave-1/qa2-exact-cents.md (carried from ecd418f: totals below 1,000.00 never reach the changed `groupThousands`; accepted by the delta review) |
+| QA3 | Happy path named by the goal | F1 s1 input; same file with CRLF line endings | `25.00` exit 0 both | `25.00` exit 0 both (re-run on this head) | PASS | wave-2/qa3-happy-path.md |
+| QA4 | Riskiest edge: totals across the thousands boundary of the changed formatter (failed in wave 1) | totals 999.99, 1000.00, 1234.50, 999999.99, 1000000.00, 1234567.89 (two lines), 12345678.90 | exact digits, two decimals, a separator before every group of three integer digits | `999.99`, `1,000.00`, `1,234.50`, `999,999.99`, `1,000,000.00`, `1,234,567.89`, `12,345,678.90`, exit 0 | PASS | wave-2/qa4-boundary-large-totals.md |
+| QA5 | Regression on adjacent behaviour: pre-existing `formatCents`, CLI error paths, unit suite | main-vs-head `formatCents` comparison for 0.00..999.99; `a,0.05`; `bun src/cli.ts`; missing file; `bun test` | 0 differ; `0.05`; usage on stderr exit 2; `error: cannot read …` exit 2; suite passes | 0 of 100000 differ; `0.05`; as expected, exit 2 both; 5 pass 0 fail | PASS | wave-2/qa5-regression-adjacent.md |
+"""
+crit="""
+Criterion C1 (requirement "Price lines are parsed strictly")
+Invariant:        a file holding any malformed price line yields no total on stdout, exit code 2, and every malformed line's 1-based number on stderr.
+Positive witness: `widget,19.99` / `bad,abc` / `gadget,5.01` -> stdout empty, stderr `error: line 2: malformed price`, exit 2.
+Negative control: the same file prints `25.00` (the bad line skipped) or `25.00`-as-zero-counted, or exits 0.
+Observable:       the CLI's stdout, stderr and exit code.
+Boundary:         the CLI process (`bun src/cli.ts total <file>`), not `parsePrices` alone.
+
+Criterion C2 (requirement "Totals are exact in cents")
+Invariant:        the printed total equals the integer sum of the per-line cents, rendered with exactly two decimals.
+Positive witness: ten lines of `x,0.10` -> `1.00`; `a,0.10` + `b,0.20` -> `0.30`.
+Negative control: `0.9999999999999999`, `1`, or `0.3` printed for those files.
+Observable:       CLI stdout.
+Boundary:         CLI stdout.
+
+Criterion C3 (F2 fix 4.1, thousands grouping)
+Invariant:        a total of 1,000.00 or more prints its exact digits with a separator before every group of three integer digits and two decimals; a total below 1,000.00 prints as on `main`.
+Positive witness: `1,234,567.89` for `a,1000000.00` + `b,234567.89`; `999.99` unchanged.
+Negative control: `1234,567.89` or `1000,000.00` (one separator only), or `1,234567.89`.
+Observable:       CLI stdout across 999.99 .. 12,345,678.90.
+Boundary:         CLI stdout through `formatCents`.
+"""
+brief=tmpl
+for k,v in {"{GOAL, CONSTRAINTS, BACKGROUND}":goal,"{CHANGED_FILES, DIFF}":diffblock,"{FILE PATHS, CONTEXT_MINING, PLAN}":ctx,"{QA MATRIX}":qa,"{CRITERIA WITH FIVE FIELDS}":crit}.items():
+    assert brief.count(k)==1,k
+    brief=brief.replace(k,v)
+out="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511/out-a/brief-implementation-audit-wave2.md"
+open(out,"w").write(brief)
+import re
+print(len(brief), re.findall(r"\{[A-Z_ ,]+\}",brief))
+=== bash
+cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-w2-reply.md | fold -s -w 250
+=== bash
+F=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-sess.jsonl; wc -l $F; jq -c 'select(.type=="thinking_level_change" or .type=="model_change" or (.message.role? == "assistant")) | {type, thinkingLevel, provider: (.provider // .message.provider), model: (.model // .message.model), modelId}' $F; jq -r '.type' $F | sort | uniq -c
+=== bash
+F=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-sess.jsonl; jq -c 'del(.message.content) | if .message then .message |= with_entries(select(.key!="content")) else . end' $F | cut -c1-400
+=== bash
+F=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-sess.jsonl; jq -c 'select(.type!="message")' $F | cut -c1-400; jq -r 'select(.message.role=="assistant") | .message.content | if type=="array" then map(.text? // "")|join("") else . end' $F | fold -s -w 250 | head -60
+=== bash
+T=.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md; mkdir -p $(dirname $T) && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-w2-reply.md $T && cmp $T /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-w2-reply.md && echo COPIED; git check-ignore -v $T || echo "not ignored"; grep -c $'\r' $T; node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --trailer $T --invocation implementation-audit --verdict FAIL --plan openspec/changes/csv-total; echo "exit=$?"
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapshot.json --outcome qa=PASS --outcome implementation-audit=FAIL --trailer implementation-audit=.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md --blocker sub-cent-rounding=src/money.ts:2; echo "exit=$?"
+=== todo
+{"op":"append","i":"Tracking budget ask","items":["Budget ask after wave 2: user picks fix round / re-plan / Stop / Override"]}
+=== todo
+{"op":"done","task":"Delta review brief for fix range (plan-reviewer), await reply","i":"Marking delta review done"}
+=== bash
+S=~/.omp/agent/skills/review-work/scripts; grep -n "blockers\|fix_sha\|coverage" $S/validate-gate-record.mjs | cut -c1-200 | head -40; jq -r '.plan_sha256, .head_sha // .sha // empty' .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapshot.json; shasum -a 256 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md
+=== eval
+import json, hashlib, subprocess, os
+repo="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-a"
+os.chdir(repo)
+sh=lambda p: hashlib.sha256(open(p,"rb").read()).hexdigest()
+g=lambda *c: subprocess.check_output(["git",*c],text=True).strip()
+E=".omp/team-config/evidence/gate/csv-total"
+T=".omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md"
+qa=[("QA1 requirement: price lines are parsed strictly",f"{E}/wave-2/qa1-parse-strict.md"),
+    ("QA2 requirement: totals are exact in cents (carried from wave 1)",f"{E}/wave-1/qa2-exact-cents.md"),
+    ("QA3 happy path named by the goal",f"{E}/wave-2/qa3-happy-path.md"),
+    ("QA4 riskiest edge: totals across the thousands boundary",f"{E}/wave-2/qa4-boundary-large-totals.md"),
+    ("QA5 regression on adjacent behaviour",f"{E}/wave-2/qa5-regression-adjacent.md")]
+rec={
+ "schema":"team-config.merge-gate/v3",
+ "plan":"openspec/changes/csv-total",
+ "plan_sha256":json.load(open(".omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapshot.json"))["plan_sha256"],
+ "reviewed_sha":g("rev-parse","HEAD"),
+ "diff_base":g("merge-base","main","HEAD"),
+ "reviewers_run":["implementation-audit"],
+ "decision_reason":"Depth standard from gate.md (class none, no review/gate/release mechanism changed; final diff adds no network recipient, persisted field, auth path, schema or shared state); wave 2 QA passed, audit FAIL on B1 overridden by Tim as the plan's accepted sub-cent-rounding residual",
+ "mandatory_class":"none",
+ "implementation_models":["onara/cc/claude-opus-5-5"],
+ "qa":[{"name":n,"passed":True,"artifact":p,"artifact_sha256":sh(p)} for n,p in qa],
+ "whole_diff":{"run":False,"reason":"whole-diff surface reviewed in F2"},
+ "resolution":[{"invocation":"implementation-audit","agent":"auditor","model":"onara/cx/gpt-6.1-sol","independence":"cross-provider"}],
+ "verdicts":[{"invocation":"implementation-audit","verdict":"FAIL","trailer_artifact":T,"trailer_sha256":sh(T),"note":"wave 2; Blocker B1 src/money.ts:2 sub-cent rounding, overridden as accepted residual"}],
+ "blockers":[
+   {"id":"QA4","severity":"high","location":"src/format.ts:11","coverage":"test/csvtotal.test.ts::totals of one million and more group every thousand","fix_sha":g("rev-parse","HEAD")},
+   {"id":"B1","severity":"high","location":"src/money.ts:2","coverage":"not-testable:left unfixed as the plan's accepted sub-cent-rounding residual; no fix to cover"}],
+ "downgrades":[{"invocation":"implementation-audit","blocker":"B1","rule":"accepted-residual","reason":"covered by gate.md Accepted residual risks: a price with more than two decimals is rounded per line in src/money.ts, so the total can differ from the invoice by one cent","disposition":"residual"}],
+ "override":{"by":"Tim","reason":"the remaining blocker is the accepted residual sub-cent rounding; accept it."}
+}
+open(f"{E}.json","w").write(json.dumps(rec,indent=2)+"\n")
+print(f"{E}.json", rec["reviewed_sha"], rec["diff_base"])
+=== bash
+E=.omp/team-config/evidence/gate/csv-total; git add $E.json .omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md $E/wave-2/qa1-parse-strict.md $E/wave-1/qa2-exact-cents.md $E/wave-2/qa3-happy-path.md $E/wave-2/qa4-boundary-large-totals.md $E/wave-2/qa5-regression-adjacent.md && git status --short | cat; node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record $E.json --plan openspec/changes/csv-total; echo "exit=$?"
+=== bash
+git commit -q -m "chore(gate): csv-total F2 record, overridden (accepted sub-cent-rounding residual)" && git log --oneline -2 | cat; node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total; echo "exit=$?"; git status --short | cat
+=== read
+{"path":"rule://merge-gate-proof","i":"Reading merge-gate-proof rule"}
+=== bash
+rm -rf /tmp/csvtotal-qa-r511a && echo removed

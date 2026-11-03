@@ -1,0 +1,53 @@
+1	read	skill://review-work
+2	read	artifact://0:176-330
+3	read	artifact://0:330-472
+4	bash	ls ~/.omp/profiles/pirp/agent/skills/review-work/ ~/.omp/profiles/pirp/agent/skills/review-work/scripts; wc -l ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+5	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-260:raw
+6	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-215
+7	eval	L=open('/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md').read().split('\\n') ⏎ for i in range(171,182): print(i+1, L[i])
+8	eval	import textwrap ⏎ def show(a,b): ⏎     for i in range(a-1,b): ⏎         s=L[i] ⏎         if len(s)<=600: print(i+1, s) ⏎         else: ⏎             for j,ch in enumerate(textwrap.wrap(s,600, drop_whitespace=False, replace_whitespace=False)): print(f"{i+1}{'.'+str(j) if j else ''}", ch) ⏎ show(172,1
+9	eval	show(205,330)
+10	eval	show(336,345); show(355,362); show(440,470)
+11	bash	git status --short --branch; git log --oneline -15 --all --graph; git worktree list; git branch -a; ls -la; ls ~/.omp/agent/skills/review-work 2>&1 | head -3
+12	bash	diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work; ls -la ~/.omp/agent ~/.omp/agent/skills | head -30; echo; cat .gitignore package.json README.md; git log --format='%H %an %s' -6 --all
+13	bash	git ls-files; echo ---; git show --stat a56d6c1 | cat; echo ---; git diff --stat a951855 d5da87c; git show d5da87c | cat
+14	bash	for f in openspec/changes/csv-total/*.md openspec/changes/csv-total/.openspec.yaml openspec/changes/csv-total/specs/csv-total/spec.md src/*.ts test/csvtotal.test.ts openspec/config.yaml; do echo "===== $f"; cat "$f"; done
+15	bash	fold -w 400 openspec/changes/csv-total/tasks.md | sed -n '1,40p' ; for f in .omp/team-config/evidence/gate/csv-total/f1/*.md; do echo "===== $f"; cat "$f"; done
+16	read	rule://worktrees
+17	bash	find .omp -maxdepth 6 | head -40; git config --get user.name; git config --get user.email; bun --version; node --version; omp config get task.agentModelOverrides 2>&1 | head -5
+18	bash	ls ~/.omp/profiles/pirp/agent/agents/ 2>&1; ls ~/.omp/agent/agents/; grep -n -E '^(model|thinking|name):' ~/.omp/profiles/pirp/agent/agents/auditor.md ~/.omp/agent/agents/auditor.md 2>&1
+19	bash	grep -n -A4 agentModelOverrides ~/.omp/profiles/pirp/agent/config.yml ~/.omp/agent/config.yml; sed -n '1,12p' ~/.omp/profiles/pirp/agent/agents/auditor.md; echo $OMP_PROFILE $PI_CODING_AGENT_DIR
+20	todo	{"op":"init","i":"Initializing gate todos","list":[{"phase":"Setup","items":["Phase 0.6 plan-only validation","Review worktree + merge main","GC baseline/ready/snapshot"]},{"phase":"Wave 1","items":["Phase 1 QA (carry s1-s4, rerun s5, new captures)","Write implementation-audit brief","Consume reply,
+21	bash	SKILL_DIR=~/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "exit=$?"; node $SKILL_DIR/scripts/gate-convergence.mjs --help 2>&1 | head -60
+22	bash	git status --porcelain=v1 --untracked-files=all --ignored; echo "rc=$? lines-above-are-dirty-state"; git stash list
+23	bash	git switch main && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list && git status --short
+24	bash	git merge-base --is-ancestor main HEAD; echo "is-ancestor rc=$?"; git merge --no-ff --no-edit main && git log --oneline -3 | cat && git diff --stat HEAD^1 HEAD | cat
+25	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "rc=$?"; $GC ready --lane F2; echo "rc=$?"
+26	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC snapshot --lane F2; echo "rc=$?"
+27	bash	cat .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json; echo; wc -c .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; ls .omp/team-config/gate-deltas/
+28	todo	{"op":"done","i":"Marking setup done","task":"GC baseline/ready/snapshot"}
+29	eval	import subprocess, os, shutil, tempfile, hashlib ⏎ WT='/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-c/.worktrees/review-csv-total' ⏎ HEAD=subprocess.check_output(['git','rev-parse','HEAD'],cwd=WT,text=True).strip() ⏎ dirty=subprocess.check_output(['git','status','--porcelain','
+30	eval	def mutant(file, old, new): ⏎     root=tempfile.mkdtemp(prefix='csvtotal-mut-') ⏎     shutil.copytree(os.path.join(WT,'src'), os.path.join(root,'src')) ⏎     shutil.copy(os.path.join(WT,'package.json'), root) ⏎     p=os.path.join(root,'src',file); s=open(p).read(); assert s.count(old)==1,(file,old);
+31	eval	EV=os.path.join(WT,'.omp/team-config/evidence/gate/csv-total/wave-1'); os.makedirs(EV,exist_ok=True) ⏎ bunv=subprocess.check_output(['bun','--version'],text=True).strip() ⏎ def block(s): return "```\\n"+s+"```\\n" if s else "```\\n```\\n" ⏎ def obs(r): ⏎     return f"- exit: {r[0]}\\n- stdout:\\n\\n{block(
+32	eval	NL='\\n' ⏎ def verdict(b): return 'MATCH' if b else 'NO MATCH' ⏎ v_s5=verdict(res['s5'][0]==0 and res['s5'][1].strip().replace(',','')=='1234.50') ⏎ v_s5m=verdict(res['s5m'][0]==0 and res['s5m'][1].strip().replace(',','')=='1234.50') ⏎ v_r2=verdict(res['r2'][:3]==(0,'0.30'+NL,'')) ⏎ v_r2m=verdict(res
+33	eval	EV=os.path.join(WT,'.omp/team-config/evidence/gate/csv-total/wave-1'); os.makedirs(EV,exist_ok=True) ⏎ bunv=subprocess.check_output(['bun','--version'],text=True).strip() ⏎ def block(s): return "```\\n"+s+"```\\n" if s else "```\\n```\\n" ⏎ def obs(r): return "- exit: %d\\n- stdout:\\n\\n%s\\n- stderr:\\n\\n%
+34	eval	NL='\\n' ⏎ def verdict(b): return 'MATCH' if b else 'NO MATCH' ⏎ v_s5=verdict(res['s5'][0]==0 and res['s5'][1].strip().replace(',','')=='1234.50') ⏎ v_s5m=verdict(res['s5m'][0]==0 and res['s5m'][1].strip().replace(',','')=='1234.50') ⏎ v_r2=verdict(res['r2'][:3]==(0,'0.30'+NL,'')) ⏎ v_r2m=verdict(res
+35	bash	bun test 2>&1 | tail -4; git status --short; git check-ignore -v .omp/team-config/evidence/gate/csv-total/wave-1/*.md; echo "ignored-rc=$?"; file .omp/team-config/evidence/gate/csv-total/wave-1/*.md
+36	eval	import glob ⏎ for d in [scratch, m_fmt, m_sum, m_loc]: shutil.rmtree(d) ⏎ print([os.path.exists(d) for d in [scratch,m_fmt,m_sum,m_loc]])
+37	todo	{"op":"done","i":"QA done","task":"Phase 1 QA (carry s1-s4, rerun s5, new captures)"}
+38	bash	git merge-base HEAD main; git diff --name-only main...HEAD | cat; echo ---; git diff --stat main...HEAD | cat; echo ---; for f in src/*.ts test/csvtotal.test.ts README.md; do git log --oneline -5 -- $f | sed "s|^|$f: |"; done; git log --all --oneline --grep=total | cat; grep -rn -E "TODO|FIXME|HACK"
+39	bash	head -c 1500 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; echo; grep -n '^=====' .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md
+40	eval	g=lambda *a: subprocess.check_output(['git',*a],cwd=WT,text=True) ⏎ DIFF=g('diff','main...HEAD') ⏎ CHANGED=g('diff','--name-only','main...HEAD') ⏎ MERGEDIFF=g('diff','a56d6c1','HEAD') ⏎ PLAN=open(os.path.join(WT,'.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md')).read() ⏎ FMT=open(os.pat
+41	eval	EVR='.omp/team-config/evidence/gate/csv-total' ⏎ GOAL=f"""Goal (OpenSpec change `csv-total`, proposal.md): add a `csvtotal total <file>` command that sums the prices of a `name,price` file in exact cents and prints the total with two decimals, and rejects a malformed price line with exit code 2 and 
+42	todo	{"op":"done","i":"Brief written","task":"Write implementation-audit brief"}
+43	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D; ls -la $P $P/r511/out-c; cat $P/c-w1-reply.md; echo; echo ===; wc -l $P/c-sess.jsonl
+44	read	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md:raw
+45	read	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl:raw
+46	bash	S=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl; jq -r 'select(.type=="message" and .message.role=="assistant") | "assistant \\(.message.provider)/\\(.message.model)"' $S; jq -r 'select(.type=="thinking_level_change") | "thinking \\(.thinkingLevel)"' $S; jq -r 'se
+47	bash	mkdir -p .omp/team-config/evidence/csv-total/f2 && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt && cmp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-repl
+48	todo	{"op":"done","i":"Reply consumed","task":"Consume reply, model check, trailer check"}
+49	bash	GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=PASS --trailer impl
+50	eval	import json ⏎ def sha(p): return hashlib.sha256(open(os.path.join(WT,p),'rb').read()).hexdigest() ⏎ plan_copy_sha=sha('.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md') ⏎ print(plan_copy_sha) ⏎ TR='.omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt' ⏎ qa=[("QA1 Requi
+51	bash	shasum -a 256 .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt .omp/team-config/evidence/gate/csv-total/wave-1/*.md .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md | awk '{print substr($1,1,12), $2}'; git add .omp/team-config/evidence/gate/csv-total.json .omp/team-conf
+52	bash	git commit -q -m "gate(csv-total): F2 wave 1 record, implementation-audit trailer, QA evidence" && git log --oneline -1 | cat && git show --stat --format= HEAD | cat && node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidenc
+53	read	rule://merge-gate-proof
