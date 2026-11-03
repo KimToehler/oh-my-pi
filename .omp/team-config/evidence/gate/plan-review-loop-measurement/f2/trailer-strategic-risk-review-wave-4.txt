@@ -1,0 +1,19 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A headline showing no ledger-target loss must not conceal a verified blocking discovery discarded outside that ledger.
+  positive_witness: S reports zero target false drops and separately reports one dropped off-ledger blocking mechanism out of twenty-five.
+  negative_control: The same adjudicated and refuted off-ledger finding disappears from every loss figure while the report presents triage as loss-free.
+  observable: wave-15/qa6-arm-completeness.txt records target falseDrop 0/36 and offLedger discovered 25, retained 24, dropped 1.
+  boundary: scripts/plan-review-replay/report-trial.ts::triageAdditional through report-aggregate.ts::scoreArms and the published result narrative.
+- invariant: An approved public annotation sentence must not authorize publication of private prose attached to it.
+  positive_witness: The exact approved sentence remains readable while an otherwise identical sentence with appended private reasoning is withheld.
+  negative_control: Prefix-based exemption publishes the approved sentence together with appended private implementation text.
+  observable: plan-review-replay-publish-cases.ts contains paired exact-template and appended-prose assertions; wave-15/qa4-contract-suite.txt records 75 passing tests and zero failures.
+  boundary: scripts/plan-review-replay/publish.ts::publishAdjudication.
+END-REVIEW-TRAILER

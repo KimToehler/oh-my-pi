@@ -1,0 +1,22 @@
+$ grep -rnE '(sk-|ghp_|AKIA|BEGIN [A-Z ]*PRIVATE KEY|/Users/[a-z]+/)' .omp/team-config/evidence/gate/plan-review-loop-measurement
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:2:$ grep -rn -E "backend_kt|nutritrain|ghp_|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "grep -c|grep -o|grep -rn|grep -r "
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:4:$ grep -ro -E "sk-[A-Za-z-]{0,12}" . | sort | uniq -c
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:5:      1 ./experiment/dataset.json:sk-child
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:6:      1 ./experiment/dataset.json:sk-review
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:7:      1 ./f1/inputs.md:sk-owned
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:8:      5 ./f1/publication.md:sk-
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:9:      5 ./f1/publication.md:sk-child
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:10:      3 ./f1/publication.md:sk-owned
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:11:      5 ./f1/publication.md:sk-review
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:12:      2 ./wave-1/qa5-publication-leak-scan.txt:sk-
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:13:      1 ./wave-1/qa5-publication-leak-scan.txt:sk-child
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:14:      1 ./wave-1/qa5-publication-leak-scan.txt:sk-review
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:15:      1 ./wave-2/qa5-publication-leak-scan.txt:sk-
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:16:      1 ./wave-2/qa5-publication-leak-scan.txt:sk-child
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:17:      1 ./wave-2/qa5-publication-leak-scan.txt:sk-review
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:18:      5 ./wave-3/qa5-publication-leak-scan.txt:sk-
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:19:      4 ./wave-3/qa5-publication-leak-scan.txt:sk-child
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:20:      2 ./wave-3/qa5-publication-leak-scan.txt:sk-owned
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:21:      4 ./wave-3/qa5-publication-leak-scan.txt:sk-review
+/Users/tim/git/oh-my-pi/.worktrees/plan-review-loop-measurement/.omp/team-config/evidence/gate/plan-review-loop-measurement/wave-5/qa5-publication-leak-scan.txt:22:      6 ./wave-4/qa5-publication-leak-scan.txt:sk-
+matches above are the documented-pattern listing; see wave-6/qa5 for the explanation

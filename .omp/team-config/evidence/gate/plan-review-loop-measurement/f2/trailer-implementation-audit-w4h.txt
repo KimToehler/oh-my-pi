@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: An excluded attempt must contribute its recorded cost exactly once without contributing a quality result.
+  positive_witness: A failed verifier followed by a successful replacement leaves both costs in the verifier and total buckets while only the replacement supplies triage.
+  negative_control: Omitting the failed attempt's cost, counting it twice, or scoring its verdict as an additional completed trial MUST fail.
+  observable: Attempt exclusions, verifier and total cost buckets, and completed trial scores in summary.json.
+  boundary: Attempt validation and cost aggregation.
+END-REVIEW-TRAILER

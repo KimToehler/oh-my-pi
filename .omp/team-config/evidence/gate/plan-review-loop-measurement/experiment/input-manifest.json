@@ -1,0 +1,982 @@
+[
+  {
+    "id": "Spt/proposal.md",
+    "path": null,
+    "sha256": "70b1f4f8ff58b70c22dbc40af1579b1cbb0461bc2d3e935af31fa728dfd18a90",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"df2238aa\"],\"reviewerReadWitnesses\":[\"22e168f0\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Spt/specs/strength-progression/spec.md",
+    "path": null,
+    "sha256": "0c31823566ba83b14c0e50913dfcd9bd02cfda9684adcde8c561199ea81cec85",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"ffd4edc3\"],\"reviewerReadWitnesses\":[\"b482439b\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Spt/design.md",
+    "path": null,
+    "sha256": "fe5ff8445fad85d6302ae4272e62a5f765fbabe4ec45842f8c4642a0f8cc5d27",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"80265add\"],\"reviewerReadWitnesses\":[\"cd93cf98\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Spt/gate.md",
+    "path": null,
+    "sha256": "15a55a1497e50ea920b577717db82c0324f8986e18457270c40dc582532650f8",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"0b6006ca\",\"fb8cf492\"],\"reviewerReadWitnesses\":[\"ea923523\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Spt/tasks.md",
+    "path": null,
+    "sha256": "a9c729a232ccb102ead5038d395c9edcb2ca512c988aef6366d84409d32a0110",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"fb8cf492\",\"5bd71fd7\"],\"reviewerReadWitnesses\":[],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Spt/.openspec.yaml",
+    "path": null,
+    "sha256": "f48a37d0d0e988df9673646463007ea64b766fc084b08f31638563e215f34129",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"460a864f\"],\"reviewerReadWitnesses\":[\"460a864f\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/proposal.md",
+    "path": null,
+    "sha256": "17a50e682ac3b5dcc315b7d9effd481bc2a1ee162911e50845b6050fbbe4d475",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"cf26b57f\",\"bf53bd47\",\"3517d42d\",\"de00f691\"],\"reviewerReadWitnesses\":[\"0f97994c\",\"c82f8b9b\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/specs/session-relocation/spec.md",
+    "path": null,
+    "sha256": "cedfb3f1afce51c197eaa0e6d8c548b9d1d0a74654bb8c39a91c696f305bc88d",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"bb1681db\",\"f6a73408\"],\"reviewerReadWitnesses\":[\"b1459877\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/design.md",
+    "path": null,
+    "sha256": "78a183dda0095cc1fa075f93a338439875c8e340c511d1c01c30ae60c5afb089",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"d220b2a8\",\"3646763e\",\"10830dff\"],\"reviewerReadWitnesses\":[\"141f0363\",\"370283e8\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/gate.md",
+    "path": null,
+    "sha256": "23bcb7f2421fa1dbc9a51b9f917d59077d24dc04d5f40941bd20bc3f5f51240d",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"eb66a7be\"],\"reviewerReadWitnesses\":[\"1934eb5a\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/tasks.md",
+    "path": null,
+    "sha256": "7a5d494c96cbfb35f84b1ac0b4309c0c40c748f7204d2377d8bbc36219cdde18",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"69283f75\",\"f6a73408\",\"0b076d2d\"],\"reviewerReadWitnesses\":[\"0f13ebdb\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Smt/.openspec.yaml",
+    "path": null,
+    "sha256": "453b5251c032c738f74f013cc5d22400c18b0a02ed7fb0dee247a31fe095e02b",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"eebca05a\"],\"reviewerReadWitnesses\":[\"eebca05a\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/proposal.md",
+    "path": null,
+    "sha256": "10511387eca02fbc99b910d535e7e8bfbe98fc0c48b6ad13387f3f3003832147",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"8f03fe63\"],\"reviewerReadWitnesses\":[\"03a2d622\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/specs/tool-approval/spec.md",
+    "path": null,
+    "sha256": "174c703baeb20862fba9a4c0c4f996f7ff604b583cbefcb17d31a06a2075f972",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"87acd8ed\"],\"reviewerReadWitnesses\":[\"d8f872a6\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/specs/acp-tool-permissions/spec.md",
+    "path": null,
+    "sha256": "3f11054c6924c3dea0f10d499d8f2f89775a9d3e7c99c119f0f4310fb935eb79",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"7281c1af\"],\"reviewerReadWitnesses\":[\"44141e6d\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/specs/acp-client-bridge/spec.md",
+    "path": null,
+    "sha256": "3901efea91857bcdc57d25bf51ed3d144ae4b89c18da89258696cf093e75e1bb",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"7281c1af\"],\"reviewerReadWitnesses\":[\"d06b59c3\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/design.md",
+    "path": null,
+    "sha256": "6991539c8ace2e14c3d7d5e6fa9e0ca38b5b694ff1e543b6196e627f2c1e4923",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"379e6e99\",\"6fc1bf9a\"],\"reviewerReadWitnesses\":[\"0fbb254a\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/gate.md",
+    "path": null,
+    "sha256": "c961937cac16e94369130a4b4ec24a691d0995126f8e864d651a12b83c805a77",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"d473b49b\"],\"reviewerReadWitnesses\":[\"482ea231\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/tasks.md",
+    "path": null,
+    "sha256": "b34f78c7f3379e043d539a753dab5f62dc275e729192711990b6c8eadbc74bcc",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"2e0a2d69\",\"7524b26d\",\"71042904\"],\"reviewerReadWitnesses\":[\"71ec578f\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "App/.openspec.yaml",
+    "path": null,
+    "sha256": "453b5251c032c738f74f013cc5d22400c18b0a02ed7fb0dee247a31fe095e02b",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"adb41174\"],\"reviewerReadWitnesses\":[\"adb41174\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/proposal.md",
+    "path": null,
+    "sha256": "8a85ed4302797e2418c16014d62cc9d64a17546b79a004e88002101ba04c5d6d",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"cbe6f0be\"],\"reviewerReadWitnesses\":[\"a420f0f7\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/specs/program-generation/spec.md",
+    "path": null,
+    "sha256": "81de963ee02acd19efef248a7bdfeb943b7f16a7506501f87a282a3830afc472",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"e75c7a15\"],\"reviewerReadWitnesses\":[\"8fa02bed\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/design.md",
+    "path": null,
+    "sha256": "f3554fee1174a929afd8902c165322664ad292828e1f46ded9c21f7847d57edb",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"540d4a1f\"],\"reviewerReadWitnesses\":[\"750233a0\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/gate.md",
+    "path": null,
+    "sha256": "3bcea5583ec82360eb097c1aca564c8acd33c9491de38b1013d52ea3d7eea99f",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"0082104a\",\"f0595478\"],\"reviewerReadWitnesses\":[\"2960418b\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/tasks.md",
+    "path": null,
+    "sha256": "f599e0d8b69290101883086432f83c1e8fe45316d57cada70561940424fb0dcf",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"369a2bed\"],\"reviewerReadWitnesses\":[],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Fmp/.openspec.yaml",
+    "path": null,
+    "sha256": "453b5251c032c738f74f013cc5d22400c18b0a02ed7fb0dee247a31fe095e02b",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"git:5e6445dcb:openspec/changes/finish-modality-program-route/.openspec.yaml\"],\"reviewerReadWitnesses\":[],\"format\":\"terminal newline normalized only\",\"metadataOnly\":true}"
+  },
+  {
+    "id": "Rtr/proposal.md",
+    "path": null,
+    "sha256": "af2c27f0e2b56986fc3586d0edf9dcfca267a8e1ce66e66a767908f38eb66528",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"47e4c1c1\",\"ec242ea9\",\"27c06e9f\"],\"reviewerReadWitnesses\":[\"8a605ca7\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Rtr/specs/review-trailer/spec.md",
+    "path": null,
+    "sha256": "f196f79c3402f189085c7eb635bb5afad3b193c30905042acc8afbd469ae1334",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"107564ba\",\"68955e9a\",\"c3f0edac\",\"c54881da\",\"bf24f8c8\"],\"reviewerReadWitnesses\":[\"10e66d99\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Rtr/design.md",
+    "path": null,
+    "sha256": "bd24e326d9e66e97434af44b1811b9055b65e8ce84b74d3e265eec3552d6de26",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"98fcd35a\",\"ec242ea9\"],\"reviewerReadWitnesses\":[\"4027773e\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Rtr/gate.md",
+    "path": null,
+    "sha256": "9a29aac03632d91015ad17f6d0e4af5f1ab94e80236b10a51b3b54808232c31e",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"1d294c7d\"],\"reviewerReadWitnesses\":[\"1846e84e\",\"1444d05f\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Rtr/tasks.md",
+    "path": null,
+    "sha256": "d933b928f56ff7c4845df09f63f500e74d810592d53684b6b4accbc82e671a07",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"68955e9a\",\"2f0063d9\",\"58162c3a\"],\"reviewerReadWitnesses\":[\"c580efeb\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "Rtr/.openspec.yaml",
+    "path": null,
+    "sha256": "453b5251c032c738f74f013cc5d22400c18b0a02ed7fb0dee247a31fe095e02b",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. {\"session\":\"local-path-redacted\",\"events\":[\"ac7cfd77\"],\"reviewerReadWitnesses\":[\"ac7cfd77\"],\"format\":\"terminal newline normalized only\",\"metadataOnly\":false}"
+  },
+  {
+    "id": "contract/packages/coding-agent/src/prompts/agents/plan-reviewer.md",
+    "path": null,
+    "sha256": "596edb9192d2d268aa2d30209f6b72b407b97526691a11122d43da5646818b25",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Copied from task worktree before fresh dispatch; actual session_init prompt/tools retained separately."
+  },
+  {
+    "id": "contract/team-config/agent/agents/blocker-verifier.md",
+    "path": null,
+    "sha256": "37c1c07c1e7a140c4f4a0384ca081fde2b1270f685ad18d3cea2e35718287837",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Copied from task worktree before fresh dispatch; actual session_init prompt/tools retained separately."
+  },
+  {
+    "id": "contract/team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml",
+    "path": null,
+    "sha256": "da1a2c8483a938da0a5c2465443c00b7bcbab90276d526ecbb940088e8a266dc",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Copied from task worktree before fresh dispatch; actual session_init prompt/tools retained separately."
+  },
+  {
+    "id": "contract/team-config/agent/rules/plan-review-process.md",
+    "path": null,
+    "sha256": "fd7cc45ad23bb46ae059115f02e1c4d6d134533414d4223c1069a3ed2d8bdec0",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Copied from task worktree before fresh dispatch; actual session_init prompt/tools retained separately."
+  },
+  {
+    "id": "contract/team-config/agent/rules/plan-review-eval-domain.md",
+    "path": null,
+    "sha256": "cdee5f194ec36efc42fff7fcd7071adfc174ec44528e6d8cac1913ff8af4d1b7",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Copied from task worktree before fresh dispatch; actual session_init prompt/tools retained separately."
+  },
+  {
+    "id": "brief/Spt",
+    "path": null,
+    "sha256": "52085ae71fb0e68698f98dfb805bd52aeb4c4fc6bd1ad56038c7c6599770d826",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Exact merged schema base+standard scope, path substitutions only; S and T consume identical bytes."
+  },
+  {
+    "id": "brief/Smt",
+    "path": null,
+    "sha256": "a0997200c56ab4c4ca724f3b9dc0b6e7d11dd7b6488c8ce3162f1e7996bc80c2",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Exact merged schema base+standard scope, path substitutions only; S and T consume identical bytes."
+  },
+  {
+    "id": "brief/App",
+    "path": null,
+    "sha256": "ee41f574e719e8bf1506c8ffb1cd76f074b375eb60452b08b7f49511cd94b346",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Exact merged schema base+standard scope, path substitutions only; S and T consume identical bytes."
+  },
+  {
+    "id": "brief/Fmp",
+    "path": null,
+    "sha256": "2283622678aebfc46615197bd2c9969794df925b5bce67e77edaa804f9719e15",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Exact merged schema base+standard scope, path substitutions only; S and T consume identical bytes."
+  },
+  {
+    "id": "brief/Rtr",
+    "path": null,
+    "sha256": "d560f652398e93d51d8cec8536cd0ad567947293726d5837c9120aeda9b3eaa4",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Exact merged schema base+standard scope, path substitutions only; S and T consume identical bytes."
+  },
+  {
+    "id": "historical-session/F61SptCor",
+    "path": null,
+    "sha256": "b4fe4b7472fe33bd3eaf552c2b4050670ec0c05a7517cfa350938d7acd1230dc",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61SptVer",
+    "path": null,
+    "sha256": "5f425b9731a5afe5f160425ff4f7f1c87180eea1ea0b7b00334aaf91c2fa87e5",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61SptChk",
+    "path": null,
+    "sha256": "1f38e9ce5c0c47dc01791e1e58c7351fba88979c702af3586fb09c4ceb526d8c",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61SmtCor",
+    "path": null,
+    "sha256": "688fb28b809cba3d291bb85ce06fd43f27b7427581003dc00d0e68c455e0d1ca",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61SmtVer",
+    "path": null,
+    "sha256": "8446b6d75890d00737f072d37dbfcb480e0df83adf2af2f6d08ed51164f3104d",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61SmtChkb",
+    "path": null,
+    "sha256": "8e97e9213728bb14ac637d37e3c8ea59b237e84296b0325f841e896f2eb58100",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61AppCorb",
+    "path": null,
+    "sha256": "ead9ee7e2b3820873e2fa8331d932383324715a2e805b91b9481089a231af334",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61AppVer",
+    "path": null,
+    "sha256": "8befe88de859e66377b594ae78fbd32126fd1c7121148755c9ca9ee5135a5b5b",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/F61AppChk",
+    "path": null,
+    "sha256": "1d0a35fd7cf231fb68c974978f3655b312732d76ec8143a8c68a6b784a411e99",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusFmpCor",
+    "path": null,
+    "sha256": "f554261e09021743cfa07dd77ddc1f63678fbdce2d665ed8cc3a9b534feed228",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusFmpVer",
+    "path": null,
+    "sha256": "eff982b0152843d506cd8e38cf93a16f4c0633eee8cc943db5c5e79aa4d65a19",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusFmpChk",
+    "path": null,
+    "sha256": "0d711dfa3c280a903aae182d51ba9a8c1479590a3d73676054a48cb6bc3e756e",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusRtrCor",
+    "path": null,
+    "sha256": "da3a62f521796be19934be004a175bbd6fdc94b3558dbc2009c3b72cd95c97e0",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusRtrVer",
+    "path": null,
+    "sha256": "edd0eb3953cf5da5453ab256091c959463ee6bfc7f4d74734afe69a6bf6e04ab",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/FocusRtrChk",
+    "path": null,
+    "sha256": "2968a0312d5de32637a15c0082c38a1110ec1310aab6e6f618d0fb3bbf78150b",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Spt1",
+    "path": null,
+    "sha256": "e736fa5949711886d3b8d712fd690d8762fb8f539899e8e0d0bbec02f2822c8d",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Spt2",
+    "path": null,
+    "sha256": "4024a3a5c2f32f1af9b1cdd6a23c08cac77fb355ea12e678c16941959ce65882",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Spt3",
+    "path": null,
+    "sha256": "2919f077babd6d4d1e8b9f2818e3a1bf708f0885e26fad713fd8cf258a691723",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Smt1",
+    "path": null,
+    "sha256": "a764e7170e5cc808e3649137d4d12476f5ee7f0e57a65f0fea6bd2ebbaab858b",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Smt2",
+    "path": null,
+    "sha256": "c0c788c8310ba2cdc47755569583b6c14e466558b20b1c3ed60110a0e5dd8b8b",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61Smt3",
+    "path": null,
+    "sha256": "12b96470228859f4426199572e1f110188c8ccff7e9308357314116ac44a1829",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61App1",
+    "path": null,
+    "sha256": "12033060be1c34d8c9a58494336f49179c27b3c2471b0c6165117d09dc905fe8",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61App2bb",
+    "path": null,
+    "sha256": "724e5ac0f2b5d071cc5779db9b9150a3b75719d6e8b51371e66b4a4f376cf449",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/B61App3",
+    "path": null,
+    "sha256": "806f059c94b4052e07454c2cef0f956a4784a1033bdf2166fe020dc1fff6715a",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayFmp1",
+    "path": null,
+    "sha256": "6386086cc60610f0019da246810b9858743bc743dfdc6a7e61537535df4850e3",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayFmp2",
+    "path": null,
+    "sha256": "83e9fa9ef989c57dd7ae6bc862829bb4f4f68bed2dc25ee83f7d9f646985fcf9",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayFmp3bbb",
+    "path": null,
+    "sha256": "6bcc374580f47a10fe7085a6449dc06ea228dfaacfe3ee19606a1be1d3f11693",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayRtr1b",
+    "path": null,
+    "sha256": "dc1b93c1c9240e00ad279bd4549793049047170d70e83ed08d1b5f0b3e8153cf",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayRtr2",
+    "path": null,
+    "sha256": "1b455c6d616475616da370baddeb5d8df8bbcc6c5ae78566c516f5b1330d7393",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "historical-session/ReplayRtr3",
+    "path": null,
+    "sha256": "1ab1260083882545a9c813753aa093d8156a878c098f5185c7c8131aadee6fc4",
+    "provided": false,
+    "provenance": "Original child session, used to extract actual pins and reported usage; dispatch/terminal unavailable."
+  },
+  {
+    "id": "frozen/protocol.md",
+    "path": null,
+    "sha256": "337eb569362c4ef8f05f72ae244c85bd1414d77893c1beb80d887d1ea0e837a3",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Frozen before fresh trial dispatch."
+  },
+  {
+    "id": "frozen/scoring-contract.md",
+    "path": null,
+    "sha256": "4ee57c68ad44aeca4f5ecd91bf81b4520cdddc72ef4b93979461dc77ecbcdc16",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Frozen before fresh trial dispatch."
+  },
+  {
+    "id": "frozen/items.json",
+    "path": null,
+    "sha256": "5998b966247b7d11a07dc9888e12774fab4ed5942d2bd89a3da44a959641608b",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Frozen before fresh trial dispatch."
+  },
+  {
+    "id": "frozen/targets-private.json",
+    "path": null,
+    "sha256": "bfb1e1d6adebde3cc0bdf33decf9d5bb1340e17a1b4a1cc1cf173844db359e6f",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Frozen before fresh trial dispatch."
+  },
+  {
+    "id": "frozen/historical-extraction.json",
+    "path": null,
+    "sha256": "07cfabdfe50b1f5a410131d1546d93bcb5ba9ebc56285d5130592681d09bf3fa",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Frozen before fresh trial dispatch."
+  },
+  {
+    "id": "historical-annotations",
+    "path": null,
+    "sha256": "80800f8e8d95578f222b7b0568aa06b1b290410fba6cc32892d134ca20c5d563",
+    "provided": false,
+    "provenance": "Read-only original annotations. recall_table was never used to calculate baseline."
+  },
+  {
+    "id": "experiment-agent/measurement-sol",
+    "path": null,
+    "sha256": "d5877e89b16a2485fcee004424bdb787f5e94c0b8801a15df90bd01e4f6e9953",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition. Name/model frontmatter only differ from captured standard contract; production config unchanged."
+  },
+  {
+    "id": "experiment-agent/measurement-terra",
+    "path": null,
+    "sha256": "4e6e7f19ee50185c560d2cdfc099c1265d5f63541a5cfbd1a7a28d82de973dc7",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition. Name/model frontmatter only differ from captured standard contract; production config unchanged."
+  },
+  {
+    "id": "experiment-agent/measurement-verifier",
+    "path": null,
+    "sha256": "2c54f2b8d4ce68c203cff36feb3269a2492997450b68e5ffcf48c52379cd50a3",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition. Name/model frontmatter only differ from captured standard contract; production config unchanged."
+  },
+  {
+    "id": "experiment-agent/measurement-adjudicator",
+    "path": null,
+    "sha256": "d54354fba27c80aa21e33b0b21461288969ff6625b23954bc5e2c752842264a9",
+    "provided": false,
+    "provenance": "Local frozen input; digest retained, bytes stay in the local run directory. Experiment-local definition, written at the adjudication stage after the reviewer-input freeze; frozen before the first adjudicator dispatch. Production config unchanged."
+  },
+  {
+    "id": "execution/TrialTSmt1",
+    "path": null,
+    "sha256": "219a434459000ea7bfa54b272c77d2ae8fe727b1c74a7a78087435c5e8d19a84",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local. Immutable run-owned capture of the exact originally scored SHA256; live session may append session_exit later."
+  },
+  {
+    "id": "execution/VerifyTSmt1",
+    "path": null,
+    "sha256": "b9cbec16bfe28a6a75a2ec0d6843ec21f03bdccb63c0947ddc6d7d0345d7303d",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local. Immutable run-owned capture of the exact originally scored SHA256; live session may append session_exit later."
+  },
+  {
+    "id": "execution/TrialSRtr3",
+    "path": null,
+    "sha256": "b8d765ddadd51f3aacbcd07ce079f6422a8079ad7a7162cd81b7dc5543a017e6",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local. Immutable run-owned capture of the exact originally scored SHA256; live session may append session_exit later."
+  },
+  {
+    "id": "execution/TrialSFmp1",
+    "path": null,
+    "sha256": "c9a66394ed1c0b038fe1470a481f82590150b758afeb6976c62ae9f100a3d8fd",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local. Immutable run-owned capture of the exact originally scored SHA256; live session may append session_exit later."
+  },
+  {
+    "id": "execution/VerifySFmp1",
+    "path": null,
+    "sha256": "a24fa7663b4f975ff272393741140f56d12609d9fba08131441930b6931f17ae",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local. Immutable run-owned capture of the exact originally scored SHA256; live session may append session_exit later."
+  },
+  {
+    "id": "execution/TrialSFmp3",
+    "path": null,
+    "sha256": "cb92a4310cc87d4e6f65cfa9ef25bdfdd6fe570c845638db933e455f4a842ce9",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySRtr3",
+    "path": null,
+    "sha256": "cfce710a17be0a415a88f75d22619d2337c104280208a0e1be992e872e100a3c",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySFmp3",
+    "path": null,
+    "sha256": "e830608cca1fb283124347feb9bae2a38bb8a3159c23344392775e2c9992f56b",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSSpt3",
+    "path": null,
+    "sha256": "f3ea931798148834ce63622aaa818f0f837f18b1e867fcea1692bb2fcf193112",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSRtr1",
+    "path": null,
+    "sha256": "97a3cf616550cd0edc2fcc595af73f9ebe8156c1e8b6d3551617113ed96b917d",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/Replacement2SRtr3",
+    "path": null,
+    "sha256": "a42615d9740b193bf6eb323169abd927b28e3ddc02848a1af9d926d0f57d70bf",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSSmt2",
+    "path": null,
+    "sha256": "6f18f854a3c4a85193539a16e1b7390dc0331ddc1f988beabff0c713ef801687",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSApp3",
+    "path": null,
+    "sha256": "4f35d86f7968a7c1d37cb0ef99cef9562ca253b49a6873fdfb7707ca1d22f261",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySApp3",
+    "path": null,
+    "sha256": "b60e5ac699080622c1b61a9482e90d90d3e2a41baa028df32841be955d593b29",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/Replacement1SSpt3",
+    "path": null,
+    "sha256": "395570f7904de65fc035cbe0c5c7a854f4586bdf1899dcb7bf48b111fe650c0f",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySRtr1",
+    "path": null,
+    "sha256": "1a86cd55d41d443413a71c945441c41e873e10cefeb9dee8da211873782d6d6e",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySSpt3",
+    "path": null,
+    "sha256": "9840a922b5502a9e7bdd71cfb0ac4660987347ff0787b149860cc06cfc519389",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSSpt2",
+    "path": null,
+    "sha256": "08209221ebe53d5110c8c1f38ccfa9509e697aa1f13bf577070e4f1f41b4c142",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSpt2",
+    "path": null,
+    "sha256": "9309a63dd5029253b7fff304f6130ae22ca0ed6dbef530527e41b272b2f3bcd0",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialTSpt1",
+    "path": null,
+    "sha256": "995fec48081bfe70776136efc26634c5e493e9cc704d38bdf328e66d3c3908e6",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifyTSpt1",
+    "path": null,
+    "sha256": "e1ebe8b680ed4d2bd401a395ca96c77f23fded955cecc91c884ed0faade5c4e7",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/Replacement3SSmt2",
+    "path": null,
+    "sha256": "c8a745863b0aaa4a5720af95a05c56595b2a16786a0d42411e462706b2a746e4",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSFmp2",
+    "path": null,
+    "sha256": "8464b90a116c21529938f231b51b75671ccf4284b6a75f21a4c9a607bd809f6c",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSSmt3",
+    "path": null,
+    "sha256": "3e7e57bc2d95425e9a59cb22e6375dae918a65bab6851105a513a19b6c579ade",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSApp1",
+    "path": null,
+    "sha256": "c78681f70da7750c1a57ce41ac2aa52c9bc840a915168b68ba3e223f1927068e",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialSSpt1",
+    "path": null,
+    "sha256": "7f8c5461d7ab9760fb03e55bd4d580aea8c9d33d7e68b08ab575a48eae590897",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/AdjRtr",
+    "path": null,
+    "sha256": "b136e93cc5cbf9b6d7d98ae6727e9ea7cfbe46eccdd17e0ba805040579151446",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/AdjApp",
+    "path": null,
+    "sha256": "edde98143967e654dadea80ddfa8e35136fa332cfcb6b05b9f7016c866c890ca",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/AdjSmt",
+    "path": null,
+    "sha256": "8f9349dd3b2dd28ac0457281feea976f00c685543a7ee8bc5ba2e68e3dcce5fa",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/AdjFmp",
+    "path": null,
+    "sha256": "b00a0902d1c9215ed79e0b27ac8e593d44dfbcfa4529c0fce9a81ffb99ea83e0",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/AdjSpt",
+    "path": null,
+    "sha256": "e17366348a11e3314d66a95a7e4a25c90658a32c1055ca19826c380de7c7bf0c",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/TrialTFmp1",
+    "path": null,
+    "sha256": "d727a147af160be7c5ee01c19969395b910a26602c153230dab7599b2c9666d1",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifyTFmp1",
+    "path": null,
+    "sha256": "cc4d47bfa50f6230214c92517471c53bfd96c59dc2ab37a49d3ea52fb2b13d5e",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSRtr2",
+    "path": null,
+    "sha256": "9b318248c7f95836b8589c77d1f9c2aa13a6953474b187fedb3e1676f37f0127",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySRtr2",
+    "path": null,
+    "sha256": "6e687774b1249c9e260280b1df463d5a947af2edb849ab9a2cf6e1a16246a394",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSSmt1",
+    "path": null,
+    "sha256": "c63dca85aeef2dbd865a67167d8a3670ea8310afea5fd8dce079a81588738234",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/TrialTRtr1",
+    "path": null,
+    "sha256": "f76b57c4bc90769c80e14d864aaaca87046e2695d87addfe0ee70c53e55d020d",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSmt1",
+    "path": null,
+    "sha256": "cbf83fdbf9e82b20bba7ffc4e3209bb98fa5ddb35ddfecc9145f20aaebd92fc7",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialSApp2",
+    "path": null,
+    "sha256": "55ddfd46bca4407a31f13439f9cc014aea8ab0330b1548480d21901daadf28b9",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifyTRtr1",
+    "path": null,
+    "sha256": "313ecf964be4a2647f75b15b61b86476c16c6e5e26365a44562e34154d3732ce",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySApp2",
+    "path": null,
+    "sha256": "18e168b4e31c7557f1e12a98e88713432e8d0a458ef70147ae5f6f3c11c19a7e",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/TrialTApp1",
+    "path": null,
+    "sha256": "da21fdc5d01b8852799068b9ace6d01b5161efcc54d035406d4fc385c3623065",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/RerunSSmt2",
+    "path": null,
+    "sha256": "94c1de1a9c0e894157c9dd60877a0b9a80396528c692c009ad9025a13febbd91",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/RerunSFmp2",
+    "path": null,
+    "sha256": "ccc6413705a98c9d24129d16bfd8af907644976b945e3578e3738f73ae3b5612",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSmt2",
+    "path": null,
+    "sha256": "3d2a4913e579a029d64b1ef58396b366c4ee6086804e998ac4e206c43e5cd7d1",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifyTApp1",
+    "path": null,
+    "sha256": "4d2505cba7c1ad6208bd94293503202f9f78cd817ed7d90b6633b82df16489c6",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/RerunSSpt1",
+    "path": null,
+    "sha256": "245753deea96c731c0a6df13bb35d7c2ab1dd41d9d8167096556e54c1cdaae92",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySSpt1",
+    "path": null,
+    "sha256": "3727edbe93cd355a25dd526442e709cbd6d659078c3d61c00d7934a4667570e1",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySFmp2",
+    "path": null,
+    "sha256": "9c98d262e7a451e68f81c755a8c7ada1f8a287564c734be33bb2dad5f8598f7c",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifySSmt3",
+    "path": null,
+    "sha256": "3350c071893ba5134a04b1b9eb9dcb9453acbb629bf3af38aedc3b1c0045291b",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/RerunSApp1",
+    "path": null,
+    "sha256": "1a97d713b7e2272428be8af4744d77e6ead8865bd4d1ccc75327a2e4bf4834ca",
+    "provided": false,
+    "provenance": "Actual completed native task session; raw remains local."
+  },
+  {
+    "id": "execution/VerifySApp1",
+    "path": null,
+    "sha256": "959a3e4de00faf89983ee2fe902c08b565db1547e48667c50aa5b158cb61dab7",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/VerifyRerunSRtr1",
+    "path": null,
+    "sha256": "6b48e9009e1eaff4b3fdece979c0e94867ac0c4a54c4f6477dccc5515f892b3c",
+    "provided": false,
+    "provenance": "Actual native current-verifier session; raw local."
+  },
+  {
+    "id": "execution/Adj2Rtr",
+    "path": null,
+    "sha256": "4bc7459c3baa54d220532095d7f71f90d9837fd001dfab58226ee639578c6649",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Fmp",
+    "path": null,
+    "sha256": "c7e25094a84c2e2ab16007562f69298df0211911371ba2c8c0c77f38eceb90c4",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Smt",
+    "path": null,
+    "sha256": "e42fc4941b6afcabc1bce47935ac4a1af8c47cc59d29b1b69fb3a8d7549a5ec2",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2App",
+    "path": null,
+    "sha256": "1db7bb968d383f6cc7414d17f7e6eab66f8ec1369cbc631c84249eedbd5d605c",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  },
+  {
+    "id": "execution/Adj2Spt",
+    "path": null,
+    "sha256": "122105575be3f632fc60cbb21799a4f4531c5b4c905c46b8ab3fa7ac5103d3e7",
+    "provided": false,
+    "provenance": "Actual completed native adjudicator session; raw remains local."
+  }
+]

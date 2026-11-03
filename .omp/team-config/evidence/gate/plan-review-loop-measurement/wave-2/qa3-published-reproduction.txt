@@ -1,0 +1,6 @@
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format json | cmp - .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/summary.json
+summary reproduced byte-exactly
+exit=0
+$ ... --format md | cmp - report.md
+report reproduced byte-exactly
+exit=0

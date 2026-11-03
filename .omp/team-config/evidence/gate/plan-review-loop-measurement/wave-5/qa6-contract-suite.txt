@@ -1,0 +1,12 @@
+$ git rev-parse HEAD
+dcaa718d294bf184ab3dcde5b2a48dc241cce712
+$ git rev-parse 3c2409bd54:scripts HEAD:scripts
+3662a54c5c2b3d3ca58f2b0ede2dc4c8fe36f10f
+3662a54c5c2b3d3ca58f2b0ede2dc4c8fe36f10f
+(identical: the suite ran on the reviewed scripts tree; the later evidence commits carry no source change)
+$ bun test scripts/score-plan-review-replay.test.ts
+
+ 67 pass
+ 0 fail
+ 235 expect() calls
+Ran 67 tests across 1 file. [58.00ms]

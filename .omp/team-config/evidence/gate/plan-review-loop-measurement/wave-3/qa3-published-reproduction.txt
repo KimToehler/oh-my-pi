@@ -1,0 +1,6 @@
+$ bun scripts/score-plan-review-replay.ts report <published>/dataset.json --format json | cmp - summary.json
+summary reproduced byte-exactly
+exit=0
+$ ... --format md | cmp - report.md
+report reproduced byte-exactly
+exit=0

@@ -1,0 +1,9 @@
+# arm completeness and triage from the published summary
+$ bun -e '<reads summary.json, prints per-arm cell counts and triage>'
+H-Focus done 5/5 excluded 0 missing 0 falseDrop {"numerator":0,"denominator":0,"value":null,"reason":"no discovered independently blocking targets or triage unavailable"}
+H-Replay done 14/15 excluded 1 missing 0 falseDrop {"numerator":0,"denominator":0,"value":null,"reason":"no discovered independently blocking targets or triage unavailable"}
+S done 15/15 excluded 0 missing 0 falseDrop {"numerator":0,"denominator":36,"value":0,"reason":null}
+T done 5/5 excluded 0 missing 0 falseDrop {"numerator":0,"denominator":10,"value":0,"reason":null}
+rounds.observed []
+costs.complete true totalIsLowerBound false
+exit=0

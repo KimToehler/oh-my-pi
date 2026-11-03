@@ -1,0 +1,5 @@
+$ cp -R runs/plan-review-loop-measurement-20261102 $T/run
+$ printf "\\n<tamper>\\n" >> $T/run/fixtures/Spt/proposal.md
+$ bun scripts/score-plan-review-replay.ts check $T/run
+error: source Spt/proposal.md: sha256 mismatch for fixtures/Spt/proposal.md (expected 70b1f4f8ff58b70c22dbc40af1579b1cbb0461bc2d3e935af31fa728dfd18a90, got cf738965cc7fe83b1075833892374ec9fb032d74f4be99b74486be229dc48e5d)
+exit=1

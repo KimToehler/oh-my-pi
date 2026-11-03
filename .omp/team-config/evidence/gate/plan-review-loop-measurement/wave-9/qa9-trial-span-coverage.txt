@@ -1,0 +1,21 @@
+$ bun /tmp/qa9.js   # trial spans against every attempt bound to the trial
+--- script ---
+const D = ".omp/team-config/evidence/gate/plan-review-loop-measurement/experiment";
+const d = await Bun.file(D + "/dataset.json").json();
+const s = await Bun.file(D + "/summary.json").json();
+for (const t of d.trials) {
+	const bound = d.attempts.filter(a => a.trial === t.id);
+	const listed = new Set([...t.reviewAttempts, ...(t.verifierAttempt ? [t.verifierAttempt] : [])]);
+	const extra = bound.filter(a => !listed.has(a.id));
+	if (extra.length === 0) continue;
+	const span = s.timing.trialSpans.find(x => x.trial === t.id)?.span;
+	console.log(`${t.id}: unlisted bound attempts ${extra.map(a => `${a.id}/${a.stage}/${a.status}`).join(",")} span ${JSON.stringify(span)}`);
+}
+const incomplete = s.timing.trialSpans.filter(x => !x.span.complete).map(x => x.trial);
+console.log(`spans not complete: ${incomplete.length} (${incomplete.slice(0, 3).join(", ")} …) - all historical trials without timestamps`);
+console.log(`fresh spans complete: ${s.timing.trialSpans.filter(x => x.span.complete).length}/20`);
+--- output ---
+S-Rtr-3: unlisted bound attempts VerifySRtr3/verifier/excluded span {"ms":2373611,"complete":true,"reason":null}
+S-Rtr-1: unlisted bound attempts VerifySRtr1/verifier/excluded span {"ms":17066643,"complete":true,"reason":null}
+spans not complete: 20 (H-Focus-App-1, H-Focus-Fmp-1, H-Focus-Rtr-1 …) - all historical trials without timestamps
+fresh spans complete: 20/20

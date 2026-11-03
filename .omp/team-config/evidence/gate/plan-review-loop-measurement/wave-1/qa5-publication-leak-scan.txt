@@ -1,0 +1,11 @@
+$ grep -c -E 'backend_kt|nutritrain|/Users/|ghp_|sk-' .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/*.json .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/*.md
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json:2
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/input-manifest.json:0
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/summary.json:0
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/RESULT.md:0
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/protocol.md:0
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/report.md:0
+.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/scoring-contract.md:0
+$ grep -o -E 'backend_kt|nutritrain|/Users/|ghp_|sk-[A-Za-z-]{0,12}' .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json | sort | uniq -c
+      1 sk-child
+      1 sk-review

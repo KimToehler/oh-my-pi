@@ -1,0 +1,9 @@
+$ cd <repo>/.omp/team-config/evidence/gate/plan-review-loop-measurement
+# leak-scan captures quote the output of earlier scans, including their own absolute paths, so they are excluded as in every earlier wave
+$ grep -rn -E "backend_kt|nutritrain|ghp_|AKIA|api[_-]?key|/Users/[a-z]+/" . | grep -v -E "publication-leak-scan|grep -c|grep -o|grep -rn|grep -r "
+(no output above means no hit)
+
+$ grep -ro -E "sk-[A-Za-z-]{0,12}" experiment | sort | uniq -c
+      1 experiment/dataset.json:sk-child
+      4 experiment/dataset.json:sk-review
+(task-child / risk-review substrings; see wave-6/qa5)

@@ -1,0 +1,10 @@
+$ git rev-parse HEAD
+18c80362467e38ee69dea9c46011eb24633f19a4
+$ git rev-parse HEAD:scripts
+c2cb50a5a1f4bafc848ddb4a8b8ed21af46fa522
+$ bun test scripts/score-plan-review-replay.test.ts
+
+ 75 pass
+ 0 fail
+ 265 expect() calls
+Ran 75 tests across 1 file. [60.00ms]

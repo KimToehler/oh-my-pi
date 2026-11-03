@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+The published dataset contains a concrete counterexample to the frozen retention rule: one finding is independently blocking because of one matched target, but also matches a second target independently judged below threshold. The scorer transfers the finding’s blocking status to both targets, overstating post-triage retention.
+
+## 2. Correctness, regressions, architecture and wire contracts
+
+Blocker B1: **High — incorrect target-level severity propagation.** Trigger: an independently blocking, verifier-confirmed finding matches multiple targets with different independent severities, as it does in the published run. Preconditions: `RerunSApp1.5` matches both `R02.2` and `R07.1`; its adjudication says it blocks because of the revival gap, while `R07.1` is below threshold (`experiment/dataset.json:1524-1527`, `:7789-7805`, `:8943-8946`). `scripts/plan-review-replay/report-trial.ts:150-165` classifies each match using the finding’s severity but does not require the *target* to be blocking before adding it to `retained`. This violates `experiment/scoring-contract.md:6` and inflates the published `S-App-1` post-triage result from the contract-consiste…
+
+**Note — reproduction instructions:** `experiment/RESULT.md:124-125` and `f1/publication.md:63-66` combine a repository-root-relative scorer path with paths relative to the published directory. As written, neither working directory resolves all three paths. This is non-blocking because the dataset and scorer are present and the paths can be corrected locally; provide a single working-directory convention and complete paths.
+
+## 3. Security and privacy delta
+
+No real credential, authentication or authorisation path, third-party personal data, or weakened protected-asset access was identified in the reviewed change. Reviewed the publication sanitization account and the supplied whole-evidence leak-scan QA result. Raw private inputs remain local according to the manifest and F1 evidence.
+
+## 4. Verification adequacy
+
+The supplied QA covers integrity checking, tamper detection, artifact reproduction, the prior-wave reporting fixes, leak scanning and the scorer suite. It does not distinguish B1: the trial tests cover a below-threshold *finding* and a refuted below-threshold *target*, but not a blocking multi-target finding whose individual targets have different severities (`scripts/plan-review-replay-trial-cases.ts:75-101`). Byte-exact reproduction consequently reproduces the erroneous calculation rather than independently validating it.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A finding spanning several distinct mechanisms must not transfer the severity of one mechanism to another when the report scores each mechanism separately.
+  positive_witness: A confirmed blocking finding matches one blocking target and one below-threshold target; only the blocking target is counted as a retained automatic blocker.
+  negative_control: Both targets are counted as retained automatic blockers merely because the combined finding is blocking.
+  observable: Per-trial retained target IDs and post-triage recall numerator in the generated report.
+  boundary: Scorer trial classification and published report.
+END-REVIEW-TRAILER
+
+[Some lines truncated to 768 chars. Use agent://ImplementationAuditWave3:raw:7-7 to read line 7 whole]

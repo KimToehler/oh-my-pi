@@ -1,0 +1,7 @@
+$ bun test scripts/score-plan-review-replay.test.ts
+bun test v1.4.4 (5d9cc0f4f)
+
+ 60 pass
+ 0 fail
+ 211 expect() calls
+Ran 60 tests across 1 file. [126.00ms]
