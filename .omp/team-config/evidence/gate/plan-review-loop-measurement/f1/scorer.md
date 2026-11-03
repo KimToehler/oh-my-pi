@@ -194,6 +194,16 @@ Observed on the published run after the fix: `H-Focus`'s arm `triage` object in 
 
 Observed on the published run after the fix: every trial span in `summary.json` is byte-identical, because this run's two replaced verifier attempts (`VerifySRtr1`, `VerifySRtr3`, both `excluded`) ran inside their trial's envelope and every fresh trial has a completed verifier. The 20 historical spans stay unavailable for want of timestamps.
 
+## 6h. Fix-wave surfaces (F2 wave 5)
+
+| fix | mutation | observed failure |
+|---|---|---|
+| a private source coordinate keeps its identity through a stable pseudonym | return the old numbered `private-repository-coordinate` again | the publication test fails: two distinct private files become the same string |
+| a public coordinate, description and reason are published unchanged | pseudonymize every coordinate | the publication test fails: `plan.md:3` of a public item is rewritten |
+| private claim text and adjudication prose stay withheld | publish the private reason | the publication test fails: the private identifier reaches the published row |
+
+Observed after the fix: regenerating `experiment/dataset.json` with `publish` changes exactly the intended rows — 42 private targets and 69 private adjudications regain real or pseudonymized coordinates, 51 public fresh findings regain their description, and sources, attempts and triage rows are byte-identical to the previously published ones. `summary.json` and `report.md` reproduce byte-exactly, so no figure moves.
+
 ## 7. Re-read of the upstream F1 evidence
 
 - `f1/inputs.md` — 85/85 original latent quotes matched the restored snapshots; one metadata-only repair (`Fmp/.openspec.yaml`) is declared; targets started as `unresolved`, not historical-label-as-truth.

@@ -124,11 +124,15 @@ The report SHALL retain historical recorded round numbers with source revisions 
 
 ### Requirement: Published results retain auditable scoring inputs
 
-The committed result SHALL include a safe normalized scoring dataset, manifest digests, counts, per-target adjudication evidence and the deterministic report command. Raw transcripts and full historical plans SHALL remain local. Publishing SHALL exclude credentials, private code and personal data. The retained normalized dataset SHALL suffice to reproduce all published numeric tables without the ignored runs directory.
+The committed result SHALL include a safe normalized scoring dataset, manifest digests, counts, per-target adjudication evidence and the deterministic report command. Raw transcripts and full historical plans SHALL remain local. Publishing SHALL exclude credentials, private code and personal data, and SHALL withhold a value only for the private content it carries, never for the item it belongs to. A withheld evidence coordinate SHALL stay distinguishable from every other coordinate and identical to its own repeats. The retained normalized dataset SHALL suffice to reproduce all published numeric tables without the ignored runs directory.
 
 #### Scenario: Recompute without local raw sessions
 - **WHEN** the scorer reads only the committed normalized dataset and its manifest
 - **THEN** it reproduces the committed numeric tables and identifies local-only raw inputs by digest
+
+#### Scenario: Private source coordinate
+- **WHEN** a target's evidence names a file of a private repository
+- **THEN** the published coordinate is a stable pseudonym that keeps distinct files distinct and keeps its line range, while the item's own plan coordinates stay readable
 
 #### Scenario: Negative control
 - **WHEN** a published count depends on omitted normalized trial or adjudication rows
