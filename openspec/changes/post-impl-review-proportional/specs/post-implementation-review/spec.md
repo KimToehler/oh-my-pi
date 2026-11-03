@@ -104,7 +104,7 @@ After a failing wave the gate SHALL allow one fix round at `standard` depth and 
 
 ### Requirement: A spent budget asks the user once
 
-When a closing wave fails with the budget spent, the gate SHALL first record the wave. Then, before any fix or dispatch, it SHALL ask the user once, showing each open blocker with its disposition under `Blocker disposition`. The options SHALL be one more fix round, re-plan and Stop, plus Override where the next requirement allows it.
+When a closing wave fails with the budget spent, the gate SHALL first record the wave. Then, before any fix or dispatch, it SHALL ask the user once, showing each open blocker with its disposition under `Blocker disposition`. The options SHALL be one more fix round, re-plan and Stop, plus Override where the requirement "Override at the budget follows Blocker disposition" allows it.
 
 #### Scenario: Stop after the budget
 
@@ -119,6 +119,20 @@ When a closing wave fails with the budget spent, the gate SHALL first record the
 #### Scenario: Negative control
 
 - **WHEN** a gate with a spent budget commits a fix for an open blocker and starts another wave before the user has answered
+- **THEN** that gate MUST fail
+
+### Requirement: An incomplete closing wave is repeated, not asked about
+
+A closing wave with an INCONCLUSIVE invocation is incomplete, not failed. It SHALL get no budget ask and no Override. The gate SHALL record it, tell the user which model and effort ran, commit no fix, and repeat the wave on the same tree once the pin resolves, without spending a fix round.
+
+#### Scenario: Incomplete closing wave
+
+- **WHEN** the budget is spent and a closing wave's reviewer runs off the pin on its dispatch and on its fresh retry
+- **THEN** the wave is recorded with that invocation INCONCLUSIVE, no budget ask and no Override is offered, the user is told which model and effort ran, and no fix is committed before the repeated wave
+
+#### Scenario: Negative control
+
+- **WHEN** a gate offers the budget ask or an Override after a closing wave with an INCONCLUSIVE invocation, or commits a fix before that wave is repeated
 - **THEN** that gate MUST fail
 
 ### Requirement: Override at the budget follows Blocker disposition
@@ -162,6 +176,11 @@ The final verification wave SHALL merge the default branch into the work branch 
 
 - **WHEN** a fix only changes an error message that no QA row observes
 - **THEN** every row is carried with its reason, and the delta brief lists them
+
+#### Scenario: Fix verification beside a carried row
+
+- **WHEN** a fix cannot change what a carried full-suite QA row observed
+- **THEN** the row stays carried with its earlier capture, and the fix round's full suite still runs as fix verification without replacing that capture
 
 #### Scenario: Default branch integrated before F1
 

@@ -107,6 +107,8 @@ An excluded blocker, which on a change of any class other than `none` is every b
 
 A `gate-convergence` STOP that arrives earlier keeps its existing ask and `GC decide`, including its freeze. A budget ask records nothing in the ledger, because `decide` refuses without a STOP. Fix deltas stay one review per contiguous fix range, as Fix waves step 5 already says.
 
+A closing wave with an INCONCLUSIVE invocation, for example a reviewer that ran off the pin on its dispatch and on its retry (D4), is incomplete, not failed: `Blocker disposition` already says an incomplete round never triggers an ask. It therefore gets no budget ask and no Override. It is recorded, the user is told which model and effort ran, no fix is committed, and the wave is repeated on the same tree once the pin resolves; the repeat spends no fix round, because nothing was fixed. A STOP keeps its ask, as above.
+
 Alternatives:
 - A product-tier cap inside `gate-convergence.mjs`. Rejected under D1; Slice B can move the budget into GC.
 - No budget. Rejected, because waves are fresh samples: E1's wave-2 blockers were already in the code at wave 1.
