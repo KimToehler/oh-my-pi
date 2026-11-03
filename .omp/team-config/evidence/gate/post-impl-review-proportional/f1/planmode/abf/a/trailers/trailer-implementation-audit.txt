@@ -1,0 +1,55 @@
+## 1. Goal and behavioural contract
+
+The implementation satisfies the specified rule for the declared `Candidate` shape:
+
+- `scripts/gate.ts:22–24` deduplicates reviewer identities and excludes `candidate.author`.
+- `scripts/gate.ts:25–26` rejects fewer than two independent approvals with the required reason.
+- Failed checks retain precedence (`scripts/gate.ts:18–21`).
+- CLI output and exit-code handling remain unchanged (`scripts/gate.ts:31–39`).
+
+Case-sensitive identities and trust in supplied identity fields match the plan’s accepted residual risks.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the complete supplied diff, all four changed files, `package.json`, and the CLI/test integration.
+
+No implementation blocker found. The change stays within the existing decision function, adds no dependency or parallel convention, and keeps README and test expectations consistent. Repository search for `\b(decide|approvals|gate\.ts)\b`, supplemented by LSP references, found no additional production consumer requiring migration.
+
+**Note — premature completion marker:** `.omp/plans/release-approvals.md:15` marks F2 complete, but the inspected evidence directory contains F1 captures and no completed merge-gate record. This audit does not establish that validation occurred. Nonblocking for implementation correctness because F2 is currently underway; the checkbox must not substitute for validated gate evidence.
+
+## 3. Security and privacy delta
+
+No real credential, external authentication/authorisation integration, third-party personal data, or protected-asset access change was identified in this local fixture.
+
+**Note — PRE-EXISTING / OUT-OF-SCOPE:** The CLI casts parsed JSON to `Candidate` without runtime shape validation (`scripts/gate.ts:37`). Consequently, the reviewer projection at line 23 can count `undefined` as an identity: QA8 records `[{}, {"reviewer":"bob"}]` producing `ADMIT`. This does not block under the stated threshold: malformed reviewer fields are outside the declared input shape, the plan explicitly trusts these fields, and the supplied baseline diff establishes that malformed approval objects were already admitted. It remains a meaningful limitation, not evidence of safe malformed-input handling.
+
+## 4. Verification adequacy
+
+Read all ten F1 capture files. They record the expected CLI outcomes for valid admission, duplicates, self-approval, failed checks with three reviewers, empty approvals, author-plus-two, combined self/duplicate approvals, and missing CLI arguments. The unit capture reports five passing tests.
+
+The committed tests import the real decision function and assert observable decisions and exact rejection reasons; they do not mock the implementation.
+
+**Note — RED evidence missing:** No retained execution of the committed regression tests against the pre-fix implementation was supplied or found among these captures. Therefore red/green discrimination is not established by runtime evidence. Nonblocking here because the supplied diff directly demonstrates that the duplicate and self-approval tests distinguish the former unconditional nonempty-approval admission.
+
+**Independent adversarial criterion:** Admission must be invariant under reordering approvals and repeating already-present approvals. For author `ann` and passing checks, both `[bob, cy]` and `[cy, bob, bob, ann]` must print `ADMIT` and exit 0; rejection of the latter would expose an order-dependent, raw-count-equality, or author-veto defect. Static inspection supports this criterion; its exact paired runtime exercise is not present in the captures.
+
+No commands or tests were executed by this read-only reviewer.
+
+## 5. Final assessment
+
+No substantiated blocker in the reviewed implementation. Residual risks and verification limitations are identified above; this result is not certification that the overall F2 record has been completed or validated.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Reordering approval entries and repeating already-present approvals must not change an admitted candidate's decision.
+  positive_witness: With author ann and passing checks, both [bob, cy] and [cy, bob, bob, ann] print ADMIT and exit 0.
+  negative_control: The reordered and repeated list prints REJECT or exits nonzero despite the original list being admitted.
+  observable: Compare stdout and exit status from CLI executions against the two candidate fixtures.
+  boundary: The CLI reading candidate JSON and emitting its decision.
+END-REVIEW-TRAILER

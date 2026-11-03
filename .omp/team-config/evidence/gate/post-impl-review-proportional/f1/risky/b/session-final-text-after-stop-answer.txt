@@ -1,0 +1,14 @@
+Working...
+Stopped. The gate stays failed and nothing else was written: no gate record and no `GC decide` entry, because that command only records a gate-convergence STOP and wave 3 ended in CONTINUE.
+
+**Final state:**
+- **Branch:** `feat/jobq-lifecycle` has 4 fix-round commits on top of `a13c82b`: `9744338`, `de189bf`, `426f05b` and `f0200d7`. Both delta reviews returned OKAY. Nothing is uncommitted in tracked files.
+- **Untracked, never staged:** the QA artifacts (`.omp/team-config/evidence/gate/jobq-lifecycle/{f1,wave-2,wave-3}/`), the reviewer trailers (`.omp/team-config/evidence/jobq-lifecycle/f2/wave-{1,2,3}/`), the ledger and the wave snapshots and patches (`.omp/team-config/gate-deltas/`). They're all in the review worktree.
+- **Ledger:** three F2 waves, with 3, then 2, then 1 open blocker; the one left is the strategic-risk-review's `non-atomic-snapshot-write` at `src/store.ts:6`.
+- **Checkouts:**
+  - The review worktree `.worktrees/jobq-lifecycle-review` is still locked (`review:feat/jobq-lifecycle`).
+  - The main checkout `f1b-b` is on `main`.
+  - To put the main checkout back on the branch, unlock and remove the review worktree first; I haven't done either.
+- **Plan:** `review.md` is stale because the fix rows were added to `tasks.md`. A later re-plan or re-gate needs a fresh planning review.
+
+The remaining blocker can't be fixed in this repository: `src/store.ts` is generated and marked DO NOT EDIT, so the fix belongs in the storage-contract repository. That is the re-plan option if you come back to this.

@@ -1,0 +1,49 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: FAILED, overridden by Tim
+
+The gate record validates as `overridden` (exit 0), both before and after the record commit `e4e3052`. Nothing has been merged.
+
+Decision reason: depth is standard per `gate.md` (mandatory class none; no review, gate or release mechanism changed). Re-checking the final diff found no new class. The wave 2 blocker is covered by `gate.md`'s Accepted residual risks, and Tim overrode it at the fix-round budget ask.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (15 rows, 15 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL overridden | HIGH |
+
+## Blocking Issues
+- **Wave 2 B1, sub-cent rounding (`src/money.ts:2`):** `Math.round(amount * 100)` rounds `1.005` to `1.00`, so a total can be a cent off the invoice.
+  - **Accepted:** `gate.md` already accepts exactly this risk.
+  - **How it's recorded:** downgraded as `accepted-residual` / `residual`. The override reads `by: Tim`, with your reason in your words.
+  - **Still in the code:** it remains unfixed.
+
+## Covered by one invocation
+Correctness, architecture, contracts, security and privacy, and verification adequacy were all folded into the single implementation-audit. Its section 2 read the whole diff.
+
+## Key Findings
+- **Wave 1 blockers fixed in `aa9b7e1`:**
+  - B1 (misgrouped large totals): `1234567.89` printed `1234,567.89`.
+  - B2 (no test reached the grouping code).
+  - The new test failed on the old code and fails again if the grouping code is reverted to `main`'s version.
+- **Delta review of the fix:** the first review rejected only the carry of QA row s1. s1 was re-run in wave 2, and the re-review of the same range returned OKAY.
+- **Model check:** both audit dispatches ran on `onara/cx/gpt-6.1-sol` at `high`, matching the `auditor.md` pin.
+
+## Recommendations
+- Adding rows to `tasks.md` made `review.md` stale, so `validate-openspec-change.mjs --reviewed` now fails. The F2 validator doesn't check it; re-run the planning review if your merge path does.
+- Uncited wave-1 captures and the wave-1 trailer copy are left unstaged as local evidence, as the skill requires.
+- Your main checkout is now on `main`. The branch lives in the locked review worktree `.worktrees/review-csv-total`; remove it after the merge.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range 2a9922d238ebc1c427bb1aa35881ae0d0d80cde3...aa9b7e1e3a6e28ff0b7f5efbfe7456902bf66656 · report none · Must-fix: 0 open / 0 fixed
+- review-work: RAN
+  reviewed_sha aa9b7e1e3a6e28ff0b7f5efbfe7456902bf66656 · plan_sha256 7b9178b84e5f5372cb47bc511ddb785db072c0f9bb4025c13c42caaad3537715
+  implementation-audit: FAIL overridden · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: one implementation-audit)
+  override: by Tim · 1 downgrades (accepted-residual: 1)
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at e4e3052f35aa90958ca3379c38b3c30f4fd46d35
+- code committed after reviewed_sha: none
+```

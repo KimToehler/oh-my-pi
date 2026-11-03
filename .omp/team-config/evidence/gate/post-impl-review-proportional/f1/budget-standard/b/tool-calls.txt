@@ -1,0 +1,52 @@
+     1	read	skill://review-work
+     2	read	artifact://0:180-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-470
+     4	bash	awk 'NR==172||NR==220||NR==280||NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466{print NR": "$0"\n"}' /Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md | fold -w 400
+     5	bash	git status --short --branch; git worktree list; git branch -a; git log --oneline -15 --graph --all
+     6	read	.
+     7	bash	find . -path ./.git -prune -o -type f -print | sort; echo ---; cat .gitignore package.json; echo ---; git show --stat HEAD HEAD~1 | cat
+     8	bash	for f in openspec/changes/csv-total/{.openspec.yaml,proposal.md,design.md,gate.md,review.md,tasks.md,specs/csv-total/spec.md} openspec/config.yaml; do echo "===== $f"; cat "$f"; done
+     9	bash	grep -n "3.1" openspec/changes/csv-total/tasks.md | fold -w 300; echo; git diff 644e95a..HEAD -- src test | cat; echo ----; cat src/*.ts test/*.ts
+    10	bash	git ls-tree -r --name-only main; echo ---; git show main:src/format.ts; echo ---; git log --oneline main; git merge-base --is-ancestor main HEAD && echo main-is-ancestor
+    11	bash	for f in .omp/team-config/evidence/gate/csv-total/f1/*; do echo "===== $f"; cat "$f"; done; git check-ignore -v .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md; git ls-files .omp
+    12	read	rule://worktrees
+    13	bash	git remote -v; git log --oneline -20 -- src test; git log --all --oneline --grep="total"; grep -rn "TODO\|FIXME\|HACK" src test; grep -rn "formatCents\|groupThousands" --include=*.ts . ; ls ~/.omp/agent/skills/review-work/scripts/
+    14	bash	git worktree lock "$PWD" --reason "review:feat/csv-total"; echo exit=$?
+    15	bash	S=~/.omp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo exit=$?; node $S/validate-openspec-change.mjs openspec/changes/csv-total; echo exit=$?; 
+    16	bash	ls -la ~/.omp/agent; ls ~/.omp/profiles/pirp/agent/agents/ 2>/dev/null; grep -n "^model\|^thinking\|^effort\|^---" ~/.omp/profiles/pirp/agent/agents/auditor.md; omp config get task.agentModelOverrides; echo exit=$?
+    17	bash	sed -n 1,8p ~/.omp/agent/agents/auditor.md 2>&1; echo; echo "OMP_PROFILE=$OMP_PROFILE PI_CODING_AGENT_DIR=$PI_CODING_AGENT_DIR"; env | grep -i '^omp\|agent_dir' 
+    18	bash	P=/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts; ls $P; for f in validate-gate-record.mjs gate-convergence.mjs; do cmp $P/$f ~/.omp/agent/skills/review-work/scripts/$f && echo same-$f; done; grep -n "case '\|comma
+    19	bash	GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo exit=$?; $GC ready --lane F2; echo exit=$?
+    20	bash	GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC snapshot --lane F2; echo exit=$?; git status --short
+    21	bash	mkdir -p .omp/team-config/evidence/gate/csv-total/wave-1 && D=$(mktemp -d) && for v in 999.99 1000.00 1234567.89 12345678.90; do printf 'big,%s\n' "$v" > $D/in.csv; echo "input big,$v"; bun src/cli.ts total $D/in.csv; echo "exit=$
+    22	eval	
+    23	bash	bun test 2>&1 | tail -5; GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec
+    24	grep	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    25	bash	P=/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts; grep -n "^const ID\|requireRows(\|planRows\|fixRow\|TODO" $P/gate-convergence.mjs $P/folder-plan.mjs $P/plan-contract.mjs | head -30; grep -n "TODO\|fix row\|Fix ro
+    26	bash	P=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; sed -n 380,440p $P/scripts/gate-convergence.mjs; grep -n -i "fix\b\|fix row\|F2\|merge gate\|gate fix" $P/openspec/schemas/omp-gated/schema.yaml openspec/schemas/omp-gated/
+    27	bash	sed -n 280,330p openspec/schemas/omp-gated/schema.yaml; cmp openspec/schemas/omp-gated/schema.yaml /Users/tim/.omp/profiles/pirp/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml && echo schema-same
+    28	todo	
+    29	edit	
+    30	bash	bun test 2>&1 | grep -E "pass|fail|Expected|Received" | head
+    31	read	src/format.ts
+    32	edit	
+    33	read	openspec/changes/csv-total/tasks.md:10-20
+    34	edit	
+    35	bash	bun test 2>&1 | grep -E "^\s*[0-9]+ (pass|fail)|\(fail\)"; S=/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; node $S/val
+    36	bash	git add src/format.ts test/csvtotal.test.ts openspec/changes/csv-total/tasks.md && git commit -q -m "fix(format): group every thousand in totals of a million or more (F2 4.1)" && git log --oneline -1 && git status --short
+    37	bash	GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; H=$(git rev-parse HEAD); $GC patch --base d32f7b7fc0c6003daa6168f2b65124b1708323d4 --head
+    38	bash	mkdir -p /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/out-b && cat .omp/team-config/gate-deltas/F2-4.1-20fb5fb8e973-20261102205824/manifest.json
+    39	write	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/out-b/brief-delta-4.1-round-1.md
+    40	todo	
+    41	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D; cat $P/b-delta1-ok.json; echo; ls -la $P
+    42	bash	D=.omp/team-config/gate-deltas/F2-4.1-20fb5fb8e973-20261102205824; cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/b-delta1-ok.json $D/verdict.json && cmp $D/verdict.json /var/folders/c6/rmmgm5s52vsc2_g43
+    43	bash	git merge-base --is-ancestor main HEAD && echo main-ancestor; GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC ready --lane F2; echo e
+    44	eval	
+    45	bash	wc -c .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md; git diff --stat main...HEAD | cat; git diff main...HEAD -- src test openspec | wc -c
+    46	bash	sed -n '207p;208p;254p;255p' /Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md; head -c 1500 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md
+    47	eval	
+    48	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D; cat $P/b-w2-reply.md; echo; echo ===== SESSION; cat $P/a-sess.jsonl
+    49	bash	set -e; T=.omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md; mkdir -p $(dirname $T); cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/b-w2-reply.md $T; cmp $T /var/folders/c6/rm
+    50	bash	GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapsho
+    51	todo	
+    52	bash	GC="node /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC decide --lane F2 --choice replan --by Tim --reason "the boundary tests belong to the 

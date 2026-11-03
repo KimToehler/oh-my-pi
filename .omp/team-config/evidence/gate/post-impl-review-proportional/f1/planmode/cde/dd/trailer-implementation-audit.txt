@@ -1,0 +1,56 @@
+## 1. Goal and behavioural contract
+
+The implementation satisfies the requested quorum change for typed candidates: `scripts/gate.ts:16-17` counts distinct approver strings and refuses fewer than two with the required `needs 2 approvals, got N` reason.
+
+Failed checks still return first (`scripts/gate.ts:14-15`). The unchanged CLI preserves file/stdin input, one JSON Decision on stdout, and exit codes 0 for admission and 1 for refusal (`scripts/gate.ts:21-25`).
+
+No blocking findings.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the entire supplied three-file diff against the local implementation, tests, plan, README, and package configuration.
+
+- `Set<string>` implements the specified exact-string distinctness without introducing identity normalization or authentication outside scope.
+- The `< 2` comparison permits larger quorums; duplicates do not invalidate an otherwise sufficient quorum.
+- Neither `Candidate` nor `Decision` changes shape. The intentional refusal-reason change is reflected in the tests.
+- Repository-wide search for `decide`, `no approval`, `approvals`, and `gate.ts`, together with LSP references, identified no additional production consumer needing migration.
+- The change remains localized to the existing decision function; no duplicate policy, unnecessary abstraction, dependency, or alternate execution path was added.
+
+## 3. Security and privacy delta
+
+No credential, authentication mechanism, third-party personal data, or protected-asset access change was identified. The release-admission policy becomes stricter.
+
+**Note — accepted residual:** Free-form identities do not establish that two different humans approved. This does not block because the explicit contract is distinct approver strings, and the plan accepts unauthenticated identities.
+
+**Note — PRE-EXISTING / OUT-OF-SCOPE:** `scripts/gate.ts:22` asserts the parsed JSON is a `Candidate` without runtime shape validation. That line is unchanged, and JSON input validation is explicitly excluded from blocking.
+
+## 4. Verification adequacy
+
+Read all eight supplied QA artifacts under `.omp/team-config/evidence/gate/gate-quorum/f1/wave-1/`. They record the stated HEAD and expected outcomes for two approvals, duplicate approvals, one approval, no approvals, failed checks with sufficient approvals, excess approvals containing a duplicate, stdin input, and five passing unit tests. These are supplied execution records; I did not rerun commands.
+
+The committed tests import the real `decide()` implementation and contain no mocks.
+
+**Note — regression-test precision:** `scripts/gate.test.ts:15-16` supplies both a failed check and insufficient approvals but asserts only `admitted === false`. It would remain green if failed-check handling disappeared. Assert the failed-check reason, and add a failed-check case with sufficient approvals. This does not block the current implementation: the early return is intact, and QA5 records refusal with sufficient approvals.
+
+**Note — evidence limitation:** No pre-fix RED transcript was supplied or found among the listed evidence files. Observed red-to-green discrimination therefore cannot be certified; this is not evidence of a current behavioral defect.
+
+An additional adversarial criterion is recorded below: failed-check diagnostics must retain every failed name in input order even when quorum is also insufficient. Static inspection supports it through `filter`/`map`/`join` and the early return; that combined multi-failure scenario was not exercised in the supplied QA.
+
+## 5. Final assessment
+
+No substantiated blocker. The implementation matches the requested behavior, and the supplied real-surface records support the principal acceptance cases. Residual limitations are the accepted identity model, the test-precision gap, and the missing RED evidence described above. This audit does not certify completion of the separate strategic review or gate-record validation.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Failed-check diagnostics retain every failed check name in input order, even when the candidate also lacks quorum.
+  positive_witness: Checks unit=false, lint=true, package=false with approvals ["a","a"] produce admitted=false and reason "failed checks: unit, package".
+  negative_control: The same candidate produces a quorum reason, omits either failed name, reverses their order, or is admitted.
+  observable: CLI exit code 1 and exactly one JSON Decision line whose reason is "failed checks: unit, package".
+  boundary: scripts/gate.ts CLI output after decide evaluates competing refusal conditions.
+END-REVIEW-TRAILER

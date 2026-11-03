@@ -1,0 +1,96 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/fee-report",
+  "plan_sha256": "c341dd1e32b0e5f6a5f6362cb540ea09aef01d381da0f1bc265f4f2b2563101a",
+  "reviewed_sha": "b18a641142ed8c2ff053ee12807b42bfd7fdd673",
+  "diff_base": "85d72a39c903cdf2a590ced47d0bf8f77d41febb",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, Risk tier product; no review, gate or release mechanism changes) and the final diff adds no class trigger, so one implementation-audit; wave 1 failed QA4/QA6, fixed in tasks 4.1 (delta OKAY), wave 2 passed",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 lateFee public API: spec scenarios and period/cap/rounding edges (carried from wave 1: fix range leaves src/fee.ts unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/q1-late-fee.txt",
+      "artifact_sha256": "27f6217c2adb088bd6bbf1701d62dffe6bfe58f2419fdb2ffc5b471fdac97f30"
+    },
+    {
+      "name": "Q2 render command on samples/report.json (happy path, given order, one trailing newline)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/q2-render-sample.txt",
+      "artifact_sha256": "73c6ffb46950a915d7bd454fe74d2bb216c5e2097956848a5b4e394d9ebac44a"
+    },
+    {
+      "name": "Q3 spec scenario Lines and total via render command",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/q3-lines-and-total.txt",
+      "artifact_sha256": "92e404ce36ac55d53dc58de507514c823b7d33c33727ada049df9a6ba8d4b9e7"
+    },
+    {
+      "name": "Q4 spec scenario Large fee grouped via render command (1,234,567.89 on line and total)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/q4-large-fee-grouped.txt",
+      "artifact_sha256": "66cc53f9f8b723674d0e3870b9d36db938eb5868e2fd8acf2978afb29788fdf9"
+    },
+    {
+      "name": "Q5 spec negative control: empty report renders exactly No late fees (carried from wave 1: empty branch returns before the changed formatAmount)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/q5-empty-report.txt",
+      "artifact_sha256": "4b390c2bfa2b0053e3cecda1621d047e7b11d2a56d4b1bc2620e782d8a179708"
+    },
+    {
+      "name": "Q6 riskiest edge: amount formatting boundaries 0.00 to 1,000,000,000.00 and total",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/q6-amount-edges.txt",
+      "artifact_sha256": "32407b05341562a8f167ac70675124e36830dcb48e959c4e66175125ccf807a4"
+    },
+    {
+      "name": "Q7 adjacent regression: given order kept, usage error exit 2, bun test 9 pass",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/q7-adjacent.txt",
+      "artifact_sha256": "2a1a33d2c67299d25a6735d685229c9b18117c3269dcb1e4a571c7a50287e6f6"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt",
+      "trailer_sha256": "dccea34464da707be672ffa91a1bac4ef8570d773e4067fc057ca629c0911fb5",
+      "note": "F2 wave 2 on b18a641142ed: no blockers; notes on durable CLI/fractional-cent test coverage and the pre-existing missing bun-types typecheck"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA4",
+      "severity": "high",
+      "location": "src/render.ts:12",
+      "coverage": "src/render.test.ts::large fee is grouped on the line and the total",
+      "fix_sha": "2222ab914bd1e20117bd2ad7881c6cdcb37bc222"
+    },
+    {
+      "id": "QA6",
+      "severity": "high",
+      "location": "src/render.ts:12",
+      "coverage": "src/render.test.ts::every group of three integer digits is separated",
+      "fix_sha": "2222ab914bd1e20117bd2ad7881c6cdcb37bc222"
+    }
+  ]
+}

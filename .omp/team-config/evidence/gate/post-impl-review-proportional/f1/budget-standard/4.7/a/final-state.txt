@@ -1,0 +1,13 @@
+$ validate-gate-record.mjs --record ... --plan openspec/changes/csv-total
+overridden
+exit=0
+$ git log --oneline --graph
+* 1093d69 chore(gate): csv-total F2 record, overridden (B1 accepted residual sub-cent rounding)
+* 58aa50f fix(format): group every third digit in totals of a million or more
+* ecd418f test(f1): csv-total CLI QA, five scenarios
+* 4e5e75b feat: csv-total CLI, change folder
+* 2a9922d chore: scaffold with omp-gated schema
+$ git status --porcelain
+?? .omp/team-config/evidence/gate/csv-total/wave-1/q6-regression-grouping.md
+$ schema blob
+954aae1d8a239af994c88db3ef575591de70c95e

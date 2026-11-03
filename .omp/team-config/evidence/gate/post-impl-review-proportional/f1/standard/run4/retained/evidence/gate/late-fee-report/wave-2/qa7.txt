@@ -1,0 +1,39 @@
+# QA7: default as-of is today's UTC date (no --as-of), runner zones +14h and -11h
+# head: b5e75eb50c865195adff06ec2ffae8f115084ee8
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa7-default-asof.json
+[
+  {
+    "id": "DUE-30-DAYS-BEFORE-UTC-TODAY",
+    "amountCents": 10000,
+    "dueDate": "2026-10-03"
+  },
+  {
+    "id": "DUE-29-DAYS-BEFORE-UTC-TODAY",
+    "amountCents": 10000,
+    "dueDate": "2026-10-04"
+  }
+]
+
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-11-02T21:23:31Z
+[exit 0]
+
+$ TZ=Pacific/Kiritimati date +%Y-%m-%d %Z
+2026-11-03 +14
+[exit 0]
+
+$ TZ=Pacific/Pago_Pago date +%Y-%m-%d %Z
+2026-11-02 SST
+[exit 0]
+
+$ TZ=Pacific/Kiritimati bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa7-default-asof.json
+DUE-30-DAYS-BEFORE-UTC-TODAY	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=Pacific/Pago_Pago bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa7-default-asof.json
+DUE-30-DAYS-BEFORE-UTC-TODAY	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+

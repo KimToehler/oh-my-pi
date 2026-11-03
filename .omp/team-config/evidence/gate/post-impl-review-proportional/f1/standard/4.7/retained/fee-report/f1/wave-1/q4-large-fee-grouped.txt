@@ -1,0 +1,12 @@
+F1 QA row Q4 - Large fee grouped scenario via render command, head 82e54ad9e132e45c633ce56f71e50d19841fb10a
+fixture big.json:
+  in| { "lines": [ { "id": "big", "dueDate": "2026-01-10", "feeCents": 123456789 } ] }
+$ bun src/cli.ts <fixtures>/big.json
+  od|            b   i   g  \t   2   0   2   6   -   0   1   -   1   0  \t   1
+  od|            2   3   4   ,   5   6   7   .   8   9  \n   T   O   T   A   L
+  od|           \t  \t   1   2   3   4   ,   5   6   7   .   8   9  \n        
+  od| 
+  out| big	2026-01-10	1234,567.89
+  out| TOTAL		1234,567.89
+
+  exit=0

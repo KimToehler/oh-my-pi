@@ -1,0 +1,46 @@
+### 1. Goal and behavioural contract
+
+The implementation satisfies the stated helper contract: `src/quota.ts:7–9` validates both operands with `Number.isInteger`, throws `RangeError` before arithmetic, and returns `Math.max(0, limit - used)`. The existing `checkQuota` export remains unchanged.
+
+The delivered scope matches the proposal: one helper, with no persistence or billing mutation. Language-server references found no in-repository consumer of `remaining`; therefore, this establishes helper availability, not adoption by customer-facing displays. Such adoption is not a promised implementation deliverable.
+
+### 2. Correctness, regressions, architecture, wire contracts
+
+I reviewed the complete supplied diff alongside the source, neighboring tests, package configuration, OpenSpec artifacts, and QA captures.
+
+No substantiated implementation defect was found. Validation is symmetric across the operands, clamping handles equality and overshoot, and the helper introduces no state, dependencies, or duplicated abstraction. The package runs its existing tests through `bun test`; the reviewed export capture shows both `checkQuota` and `remaining`, with existing `checkQuota` behavior preserved.
+
+**Original adversarial criterion:** equal translation of both operands should preserve the allowance when all operands and differences remain safely representable integers. For example, `remaining(3,10)` and `remaining(103,110)` should both return `7`. This metamorphic comparison is supported by the implementation, but the supplied runtime captures do not exercise that pair; I do not report it as tested.
+
+### 3. Security and privacy delta
+
+No security or privacy delta was identified. The changed implementation performs numeric checks and arithmetic only. It touches no credentials, authentication, authorization, third-party personal data, persistent state, or access to protected assets.
+
+### 4. Verification adequacy
+
+The nine F2 captures exercise the real exported helper, not a copied implementation. They substantiate subtraction, overshoot clamping, accepted integers, rejection of either fractional operand, equality, neighboring boundaries, malformed inputs, and unchanged adjacent behavior. I inspected their commands and observations; I ran no tests myself.
+
+**Note — historical F1 completion is overstated.** `openspec/changes/quota-remaining/tasks.md:9` marks every-scenario F1 QA complete, but `f1/qa-matrix.md:5–7` contains only three scenarios and omits the fractional-usage negative control required by `specs/quota-remaining/spec.md:26–28`. F1 rows 2–3 also abbreviate their commands. This remains an evidence-completeness discrepancy. It does not block current behavioral proof because `wave-1/q4-fractional-used-control.txt:1–4` explicitly captures the omitted scenario returning a thrown `RangeError`. Preserve that distinction rather than claiming the historical F1 bundle was complete.
+
+**Note — no durable automated regression coverage for the new helper.** `test/quota.test.ts:1–9` imports and tests only `checkQuota`; consequently, the reported two passing tests do not protect `remaining`. Add committed behavior tests covering subtraction, equality, overshoot, and rejection of either fractional operand. This is non-blocking under the supplied threshold because current behavior has direct runtime evidence; the residual risk is future regression.
+
+The supplied evidence does not establish a RED/pre-fix discrimination run. I therefore make no claim that automated regression protection or RED evidence exists.
+
+### 5. Final
+
+No finding meets the stated blocking threshold. The helper conforms to the contract, and current real-surface evidence covers every specified scenario. The residual concerns are historical F1 evidence completeness and absent automated coverage, not an observed runtime failure. This is an implementation-audit result, not approval of the complete multi-lane merge gate.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Translating both operands by the same integer offset preserves the returned allowance when the operands and their differences remain safely representable integers.
+  positive_witness: remaining(3,10) and remaining(103,110) both return 7.
+  negative_control: Increasing both operands by 100 changes the returned allowance from 7; this MUST fail the comparison.
+  observable: Compare the two returned numbers through the real export; this paired runtime comparison was not present in the supplied captures.
+  boundary: Public remaining export imported from src/quota.ts.
+END-REVIEW-TRAILER

@@ -1,0 +1,231 @@
+commit de189bf51177ed599f0c5f90534b23007c053d4e
+Author:     F1B <f1b@example.invalid>
+AuthorDate: Mon Nov 2 22:07:27 2026 +0100
+Commit:     F1B <f1b@example.invalid>
+CommitDate: Mon Nov 2 22:07:27 2026 +0100
+
+    Requeue orphaned jobs on restore, guard transitions, replace snapshots atomically
+
+diff --git a/src/queue.ts b/src/queue.ts
+index 4b50a44..5e749ad 100644
+--- a/src/queue.ts
++++ b/src/queue.ts
+@@ -1,3 +1,4 @@
++import { rename } from "node:fs/promises"
+ import { loadSnapshot, saveSnapshot } from "./store"
+ 
+ export type JobState = "queued" | "running" | "done" | "failed"
+@@ -18,7 +19,14 @@ export class JobQueue {
+ 	/** Rebuild a queue from the snapshot a previous process left behind. */
+ 	static async restore(snapshotPath: string): Promise<JobQueue> {
+ 		const queue = new JobQueue(snapshotPath)
+-		for (const job of await loadSnapshot<Job[]>(snapshotPath)) queue.jobs.set(job.id, job)
++		for (const job of await loadSnapshot<Job[]>(snapshotPath)) {
++			// A job running when the previous process stopped lost its worker with it: queue it for another attempt.
++			if (job.state === "running") {
++				job.state = "queued"
++				job.owner = undefined
++			}
++			queue.jobs.set(job.id, job)
++		}
+ 		return queue
+ 	}
+ 
+@@ -36,41 +44,60 @@ export class JobQueue {
+ 	async claim(id: string, worker: string): Promise<boolean> {
+ 		const job = this.jobs.get(id)
+ 		if (!job || job.state !== "queued") return false
+-		job.state = "running"
+-		job.owner = worker
++		await this.commit(job, { state: "running", owner: worker })
++		return true
++	}
++
++	/** Mark a running job done and persist; throws at once for an unknown or not running job. */
++	complete(id: string): Promise<void> {
++		return this.commit(this.need(id, "running"), { state: "done", owner: undefined })
++	}
++
++	/** Mark a running job failed and persist; throws at once for an unknown or not running job. */
++	fail(id: string): Promise<void> {
++		const job = this.need(id, "running")
++		return this.commit(job, { state: "failed", attempts: job.attempts + 1, owner: undefined })
++	}
++
++	/** Put a failed job back on the queue and persist; throws at once for an unknown or not failed job. */
++	requeue(id: string): Promise<void> {
++		return this.commit(this.need(id, "failed"), { state: "queued", owner: undefined })
++	}
++
++	/**
++	 * Apply one transition synchronously, so a concurrent caller already sees the new state, then persist it.
++	 * A failed write undoes the transition unless a later one has replaced it.
++	 */
++	private async commit(job: Job, change: Partial<Job>): Promise<void> {
++		const undo: Partial<Job> = { state: job.state, attempts: job.attempts, owner: job.owner }
++		Object.assign(job, change)
+ 		try {
+ 			await this.persist()
+ 		} catch (error) {
+-			job.state = "queued"
+-			job.owner = undefined
++			if (job.state === change.state) Object.assign(job, undo)
+ 			throw error
+ 		}
+-		return true
+ 	}
+ 
+-	/** Snapshot writes of this instance run one after the other. */
++	/**
++	 * Snapshot writes of this instance run one after the other. The generated store writes in place, so each
++	 * snapshot goes to a sibling file first and is renamed over the snapshot path: a crash mid-write leaves
++	 * the previous snapshot intact instead of a truncated one.
++	 */
+ 	private persist(): Promise<void> {
+-		const next = this.writing.then(() => saveSnapshot(this.snapshotPath, [...this.jobs.values()]))
++		const staging = `${this.snapshotPath}.tmp`
++		const next = this.writing.then(async () => {
++			await saveSnapshot(staging, [...this.jobs.values()])
++			await rename(staging, this.snapshotPath)
++		})
+ 		this.writing = next.catch(() => {})
+ 		return next
+ 	}
+ 
+-	complete(id: string): void {
+-		const job = this.need(id)
+-		job.state = "done"
+-		job.owner = undefined
+-	}
+-
+-	fail(id: string): void {
+-		const job = this.need(id)
+-		job.state = "failed"
+-		job.attempts += 1
+-		job.owner = undefined
+-	}
+-
+-	private need(id: string): Job {
++	private need(id: string, state: JobState): Job {
+ 		const job = this.jobs.get(id)
+ 		if (!job) throw new Error(`unknown job ${id}`)
++		if (job.state !== state) throw new Error(`job ${id} is ${job.state}, not ${state}`)
+ 		return job
+ 	}
+ }
+diff --git a/src/worker.ts b/src/worker.ts
+index ac92cec..5a9b90e 100644
+--- a/src/worker.ts
++++ b/src/worker.ts
+@@ -1,7 +1,6 @@
+ import type { JobQueue } from "./queue"
+ 
+-/** Put a job back on the queue for another attempt. */
+-export function requeue(queue: JobQueue, id: string): void {
+-	const job = queue.get(id)
+-	if (job) Object.assign(job, { state: "queued", owner: undefined })
++/** Put a failed job back on the queue for another attempt; throws for an unknown or not failed job. */
++export function requeue(queue: JobQueue, id: string): Promise<void> {
++	return queue.requeue(id)
+ }
+diff --git a/test/queue.test.ts b/test/queue.test.ts
+index 43db073..3e996da 100644
+--- a/test/queue.test.ts
++++ b/test/queue.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, test } from "bun:test"
+-import { mkdtempSync, readFileSync } from "node:fs"
++import { mkdtempSync, readFileSync, statSync } from "node:fs"
+ import { tmpdir } from "node:os"
+ import { join } from "node:path"
+ import { JobQueue } from "../src/queue"
+@@ -18,7 +18,7 @@ test("complete marks done and unknown ids throw", async () => {
+ 	const q = new JobQueue(snap())
+ 	q.add("a")
+ 	await q.claim("a", "w1")
+-	q.complete("a")
++	await q.complete("a")
+ 	expect(q.get("a")).toMatchObject({ state: "done", owner: undefined })
+ 	expect(() => q.complete("missing")).toThrow()
+ })
+@@ -31,6 +31,7 @@ test("claim persists a snapshot and rejects on an unwritable path", async () =>
+ 	const bad = new JobQueue("/nonexistent-dir/snap.json")
+ 	bad.add("b")
+ 	await expect(bad.claim("b", "w1")).rejects.toThrow()
++	expect(bad.get("b")).toMatchObject({ state: "queued", owner: undefined })
+ })
+ test("restore rebuilds a queue from its snapshot", async () => {
+ 	const p = snap()
+@@ -40,10 +41,68 @@ test("restore rebuilds a queue from its snapshot", async () => {
+ 	const again = await JobQueue.restore(p)
+ 	expect(again.get("a")?.id).toBe("a")
+ })
+-test("requeue puts a failed job back", () => {
++test("restore queues a job whose worker died with the previous process", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	await q.claim("a", "w1")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")).toMatchObject({ state: "queued", owner: undefined })
++	expect(await again.claim("a", "w2")).toBe(true)
++})
++test("restore keeps finished jobs finished", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	q.add("b")
++	await q.claim("a", "w1")
++	await q.claim("b", "w2")
++	await q.complete("a")
++	await q.fail("b")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")).toEqual({ id: "a", state: "done", attempts: 0 })
++	expect(again.get("b")).toEqual({ id: "b", state: "failed", attempts: 1 })
++	expect(await again.claim("a", "w3")).toBe(false)
++})
++test("complete and fail accept only a running job", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	expect(() => q.complete("a")).toThrow()
++	expect(() => q.fail("a")).toThrow()
++	await q.claim("a", "w1")
++	await q.complete("a")
++	expect(() => q.fail("a")).toThrow()
++	expect(() => q.complete("a")).toThrow()
++	expect(q.get("a")).toMatchObject({ state: "done", attempts: 0 })
++})
++test("requeue puts a failed job back", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	await q.claim("a", "w1")
++	await q.fail("a")
++	await requeue(q, "a")
++	expect(q.get("a")).toMatchObject({ state: "queued", attempts: 1, owner: undefined })
++	expect(JSON.parse(readFileSync(p, "utf8"))[0]).toMatchObject({ id: "a", state: "queued" })
++})
++test("requeue refuses a job that is not failed", async () => {
+ 	const q = new JobQueue(snap())
+ 	q.add("a")
+-	q.fail("a")
+-	requeue(q, "a")
+-	expect(q.get("a")?.state).toBe("queued")
++	await q.claim("a", "w1")
++	expect(() => requeue(q, "a")).toThrow()
++	expect(q.get("a")).toMatchObject({ state: "running", owner: "w1" })
++	await q.complete("a")
++	expect(() => requeue(q, "a")).toThrow()
++	expect(q.get("a")?.state).toBe("done")
++})
++test("a snapshot is replaced by rename, never rewritten in place", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	q.add("b")
++	await q.claim("a", "w1")
++	const first = statSync(p).ino
++	await q.claim("b", "w1")
++	expect(statSync(p).ino).not.toBe(first)
++	expect(JSON.parse(readFileSync(p, "utf8"))).toHaveLength(2)
+ })

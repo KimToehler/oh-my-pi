@@ -1,0 +1,337 @@
+=== read
+{"path":"skill://review-work","i":"Reading review-work skill"}
+=== read
+{"path":"artifact://0:176-470","i":"Reading elided skill middle"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-330","i":"Reading skill lines 176-330"}
+=== bash
+git status --short && git log --oneline -10 && git branch -a && git worktree list
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:172-172","i":"Reading line 172 whole"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:181-181","i":"Reading line 181 whole"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:220-220","i":"Reading line 220 whole"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:334-470","i":"Reading skill lines 334-470"}
+=== bash
+awk 'NR==356||NR==380||NR==382||NR==386||NR==390||NR==396||NR==433||NR==462||NR==465||NR==466' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+=== eval
+import os
+L=open(os.path.expanduser('~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md')).read().split('\n')
+for n in [356,380,382,386,390,396,433,462,465,466]:
+    s=L[n-1]
+    if len(s)>700:
+        for i in range(700, len(s), 700):
+            print(n, '…', s[i:i+700])
+        print('---')
+=== bash
+git show --stat --format='%H %s' HEAD HEAD~1 0cd516d cac67ef a951855 | cat; git ls-files | cat
+=== eval
+import subprocess
+for f in ["openspec/changes/csv-total/.openspec.yaml","openspec/changes/csv-total/gate.md","openspec/changes/csv-total/proposal.md","openspec/changes/csv-total/design.md","openspec/changes/csv-total/review.md","openspec/changes/csv-total/specs/csv-total/spec.md","openspec/changes/csv-total/tasks.md","src/cents.ts","src/cli.ts","src/money.ts","src/price.ts","src/format.ts","test/csvtotal.test.ts","package.json","README.md",".gitignore","openspec/config.yaml"]:
+    print("=====",f); print(open(f).read())
+=== eval
+t=open("openspec/changes/csv-total/tasks.md").read().split("\n")
+for l in t:
+    if l.startswith("- [x] 3.1"):
+        for i in range(0,len(l),600): print(l[i:i+600])
+import glob
+for f in sorted(glob.glob(".omp/team-config/evidence/gate/csv-total/f1/*")):
+    print("=====",f); print(open(f).read())
+print(subprocess.run("git rev-parse main HEAD; git merge-base --is-ancestor main HEAD && echo ANCESTOR; git merge-base main HEAD; git log --oneline --graph --all | cat; git diff 03369ba HEAD --stat | cat; git diff 03369ba HEAD -- openspec | cat",shell=True,capture_output=True,text=True).stdout)
+=== read
+{"path":"rule://worktrees","i":"Reading worktrees rule"}
+=== bash
+git show 066253a | cat
+=== bash
+ls ~/.omp/agent/skills/review-work/scripts/ && grep -n "team-config\|git-common-dir\|commonDir\|ledger" ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs | cut -c1-200 | awk 'NR<=60'
+=== bash
+awk 'NR>=50&&NR<=70' ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs
+=== bash
+ls -la ~/.omp/agent ~/.omp/agent/skills | awk 'NR<=12'; ls ~/.omp/profiles/pirp/agent/agents/ 2>&1 | cat; ls ~/.omp/agent/agents 2>&1 | cat; echo "$OMP_AGENT_DIR $PI_CODING_AGENT_DIR"; omp config get task.agentModelOverrides 2>&1 | cat
+=== bash
+awk 'NR<=12' ~/.omp/profiles/pirp/agent/agents/auditor.md; ls ~/.omp/profiles/pirp/agent/skills/review-work/scripts/ | cat; diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work | cat; diff -q ~/.omp/agent/agents/auditor.md ~/.omp/profiles/pirp/agent/agents/auditor.md
+=== bash
+git status --short --untracked-files=all | cat; echo "---"; git stash list | cat; grep -n "^model" ~/.omp/agent/agents/auditor.md
+=== bash
+git switch main && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list | cat
+=== eval
+import subprocess, os
+W="/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r57-c/.worktrees/review-csv-total"
+SD=os.path.expanduser("~/.omp/profiles/pirp/agent/skills/review-work")
+PLAN="openspec/changes/csv-total"
+def sh(c, cwd=W):
+    r=subprocess.run(c,shell=True,cwd=cwd,capture_output=True,text=True)
+    print(f"$ {c}\n[exit {r.returncode}]\n{r.stdout}{r.stderr}")
+    return r
+GC=f"node {SD}/scripts/gate-convergence.mjs --repo {W} --plan {PLAN}"
+sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --plan-only --plan {PLAN}")
+sh(f"node {SD}/scripts/validate-openspec-change.mjs --reviewed {PLAN}")
+sh("git merge-base --is-ancestor main HEAD; echo $?")
+=== eval
+sh("git merge --no-edit main && git log --oneline -3 | cat && git diff 55e3e3b HEAD --stat | cat")
+=== eval
+sh(f"{GC} baseline --sha HEAD")
+sh(f"{GC} ready --lane F2")
+=== eval
+r=sh(f"{GC} snapshot --lane F2")
+=== eval
+import tempfile, hashlib
+d=tempfile.mkdtemp(prefix="csvtotal-f2-")
+inp=os.path.join(d,"s5-large.csv"); open(inp,"w").write("big,1234.50\n")
+head=subprocess.run("git rev-parse HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip()
+bv=subprocess.run("bun --version",shell=True,capture_output=True,text=True).stdout.strip()
+cmd=f"bun src/cli.ts total {inp}"
+r=subprocess.run(cmd,shell=True,cwd=W,capture_output=True,text=True)
+print(repr(r.stdout),repr(r.stderr),r.returncode,head,bv)
+=== eval
+EV=os.path.join(W,".omp/team-config/evidence/gate/csv-total")
+os.makedirs(f"{EV}/wave-1",exist_ok=True)
+def sha(p): return hashlib.sha256(open(p,"rb").read()).hexdigest()
+f1={k:f".omp/team-config/evidence/gate/csv-total/f1/{k}.md" for k in ["s1-happy","s2-malformed","s3-cents","s4-empty","s5-large"]}
+fs={k:sha(os.path.join(W,v)) for k,v in f1.items()}
+carry_reason="carried from 03369ba: the merge of main (066253a) changes only groupThousands, which formatCents calls only when the whole part is >= 1000; this row's total is below 1000"
+s5=f"""# F2 wave 1 s5-large (re-run after merging main)
+
+- Head: `{head}`
+- Bun: `{bv}`
+- Command: `bun src/cli.ts total <tmp>/s5-large.csv`
+- Expected: printed total's digits are `1234.50` (grouping separators allowed)
+- Why re-run: the merge of main (066253a) changes `groupThousands` in `src/format.ts`, reached for this total (whole part 1234 >= 1000); the F1 capture at 03369ba (`1234.50`) is stale.
+
+## Input file (12 bytes)
+
+```
+big,1234.50
+```
+
+## Observed
+
+- Exit code: `{r.returncode}`
+
+stdout:
+
+```
+{r.stdout.rstrip(chr(10))}
+```
+
+stderr:
+
+```
+{r.stderr.rstrip(chr(10))}
+```
+
+Verdict: PASS (digits `1234.50`, one `,` grouping separator, exit 0)
+"""
+open(f"{EV}/wave-1/s5-large.md","w").write(s5)
+r1=f"""# F2 wave 1 row R1: Requirement "Price lines are parsed strictly"
+
+Folded requirement row (standard depth): one row exercising the requirement's scenarios, citing the F1 captures.
+Carry: {carry_reason}.
+
+| Scenario | Capture | sha256 | Observed | Verdict |
+|---|---|---|---|---|
+| Valid lines are summed (`widget,19.99`, `gadget,5.01`) | `{f1['s1-happy']}` | `{fs['s1-happy']}` | stdout `25.00`, stderr empty, exit 0 | PASS |
+| Malformed price is rejected with its line number (`widget,abc` on line 1) | `{f1['s2-malformed']}` | `{fs['s2-malformed']}` | stdout empty, stderr `error: line 1: malformed price`, exit 2 | PASS |
+| Negative control (malformed line never counted as zero or skipped) | `{f1['s2-malformed']}` | `{fs['s2-malformed']}` | no total printed for the malformed file | PASS |
+
+Row verdict: PASS
+"""
+open(f"{EV}/wave-1/r1-parsed-strictly.md","w").write(r1)
+r2=f"""# F2 wave 1 row R2: Requirement "Totals are exact in cents"
+
+Folded requirement row (standard depth): one row exercising the requirement's scenarios, citing the F1 captures.
+Carry: {carry_reason}.
+
+| Scenario | Capture | sha256 | Observed | Verdict |
+|---|---|---|---|---|
+| Cents add exactly / Negative control (ten lines of `x,0.10`) | `{f1['s3-cents']}` | `{fs['s3-cents']}` | stdout `1.00` (not `0.9999999999999999`, not `1`), exit 0 | PASS |
+| Empty file | `{f1['s4-empty']}` | `{fs['s4-empty']}` | stdout `0.00`, exit 0 | PASS |
+
+Not separately captured: the `a,0.10` + `b,0.20` -> `0.30` scenario; the ten-line `0.10` capture exercises the same integer-cents summation path (`toCents` -> `sumCents` -> `formatCents`).
+
+Row verdict: PASS
+"""
+open(f"{EV}/wave-1/r2-exact-cents.md","w").write(r2)
+print(subprocess.run("file wave-1/*; git status --short --untracked-files=all",shell=True,cwd=EV,capture_output=True,text=True).stdout)
+=== eval
+inp2=os.path.join(d,"r2-cents-030.csv"); open(inp2,"w").write("a,0.10\nb,0.20\n")
+q=subprocess.run(f"bun src/cli.ts total {inp2}",shell=True,cwd=W,capture_output=True,text=True)
+print(repr(q.stdout),repr(q.stderr),q.returncode)
+r2=r2.replace(f"""Not separately captured: the `a,0.10` + `b,0.20` -> `0.30` scenario; the ten-line `0.10` capture exercises the same integer-cents summation path (`toCents` -> `sumCents` -> `formatCents`).
+""", f"""## New capture: Cents add exactly (`a,0.10`, `b,0.20`) on head `{head}` (Bun `{bv}`)
+
+Command: `bun src/cli.ts total <tmp>/r2-cents-030.csv`
+
+Input file (14 bytes):
+
+```
+a,0.10
+b,0.20
+```
+
+- Exit code: `{q.returncode}`
+- stdout: `{q.stdout.rstrip(chr(10))}`
+- stderr: `{q.stderr.rstrip(chr(10))}`
+- Verdict: PASS (`0.30`, not `0.30000000000000004`)
+""")
+r2=r2.replace("| Empty file |", f"| Cents add exactly (`a,0.10`, `b,0.20`) | new capture below (head `{head[:12]}`) | - | stdout `{q.stdout.strip()}`, exit {q.returncode} | PASS |\n| Empty file |")
+open(f"{EV}/wave-1/r2-exact-cents.md","w").write(r2); print(r2)
+=== eval
+base=subprocess.run("git merge-base main HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip()
+print(base)
+sh(f"git diff --name-only {base}...HEAD")
+sh(f"for f in $(git diff --name-only {base}...HEAD); do echo \"## $f\"; git log --oneline -5 -- $f; done")
+sh("git log --all --oneline --grep='total\\|cents\\|csv\\|group' | cat")
+sh("git remote -v; gh --version 2>&1 | awk 'NR==1'")
+sh("grep -rn 'TODO\\|FIXME\\|HACK' src test || echo none")
+sh("grep -rln 'format\\|groupThousands\\|formatCents' src test")
+SNAP_PLAN=f"{W}/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md"
+plan_copy=open(SNAP_PLAN).read(); print(len(plan_copy)); print(plan_copy[:1500])
+=== eval
+diff=subprocess.run(f"git diff {base}...HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout
+changed=subprocess.run(f"git diff --name-only {base}...HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout.strip()
+mergediff=subprocess.run("git diff 55e3e3b HEAD",shell=True,cwd=W,capture_output=True,text=True).stdout
+print(len(diff), diff.count("\n")); print(mergediff)
+print(plan_copy[1500:])
+=== eval
+A={ "r1":".omp/team-config/evidence/gate/csv-total/wave-1/r1-parsed-strictly.md",
+    "r2":".omp/team-config/evidence/gate/csv-total/wave-1/r2-exact-cents.md",
+    "s1":f1["s1-happy"], "s2":f1["s2-malformed"],
+    "s5":".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md"}
+AS={k:sha(os.path.join(W,v)) for k,v in A.items()}
+qa_matrix=f"""Manual QA lane: orchestrator, wave 1, reviewed head {head} (diff base {base}). Channel: real CLI, `bun src/cli.ts total <file>` (Bun {bv}), synthetic input files. Verdict: PASS (5 rows, 0 FAIL).
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| 1 | Requirement "Price lines are parsed strictly" (valid lines summed; malformed price rejected with its line; negative control) | `bun src/cli.ts total s1-happy.csv` (`widget,19.99`,`gadget,5.01`); `bun src/cli.ts total s2-malformed.csv` (`widget,abc`) | `25.00` exit 0; stderr names line 1, no stdout total, exit 2 | `25.00` exit 0; stderr `error: line 1: malformed price`, stdout empty, exit 2 | PASS (carried) | `{A['r1']}` (sha256 {AS['r1']}) |
+| 2 | Requirement "Totals are exact in cents" (cents add exactly; empty file; negative control) | `bun src/cli.ts total s3-cents.csv` (ten `x,0.10`); `bun src/cli.ts total s4-empty.csv` (0 bytes); new: `bun src/cli.ts total r2-cents-030.csv` (`a,0.10`,`b,0.20`) | `1.00`; `0.00` exit 0; `0.30` | `1.00` exit 0; `0.00` exit 0; `0.30` exit 0 (new capture at {head[:12]}) | PASS (s3, s4 carried; 0.30 captured this wave) | `{A['r2']}` (sha256 {AS['r2']}) |
+| 3 | Happy path the goal names | `bun src/cli.ts total s1-happy.csv` | `25.00`, exit 0 | `25.00`, stderr empty, exit 0 | PASS (carried) | `{A['s1']}` (sha256 {AS['s1']}) |
+| 4 | Riskiest edge: malformed price line | `bun src/cli.ts total s2-malformed.csv` | exit 2, stderr names line 1, no total | exit 2, stderr `error: line 1: malformed price`, stdout empty | PASS (carried) | `{A['s2']}` (sha256 {AS['s2']}) |
+| 5 | Regression on adjacent behaviour: total of 1000 or more through the formatter changed by the merged default branch (066253a `groupThousands` -> `toLocaleString("en-US")`) | `bun src/cli.ts total s5-large.csv` (`big,1234.50`) | digits `1234.50`, grouping separators allowed, exit 0 | stdout `1,234.50`, stderr empty, exit 0 | PASS (re-run this wave) | `{A['s5']}` (sha256 {AS['s5']}) |
+
+Carries (rows 1-4, F1 captures at 03369ba; the head moved by 55e3e3b, which adds only the F1 captures and the tasks.md 3.1 checkbox, and by merge 60d5644 of main): the merge's diff against the pre-merge head 55e3e3b changes only `groupThousands` in `src/format.ts`, which `formatCents` calls only when the whole part is >= 1000; every carried row's total is below 1000, so none observes the changed code. Stale and re-run: row 5 (F1 `s5-large.md` at 03369ba observed `1234.50`; re-run at {head[:12]} observes `1,234.50`)."""
+print(qa_matrix)
+=== eval
+SK=open(os.path.join(SD,"SKILL.md")).read()
+start=SK.index("```\nLocal implementation audit.")+4
+end=SK.index("END-REVIEW-TRAILER\n```",start)+len("END-REVIEW-TRAILER")
+tmpl=SK[start:end]
+assert tmpl.count("{GOAL, CONSTRAINTS, BACKGROUND}")==1
+goal=f"""
+GOAL (proposal.md): Finance reconciles supplier price files by hand against the invoice. Add a `csvtotal total <file>` command that sums the prices of a `name,price` file in exact cents and prints the total with two decimals; reject a malformed price line with exit code 2 and a message naming the line.
+CONSTRAINTS (design.md, gate.md): prices are scaled to whole cents on parse and summed as integers; formatting happens once, on the total. Non-goals: quoted CSV fields, currencies other than a bare decimal, locale formatting. Mandatory class none; depth standard; Risk tier product. Accepted residual risk: sub-cent rounding - a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent (supplier feeds carry two decimals). Out of scope for blocking: none (the change adds one standalone CLI and touches no shared surface).
+BACKGROUND (gate.md author's risk assessment): a wrong total reaches a finance reconciliation. What can break: a malformed line counted as a number, a total that drifts by a cent, a wrong line number in the error. The CLI reads one local file and writes to stdout and stderr; it holds no credential or personal data and changes no shared state.
+Behavioural contract: the two `### Requirement:` blocks of `openspec/changes/csv-total/specs/csv-total/spec.md` (in PLAN below and as criteria below)."""
+chg=f"""
+Workspace root (read-only): {W}
+Reviewed head {head}; diff base (merge-base with default branch `main`) {base}; DIFF_RANGE = {base}...{head}.
+
+Changed files:
+{changed}
+
+Reviewed diff (`git diff {base}...{head}`):
+```diff
+{diff}```"""
+ctx=f"""
+FILE PATHS (readable in the workspace root): src/cli.ts, src/price.ts, src/cents.ts, src/money.ts, test/csvtotal.test.ts (changed); src/format.ts (unchanged by the branch, but its `groupThousands` changed on the default branch and is merged into the head); package.json (`bun test`); README.md; openspec/changes/csv-total/ (the change folder); openspec/config.yaml.
+
+CONTEXT_MINING (source -> finding -> why it matters):
+- `git log` main, 066253a "feat: group thousands in formatted totals of 1000 or more" -> `src/format.ts` `groupThousands` now returns `whole.toLocaleString("en-US")` instead of `String(whole)`; merged into the work branch as 60d5644 before this review, so a total of 1000 or more now prints with `,` separators (`1,234.50`). Merge diff against the pre-merge head 55e3e3b:
+```diff
+{mergediff}```
+  -> the branch's `cli.ts` calls `formatCents`, which calls `groupThousands` for whole parts >= 1000; design.md lists locale formatting as a non-goal, tasks.md 3.1 allows grouping separators for `s5-large`. Seam between the branch and the merged change.
+- `git log` 03369ba -> an earlier merge of main brought only README.md.
+- `git log` 55e3e3b -> F1 QA captures (5 files under `.omp/team-config/evidence/gate/csv-total/f1/`) at 03369ba plus the tasks.md 3.1 checkbox; no code.
+- `git log --all --grep` total|cents|csv|group -> no reverts or other related commits.
+- `gh issue/pr list` -> not applicable: the repository has no remote.
+- `rg TODO|FIXME|HACK src test` -> none.
+- Importers: `src/cli.ts` is the only consumer of `price.ts` and `format.ts`; `test/csvtotal.test.ts` imports `format.ts` and `price.ts`; nothing else in the repository reads these files.
+- review.md -> planning review OKAY, round 1, no blockers.
+
+PLAN (the immutable plan input for this wave, verbatim from the `GC snapshot` plan copy `.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md`):
+{plan_copy}"""
+crit="""
+C1 (Requirement: Price lines are parsed strictly)
+Invariant:        a file holding any line whose price is not a number yields no total; the command names each such line on stderr and exits 2; blank lines are ignored.
+Positive witness: `widget,19.99` + `gadget,5.01` prints `25.00`, exit 0; `widget,abc` on line 1 prints a message naming line 1 on stderr, no total, exit 2.
+Negative control: a total printed for a file with a malformed price line (the line counted as zero or skipped) MUST fail.
+Observable:       stdout, stderr and exit code of `bun src/cli.ts total <file>`.
+Boundary:         the CLI process surface (stdout/stderr/exit code).
+
+C2 (Requirement: Totals are exact in cents)
+Invariant:        the command sums whole cents and prints the total with exactly two decimals, so decimal fractions never drift.
+Positive witness: `a,0.10` + `b,0.20` prints `0.30`; an empty file prints `0.00`, exit 0; ten lines of `x,0.10` print `1.00`.
+Negative control: printing `0.9999999999999999` or `1` for ten lines of `x,0.10` MUST fail.
+Observable:       stdout of `bun src/cli.ts total <file>`.
+Boundary:         the CLI process surface (stdout)."""
+brief=(tmpl.replace("{GOAL, CONSTRAINTS, BACKGROUND}",goal)
+       .replace("{CHANGED_FILES, DIFF}",chg)
+       .replace("{FILE PATHS, CONTEXT_MINING, PLAN}",ctx)
+       .replace("{QA MATRIX}","\n"+qa_matrix)
+       .replace("{CRITERIA WITH FIVE FIELDS}",crit))
+import re
+print(re.findall(r"\{[A-Z_ ,0-9]+\}",brief))
+OUT="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/r57/out-c"
+os.makedirs(OUT,exist_ok=True)
+open(f"{OUT}/brief-implementation-audit-1.md","w").write(brief)
+print(len(brief)); print(brief[:600])
+=== bash
+cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md; echo "=== SESSION"; wc -l /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl; jq -c '{type, provider: (.message.provider // .provider), model: (.message.model // .model), role: .message.role, thinkingLevel}' /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl
+=== bash
+jq -c 'del(.message.content) | del(.message.usage)' /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl | cut -c1-400
+=== bash
+jq -c 'select(.type!="message")' /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl | cut -c1-400
+=== eval
+import shutil
+TR=".omp/team-config/evidence/gate/csv-total/f2/trailer-implementation-audit.txt"
+os.makedirs(os.path.dirname(os.path.join(W,TR)),exist_ok=True)
+shutil.copyfile("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md", os.path.join(W,TR))
+sh(f"cmp {TR} /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md && file {TR} && git check-ignore -v {TR} {A['r1']} {A['r2']} {A['s5']}; echo ignore-exit=$?")
+sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --trailer {TR} --invocation implementation-audit --verdict PASS --plan {PLAN}")
+=== eval
+SNAP=f"{W}/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json"
+sh(f"{GC} wave --lane F2 --snapshot {SNAP} --outcome qa=PASS --outcome implementation-audit=PASS --trailer implementation-audit={TR}")
+=== eval
+import json
+snap=json.load(open(SNAP)); print({k:v for k,v in snap.items() if k!="plan_copy"} if len(str(snap))<3000 else list(snap.keys()))
+print(sha(SNAP_PLAN))
+=== eval
+REC=".omp/team-config/evidence/gate/csv-total.json"
+rows=[("R1 Requirement: Price lines are parsed strictly (s1, s2 carried)","r1"),
+      ("R2 Requirement: Totals are exact in cents (s3, s4 carried; 0.30 captured at reviewed head)","r2"),
+      ("Happy path: widget,19.99 + gadget,5.01 prints 25.00 (carried)","s1"),
+      ("Riskiest edge: malformed price widget,abc exits 2 naming line 1, no total (carried)","s2"),
+      ("Regression on adjacent behaviour: big,1234.50 through merged groupThousands prints 1,234.50 (re-run)","s5")]
+record={
+ "schema":"team-config.merge-gate/v3",
+ "plan":PLAN,
+ "plan_sha256":snap["plan_sha256"],
+ "reviewed_sha":head,
+ "diff_base":base,
+ "reviewers_run":["implementation-audit"],
+ "decision_reason":"gate.md Depth standard: Mandatory class none, Risk tier product, no review/gate/release mechanism; final diff (standalone CLI plus merged groupThousands formatting) adds no auth, schema, wire/API or shared-state surface, so depth stays standard",
+ "mandatory_class":"none",
+ "implementation_models":["onara/cc/claude-opus-5-5"],
+ "qa":[{"name":n,"passed":True,"artifact":A[k],"artifact_sha256":sha(os.path.join(W,A[k]))} for n,k in rows],
+ "whole_diff":{"run":False,"reason":"whole-diff surface reviewed in F2"},
+ "resolution":[{"invocation":"implementation-audit","agent":"auditor","model":"onara/cx/gpt-6.1-sol","independence":"cross-provider"}],
+ "verdicts":[{"invocation":"implementation-audit","verdict":"PASS","trailer_artifact":TR,"trailer_sha256":sha(os.path.join(W,TR)),"note":"F2 wave 1 PASS, no blockers; reply stored verbatim at the trailer artifact"}]
+}
+open(os.path.join(W,REC),"w").write(json.dumps(record,indent=2)+"\n")
+files=[REC,TR,A["r1"],A["r2"],A["s5"]]
+sh("git add -- "+" ".join(files)+" && git status --short | cat")
+sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --record {REC} --plan {PLAN}")
+=== eval
+record["blockers"]=[]
+open(os.path.join(W,REC),"w").write(json.dumps(record,indent=2)+"\n")
+sh(f"git add -- {REC}")
+sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --record {REC} --plan {PLAN}")
+=== eval
+sh('git commit -q -m "gate(csv-total): F2 merge-gate record, wave 1 PASS at 60d56444ecce (implementation-audit PASS, QA 5/5)" && git log --oneline -3 | cat && git status --short | cat')
+sh(f"node {SD}/scripts/validate-gate-record.mjs --repo {W} --record {REC} --plan {PLAN}")
+sh("git rev-parse main; git merge-base --is-ancestor main HEAD && echo main-is-ancestor")
+sh(f"{GC} ready --lane F2")
+=== read
+{"path":"rule://merge-gate-proof","i":"Reading gate proof rule"}

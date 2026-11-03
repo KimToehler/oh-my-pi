@@ -1,0 +1,44 @@
+QA2 late fee per invoice as of 2026-02-15: one period=200, cap=2500, exactly 30 days=200, 29 days not listed, 9999*2%=199.98 -> 199, future due not listed
+
+$ cat /tmp/latefee-qa/qa2-fee.json
+[
+ {
+  "id": "one-period",
+  "amountCents": 10000,
+  "dueDate": "2026-01-10"
+ },
+ {
+  "id": "cap-over-1y",
+  "amountCents": 10000,
+  "dueDate": "2025-01-01"
+ },
+ {
+  "id": "exact-30d",
+  "amountCents": 10000,
+  "dueDate": "2026-01-16"
+ },
+ {
+  "id": "only-29d",
+  "amountCents": 10000,
+  "dueDate": "2026-01-17"
+ },
+ {
+  "id": "round-down",
+  "amountCents": 9999,
+  "dueDate": "2026-01-10"
+ },
+ {
+  "id": "not-yet-due",
+  "amountCents": 10000,
+  "dueDate": "2026-03-01"
+ }
+]
+[exit 0]
+
+$ bun src/cli.ts /tmp/latefee-qa/qa2-fee.json --as-of 2026-02-15
+cap-over-1y	2025-01-01	25.00
+one-period	2026-01-10	2.00
+exact-30d	2026-01-16	2.00
+round-down	2026-01-10	1.99
+TOTAL		30.99
+[exit 0]

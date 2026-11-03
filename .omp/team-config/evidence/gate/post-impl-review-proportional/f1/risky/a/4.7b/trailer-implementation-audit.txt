@@ -1,0 +1,46 @@
+## 1. Goal and behavioural contract
+
+The implementation meets the stated contract. In `src/quota.ts:7-9`, `remaining` rejects either non-integer operand with `RangeError` before computing `Math.max(0, limit - used)`. It introduces no state or persistence. The supplied diff leaves `checkQuota` unchanged.
+
+Reviewed the complete supplied diff, all changed planning artifacts, implementation, existing tests, package/configuration, and both QA matrices with their underlying captures.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocking correctness defect found. The helper is appropriately small, uses the specified calculation, and adds no dependencies or unnecessary abstraction. Existing imports remain compatible; there is no separate package export map requiring an update.
+
+**Independent adversarial criterion:** For non-negative integer inputs, `remaining(used, limit) > 0` must agree with `checkQuota(used, limit)`. This checks consistency across the existing and new exports, rather than reviewing them independently. Captures support this at `(3,10)`, `(10,10)`, and `(11,10)`.
+
+**Note N1 — API classification:** `openspec/changes/quota-remaining/gate.md:3` declares mandatory class `none`, whereas the brief identifies an externally consumed package API. The repository’s class definition at `openspec/schemas/omp-gated/schema.yaml:253` supports `wire-contract-api` for that reach. Correct the classification to match the declared consumers. **Non-blocking:** depth is already `risky`, so the classification has not reduced the required reviewer coverage in this brief.
+
+## 3. Security and privacy delta
+
+No security/privacy delta identified. Changed executable lines perform numeric validation and arithmetic only. They introduce no credential handling, authentication/authorisation path, personal-data processing, external I/O, or weakened access to a protected asset.
+
+## 4. Verification adequacy
+
+The supplied captures exercise the actual exported functions without mocks. They substantiate ordinary subtraction, overshoot clamping, fractional rejection for both operands, exhaustion boundaries, zero limit, non-finite rejection, and adjacent `checkQuota` behaviour. The captured existing suite reports two passing tests. I reviewed these captures; I did not execute checks.
+
+**Note N2 — No durable regression coverage:** `test/quota.test.ts:1-10` imports and tests only `checkQuota`; neither requirement for `remaining` is guarded by `bun test`. No RED evidence establishes regression sensitivity. Add direct tests for the new helper’s return values and rejection paths. **Non-blocking:** the real-surface captures and implementation inspection establish the current behaviour; this is a future-regression risk, not a demonstrated present failure.
+
+**Note N3 — F1 completion overstated:** `openspec/changes/quota-remaining/tasks.md:9` marks every spec scenario exercised in `f1/`, but `f1/qa-matrix.md:7-9` omits fractional rejection. The missing scenario is subsequently captured in `wave-1/s4-fractional-used-control.txt:2-4`. Reconcile the completion record with that actual evidence location. **Non-blocking:** the final review inputs contain the missing behavioural observation, so the current value proof is complete.
+
+**Note N4 — Negative-input scope description:** `wave-1/qa-matrix.md:18` says the spec defines no behaviour for negative inputs. The integer-input contract and prescribed subtraction/clamp formula do not exclude them. Describe them as unexercised, rather than unspecified. **Non-blocking:** source inspection shows they follow the required formula; no contradictory result is evidenced.
+
+## 5. Final assessment
+
+No blockers found under the supplied threshold. Residual risks are the missing automated regression guard and the evidence/classification documentation issues above. This audit does not establish that the separate reviewer lane or final gate-record validation has completed.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: For non-negative integer operands, the truth value of remaining(used, limit) > 0 agrees with checkQuota(used, limit).
+  positive_witness: At (3,10) the exports produce 7 and true; at (10,10) and (11,10) they produce 0 and false.
+  negative_control: A positive remaining value paired with false from checkQuota, or zero paired with true, MUST fail the consistency check.
+  observable: Reviewed captures f1/s1-within-limit.txt, wave-1/r6-limit-boundary.txt, and wave-1/r8-checkquota-regression.txt establish the paired outcomes for these inputs.
+  boundary: Observable return values of the two exports from src/quota.ts for identical operands.
+END-REVIEW-TRAILER

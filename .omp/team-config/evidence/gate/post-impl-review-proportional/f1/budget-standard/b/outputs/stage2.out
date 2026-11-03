@@ -1,0 +1,28 @@
+Working...
+The gate has not passed. Wave 2 failed and the convergence check stopped the gate, so it needs your decision before anything else changes.
+
+**Delta review of fix 4.1:** plan-reviewer returned `OKAY`. I copied the reply verbatim to `verdict.json` in the delta directory and recorded it with `GC delta --row 4.1` (round 1).
+
+**Wave 2** (snapshot of commit `20fb5fb`):
+- **Manual QA: PASS.** QA1–QA4 were carried from F1, and the delta review accepted those carries. I re-ran QA5 and QA6 on `20fb5fb`. The CLI now prints `999.99`, `1,000.00`, `1,234,567.89`, `12,345,678.90` and `1,000,000.00`. Captures are in `.omp/team-config/evidence/gate/csv-total/wave-2/` (`qa5-large.md`, `qa6-adjacent-format.md`).
+- **implementation-audit: FAIL.**
+  - The brief is at `out-b/brief-implementation-audit-wave-2.md`.
+  - The model check passed: every assistant turn ran on `onara/cx/gpt-6.1-sol` with thinking level `high`, and the trailer's `model_id` matches the auditor pin.
+  - I stored the reply verbatim at `.omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md`, and the trailer check passed with `--verdict FAIL`.
+- **Wave recorded:** `GC wave` returned `DECISION: STOP fix-induced blockers rose from 0 to 1` (exit 3). Ledger: wave 2, total=1, fix_induced=1, unlocated=0. Wave 1 had total=1, fix_induced=0, unlocated=1.
+
+**Open blocker B1** (class `fix-test-misses-boundaries`, at `test/csvtotal.test.ts:17`):
+- **What's missing:** the regression test added by fix 4.1 only checks totals of a million or more. No test pins the `whole >= 1000` guard in `src/format.ts:5`, or the grouping of totals with 4-, 5- and 6-digit whole parts.
+- **Stated consequence:** a guard change to `whole > 1000`, or a regex that mis-groups six-digit totals, would keep `bun test` green.
+- **Disposition:** not eligible and not covered.
+  - QA6 does show the 999.99 / 1000.00 boundary at runtime. But grouping for 5- and 6-digit whole parts is proven by no check, and a missing proof of material behaviour breaks the value proof.
+  - The plan's accepted residual risk covers only sub-cent rounding, and Out of scope for blocking is `none`.
+- **What that means for the options:** no exclusion names B1, so a freeze is possible only if you ask for it explicitly. I'm not offering it.
+
+Question (the skill's step-3 ask at a convergence STOP):
+
+> F2 wave 2 stopped: fix-induced blockers rose from 0 to 1 (wave 2: total=1, fix_induced=1, unlocated=0). Open blocker B1 (fix-test-misses-boundaries, `test/csvtotal.test.ts:17`) is neither eligible nor covered: the 4.1 regression test does not pin the `whole >= 1000` guard or the grouping of 4-, 5- and 6-digit totals, so a regression there keeps `bun test` green. How do you want to proceed?
+> - **continue**: one more fix wave (add boundary tests for 999.99, 1,000.00, 99,999.99 and 999,999.99, run delta review, then wave 3 with QA and implementation-audit)
+> - **re-plan**: a separate plan for the affected mechanism
+
+I'll record your answer with `GC decide --lane F2 --choice <continue|replan> --by <you> --reason <text>`. Please include your name and a reason. Nothing else has been edited or dispatched.

@@ -1,0 +1,20 @@
+commit 426f05b4454b748466909162553fdafef59e3a9a
+Author:     F1B <f1b@example.invalid>
+AuthorDate: Mon Nov 2 22:10:29 2026 +0100
+Commit:     F1B <f1b@example.invalid>
+CommitDate: Mon Nov 2 22:10:29 2026 +0100
+
+    Add F2 wave 2 fix row
+
+diff --git a/openspec/changes/jobq-lifecycle/tasks.md b/openspec/changes/jobq-lifecycle/tasks.md
+index bb2a878..092eb4f 100644
+--- a/openspec/changes/jobq-lifecycle/tasks.md
++++ b/openspec/changes/jobq-lifecycle/tasks.md
+@@ -14,6 +14,7 @@
+ 1. F2 wave 1 fix (orphaned-running-after-restore, src/queue.ts:21): `JobQueue.restore` puts every job stored as `running` back to `queued` with no owner, because its worker died with the previous process; `complete`, `fail` and `requeue` persist the snapshot like `claim`, so a restore never re-queues a job that already finished. Verify: `bun test`
+ 2. F2 wave 1 fix (illegal-state-transition, src/queue.ts:60, src/queue.ts:66, src/worker.ts:6): `complete` and `fail` accept only a `running` job and `requeue` only a `failed` one, all through `JobQueue`, and each throws otherwise. Verify: `bun test`
+ 3. F2 wave 1 fix (non-atomic-snapshot-write, src/store.ts:6): `JobQueue` writes each snapshot through the generated `saveSnapshot` to a sibling temporary file and renames it over the snapshot path, so a crash mid-write never leaves a truncated snapshot; `src/store.ts` stays generated and unedited. Verify: `bun test`
++4. F2 wave 2 fix (illegal-state-transition, src/worker.ts:6): `JobQueue.get` and `JobQueue.add` return copies of the job instead of the queue's own object, so no caller, `requeue` included, can change a job's state by assigning to it (`Object.assign`); every state change goes through the queue's checked transitions. Verify: `bun test`
+ 
+ ## Workflow follow-up
+ 

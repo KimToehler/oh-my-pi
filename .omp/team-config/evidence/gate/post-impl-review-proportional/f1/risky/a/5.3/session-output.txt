@@ -1,0 +1,45 @@
+Working...
+F2 wave 1 for `quota-remaining` passed: `GC wave` printed `DECISION: PASS`, `WAVE F2 1 total=0 fix_induced=0 unlocated=0`. As you asked, I stopped there: nothing is fixed, staged or committed, and no gate record is written.
+
+**Setup**
+- I ran the review in a locked, detached review worktree at the branch tip: `.worktrees/review-quota-remaining` at `58c6cf0fa183a2aa29aeb52b66207ceefab97f21`. Your own checkout was not touched.
+- I had planned to switch your checkout off the branch so the branch could be attached to the worktree. A git-safety rule interrupted before I ran it; nothing destructive ran.
+- The repository has no `main` branch, so there was no default branch to merge in first. I reviewed `6bdaef7..58c6cf0`, starting just before this change's first commit.
+- The plan check passed (`--plan-only` and `validate-openspec-change.mjs`). `gate.md` sets Depth `risky`, Risk tier `product` and Mandatory class `none`, so both reviewer lanes ran.
+- The reviewer pin is `onara/cx/gpt-6.1-sol:high`, and no config override changes it. The gate's baseline, ready check and snapshot all succeeded on `58c6cf0`.
+
+**Manual QA: PASS (6 rows)**
+
+| # | What was checked | Result | Evidence |
+|---|---|---|---|
+| 1 | `remaining(3,10)` | 7 (reused from F1) | `f1/s1-within-limit.txt` |
+| 2 | Negative control `remaining(12,10)` | 0 (reused from F1) | `f1/s2-above-limit-control.txt` |
+| 3 | `remaining(0,5)` | 5 (reused from F1) | `f1/s3-integers-accepted.txt` |
+| 4 | Negative control `remaining(2.5,10)` | `RangeError` | `wave-1/r4-fractional-usage-control.txt` |
+| 5 | Edges: `(10,10)` gives 0; `(3,10.5)`, `NaN`, `Infinity`, `"3"` | each throws `RangeError` | `wave-1/r5-edges.txt` |
+| 6 | Existing `checkQuota` still works | `bun test` 2 pass; `true false false` | `wave-1/r6-regression-checkquota.txt` |
+
+- Rows 1–3 come from the F1 run on `0cced13`. They still hold because the later commits change no file under `src`, `test` or `package.json`.
+- F1 had skipped the fractional negative control. Rows 4–6 fill that gap plus the edge and adjacent-behaviour checks a risky gate requires.
+
+**Reviewers**
+
+| Lane | Reviewer | Model | Independence | Verdict | Trailer check |
+|---|---|---|---|---|---|
+| Manual QA | me | - | - | PASS | - |
+| implementation-audit | `auditor` | `onara/cx/gpt-6.1-sol` | cross-provider | PASS | passed |
+| strategic-risk-review | `auditor` | `onara/cx/gpt-6.1-sol` | cross-provider | PASS | passed |
+
+- Both reviewers ran in one batch with the skill's briefs, filled in by code rather than retyped.
+- Their session logs show every turn on `onara` `cx/gpt-6.1-sol` at effort `high`, matching the pin.
+- Neither found a blocker or a security change.
+
+Non-blocking notes from the reviewers:
+- `remaining()` has no automated test; `test/quota.test.ts` only tests `checkQuota`.
+- `tasks.md` marks F1 as "run each scenario" done, but the F1 matrix has only 3 of the 4 scenarios.
+- `Number.isInteger` accepts integers too large to subtract exactly, so extreme inputs could give a wrong result.
+
+**What's on disk**
+- Both trailers are stored verbatim: `wave-1/trailer-implementation-audit.txt` and `wave-1/trailer-strategic-risk-review.txt`.
+- The wave-1 folder holds the trailers, the captures and `qa-matrix.md`. It sits under `.omp/team-config/evidence/gate/quota-remaining/` in the review worktree and is untracked; nothing is staged.
+- `.worktrees/` shows as untracked in your checkout because the repo does not ignore it.

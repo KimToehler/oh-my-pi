@@ -1,0 +1,51 @@
+TZ(effective)=CET cwd=review-late-fee-report head=418158c
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/f1/dst-cases.json
+[
+  {
+    "id": "DST-spring-30d",
+    "amountCents": 10000,
+    "dueDate": "2026-03-01"
+  },
+  {
+    "id": "DST-spring-29d",
+    "amountCents": 10000,
+    "dueDate": "2026-03-02"
+  }
+]
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/f1/dst-cases.json --as-of 2026-03-31
+DST-spring-30d	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=America/New_York bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/f1/dst-cases.json --as-of 2026-03-31
+DST-spring-30d	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ TZ=UTC bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/f1/dst-cases.json --as-of 2026-03-31
+DST-spring-30d	2026-03-01	2.00
+TOTAL		2.00
+[exit 0]
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/f1/dst-autumn-cases.json
+[
+  {
+    "id": "DST-autumn-30d",
+    "amountCents": 10000,
+    "dueDate": "2026-10-01"
+  },
+  {
+    "id": "DST-autumn-29d",
+    "amountCents": 10000,
+    "dueDate": "2026-10-02"
+  }
+]
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/f1/dst-autumn-cases.json --as-of 2026-10-31
+DST-autumn-30d	2026-10-01	2.00
+TOTAL		2.00
+[exit 0]

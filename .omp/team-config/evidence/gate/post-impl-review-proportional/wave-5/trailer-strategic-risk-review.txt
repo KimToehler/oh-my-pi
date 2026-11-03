@@ -1,0 +1,34 @@
+## 1. Architecture
+
+The cutover is coherent across the depth rule, F2 briefs, model pin, gate templates and record format. It retains the existing validator and convergence ledger rather than introducing a second record contract. I found no substantiated blocker.
+
+## 2. What the line-level view can miss
+
+The remaining risk is in the interaction between instructional policy and unchanged enforcement: the validator does not itself enforce the depth-derived lane count for every class-`none` change or the model-and-effort pin. Those are explicitly recorded residuals in `gate.md`.
+
+**Non-blocking verification risk:** The supplied evidence exercises a QA-failed first wave and reviewer-failed closing waves, but I did not find an exercised **QA-failed closing wave with the budget spent**. The budget instructions list Override conditionally on blocker disposition (`team-config/agent/skills/review-work/SKILL.md:483-487`), while Phase 4 independently requires passing QA and stored reviewer trailers (`:376`). The latter prevents a valid override; the missing scenario leaves uncertainty about whether an orchestrator would avoid presenting an unusable option.
+
+## 3. Highest-consequence failure
+
+The most consequential failure would be a gate accepting insufficient review and allowing a defect in the reviewed change through. The implementation addresses model substitution with session checks and fails an unresolved invocation closed; it also retains SHA-bound records and the existing validator. The narrower reviewer breadth and shared model blind spots remain accepted, unmeasured risks rather than proven protection against missed defects.
+
+## 4. Auditor finding and verification
+
+The auditor’s note about an incomplete repeat reaching the unchanged internal-tooling GC cap is not a false positive: the repeat still advances the ledger wave number, and the cap remains in `gate-convergence.mjs`. The design expressly preserves an earlier GC STOP, so the note does not establish a blocker by itself.
+
+I reviewed the supplied diff, QA matrix, auditor finding and relevant repository instruction and convergence paths. I ran no commands or checks.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A user is not offered a gate outcome that the record contract cannot represent.
+  positive_witness: After a QA-passing closing wave with an eligible reviewer blocker, the budget ask offers an override that can be recorded and validated.
+  negative_control: After a QA-failed closing wave with no reviewer dispatch, the budget ask offers an override as an immediately available outcome.
+  observable: The retained ask excludes override for the QA-failed wave, while the eligible reviewer-failure case produces a validated overridden record.
+  boundary: Budget-ask instruction and gate-record validation
+END-REVIEW-TRAILER

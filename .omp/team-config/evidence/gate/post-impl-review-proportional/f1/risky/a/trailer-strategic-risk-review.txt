@@ -1,0 +1,56 @@
+## Strategic assessment
+
+No implementation blocker found. The helper matches the specified behavior for the reviewed quota inputs, and the supplied F2 evidence covers all four specification scenarios. Two verification-maintenance issues remain below the blocking threshold.
+
+### 1. Architecture and cross-module seams
+
+The design is appropriately small: integer validation followed by clamped subtraction in `src/quota.ts:7–9`. It introduces no dependencies, mutable state, persistence, or changes to `checkQuota`.
+
+The relevant seams are:
+- **Specification → implementation:** both fractional operands are rejected with `RangeError`; usage at or above the limit returns zero.
+- **Implementation → consumers:** this is an additive source-module export. The repository search found no production caller of `remaining`; therefore, customer-facing billing-display integration is an author-declared use, not demonstrated here. Adding the helper—not migrating those displays—is the supplied implementation scope.
+- **Implementation → verification:** F2 exercises the real exported function, rather than mocks, and separately checks the adjacent export.
+
+The package is private and has no configured package entry point. The demonstrated consumption surface is direct import from `src/quota`.
+
+### 2. Inconsistency, duplication, and simplification
+
+**Note N1 — Original F1 completion claim is inconsistent with its evidence.**  
+`openspec/changes/quota-remaining/tasks.md:9` marks every-scenario F1 verification complete, but `.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md:5–7` contains only three of the four specification scenarios. The omitted fractional-input control is specified at `openspec/changes/quota-remaining/specs/quota-remaining/spec.md:26–28`. Moreover, `f1/s1-within-limit.txt:1` contains labeled output, whereas its listed command prints only the number.
+
+The F2 matrix explicitly acknowledges these defects and supplies fresh evidence, including the missing control. Preserve that distinction in the final evidence summary; do not represent the original F1 captures as complete, verbatim command output. **Non-blocking because the supplied replacement F2 observations establish the missing behavior on the reviewed head.**
+
+**Note N2 — The new behavior has no durable automated regression coverage.**  
+`test/quota.test.ts:1–9` imports and tests only `checkQuota`; the supplied suite transcript confirms two existing tests and none for `remaining`. Add direct behavioral tests for clamping, equality, valid subtraction, and fractional rejection in either operand. **Non-blocking because current behavior is supported by real-surface F2 observations; this is a future-regression exposure, not a demonstrated current failure.**
+
+No duplicated implementation, competing abstraction, needless dependency, or unnecessary complexity was found. Consolidating the authoritative evidence index would help more than adding code structure.
+
+### 3. Most damaging production failure
+
+Within the declared display-only use, the principal failure would be showing negative allowance after usage exceeds the limit. `src/quota.ts:9` handles this directly; supplied F2 row 2 distinguishes the correct `0` from the broken `-2`. Equality is independently covered by row 5.
+
+Silently accepting fractional values would undermine the integer contract. Validation precedes arithmetic, and F2 rows 4 and 6 demonstrate rejection for each operand. There is no observed path here to charges, persisted balances, credentials, authorization, or personal data.
+
+### 4. What line-level review would miss
+
+- Correct helper code does not demonstrate adoption by customer-facing displays; no such consumer exists in the reviewed repository.
+- Passing `bun test` does not protect the new export.
+- A checked verification task and plausible-looking capture files are not sufficient proof. Comparing the specification, command, capture, and replacement QA matrix exposes the original F1 shortcomings.
+- The supplied F2 evidence establishes current outcomes, but does not demonstrate committed regression tests failing against a broken implementation.
+
+**Evidence reviewed:** complete supplied diff and plan artifacts; implementation, package configuration, existing tests; repository-wide quota-symbol search; all supplied F2 observations. No commands, network requests, modifications, or independent runtime checks were performed.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Exhaustion must not wrap into an apparent allowance, and invalid fractional usage must not become a displayable balance.
+  positive_witness: remaining(3, 10) returns 7; remaining(12, 10) returns 0; remaining(2.5, 10) throws RangeError.
+  negative_control: Returning -2 for exhausted usage or 7.5 for fractional usage MUST fail.
+  observable: Supplied F2 q1 and q2 capture numeric stdout with exit 0; q4 captures RangeError with harness exit 3.
+  boundary: Direct invocation of the exported source-module API; customer-display integration is not present in this repository.
+END-REVIEW-TRAILER

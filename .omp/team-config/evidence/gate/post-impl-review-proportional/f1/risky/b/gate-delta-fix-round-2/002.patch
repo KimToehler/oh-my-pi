@@ -1,0 +1,51 @@
+commit f0200d7e9ddff55a1ba8b678ef3ba1a50660d699
+Author:     F1B <f1b@example.invalid>
+AuthorDate: Mon Nov 2 22:10:55 2026 +0100
+Commit:     F1B <f1b@example.invalid>
+CommitDate: Mon Nov 2 22:10:55 2026 +0100
+
+    Return job copies so state changes only through JobQueue
+
+diff --git a/src/queue.ts b/src/queue.ts
+index 5e749ad..344d6dd 100644
+--- a/src/queue.ts
++++ b/src/queue.ts
+@@ -30,14 +30,17 @@ export class JobQueue {
+ 		return queue
+ 	}
+ 
++	/** Queue a new job; returns a copy, since a job's state changes only through the queue's transitions. */
+ 	add(id: string): Job {
+ 		const job: Job = { id, state: "queued", attempts: 0 }
+ 		this.jobs.set(id, job)
+-		return job
++		return { ...job }
+ 	}
+ 
++	/** A copy of the job, or undefined for an unknown id; assigning to it never changes the queue. */
+ 	get(id: string): Job | undefined {
+-		return this.jobs.get(id)
++		const job = this.jobs.get(id)
++		return job && { ...job }
+ 	}
+ 
+ 	/** Hand a queued job to a worker and persist the queue; false when the job is not queued. */
+diff --git a/test/queue.test.ts b/test/queue.test.ts
+index 3e996da..81b1086 100644
+--- a/test/queue.test.ts
++++ b/test/queue.test.ts
+@@ -106,3 +106,14 @@ test("a snapshot is replaced by rename, never rewritten in place", async () => {
+ 	expect(statSync(p).ino).not.toBe(first)
+ 	expect(JSON.parse(readFileSync(p, "utf8"))).toHaveLength(2)
+ })
++test("a job's state changes only through the queue", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	Object.assign(q.add("a"), { state: "done" })
++	await q.claim("a", "w1")
++	await q.complete("a")
++	Object.assign(q.get("a")!, { state: "queued", owner: undefined })
++	expect(q.get("a")?.state).toBe("done")
++	expect(await q.claim("a", "w2")).toBe(false)
++	expect(JSON.parse(readFileSync(p, "utf8"))[0]).toMatchObject({ id: "a", state: "done" })
++})

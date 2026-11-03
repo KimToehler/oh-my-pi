@@ -1,0 +1,49 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The `fee-report` F2 gate passed on wave 2. Wave 1 manual QA found an amount-formatting bug, which is now fixed, reviewed and committed. The record validates (`passed`, exit 0) before and after its commit. Nothing is merged.
+
+Decision reason: `gate.md` sets Depth standard with Mandatory class none. I re-checked the final diff: it adds no network recipient, no saved or transmitted data structure, no auth path, no migration, no external API and no shared state. So one `implementation-audit` was required.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (12 rows, 9 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+None open. Wave 1 failures, now fixed:
+- **QA6 and QA8:** `formatAmount` put a comma after only the lowest group of three digits. 123456789 cents rendered as `1234,567.89` instead of `1,234,567.89`.
+  - Fix row 4.1 was added to `tasks.md` in `9734ef6`.
+  - Fixed in `1e202e0`: every group of three digits now gets a comma. Two new tests were committed; both failed before the fix and pass after it.
+  - The delta review (`plan-reviewer`) returned OKAY over `82e54ad..4aedb11`.
+- `4aedb11` ticks F1 task 3.1 and fix 4.1.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all covered by `implementation-audit`. Its section 2 read the whole diff.
+
+## Key Findings
+- **Numeric range:** the code uses plain JavaScript numbers with no stated safe limit, so extremely large totals could lose cents. Note only, not a blocker.
+- **Coverage:** CLI newline/exit behaviour and the fee boundary cases are proven only by the manual QA captures, not by committed tests. Note only, not a blocker.
+- **Auditor's own check:** it judged statically that rendering never mutates or reorders its input. Nobody ran that check.
+- **Not checked:** type-checking. `bunx tsc --noEmit` fails because `bun-types` isn't installed in this checkout (TS2688). Inputs with non-integer amounts weren't tried either; input validation is a stated non-goal.
+
+## Recommendations
+- **Planning review is stale:** `validate-openspec-change.mjs --reviewed` now fails, because adding row 4.1 to `tasks.md` changed the bytes that `review.md` was signed against. The F2 delta review covered that edit, but `review.md` needs a new `plan-reviewer` round if that check must pass again.
+- **Worked in this checkout:** `feat/fee-report` is checked out only here, so git won't attach a separate review worktree to it. Switching this checkout to another branch to free it would have changed your checkout state. So every edit, test and commit ran here, staging files by explicit path only.
+- **Ready check:** `GC ready --lane F2` now prints NOT READY, listing the record commit `d65d015` as an unreviewed fix commit. That commit only adds the record, trailer and QA captures, which the record validator explicitly tolerates, and no further wave is due. I didn't exempt it.
+- **Local only:** QA fixtures under `f1/wave-1/fixtures/`, the uncited wave-1 failure captures, `gate-deltas/` and the ledger stay untracked by design.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 4aedb1199ae224282974a4b954f21f1bc3877848 · plan_sha256 0e150a1af82b4cfe27451443de87eadb708ba3e889759a3261c9b7153af13a62
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/fee-report/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: Mandatory class none, no review/gate/release mechanism)
+  override: none
+  record .omp/team-config/evidence/gate/fee-report.json · validate-gate-record.mjs exit 0 at d65d01515bc9
+- code committed after reviewed_sha: none (d65d015 adds only the record, trailer and cited QA captures)
+```

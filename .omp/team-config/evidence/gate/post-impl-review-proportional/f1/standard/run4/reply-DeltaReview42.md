@@ -1,0 +1,8 @@
+{
+  "verdict": "OKAY",
+  "summary": "The delta fixes row 4.2 without adding a subsystem or removing a protection. Math.floor implements the specified whole-cent cap, and the regression assertions cover all four named amounts. The report consumer already excludes zero-cent fees, so the 3-cent invoice is no longer listed. No evidenced blockers.",
+  "blockers": [],
+  "notes": [
+    "Static review only; tests were not executed. The added assertions for 10002, 10003 and 3 cents distinguish the previous Math.round implementation."
+  ]
+}

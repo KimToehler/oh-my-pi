@@ -1,0 +1,33 @@
+F1 QA row Q6 - amount formatting edges via render command, head 82e54ad9e132e45c633ce56f71e50d19841fb10a
+fixture edges.json:
+  in| { "lines": [
+  in|   { "id": "c5", "dueDate": "2026-03-01", "feeCents": 5 },
+  in|   { "id": "c0", "dueDate": "2026-03-02", "feeCents": 0 },
+  in|   { "id": "c99999", "dueDate": "2026-03-03", "feeCents": 99999 },
+  in|   { "id": "c100000", "dueDate": "2026-03-04", "feeCents": 100000 },
+  in|   { "id": "c100000000", "dueDate": "2026-03-05", "feeCents": 100000000 },
+  in|   { "id": "c100000000000", "dueDate": "2026-03-06", "feeCents": 100000000000 }
+  in| ] }
+$ bun src/cli.ts <fixtures>/edges.json
+  od|            c   5  \t   2   0   2   6   -   0   3   -   0   1  \t   0   .
+  od|            0   5  \n   c   0  \t   2   0   2   6   -   0   3   -   0   2
+  od|           \t   0   .   0   0  \n   c   9   9   9   9   9  \t   2   0   2
+  od|            6   -   0   3   -   0   3  \t   9   9   9   .   9   9  \n   c
+  od|            1   0   0   0   0   0  \t   2   0   2   6   -   0   3   -   0
+  od|            4  \t   1   ,   0   0   0   .   0   0  \n   c   1   0   0   0
+  od|            0   0   0   0   0  \t   2   0   2   6   -   0   3   -   0   5
+  od|           \t   1   0   0   0   ,   0   0   0   .   0   0  \n   c   1   0
+  od|            0   0   0   0   0   0   0   0   0   0  \t   2   0   2   6   -
+  od|            0   3   -   0   6  \t   1   0   0   0   0   0   0   ,   0   0
+  od|            0   .   0   0  \n   T   O   T   A   L  \t  \t   1   0   0   1
+  od|            0   0   2   ,   0   0   0   .   0   4  \n                    
+  od| 
+  out| c5	2026-03-01	0.05
+  out| c0	2026-03-02	0.00
+  out| c99999	2026-03-03	999.99
+  out| c100000	2026-03-04	1,000.00
+  out| c100000000	2026-03-05	1000,000.00
+  out| c100000000000	2026-03-06	1000000,000.00
+  out| TOTAL		1001002,000.04
+
+  exit=0

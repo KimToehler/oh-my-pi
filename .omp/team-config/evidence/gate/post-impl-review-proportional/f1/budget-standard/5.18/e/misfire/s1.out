@@ -1,0 +1,9 @@
+Working...
+Your message had no request in it, so I haven't changed anything. Here's where the repo stands:
+
+- **Change:** `openspec/changes/csv-total`. Its plan review in `review.md` is OKAY, round 1, with no blockers. The risk tier is product and the review depth is standard.
+- **Tasks:** every item in `tasks.md` (1.1 through 3.1) is checked. The F1 evidence is committed as `8a1d0d6`, with five scenario files under `.omp/team-config/evidence/gate/csv-total/f1/`.
+- **Still open:** the F2 merge gate (`review-work`). It needs a validated record before the branch can merge. That record binds every file in the change folder by `plan_sha256`, so the folder has to be final before the F2 snapshot.
+- **Accepted residual:** a price with more than two decimals is rounded to the nearest cent on each line (in `src/money.ts`), not rejected.
+
+What would you like me to do? The obvious next step is running F2 (`review-work`) on the current head.

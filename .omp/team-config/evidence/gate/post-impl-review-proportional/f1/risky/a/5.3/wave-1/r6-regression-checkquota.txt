@@ -1,0 +1,12 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (review worktree), 2026-11-03T07:50:08Z
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+ 2 pass
+ 0 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [4.00ms]
+[exit 0]
+$ bun -e 'import {checkQuota} from "./src/quota"; console.log(checkQuota(3,10), checkQuota(10,10), checkQuota(12,10))'
+true false false
+[exit 0]

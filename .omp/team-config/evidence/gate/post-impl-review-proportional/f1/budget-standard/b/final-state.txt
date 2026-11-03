@@ -1,0 +1,8 @@
+20fb5fb fix(format): group every thousand in totals of a million or more (F2 4.1)
+d32f7b7 test(f1): csv-total CLI QA, five scenarios
+c25a149 feat: csv-total CLI, change folder
+644e95a chore: scaffold with omp-gated schema
+?? .omp/team-config/evidence/csv-total/
+?? .omp/team-config/evidence/gate/csv-total/wave-1/
+?? .omp/team-config/evidence/gate/csv-total/wave-2/
+csv-total

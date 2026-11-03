@@ -1,0 +1,58 @@
+QA4 overdue report ordering as of 2026-02-20: fee desc, then due date asc, then id in code-unit order (B < INV-10 < INV-9 < a), zero-fee excluded, identical for every input order
+
+input order 0: ['a', 'B', 'INV-10', 'INV-9', 'z-early', 'big', 'zero-fee']
+$ bun src/cli.ts /tmp/latefee-qa/qa4-order-0.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z-early	2026-01-10	2.00
+B	2026-01-12	2.00
+INV-10	2026-01-12	2.00
+INV-9	2026-01-12	2.00
+a	2026-01-12	2.00
+TOTAL		20.00
+[exit 0]
+
+input order 1: ['zero-fee', 'big', 'z-early', 'INV-9', 'INV-10', 'B', 'a']
+$ bun src/cli.ts /tmp/latefee-qa/qa4-order-1.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z-early	2026-01-10	2.00
+B	2026-01-12	2.00
+INV-10	2026-01-12	2.00
+INV-9	2026-01-12	2.00
+a	2026-01-12	2.00
+TOTAL		20.00
+[exit 0]
+
+input order 2: ['INV-9', 'zero-fee', 'a', 'big', 'INV-10', 'z-early', 'B']
+$ bun src/cli.ts /tmp/latefee-qa/qa4-order-2.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z-early	2026-01-10	2.00
+B	2026-01-12	2.00
+INV-10	2026-01-12	2.00
+INV-9	2026-01-12	2.00
+a	2026-01-12	2.00
+TOTAL		20.00
+[exit 0]
+
+input order 3: ['a', 'B', 'INV-10', 'INV-9', 'z-early', 'big', 'zero-fee']
+$ bun src/cli.ts /tmp/latefee-qa/qa4-order-3.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z-early	2026-01-10	2.00
+B	2026-01-12	2.00
+INV-10	2026-01-12	2.00
+INV-9	2026-01-12	2.00
+a	2026-01-12	2.00
+TOTAL		20.00
+[exit 0]
+
+input order 4: ['B', 'z-early', 'zero-fee', 'INV-10', 'a', 'INV-9', 'big']
+$ bun src/cli.ts /tmp/latefee-qa/qa4-order-4.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z-early	2026-01-10	2.00
+B	2026-01-12	2.00
+INV-10	2026-01-12	2.00
+INV-9	2026-01-12	2.00
+a	2026-01-12	2.00
+TOTAL		20.00
+[exit 0]
+
+distinct outputs across 5 input orders: 1

@@ -1,0 +1,42 @@
+^Drepo HEAD: a0ccec20abe7bee717bd656a008665926b8149d0
+runner clock (UTC): 2026-11-02T21:08:09Z; runner zone: Europe/Berlin
+
+UTC date now: 2026-11-02; local date in Pacific/Kiritimati: 2026-11-03; Europe/Berlin: 2026-11-02
+
+$ cat /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/default-asof.json
+[
+  { "id": "DUE-29D-UTC", "amountCents": 10000, "dueDate": "2026-10-04" },
+  { "id": "DUE-30D-UTC", "amountCents": 10000, "dueDate": "2026-10-03" }
+]
+[exit 0]
+
+$ bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/default-asof.json --as-of 2026-11-02
+DUE-30D-UTC	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ env TZ=UTC bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/default-asof.json
+DUE-30D-UTC	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ env TZ=Europe/Berlin bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/default-asof.json
+DUE-30D-UTC	2026-10-03	2.00
+TOTAL		2.00
+[exit 0]
+
+$ env TZ=Pacific/Kiritimati bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/default-asof.json
+DUE-30D-UTC	2026-10-03	2.00
+DUE-29D-UTC	2026-10-04	2.00
+TOTAL		4.00
+[exit 0]
+
+# spec scenario 'Default as-of date': the as-of function the command uses, at 2026-03-01T23:30:00Z
+$ env TZ=Europe/Berlin bun -e import { today } from "./src/today.ts"; console.log(today(new Date("2026-03-01T23:30:00Z")))
+2026-03-02
+[exit 0]
+
+$ env TZ=UTC bun -e import { today } from "./src/today.ts"; console.log(today(new Date("2026-03-01T23:30:00Z")))
+2026-03-01
+[exit 0]
+

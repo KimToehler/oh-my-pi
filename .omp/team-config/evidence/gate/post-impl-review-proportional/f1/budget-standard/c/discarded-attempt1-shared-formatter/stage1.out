@@ -1,0 +1,25 @@
+Working...
+## Implementation complete
+
+**Change:** csv-total (to pick a different change, run `/opsx-apply <other>`)
+**Schema:** omp-gated
+**Progress:** 4/4 tasks complete. Apply instructions now report `state: all_done`.
+
+### Done this session
+- [x] 3.1 F1, manual QA on the real CLI.
+  - `main` was not an ancestor of the work branch (it adds only `README.md`), so I merged it in as `6825027`. That merge is the head after the last code commit, and the evidence records it.
+  - I ran `bun src/cli.ts total FILE` (bun 1.4.4) once per scenario. Each evidence file holds a hex dump of the input, the exit code, stdout and stderr, all taken from the run output:
+
+| File | Observed |
+|---|---|
+| `s1-happy.md` | stdout `25.00`, exit 0 |
+| `s2-malformed.md` | exit 2, stderr `error: line 1: malformed price`, nothing on stdout |
+| `s3-cents.md` | stdout `1.00`, exit 0 |
+| `s4-empty.md` | stdout `0.00`, exit 0 |
+| `s5-large.md` | stdout `1234.50`, exit 0 |
+
+  - Every observation matches the value the task expects. The QA lane makes the pass/fail call.
+  - The task's Verify command (`test -s` on all five files) passed, and so does `validate-openspec-change.mjs`.
+  - Commit `0c33020` contains only the five evidence files and the ticked checkbox in `tasks.md`. No code changed after `6825027`.
+
+The F2 merge gate and the reviews have not been started, as you asked. The change needs F2 (`review-work`) before it can merge. After that you can archive it with `/opsx-archive`.

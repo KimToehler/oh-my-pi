@@ -1,0 +1,551 @@
+=== read
+{"path":"skill://review-work","i":"Reading review-work skill"}
+=== read
+{"path":"artifact://0:176-330","i":"Reading elided skill section"}
+=== read
+{"path":"artifact://0:330-472","i":"Reading elided skill section part 2"}
+=== bash
+ls ~/.omp/profiles/pirp/agent/skills/review-work/ ~/.omp/profiles/pirp/agent/skills/review-work/scripts; wc -l ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-260:raw","i":"Reading skill lines 176-260"}
+=== read
+{"path":"/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-215","i":"Reading skill lines 176-215"}
+=== eval
+L=open('/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md').read().split('\n')
+for i in range(171,182): print(i+1, L[i])
+=== eval
+import textwrap
+def show(a,b):
+    for i in range(a-1,b):
+        s=L[i]
+        if len(s)<=600: print(i+1, s)
+        else:
+            for j,ch in enumerate(textwrap.wrap(s,600, drop_whitespace=False, replace_whitespace=False)): print(f"{i+1}{'.'+str(j) if j else ''}", ch)
+show(172,172); show(181,181); show(189,189)
+=== eval
+show(205,330)
+=== eval
+show(336,345); show(355,362); show(440,470)
+=== bash
+git status --short --branch; git log --oneline -15 --all --graph; git worktree list; git branch -a; ls -la; ls ~/.omp/agent/skills/review-work 2>&1 | head -3
+=== bash
+diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work; ls -la ~/.omp/agent ~/.omp/agent/skills | head -30; echo; cat .gitignore package.json README.md; git log --format='%H %an %s' -6 --all
+=== bash
+git ls-files; echo ---; git show --stat a56d6c1 | cat; echo ---; git diff --stat a951855 d5da87c; git show d5da87c | cat
+=== bash
+for f in openspec/changes/csv-total/*.md openspec/changes/csv-total/.openspec.yaml openspec/changes/csv-total/specs/csv-total/spec.md src/*.ts test/csvtotal.test.ts openspec/config.yaml; do echo "===== $f"; cat "$f"; done
+=== bash
+fold -w 400 openspec/changes/csv-total/tasks.md | sed -n '1,40p' ; for f in .omp/team-config/evidence/gate/csv-total/f1/*.md; do echo "===== $f"; cat "$f"; done
+=== read
+{"path":"rule://worktrees","i":"Reading worktrees rule"}
+=== bash
+find .omp -maxdepth 6 | head -40; git config --get user.name; git config --get user.email; bun --version; node --version; omp config get task.agentModelOverrides 2>&1 | head -5
+=== bash
+ls ~/.omp/profiles/pirp/agent/agents/ 2>&1; ls ~/.omp/agent/agents/; grep -n -E '^(model|thinking|name):' ~/.omp/profiles/pirp/agent/agents/auditor.md ~/.omp/agent/agents/auditor.md 2>&1
+=== bash
+grep -n -A4 agentModelOverrides ~/.omp/profiles/pirp/agent/config.yml ~/.omp/agent/config.yml; sed -n '1,12p' ~/.omp/profiles/pirp/agent/agents/auditor.md; echo $OMP_PROFILE $PI_CODING_AGENT_DIR
+=== todo
+{"op":"init","i":"Initializing gate todos","list":[{"phase":"Setup","items":["Phase 0.6 plan-only validation","Review worktree + merge main","GC baseline/ready/snapshot"]},{"phase":"Wave 1","items":["Phase 1 QA (carry s1-s4, rerun s5, new captures)","Write implementation-audit brief","Consume reply, model check, trailer check","GC wave record"]},{"phase":"Deliver","items":["Phase 4/5 record, validate, commit","Final report"]}]}
+=== bash
+SKILL_DIR=~/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "exit=$?"; node $SKILL_DIR/scripts/gate-convergence.mjs --help 2>&1 | head -60
+=== bash
+git status --porcelain=v1 --untracked-files=all --ignored; echo "rc=$? lines-above-are-dirty-state"; git stash list
+=== bash
+git switch main && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list && git status --short
+=== bash
+git merge-base --is-ancestor main HEAD; echo "is-ancestor rc=$?"; git merge --no-ff --no-edit main && git log --oneline -3 | cat && git diff --stat HEAD^1 HEAD | cat
+=== bash
+GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "rc=$?"; $GC ready --lane F2; echo "rc=$?"
+=== bash
+GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC snapshot --lane F2; echo "rc=$?"
+=== bash
+cat .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json; echo; wc -c .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; ls .omp/team-config/gate-deltas/
+=== todo
+{"op":"done","i":"Marking setup done","task":"GC baseline/ready/snapshot"}
+=== eval
+import subprocess, os, shutil, tempfile, hashlib
+WT='/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r511-c/.worktrees/review-csv-total'
+HEAD=subprocess.check_output(['git','rev-parse','HEAD'],cwd=WT,text=True).strip()
+dirty=subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=WT,text=True)
+print(HEAD, repr(dirty))
+scratch=tempfile.mkdtemp(prefix='csvtotal-qa-')
+def run(name, content, srcroot=WT):
+    p=os.path.join(scratch,name); open(p,'w').write(content)
+    r=subprocess.run(['bun',os.path.join(srcroot,'src/cli.ts'),'total',p],cwd=srcroot,capture_output=True,text=True)
+    return r.returncode,r.stdout,r.stderr
+for n,c in [('r2-cents-add.csv','a,0.10\nb,0.20\n'),('s5-large.csv','big,1234.50\n'),('e1-999.csv','a,999.99\n'),('e1-1000.csv','a,999.99\nb,0.01\n'),('e1-million.csv','a,1234567.89\n')]:
+    print(n, run(n,c))
+=== eval
+def mutant(file, old, new):
+    root=tempfile.mkdtemp(prefix='csvtotal-mut-')
+    shutil.copytree(os.path.join(WT,'src'), os.path.join(root,'src'))
+    shutil.copy(os.path.join(WT,'package.json'), root)
+    p=os.path.join(root,'src',file); s=open(p).read(); assert s.count(old)==1,(file,old); open(p,'w').write(s.replace(old,new))
+    return root
+m_fmt=mutant('format.ts','return `${head}.${String(rest).padStart(2, "0")}`','return String(cents / 100)')
+m_sum=mutant('price.ts','prices.reduce((total, price) => total + price.cents, 0)','prices.reduce((total, price) => total + price.cents / 100, 0) * 100')
+m_loc=mutant('format.ts','whole.toLocaleString("en-US")','whole.toLocaleString("de-DE")')
+res={}
+res['s5']=run('s5-large.csv','big,1234.50\n'); res['s5m']=run('s5-large.csv','big,1234.50\n',m_fmt)
+res['r2']=run('r2-cents-add.csv','a,0.10\nb,0.20\n'); res['r2m']=run('r2-cents-add.csv','a,0.10\nb,0.20\n',m_sum)
+E=[('e1-999.csv','a,999.99\n','999.99'),('e1-1000.csv','a,999.99\nb,0.01\n','1000.00'),('e1-million.csv','a,1234567.89\n','1234567.89')]
+for n,c,_ in E: res[n]=run(n,c); res[n+'m']=run(n,c,m_loc)
+for k,v in res.items(): print(k,v)
+=== eval
+EV=os.path.join(WT,'.omp/team-config/evidence/gate/csv-total/wave-1'); os.makedirs(EV,exist_ok=True)
+bunv=subprocess.check_output(['bun','--version'],text=True).strip()
+def block(s): return "```\n"+s+"```\n" if s else "```\n```\n"
+def obs(r):
+    return f"- exit: {r[0]}\n- stdout:\n\n{block(r[1])}\n- stderr:\n\n{block(r[2])}"
+hdr=lambda: f"- Head: `{HEAD}` (Merge branch 'main' into feat/csv-total); tracked tree clean at run time\n- Runtime: bun {bunv}\n- Inputs are synthetic files in a scratch directory outside the repo (`$SCRATCH`)\n"
+def inp(n,c): return f"- Input `{n}` ({len(c.encode())} bytes):\n\n{block(c)}"
+# QA5 s5 rerun
+s5c='big,1234.50\n'
+qa5=f"""# F2 wave 1 QA5: regression on adjacent behaviour, s5-large re-run after merging main
+
+Re-run of `f1/s5-large.md` (captured on d0c56d3): the merge of `main` (d5da87c) changed `groupThousands` in `src/format.ts`, which this input reaches (whole part 1234 >= 1000), so the F1 capture is stale and this file replaces it for the row.
+
+{hdr()}- Command (worktree root): `bun src/cli.ts total $SCRATCH/s5-large.csv`
+{inp('s5-large.csv',s5c)}
+## Observed
+
+{obs(res['s5'])}
+## Expected
+
+stdout digits `1234.50` (grouping separators allowed), exit 0
+
+Check result on head: {'MATCH' if res['s5'][0]==0 and res['s5'][1].strip().replace(',','')=='1234.50' else 'NO MATCH'}
+
+## Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (formats without fixed two decimals): src/format.ts: `return `${{head}}.${{String(rest).padStart(2, "0")}}`` -> `return String(cents / 100)`
+
+{obs(res['s5m'])}
+Check result on mutant: {'MATCH' if res['s5m'][1].strip().replace(',','')=='1234.50' else 'NO MATCH'}
+"""
+r2c='a,0.10\nb,0.20\n'
+qa2=f"""# F2 wave 1 QA2: Requirement "Totals are exact in cents"
+
+One row for the requirement; its three scenarios:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Cents add exactly (`a,0.10`, `b,0.20` print `0.30`) | this file, below (new on the reviewed head; F1 did not capture it) | `{HEAD[:12]}` | MATCH; mutant NO MATCH |
+| Empty file (prints `0.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s4-empty.md` (tracked) | `d0c56d3` | MATCH; mutant NO MATCH (carried) |
+| Negative control (ten lines of `x,0.10` print `1.00`, never `0.9999999999999999` or `1`) | `.omp/team-config/evidence/gate/csv-total/f1/s3-cents.md` (tracked) | `d0c56d3` | MATCH; float-sum mutant prints `0.99.99999999999999`, NO MATCH (carried) |
+
+Carry reason (s3, s4): the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; `formatCents` calls it only when the whole part is >= 1000, and these totals are 1 and 0, so their observed output cannot change.
+
+## Cents add exactly (new capture)
+
+{hdr()}- Command (worktree root): `bun src/cli.ts total $SCRATCH/r2-cents-add.csv`
+{inp('r2-cents-add.csv',r2c)}
+### Observed
+
+{obs(res['r2'])}
+### Expected
+
+stdout `0.30`, exit 0
+
+Check result on head: {'MATCH' if res['r2'][:2]==(0,'0.30\n') else 'NO MATCH'}
+
+### Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (summed as float dollars, scaled to cents at the end): src/price.ts: `prices.reduce((total, price) => total + price.cents, 0)` -> `prices.reduce((total, price) => total + price.cents / 100, 0) * 100`
+
+{obs(res['r2m'])}
+Check result on mutant: {'MATCH' if res['r2m'][:2]==(0,'0.30\n') else 'NO MATCH'}
+"""
+qa1=f"""# F2 wave 1 QA1: Requirement "Price lines are parsed strictly"
+
+One row for the requirement; its three scenarios, all captured in F1 and tracked in the reviewed tree:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Valid lines are summed (`widget,19.99`, `gadget,5.01` print `25.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md` | `d0c56d3` | MATCH; decimal-dropping mutant prints `24.00`, NO MATCH |
+| Malformed price is rejected with its line number (`widget,abc`: stderr names line 1, no total, exit 2) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md` | `d0c56d3` | MATCH (`error: line 1: malformed price`, exit 2, empty stdout) |
+| Negative control (a malformed line is never counted as zero or skipped) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md`, section "Negative control" | `d0c56d3` | mutant counting it as zero prints `0.00`, exit 0: NO MATCH |
+
+Carry reason: the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; parsing (`src/price.ts`, `src/cents.ts`, `src/money.ts`) is untouched, the s1 total 25 never reaches `groupThousands` (whole part < 1000), and s2 throws before any formatting, so neither observed output can change. Not re-executed.
+"""
+qa4=f"""# F2 wave 1 QA4: riskiest edge, the 1000 grouping boundary after merging main
+
+The merge of `main` (d5da87c) makes `groupThousands` render the whole part with `toLocaleString("en-US")` when it is >= 1000. Edge: totals just below, exactly at, and far above the boundary, including a total that crosses it only through cents carried in from a second line.
+
+{hdr()}- Check: removing `,` from stdout yields the exact decimal total with exactly two decimals, exit 0, stderr empty
+"""
+for n,c,want in E:
+    r=res[n]; m=res[n+'m']
+    ok=lambda x: x[0]==0 and x[2]=='' and x[1].strip().replace(',','')==want
+    qa4+=f"""
+## {n}
+
+- Command (worktree root): `bun src/cli.ts total $SCRATCH/{n}`
+{inp(n,c)}
+### Observed
+
+{obs(r)}
+Expected digits `{want}`. Check result on head: {'MATCH' if ok(r) else 'NO MATCH'}
+
+### Negative control
+
+Scratch copy of `src/` outside the repo with one mutation (grouping in a locale whose group separator is `.`): src/format.ts: `whole.toLocaleString("en-US")` -> `whole.toLocaleString("de-DE")`
+
+{obs(m)}
+Check result on mutant: {'MATCH' if ok(m) else 'NO MATCH'}
+"""
+qa4+="\nThe mutant is indistinguishable below the boundary (999.99) by design; it fails at and above it.\n"
+for fn,body in [('qa1-r1-parse-strict.md',qa1),('qa2-r2-exact-cents.md',qa2),('qa4-edge-grouping-boundary.md',qa4),('qa5-s5-large-rerun.md',qa5)]:
+    open(os.path.join(EV,fn),'w',newline='\n').write(body)
+print(qa4[-1500:]); print(qa5)
+=== eval
+NL='\n'
+def verdict(b): return 'MATCH' if b else 'NO MATCH'
+v_s5=verdict(res['s5'][0]==0 and res['s5'][1].strip().replace(',','')=='1234.50')
+v_s5m=verdict(res['s5m'][0]==0 and res['s5m'][1].strip().replace(',','')=='1234.50')
+v_r2=verdict(res['r2'][:3]==(0,'0.30'+NL,''))
+v_r2m=verdict(res['r2m'][:3]==(0,'0.30'+NL,''))
+H=hdr()
+qa5=f"""# F2 wave 1 QA5: regression on adjacent behaviour, s5-large re-run after merging main
+
+Re-run of `f1/s5-large.md` (captured on d0c56d3): the merge of `main` (d5da87c) changed `groupThousands` in `src/format.ts`, which this input reaches (whole part 1234 >= 1000), so the F1 capture is stale and this file replaces it for the row.
+
+{H}- Command (worktree root): `bun src/cli.ts total $SCRATCH/s5-large.csv`
+{inp('s5-large.csv','big,1234.50'+NL)}
+## Observed
+
+{obs(res['s5'])}
+## Expected
+
+stdout digits `1234.50` (grouping separators allowed), exit 0
+
+Check result on head: {v_s5}
+
+## Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (formats without fixed two decimals): src/format.ts: `return `${{head}}.${{String(rest).padStart(2, "0")}}`` -> `return String(cents / 100)`
+
+{obs(res['s5m'])}
+Check result on mutant: {v_s5m}
+"""
+qa2=f"""# F2 wave 1 QA2: Requirement "Totals are exact in cents"
+
+One row for the requirement; its three scenarios:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Cents add exactly (`a,0.10`, `b,0.20` print `0.30`) | this file, below (new on the reviewed head; F1 did not capture it) | `{HEAD[:12]}` | {v_r2}; mutant {v_r2m} |
+| Empty file (prints `0.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s4-empty.md` (tracked) | `d0c56d3` | MATCH; blank-lines-not-ignored mutant exits 2, NO MATCH (carried) |
+| Negative control (ten lines of `x,0.10` print `1.00`, never `0.9999999999999999` or `1`) | `.omp/team-config/evidence/gate/csv-total/f1/s3-cents.md` (tracked) | `d0c56d3` | MATCH; float-sum mutant prints `0.99.99999999999999`, NO MATCH (carried) |
+
+Carry reason (s3, s4): the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; `formatCents` calls it only when the whole part is >= 1000, and these totals are 1 and 0, so their observed output cannot change. Not re-executed.
+
+## Cents add exactly (new capture)
+
+{H}- Command (worktree root): `bun src/cli.ts total $SCRATCH/r2-cents-add.csv`
+{inp('r2-cents-add.csv','a,0.10'+NL+'b,0.20'+NL)}
+### Observed
+
+{obs(res['r2'])}
+### Expected
+
+stdout `0.30`, exit 0
+
+Check result on head: {v_r2}
+
+### Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (summed as float dollars, scaled to cents at the end): src/price.ts: `prices.reduce((total, price) => total + price.cents, 0)` -> `prices.reduce((total, price) => total + price.cents / 100, 0) * 100`
+
+{obs(res['r2m'])}
+Check result on mutant: {v_r2m}
+"""
+qa1=f"""# F2 wave 1 QA1: Requirement "Price lines are parsed strictly"
+
+One row for the requirement; its three scenarios, all captured in F1 and tracked in the reviewed tree:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Valid lines are summed (`widget,19.99`, `gadget,5.01` print `25.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md` | `d0c56d3` | MATCH; decimal-dropping mutant prints `24.00`, NO MATCH |
+| Malformed price is rejected with its line number (`widget,abc`: stderr names line 1, no total, exit 2) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md` | `d0c56d3` | MATCH (`error: line 1: malformed price`, exit 2, empty stdout) |
+| Negative control (a malformed line is never counted as zero or skipped) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md`, section "Negative control" | `d0c56d3` | mutant counting it as zero prints `0.00`, exit 0: NO MATCH |
+
+Carry reason: the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; parsing (`src/price.ts`, `src/cents.ts`, `src/money.ts`) is untouched, the s1 total 25 never reaches `groupThousands` (whole part < 1000), and s2 throws before any formatting, so neither observed output can change. Not re-executed.
+"""
+qa4=f"""# F2 wave 1 QA4: riskiest edge, the 1000 grouping boundary after merging main
+
+The merge of `main` (d5da87c) makes `groupThousands` render the whole part with `toLocaleString("en-US")` when it is >= 1000. Edge: totals just below, exactly at, and far above the boundary, including a total that reaches it only through cents from a second line.
+
+{H}- Check: removing `,` from stdout yields the exact decimal total with exactly two decimals, exit 0, stderr empty
+"""
+allok=True
+for n,c,want in E:
+    r=res[n]; m=res[n+'m']
+    ok=lambda x: x[0]==0 and x[2]=='' and x[1].strip().replace(',','')==want
+    allok = allok and ok(r) and (want=='999.99' or not ok(m))
+    qa4+=f"""
+## {n}
+
+- Command (worktree root): `bun src/cli.ts total $SCRATCH/{n}`
+{inp(n,c)}
+### Observed
+
+{obs(r)}
+Expected digits `{want}`. Check result on head: {verdict(ok(r))}
+
+### Negative control
+
+Scratch copy of `src/` outside the repo with one mutation (grouping in a locale whose group separator is `.`): src/format.ts: `whole.toLocaleString("en-US")` -> `whole.toLocaleString("de-DE")`
+
+{obs(m)}
+Check result on mutant: {verdict(ok(m))}
+"""
+qa4+=NL+"The mutant is indistinguishable below the boundary (999.99) by design; it fails at and above it."+NL
+for fn,body in [('qa1-r1-parse-strict.md',qa1),('qa2-r2-exact-cents.md',qa2),('qa4-edge-grouping-boundary.md',qa4),('qa5-s5-large-rerun.md',qa5)]:
+    open(os.path.join(EV,fn),'w',newline=NL).write(body)
+print(allok, v_s5, v_s5m, v_r2, v_r2m); print(qa4)
+=== eval
+EV=os.path.join(WT,'.omp/team-config/evidence/gate/csv-total/wave-1'); os.makedirs(EV,exist_ok=True)
+bunv=subprocess.check_output(['bun','--version'],text=True).strip()
+def block(s): return "```\n"+s+"```\n" if s else "```\n```\n"
+def obs(r): return "- exit: %d\n- stdout:\n\n%s\n- stderr:\n\n%s" % (r[0], block(r[1]), block(r[2]))
+def hdr(): return "- Head: `%s` (Merge branch 'main' into feat/csv-total); tracked tree clean at run time\n- Runtime: bun %s\n- Inputs are synthetic files in a scratch directory outside the repo (`$SCRATCH`)\n" % (HEAD,bunv)
+def inp(n,c): return "- Input `%s` (%d bytes):\n\n%s" % (n,len(c.encode()),block(c))
+print(bunv)
+=== eval
+NL='\n'
+def verdict(b): return 'MATCH' if b else 'NO MATCH'
+v_s5=verdict(res['s5'][0]==0 and res['s5'][1].strip().replace(',','')=='1234.50')
+v_s5m=verdict(res['s5m'][0]==0 and res['s5m'][1].strip().replace(',','')=='1234.50')
+v_r2=verdict(res['r2'][:3]==(0,'0.30'+NL,''))
+v_r2m=verdict(res['r2m'][:3]==(0,'0.30'+NL,''))
+H=hdr()
+qa5=f"""# F2 wave 1 QA5: regression on adjacent behaviour, s5-large re-run after merging main
+
+Re-run of `f1/s5-large.md` (captured on d0c56d3): the merge of `main` (d5da87c) changed `groupThousands` in `src/format.ts`, which this input reaches (whole part 1234 >= 1000), so the F1 capture is stale and this file replaces it for the row.
+
+{H}- Command (worktree root): `bun src/cli.ts total $SCRATCH/s5-large.csv`
+{inp('s5-large.csv','big,1234.50'+NL)}
+## Observed
+
+{obs(res['s5'])}
+## Expected
+
+stdout digits `1234.50` (grouping separators allowed), exit 0
+
+Check result on head: {v_s5}
+
+## Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (formats without fixed two decimals): src/format.ts: `return `${{head}}.${{String(rest).padStart(2, "0")}}`` -> `return String(cents / 100)`
+
+{obs(res['s5m'])}
+Check result on mutant: {v_s5m}
+"""
+qa2=f"""# F2 wave 1 QA2: Requirement "Totals are exact in cents"
+
+One row for the requirement; its three scenarios:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Cents add exactly (`a,0.10`, `b,0.20` print `0.30`) | this file, below (new on the reviewed head; F1 did not capture it) | `{HEAD[:12]}` | {v_r2}; mutant {v_r2m} |
+| Empty file (prints `0.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s4-empty.md` (tracked) | `d0c56d3` | MATCH; blank-lines-not-ignored mutant exits 2, NO MATCH (carried) |
+| Negative control (ten lines of `x,0.10` print `1.00`, never `0.9999999999999999` or `1`) | `.omp/team-config/evidence/gate/csv-total/f1/s3-cents.md` (tracked) | `d0c56d3` | MATCH; float-sum mutant prints `0.99.99999999999999`, NO MATCH (carried) |
+
+Carry reason (s3, s4): the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; `formatCents` calls it only when the whole part is >= 1000, and these totals are 1 and 0, so their observed output cannot change. Not re-executed.
+
+## Cents add exactly (new capture)
+
+{H}- Command (worktree root): `bun src/cli.ts total $SCRATCH/r2-cents-add.csv`
+{inp('r2-cents-add.csv','a,0.10'+NL+'b,0.20'+NL)}
+### Observed
+
+{obs(res['r2'])}
+### Expected
+
+stdout `0.30`, exit 0
+
+Check result on head: {v_r2}
+
+### Negative control
+
+Same input and check against a scratch copy of `src/` outside the repo with one mutation (summed as float dollars, scaled to cents at the end): src/price.ts: `prices.reduce((total, price) => total + price.cents, 0)` -> `prices.reduce((total, price) => total + price.cents / 100, 0) * 100`
+
+{obs(res['r2m'])}
+Check result on mutant: {v_r2m}
+"""
+qa1=f"""# F2 wave 1 QA1: Requirement "Price lines are parsed strictly"
+
+One row for the requirement; its three scenarios, all captured in F1 and tracked in the reviewed tree:
+
+| Scenario | Capture | Head | Result |
+|---|---|---|---|
+| Valid lines are summed (`widget,19.99`, `gadget,5.01` print `25.00`, exit 0) | `.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md` | `d0c56d3` | MATCH; decimal-dropping mutant prints `24.00`, NO MATCH |
+| Malformed price is rejected with its line number (`widget,abc`: stderr names line 1, no total, exit 2) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md` | `d0c56d3` | MATCH (`error: line 1: malformed price`, exit 2, empty stdout) |
+| Negative control (a malformed line is never counted as zero or skipped) | `.omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md`, section "Negative control" | `d0c56d3` | mutant counting it as zero prints `0.00`, exit 0: NO MATCH |
+
+Carry reason: the only change since d0c56d3 is the merge of `main` (d5da87c), which edits `groupThousands` in `src/format.ts`; parsing (`src/price.ts`, `src/cents.ts`, `src/money.ts`) is untouched, the s1 total 25 never reaches `groupThousands` (whole part < 1000), and s2 throws before any formatting, so neither observed output can change. Not re-executed.
+"""
+qa4=f"""# F2 wave 1 QA4: riskiest edge, the 1000 grouping boundary after merging main
+
+The merge of `main` (d5da87c) makes `groupThousands` render the whole part with `toLocaleString("en-US")` when it is >= 1000. Edge: totals just below, exactly at, and far above the boundary, including a total that reaches it only through cents from a second line.
+
+{H}- Check: removing `,` from stdout yields the exact decimal total with exactly two decimals, exit 0, stderr empty
+"""
+allok=True
+for n,c,want in E:
+    r=res[n]; m=res[n+'m']
+    ok=lambda x: x[0]==0 and x[2]=='' and x[1].strip().replace(',','')==want
+    allok = allok and ok(r) and (want=='999.99' or not ok(m))
+    qa4+=f"""
+## {n}
+
+- Command (worktree root): `bun src/cli.ts total $SCRATCH/{n}`
+{inp(n,c)}
+### Observed
+
+{obs(r)}
+Expected digits `{want}`. Check result on head: {verdict(ok(r))}
+
+### Negative control
+
+Scratch copy of `src/` outside the repo with one mutation (grouping in a locale whose group separator is `.`): src/format.ts: `whole.toLocaleString("en-US")` -> `whole.toLocaleString("de-DE")`
+
+{obs(m)}
+Check result on mutant: {verdict(ok(m))}
+"""
+qa4+=NL+"The mutant is indistinguishable below the boundary (999.99) by design; it fails at and above it."+NL
+for fn,body in [('qa1-r1-parse-strict.md',qa1),('qa2-r2-exact-cents.md',qa2),('qa4-edge-grouping-boundary.md',qa4),('qa5-s5-large-rerun.md',qa5)]:
+    open(os.path.join(EV,fn),'w',newline=NL).write(body)
+print(allok, v_s5, v_s5m, v_r2, v_r2m); print(qa4)
+=== bash
+bun test 2>&1 | tail -4; git status --short; git check-ignore -v .omp/team-config/evidence/gate/csv-total/wave-1/*.md; echo "ignored-rc=$?"; file .omp/team-config/evidence/gate/csv-total/wave-1/*.md
+=== eval
+import glob
+for d in [scratch, m_fmt, m_sum, m_loc]: shutil.rmtree(d)
+print([os.path.exists(d) for d in [scratch,m_fmt,m_sum,m_loc]])
+=== todo
+{"op":"done","i":"QA done","task":"Phase 1 QA (carry s1-s4, rerun s5, new captures)"}
+=== bash
+git merge-base HEAD main; git diff --name-only main...HEAD | cat; echo ---; git diff --stat main...HEAD | cat; echo ---; for f in src/*.ts test/csvtotal.test.ts README.md; do git log --oneline -5 -- $f | sed "s|^|$f: |"; done; git log --all --oneline --grep=total | cat; grep -rn -E "TODO|FIXME|HACK" src test || echo "no TODO/FIXME/HACK"; command -v gh && gh repo view 2>&1 | head -2; git remote -v
+=== bash
+head -c 1500 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; echo; grep -n '^=====' .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md
+=== eval
+g=lambda *a: subprocess.check_output(['git',*a],cwd=WT,text=True)
+DIFF=g('diff','main...HEAD')
+CHANGED=g('diff','--name-only','main...HEAD')
+MERGEDIFF=g('diff','a56d6c1','HEAD')
+PLAN=open(os.path.join(WT,'.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md')).read()
+FMT=open(os.path.join(WT,'src/format.ts')).read()
+BASE=g('merge-base','HEAD','main').strip()
+print(len(DIFF), MERGEDIFF)
+=== eval
+EVR='.omp/team-config/evidence/gate/csv-total'
+GOAL=f"""Goal (OpenSpec change `csv-total`, proposal.md): add a `csvtotal total <file>` command that sums the prices of a `name,price` file in exact cents and prints the total with two decimals, and rejects a malformed price line with exit code 2 and a message naming the line, so finance can reconcile supplier price files against the invoice without a manual sum.
+Constraints: spec.md requirements "Price lines are parsed strictly" (one `name,price` line per row, blank lines ignored, a file holding a line whose price is not a number is refused, naming each such line; such a line is never counted as zero or skipped) and "Totals are exact in cents" (whole cents summed, exactly two decimals printed, no decimal drift; empty file prints `0.00`). design.md: prices scaled to whole cents on parse, summed as integers, formatted once on the total; Non-Goals: quoted CSV fields, currencies other than a bare decimal, locale formatting. gate.md: Mandatory class none, Depth standard, Risk tier product, Accepted residual risk: sub-cent rounding per line (`src/money.ts`); Out of scope for blocking: none.
+Background: finance reconciles supplier price files by hand; a wrong total reaches a finance reconciliation (gate.md author's risk assessment). Standalone local CLI: reads one local file, writes stdout/stderr, holds no credential or personal data, changes no shared state.
+Integration note: the default branch `main` moved after F1 (d5da87c "feat: group thousands in formatted totals of 1000 or more", changing `groupThousands` in the pre-existing `src/format.ts` to `whole.toLocaleString("en-US")`). It was merged into the work branch as {HEAD} before this wave, so the reviewed tree prints totals >= 1000 with `,` group separators (e.g. `1,234.50`). `src/format.ts` is not in the branch diff below (it lives on `main` since the scaffold a951855) but `src/cli.ts` in the diff consumes `formatCents` from it; the seam between the branch and the merged change is `src/cli.ts` -> `formatCents` -> `groupThousands`. tasks.md 3.1 s5 accepts the total "with or without grouping separators"."""
+FILES=f"""Workspace root (review worktree, read-only for you): {WT}
+Reviewed commit {HEAD} (branch feat/csv-total), diff base {BASE} (merge-base with `main`, which is now `main` itself).
+Changed-file paths are relative to that root. Neighbouring file that shows the formatter the CLI consumes: `src/format.ts` (current content below). Plan: OpenSpec change folder `openspec/changes/csv-total/` (snapshot bundle below; this is the exact plan input of this wave).
+
+Current `src/format.ts` on the reviewed head:
+```ts
+{FMT}```
+
+Merge delta brought in from `main` (git diff a56d6c1 {HEAD[:12]}, i.e. pre-merge head to reviewed head):
+```diff
+{MERGEDIFF}```
+
+CONTEXT_MINING (source -> finding -> why it matters):
+- `git log -- src/format.ts` -> a951855 scaffold, then d5da87c on `main` switches `groupThousands` to `toLocaleString("en-US")` -> the reviewed CLI's output for totals >= 1000 now carries `,` separators; design.md lists "locale formatting" as a Non-Goal and the spec says only "exactly two decimals".
+- `git log -- src/cents.ts src/cli.ts src/money.ts src/price.ts test/csvtotal.test.ts` -> single commit 0cd516d each -> no prior history or reverts in this area.
+- `git log --all --grep=total` -> 0cd516d, d0c56d3 (first merge of `main`, README), a56d6c1 (F1 QA evidence), d5da87c, {HEAD[:7]} (second merge of `main`) -> no related reverts.
+- `rg TODO|FIXME|HACK src test` -> none.
+- GitHub issues/PRs -> not available (no remote configured, `gh` unauthenticated).
+- Consumers: design.md "nothing else in the repository reads these files"; `bun test` on the reviewed head: 4 pass, 0 fail (test/csvtotal.test.ts does not cover totals >= 1000).
+
+Plan snapshot bundle (verbatim):
+```
+{PLAN}```"""
+QAM=f"""Depth standard: one row per requirement, plus happy path, riskiest edge, adjacent regression. All rows PASS. Artifacts are under the record's evidence directory `{EVR}/` in the worktree.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| QA1 | Requirement "Price lines are parsed strictly" (valid lines summed; malformed price rejected with line number; negative control) | `bun src/cli.ts total FILE` on `widget,19.99`+`gadget,5.01`, and on `widget,abc`; mutants on scratch copies | `25.00` exit 0; stderr names line 1, no stdout, exit 2; zero-counting mutant fails | `25.00` exit 0; `error: line 1: malformed price` exit 2, empty stdout; mutant prints `0.00` (NO MATCH) | PASS (CARRIED from F1 on d0c56d3: the merge of `main` touches only `groupThousands`, which these outputs never reach - whole part 25 < 1000, s2 throws before formatting) | `{EVR}/wave-1/qa1-r1-parse-strict.md` (folds `f1/s1-happy.md`, `f1/s2-malformed.md`) |
+| QA2 | Requirement "Totals are exact in cents" (cents add exactly; empty file; negative control ten lines of `x,0.10`) | `bun src/cli.ts total FILE` on `a,0.10`+`b,0.20` (new, on {HEAD[:12]}); empty file and ten `x,0.10` lines (F1); float-sum mutant | `0.30`; `0.00` exit 0; `1.00`, never `0.9999999999999999`/`1` | `0.30` exit 0 (mutant `0.30.000000000000004`, NO MATCH); `0.00`; `1.00` (mutant `0.99.99999999999999`, NO MATCH) | PASS (`0.30` re-observed on reviewed head; s3/s4 CARRIED from d0c56d3: totals 1 and 0 never reach `groupThousands`) | `{EVR}/wave-1/qa2-r2-exact-cents.md` (cites `f1/s3-cents.md`, `f1/s4-empty.md`) |
+| QA3 | Happy path the goal names | `bun src/cli.ts total FILE` on `widget,19.99`+`gadget,5.01` | `25.00`, exit 0 | `25.00`, exit 0; decimal-dropping mutant `24.00` | PASS (CARRIED from F1 on d0c56d3, same reason as QA1) | `{EVR}/f1/s1-happy.md` |
+| QA4 | Riskiest edge: the 1000 grouping boundary introduced by the merged `main` change | `bun src/cli.ts total FILE` on `a,999.99`; `a,999.99`+`b,0.01`; `a,1234567.89`; `de-DE` locale mutant | digits with `,` removed equal `999.99`, `1000.00`, `1234567.89`; two decimals; exit 0 | `999.99`, `1,000.00`, `1,234,567.89`, exit 0; mutant `1.000.00`, `1.234.567.89` (NO MATCH at and above 1000) | PASS (new on {HEAD[:12]}) | `{EVR}/wave-1/qa4-edge-grouping-boundary.md` |
+| QA5 | Regression on adjacent behaviour: F1 s5 large amount, re-run because the merge changed the code it reaches | `bun src/cli.ts total FILE` on `big,1234.50`; fixed-two-decimals mutant | digits `1234.50`, separators allowed, exit 0 | `1,234.50`, exit 0; mutant `1234.5` (NO MATCH) | PASS (RE-RUN on {HEAD[:12]}; `f1/s5-large.md` printed `1234.50` on d0c56d3 and is stale) | `{EVR}/wave-1/qa5-s5-large-rerun.md` |
+
+Also observed: `bun test` on {HEAD[:12]}: 4 pass, 0 fail."""
+CRIT="""The plan supplies no separate criteria list; the spec's scenarios, in five fields:
+1. Invariant: a file holding a line whose price is not a number never yields a total. Positive witness: `widget,abc` -> stderr `error: line 1: malformed price`, empty stdout, exit 2. Negative control: the line counted as zero or skipped, printing `0.00`, exit 0. Observable: CLI exit code, stdout, stderr. Boundary: the `csvtotal total` CLI process.
+2. Invariant: decimal prices sum without floating-point drift and print with exactly two decimals. Positive witness: ten lines of `x,0.10` print `1.00`; `a,0.10`+`b,0.20` print `0.30`. Negative control: `0.9999999999999999`, `1`, or `0.30000000000000004`. Observable: CLI stdout. Boundary: the `csvtotal total` CLI process.
+3. Invariant: blank lines are ignored and an empty file is a zero total, not an error. Positive witness: empty file prints `0.00`, exit 0. Negative control: empty file rejected as malformed line 1, exit 2. Observable: CLI exit code and stdout. Boundary: the `csvtotal total` CLI process.
+4. Invariant (tasks.md 3.1 s5): a total of 1000 or more keeps its exact digits and two decimals; grouping separators are allowed. Positive witness: `big,1234.50` prints `1234.50` or `1,234.50`. Negative control: `1234.5`. Observable: CLI stdout. Boundary: the `csvtotal total` CLI process."""
+tmpl=L[206:255]  # lines 207..255 fence incl
+s='\n'.join(L[207:254])
+assert s.startswith('Local implementation audit') and s.endswith('END-REVIEW-TRAILER')
+brief=(s.replace('{GOAL, CONSTRAINTS, BACKGROUND}',GOAL)
+ .replace('{CHANGED_FILES, DIFF}', "Changed files (git diff --name-only "+BASE[:12]+"..."+HEAD[:12]+"):\n```\n"+CHANGED+"```\nReviewed diff (git diff "+BASE[:12]+"..."+HEAD[:12]+", DIFF_RANGE):\n```diff\n"+DIFF+"```")
+ .replace('{FILE PATHS, CONTEXT_MINING, PLAN}',FILES)
+ .replace('{QA MATRIX}',QAM)
+ .replace('{CRITERIA WITH FIVE FIELDS}',CRIT))
+assert '{' not in s.replace('{GOAL, CONSTRAINTS, BACKGROUND}','').replace('{CHANGED_FILES, DIFF}','').replace('{FILE PATHS, CONTEXT_MINING, PLAN}','').replace('{QA MATRIX}','').replace('{CRITERIA WITH FIVE FIELDS}','')
+OUT='/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/r511/out-c/'
+os.makedirs(OUT,exist_ok=True)
+bp=os.path.join(OUT,'brief-implementation-audit-wave-1.md'); open(bp,'w').write(brief+'\n')
+print(bp, len(brief)); print(brief[:1500])
+=== todo
+{"op":"done","i":"Brief written","task":"Write implementation-audit brief"}
+=== bash
+P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D; ls -la $P $P/r511/out-c; cat $P/c-w1-reply.md; echo; echo ===; wc -l $P/c-sess.jsonl
+=== read
+{"path":"/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md:raw","i":"Reading reviewer reply"}
+=== read
+{"path":"/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl:raw","i":"Reading reviewer session file"}
+=== bash
+S=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-sess.jsonl; jq -r 'select(.type=="message" and .message.role=="assistant") | "assistant \(.message.provider)/\(.message.model)"' $S; jq -r 'select(.type=="thinking_level_change") | "thinking \(.thinkingLevel)"' $S; jq -r 'select(.type=="model_change") | "model_change \(.model) fallback=\(.resolvedModelIsFallback)"' $S
+=== bash
+mkdir -p .omp/team-config/evidence/csv-total/f2 && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt && cmp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/c-w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt && echo identical; node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt --invocation implementation-audit --verdict PASS --plan openspec/changes/csv-total; echo "rc=$?"
+=== todo
+{"op":"done","i":"Reply consumed","task":"Consume reply, model check, trailer check"}
+=== bash
+GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=PASS --trailer implementation-audit=.omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt; echo "rc=$?"
+=== eval
+import json
+def sha(p): return hashlib.sha256(open(os.path.join(WT,p),'rb').read()).hexdigest()
+plan_copy_sha=sha('.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md')
+print(plan_copy_sha)
+TR='.omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt'
+qa=[("QA1 Requirement: Price lines are parsed strictly (carried from F1 on d0c56d3)", f"{EVR}/wave-1/qa1-r1-parse-strict.md"),
+    ("QA2 Requirement: Totals are exact in cents (0.30 re-observed on reviewed head; s3/s4 carried)", f"{EVR}/wave-1/qa2-r2-exact-cents.md"),
+    ("QA3 Happy path widget,19.99 + gadget,5.01 prints 25.00 (carried from F1 on d0c56d3)", f"{EVR}/f1/s1-happy.md"),
+    ("QA4 Riskiest edge: 1000 grouping boundary from merged main (999.99, 1,000.00, 1,234,567.89)", f"{EVR}/wave-1/qa4-edge-grouping-boundary.md"),
+    ("QA5 Adjacent regression: s5 big,1234.50 re-run after merging main prints 1,234.50", f"{EVR}/wave-1/qa5-s5-large-rerun.md")]
+rec={
+ "schema":"team-config.merge-gate/v3",
+ "plan":"openspec/changes/csv-total",
+ "plan_sha256":plan_copy_sha,
+ "reviewed_sha":HEAD,
+ "diff_base":BASE,
+ "reviewers_run":["implementation-audit"],
+ "decision_reason":"gate.md Depth standard; Mandatory class none re-checked on the final diff incl. merged main (local CLI, no auth/schema/wire/state change); one implementation-audit",
+ "mandatory_class":"none",
+ "implementation_models":["onara/cc/claude-opus-5-5"],
+ "qa":[{"name":n,"passed":True,"artifact":a,"artifact_sha256":sha(a)} for n,a in qa],
+ "whole_diff":{"run":False,"reason":"whole-diff surface reviewed in F2"},
+ "resolution":[{"invocation":"implementation-audit","agent":"auditor","model":"onara/cx/gpt-6.1-sol","independence":"cross-provider"}],
+ "verdicts":[{"invocation":"implementation-audit","verdict":"PASS","trailer_artifact":TR,"trailer_sha256":sha(TR),"note":"F2 wave 1, no blockers; trailer "+TR}],
+ "blockers":[]
+}
+RP=os.path.join(WT,'.omp/team-config/evidence/gate/csv-total.json')
+open(RP,'w').write(json.dumps(rec,indent=2)+'\n')
+print(json.dumps(rec,indent=2))
+=== bash
+shasum -a 256 .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt .omp/team-config/evidence/gate/csv-total/wave-1/*.md .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md | awk '{print substr($1,1,12), $2}'; git add .omp/team-config/evidence/gate/csv-total.json .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt .omp/team-config/evidence/gate/csv-total/wave-1/qa1-r1-parse-strict.md .omp/team-config/evidence/gate/csv-total/wave-1/qa2-r2-exact-cents.md .omp/team-config/evidence/gate/csv-total/wave-1/qa4-edge-grouping-boundary.md .omp/team-config/evidence/gate/csv-total/wave-1/qa5-s5-large-rerun.md && git status --short && node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total; echo "rc=$?"
+=== bash
+git commit -q -m "gate(csv-total): F2 wave 1 record, implementation-audit trailer, QA evidence" && git log --oneline -1 | cat && git show --stat --format= HEAD | cat && node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total; echo "rc=$?"; git status --short
+=== read
+{"path":"rule://merge-gate-proof","i":"Reading gate proof rule"}

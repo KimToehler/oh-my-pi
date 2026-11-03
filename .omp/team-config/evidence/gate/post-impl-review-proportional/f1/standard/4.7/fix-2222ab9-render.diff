@@ -1,0 +1,23 @@
+commit 2222ab914bd1e20117bd2ad7881c6cdcb37bc222
+Author: Tim <tim.koehler90@googlemail.com>
+Date:   Tue Nov 3 00:31:27 2026 +0100
+
+    fix: group every three integer digits in fee amounts (F2 4.1)
+
+diff --git a/src/render.ts b/src/render.ts
+index d743a75..5043610 100644
+--- a/src/render.ts
++++ b/src/render.ts
+@@ -10,10 +10,9 @@ export interface Report {
+ 
+ /** Whole units with two decimals and a comma after every group of three integer digits. */
+ export function formatAmount(cents: number): string {
+-  const units = Math.floor(cents / 100);
++  const units = String(Math.floor(cents / 100));
+   const decimals = String(cents % 100).padStart(2, "0");
+-  const thousands = Math.floor(units / 1000);
+-  const grouped = thousands > 0 ? `${thousands},${String(units % 1000).padStart(3, "0")}` : String(units);
++  const grouped = units.replace(/\B(?=(\d{3})+$)/g, ",");
+   return `${grouped}.${decimals}`;
+ }
+ 

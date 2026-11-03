@@ -1,0 +1,12 @@
+     1	BASELINE 63687cd82a15 recorded
+     2	READY
+     3	SNAPSHOT F2 wave 1 63687cd82a15
+     4	PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md
+     5	DECISION: CONTINUE
+     6	WAVE F2 1 total=1 fix_induced=0 unlocated=0
+     7	RECORDED fix_delta_review rows=4.1 round=1 verdict=OKAY
+     8	READY
+     9	SNAPSHOT F2 wave 2 12d38d8843e3
+    10	PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md
+    11	DECISION: CONTINUE
+    12	WAVE F2 2 total=1 fix_induced=0 unlocated=1

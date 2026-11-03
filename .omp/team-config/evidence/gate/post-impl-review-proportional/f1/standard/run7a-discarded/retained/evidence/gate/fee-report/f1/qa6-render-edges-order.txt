@@ -1,0 +1,27 @@
+row: QA6
+command: bun src/cli.ts /tmp/feereport-qa/fixtures/edges.json (in a pty)
+--- input /tmp/feereport-qa/fixtures/edges.json
+{"lines":[
+ {"id":"z9","dueDate":"2026-03-01","feeCents":5},
+ {"id":"a1","dueDate":"2026-01-01","feeCents":0},
+ {"id":"m5","dueDate":"2026-02-01","feeCents":99999},
+ {"id":"m5","dueDate":"2026-02-02","feeCents":100000},
+ {"id":"q","dueDate":"2026-02-03","feeCents":100000000}
+]}
+head: 7e122430af7fd360e66c47d1aad818bf34579531
+--- observed (cat -vet: ^I = TAB, $ = end of line)
+z9^I2026-03-01^I0.05$
+a1^I2026-01-01^I0.00$
+m5^I2026-02-01^I999.99$
+m5^I2026-02-02^I1,000.00$
+q^I2026-02-03^I1,000,000.00$
+TOTAL^I^I1,002,000.04$
+
+--- expected (cat -vet)
+z9^I2026-03-01^I0.05$
+a1^I2026-01-01^I0.00$
+m5^I2026-02-01^I999.99$
+m5^I2026-02-02^I1,000.00$
+q^I2026-02-03^I1,000,000.00$
+TOTAL^I^I1,002,000.04$
+verdict: PASS (byte-equal)

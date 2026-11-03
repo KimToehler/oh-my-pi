@@ -1,0 +1,44 @@
+Working...
+The F2 gate for `jobq-lifecycle` is not passed: wave 3 stopped on one open blocker, and the skill says I must ask you before anything else happens. No gate record exists, nothing is staged, and the branch must not merge.
+
+## Question
+
+The `gate-convergence` script stopped wave 3 with `DECISION: STOP blockers did not fall over three waves (1 -> 1)`.
+
+Ledger (in the review worktree, `.worktrees/jobq-lifecycle-review`, on `feat/jobq-lifecycle`):
+
+| Wave | Head | QA | implementation-audit | strategic-risk-review | Blockers | Decision |
+|---|---|---|---|---|---|---|
+| 1 | `9290ee9` | FAIL (QA8) | not dispatched | not dispatched | 1 | CONTINUE |
+| fix 3.1 | `653803d` | | delta review OKAY | | | |
+| 2 | `653803d` | PASS (12/12) | FAIL | FAIL | 2 | CONTINUE |
+| fixes 4.1, 4.2 | `4a40501` | | delta review OKAY | | | |
+| 3 | `4a40501` | PASS (14/14) | PASS | FAIL | 1 | STOP |
+
+The open blocker is strategic-risk-review B1, class `non-atomic-snapshot-write`, at `src/store.ts:6`. The reviewer's stated consequence: "`saveSnapshot` ... truncates the file and then writes it; a process that dies, or a reader that opens the file, in between sees an empty or partial file and `loadSnapshot` throws on it, losing every job."
+
+This blocker cannot be accepted. The change's mandatory class is `concurrency-state`, and the blocker names a gate criterion ("Each claim persists a snapshot"). So freeze is not offered, even if you ask for it.
+
+My evidence against the blocker: after fix 4.2, `JobQueue.persist` writes to `<path>.tmp` through `saveSnapshot` and then renames it over the target, so the target file is never truncated. QA13 on `4a40501` made 399 reads during 199 claims and none was empty or partial. Before 4.2 the same script saw 69 and 76 bad reads. The reviewer reported line 6 as unchanged and did not mention the new `persist`. The skill does not let me overrule its verdict, so this is your call.
+
+**Options:**
+- **re-plan**: a separate plan for the affected mechanism. One example is making `saveSnapshot` atomic in the storage contract repository, since `src/store.ts` is generated and marked DO NOT EDIT.
+- **continue**: one more fix wave.
+
+Your answer gets recorded with `GC decide --lane F2 --choice replan|continue --by <you> --reason <text>`.
+
+## What ran
+- **Wave 1:** no reviewers were sent, because the QA failure ends the review there. The `w1-*` reviewer payloads were unused and no `w1-*-brief.md` was written.
+  - **What failed:** QA8 showed that two workers claiming different jobs at the same time broke the snapshot. In 200 runs it was unparseable 60 times and missing a finished claim 52 times.
+- **Fix 3.1:** snapshot writes now run one at a time.
+- **Wave 2:**
+  - implementation-audit B1: `requeue` could put a `done` job back on the queue, so its work would run again.
+  - strategic-risk-review B1: the snapshot write is truncate-then-write.
+- **Fixes 4.1 and 4.2:** requeue is only allowed from `failed` and goes through `JobQueue`; the snapshot is written to a temp file and renamed into place.
+- Every new test failed before its fix and passes after it; the full suite passes (8/8).
+- Briefs for waves 2 and 3 and both delta reviews are in `payloads/F1B/b/briefs/`. Every reviewer session matched the auditor's required model and effort (`onara/cx/gpt-6.1-sol` on high). All four stored trailers pass the validator's trailer check. The independence label is `cross-provider`.
+
+## Other things you should know
+- **Main checkout:** to give the branch its own review worktree, I ran `git checkout --detach` there on a clean tree at the same commit (`f839ce2`). No files changed. The review worktree is locked.
+- **`review.md` is stale:** adding fix rows 3.1, 4.1 and 4.2 to `tasks.md` means `validate-openspec-change.mjs --reviewed` will now report it as stale.
+- **One edit by `sed`:** I ticked the row 3.1 checkbox with `sed` instead of the edit tool. It changed only that checkbox, as committed in `653803d`.

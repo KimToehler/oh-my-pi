@@ -1,0 +1,18 @@
+## validator
+passed
+exit=0
+## git log
+* afcc78f chore(csv-total): F2 merge-gate record, wave-1 QA and audit trailer
+*   3c11e3c Merge branch 'main' into feat/csv-total
+|\  
+| * c065578 feat: group thousands in formatted totals of 1000 or more
+* | 45b7048 test(csv-total): F1 manual QA evidence, tick 3.1
+* | dd2b9c6 Merge branch 'main' into feat/csv-total
+|\| 
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema
+## status
+## ancestor main (main-checkout)
+0

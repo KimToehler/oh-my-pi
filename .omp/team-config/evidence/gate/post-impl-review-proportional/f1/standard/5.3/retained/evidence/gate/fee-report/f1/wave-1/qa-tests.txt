@@ -1,0 +1,5 @@
+$ bun test
+exit: 0
+stdout (repr, exact bytes): 'bun test v1.4.4 (5d9cc0f4f)\n'
+stderr: '\nsrc/fee.test.ts:\n(pass) one complete period charges 2% [0.07ms]\n(pass) fee is capped at 25% of the amount\n(pass) 29 days overdue charges nothing\n\nsrc/render.test.ts:\n(pass) lines and total [0.13ms]\n(pass) cents are zero padded\n(pass) thousands are grouped\n(pass) empty report\n\n 7 pass\n 0 fail\n 7 expect() calls\nRan 7 tests across 2 files. [4.00ms]\n'
+note: expected the committed suite to pass

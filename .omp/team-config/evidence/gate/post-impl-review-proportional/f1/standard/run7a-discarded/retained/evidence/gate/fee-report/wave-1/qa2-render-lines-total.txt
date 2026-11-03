@@ -1,0 +1,15 @@
+row: QA2
+command: bun src/cli.ts /tmp/feereport-qa/fixtures/lines.json (in a pty)
+--- input /tmp/feereport-qa/fixtures/lines.json
+{"lines":[{"id":"a","dueDate":"2026-01-10","feeCents":200},{"id":"b","dueDate":"2026-01-12","feeCents":1250}]}
+head: efccebc15cbd61b8660585fc320ce33eda80b4cd
+--- observed (cat -vet: ^I = TAB, $ = end of line)
+a^I2026-01-10^I2.00$
+b^I2026-01-12^I12.50$
+TOTAL^I^I14.50$
+
+--- expected (cat -vet)
+a^I2026-01-10^I2.00$
+b^I2026-01-12^I12.50$
+TOTAL^I^I14.50$
+verdict: PASS (byte-equal)

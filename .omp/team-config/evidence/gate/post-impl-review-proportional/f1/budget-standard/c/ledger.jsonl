@@ -1,0 +1,2 @@
+{"ts":"2026-11-02T20:36:46.464Z","event":"gate_baseline","plan":"openspec/changes/csv-total","base_sha":"aba51593da95898f6a2a1f9bd90e747d3d26f76d","risk_tier":"product"}
+{"ts":"2026-11-02T20:38:23.070Z","event":"gate_wave","plan":"openspec/changes/csv-total","lane":"F2","wave":1,"reviewed_sha":"aba51593da95898f6a2a1f9bd90e747d3d26f76d","outcomes":{"qa":"PASS","implementation-audit":"PASS"},"blockers_total":0,"blockers_fix_induced":0,"fix_induced":[],"unlocated":[],"decision":"PASS"}

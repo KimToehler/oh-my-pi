@@ -1,0 +1,32 @@
+# call 14: []
+
+
+# call 15: []
+
+
+# call 23: ['baseline', 'ready']
+BASELINE a0ccec20abe7 recorded
+READY
+
+# call 24: ['snapshot']
+SNAPSHOT F2 wave 1 a0ccec20abe7
+PLAN /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r3-review/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-1.plan.md
+
+# call 32: ['wave']
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+
+# call 42: ['patch']
+
+
+# call 47: ['delta', 'ready']
+RECORDED fix_delta_review rows=4.2 round=1 verdict=OKAY
+READY
+
+# call 49: ['snapshot']
+SNAPSHOT F2 wave 2 145e0c2d9144
+PLAN /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r3-review/.omp/team-config/gate-deltas/F2-9c6da0f3c5f8-wave-2.plan.md
+
+# call 60: ['wave']
+DECISION: PASS
+WAVE F2 2 total=0 fix_induced=0 unlocated=0

@@ -1,0 +1,65 @@
+## 1. Goal and behavioural contract
+
+Reviewed all supplied changes against the proposal, design, specification and gate, plus the actual source, tests, sample, package manifest, compiler configuration and OpenSpec workflow configuration.
+
+The implementation preserves the intended separation:
+- `lateFee` calculates fees independently.
+- `renderReport` formats precomputed fees without calculating accrual.
+- The CLI reads the report, renders it and appends a newline.
+
+No blocking behavioural defect was substantiated for the stated trusted-input use case.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+- **Fee calculation:** `src/fee.ts:7-9` floors complete periods, caps the percentage before applying it, then floors the fee. The supplied API observations cover period boundaries, the cap transition, zero values and fractional-cent truncation.
+- **Rendering:** `src/render.ts:13-16` implements repeated three-digit grouping and two decimal places. Both detail rows and the total use this same formatter (`src/render.ts:21-23`), so the wave-1 fix reaches both previously failing sites.
+- **Order and totals:** Rendering maps the supplied array without sorting or filtering, and sums the original integer-cent values.
+- **CLI seam:** `src/cli.ts:9` delegates to the renderer and uses `console.log` for the final newline. The captured stdout bytes demonstrate the required output for populated and empty reports.
+- LSP references confirm that the CLI consumes the renderer, while fee calculation has no production dependency on rendering. There are no existing consumers to migrate.
+
+**Note N1 — Planning-review provenance remains unresolved.** `openspec/changes/fee-report/review.md:3-9` still records an approved round 1. The supplied history reports subsequent specification/design edits accompanied by digest re-stamping without another reviewer, and the supplied `--reviewed` result reports the current record as stale. This conflicts with `openspec/schemas/omp-gated/schema.yaml:353-369` and its apply prerequisites at lines 699-706. Obtain an independent review of the current artifacts and record its actual result; merely replacing the digest would not repair the provenance. **Non-blocking under this brief’s threshold:** this establishes a planning-process discrepancy, but not a fee/rendering failure, affected consumer, protected-asset exposure or demonstrated failure of the named F2 record-validation criterion. This implementation audit does not establish that the separate planning prerequisite is satisfied.
+
+## 3. Security and privacy delta
+
+No qualifying security delta was found. The change introduces no authentication, authorization, credentials, network access, persistence or third-party personal-data handling. The sample identifiers are synthetic.
+
+The CLI reads a caller-selected local file and parses trusted JSON. Malformed files and hostile field contents are expressly outside the input contract; no new privileged execution or protected-asset exposure was identified.
+
+## 4. Verification adequacy
+
+I read the six wave-2 transcripts, rather than relying solely on their matrix verdicts:
+
+- QA1 records all 13 fee cases matching their expected integer results.
+- QA2–QA5 record matching CLI bytes for the sample, large fee, empty report and grouping boundaries.
+- QA6 records eight passing tests and the expected missing-argument exit/status output.
+- The wave-1 QA3 transcript records the original grouping failure, providing direct before/after behavioural evidence.
+
+The committed tests import the real implementations and assert observable values; they do not substitute mocks.
+
+**Note N2 — Some useful coverage is manual-only.** `src/fee.test.ts:4-14` does not retain QA1’s fractional-cent truncation or cap-transition boundary cases, and neither committed test file exercises CLI execution. **Non-blocking:** those behaviours were exercised successfully through the real API/CLI in this wave, so this is a future regression-protection gap, not missing present-tense behavioural proof.
+
+Residual evidence limitations:
+- No committed-test RED transcript was supplied for the new grouping regression test. The observed pre-fix CLI failure demonstrates the defect, but does not establish that test’s recorded RED execution.
+- Typechecking remains unavailable in the supplied tooling state; I did not rerun the reported failure.
+- My additional adversarial criterion is **rendering non-mutation and repeatability**: rendering the same report twice should leave its objects unchanged and return identical bytes. Source inspection supports this through non-mutating `map`/`reduce` operations, but no runtime snapshot/repeat-call probe was supplied.
+
+No commands, writes or delegated reviews were performed.
+
+## 5. Final assessment
+
+No finding meets the supplied blocking threshold. The reviewed source and real-surface transcripts support the requested behaviour, including the repaired large-number grouping. The planning-provenance discrepancy and verification limitations above remain explicit qualifications, not claims of completed approval or unperformed verification.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Rendering a report must not mutate its array or line objects, and repeated rendering of the same unchanged object must return identical bytes.
+  positive_witness: Render the sample report twice; its serialized input remains identical to the initial snapshot and both returned strings are equal.
+  negative_control: A renderer sorts the caller's array in place or rewrites feeCents during formatting, changing the input snapshot or a subsequent render.
+  observable: Compare input snapshots before and after both calls and compare the two returned strings; this runtime probe was not supplied, while static inspection found only non-mutating operations.
+  boundary: The renderReport API and the caller-owned report object.
+END-REVIEW-TRAILER

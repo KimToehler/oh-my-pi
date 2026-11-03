@@ -1,0 +1,4 @@
+child_file	model_change	thinking_level_change	provider_model_of_assistant_turns	n_assistant_turns
+/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r7/2026-11-02T22-18-50-504Z_01a19e58-0308-7649-a2f4-aec46388b8b9/F2DeltaFix22.jsonl	["onara/cx/gpt-6.1-sol"]	["high"]	  19 ["onara","cx/gpt-6.1-sol"] 	19
+/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r7/2026-11-02T22-18-50-504Z_01a19e58-0308-7649-a2f4-aec46388b8b9/F2DeltaFix22Retry.jsonl	["onara/cx/gpt-6.1-sol"]	["high"]	  16 ["onara","cx/gpt-6.1-sol"] 	16
+/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r7/2026-11-02T22-18-50-504Z_01a19e58-0308-7649-a2f4-aec46388b8b9/F2Wave2ImplAudit.jsonl	["onara/cx/gpt-6.1-sol"]	["high"]	  28 ["onara","cx/gpt-6.1-sol"] 	28

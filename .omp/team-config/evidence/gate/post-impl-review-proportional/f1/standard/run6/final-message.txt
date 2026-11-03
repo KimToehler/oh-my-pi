@@ -1,0 +1,47 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The gate passed on its second wave, after one fix round. In wave 1, manual QA (F1) found a real bug and no reviewer was dispatched. I fixed it, the fix was reviewed, and wave 2 passed both QA and `implementation-audit`. Nothing is merged.
+
+Decision reason: gate.md sets Depth `standard` (Mandatory class `none`, no review, gate or release mechanism changes), and the final diff adds no auth, schema, external wire contract or shared state.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (5 rows, 5 artifacts) | orchestrator | - | - | PASS (wave 2; wave 1 FAIL on QA3) | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+None open. The one that was found is fixed:
+- **QA3, wave 1 (FAIL):** an invoice 30 days overdue across the spring clock change got no fee. `src/invoice.ts:11` built dates with `new Date(y, m - 1, d)`, which uses the machine's local time zone, so in Europe/Berlin or New York those 30 days counted as 29 and the fee came out 0. The spec counts days in UTC.
+  - Fixed in `418158c` by switching to `Date.UTC`, with a new test that forces a time zone that changes its clocks. I saw the test fail before the fix and all 7 tests pass after it.
+  - Task row 1.2 was added to `tasks.md` first. The fix review by `plan-reviewer` returned OKAY and is recorded with `GC delta`.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all covered by the single `implementation-audit`.
+
+## Key Findings (non-blocking auditor notes)
+- Money is held in plain JavaScript numbers with no documented safe range. That's only a risk at amounts far beyond normal invoices.
+- `src/report.test.ts` has no direct tests for the printed output or for leaving the input unchanged. The QA runs cover both.
+- `openspec/changes/late-fee-report/review.md` is now out of date: adding row 1.2 changed the folder, so `validate-openspec-change.mjs --reviewed` reports the stored review stale. The gate validator doesn't check this, and I didn't edit review.md. Re-running the planning review is your call.
+
+## Recommendations
+- Decide whether to re-run the OpenSpec planning review so review.md matches the folder again.
+- Merge `feat/late-fee-report` when you're ready; the record validates.
+
+## Worktree changes
+With your consent, the main worktree is now on `main`. The gate ran in the locked review worktree `.worktrees/review-late-fee-report`, which is why `.worktrees/` shows as untracked in the main worktree. `main` itself has not moved.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 418158c10d6d8c905f6d376c026cf6eb1491da0f · plan_sha256 f560f43232b9f17ba554a94fc1044e3eda9d79d82d79bf1e364a1bc0cdcdee3d
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: one reviewer)
+  override: none
+  record .omp/team-config/evidence/gate/late-fee-report.json · validate-gate-record.mjs exit 0 at 5eefd14
+- code committed after reviewed_sha: none (5eefd14 holds only the record, the trailer and the cited QA artifacts)
+```

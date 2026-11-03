@@ -1,0 +1,173 @@
+Complete assignment thoroughly:
+
+.omp/plans/release-approvals.md
+  @@ -6,8 +6,8 @@
+  -- [ ] 1. In `scripts/gate.ts`, count only approvals from distinct reviewers who are not `candidate.author`; reject with reason `needs 2 independent approvals, got <n>` below two.
+  -- [ ] 2. Update `scripts/gate.test.ts` and `README.md` for the new rule.
+  +- [x] 1. In `scripts/gate.ts`, count only approvals from distinct reviewers who are not `candidate.author`; reject with reason `needs 2 independent approvals, got <n>` below two.
+  +- [x] 2. Update `scripts/gate.test.ts` and `README.md` for the new rule.
+
+   ## Final verification wave
+
+  +2 -2
+
+README.md
+  @@ -1,4 +1,5 @@
+  -`bun test` runs the unit tests.
+  +A candidate is admitted only when every check passed and at least two distinct reviewers other than
+  +the candidate's author approved it. `bun test` runs the unit tests.
+  +2 -1
+
+scripts/gate.test.ts
+  @@ -5,14 +5,14 @@ const base: Candidate = {
+  -	approvals: [{ reviewer: "bob" }],
+  +	approvals: [{ reviewer: "bob" }, { reviewer: "cy" }],
+   };
+
+  -test("admits a candidate with passing checks and one approval", () => {
+  +test("admits a candidate with passing checks and two independent approvals", () => {
+   	expect(decide(base)).toEqual({ admitted: true });
+   });
+
+  -test("rejects a failing check", () => {
+  +test("rejects a failing check even with enough approvals", () => {
+   	expect(decide({ ...base, checks: { build: true, tests: false } })).toEqual({
+   		admitted: false,
+   		reason: "failed checks: tests",
+  @@ -20,5 +20,22 @@ test("rejects a failing check", () => {
+  -	expect(decide({ ...base, approvals: [] })).toEqual({ admitted: false, reason: "no approval" });
+  +	expect(decide({ ...base, approvals: [] })).toEqual({
+  +		admitted: false,
+  +		reason: "needs 2 independent approvals, got 0",
+  +	});
+  +});
+  +
+  +test("rejects duplicate approvals from one reviewer", () => {
+  +	expect(decide({ ...base, approvals: [{ reviewer: "bob" }, { reviewer: "bob" }] })).toEqual({
+  +		admitted: false,
+  +		reason: "needs 2 independent approvals, got 1",
+  +	});
+  +});
+  +
+  +test("rejects the author's own approval", () => {
+  +	expect(decide({ ...base, approvals: [{ reviewer: "ann" }, { reviewer: "bob" }] })).toEqual({
+  +		admitted: false,
+  +		reason: "needs 2 independent approvals, got 1",
+  +	});
+   });
+  +21 -4
+
+scripts/gate.ts
+  @@ -12,12 +12,19 @@ export interface Candidate {
+  +const REQUIRED_APPROVALS = 2;
+  +
+   export function decide(candidate: Candidate): Decision {
+   	const failed = Object.entries(candidate.checks)
+   		.filter(([, ok]) => !ok)
+   		.map(([name]) => name);
+   	if (failed.length > 0) return { admitted: false, reason: `failed checks: ${failed.join(", ")}` };
+  -	if (candidate.approvals.length < 1) return { admitted: false, reason: "no approval" };
+  +	const independent = new Set(
+  +		candidate.approvals.map(a => a.reviewer).filter(reviewer => reviewer !== candidate.author),
+  +	);
+  +	if (independent.size < REQUIRED_APPROVALS) {
+  +		return { admitted: false, reason: `needs ${REQUIRED_APPROVALS} independent approvals, got ${independent.size}` };
+  +	}
+   	return { admitted: true };
+   }
+  - Repository context and plan: File paths: scripts/gate.ts, scripts/gate.test.ts, README.md, .omp/plans/release-approvals.md. CONTEXT_MINING: none - fresh fixture repo with three commits and no TODO/FIXME markers in the changed files. PLAN:
+  # Release admission needs two independent approvals
+
+  ## Goal
+
+  `scripts/gate.ts` decides whether a release candidate ships. Today one approval of any kind admits it, including the author's own. Change the decision so a release is admitted only when it has at least two approvals from distinct reviewers other than the author, and every check passed.
+
+  ## TODOs
+
+  - [x] 1. In `scripts/gate.ts`, count only approvals from distinct reviewers who are not `candidate.author`; reject with reason `needs 2 independent approvals, got <n>` below two.
+  - [x] 2. Update `scripts/gate.test.ts` and `README.md` for the new rule.
+
+  ## Final verification wave
+
+  - [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
+  - [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
+
+  ## Merge gate
+
+  - Author's risk assessment: the gate script decides what ships; a wrong count admits a release with fewer reviews than the rule demands (self-approval, duplicate approvals) or blocks valid releases.
+  - Mandatory class: none
+  - Risk tier: product
+  - Whole-diff review: not needed (whole-diff surface reviewed in F2)
+  - Accepted residual risks: reviewer identity strings are compared as given (case-sensitive); the script trusts the candidate file's `author` and `reviewer` fields.
+  - Out of scope for blocking: authenticity of the candidate file, CI integration, reviewer directory lookups.
+  - Feature-specific criteria:
+    - Invariant: a release is admitted only when at least two distinct non-author reviewers approved and every check passed.
+      Positive witness: candidate with author `ann`, approvals `bob` and `cy`, all checks true prints `ADMIT` and exits 0.
+      Negative control: the same candidate with approvals `bob`, `bob` (duplicate) or `ann`, `bob` (self-approval) must print `REJECT needs 2 independent approvals, got 1` and exit 1.
+      Observable: stdout line and exit status of `bun scripts/gate.ts <candidate.json>`.
+      Boundary: the CLI entry of `scripts/gate.ts` reading a candidate JSON file.
+    - Invariant: a failing check rejects regardless of approvals.
+      Positive witness: all checks true, two independent approvals -> `ADMIT`.
+      Negative control: one check false with three independent approvals must print `REJECT failed checks: <name>` and exit 1.
+      Observable: stdout line and exit status of the CLI.
+      Boundary: the CLI entry of `scripts/gate.ts`.
+
+  - Manual QA matrix and artifacts: | # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+  |---|---|---|---|---|---|---|
+  |1|Happy path: two independent approvals, checks pass|`bun scripts/gate.ts ok.json`|ADMIT, exit 0|ADMIT; exit=0|PASS|.omp/team-config/evidence/gate/release-approvals/f1/ok.out|
+  |2|Duplicate approvals by one reviewer (negative control)|`bun scripts/gate.ts dup.json`|REJECT needs 2 independent approvals, got 1, exit 1|REJECT needs 2 independent approvals, got 1; exit=1|PASS|.omp/team-config/evidence/gate/release-approvals/f1/dup.out|
+  |3|Author approves own release (negative control)|`bun scripts/gate.ts self.json`|REJECT needs 2 independent approvals, got 1, exit 1|REJECT needs 2 independent approvals, got 1; exit=1|PASS|.omp/team-config/evidence/gate/release-approvals/f1/self.out|
+  |4|Failing check with three independent approvals (negative control)|`bun scripts/gate.ts failchk.json`|REJECT failed checks: tests, exit 1|REJECT failed checks: tests; exit=1|PASS|.omp/team-config/evidence/gate/release-approvals/f1/failchk.out|
+  |5|Regression: no approvals|`bun scripts/gate.ts none.json`|REJECT needs 2 independent approvals, got 0, exit 1|REJECT needs 2 independent approvals, got 0; exit=1|PASS|.omp/team-config/evidence/gate/release-approvals/f1/none.out|
+  |6|Regression: unit tests|`bun test`|5 pass 0 fail|5 pass, 0 fail, 5 expect() calls|PASS|.omp/team-config/evidence/gate/release-approvals/f1/bun-test.out|
+
+  - Author-supplied behavioural criteria: - Feature-specific criteria:
+    - Invariant: a release is admitted only when at least two distinct non-author reviewers approved and every check passed.
+      Positive witness: candidate with author `ann`, approvals `bob` and `cy`, all checks true prints `ADMIT` and exits 0.
+      Negative control: the same candidate with approvals `bob`, `bob` (duplicate) or `ann`, `bob` (self-approval) must print `REJECT needs 2 independent approvals, got 1` and exit 1.
+      Observable: stdout line and exit status of `bun scripts/gate.ts <candidate.json>`.
+      Boundary: the CLI entry of `scripts/gate.ts` reading a candidate JSON file.
+    - Invariant: a failing check rejects regardless of approvals.
+      Positive witness: all checks true, two independent approvals -> `ADMIT`.
+      Negative control: one check false with three independent approvals must print `REJECT failed checks: <name>` and exit 1.
+      Observable: stdout line and exit status of the CLI.
+      Boundary: the CLI entry of `scripts/gate.ts`.
+  Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+  Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
+  Review exactly these five sections:
+  1. Goal and behavioural contract
+  2. Correctness, regressions, architecture, wire contracts
+  3. Security and privacy delta
+  4. Verification adequacy
+  5. Final `PASS | FAIL | INCONCLUSIVE`
+
+  In section 2, read the whole diff and not only line by line: look for cross-module seams, consistency, duplication and simplification across files.
+
+  Generate at least one adversarial behavioural criterion of your own using Phase 2.5 fields, and make every criterion you emit your own - the validator rejects a trailer carrying any criterion whose invariant is restated from the plan, so quoting one back beside an original does not satisfy the rule. Author-supplied criteria are inputs, never complete review scope.
+
+  Security scope: a finding blocks only when it cites changed lines in DIFF_RANGE, or shows change altered exploitability or exposure of pre-existing code. Otherwise label it `PRE-EXISTING / OUT-OF-SCOPE` as a note.
+
+  Brief guard: if this message did not carry all five numbered sections, or withheld the QA matrix, return INCONCLUSIVE and name what was missing. Do not answer a narrower brief as if it were the whole assignment.
+
+  Return each blocker on its own `Blocker B<n>:` line with severity, `file:line` or artifact evidence, violated contract, and fix direction. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Confirm each listed class is closed at every site. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+
+  End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+
+  REVIEW-TRAILER-v1
+  invocation: implementation-audit
+  sections_covered: <numbers you received, comma-separated>
+  model_id: <your exact resolved model ID, or unresolved>
+  security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+  verdict: <PASS|FAIL|INCONCLUSIVE>
+  blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+  adversarial_criteria:
+  - invariant: <your own, not restated from the plan>
+    positive_witness: <representative valid outcome>
+    negative_control: <plausible broken outcome that MUST fail>
+    observable: <runtime evidence distinguishing them>
+    boundary: <layer where the result is checked>
+  END-REVIEW-TRAILER
+
+  +8 -16

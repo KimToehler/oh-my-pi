@@ -1,0 +1,9 @@
+$ git rev-parse HEAD
+951b31abca24010414cc0f6975f74b5e1700bbb0
+$ cat equal-fees-later-first.json
+[{ "id": "LATER", "amountCents": 10000, "dueDate": "2026-01-12" }, { "id": "EARLIER", "amountCents": 10000, "dueDate": "2026-01-10" }]
+$ bun src/cli.ts equal-fees-later-first.json --as-of 2026-02-20
+EARLIER	2026-01-10	2.00
+LATER	2026-01-12	2.00
+TOTAL		4.00
+exit=0

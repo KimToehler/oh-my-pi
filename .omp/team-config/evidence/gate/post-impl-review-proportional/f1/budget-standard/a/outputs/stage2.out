@@ -1,0 +1,26 @@
+Working...
+The gate has not passed: wave 2 failed with the one allowed fix round already used, so the skill makes me ask you how to proceed before changing or dispatching anything.
+
+**Delta review of fix round 1**
+- **First review: REJECT.** The code was judged sound, but it rejected carrying QA row s1 forward without re-running it. That needed no code change, so I had the full range `ecd418f..aa9b7e1` reviewed again with s1 moved to the re-run list.
+- **Second review: OKAY.** Both verdicts were copied unchanged into their delta directories and recorded, after which the convergence script reported READY.
+
+**Wave 2** (head `aa9b7e1`)
+- **Manual QA:** 15 rows, all passed, in `.omp/team-config/evidence/gate/csv-total/wave-2/`.
+  - Re-run: s1, s5, q8, q13 and the test suite (q14, 6 pass).
+  - New: q15, a total of exactly 1,000,000.00.
+  - q8 now prints `1,234,567.89`; the other nine rows are carried unchanged.
+- **implementation-audit:** the brief is `brief-implementation-audit-w2.md` and the reply is `a-w2-reply.md`. The model check counts: `onara/cx/gpt-6.1-sol` at `high`, matching the `auditor.md` pin. The reply is copied unchanged to `.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.txt`, and the trailer check passed.
+  - Verdict FAIL with one blocker: B1 sub-cent-rounding at `src/money.ts:2`. A price like `1.005` rounds to `1.00` instead of `1.01`, so the total can differ from the invoice by one cent.
+- The convergence script recorded wave 2 as `DECISION: CONTINUE`. Standard depth allows one fix round and it is spent, so this is the budget ask.
+
+**Is B1 allowed to stay unfixed?** Yes, under the skill's rules (it is "covered"). `gate.md`'s Accepted residual risks names the same defect and consequence: a price with more than two decimals rounded per line in `src/money.ts`, so the printed total can differ from the supplier's invoice by one cent. None of the rules that would block accepting it apply. B1 names no security path, protected asset, merge-gate criterion, consumer or audit-trail item. The trailer reports no security change, the mandatory class is `none`, and B1 doesn't dispute the class, tier or reviewer set.
+
+Nothing tracked has changed since wave 2. The QA files and trailers are still unstaged, and no gate record is written.
+
+**Question: F2 wave 2 failed with its fix-round budget spent (1 of 1 at standard depth). Open blocker: B1 sub-cent-rounding, `src/money.ts:2`, covered by `gate.md` Accepted residual risks. How should the gate proceed?**
+
+1. **One more fix round:** fix B1, have the fix delta-reviewed, then a closing wave 3; this ask repeats after that wave.
+2. **Re-plan:** write a separate plan for the rounding mechanism.
+3. **Stop:** the gate stays failed and no tracked file changes.
+4. **Override:** write the record with an `override` and one `downgrades` entry for B1, with rule `accepted-residual` and disposition `residual`. The reason will be yours, and the result is reported as overridden, never as PASS.

@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"synthetic-f1d","timestamp":"2026-11-02T20:30:00.000Z","cwd":"/synthetic","parentSession":"/synthetic/parent.jsonl"}
+{"type":"model_change","id":"s0000001","parentId":null,"timestamp":"2026-11-02T20:30:00.001Z","model":"onara/cc/claude-opus-5","resolvedModelIsFallback":false}
+{"type":"thinking_level_change","id":"s0000002","parentId":"s0000001","timestamp":"2026-11-02T20:30:00.002Z","thinkingLevel":"high","configured":null}
+{"type":"message","id":"s0000003","parentId":"s0000002","timestamp":"2026-11-02T20:30:01.000Z","message":{"role":"user","content":[{"type":"text","text":"SYNTHETIC: brief delivered out of band"}]}}
+{"type":"message","id":"s0000004","parentId":"s0000003","timestamp":"2026-11-02T20:30:09.000Z","message":{"role":"assistant","api":"synthetic","provider":"onara","model":"cc/claude-opus-5","content":[{"type":"text","text":"SYNTHETIC: reply delivered out of band"}],"stopReason":"stop"}}

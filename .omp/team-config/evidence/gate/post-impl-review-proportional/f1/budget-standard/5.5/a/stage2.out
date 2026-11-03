@@ -1,0 +1,27 @@
+Working...
+Wave 2 failed on a reviewer finding, and the fix budget is spent, so the skill requires me to ask you before doing anything else. Nothing has been edited, committed or dispatched since wave 2 was recorded.
+
+**Since your replies:**
+- **First delta review:** I copied the REJECT verbatim to `verdict.json` and recorded it (`rows=4.1 round=1 verdict=REJECT`). It rejected only the reuse of the s1 happy-path QA capture from before the fix.
+- **s1 re-run:** I ran s1 again on c9b007a and got `25.00`, exit 0. New captures: `wave-2/qa1-strict-parse.md` and `wave-2/qa3-happy.md`.
+- **Second delta review:** a fresh review of the same range ecd418f..c9b007a, with brief `brief-delta-round1-review2.md`, returned OKAY (round 2). `GC ready` then reported READY, and the wave 2 snapshot is at c9b007a.
+- **Wave 2 QA: all 5 rows pass.** I re-ran QA5: `999.99`, `1,000.00`, `1,234.50`, `999,999.99`, `1,000,000.00` and `1,234,567.89` all print correctly. QA2 and QA4 are reused from before the fix, which the delta review accepted. `bun test` shows 5 pass, 0 fail.
+- **implementation-audit (wave 2): FAIL.** The brief is `brief-implementation-audit-wave2.md`.
+  - **Model check passes:** the reviewer ran on `onara/cx/gpt-6.1-sol` with thinking `high`, which is the `auditor.md` pin. The `model_id` in its trailer matches, so the review counts as cross-provider.
+  - **Stored:** the reply is stored verbatim at `.omp/team-config/evidence/gate/csv-total/wave-2/trailer-implementation-audit.md`, and the trailer check printed `passed`.
+- **Wave 2 recorded:** `DECISION: CONTINUE`, total=1, fix_induced=0. At `standard` depth the one fix round is used up, so this is the budget question.
+
+**Open blocker:**
+- **B1** (high, `src/money.ts:2`, class `sub-cent-rounding`): `Math.round(amount * 100)` turns a price like `1.005` into 1.00, so the printed total can differ from the supplier's invoice by one cent.
+  - **Disposition: covered.** The `Accepted residual risks` entry in `gate.md` names the same defect: prices with more than two decimals are rounded per line in `src/money.ts`, and the total can be off from the invoice by one cent. Since it is covered, an override is allowed.
+  - **Not excluded:** it touches no security path, protected asset, audit trail, merge-gate criterion or existing consumer, and the trailer says `security_delta: no`.
+
+**Ledger:** wave 1: QA FAIL (QA5), no reviewer ran. Fix round 1: row 4.1, delta reviewed REJECT then OKAY. Wave 2: QA PASS, implementation-audit FAIL with 1 blocker (B1). Fix rounds used: 1 of 1.
+
+**Question:** Wave 2 failed with the fix budget spent (1 of 1 fix rounds at `standard`). How should the gate proceed?
+
+Options:
+- **One more fix round**, then this question comes back after its closing wave.
+- **Re-plan:** a separate plan for the affected mechanism.
+- **Stop.**
+- **Override:** write the Phase 4 record with `override` and one `downgrades` entry for B1 (rule `accepted-residual`, covered by the plan's Accepted residual risks). I recommend this one, because B1 is covered. It needs your name for `override.by` and your reason.

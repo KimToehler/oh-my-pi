@@ -1,0 +1,31 @@
+Working...
+F2 wave 1 failed in manual QA, so I dispatched no reviewer and left the wave-1 implementation-audit reply file unused. I fixed the failure in fix round 1, and the gate now waits on that fix's delta review.
+
+**Why QA failed (row QA4, the riskiest edge).** I added this row because the diff changes `groupThousands` in `src/format.ts:11`, and F1 only tested a four-digit total (s5, `1234.50`). Totals from 1,000,000.00 up print with a wrong separator: `1000,000.00`, `1234,567.89`, `12345,678.90`. The regex inserts only the last separator. Totals up to `999,999.99` print correctly. The capture is in `wave-1/qa4-boundary-large-totals.md`.
+
+**The other four rows passed:**
+- **QA1, strict parsing:** reused F1 s1 and s2. New captures show that a bad line between valid ones prints no total and exits 2 naming line 2. Several bad lines are all named (`lines 4, 6, 8`), and blank lines are skipped.
+- **QA2, exact cents:** `0.10` + `0.20` gives `0.30` (F1 never ran this scenario). Reused F1 s3 and s4.
+- **QA3, happy path:** reused F1 s1. CRLF input also gives `25.00`.
+- **QA5, nearby behaviour:** every total from 0.00 to 999.99 prints exactly as on `main`. Usage and missing-file errors exit 2, and `bun test` passes.
+
+I reused the F1 captures without re-running them: the only commit after they were taken (`ecd418f`) adds evidence files and ticks one box in `tasks.md`. The QA files are in `.omp/team-config/evidence/gate/csv-total/wave-1/` and are not staged yet; they get staged with the record at the end.
+
+**Gate steps so far:**
+- The plan-only validator and the OpenSpec validator both passed. Depth is `standard`, the mandatory class is `none`, and the risk tier is `product`. The auditor pin `onara/cx/gpt-6.1-sol:high` matches its definition, with no override set.
+- `main` was already an ancestor of the branch, so no merge was needed. I recorded the baseline (`ecd418f`), ran ready (READY) and took the wave 1 snapshot.
+- `GC wave --outcome qa=FAIL --blocker QA4` returned `DECISION: CONTINUE`, and `standard` depth allows one fix round.
+
+**Fix round 1, commit `ddc134e`:**
+- Added task 4.1 under a new `## 4. F2 fix round 1` group in `tasks.md`.
+- Added a test for totals from 999,999.99 to 12,345,678.90. It failed before the fix: expected `1,000,000.00`, got `1000,000.00`.
+- Changed the regex to `/\B(?=(\d{3})+$)/g`. The suite now passes (5/5), totals below 1,000.00 still match `main`, and both validators still pass.
+- Wrote the delta patch with `GC patch` (manifest in `gate-deltas/F2-4.1-ddc134eacefc-20261103124818/`).
+- The brief carries QA1–QA3 forward, because their totals stay below 1,000.00 and never reach the changed function. QA4 and QA5 get re-run in the closing wave.
+
+**Deviations from the skill:**
+- I ran the gate in this checkout instead of a separate locked review worktree. The branch is already checked out here, so git won't add a second worktree for it, and git doesn't allow locking the main worktree.
+- The LSP reports `Cannot find module 'bun:test'` in the test file. It's caused by the repo setup (no Bun type declarations installed); `bun test` runs fine.
+- My first QA helper write landed in a shared `/tmp/csvtotal-qa/` folder that other runs also use. If a `run.sh` was already there, I overwrote it. All my inputs and captures are now in `/tmp/csvtotal-qa-r511a/`.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r511/out-a/brief-delta-round1.md

@@ -1,0 +1,70 @@
+     1	read	skill://review-work
+     2	read	artifact://0:180-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-330
+     4	bash	sed -n '172p;220p;280p' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+     5	eval	import os p=os.path.expanduser('~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md') L=open(p).read().split('\\n') for n in (172,220):     s=L[n-1]     for i in range(0,len(s),600): print(s[i:i+600])     print('----')
+     6	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:334-470
+     7	eval	for n in (356,380,382,386,390,396,433,462,463,465,466):     s=L[n-1]     print(n, s[700:])     print('----')
+     8	eval	print(L[355][1350:]) print(len(L)) print('\\n'.join(L[473:514]))
+     9	bash	git status --short --branch; git log --oneline -15; git worktree list; git branch -a; ls -la; ls openspec openspec/changes 2>/dev/null
+    10	read	rule://worktrees
+    11	read	rule://merge-gate-proof
+    12	bash	find . -path ./.git -prune -o -type f -print | sort; echo; cat .gitignore package.json tsconfig.json openspec/config.yaml
+    13	bash	cd openspec/changes/fee-report && for f in .openspec.yaml proposal.md design.md gate.md tasks.md review.md specs/fee-report/spec.md; do echo "===== $f"; cat "$f"; done
+    14	bash	git merge-base main HEAD; git rev-parse main HEAD; git merge-base --is-ancestor main HEAD && echo main-is-ancestor; git diff --stat main...HEAD
+    15	bash	for f in src/fee.ts src/render.ts src/cli.ts src/fee.test.ts src/render.test.ts samples/report.json; do echo "===== $f"; cat -n "$f"; done
+    16	bash	ls -la ~/.omp/agent/skills/review-work/scripts/ ~/.omp/profiles/pirp/agent/skills/review-work/scripts/ 2>&1; ls ~/.omp/agent/agents ~/.omp/profiles/pirp/agent/agents 2>&1; echo "OMP_AGENT_DIR=$OMP_AGENT_DIR PI_CODING_AGENT_DIR=$PI_CODING_AGENT_DIR"; env | grep
+    17	bash	sed -n '1,25p' ~/.omp/profiles/pirp/agent/agents/auditor.md; echo ----; omp config get task.agentModelOverrides 2>&1
+    18	bash	git status --porcelain=v1 --untracked-files=all --ignored; echo "exit=$?"; git stash list
+    19	bash	git switch main && git worktree add .worktrees/review-fee-report feat/fee-report && git worktree lock .worktrees/review-fee-report --reason "review:feat/fee-report" && git worktree list --porcelain
+    20	bash	R=$PWD/.worktrees/review-fee-report; S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; cd $R && git log --oneline main..HEAD --stat | cat; echo; grep -rn "TODO\\|FIXME\\|HACK" src samples || echo "no TODO/FIXME/HACK"; echo; node $S/validate-openspec-chang
+    21	bash	cd .worktrees/review-fee-report; gh issue list --search "fee" --state all 2>&1 | head -3; git remote -v; S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --help 2>&1 | head -60
+    22	bash	cd .worktrees/review-fee-report; R=$PWD; GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; $GC baseline --sha HEAD; echo "baseline exit=$?"; $GC ready --lane F2; echo "ready e
+    23	bash	cd .worktrees/review-fee-report; R=$PWD; GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; $GC snapshot --lane F2; echo "snapshot exit=$?"; git status --short --ignored
+    24	bash	mkdir -p /tmp/fee-qa && cat > /tmp/fee-qa/big.json <<'EOF' { "lines": [ { "id": "big", "dueDate": "2026-01-10", "feeCents": 123456789 } ] } EOF cat > /tmp/fee-qa/empty.json <<'EOF' { "lines": [] } EOF cat > /tmp/fee-qa/bounds.json <<'EOF' { "lines": [   { "id"
+    25	eval	import subprocess, os, textwrap R='/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report' E=R+'/.omp/team-config/evidence/gate/fee-report/f1/wave-1' os.makedirs(E, exist_ok=True) head=subprocess.run(['git','rev
+    26	eval	cap('qa2-cli-sample.txt','QA2 render command on samples/report.json (expected total 2500+1250+200 = 3950 cents)',     [['bun','src/cli.ts','samples/report.json']],     repr('inv-7\\t2026-01-10\\t25.00\\ninv-3\\t2026-01-12\\t12.50\\ninv-9\\t2026-02-01\\t2.00\\nTOTAL\\t\\t
+    27	grep	~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    28	bash	cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts; grep -n "const ID\\b\\|const ID =\\|function cmdWave\\|function wave\\|blocker\\b.*fail\\|case \\"" gate-convergence.mjs | head -40; grep -n "TODO" plan-contract.mjs folder-plan.mjs validate-openspec-change.mjs
+    29	bash	cd .worktrees/review-fee-report; grep -n -i "fix\\|TODO\\|F2\\|row" openspec/schemas/omp-gated/schema.yaml openspec/schemas/omp-gated/templates/tasks.md | head -40
+    30	bash	cd .worktrees/review-fee-report; sed -n '280,330p' openspec/schemas/omp-gated/schema.yaml
+    31	bash	cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts; grep -n "reviewed\\|digest\\|review\\.md\\|tasks\\.md" validate-openspec-change.mjs | head -50; grep -n "reviewed\\|validate-openspec\\|openspec" validate-gate-record.mjs gate-convergence.mjs folder-plan.mjs |
+    32	bash	cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts; sed -n '346,364p' validate-openspec-change.mjs
+    33	bash	cd .worktrees/review-fee-report; git log -p --format='=== %h %s' 00326d1..HEAD -- openspec | cat
+    34	bash	cd .worktrees/review-fee-report; R=$PWD; GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; $GC wave --lane F2 --snapshot $R/.omp/team-config/gate-deltas/F2-60317599da07-wave-1
+    35	read	.worktrees/review-fee-report/openspec/changes/fee-report/tasks.md
+    36	read	.worktrees/review-fee-report/src/render.test.ts
+    37	edit	null
+    38	bash	cd .worktrees/review-fee-report && bun test src/render.test.ts 2>&1 | grep -v '^$' | head -30
+    39	edit	null
+    40	edit	null
+    41	bash	cd .worktrees/review-fee-report && bun test src/render.test.ts 2>&1 | grep -E 'pass|fail' ; bun test 2>&1 | grep -E '^ *[0-9]+ (pass|fail)|Ran'; bunx tsc -p . 2>&1 | head -5; echo "tsc exit=${PIPESTATUS[0]}"
+    42	edit	null
+    43	bash	cd .worktrees/review-fee-report && git add src/render.ts src/render.test.ts openspec/changes/fee-report/tasks.md && git commit -q -m "fix: group every three integer digits in fee amounts (F2 wave 1 QA3, QA5)" && git log --oneline -1 && git status --short
+    44	bash	cd .worktrees/review-fee-report; R=$PWD; GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; H=$(git rev-parse HEAD); TS=$(date -u +%Y%m%d%H%M%S); $GC patch --base 82e54ad9e132e
+    45	bash	cd .worktrees/review-fee-report; cat .omp/team-config/gate-deltas/F2-2.2-b38f71699a85-20261102223933/manifest.json; ls -la .omp/team-config/gate-deltas/F2-2.2-b38f71699a85-20261102223933/
+    46	task	[{"agent":"plan-reviewer","name":"F2DeltaFix22","solutionSpace":"Review of a fix delta; defects unknown","task":"Review this fix delta. Workspace root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report. Pla
+    47	wait	null
+    48	bash	cd .worktrees/review-fee-report; D=.omp/team-config/gate-deltas/F2-2.2-b38f71699a85-20261102223933; cat agent://F2DeltaFix22 > $D/verdict.json && cat $D/verdict.json && R=$PWD && node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.m
+    49	edit	null
+    50	edit	null
+    51	bash	cd .worktrees/review-fee-report; R=$PWD; S=$HOME/.omp/profiles/pirp/agent/skills/review-work/scripts; GC="node $S/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; git diff --stat && git add openspec/changes/fee-report/tasks.md && git commit 
+    52	bash	cd .worktrees/review-fee-report; R=$PWD; git merge-base --is-ancestor main HEAD && echo main-ancestor; node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report snapshot --lane F2; echo "ex
+    53	eval	E=R+'/.omp/team-config/evidence/gate/fee-report/f1/wave-2' os.makedirs(E, exist_ok=True) head=subprocess.run(['git','rev-parse','HEAD'],cwd=R,capture_output=True,text=True).stdout.strip() print(head) cap('qa1-latefee-api.txt','QA1 lateFee public API with QA-ch
+    54	bash	cd .worktrees/review-fee-report; E=.omp/team-config/evidence/gate/fee-report/f1/wave-2; grep -c $'\\r' $E/* ; shasum -a 256 $E/*; git diff --name-only main...HEAD; git diff main...HEAD | wc -c; wc -c .omp/team-config/gate-deltas/F2-60317599da07-wave-2.plan.md; 
+    55	eval	import re def sh(cmd): return subprocess.run(cmd,cwd=R,capture_output=True,text=True,shell=True).stdout diff=sh('git diff main...HEAD') changed=sh('git diff --name-only main...HEAD').strip() plan_copy=open(R+'/.omp/team-config/gate-deltas/F2-60317599da07-wave-
+    56	eval	EV='.omp/team-config/evidence/gate/fee-report/f1/wave-2' goal=f""" GOAL: OpenSpec change `fee-report` (folder openspec/changes/fee-report): finance needs a printable summary of the late fee each overdue invoice has accrued. Add (1) `lateFee(amountCents, daysOv
+    57	eval	res = await tool.task({"i":"Dispatching implementation-audit auditor","context":"review-work F2 merge gate, OpenSpec change fee-report, wave 2. The task text is the complete verbatim implementation-audit brief.","tasks":[{"agent":"auditor","name":"F2W2ImplAudi
+    58	wait	null
+    59	bash	cd .worktrees/review-fee-report; T=.omp/team-config/evidence/gate/fee-report/f2/wave-2; mkdir -p $T && cat agent://F2W2ImplAudit > $T/trailer-implementation-audit.txt && grep -c '^REVIEW-TRAILER-v1$' $T/trailer-implementation-audit.txt && grep -c $'\\r' $T/trai
+    60	read	history://F2W2ImplAudit
+    61	bash	F=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-standard-r7b/2026-11-02T22-34-44-439Z_01a19e66-9157-72a6-9cca-7c201a56bee6/F2W2ImplAudit.jsonl; jq -r 'select(.type=="message" and .message.role=="assistant") | "\\(.message.provider)/\\(.message.model)"' $
+    62	bash	cd .worktrees/review-fee-report; R=$PWD; GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $R --plan openspec/changes/fee-report"; $GC wave --lane F2 --snapshot $R/.omp/team-config/gate-deltas/F2-60317599da07-wave-2
+    63	bash	cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts; grep -n '"blockers"\\|record.blockers\\|blocker\\.\\(id\\|severity\\|location\\|coverage\\|fix_sha\\)\\|decision_reason\\|"note"\\|\\.note' validate-gate-record.mjs | head -30
+    64	bash	cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts; sed -n 745,775p validate-gate-record.mjs
+    65	eval	import json, hashlib def sha(rel): return hashlib.sha256(open(R+'/'+rel,'rb').read()).hexdigest() qa_names={'qa1-latefee-api.txt':'QA1 lateFee requirement via public API, 13 QA-chosen cases incl. period, cap and rounding boundaries',  'qa2-cli-sample.txt':'QA2
+    66	bash	cd .worktrees/review-fee-report; R=$PWD; V="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo $R --record .omp/team-config/evidence/gate/fee-report.json --plan openspec/changes/fee-report"; E=.omp/team-config/eviden
+    67	eval	rec["whole_diff"]={"run":False,"reason":"whole-diff surface reviewed in F2"} open(rp,'w').write(json.dumps(rec,indent=2)+'\\n') print(sh('git add .omp/team-config/evidence/gate/fee-report.json && node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/va
+    68	bash	cd .worktrees/review-fee-report; git commit -q -m "chore(gate): fee-report F2 merge-gate record, trailer and QA evidence" && git log --oneline -1 && node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo $PWD --record .o
+    69	bash	rm -rf /tmp/fee-qa && echo removed
+    70	learn	null

@@ -1,0 +1,9 @@
+# QA qa9-usage-no-argument
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+$ bun scripts/gate.ts
+--- stdout
+--- stderr
+usage: bun scripts/gate.ts <candidate.json>
+--- exit 2
+# expected: usage line on stderr, exit 2
+# verdict: PASS

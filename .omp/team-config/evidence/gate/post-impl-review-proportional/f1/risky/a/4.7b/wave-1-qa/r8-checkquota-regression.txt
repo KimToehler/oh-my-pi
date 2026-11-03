@@ -1,0 +1,16 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (bun 1.4.4), 2026-11-02T23:45:54Z
+$ bun -e 'import {checkQuota} from "./src/quota"; console.log(checkQuota(3,10), checkQuota(10,10), checkQuota(11,10))'
+true false false
+[exit 0]
+$ bun test 2>&1
+bun test v1.4.4 (5d9cc0f4f)
+
+test/quota.test.ts:
+(pass) checkQuota is true below the limit [0.03ms]
+(pass) checkQuota is false at the limit
+
+ 2 pass
+ 0 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [3.00ms]
+[exit 0]

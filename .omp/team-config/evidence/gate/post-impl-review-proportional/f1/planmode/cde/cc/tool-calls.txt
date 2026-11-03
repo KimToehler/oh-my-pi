@@ -1,0 +1,16 @@
+read	skill://review-work
+read	artifact://0:180-470
+read	/Users/tim/.omp/profiles/pirp-med/agent/skills/review-work/SKILL.md:180-470
+read	/Users/tim/.omp/profiles/pirp-med/agent/skills/review-work/SKILL.md:raw:220,280,356,380,382,386,433,462,465,466
+read	/Users/tim/.omp/profiles/pirp-med/agent/skills/review-work/SKILL.md:raw:172,390
+read	/Users/tim/.omp/profiles/pirp-med/agent/skills/review-work/SKILL.md:474-500
+read	.omp/plans/gate-quorum.md
+bash	git status --short --branch; git branch -a; git worktree list; git log --oneline --all --graph -20; git check-ignore -v .omp/plans/gate-quorum.md; ls -la; cat .gitignore
+bash	git log --oneline --decorate --all; git merge-base --is-ancestor main HEAD && echo ancestor; git diff --stat main...HEAD; cat package.json README.md
+bash	git log --format='%H %P %s' --all; git merge-base main HEAD; git show --stat --format='%H %s' ec85cd1 ecd378d 7b490ff
+read	rule://worktrees
+read	rule://merge-gate-proof
+glob	/Users/tim/.omp/profiles/pirp-med/agent/agents/*.md
+bash	omp config get task.agentModelOverrides; ls /Users/tim/.omp/profiles/pirp-med/agent/skills/review-work/scripts/
+read	/Users/tim/.omp/profiles/pirp-med/agent/agents/auditor.md:1-15
+bash	node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/gate-quorum.md; echo "exit=$?"; ls -la ~/.omp/agent/skills/review-work 2>&1 | head -3; omp config get task.agentModelOverrides.auditor 2>&1

@@ -1,0 +1,64 @@
+## 1. Goal and behavioural contract
+
+Reviewed the entire supplied diff, all implementation and test files, sample input, project configuration, and every file in `openspec/changes/fee-report/`.
+
+The implementation satisfies the specified behaviour for ordinary trusted, non-negative integer-cent inputs:
+
+- `lateFee` floors the overdue periods, applies 2% per period, caps the rate at 25%, and floors the resulting cents (`src/fee.ts:6–9`).
+- Rendering preserves input order, formats precomputed fees, totals cents before formatting, and handles an empty report separately (`src/render.ts:19–23`).
+- The CLI reads the supplied JSON file and prints the rendered result with one newline (`src/cli.ts:3–9`).
+
+No blocking contract violation found.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+The cross-module separation is sound. Language-server references confirm that the CLI calls `renderReport`; rendering does not call or import `lateFee`. There are no existing production consumers to migrate.
+
+The grouping correction at `src/render.ts:15` applies to every three-digit group, rather than only the final group. Both line amounts and TOTAL share this formatter, so the correction reaches both output sites. The tests at `src/render.test.ts:22–29` distinguish the former defect.
+
+The renderer neither sorts nor mutates its inputs: `map` creates output rows, `reduce` accumulates a local total, and the final array is newly constructed. My additional adversarial criterion is **repeatability without input mutation**, recorded below. Static inspection supports it; it was not separately exercised at runtime.
+
+**Note — numeric range:** `src/fee.ts:9` and `src/render.ts:22` use JavaScript `number` arithmetic without a documented safe magnitude or aggregate bound. Extremely large amounts or totals can lose cent precision. This does not block: no realistic finance-scale trigger was established. Documenting the supported numeric range would clarify the contract.
+
+## 3. Security and privacy delta
+
+No security/privacy blocker found.
+
+The changed code introduces local file reading and text output, but no authentication, authorisation, credential handling, network transmission, persistent writes, or weakened access to a protected asset. The committed sample contains synthetic invoice identifiers and dates, not identified third-party personal data.
+
+Trusted JSON is asserted as `Report` at `src/cli.ts:9`. That matches the explicit input-validation non-goal; malformed-input handling is not treated as a missing security feature.
+
+## 4. Verification adequacy
+
+Reviewed retained real-surface evidence, not merely test descriptions:
+
+- Wave-1 `qa-render-big.txt` records the original incorrect `1234,567.89`.
+- Wave-2 `qa-render-big.txt` records corrected line and TOTAL amounts.
+- Wave-2 edge, order, two-line, and sample artifacts show exact CLI stdout, including the trailing newline.
+- Carried wave-1 evidence covers fee boundaries, rounding, empty reports, and missing CLI arguments. The supplied fix does not affect those paths.
+- Wave-2 `qa-tests.txt` records **9 passing tests, 0 failures**, including both new grouping tests.
+
+The tests import real implementation modules and assert meaningful values and exact report output; they do not substitute mocks or duplicate the implementation.
+
+**Note — durable regression coverage:** CLI newline/exit behaviour and several fee boundaries are covered by manual artifacts rather than committed automated tests (`src/fee.test.ts:4–14`, `src/render.test.ts:4–33`). This does not block because the supplied real-surface evidence exercises them; automated coverage would better protect later edits.
+
+Type-checking remains unverified because the brief reports missing `bun-types`. I did not rerun that failure or execute tests. The brief reports committed-test RED observation; the retained artifacts inspected directly establish the pre-fix CLI failure and post-fix success, not that separate RED execution.
+
+## 5. Final assessment
+
+No substantiated finding meets the blocking threshold. The reviewed implementation and retained QA support the requested behaviour. Residual concerns are numeric-range clarity and durable automated coverage, as noted above. Verdict appears only in the required trailer.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Rendering is observationally read-only and repeatable when the same report object is reused.
+  positive_witness: Rendering the same two-line report twice produces identical text both times and leaves its array, line objects, and field values unchanged.
+  negative_control: A rendering call mutates, consumes, or reorders the supplied report so that its stored data or a subsequent rendering changes.
+  observable: Compare report contents and object identities before and after two calls, and compare both returned strings; this review assessed the implementation statically rather than executing this additional probe.
+  boundary: The exported renderReport function and its caller-owned Report object.
+END-REVIEW-TRAILER

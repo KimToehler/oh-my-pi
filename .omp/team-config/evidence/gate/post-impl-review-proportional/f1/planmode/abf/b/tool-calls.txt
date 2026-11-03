@@ -1,0 +1,48 @@
+     1	read	skill://review-work
+     2	read	artifact://0:180-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-470:raw
+     4	bash	git status --short; git branch -a; git log --oneline -15; git worktree list
+     5	read	.omp/plans/release-approvals.md
+     6	bash	ls -la /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/; cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/opus-pass-reply.md
+     7	bash	cd /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/ && for f in opus-session.jsonl opus-session-retry.jsonl; do echo "== $f"; jq -c '{type, provider: (.message.provider // .provider), model: (.message.model // .model), role: .message.role, thinkingLevel}' $f; done; diff opus
+     8	todo	{"op":"init","i":"Planning gate steps","list":[{"phase":"Phase 0","items":["Gather context (diff, files, mining)","Decide depth and resolve reviewers (pin check)","Plan-only validation"]},{"phase":"Wave 1","items":["Integrate default branch, GC baseline/ready/snapshot","Manual QA F1 with artifacts",
+     9	bash	git ls-files; echo ---; git check-ignore -v .omp/plans/release-approvals.md; echo ---; git diff --stat main...HEAD; git merge-base --is-ancestor main HEAD && echo main-is-ancestor; git log --oneline main -5
+    10	bash	git diff main...HEAD > /tmp/rw-diff.txt; cat /tmp/rw-diff.txt; echo ====; cat scripts/gate.ts; echo ====; cat package.json; cat .gitignore
+    11	bash	git log --oneline -20 -- scripts/gate.ts scripts/gate.test.ts README.md .omp/plans/release-approvals.md; git log --all --oneline --grep=approv; git log --all --oneline --grep=gate; gh issue list --search approvals --state all 2>&1 | head -3; git remote -v
+    12	grep	.
+    13	bash	ls ~/.omp/agent/agents/ 2>&1; ls ~/.omp/profiles/pirp/agent/agents/ 2>&1; echo $PI_CODING_AGENT_DIR $OMP_AGENT_DIR; omp config get task.agentModelOverrides
+    14	bash	sed -n '1,15p' ~/.omp/profiles/pirp/agent/agents/auditor.md
+    15	bash	SD=~/.omp/profiles/pirp/agent/skills/review-work; ls $SD/scripts; node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/release-approvals.md
+    16	bash	SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/gate-convergence.mjs --help 2>&1 | head -60
+    17	grep	~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    18	edit	{"i":"Marking final verification rows","input":"[.omp/plans/release-approvals.md#A5EF]\nPUT 14.=15:\n+- [x] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`)
+    19	bash	SD=~/.omp/profiles/pirp/agent/skills/review-work; git add .omp/plans/release-approvals.md && git commit -q -m "chore(plan): mark final verification wave of release-approvals" && node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/release-approvals.md && git merge-ba
+    20	todo	{"op":"done","task":"Integrate default branch, GC baseline/ready/snapshot","i":"Marking setup done"}
+    21	eval	import json, subprocess, os, pathlib ⏎ repo = pathlib.Path("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/p
+    22	bash	cat .omp/team-config/evidence/gate/release-approvals/wave-1/qa10-bun-test.txt; git status --short --untracked-files=all; for f in .omp/team-config/evidence/gate/release-approvals/wave-1/*; do git check-ignore -q "$f" && echo "IGNORED $f"; done; true
+    23	eval	import re ⏎ skill = pathlib.Path("/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md").read_text(
+    24	eval	def block(start): ⏎     i = skill.index("```\n"+start)+4 ⏎     j = skill.index("\n```", i) ⏎     return skill[
+    25	eval	snapplan = pathlib.Path(str(repo)+"/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md") ⏎ plan_txt =
+    26	eval	qa_rows = [ ⏎  ("QA1","Happy path: author ann, approvals bob, cy, checks all true","`bun scripts/gate.ts qa1-a
+    27	eval	snapplan = pathlib.Path(str(repo)+"/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md") ⏎ plan_txt =
+    28	read	/tmp/rw-brief-strategic.md:1-30
+    29	bash	E=.omp/team-config/evidence/gate/release-approvals; mkdir -p $E/f1 && mv $E/wave-1 $E/f1/wave-1 && ls $E/f1/wave-1 | wc -l && git status --short --untracked-files=all | wc -l
+    30	eval	evrel = ".omp/team-config/evidence/gate/release-approvals/f1/wave-1/" ⏎ qa = f"All rows run by the orchestrato
+    31	todo	{"op":"done","task":"Manual QA F1 with artifacts","i":"Marking QA done"}
+    32	eval	TASK-DISPATCH: "agent": "auditor" | brief = pathlib.Path("/tmp/rw-brief-strategic.md").read_text() ⏎ res = await tool.task({ ⏎   "i": "Dispatching strategic-risk-review auditor", ⏎   "context": "M
+    33	read	proc://
+    34	read	/tmp/rw-brief-strategic.md:raw
+    35	eval	TASK-DISPATCH: "agent": "auditor" | brief = pathlib.Path("/tmp/rw-brief-strategic.md").read_text() ⏎ res = await tool.task({ ⏎   "i": "Dispatching strategic-risk-review auditor", ⏎   "context": "M
+    36	bash	cd /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1/ && for f in opus-session.jsonl opus-session-retry.jsonl; do echo "== $f"; jq -r 'select(.type=="message" and .message.role=="assistant") | "assistant provider=\(.message.provider) model=\(.message.model)"' $f; jq -r 'select
+    37	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1C1; D=.omp/team-config/evidence/release-approvals/wave-1; mkdir -p $D && cp $P/opus-pass-reply.md $D/implementation-audit-reply.md && cp $P/opus-pass-reply-retry.md $D/implementation-audit-retry-reply.md && cp $P/b-brief-impleme
+    38	todo	{"op":"done","task":"Dispatch reviewers (audit payload + real strategic)","i":"Marking dispatch done"}
+    39	wait	{"i":"Waiting for strategic review"}
+    40	eval	out = await tool.read({"path": "agent://StrategicRiskReview", "i": "Reading delivered reviewer output"}) ⏎ txt
+    41	eval	tdir = repo/".omp/team-config/evidence/release-approvals/f2"; tdir.mkdir(parents=True, exist_ok=True) ⏎ tp = t
+    42	bash	F=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-b/2026-11-02T20-17-12-065Z_01a19de8-a581-74c5-9914-d4ff8a24c6dd/StrategicRiskReview.jsonl; jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.provider) \(.message.model)"' $F | sort | uniq -c; jq -r 'select(.type=="thi
+    43	bash	SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt --invocation strategic-risk-review --verdict PASS --plan .omp/plans/release-approvals.md; git check-ign
+    44	todo	{"op":"done","task":"Model check and trailer checks","i":"Marking checks done"}
+    45	bash	SD=~/.omp/profiles/pirp/agent/skills/review-work; node $SD/scripts/gate-convergence.mjs --repo "$PWD" --plan .omp/plans/release-approvals.md wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=INCONCLUSIVE --out
+    46	bash	rm -rf /tmp/rw-qa-fixtures /tmp/rw-diff.txt /tmp/rw-brief-strategic.md; git status --short --untracked-files=all | wc -l; git log --oneline -1
+    47	todo	{"op":"done","phase":"Phase 0","i":"Closing todos"}
+    48	todo	{"op":"done","task":"GC wave record and report","i":"Completing final todo"}

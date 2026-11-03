@@ -1,0 +1,502 @@
+Read-only strategic risk review. Do not run commands, fetch network context, modify files, or spawn sub-reviewers.
+Your reply ends with the REVIEW-TRAILER-v1 block given at the end of this brief, with its field names exactly as written there.
+
+Changed files:
+DIFF_RANGE: 233350e821c684503c0c735e848a6f46b96da5dd..927747b4cca7d7e22b285df677915201c334a250 (git diff main...HEAD; merge-base 233350e821c6 = main)
+Changed files:
+openspec/changes/jobq-lifecycle/.openspec.yaml
+openspec/changes/jobq-lifecycle/design.md
+openspec/changes/jobq-lifecycle/gate.md
+openspec/changes/jobq-lifecycle/proposal.md
+openspec/changes/jobq-lifecycle/review.md
+openspec/changes/jobq-lifecycle/specs/job-lifecycle/spec.md
+openspec/changes/jobq-lifecycle/tasks.md
+src/queue.ts
+src/store.ts
+src/worker.ts
+test/queue.test.ts
+
+
+Diff:
+diff --git a/openspec/changes/jobq-lifecycle/.openspec.yaml b/openspec/changes/jobq-lifecycle/.openspec.yaml
+new file mode 100644
+index 0000000..f05d850
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: omp-gated
++created: 2026-11-02
+diff --git a/openspec/changes/jobq-lifecycle/design.md b/openspec/changes/jobq-lifecycle/design.md
+new file mode 100644
+index 0000000..0527b20
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/design.md
+@@ -0,0 +1,21 @@
++# Design
++
++## Context
++
++`jobq` is new. The storage layer is shared with other services through a generated client.
++
++## Goals / Non-Goals
++
++**Goals:**
++- A small queue with explicit job states and an on-disk snapshot.
++
++**Non-Goals:**
++- Multi-process coordination and distribution.
++
++## Decisions
++
++State lives in one `Map` inside `JobQueue`; snapshots go through the generated `store.ts`.
++
++## Risks / Trade-offs
++
++The queue is the only owner of job state, so every state change must go through it.
+diff --git a/openspec/changes/jobq-lifecycle/gate.md b/openspec/changes/jobq-lifecycle/gate.md
+new file mode 100644
+index 0000000..1593af1
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/gate.md
+@@ -0,0 +1,9 @@
++# Gate
++
++- **Mandatory class**: concurrency-state
++- **Depth**: risky (a job state machine with workers claiming jobs concurrently; the class makes the review risky)
++- **Risk tier**: product
++- **Author's risk assessment**: a job handed to two workers runs twice, and a job moved through a wrong state can be lost or re-run; the snapshot is the only record after a restart.
++- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
++- **Accepted residual risks**: none (no concurrency or state defect is accepted for this change)
++- **Out of scope for blocking**: none (no area is excluded from blocking)
+diff --git a/openspec/changes/jobq-lifecycle/proposal.md b/openspec/changes/jobq-lifecycle/proposal.md
+new file mode 100644
+index 0000000..544c452
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/proposal.md
+@@ -0,0 +1,22 @@
++# Proposal
++
++## Why
++
++Services embedding `jobq` hand-roll job bookkeeping. They need one queue that tracks which worker owns a job and survives a restart.
++
++## What Changes
++
++- Add `JobQueue` (`src/queue.ts`): add, claim, complete and fail jobs, persisting a snapshot on every claim, and `JobQueue.restore(path)` to rebuild a queue from its snapshot after a restart.
++- Add `requeue` (`src/worker.ts`): put a job back on the queue for another attempt.
++- Add `src/store.ts`: the snapshot reader/writer, generated from the shared storage contract.
++
++## Capabilities
++
++### New Capabilities
++- `job-lifecycle`: queue jobs, hand each to a worker, record its outcome and persist state.
++
++### Modified Capabilities
++
++## Impact
++
++New modules under `src/`. No existing code changes.
+diff --git a/openspec/changes/jobq-lifecycle/review.md b/openspec/changes/jobq-lifecycle/review.md
+new file mode 100644
+index 0000000..934c8d1
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/review.md
+@@ -0,0 +1,19 @@
++# Review
++
++- **Verdict**: OKAY
++- **Reviewed digest**: bb79972ac8de1430244ef312c289de6ca703174361c3e62c26ffcc12b660f179
++- **Depth**: risky
++- **Reviewer**: plan-reviewer, 01fixtureC1, 01fixtureD2
++- **Verifier**: blocker-verifier, none
++- **Models**: 01fixtureC1 onara/cx/gpt-6.1-sol, 01fixtureD2 onara/cx/gpt-6.1-sol
++- **Round**: 1
++- **Awaiting**: none
++- **Override**: none
++
++## Blockers
++
++none
++
++## Residuals
++
++none
+diff --git a/openspec/changes/jobq-lifecycle/specs/job-lifecycle/spec.md b/openspec/changes/jobq-lifecycle/specs/job-lifecycle/spec.md
+new file mode 100644
+index 0000000..72a8a95
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/specs/job-lifecycle/spec.md
+@@ -0,0 +1,39 @@
++# Spec Delta
++
++## Purpose
++Track jobs from queued to done or failed and keep a snapshot of their state on disk.
++
++## ADDED Requirements
++
++### Requirement: A queued job is claimed by one worker
++`claim(id, worker)` SHALL move a queued job to `running`, record the worker as owner and resolve `true`; it SHALL resolve `false` for a job that is not queued.
++
++#### Scenario: Claim a queued job
++- **WHEN** worker `w1` claims queued job `a`
++- **THEN** `claim` resolves `true`, the job is `running` and its owner is `w1`
++
++#### Scenario: Negative control
++- **WHEN** worker `w2` claims job `a` after `w1` has claimed it
++- **THEN** `claim` resolving `true` for `w2` MUST fail the check; it resolves `false`
++
++### Requirement: Completing a running job marks it done
++`complete(id)` SHALL mark a running job `done` and clear its owner; `complete` SHALL throw for an unknown id.
++
++#### Scenario: Complete a claimed job
++- **WHEN** job `a` is running and `complete("a")` is called
++- **THEN** the job is `done` with no owner
++
++#### Scenario: Negative control
++- **WHEN** `complete("missing")` is called for an id that was never added
++- **THEN** returning normally MUST fail the check; it throws
++
++### Requirement: Each claim persists a snapshot
++`claim` SHALL write the state of every job to the queue's snapshot path before it resolves.
++
++#### Scenario: Snapshot written
++- **WHEN** a claim resolves for job `a`
++- **THEN** the snapshot file lists job `a` as `running`
++
++#### Scenario: Negative control
++- **WHEN** the snapshot path is not writable
++- **THEN** `claim` resolving `true` MUST fail the check; it rejects
+diff --git a/openspec/changes/jobq-lifecycle/tasks.md b/openspec/changes/jobq-lifecycle/tasks.md
+new file mode 100644
+index 0000000..90bd5b1
+--- /dev/null
++++ b/openspec/changes/jobq-lifecycle/tasks.md
+@@ -0,0 +1,21 @@
++# Tasks
++
++## 1. Implementation
++
++- [x] 1.1 Add `JobQueue` with add, claim, complete and fail Verify: `bun test`
++- [x] 1.2 Add `requeue` and the generated snapshot store Verify: `bun test`
++
++## 2. Final verification
++
++- [x] 2.1 F1. Manual QA on the real surface: run each scenario of `specs/job-lifecycle/spec.md` with bun against `src/`; one evidence path per scenario in the `f1/` directory below the record's evidence directory (`.omp/team-config/evidence/gate/jobq-lifecycle/f1/`), on the head after the last code commit; the QA lane judges the observations. Verify: `test -s .omp/team-config/evidence/gate/jobq-lifecycle/f1/qa-matrix.md`
++
++## 3. F2 fix round 1 (wave 1 blockers)
++
++- [x] 3.1 F2 wave 1 orphaned-running-after-restore: `JobQueue.restore` puts every job stored as `running` back to `queued` without an owner, and `complete` and `fail` persist the snapshot like `claim` (restoring the previous state when the write fails), so a restart neither strands a claimed job nor re-runs a finished one; `complete` still throws synchronously for an unknown id. Verify: `bun test`
++- [x] 3.2 F2 wave 1 illegal-state-transition: `complete` and `fail` accept only a `running` job and throw otherwise; `requeue` goes through `JobQueue` and accepts only a `failed` job, so no path assigns a state without checking the current one. Verify: `bun test`
++- [x] 3.3 F2 wave 1 non-atomic-snapshot-write: `JobQueue` writes each snapshot through the generated `saveSnapshot` to a temporary file in the snapshot's directory and renames it over the snapshot, so a reader or a crash never sees a truncated file; `src/store.ts` stays as generated. Verify: `bun test`
++
++## Workflow follow-up
++
++- F2 merge gate (`review-work`), after 2.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
++- Merge only after the F2 record validates.
+diff --git a/src/queue.ts b/src/queue.ts
+new file mode 100644
+index 0000000..0f0a611
+--- /dev/null
++++ b/src/queue.ts
+@@ -0,0 +1,95 @@
++import { rename } from "node:fs/promises"
++import { loadSnapshot, saveSnapshot } from "./store"
++
++export type JobState = "queued" | "running" | "done" | "failed"
++
++export interface Job {
++	id: string
++	state: JobState
++	attempts: number
++	owner?: string
++}
++
++export class JobQueue {
++	private jobs = new Map<string, Job>()
++	private writing: Promise<void> = Promise.resolve()
++
++	constructor(private readonly snapshotPath: string) {}
++
++	/**
++	 * Rebuild a queue from the snapshot a previous process left behind. A job that was running when that
++	 * process stopped has no live worker any more, so it goes back to the queue without an owner.
++	 */
++	static async restore(snapshotPath: string): Promise<JobQueue> {
++		const queue = new JobQueue(snapshotPath)
++		for (const job of await loadSnapshot<Job[]>(snapshotPath)) {
++			queue.jobs.set(job.id, job.state === "running" ? { ...job, state: "queued", owner: undefined } : job)
++		}
++		return queue
++	}
++
++	add(id: string): Job {
++		const job: Job = { id, state: "queued", attempts: 0 }
++		this.jobs.set(id, job)
++		return job
++	}
++
++	get(id: string): Job | undefined {
++		return this.jobs.get(id)
++	}
++
++	/** Hand a queued job to a worker and persist the queue; false when the job is not queued. */
++	async claim(id: string, worker: string): Promise<boolean> {
++		const job = this.jobs.get(id)
++		if (!job || job.state !== "queued") return false
++		await this.move(job, { state: "running", owner: worker })
++		return true
++	}
++
++	/** Mark a running job done and persist the queue; throws at once when the job is not running. */
++	complete(id: string): Promise<void> {
++		return this.move(this.need(id, "running"), { state: "done", owner: undefined })
++	}
++
++	/** Mark a running job failed, count the attempt and persist the queue; throws at once when the job is not running. */
++	fail(id: string): Promise<void> {
++		const job = this.need(id, "running")
++		return this.move(job, { state: "failed", owner: undefined, attempts: job.attempts + 1 })
++	}
++
++	/** Put a failed job back on the queue and persist the queue; throws at once when the job is not failed. */
++	requeue(id: string): Promise<void> {
++		return this.move(this.need(id, "failed"), { state: "queued" })
++	}
++
++	private need(id: string, state: JobState): Job {
++		const job = this.jobs.get(id)
++		if (!job) throw new Error(`unknown job ${id}`)
++		if (job.state !== state) throw new Error(`job ${id} is ${job.state}, not ${state}`)
++		return job
++	}
++
++	/** Apply a transition and persist it; a failed write undoes the transition unless a later call replaced it. */
++	private move(job: Job, change: Partial<Job> & { state: JobState }): Promise<void> {
++		const before = { state: job.state, owner: job.owner, attempts: job.attempts }
++		Object.assign(job, change)
++		return this.persist().catch((error) => {
++			if (job.state === change.state) Object.assign(job, before)
++			throw error
++		})
++	}
++
++	/**
++	 * Snapshot writes of this instance run one after the other. Each goes to a temporary file next to the
++	 * snapshot and is renamed over it, so a reader or a restart never sees a partly written snapshot.
++	 */
++	private persist(): Promise<void> {
++		const temp = `${this.snapshotPath}.tmp`
++		const next = this.writing.then(async () => {
++			await saveSnapshot(temp, [...this.jobs.values()])
++			await rename(temp, this.snapshotPath)
++		})
++		this.writing = next.catch(() => {})
++		return next
++	}
++}
+diff --git a/src/store.ts b/src/store.ts
+new file mode 100644
+index 0000000..80df299
+--- /dev/null
++++ b/src/store.ts
+@@ -0,0 +1,11 @@
++// GENERATED from storage-contract v3 (https://example.invalid/storage-contract).
++// DO NOT EDIT: regenerate with `contract-gen`, which lives in the contract repository.
++import { readFile, writeFile } from "node:fs/promises"
++
++export async function saveSnapshot(path: string, data: unknown): Promise<void> {
++	await writeFile(path, JSON.stringify(data))
++}
++
++export async function loadSnapshot<T>(path: string): Promise<T> {
++	return JSON.parse(await readFile(path, "utf8")) as T
++}
+diff --git a/src/worker.ts b/src/worker.ts
+new file mode 100644
+index 0000000..a035c9b
+--- /dev/null
++++ b/src/worker.ts
+@@ -0,0 +1,6 @@
++import type { JobQueue } from "./queue"
++
++/** Put a failed job back on the queue for another attempt; throws when the job is not failed. */
++export function requeue(queue: JobQueue, id: string): Promise<void> {
++	return queue.requeue(id)
++}
+diff --git a/test/queue.test.ts b/test/queue.test.ts
+new file mode 100644
+index 0000000..aa356f7
+--- /dev/null
++++ b/test/queue.test.ts
+@@ -0,0 +1,113 @@
++import { expect, test } from "bun:test"
++import { mkdtempSync, readFileSync } from "node:fs"
++import { tmpdir } from "node:os"
++import { join } from "node:path"
++import { JobQueue } from "../src/queue"
++import { requeue } from "../src/worker"
++
++const snap = () => join(mkdtempSync(join(tmpdir(), "jobq-")), "snap.json")
++
++test("claim hands a queued job to one worker", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	expect(await q.claim("a", "w1")).toBe(true)
++	expect(q.get("a")).toMatchObject({ state: "running", owner: "w1" })
++	expect(await q.claim("a", "w2")).toBe(false)
++})
++test("complete marks done and unknown ids throw", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	await q.claim("a", "w1")
++	await q.complete("a")
++	expect(q.get("a")).toMatchObject({ state: "done", owner: undefined })
++	expect(() => q.complete("missing")).toThrow()
++})
++test("claim persists a snapshot and rejects on an unwritable path", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	await q.claim("a", "w1")
++	expect(JSON.parse(readFileSync(p, "utf8"))[0]).toMatchObject({ id: "a", state: "running" })
++	const bad = new JobQueue("/nonexistent-dir/snap.json")
++	bad.add("b")
++	await expect(bad.claim("b", "w1")).rejects.toThrow()
++})
++test("restore rebuilds a queue from its snapshot", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	await q.claim("a", "w1")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")?.id).toBe("a")
++})
++test("requeue puts a failed job back", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	await q.claim("a", "w1")
++	await q.fail("a")
++	await requeue(q, "a")
++	expect(q.get("a")?.state).toBe("queued")
++	expect(await q.claim("a", "w2")).toBe(true)
++})
++test("restore hands a job that was running at the crash to a new worker", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	await q.claim("a", "w1")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")).toMatchObject({ state: "queued", owner: undefined })
++	expect(await again.claim("a", "w2")).toBe(true)
++})
++test("restore keeps jobs that finished before the restart finished", async () => {
++	const p = snap()
++	const q = new JobQueue(p)
++	q.add("a")
++	q.add("b")
++	await q.claim("a", "w1")
++	await q.claim("b", "w2")
++	await q.complete("a")
++	await q.fail("b")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")).toMatchObject({ state: "done" })
++	expect(again.get("a")?.owner).toBeUndefined()
++	expect(again.get("b")).toMatchObject({ state: "failed", attempts: 1 })
++	expect(again.get("b")?.owner).toBeUndefined()
++	expect(await again.claim("a", "w3")).toBe(false)
++})
++test("complete and fail accept only a running job", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	expect(() => q.complete("a")).toThrow()
++	expect(() => q.fail("a")).toThrow()
++	expect(q.get("a")).toMatchObject({ state: "queued", attempts: 0 })
++	await q.claim("a", "w1")
++	await q.complete("a")
++	expect(() => q.fail("a")).toThrow()
++	expect(q.get("a")?.state).toBe("done")
++})
++test("requeue accepts only a failed job", async () => {
++	const q = new JobQueue(snap())
++	q.add("a")
++	await q.claim("a", "w1")
++	expect(() => requeue(q, "a")).toThrow()
++	expect(q.get("a")).toMatchObject({ state: "running", owner: "w1" })
++	expect(await q.claim("a", "w2")).toBe(false)
++})
++test("a snapshot write that fails partway leaves the previous snapshot readable", async () => {
++	const p = snap()
++	// The child writes a small snapshot, then one far above its file-size limit (ulimit -f 8 = 4 KiB),
++	// so that write fails partway, as it would when the disk fills or the process dies mid-write.
++	const script = `
++		import { JobQueue } from ${JSON.stringify(join(import.meta.dir, "../src/queue"))}
++		const q = new JobQueue(${JSON.stringify(p)})
++		q.add("a")
++		await q.claim("a", "w1")
++		for (let i = 0; i < 2000; i++) q.add("job-" + i)
++		await q.claim("job-0", "w2").then(() => console.log("resolved"), () => console.log("rejected"))
++	`
++	const child = Bun.spawnSync(["sh", "-c", `ulimit -f 8; exec "${process.execPath}" -e '${script}'`])
++	expect(child.stdout.toString().trim()).toBe("rejected")
++	const again = await JobQueue.restore(p)
++	expect(again.get("a")?.state).toBe("queued")
++	expect(again.get("job-0")).toBeUndefined()
++})
+
+
+Manual QA matrix:
+QA rows below were captured by the orchestrator on the reviewed head 927747b4cca7 itself; every F1 row was re-run because fix round 1 rewrote claim, complete, fail, requeue, restore and the snapshot write. Artifacts live under /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1b-r47-b/.worktrees/review-jobq-lifecycle/.omp/team-config/evidence/gate/jobq-lifecycle/wave-2/ (one transcript per row, driver qa-run.ts).
+
+# F2 wave 2 QA matrix: jobq-lifecycle
+
+Head: 927747b4cca7d7e22b285df677915201c334a250 (fix round 1: rows 3.1-3.3). Every F1 row re-run: the range rewrites claim, complete, fail, requeue, restore and the snapshot write, and each row reaches at least one of them.
+Channel: library surface. `bun .omp/team-config/evidence/gate/jobq-lifecycle/wave-2/qa-run.ts <scenario>` imports `src/queue.ts` and `src/worker.ts` and prints every call with its observed result. Synthetic job ids, fresh temp snapshot paths per run.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| QA1 | Spec R1 "Claim a queued job" (happy path) | `qa-run.ts claim-queued`: add a, claim(a,w1) | claim resolves true; a running, owner w1 | true; `{"state":"running","owner":"w1"}` | PASS | wave-2/claim-queued.txt |
+| QA2 | Spec R1 negative control | `qa-run.ts claim-negative`: claim(a,w1) then claim(a,w2) | w2's claim resolves false; owner stays w1 | true then false; owner w1 | PASS | wave-2/claim-negative.txt |
+| QA3 | Spec R2 "Complete a claimed job" | `qa-run.ts complete-claimed`: claim(a,w1), complete(a) | a done, no owner | `{"state":"done"}`, no owner key | PASS | wave-2/complete-claimed.txt |
+| QA4 | Spec R2 negative control | `qa-run.ts complete-negative`: complete("missing") | throws | throws `Error: unknown job missing` | PASS | wave-2/complete-negative.txt |
+| QA5 | Spec R3 "Snapshot written" | `qa-run.ts snapshot-written`: read file before and after claim(a,w1) resolves | no file before; after resolve the file lists a running | `<no file>` before; after: `[{"id":"a","state":"running","owner":"w1"}]` | PASS | wave-2/snapshot-written.txt |
+| QA6 | Spec R3 negative control | `qa-run.ts snapshot-negative`: snapshot dir chmod 0500, claim(a,w1) | claim rejects, does not resolve true | rejects with EACCES on `snap.json.tmp`; a back to queued, no owner; no snapshot written | PASS | wave-2/snapshot-negative.txt |
+| QA7 | Riskiest edge: concurrent claims | `qa-run.ts concurrent-claims`: `Promise.all` of claim(a,w1), claim(a,w2), claim(b,w3), claim(a,w4) | exactly one claim of a wins; b claimed; snapshot lists both running | `[true,false,true,false]`; a owner w1, b owner w3; snapshot lists both running | PASS | wave-2/concurrent-claims.txt |
+| QA8 | Restart (proposal; fix row 3.1) | `qa-run.ts restart-before <dir>` (claim a/w1, claim b/w2, complete b), process exits, then `qa-run.ts restart-after <dir>` in a new process | snapshot at exit holds b done; restore puts a (running at the crash) back to queued without owner, keeps b done; a is claimable again | snapshot at exit: a running/w1, b done; restored a queued no owner, b done; claim(a,w3) true | PASS | wave-2/restart.txt |
+| QA9 | Adjacent: fail then `requeue` (proposal) | `qa-run.ts fail-requeue`: claim(a,w1), fail(a), requeue(q,a), claim(a,w2) | fail marks failed and counts the attempt; requeue makes a claimable again | failed with attempts 1; queued after requeue; claim(a,w2) true | PASS | wave-2/fail-requeue.txt |
+| QA10 | Fix row 3.2: complete and fail only from running | `qa-run.ts transition-guards`: complete(a) and fail(a) while queued; claim, complete, then fail(a) while done | each illegal call throws and leaves the state unchanged | queued calls throw `job a is queued, not running`, a stays queued attempts 0; fail on done throws `job a is done, not running`, a stays done | PASS | wave-2/transition-guards.txt |
+| QA11 | Fix row 3.2: requeue only from failed | `qa-run.ts requeue-guard`: claim(a,w1), requeue(q,a), claim(a,w2), requeue(q,"missing") | requeue of a running job throws and keeps owner w1, so w2 cannot claim it; unknown id throws | throws `job a is running, not failed`; a running/w1; claim(a,w2) false; `unknown job missing` | PASS | wave-2/requeue-guard.txt |
+| QA12 | Fix row 3.3: a snapshot write that fails partway | `sh -c "ulimit -f 8; bun qa-run.ts partial-write-child <dir>"` (first claim writes 56 bytes, second claim with 2001 jobs exceeds the 4 KiB limit), then `qa-run.ts partial-write-after <dir>` in a new process | the failing claim rejects; the snapshot on disk is still the previous, parseable one; restore succeeds | second claim throws EFBIG; snapshot still 56 bytes and parses; restore gives a queued (requeued after crash), job-0 absent | PASS | wave-2/partial-write.txt |
+
+Unexercised: multi-process access to one snapshot (design Non-Goal); a power loss between the temp write and the rename (no fsync is issued; durability across power loss is not claimed by any row).
+
+
+Asymmetry constraint: you have only the diff and the plan. You do not have my reasoning for any specific decision. If something looks wrong, flag it - I will dismiss what is intentional. Report what you find; the blocking threshold below decides which findings block.
+
+Blocking threshold: report every finding you can substantiate, but mark it a blocker only when a realistic trigger leads to it and the result (a) breaks the goal, the value proof, a `## Merge gate` criterion, or an existing consumer - of the change, or of the plan when you review one - or (b) reaches a protected asset. A realistic trigger is normal use, input or state that occurs in ordinary operation, or an actor outside the trust boundary sending plausible input; a state the user would have to construct deliberately on their own machine (corrupted or permission-stripped local files, hand-inserted NUL bytes, racing manual runs) is not one. A gap that appears only for an input variant the change does not claim to handle (an alternative syntax or layout) and whose damage stays in the user's own environment and is reversible is a note, not a blocker. Work the plan excludes that the change implements anyway is a blocker without a trigger. A protected asset is production data, a real credential, third-party personal data, tenant isolation, money, an audit trail, or irreversible state; a local development default in the developer's own environment is not one. Weakening access to a protected asset counts even when no data moves. Judge by causation, not location: a defect the change causes or exposes in unchanged code counts; a pre-existing defect the change neither causes nor exposes is a note. Each blocker starts a line with `Blocker B<n>:` (numbered from B1 in order) and names its trigger, preconditions, impact, and whether the damage is reversible. A finding whose precondition already grants what exploiting it would gain is not a blocker. Every other finding is a note with one line on why it does not block. A false note costs nothing; a false blocker costs a fix wave.
+
+Answer four questions about the whole diff:
+1. Does the change hold up architecturally against the rest of the system, and where are the cross-module seams between its files?
+2. What is inconsistent, duplicated or needlessly complex across files, and where does simplification apply?
+3. Which failure mode would hurt most in production, and is it handled?
+4. What would a line-level reading of the diff miss?
+
+Brief guard: if this message did not carry all four questions, the diff, the changed-file list, and the QA matrix, return INCONCLUSIVE and name what was missing.
+
+Start each blocker with its own `Blocker B<n>:` line. For every blocker name `class:` and list `sites:` across the whole tree with the search you ran, or `single instance: <reason>`. Close with exactly one verdict token: PASS, FAIL, or INCONCLUSIVE.
+
+End your reply with this block verbatim, filled in. It is the only record of what you were actually asked:
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: <numbers of the questions you received, comma-separated>
+model_id: <your exact resolved model ID, or unresolved>
+security_delta: <yes|no - yes only when the change touches a real credential, an authentication or authorisation path, or third-party personal data, or weakens access to a protected asset; a synthetic credential limited to disposable local/test services is no>
+verdict: <PASS|FAIL|INCONCLUSIVE>
+blockers: <the B<n> ids of your Blocker lines, comma-separated, when verdict is FAIL; none otherwise>
+adversarial_criteria:
+- invariant: <your own, not restated from the plan>
+  positive_witness: <representative valid outcome>
+  negative_control: <plausible broken outcome that MUST fail>
+  observable: <runtime evidence distinguishing them>
+  boundary: <layer where the result is checked>
+END-REVIEW-TRAILER

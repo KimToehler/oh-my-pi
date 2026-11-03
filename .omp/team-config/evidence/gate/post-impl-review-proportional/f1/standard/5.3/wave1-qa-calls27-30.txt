@@ -1,0 +1,62 @@
+import os, json, subprocess, hashlib
+REPO=os.getcwd()
+W=os.path.join(REPO,'.omp/team-config/evidence/gate/fee-report/f1/wave-1')
+os.makedirs(W+'/fixtures',exist_ok=True)
+fx={
+ 'two-lines.json':{"lines":[{"id":"a","dueDate":"2026-01-10","feeCents":200},{"id":"b","dueDate":"2026-01-12","feeCents":1250}]},
+ 'big.json':{"lines":[{"id":"big","dueDate":"2026-01-10","feeCents":123456789}]},
+ 'empty.json':{"lines":[]},
+ 'edge-amounts.json':{"lines":[{"id":"c5","dueDate":"2026-03-01","feeCents":5},{"id":"m1","dueDate":"2026-03-02","feeCents":100000000},{"id":"k1","dueDate":"2026-03-03","feeCents":100005}]},
+ 'order.json':{"lines":[{"id":"z","dueDate":"2026-02-01","feeCents":1},{"id":"a","dueDate":"2026-01-01","feeCents":2}]},
+}
+for k,v in fx.items():
+    open(f'{W}/fixtures/{k}','w').write(json.dumps(v,indent=2)+'\n')
+lib='''import { lateFee } from "../../../../../../../src/fee";
+const cases: [number, number, number][] = [
+  [10000, 30, 200], [10000, 400, 2500], [10000, 29, 0],
+  [10000, 0, 0], [0, 400, 0], [10000, 59, 200], [10000, 60, 400],
+  [10000, 360, 2400], [10000, 390, 2500], [12345, 30, 246], [99, 30, 1], [49, 30, 0],
+];
+for (const [a, d, want] of cases) {
+  const got = lateFee(a, d);
+  console.log(`lateFee(${a}, ${d}) = ${got} expected ${want} ${got === want ? "OK" : "MISMATCH"}`);
+}
+'''
+open(f'{W}/fixtures/latefee-probe.ts','w').write(lib)
+print(os.listdir(W+'/fixtures'))
+p=f'{W}/fixtures/latefee-probe.ts'
+s=open(p).read().replace('"../../../../../../../src/fee"','"../../../../../../../../src/fee"')
+open(p,'w').write(s)
+def run(cmd, stdin=None):
+    r=subprocess.run(cmd,cwd=REPO,capture_output=True)
+    return r
+rows=[]
+def cap(name, cmd, note=''):
+    r=run(cmd)
+    out=f"$ {' '.join(cmd)}\nexit: {r.returncode}\nstdout (repr, exact bytes): {r.stdout.decode()!r}\nstderr: {r.stderr.decode()!r}\n"
+    if note: out+=f"note: {note}\n"
+    return out, r
+FX='.omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures'
+t1,r=cap('latefee',['bun',f'{FX}/latefee-probe.ts'])
+print(t1)
+open(f'{W}/qa-latefee.txt','w').write(t1)
+caps={}
+for name,f in [('two-lines','two-lines.json'),('big','big.json'),('empty','empty.json'),('edge-amounts','edge-amounts.json'),('order','order.json')]:
+    caps[name]=cap(name,['bun','src/cli.ts',f'{FX}/{f}'])
+caps['sample']=cap('sample',['bun','src/cli.ts','samples/report.json'])
+caps['usage']=cap('usage',['bun','src/cli.ts'])
+caps['tests']=cap('tests',['bun','test'])
+for k,(t,r) in caps.items(): print(k); print(t)
+notes={
+ 'two-lines':'expected exact bytes a\\t2026-01-10\\t2.00\\nb\\t2026-01-12\\t12.50\\nTOTAL\\t\\t14.50 plus one trailing newline',
+ 'big':'expected 1,234,567.89 on the line and the total; observed 1234,567.89 (only one group separated) -> FAIL',
+ 'empty':'expected exactly No late fees plus one newline, no TOTAL line',
+ 'edge-amounts':'expected 0.05, 1,000,000.00, 1,000.05 and TOTAL 1,001,000.10; observed 1000,000.00 and 1001,000.10 -> FAIL',
+ 'order':'expected lines in the given order z then a (no sorting)',
+ 'sample':'expected inv-7 25.00, inv-3 12.50, inv-9 2.00 in file order, TOTAL 39.50',
+ 'usage':'expected usage message on stderr and exit 2 without an argument',
+ 'tests':'expected the committed suite to pass',
+}
+for k,(t,r) in caps.items():
+    open(f'{W}/qa-render-{k}.txt' if k not in ('usage','tests') else f'{W}/qa-{k}.txt','w').write(t+f"note: {notes[k]}\n")
+print(sorted(os.listdir(W)))

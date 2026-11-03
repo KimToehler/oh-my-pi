@@ -1,0 +1,62 @@
+## 1. Goal and behavioural contract
+
+The implementation matches the specified helper contract:
+
+- `src/quota.ts:7–9` adds the requested named export.
+- Both arguments are checked with `Number.isInteger` before subtraction or clamping.
+- Invalid arguments throw `RangeError`; valid arguments return `Math.max(0, limit - used)`.
+- `checkQuota` remains unchanged. No persistence or other out-of-scope functionality was introduced.
+
+No blocking behavioural defect was found.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the entire supplied diff, the implementation, existing tests, package configuration, and OpenSpec workflow configuration.
+
+The change is appropriately localized: one synchronous, pure helper using standard-library operations, without dependencies, state, compatibility shims, or duplicated calculation paths. The existing export’s signature and behaviour are preserved.
+
+Cross-module checks found no integration obligation left behind: `remaining` has no in-repository consumer to migrate, and the existing tests import only `checkQuota`. Adding a library helper without an internal caller is the explicit deliverable, not dead code.
+
+Across the whole diff, no problematic duplication, naming inconsistency, uneven API convention, unnecessary abstraction, or simplification opportunity was found.
+
+## 3. Security and privacy delta
+
+No security or privacy delta identified. The changed code does not access credentials, authorization paths, personal data, storage, networks, or protected assets. Its errors contain a fixed message rather than input data.
+
+Customer-facing allowance accuracy is relevant product risk, but does not itself make this change an authentication, credential, or privacy change.
+
+## 4. Verification adequacy
+
+Reviewed the actual evidence artifacts, not only the summary matrix:
+
+- Carried F1 captures show `7` within the limit, `0` above it, and `5` with zero usage.
+- Wave-1 captures show fractional usage throwing `RangeError`, including an uncaught invocation exiting with status 1.
+- Edge captures cover equality, fractional limit, `NaN`, infinity, and a numeric string.
+- Regression evidence records two passing existing tests and `checkQuota` results of `true false false`.
+
+These are real calls through the exported functions, not mocked behaviour. I did not execute checks.
+
+**Note N1 — No durable regression coverage for the new export.** `test/quota.test.ts:1–9` tests only `checkQuota`. Add automated assertions for the new helper’s successful, clamped, and throwing paths. This does not block under the supplied threshold because current runtime evidence demonstrates the required behaviour and no resulting functional failure was found.
+
+**Note N2 — F1 recordkeeping is incomplete.** `openspec/changes/quota-remaining/tasks.md:9` marks every-scenario F1 verification complete, but `f1/qa-matrix.md:7–9` contains only three of the four specified scenarios. The missing fractional-usage scenario is substantiated by the wave-1 artifact, so this is a non-blocking provenance mismatch rather than a remaining behavioural evidence gap. Link that supplemental evidence from the QA record without implying it ran during the original capture.
+
+**Independent adversarial criterion:** translating both inputs by the same small integer offset must preserve the allowance. For example, `(3,10)` and `(103,110)` must both produce `7`; returning `107` for the latter must fail. This is an additional metamorphic check, not a repeated plan scenario. Static inspection supports it; the supplied captures do not exercise the translated pair.
+
+## 5. Final assessment
+
+No substantiated blocker. Residual risks are the missing automated coverage and the F1 provenance mismatch described above.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Translating both inputs by the same small integer offset preserves the allowance.
+  positive_witness: remaining(3,10) and remaining(103,110) both return 7.
+  negative_control: Returning 107 for remaining(103,110) MUST fail even if remaining(3,10) returns 7.
+  observable: Compare both returned numbers in one runtime invocation; the translated-pair check was not executed in the supplied evidence and was assessed statically only.
+  boundary: Exported remaining function return values in src/quota.ts.
+END-REVIEW-TRAILER

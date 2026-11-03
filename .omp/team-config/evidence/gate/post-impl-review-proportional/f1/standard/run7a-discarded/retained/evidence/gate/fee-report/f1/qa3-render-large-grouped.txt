@@ -1,0 +1,13 @@
+row: QA3
+command: bun src/cli.ts /tmp/feereport-qa/fixtures/big.json (in a pty)
+--- input /tmp/feereport-qa/fixtures/big.json
+{"lines":[{"id":"big","dueDate":"2026-01-10","feeCents":123456789}]}
+head: 7e122430af7fd360e66c47d1aad818bf34579531
+--- observed (cat -vet: ^I = TAB, $ = end of line)
+big^I2026-01-10^I1,234,567.89$
+TOTAL^I^I1,234,567.89$
+
+--- expected (cat -vet)
+big^I2026-01-10^I1,234,567.89$
+TOTAL^I^I1,234,567.89$
+verdict: PASS (byte-equal)

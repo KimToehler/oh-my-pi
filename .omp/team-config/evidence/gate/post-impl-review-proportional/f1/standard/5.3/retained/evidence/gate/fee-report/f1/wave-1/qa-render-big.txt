@@ -1,0 +1,5 @@
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/big.json
+exit: 0
+stdout (repr, exact bytes): 'big\t2026-01-10\t1234,567.89\nTOTAL\t\t1234,567.89\n'
+stderr: ''
+note: expected 1,234,567.89 on the line and the total; observed 1234,567.89 (only one group separated) -> FAIL

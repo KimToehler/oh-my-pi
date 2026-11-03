@@ -1,0 +1,17 @@
+BASELINE a13c82b677be recorded
+READY
+SNAPSHOT F2 wave 1 a13c82b677be
+DECISION: CONTINUE
+WAVE F2 1 total=3 fix_induced=0 unlocated=0
+RECORDED fix_delta_review rows=1,2,3 round=1 verdict=OKAY
+READY
+BASELINE a13c82b677be existing
+READY
+SNAPSHOT F2 wave 2 de189bf51177
+DECISION: CONTINUE
+WAVE F2 2 total=2 fix_induced=0 unlocated=0
+RECORDED fix_delta_review rows=4 round=1 verdict=OKAY
+READY
+SNAPSHOT F2 wave 3 f0200d7e9ddf
+DECISION: CONTINUE
+WAVE F2 3 total=1 fix_induced=0 unlocated=0

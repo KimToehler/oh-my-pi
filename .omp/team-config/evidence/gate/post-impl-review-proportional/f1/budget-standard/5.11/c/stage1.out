@@ -1,0 +1,32 @@
+Working...
+## Implementation complete
+
+**Change:** csv-total (to pick a different change, run `/opsx-apply <other>`)
+**Schema:** omp-gated
+**Progress:** 4/4 tasks complete. `openspec instructions apply` now reports `all_done`, and the change validator passes.
+
+### Done this session
+- [x] 3.1 F1, manual QA on the real CLI.
+  - **Merge:** `main` (cac67ef, which only adds the README) was not part of the work branch, so I merged it in as commit `d0c56d3`. `bun test` passed 4/4 after the merge.
+  - **Scenarios:** I ran `bun src/cli.ts total FILE` five times on `d0c56d3` with no uncommitted changes. All five gave the expected result:
+
+| Scenario | Expected | What the CLI did |
+|---|---|---|
+| s1-happy | prints `25.00` | `25.00`, exit 0 |
+| s2-malformed | names line 1, no total, exit 2 | stderr `error: line 1: malformed price`, stdout empty, exit 2 |
+| s3-cents (ten lines of `x,0.10`) | prints `1.00` | `1.00`, exit 0 |
+| s4-empty | prints `0.00` | `0.00`, exit 0 |
+| s5-large | digits `1234.50` | `1234.50`, exit 0 |
+
+  - **Checking the checks:** for each scenario I also ran the same input and pass/fail check against a temporary copy of `src/` with one deliberate bug. All five checks failed on the broken copy, so each one can tell right output from wrong:
+    - s1: decimals dropped (`parseInt`) gave `24.00`.
+    - s2: a bad price counted as zero gave `0.00`, exit 0.
+    - s3: summing in floating-point dollars gave `0.99.99999999999999`.
+    - s4: blank lines not skipped gave exit 2.
+    - s5: formatting without fixed decimals gave `1234.5`.
+
+    My first broken version for s1 and s3 (cents not rounded) still passed both checks, because `19.99*100` and `0.1*100` happen to come out exact in JS. I kept the checks unchanged, swapped in the bugs above, and the evidence records only those.
+  - **Evidence:** the five files are in `.omp/team-config/evidence/gate/csv-total/f1/`. Each one comes from the actual command output and contains the head SHA, bun version, input, stdout/stderr/exit, expected result, and the broken-copy run. The task's Verify command passes.
+  - **Commit:** `a56d6c1`, "qa(csv-total): F1 five CLI scenarios on d0c56d3 match expected output; negative controls red". It holds the evidence files and the ticked `tasks.md`.
+
+I removed the temporary input and broken-copy files. As you asked, I have not started the F2 merge gate or any review, and both still have to happen before merging.

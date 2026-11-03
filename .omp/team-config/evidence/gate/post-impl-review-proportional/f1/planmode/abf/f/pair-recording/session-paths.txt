@@ -1,0 +1,1 @@
+/Users/tim/.omp/profiles/pirp-med/agent/sessions/-tmp-pirp-fix-f1c-f-pair/2026-11-02T20-20-39-600Z_01a19deb-d030-7698-960d-dd855141ae27.jsonl (parent), /Users/tim/.omp/profiles/pirp-med/agent/sessions/-tmp-pirp-fix-f1c-f-pair/2026-11-02T20-20-39-600Z_01a19deb-d030-7698-960d-dd855141ae27/PresidentialTyrannosaurus.jsonl (child)

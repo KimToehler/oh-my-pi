@@ -1,0 +1,12 @@
+[
+  {
+    "id": "DUE-30-DAYS-BEFORE-UTC-TODAY",
+    "amountCents": 10000,
+    "dueDate": "2026-10-03"
+  },
+  {
+    "id": "DUE-29-DAYS-BEFORE-UTC-TODAY",
+    "amountCents": 10000,
+    "dueDate": "2026-10-04"
+  }
+]

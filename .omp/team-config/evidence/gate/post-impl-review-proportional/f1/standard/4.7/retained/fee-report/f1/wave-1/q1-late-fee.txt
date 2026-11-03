@@ -1,0 +1,81 @@
+F1 QA row Q1 - lateFee via public API (src/fee.ts), head 82e54ad9e132e45c633ce56f71e50d19841fb10a
+probe source:
+  src| import { lateFee } from "<repo>/src/fee.ts";
+  src| const cases: [number, number, number][] = [
+  src|   [10000, 30, 200], [10000, 400, 2500], [10000, 29, 0], [10000, 0, 0], [10000, 59, 200],
+  src|   [10000, 60, 400], [10000, 360, 2400], [10000, 389, 2400], [10000, 390, 2500], [999, 30, 19],
+  src|   [12345, 90, 740], [0, 400, 0], [1, 400, 0], [3, 400, 0], [4, 400, 1], [123456789, 400, 30864197],
+  src| ];
+  src| let bad = 0;
+  src| for (const [a, d, want] of cases) {
+  src|   const got = lateFee(a, d);
+  src|   const ok = got === want && Number.isInteger(got);
+  src|   if (!ok) bad++;
+  src|   console.log(`lateFee(${a}, ${d}) = ${got} expected ${want} ${ok ? "PASS" : "FAIL"}`);
+  src| }
+  src| console.log(`failures=${bad}`);
+  src| process.exit(bad ? 1 : 0);
+$ bun /tmp/fee-gate/fixtures/fee-probe.ts
+  od|            l   a   t   e   F   e   e   (   1   0   0   0   0   ,       3
+  od|            0   )       =       2   0   0       e   x   p   e   c   t   e
+  od|            d       2   0   0       P   A   S   S  \n   l   a   t   e   F
+  od|            e   e   (   1   0   0   0   0   ,       4   0   0   )       =
+  od|                2   5   0   0       e   x   p   e   c   t   e   d       2
+  od|            5   0   0       P   A   S   S  \n   l   a   t   e   F   e   e
+  od|            (   1   0   0   0   0   ,       2   9   )       =       0    
+  od|            e   x   p   e   c   t   e   d       0       P   A   S   S  \n
+  od|            l   a   t   e   F   e   e   (   1   0   0   0   0   ,       0
+  od|            )       =       0       e   x   p   e   c   t   e   d       0
+  od|                P   A   S   S  \n   l   a   t   e   F   e   e   (   1   0
+  od|            0   0   0   ,       5   9   )       =       2   0   0       e
+  od|            x   p   e   c   t   e   d       2   0   0       P   A   S   S
+  od|           \n   l   a   t   e   F   e   e   (   1   0   0   0   0   ,    
+  od|            6   0   )       =       4   0   0       e   x   p   e   c   t
+  od|            e   d       4   0   0       P   A   S   S  \n   l   a   t   e
+  od|            F   e   e   (   1   0   0   0   0   ,       3   6   0   )    
+  od|            =       2   4   0   0       e   x   p   e   c   t   e   d    
+  od|            2   4   0   0       P   A   S   S  \n   l   a   t   e   F   e
+  od|            e   (   1   0   0   0   0   ,       3   8   9   )       =    
+  od|            2   4   0   0       e   x   p   e   c   t   e   d       2   4
+  od|            0   0       P   A   S   S  \n   l   a   t   e   F   e   e   (
+  od|            1   0   0   0   0   ,       3   9   0   )       =       2   5
+  od|            0   0       e   x   p   e   c   t   e   d       2   5   0   0
+  od|                P   A   S   S  \n   l   a   t   e   F   e   e   (   9   9
+  od|            9   ,       3   0   )       =       1   9       e   x   p   e
+  od|            c   t   e   d       1   9       P   A   S   S  \n   l   a   t
+  od|            e   F   e   e   (   1   2   3   4   5   ,       9   0   )    
+  od|            =       7   4   0       e   x   p   e   c   t   e   d       7
+  od|            4   0       P   A   S   S  \n   l   a   t   e   F   e   e   (
+  od|            0   ,       4   0   0   )       =       0       e   x   p   e
+  od|            c   t   e   d       0       P   A   S   S  \n   l   a   t   e
+  od|            F   e   e   (   1   ,       4   0   0   )       =       0    
+  od|            e   x   p   e   c   t   e   d       0       P   A   S   S  \n
+  od|            l   a   t   e   F   e   e   (   3   ,       4   0   0   )    
+  od|            =       0       e   x   p   e   c   t   e   d       0       P
+  od|            A   S   S  \n   l   a   t   e   F   e   e   (   4   ,       4
+  od|            0   0   )       =       1       e   x   p   e   c   t   e   d
+  od|                1       P   A   S   S  \n   l   a   t   e   F   e   e   (
+  od|            1   2   3   4   5   6   7   8   9   ,       4   0   0   )    
+  od|            =       3   0   8   6   4   1   9   7       e   x   p   e   c
+  od|            t   e   d       3   0   8   6   4   1   9   7       P   A   S
+  od|            S  \n   f   a   i   l   u   r   e   s   =   0  \n            
+  od| 
+  out| lateFee(10000, 30) = 200 expected 200 PASS
+  out| lateFee(10000, 400) = 2500 expected 2500 PASS
+  out| lateFee(10000, 29) = 0 expected 0 PASS
+  out| lateFee(10000, 0) = 0 expected 0 PASS
+  out| lateFee(10000, 59) = 200 expected 200 PASS
+  out| lateFee(10000, 60) = 400 expected 400 PASS
+  out| lateFee(10000, 360) = 2400 expected 2400 PASS
+  out| lateFee(10000, 389) = 2400 expected 2400 PASS
+  out| lateFee(10000, 390) = 2500 expected 2500 PASS
+  out| lateFee(999, 30) = 19 expected 19 PASS
+  out| lateFee(12345, 90) = 740 expected 740 PASS
+  out| lateFee(0, 400) = 0 expected 0 PASS
+  out| lateFee(1, 400) = 0 expected 0 PASS
+  out| lateFee(3, 400) = 0 expected 0 PASS
+  out| lateFee(4, 400) = 1 expected 1 PASS
+  out| lateFee(123456789, 400) = 30864197 expected 30864197 PASS
+  out| failures=0
+
+  exit=0

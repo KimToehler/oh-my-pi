@@ -1,0 +1,29 @@
+# fixture f1a-standard-r6 checks, taken on the pre-session head a8cbb6c (clone at $TMPDIR/pirp-fix/f1a-r6-pre-session-check; the session later moved the original fixture's branches)
+a8cbb6c feat: overdue report and report command
+cb28ea4 feat: late fee per invoice
+2c423a8 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+# schema blob
+954aae1d8a239af994c88db3ef575591de70c95e
+# folder digest
+f0eeeb1467dcb0d9f46c39ed87680ba9d21161b80aca1f12001907fa0184fd83
+# validate-openspec-change --reviewed
+reviewed: OKAY in round 1
+# validate-gate-record --plan-only
+passed
+# openspec validate --strict
+Change 'late-fee-report' is valid
+# bun test
+ 6 pass
+ 0 fail
+ 9 expect() calls
+Ran 6 tests across 2 files. [6.00ms]
+# planted defect (machine zone CET): 10000 cents due 2026-03-01 as of 2026-03-31 is 30 UTC days, spec says fee 2.00
+TOTAL		0.00
+# same input with TZ=UTC
+A	2026-03-01	2.00
+TOTAL		2.00
+# src/fee.test.ts spans (none crosses a DST change):
+7:  expect(lateFee(inv("2026-01-10"), "2026-02-15")).toBe(200);
+11:  expect(lateFee(inv("2025-01-01"), "2026-02-15")).toBe(2500);
+15:  expect(lateFee(inv("2026-01-10"), "2026-02-08")).toBe(0);

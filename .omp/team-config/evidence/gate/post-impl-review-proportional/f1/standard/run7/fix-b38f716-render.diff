@@ -1,0 +1,15 @@
+
+diff --git a/src/render.ts b/src/render.ts
+index d743a75..3bae386 100644
+--- a/src/render.ts
++++ b/src/render.ts
+@@ -12,8 +12,7 @@ export interface Report {
+ export function formatAmount(cents: number): string {
+   const units = Math.floor(cents / 100);
+   const decimals = String(cents % 100).padStart(2, "0");
+-  const thousands = Math.floor(units / 1000);
+-  const grouped = thousands > 0 ? `${thousands},${String(units % 1000).padStart(3, "0")}` : String(units);
++  const grouped = String(units).replace(/\B(?=(\d{3})+$)/g, ",");
+   return `${grouped}.${decimals}`;
+ }
+ 

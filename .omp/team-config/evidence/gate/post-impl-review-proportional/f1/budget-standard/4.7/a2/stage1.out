@@ -1,0 +1,21 @@
+Working...
+F2 wave 1 failed manual QA, so I didn't send the wave 1 implementation-audit. I've written a fix and the brief for its delta review, and the gate is paused until you give me that review's reply.
+
+**Wave 1** (snapshot of `ecd418f`, depth standard, Risk tier product). The plan-only validation passed. The auditor's pinned model is `onara/cx/gpt-6.1-sol:high` and nothing overrides it.
+
+**QA:** 9 rows: QA1–QA5 come from the earlier F1 evidence and carry over, QA6–QA9 I ran myself. The matrix is at `.omp/team-config/evidence/gate/csv-total/wave-1/qa-matrix.md`. The carry holds because `ecd418f` only adds the F1 evidence files and ticks the checkbox in `tasks.md`, so it can't change what the CLI does.
+- QA9 fails: `big,1234567.00` prints `1234,567.00`, and two lines that add up to a million, `999999.99` + `0.01`, print `1000,000.00`. The cause is that `groupThousands` in `src/format.ts:11` uses a regex without the `g` flag, so it only inserts the last separator.
+- The skill says a QA failure ends the wave before any reviewer runs, so the reply file you named for the wave 1 audit is unused. It would apply to wave 2 if that wave is meant to use it.
+- I recorded the wave with `GC wave --outcome qa=FAIL --blocker QA9`, which returned `DECISION: CONTINUE`. Standard depth allows one fix round.
+
+**Fix round 1** (commit `ae2afb0`):
+- Added fix row 1.3 to `tasks.md` and a regression test. The test failed on the old code: it got `1000,000.00` where `1,000,000.00` was expected.
+- Changed the regex to `/\B(?=(\d{3})+$)/g`. The full suite then passed (5 tests), and the CLI printed `1,234,567.00` and `10,000,000.00`.
+- Wrote the patch set with `GC patch`; it is at `.omp/team-config/gate-deltas/F2-1.3-ae2afb0be177-20261102234125/`.
+- In the delta brief, QA1–QA4 and QA6–QA8 carry because their totals are below 1000 and never reach `groupThousands`. QA5 and QA9 must be re-run before wave 2.
+
+**Problem for later:** adding row 1.3 changed the change folder, so `validate-openspec-change.mjs --reviewed` now reports `review.md` as stale (the folder changed after the planning review). The plan-only check still passes. Neither `GC` nor the record validator has rejected it yet.
+
+The wave 1 QA artifacts stay unstaged until the gate record is written. No record has been written.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r47/out-a2/brief-delta-round1.md

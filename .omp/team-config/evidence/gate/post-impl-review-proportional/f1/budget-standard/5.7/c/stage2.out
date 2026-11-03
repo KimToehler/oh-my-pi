@@ -1,0 +1,61 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The F2 gate for `csv-total` passed at reviewed head `60d56444eccee97bb24e5c51c3be2653eb256229`. The record validated with exit 0 both before and after the record commit `5f9e557`.
+
+Decision reason: `gate.md` sets depth to standard (Mandatory class none, Risk tier product). The final diff adds no auth, schema, wire/API or shared-state surface, so depth stays standard.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (5 rows, 5 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | MED |
+
+The implementation-audit result is not from a live reviewer. Following your instruction, the brief went to `…/payloads/F1D/r57/out-c/brief-implementation-audit-1.md`, and the reply and session came from `c-w1-reply.md` and `c-sess.jsonl`. The Phase 3 model check passed on that session:
+- the only assistant turn ran on `onara` + `cx/gpt-6.1-sol`, with no fallback;
+- the thinking level was `high`;
+- the trailer's `model_id` matches the pin in `auditor.md` (`onara/cx/gpt-6.1-sol:high`);
+- `task.agentModelOverrides` has no `auditor` entry.
+
+## What happened along the way
+- **`main` had moved.** It now includes commit `066253a`, which changes `groupThousands` to `toLocaleString("en-US")`, and it was not an ancestor of the head. I merged it in as `60d5644` before `GC baseline`.
+- **QA carries and re-runs.** That merge only changes how totals of 1000 or more are formatted:
+  - The four F1 checks with totals under 1000 (s1–s4) are carried and were not re-run.
+  - The large-total check (s5) was stale: the F1 capture showed `1234.50`. I re-ran it on the merged head and it now prints `1,234.50`, which the expectation in tasks.md 3.1 allows.
+  - I also captured the spec's `0.10 + 0.20 → 0.30` scenario, which F1 had not captured, so the "exact cents" row covers all its scenarios.
+- **Record fix.** The first validation failed with `blockers: must be an array`. I added `"blockers": []`, re-staged, and it passed.
+- **Checkout changed.** The skill requires reviewing from a dedicated worktree, so I switched the main checkout (clean: no changes, no untracked files, no stashes) to `main`. `feat/csv-total` is now checked out in the locked worktree `.worktrees/review-csv-total`. That worktree also holds the gate ledger and snapshot (git-ignored).
+
+## Blocking Issues
+None.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all covered by the single implementation-audit.
+
+## Key Findings
+- The reviewer reported no blockers and `security_delta: no`. Its own adversarial check: merging the formatting change must change only the grouping of a total, never its digits.
+- The QA rows and their artifacts are:
+  - **R1, strict parsing:** `wave-1/r1-parsed-strictly.md`
+  - **R2, exact cents:** `wave-1/r2-exact-cents.md`
+  - **Happy path:** `f1/s1-happy.md`
+  - **Riskiest edge, malformed line:** `f1/s2-malformed.md`
+  - **Adjacent regression, large total:** `wave-1/s5-large.md`
+
+## Recommendations
+- Totals of 1000 or more now print as `1,234.50`. tasks.md allows this, but `design.md` lists "locale formatting" as a non-goal. This isn't blocking; the design wording may need updating.
+- `GC ready` now reports NOT READY, naming the record commit `5f9e557` as an "unreviewed fix commit". That only matters for dispatching another wave; the validator accepts commits that touch only evidence.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range 066253a8a5790957bd2e058fac5b086c75de4ccb...60d56444eccee97bb24e5c51c3be2653eb256229 · report none · Must-fix: 0 open / 0 fixed
+- review-work: RAN
+  reviewed_sha 60d56444eccee97bb24e5c51c3be2653eb256229 · plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/csv-total/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard per gate.md) · trailer none
+  override: none
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at 5f9e557
+- code committed after reviewed_sha: none
+```

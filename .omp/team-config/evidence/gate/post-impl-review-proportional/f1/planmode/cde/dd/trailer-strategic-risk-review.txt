@@ -1,0 +1,54 @@
+No blocking defect is substantiated by the supplied diff, plan, and QA matrix. This review did not execute commands or independently inspect the referenced QA artifacts or gate record.
+
+### 1. Architecture and cross-module seams
+
+The change keeps quorum enforcement in `decide`, rather than duplicating policy in the CLI or tests. At `scripts/gate.ts:14–19`, failed checks still reject first; otherwise, `Set` cardinality enforces two distinct approver strings. This implements the plan’s stated invariant without changing the exported interface.
+
+The relevant seams are:
+- **Candidate → decision:** approvals are compared using exact string equality.
+- **Decision → CLI:** the observable contract is admission, reason, and exit status. The supplied QA matrix reports both file and stdin execution.
+- **Policy → tests:** the tests exercise the actual decision function, without mocks.
+- **Plan → evidence:** all eight supplied QA rows correspond to relevant behavior, including failed-check precedence and more than two approval entries.
+
+Unchanged callers and the CLI implementation were not supplied, so broader compatibility is not independently established.
+
+### 2. Consistency and simplification
+
+The implementation is appropriately small. No duplicated policy implementation, inconsistent naming, uneven API change, mixed convention, premature abstraction, or newly dead code is apparent in the diff. A configurable quorum or identity abstraction would add unnecessary scope here.
+
+**Note — masked regression test:** `scripts/gate.test.ts:15–17` tests a failed check with only one approval. Removing failed-check enforcement would still leave that test passing because quorum would reject the candidate. Use two distinct approvals and assert the failed-check result. **Non-blocking:** the production guard remains intact, and supplied QA5 specifically exercises this case through the CLI.
+
+The plan documents the changed behavior. Whether existing user-facing documentation still promises one-approval admission cannot be determined from the supplied material.
+
+### 3. Most harmful production failure
+
+The most consequential failure would be admitting a release despite insufficient distinct approvals or a failed check.
+
+Both are handled by the visible implementation:
+- Duplicate strings count once.
+- Zero or one distinct string rejects with the specified count.
+- Failed checks reject before quorum is considered.
+- Additional duplicate entries do not invalidate an otherwise sufficient quorum.
+
+Supplied QA2–QA5 report rejection for the critical negative cases; QA1 and QA6 report successful admission for valid candidates.
+
+### 4. What line-level review would miss
+
+**Note — string quorum is not person quorum:** `scripts/gate.ts:17–18` distinguishes strings, not authenticated people. A single person supplying two different strings satisfies this implementation. **Non-blocking:** `.omp/plans/gate-quorum.md:18` explicitly accepts unauthenticated, free-form identities; this is a declared limitation, not an introduced authentication bypass. The release assurance should therefore be described as “two distinct approver strings,” unless an upstream trusted identity source supplies them.
+
+A green unit suite alone also would not establish CLI exit behavior, stdin compatibility, or the integrity of SHA-bound evidence. The supplied matrix addresses the runtime scenarios, but its artifacts and the completed merge-gate record were not independently examined.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: yes
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A failing check must remain decisive even when the candidate independently satisfies quorum.
+  positive_witness: Passing checks with approvals ["a","b"] produce admission and exit 0.
+  negative_control: A failed unit check with approvals ["a","b"] must not produce admission or exit 0.
+  observable: CLI exit 1 and JSON containing admitted=false and reason="failed checks: unit", as reported in supplied QA5.
+  boundary: CLI decision serialization and process exit status.
+END-REVIEW-TRAILER

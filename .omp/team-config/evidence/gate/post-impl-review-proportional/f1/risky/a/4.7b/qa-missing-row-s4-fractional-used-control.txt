@@ -1,0 +1,4 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (bun 1.4.4), 2026-11-02T23:45:54Z
+$ bun -e 'import {remaining} from "./src/quota"; try { const r = remaining(2.5,10); console.log("returned", r) } catch (e) { console.log("threw", e.constructor.name, e instanceof RangeError, e.message) }'
+threw RangeError true quota values must be integers
+[exit 0]

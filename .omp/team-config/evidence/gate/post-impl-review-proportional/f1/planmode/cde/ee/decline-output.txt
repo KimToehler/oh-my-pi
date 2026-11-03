@@ -1,0 +1,10 @@
+Working...
+Understood. The plan stays `internal-tooling`, so I've dispatched no reviewer and written no record. No ledger exists and no tracked file has changed.
+
+The gate can't pass in this state. This diff changes what the release gate admits (`scripts/gate.ts` `decide()` now needs 2 distinct approvers), which makes it `risky` depth. A `risky` gate needs Risk tier `product`. Under `internal-tooling` the validator accepts only a single `implementation-audit`, and the gate can't drop to `standard` because that would lower a required depth.
+
+**Question:** `risky` depth needs Risk tier `product`, and the plan stays `internal-tooling`. How do you want to proceed?
+
+**Options:**
+1. **Re-plan:** rework the plan for this mechanism so its tier and depth match.
+2. **Stop:** leave the gate unrun. F2 stays unchecked, and the branch has no merge-gate record, so it isn't cleared to merge.

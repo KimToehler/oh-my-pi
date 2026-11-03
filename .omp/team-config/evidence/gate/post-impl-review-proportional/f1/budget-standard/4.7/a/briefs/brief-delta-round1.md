@@ -1,0 +1,18 @@
+Review this fix delta. Workspace root: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r47-a. Plan: openspec/changes/csv-total.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+Feature-specific criteria: not in plan
+- **Accepted residual risks**:
+  - Sub-cent rounding: a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent. Accepted because supplier feeds carry two decimals.
+- **Out of scope for blocking**: none (the change adds one standalone CLI and touches no shared surface)
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+1. F2 wave 1 QA6: `groupThousands` in `src/format.ts` separates only the last three digits, so a total of 1,234,567.00 prints `1234,567.00`. Group every third digit from the right (`1,234,567.00`, `1,000,000,000.00`) and add a regression test for a total of one million or more. Verify: `bun test`; `bun src/cli.ts total` on `big,1234567.00` prints `1,234,567.00`.
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+- Q1 s1-happy (`widget,19.99` + `gadget,5.01` print `25.00`, exit 0; .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md): carried; the total's whole part is 25 < 1000, so formatCents never calls the changed groupThousands, and parsing/summing code is untouched.
+- Q2 s2-malformed (`widget,abc` exits 2 naming line 1, no total; .omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md): carried; parsePrices throws before formatCents runs, and src/price.ts, src/cents.ts and src/cli.ts are untouched.
+- Q3 s3-cents (ten lines of `x,0.10` print `1.00`; .omp/team-config/evidence/gate/csv-total/f1/s3-cents.md): carried; whole part 1 < 1000 never reaches groupThousands, and the cents parsing and summing are untouched.
+- Q4 s4-empty (empty file prints `0.00`, exit 0; .omp/team-config/evidence/gate/csv-total/f1/s4-empty.md): carried; whole part 0 < 1000 never reaches groupThousands.
+- Q7 malformed-among-valid (lines 3 and 4 malformed among valid lines, blank line 2: stderr `error: lines 3, 4: malformed price`, no total, exit 2; .omp/team-config/evidence/gate/csv-total/wave-1/q7-malformed-among-valid.md): carried; parsePrices throws before formatCents runs, and the parser is untouched.
+- Q8 cents-add (`a,0.10` + `b,0.20` print `0.30`; .omp/team-config/evidence/gate/csv-total/wave-1/q8-cents-add.md): carried; whole part 0 < 1000 never reaches groupThousands.
+- Not carried, re-run in the next wave because the diff changes the behaviour they observe: Q5 s5-large (`big,1234.50`, whole part 1234 reaches groupThousands) and Q6 regression-grouping (the failing row this fix addresses).
+Commit range ecd418fce4a870f089788aa2102397d42c8ea37c..58aa50fd80a17a2228ad58cf1a3b52bebbad35ff, commits 58aa50fd80a17a2228ad58cf1a3b52bebbad35ff.
+The diff is one patch file per commit, in commit order, each with its commit header. Read /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r47-a/.omp/team-config/gate-deltas/F2-1-58aa50fd80a1-20261102233135/manifest.json, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.

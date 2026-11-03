@@ -1,0 +1,21 @@
+Working...
+Wave 1 of the F2 gate failed in manual QA. I committed a fix, and the delta review of that fix is waiting for your reply file. No auditor was dispatched: the skill skips reviewers once a QA row fails, so the wave-1 reply file `a-w1-reply.md` was not used.
+
+**Wave 1**
+- **Setup:** the plan check (`--plan-only`) passed. `main` is already an ancestor of the branch, so no merge was needed. Baseline and snapshot were taken at `ecd418f`.
+- **QA rows:** the five F1 captures were taken at `4e5e75b`. `ecd418f` only adds that evidence and ticks the task, so I reused them as QA1–QA5 instead of re-running. I added four new rows under `.omp/team-config/evidence/gate/csv-total/wave-1/`:
+  - **QA6:** `a,999.99` plus `b,0.01` printed `1,000.00`. Pass.
+  - **QA7:** `big,1234567.00` printed `1234,567.00`. **Fail.** `groupThousands` in `src/format.ts` adds only one comma, before the last three digits, so seven-digit totals come out wrong.
+  - **QA8:** `a,0.10` plus `b,0.20` printed `0.30`. Pass.
+  - **QA9:** bad prices on lines 1 and 3 printed `error: lines 1, 3: malformed price` and exited 2. Pass.
+- **Ledger:** I recorded the wave with `--outcome qa=FAIL --blocker QA7`. It returned `DECISION: CONTINUE`; standard depth allows one fix round.
+
+**Fix round 1**
+- **`870b644`:** adds row 4.1 under a new `## 4. F2 fixes` heading in `tasks.md`.
+- **`4b7eb49`:** puts `src/format.ts` back to exactly what `main` has, so totals print without separators. The design lists locale formatting as a non-goal, and the proposal says it only adds new files, so I removed the grouping rather than fixing it. This also adds a formatter test for a four-digit and a seven-digit total. The test failed before the fix (`1,234.50` instead of `1234.50`), and all 5 tests pass after it.
+- **Delta patches:** `.omp/team-config/gate-deltas/F2-4.1-4b7eb4999e12-20261103075308/manifest.json`.
+- **Carried rows:** the brief carries QA1–4, QA8 and QA9 with a reason each; their totals stay under 1000 or fail before formatting, so they never reach the changed function. QA5–QA7 will be re-run in wave 2.
+
+The `wave-1/` captures are still unstaged, as the skill requires until the record is written. QA5 will now print `1234.50` instead of the `1,234.50` in the F1 capture.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/r53/out-a/brief-delta-round1.md

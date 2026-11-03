@@ -1,0 +1,83 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/post-impl-review-proportional",
+  "plan_sha256": "94bc31e6cd5debbe14b0982214f9cc864454222edb208388ebdadff55bcd36a8",
+  "reviewed_sha": "7976f0c9ed14ef01ced6c6d282850aa06841fe77",
+  "diff_base": "5d876477122ad9b6e03f18916276eb35fa10e250",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class concurrency-state, Depth risky: both invocations on the installed auditor pin; F2 wave 5 PASS after fix rows 5.1-5.19",
+  "mandatory_class": "concurrency-state",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1: Delivered text and deterministic contracts",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/wave-5/qa1-verify.txt",
+      "artifact_sha256": "34bb85f9de257de52a264ac9f44c82bdd23dc9bd5d3898f8e36f3bbfd33bbac5"
+    },
+    {
+      "name": "QA2: F1-A `standard` (task 4.2; primary run 5.5)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/f1/standard.md",
+      "artifact_sha256": "f0eea45214c07c55cadbef218ae30042b972443140bc21a7094c76f75597a5d4"
+    },
+    {
+      "name": "QA3: F1-B `risky` (task 4.3; (a) 5.3 re-run, (b) 4.7 run)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/f1/risky.md",
+      "artifact_sha256": "da05bf7433fc9a5683b2f89ab3de833805e8148547110447976985b7ec4f5617"
+    },
+    {
+      "name": "QA4: F1-C plan mode, tier and pin (task 4.4)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/f1/planmode.md",
+      "artifact_sha256": "872565ea7b8249118ffe7769ae552767904c1c73723af72767db47ce44b66c6c"
+    },
+    {
+      "name": "QA5: F1-D `standard` budget and carries (task 4.5; (a) and (c) 5.11 re-run, (b) 4.5 run, (d) 5.14, (e) 5.18)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md",
+      "artifact_sha256": "92baa902923fd7d89cb770de1da59c79f09c02fcd8cf3155beff86b6c00feccc"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "every edit is instruction or configuration text of one gate flow, cut over together as design D8 states; no script, validator or package code changes"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-terra",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/wave-5/trailer-implementation-audit.txt",
+      "trailer_sha256": "e01dacdab6b2658418b3b9610b18ff8fd73fc7f71f0416915887a193c3f80cbf",
+      "note": ".omp/team-config/evidence/gate/post-impl-review-proportional/wave-5/trailer-implementation-audit.txt; one non-blocking note (internal-tooling GC cap on a repeat)"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/post-impl-review-proportional/wave-5/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "93ccb8a5aaea7e5f505ce1d3b9514cd25bf4d998ab2b012d107efa5256326941",
+      "note": ".omp/team-config/evidence/gate/post-impl-review-proportional/wave-5/trailer-strategic-risk-review.txt; one non-blocking note (QA-failed closing wave at the budget unexercised)"
+    }
+  ],
+  "blockers": []
+}

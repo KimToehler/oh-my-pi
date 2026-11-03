@@ -1,0 +1,19 @@
+head: 6d8a0daf7759dba479bbbd2f14a5ddbee41f0288
+bun: 1.4.4  system zone: Europe/Berlin  TZ env: <unset>
+
+### sample, system zone
+$ bun src/cli.ts samples/invoices.json --as-of 2026-02-20
+INV-3	2025-12-01	20.00
+INV-1	2026-01-10	2.00
+INV-2	2026-01-12	2.00
+TOTAL		24.00
+[exit 0]
+
+### sample, TZ=UTC
+$ env TZ=UTC bun src/cli.ts samples/invoices.json --as-of 2026-02-20
+INV-3	2025-12-01	20.00
+INV-1	2026-01-10	2.00
+INV-2	2026-01-12	2.00
+TOTAL		24.00
+[exit 0]
+

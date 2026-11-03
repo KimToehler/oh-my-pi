@@ -1,0 +1,15 @@
+F1 QA row Q2 - render command on samples/report.json, head 2222ab914bd1e20117bd2ad7881c6cdcb37bc222
+$ bun src/cli.ts samples/report.json
+  od|            i   n   v   -   7  \t   2   0   2   6   -   0   1   -   1   0
+  od|           \t   2   5   .   0   0  \n   i   n   v   -   3  \t   2   0   2
+  od|            6   -   0   1   -   1   2  \t   1   2   .   5   0  \n   i   n
+  od|            v   -   9  \t   2   0   2   6   -   0   2   -   0   1  \t   2
+  od|            .   0   0  \n   T   O   T   A   L  \t  \t   3   9   .   5   0
+  od|           \n                                                            
+  od| 
+  out| inv-7	2026-01-10	25.00
+  out| inv-3	2026-01-12	12.50
+  out| inv-9	2026-02-01	2.00
+  out| TOTAL		39.50
+
+  exit=0

@@ -1,0 +1,12 @@
+# QA5 Regression: committed test suite and CLI usage error
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+ 9 pass
+ 0 fail
+ 11 expect() calls
+Ran 9 tests across 2 files. [4.00ms]
+exit=0
+$ bun src/cli.ts   # no argument
+usage: bun src/cli.ts <report.json>
+exit=2

@@ -1,0 +1,25 @@
+Working...
+## csv-total: task 3.1 done (4/4)
+
+**Change:** csv-total (`/opsx-apply <other>` to pick a different one)
+**Schema:** omp-gated
+**Progress:** 4/4 tasks complete. `openspec instructions apply` now reports `all_done`.
+
+### Task 3.1: F1 manual QA
+- **Merge:** `main` (`cac67ef`, README) was not in the work branch's history, so I merged it into `feat/csv-total` as commit `19eb3d4`. The last code commit is still `0cd516d`.
+- **Runs:** all five scenarios ran `bun src/cli.ts total FILE` on head `19eb3d4`, with bun 1.4.4. I wrote each evidence file from the captured output: the input bytes, stdout, stderr and exit code.
+
+| Scenario | Expected | Observed stdout | stderr | Exit |
+|---|---|---|---|---|
+| s1-happy | `25.00` | `25.00` | (none) | 0 |
+| s2-malformed | names line 1, no total, exit 2 | (none) | `error: line 1: malformed price` | 2 |
+| s3-cents | `1.00` | `1.00` | (none) | 0 |
+| s4-empty | `0.00` | `0.00` | (none) | 0 |
+| s5-large | digits `1234.50` | `1234.50` | (none) | 0 |
+
+- **Checks:** the task's Verify command (five `test -s` checks) exited 0. The change validator (`validate-openspec-change.mjs`) reported `passed` with the `--reviewed` flag before the work and without it after `tasks.md` changed.
+- **Commit:** `90d50fa`, "test(qa): F1 csv-total CLI on 5 scenarios, observed outputs match task 3.1 expectations". It holds the five evidence files in `.omp/team-config/evidence/gate/csv-total/f1/` and the ticked box in `tasks.md`. The evidence files record observations only; the pass/fail call is left to the QA lane.
+
+I deleted the throwaway input files afterwards; each evidence file keeps an exact copy of its input.
+
+As you asked, I didn't start the F2 merge gate (`review-work`) or any review. That is the next step before merging.

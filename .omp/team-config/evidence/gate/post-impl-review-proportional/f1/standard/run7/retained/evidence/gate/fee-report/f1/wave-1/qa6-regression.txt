@@ -1,0 +1,19 @@
+# QA6 regression: existing test suite and render usage error
+HEAD 82e54ad9e132e45c633ce56f71e50d19841fb10a
+cwd: review worktree (repo root)
+
+$ bun test
+exit=0
+stdout repr: 'bun test v1.4.4 (5d9cc0f4f)\n'
+stdout:
+bun test v1.4.4 (5d9cc0f4f)
+stderr: '\nsrc/fee.test.ts:\n(pass) one complete period charges 2% [0.08ms]\n(pass) fee is capped at 25% of the amount\n(pass) 29 days overdue charges nothing\n\nsrc/render.test.ts:\n(pass) lines and total [0.15ms]\n(pass) cents are zero padded\n(pass) thousands are grouped\n(pass) empty report\n\n 7 pass\n 0 fail\n 7 expect() calls\nRan 7 tests across 2 files. [5.00ms]\n'
+
+$ bun src/cli.ts
+exit=2
+stdout repr: ''
+stdout:
+
+stderr: 'usage: bun src/cli.ts <report.json>\n'
+
+expected: bun test all pass; bun src/cli.ts with no file prints usage on stderr and exits 2

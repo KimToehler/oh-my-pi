@@ -1,0 +1,7 @@
+# qa3-self-approval: author approves own release plus one reviewer
+# head: 31375ec1bc7fe9ff1df02d3c50bc8f2ce463c437
+$ cat candidate.json
+{"version":"1.0.0","author":"ann","checks":{"build":true,"tests":true},"approvals":[{"reviewer":"ann"},{"reviewer":"bob"}]}
+$ bun scripts/gate.ts candidate.json
+REJECT needs 2 independent approvals, got 1
+exit=1

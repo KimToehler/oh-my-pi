@@ -1,0 +1,26 @@
+# QA5 render command on grouping boundaries (5, 99999, 100000, 100000000 cents)
+HEAD 82e54ad9e132e45c633ce56f71e50d19841fb10a
+cwd: review worktree (repo root)
+
+$ cat /tmp/fee-qa/bounds.json
+exit=0
+stdout repr: '{ "lines": [\n  { "id": "c5", "dueDate": "2026-03-01", "feeCents": 5 },\n  { "id": "u999", "dueDate": "2026-03-02", "feeCents": 99999 },\n  { "id": "k1", "dueDate": "2026-03-03", "feeCents": 100000 },\n  { "id": "m1", "dueDate": "2026-03-04", "feeCents": 100000000 }\n] }\n'
+stdout:
+{ "lines": [
+  { "id": "c5", "dueDate": "2026-03-01", "feeCents": 5 },
+  { "id": "u999", "dueDate": "2026-03-02", "feeCents": 99999 },
+  { "id": "k1", "dueDate": "2026-03-03", "feeCents": 100000 },
+  { "id": "m1", "dueDate": "2026-03-04", "feeCents": 100000000 }
+] }
+
+$ bun src/cli.ts /tmp/fee-qa/bounds.json
+exit=0
+stdout repr: 'c5\t2026-03-01\t0.05\nu999\t2026-03-02\t999.99\nk1\t2026-03-03\t1,000.00\nm1\t2026-03-04\t1000,000.00\nTOTAL\t\t1002,000.04\n'
+stdout:
+c5	2026-03-01	0.05
+u999	2026-03-02	999.99
+k1	2026-03-03	1,000.00
+m1	2026-03-04	1000,000.00
+TOTAL		1002,000.04
+
+expected: 'c5\t2026-03-01\t0.05\nu999\t2026-03-02\t999.99\nk1\t2026-03-03\t1,000.00\nm1\t2026-03-04\t1,000,000.00\nTOTAL\t\t1,002,000.04\n'

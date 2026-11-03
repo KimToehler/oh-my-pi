@@ -1,0 +1,4 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (bun 1.4.4), 2026-11-02T23:45:54Z
+$ bun -e 'import {remaining} from "./src/quota"; console.log(remaining(9,10), remaining(10,10), remaining(11,10), remaining(0,0))'
+1 0 0 0
+[exit 0]

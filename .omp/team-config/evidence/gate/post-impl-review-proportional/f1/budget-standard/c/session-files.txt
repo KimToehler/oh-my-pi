@@ -1,0 +1,2 @@
+/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1d-c-moving/2026-11-02T20-34-02-186Z_01a19df8-0f4a-7776-b042-3f9f84ec2255.jsonl
+/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1d-c-moving/2026-11-02T20-34-56-540Z_01a19df8-e39c-70a0-88a7-8c24f0e22429.jsonl

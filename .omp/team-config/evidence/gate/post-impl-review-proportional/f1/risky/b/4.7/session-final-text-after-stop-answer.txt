@@ -1,0 +1,7 @@
+Working...
+Stopped. The F2 gate for `jobq-lifecycle` has **failed**: it can't merge, and no gate record exists.
+
+- **Nothing changed:** no tracked file was touched after the wave-3 recording. The worktree has no tracked changes and the branch is still at `8759878`.
+- **Ledger:** the last entry is still wave 3 `CONTINUE`. The skill records nothing for a Stop at this point, so no `GC decide` was run.
+- **Open blocker:** strategic-risk-review B1, non-atomic-snapshot-write at `src/store.ts:6`. It is excluded from accept or override, so merging needs another fix round or a re-plan, followed by a passing wave.
+- **Left in place:** the locked review worktree `.worktrees/review-jobq-lifecycle` and the detached main checkout (at `e784622`). `origin/feat/jobq-lifecycle` still has five commits this branch doesn't. The QA captures, trailers and gate snapshots under `.omp/team-config/` are untracked and unstaged.

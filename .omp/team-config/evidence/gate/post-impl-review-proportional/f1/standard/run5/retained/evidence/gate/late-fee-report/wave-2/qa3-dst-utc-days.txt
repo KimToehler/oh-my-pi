@@ -1,0 +1,73 @@
+QA3 days overdue are UTC calendar days in any runner zone: as of 2026-03-31, eu-spring (30d across EU DST 03-29) and us-spring (52d across US DST 03-08) each 2.00; as of 2026-10-31, eu-autumn (30d across EU DST end 10-25) 2.00; output identical in every TZ
+
+$ cat /tmp/latefee-qa/qa3-dst.json
+[
+ {
+  "id": "eu-spring",
+  "amountCents": 10000,
+  "dueDate": "2026-03-01"
+ },
+ {
+  "id": "us-spring",
+  "amountCents": 10000,
+  "dueDate": "2026-02-07"
+ },
+ {
+  "id": "eu-autumn",
+  "amountCents": 10000,
+  "dueDate": "2026-10-01"
+ }
+]
+[exit 0]
+
+$ TZ=Europe/Berlin bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-03-31
+us-spring	2026-02-07	2.00
+eu-spring	2026-03-01	2.00
+TOTAL		4.00
+[exit 0]
+
+$ TZ=Europe/Berlin bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-10-31
+us-spring	2026-02-07	16.00
+eu-spring	2026-03-01	16.00
+eu-autumn	2026-10-01	2.00
+TOTAL		34.00
+[exit 0]
+
+$ TZ=America/New_York bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-03-31
+us-spring	2026-02-07	2.00
+eu-spring	2026-03-01	2.00
+TOTAL		4.00
+[exit 0]
+
+$ TZ=America/New_York bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-10-31
+us-spring	2026-02-07	16.00
+eu-spring	2026-03-01	16.00
+eu-autumn	2026-10-01	2.00
+TOTAL		34.00
+[exit 0]
+
+$ TZ=Australia/Sydney bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-03-31
+us-spring	2026-02-07	2.00
+eu-spring	2026-03-01	2.00
+TOTAL		4.00
+[exit 0]
+
+$ TZ=Australia/Sydney bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-10-31
+us-spring	2026-02-07	16.00
+eu-spring	2026-03-01	16.00
+eu-autumn	2026-10-01	2.00
+TOTAL		34.00
+[exit 0]
+
+$ TZ=UTC bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-03-31
+us-spring	2026-02-07	2.00
+eu-spring	2026-03-01	2.00
+TOTAL		4.00
+[exit 0]
+
+$ TZ=UTC bun src/cli.ts /tmp/latefee-qa/qa3-dst.json --as-of 2026-10-31
+us-spring	2026-02-07	16.00
+eu-spring	2026-03-01	16.00
+eu-autumn	2026-10-01	2.00
+TOTAL		34.00
+[exit 0]

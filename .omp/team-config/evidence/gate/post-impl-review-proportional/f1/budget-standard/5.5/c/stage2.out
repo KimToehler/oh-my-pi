@@ -1,0 +1,56 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+Decision reason: gate.md sets Depth `standard` (Mandatory class `none`, Risk tier `product`). The final diff, including the merge of `main`, adds no credential, schema, wire contract or shared state, so the depth stays `standard`.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (8 rows, 8 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider (implementation model: onara/cc/claude-opus-5-5) | PASS | MED |
+| strategic-risk-review | - | - | - | not run (depth `standard`) | - |
+
+Confidence is MED because, as you instructed, I did not dispatch a reviewer. The verdict is your fixed payload `c-w1-reply.md`. Its session file passed the model check:
+- the assistant turn ran on `onara` + `cx/gpt-6.1-sol`;
+- `thinking_level_change` is `high`;
+- the trailer's `model_id` is `onara/cx/gpt-6.1-sol`.
+
+All three match the `auditor.md` pin, and there is no `auditor` entry in `task.agentModelOverrides`. The brief I would have sent is `out-c/brief-implementation-audit-w1.md`: the skill's verbatim template with every input filled in.
+
+## Blocking Issues
+None.
+
+## What happened
+- **Review worktree:** I made `.worktrees/review-csv-total`, a locked worktree for `feat/csv-total`. To free the branch, I first switched the main checkout to a detached HEAD at the same commit (`e28acf5`). The tree was clean, including untracked and ignored files, so no files changed. The main checkout is still detached, and `.worktrees/` shows as untracked there.
+- **Default branch moved after F1:** `main` gained `1e88cd0`, which makes `groupThousands` use `toLocaleString("en-US")`. I merged it as `8662301`, then ran `GC baseline`, `ready` (READY) and `snapshot` (wave 1).
+- **Manual QA on `8662301`:**
+  - QA1–QA4 are F1 rows s1–s4, carried over. None of them formats a total of 1000 or more, so the merge can't change what they observed.
+  - QA5 is s5, re-run on the merged head: it prints `1,234.50`.
+  - Three rows are new:
+    - QA6: the spec scenario `0.10 + 0.20 → 0.30`, which F1 never captured;
+    - QA7: several malformed lines among valid and blank ones, giving `error: lines 2, 5: malformed price`, exit 2;
+    - QA8: the usage and unreadable-file exits, plus `bun test` (4 pass, 0 fail).
+  - Every new row also ran against a mutated copy of `src/`, and each one failed there, so the checks can catch a real defect.
+- **Plan check:** `validate-gate-record.mjs --plan-only` → `passed`. The trailer check also passed.
+- **Wave record:** `GC wave` → `DECISION: PASS`, with `total=0 fix_induced=0`.
+- **Gate record:** the record is staged, validated (`passed`), committed as `2814962`, and validated again after the commit (`passed`).
+
+## Key Findings
+The auditor found no blockers. It names the merged grouping in `src/format.ts` as a single-locale change to how totals of 1000 or more are written, and says the parser and CLI don't depend on it.
+
+## Recommendations
+None before merge.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 86623019d0decf13b0faad42b9b12368448797a2 · plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard per gate.md; one reviewer)
+  override: none
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at 2814962
+- code committed after reviewed_sha: none
+```

@@ -1,0 +1,10 @@
+$ git rev-parse HEAD
+951b31abca24010414cc0f6975f74b5e1700bbb0
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+ 7 pass
+ 0 fail
+ 11 expect() calls
+Ran 7 tests across 2 files. [4.00ms]
+exit=0

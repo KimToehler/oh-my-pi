@@ -1,0 +1,22 @@
+[
+  {
+    "id": "FRESH",
+    "amountCents": 10000,
+    "dueDate": "2026-02-10"
+  },
+  {
+    "id": "NOT-DUE",
+    "amountCents": 10000,
+    "dueDate": "2026-03-10"
+  },
+  {
+    "id": "TINY",
+    "amountCents": 10,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "LISTED",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  }
+]

@@ -1,0 +1,22 @@
+Working...
+Wave 2 failed: manual QA passed, but the implementation audit returned **FAIL** with one blocker. The one fix round allowed at standard depth is used up, so the skill requires me to ask you before anything else is edited or sent to a reviewer.
+
+- **Fix round 1:** the first delta review returned REJECT, but only to reject the carry of QA1 (the happy-path row). I re-ran QA1 on `ae2afb0` and it printed `25.00`. The second review of the same range returned OKAY, and `GC ready` then reported READY.
+- **QA:** 10 rows, all passing. QA1, QA5, QA9 and the new QA10 (two prices adding up to exactly one million) were re-run on `ae2afb0`; the rest carry over. The matrix is at `.omp/team-config/evidence/gate/csv-total/wave-2/qa-matrix.md`.
+- **Model check:** passed. The session file shows `onara` / `cx/gpt-6.1-sol` with thinking level `high`, matching the auditor's pinned model `onara/cx/gpt-6.1-sol:high`. The trailer reports the same model.
+- **Trailer:** the reply is stored verbatim at `.omp/team-config/evidence/csv-total/f2/wave-2/trailer-implementation-audit.md` and passes the trailer check with verdict FAIL.
+- **Recorded:** `GC wave` with qa=PASS and implementation-audit=FAIL, blocker `sub-cent-rounding=src/money.ts:2`. It returned `DECISION: CONTINUE`.
+
+**The open blocker:** B1, at `src/money.ts:2`. `Math.round(amount * 100)` rounds a price with more than two decimals to the cent, so `1.005` becomes `1.00` and the printed total can differ from the invoice by a cent.
+
+This is **covered** by the `Accepted residual risks` entry in `gate.md`: "Sub-cent rounding: a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent." That entry names the same kind of defect and the same consequence.
+
+None of the skill's exclusions applies: the class is none, there is no security delta, and the blocker doesn't concern the audit trail, a gate mechanism or a gate criterion. So Override is allowed, and it's the option I recommend.
+
+**Question:** Wave 2 of the F2 gate for `csv-total` failed with one open blocker, and the standard-depth budget of one fix round is used up. Blocker B1 (`sub-cent-rounding`, `src/money.ts:2`): a price with more than two decimals is rounded with binary floating point (`1.005` → `1.00`), so the printed total can differ from the supplier's invoice by a cent. Disposition: covered by the plan's `Accepted residual risks` (sub-cent rounding), so it can stay unfixed as `accepted-residual`. How should the gate proceed?
+
+**Options:**
+1. One more fix round, then this question comes back after its closing wave.
+2. Re-plan: a separate plan for the affected mechanism.
+3. Stop.
+4. Override: write the gate record with `override` and one `downgrades` entry for B1 (rule `accepted-residual`, disposition `residual`), giving your name and reason. Allowed because B1 is covered.

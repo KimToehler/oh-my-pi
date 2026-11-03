@@ -1,0 +1,25 @@
+Working...
+The wave 2 audit doesn't count, because its trailer-repair answer ran on the wrong model. The skill allows one fresh retry with the same brief. I've written that brief, but you haven't named a reply file for the retry yet, so I'm stopping here.
+
+**Model check on `sess-w2-repair.jsonl`:**
+
+| Turn | Provider / model | Pinned model | Result |
+|---|---|---|---|
+| `s0000004` (the review) | `onara` / `cx/gpt-6.1-sol` | `onara/cx/gpt-6.1-sol:high` | match |
+| `s0000006` (the repair answer) | `onara` / `cc/claude-opus-5` | `onara/cx/gpt-6.1-sol:high` | **mismatch** |
+
+The effort setting is `high`, which matches the pin.
+
+The repaired trailer gives `model_id: onara/cx/gpt-6.1-sol`, but the turn that wrote it ran on Claude Opus 5. The trailer therefore misstates its own model, and Claude is the same model family that wrote the diff.
+
+**What I did with it:**
+- I kept the repair answer unchanged as git-ignored evidence at `.omp/team-config/evidence/csv-total/wave-2/implementation-audit-repair-reply.md`, next to the first reply.
+- I did not save it as the audit's trailer, did not run the trailer check on it, and did not record wave 2.
+- Nothing is staged.
+
+**The retry:**
+- It is the one fresh retry the skill allows, with the same brief, because the snapshot, tree and QA artifacts are unchanged.
+- If the retry also runs on a model other than the pinned one, the audit becomes INCONCLUSIVE for this wave.
+- If it runs on the pinned model, I'll check its trailer the same way and record wave 2. That wave would then use its trailer and outcome.
+
+AWAITING REPLY: implementation-audit, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D-e/out-e/brief-implementation-audit-wave-2-retry.md

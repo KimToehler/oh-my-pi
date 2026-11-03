@@ -1,0 +1,87 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "86623019d0decf13b0faad42b9b12368448797a2",
+  "diff_base": "1e88cd033bef52d7a9270a7d86c843cd32b68790",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, Risk tier product); final diff after merging main 1e88cd0 adds no credential, schema, wire contract or shared state, so depth stays standard",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 Price lines are parsed strictly: valid lines are summed (carried from F1; merge cannot reach a total below 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "f33084eab9dc90a4c3674d5b34a93a78e393aecf334405443aba6acb33ce1060"
+    },
+    {
+      "name": "QA2 Price lines are parsed strictly: malformed price rejected with its line number, negative control (carried from F1; no total is formatted)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "2a5a4044adb18a254ec28927d2674a0915fd8a01bec59663b90040291b81781d"
+    },
+    {
+      "name": "QA3 Totals are exact in cents: ten lines of x,0.10 print 1.00 (carried from F1; total below 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "0a5d8edfb21684708ff5892012d45758b77434839c931ff227514964d7c3727f"
+    },
+    {
+      "name": "QA4 Totals are exact in cents: empty file prints 0.00 (carried from F1; total below 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "9df0a13df9f927035eb30c03a267b0e28d7c9e4766dffef68ed257b1e906507d"
+    },
+    {
+      "name": "QA5 Total of 1000 or more on the merged head (re-run after merging main 1e88cd0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md",
+      "artifact_sha256": "ac45da7a683de2abb4ecde10bf10b197e8dba871883f3afea3f891e081957366"
+    },
+    {
+      "name": "QA6 Totals are exact in cents: a,0.10 plus b,0.20 print 0.30",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/r2-cents-add.md",
+      "artifact_sha256": "b85be1f9b52cf2d84cb91e43b63beb07da2828a17b7b1c876e67b9eed0939c47"
+    },
+    {
+      "name": "QA7 Riskiest edge: several malformed lines among valid and blank lines are all named, no total",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/edge-multi-malformed.md",
+      "artifact_sha256": "68ddf514f937fbc4c67527334e7178e31b4f50a4500a0a3dcf306cb4eeecfc03"
+    },
+    {
+      "name": "QA8 Regression: usage and unreadable-file exits, bun test green on the merged head",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/regression-cli-errors.md",
+      "artifact_sha256": "4ba95fdb8936ed4be7f306007db21d715139a570207c2d0b1cf11a73c7c352d5"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1 on 86623019, no blockers; GC wave DECISION: PASS"
+    }
+  ],
+  "blockers": []
+}

@@ -1,0 +1,1 @@
+{"verdict":"OKAY","summary":"The change replaces the wrong cause in the permission-denied read message and touches no other branch; the carried QA rows never reach it."}

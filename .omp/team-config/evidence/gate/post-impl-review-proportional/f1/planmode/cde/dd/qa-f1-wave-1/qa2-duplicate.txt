@@ -1,0 +1,9 @@
+# qa2-duplicate: negative control: duplicate approver
+# HEAD cadab7323ac71557f20ec65425fb17ebd0b096f2
+# input file content:
+{"version": "1.0.0", "checks": [{"name": "unit", "passed": true}], "approvals": ["a", "a"]}
+$ bun scripts/gate.ts $FIXTURE_DIR/qa2-duplicate.json
+{"admitted":false,"reason":"needs 2 approvals, got 1"}
+# exit code: 1
+# expected exit 1, stdout {"admitted":false,"reason":"needs 2 approvals, got 1"}
+# verdict: PASS

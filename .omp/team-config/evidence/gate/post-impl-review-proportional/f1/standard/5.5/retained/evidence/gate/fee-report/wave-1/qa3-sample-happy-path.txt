@@ -1,0 +1,25 @@
+# QA3 Happy path: render the shipped sample report (package script and direct)
+$ script -q /dev/null bun run render samples/report.json   # pty
+^D$ bun src/cli.ts samples/report.json
+inv-7	2026-01-10	25.00
+inv-3	2026-01-12	12.50
+inv-9	2026-02-01	2.00
+TOTAL		39.50
+
+$ script -q /dev/null bun src/cli.ts samples/report.json   # pty
+^Dinv-7	2026-01-10	25.00
+inv-3	2026-01-12	12.50
+inv-9	2026-02-01	2.00
+TOTAL		39.50
+$ bun src/cli.ts samples/report.json | od -c   # exact stdout bytes
+0000000    i   n   v   -   7  \t   2   0   2   6   -   0   1   -   1   0
+0000020   \t   2   5   .   0   0  \n   i   n   v   -   3  \t   2   0   2
+0000040    6   -   0   1   -   1   2  \t   1   2   .   5   0  \n   i   n
+0000060    v   -   9  \t   2   0   2   6   -   0   2   -   0   1  \t   2
+0000100    .   0   0  \n   T   O   T   A   L  \t  \t   3   9   .   5   0
+0000120   \n                                                            
+0000121
+exit=0 stderr_bytes=0
+
+CHECK sample-report: stdout equals expected bytes -> MATCH
+

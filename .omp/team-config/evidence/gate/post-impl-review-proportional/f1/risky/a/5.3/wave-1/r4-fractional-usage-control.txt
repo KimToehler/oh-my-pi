@@ -1,0 +1,18 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (review worktree), 2026-11-03T07:50:08Z
+$ bun -e 'import {remaining} from "./src/quota"; console.log(remaining(2.5,10))'
+3 | 	return used < limit
+4 | }
+5 | 
+6 | /** Remaining allowance, never negative; both values must be integers. */
+7 | export function remaining(used: number, limit: number): number {
+8 | 	if (!Number.isInteger(used) || !Number.isInteger(limit)) throw new RangeError("quota values must be integers")
+                                                                        ^
+RangeError: quota values must be integers
+      at remaining (/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1b-r53-a/.worktrees/review-quota-remaining/src/quota.ts:8:69)
+      at /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1b-r53-a/.worktrees/review-quota-remaining/[eval]:1:52
+
+Bun v1.4.4 (macOS arm64)
+[exit 1]
+$ bun -e 'import {remaining} from "./src/quota"; try { console.log(remaining(2.5,10)) } catch (e) { console.log(e.constructor.name + ": " + e.message) }'
+RangeError: quota values must be integers
+[exit 0]

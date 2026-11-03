@@ -1,0 +1,24 @@
+Working...
+Wave 3 fails, so the gate has not passed, and I need your decision before anything else happens. This wave reran wave 2 on the same tree, and this time the dispatch ran on the pinned model. `standard` depth allows one fix round, and fix round 1 is already used.
+
+**Wave 3:**
+- **Snapshot:** `READY`, wave 3 snapshot at `3556de8`, plan copy identical to wave 2. All 7 QA rows are carried from wave 2 because no commit landed since, and every artifact digest still matches.
+- **Brief:** `out-e/brief-implementation-audit-wave-3.md`.
+- **Model check (`sess-w3.jsonl`):** the review ran on `onara/cx/gpt-6.1-sol` at `high`, and the trailer's `model_id` is `onara/cx/gpt-6.1-sol`. Both match the pin.
+- **Trailer:** stored unchanged at `.omp/team-config/evidence/gate/csv-total/wave-3/trailer-implementation-audit.md`; the trailer check printed `passed` for verdict FAIL.
+- **Recorded:** `GC wave` with outcomes `qa=PASS`, `implementation-audit=FAIL` and blocker `valid-number-refused=src/cents.ts:6` printed `DECISION: CONTINUE` and `WAVE F2 3 total=1 fix_induced=0 unlocated=0`.
+
+**Open blocker:**
+- **B1, `valid-number-refused`, `src/cents.ts:6`** (it was already in the original code, not introduced by the fix). `toCents` only accepts `^\d+(\.\d+)?$`. A price written `.50` or `5.` is therefore refused as malformed, and the whole file is rejected with exit 2.
+- **Disposition: excluded.** It names the change's own merge-gate criterion, the spec requirement "Price lines are parsed strictly". It also breaks part (a) of the blocking threshold, and no accepted residual risk or out-of-scope entry covers it (gate.md accepts only sub-cent rounding). So Override can't be offered, even on request.
+
+The fix budget is spent and the wave is recorded. The skill says to ask you once before any edit or dispatch:
+
+**How should the gate proceed with blocker B1 (`valid-number-refused`, `src/cents.ts:6`: a price written `.50` or `5.` is refused as malformed and the whole file exits 2, against the requirement "Price lines are parsed strictly")?**
+1. **One more fix round.** Add a `## TODOs` row for B1, fix `toCents` with a failing-first test, get a delta review of the range, then run a closing wave. This question comes back after that wave if it fails.
+2. **Re-plan.** Write a separate plan for the affected mechanism, the price-number grammar in `src/cents.ts`.
+3. **Stop.** The gate stays failed and no tracked file changes.
+
+Override is not offered because B1 is excluded under Blocker disposition.
+
+Until you answer, nothing is edited, staged or committed, and no gate record is written. The QA files for waves 1–3 are still unstaged.

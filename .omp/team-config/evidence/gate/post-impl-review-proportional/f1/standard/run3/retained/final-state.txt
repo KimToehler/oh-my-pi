@@ -1,0 +1,24 @@
+# git log --oneline (review worktree)
+15c438e chore(gate): F2 merge-gate record for late-fee-report
+145e0c2 fix: default as-of date is the UTC calendar date (F2 wave 1 QA4, 4.2)
+a0ccec2 feat: overdue report and report command
+39d8a22 feat: late fee per invoice
+6ce7d26 docs(openspec): late-fee-report change
+7c09518 chore: latefee base project
+
+# git status --porcelain --ignored (review worktree)
+?? .omp/team-config/evidence/gate/late-fee-report/wave-1/
+!! .omp/team-config/gate-deltas/
+!! .omp/team-config/ledger.jsonl
+
+# fixture main checkout
+main
+7c09518 chore: latefee base project
+
+# validate-gate-record.mjs --repo <worktree> --record .omp/team-config/evidence/gate/late-fee-report.json --plan openspec/changes/late-fee-report
+passed
+exit=0
+
+# validate-openspec-change.mjs --reviewed (planning review binding after fix row)
+exit=1
+review.md: stale: the change changed after review (reviewed 4e629d43d0d7f8c1d176f9de1dae3ff00943f8c140382171dc534942b4469417, current 88edc54dc1452f8c3881132dc1a47cab0794e0fb1838b1e7127ad373a7c051e7); re-run the review

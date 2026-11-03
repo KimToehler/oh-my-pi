@@ -1,0 +1,7 @@
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-big.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-edge-amounts.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-order.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-sample.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-two-lines.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-tests.txt

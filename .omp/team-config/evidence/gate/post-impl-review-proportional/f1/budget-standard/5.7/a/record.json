@@ -1,0 +1,109 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "f2eb7c63f31338f568487dbd1d737b2998a8e6dce7a6daead991e0dd09acb90e",
+  "reviewed_sha": "b64d9652e387f2768741b29deb16c5e84e924c10",
+  "diff_base": "2a9922d238ebc1c427bb1aa35881ae0d0d80cde3",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Depth standard from gate.md (Mandatory class none, no review, gate or release mechanism changed; final diff re-classified: none); F2 wave 2 FAIL B1 sub-cent-rounding is covered by gate.md Accepted residual risks and was overridden by Tim at the fix-round budget ask",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 requirement: price lines parsed strictly, incl. negative control (carried from wave 1: totals below 1,000, errors exit before formatting)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q1-req-parse-strict.md",
+      "artifact_sha256": "369157bbdce9b66f7b1114a87951cef9866f0e00d73c83580a79bc49a0e4fad7"
+    },
+    {
+      "name": "Q2 requirement: totals exact in cents, 0.30 / 1.00 / 0.00 (carried from wave 1: totals below 1,000, parse and sum unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q2-req-exact-cents.md",
+      "artifact_sha256": "f7e5f6e70f1e0e43c0441fe32b565b36db533e33f1a65921790c1c6fb15af5eb"
+    },
+    {
+      "name": "Q3 happy path widget,19.99 + gadget,5.01 = 25.00 (re-run wave 2 after the delta review rejected its carry)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q3-happy.md",
+      "artifact_sha256": "922e7066cb1de1b68a7c2168922f50f7a2bd9f0edd763042a5a3f925c10218a5"
+    },
+    {
+      "name": "Q4 riskiest edge: CRLF, header row, grouping boundaries up to 1,234,567.89, three-decimal residual (re-run wave 2)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q4-riskiest-edge.md",
+      "artifact_sha256": "380b8703c014d49e7411628468fece0e644a1f4fd8c87fb1edee96a9eb40b49c"
+    },
+    {
+      "name": "Q5 adjacent regression: usage errors, missing file, sub-1000 total (carried from wave 1: cli.ts unchanged, below 1,000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/q5-regression-cli.md",
+      "artifact_sha256": "e946b9c8e443a64342aa8a2b63a594bc8ed6ab0a2f57d455743788303bf2ad1b"
+    },
+    {
+      "name": "Q6 tasks.md Verify commands: bun test 8 pass, grep design.md (re-run wave 2)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/q6-task-verifies.md",
+      "artifact_sha256": "10513c856fb11ca423394873961056cb8e3c11ed6a6029cd22a9977dfae41929"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omp/team-config/evidence/gate/csv-total/f2/wave-2/trailer-implementation-audit.txt",
+      "trailer_sha256": "4c09d7eedbe095c1b0ed2e96c6fb72e36b7c25ce43b019012de51806cb9c63f3",
+      "note": "wave 2 B1 sub-cent-rounding (src/money.ts:2), covered by Accepted residual risks; wave 1 B1 misgrouped-large-total and B2 large-total-branch-untested fixed in fix round 1, delta review OKAY on re-review"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "W1-B1",
+      "severity": "high",
+      "location": "src/format.ts:11",
+      "coverage": "test/csvtotal.test.ts::a total of 1,234,567.00 gets a separator before every three digits",
+      "fix_sha": "b64d9652e387f2768741b29deb16c5e84e924c10"
+    },
+    {
+      "id": "W1-B2",
+      "severity": "high",
+      "location": "test/csvtotal.test.ts:1",
+      "coverage": "test/csvtotal.test.ts::a total of 1,000.00 gets one separator",
+      "fix_sha": "b64d9652e387f2768741b29deb16c5e84e924c10"
+    },
+    {
+      "id": "W2-B1",
+      "severity": "high",
+      "location": "src/money.ts:2",
+      "coverage": "not-testable:unfixed accepted residual (gate.md Accepted residual risks: sub-cent rounding), left by override"
+    }
+  ],
+  "downgrades": [
+    {
+      "invocation": "implementation-audit",
+      "blocker": "B1",
+      "rule": "accepted-residual",
+      "reason": "gate.md Accepted residual risks names sub-cent rounding per line in src/money.ts with a one-cent difference from the invoice; Tim accepted it at the budget ask",
+      "disposition": "residual"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "the remaining blocker is the accepted residual sub-cent rounding; accept it."
+  }
+}

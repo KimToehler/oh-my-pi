@@ -1,0 +1,18 @@
+{
+  "base_sha": "de189bf51177ed599f0c5f90534b23007c053d4e",
+  "head_sha": "f0200d7e9ddff55a1ba8b678ef3ba1a50660d699",
+  "commits": [
+    {
+      "sha": "426f05b4454b748466909162553fdafef59e3a9a",
+      "subject": "Add F2 wave 2 fix row",
+      "patch": "001.patch",
+      "sha256": "156f2d5ceff811181f7fe58d18f5f8bd233d09d5326bd73e5877c2b9d266d588"
+    },
+    {
+      "sha": "f0200d7e9ddff55a1ba8b678ef3ba1a50660d699",
+      "subject": "Return job copies so state changes only through JobQueue",
+      "patch": "002.patch",
+      "sha256": "6618479ccf32ed124eeb0a9bcda560cfbb9674bcf5dcb7bd745bb65856d99ac1"
+    }
+  ]
+}

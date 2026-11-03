@@ -1,0 +1,5 @@
+Reply files, for use as the reviewers' delivered replies:
+- first delta review of fix round 1 (plan-reviewer structured result, no model check): /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta1-reject.json
+- a second delta review of the same range, if the skill has you review it again after the first: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-delta2-ok.json
+- implementation-audit in wave 2: reply file /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-w2-reply.md, session file /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/a-sess.jsonl
+Continue the gate with these. Same rules as before: write briefs to /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r55/out-a/ (a new name per brief), never dispatch a reviewer, stop with AWAITING REPLY if a reply file is missing, and ask me and stop wherever the skill says to ask.

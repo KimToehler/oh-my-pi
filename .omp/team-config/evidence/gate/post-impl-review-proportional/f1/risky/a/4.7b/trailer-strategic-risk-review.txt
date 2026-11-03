@@ -1,0 +1,71 @@
+## 1. Architecture and cross-module seams
+
+The implementation fits the supplied library architecture. `src/quota.ts:7–9` adds a stateless, constant-cost helper beside `checkQuota`, without dependencies, persistence, or changes to the existing export’s behavior.
+
+The relevant seams are:
+
+- **Specification → implementation:** integer validation and zero-clamped subtraction match the stated requirements.
+- **Public API → consumers:** the repository search found no production consumers of `remaining`. This is consistent with the proposal’s additive-library scope, but customer-facing adoption is not demonstrated.
+- **Implementation → verification:** manual QA imports the real module rather than reproducing its arithmetic.
+- **Plan → evidence:** F2 supplies the fractional-input scenario missing from the committed F1 evidence, but the F1 completion record remains inaccurate.
+
+No architectural blocker was substantiated.
+
+## 2. Consistency, duplication, and simplification
+
+**Note N1 — F1 completion overstates its evidence.**  
+`openspec/changes/quota-remaining/tasks.md:9` marks complete a requirement to exercise every spec scenario and retain each artifact under `f1/`. However, `.omp/team-config/evidence/gate/quota-remaining/f1/qa-matrix.md:7–9` contains only three of the four scenarios; the fractional-usage control at `specs/quota-remaining/spec.md:26–28` appears only in F2’s `wave-1/` evidence.
+
+**Fix direction:** make the task status and evidence-location description accurately distinguish the incomplete F1 capture from the completed F2 coverage.  
+**Why non-blocking:** the supplied F2 matrix and fractional-input artifact establish the missing runtime outcome; this is a provenance/status inconsistency, not an observed behavior gap.
+
+**Note N2 — Automated regression coverage does not cover the new API.**  
+`test/quota.test.ts:1–9` imports and tests only `checkQuota`. The recorded `bun test` result in `wave-1/r8-checkquota-regression.txt` therefore proves adjacent behavior, not `remaining`’s clamp or validation.
+
+**Fix direction:** add direct, assertion-based tests for normal subtraction, exhaustion/overshoot, and fractional values in each argument. Preserve the manual evidence separately.  
+**Why non-blocking:** the current behavior has meaningful real-module manual coverage, and no present functional failure is demonstrated. The risk is future regression escaping the ordinary test command.
+
+The production code itself needs no additional abstraction. Naming is consistent; no duplicated implementation, mixed convention, unnecessary compatibility layer, or surprise scope was found. The principal simplification opportunity is keeping scenario expectations and completion records synchronized rather than allowing parallel matrices to imply different coverage.
+
+## 3. Most damaging production failure mode
+
+Within the declared scope, the principal risk is a customer seeing an incorrect allowance—particularly a negative balance after usage exceeds the quota, or a fractional balance from malformed inputs.
+
+Both are handled:
+
+- `src/quota.ts:9` clamps overshoot to zero.
+- `src/quota.ts:8` validates **both** operands before subtraction.
+- Supplied QA records distinguish `0` from `-2`, and thrown `RangeError` from returned fractional values.
+- Boundary, zero-limit, non-finite-input, and adjacent `checkQuota` outcomes are also recorded.
+
+This code does not itself charge money, authorize access, or update an allowance ledger. No protected-asset or security-path change is evidenced.
+
+**Note N3 — Numeric-domain assumptions remain implicit.**  
+`Number.isInteger` at `src/quota.ts:8` accepts negative and unsafe-magnitude integers. The QA matrix explicitly leaves negative inputs unexercised.
+
+**Fix direction:** document the intended numeric domain before consumers depend on stronger assumptions such as “remaining never exceeds limit” or exact arithmetic at arbitrary magnitudes. Do not silently change the specified acceptance policy.  
+**Why non-blocking:** no ordinary consumer or realistic failing production input in those domains is established by this repository.
+
+## 4. What line-level reading would miss
+
+- A green existing suite contains **zero tests of the new export**.
+- F2 closes the behavioral coverage gap without making the historical F1 completion claim accurate.
+- Exporting the helper does not establish that any billing display has adopted it.
+- The source and recorded runtime observations support this helper’s behavior; they do not independently establish commit ancestry, evidence-carry validity, or completion of the final gate-record validation.
+
+Reviewed the complete supplied diff, plan artifacts, QA matrix, repository consumers, existing tests, package configuration, and recorded QA outputs. No commands, network requests, modifications, or delegated reviews were performed. No blocker meets the supplied threshold.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: With a fixed valid limit, a one-unit usage increase consumes exactly one unit of positive allowance until exhaustion, after which further usage leaves the allowance unchanged.
+  positive_witness: Recorded remaining(9,10), remaining(10,10), remaining(11,10) outputs are 1, 0, 0.
+  negative_control: Outputs 1, 0, -1 or 1, 1, 0 MUST fail.
+  observable: The supplied boundary capture records 1 0 0 0, including the zero-limit case.
+  boundary: Real exported src/quota.ts helper invoked through Bun; recorded outputs reviewed without re-execution.
+END-REVIEW-TRAILER

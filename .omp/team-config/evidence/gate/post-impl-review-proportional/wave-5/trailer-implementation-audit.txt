@@ -1,0 +1,36 @@
+## 1. Goal and behavioural contract
+
+Reviewed the depth selection, F2 lane briefs, model-pin check, fix-round budget, QA carries and merge-gate instruction changes against the supplied OpenSpec contract.
+
+## 2. Correctness, regressions and architecture
+
+No blocker substantiated.
+
+**Non-blocking risk:** An incomplete closing wave is excluded from the *instructional* fix-round budget, but it remains a numbered GC wave. For `internal-tooling`, a repeated wave at wave 3 or later can therefore reach GC’s STOP cap even though the repeat spent no fix round (`review-work/SKILL.md:482-483`; `gate-convergence.mjs:283-287`). This is non-blocking because the design explicitly preserves an earlier GC STOP and its existing ask. The supplied recovery evidence exercises a product-tier repeat, not this tier-specific interaction.
+
+## 3. Security and privacy delta
+
+No change touching a real credential, authentication or authorisation path, third-party personal data, or access to a protected asset was identified.
+
+## 4. Verification adequacy
+
+Reviewed the supplied QA matrix and retained standard, risky, plan-mode and recovery evidence, including the real reviewer dispatches and the fixed-payload recovery runs. The recovery evidence explicitly distinguishes its synthetic child sessions from real dispatches. No checks were run during this read-only audit.
+
+Residual uncertainty remains around model behaviour outside the exercised fixtures, including the tier-specific repeat interaction noted above.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Each counted reviewer invocation is bound to its own trailer naming that invocation, even when both lanes use the same agent and model.
+  positive_witness: A risky gate records distinct implementation-audit and strategic-risk-review trailers, each matching its resolution and verdict.
+  negative_control: Both invocations cite the same trailer, or the strategic invocation cites a trailer naming implementation-audit.
+  observable: The record validator accepts the distinct matching artifacts and rejects either misbinding.
+  boundary: Gate-record validation
+END-REVIEW-TRAILER

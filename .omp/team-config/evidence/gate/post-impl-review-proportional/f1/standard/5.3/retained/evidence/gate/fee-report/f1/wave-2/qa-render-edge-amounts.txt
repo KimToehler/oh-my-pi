@@ -1,0 +1,6 @@
+head: 1e202e028453b80e20c18c83fddc46259106a562
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/edge-amounts.json
+exit: 0
+stdout (repr, exact bytes): 'c5\t2026-03-01\t0.05\nm1\t2026-03-02\t1,000,000.00\nk1\t2026-03-03\t1,000.05\nTOTAL\t\t1,001,000.10\n'
+stderr: ''
+note: expected 0.05, 1,000,000.00, 1,000.05 and TOTAL 1,001,000.10

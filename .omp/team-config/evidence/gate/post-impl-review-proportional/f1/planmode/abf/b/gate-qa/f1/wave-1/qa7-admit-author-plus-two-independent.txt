@@ -1,0 +1,29 @@
+# QA qa7-admit-author-plus-two-independent
+# HEAD 0ab24cbbe1e05c9d8961affb92fb1546cf36819e
+# candidate qa7-admit-author-plus-two-independent.json:
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": true
+  },
+  "approvals": [
+    {
+      "reviewer": "ann"
+    },
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "cy"
+    }
+  ]
+}
+$ bun scripts/gate.ts /tmp/rw-qa-fixtures/qa7-admit-author-plus-two-independent.json
+--- stdout
+ADMIT
+--- stderr
+--- exit 0
+# expected stdout: 'ADMIT' exit 0
+# verdict: PASS

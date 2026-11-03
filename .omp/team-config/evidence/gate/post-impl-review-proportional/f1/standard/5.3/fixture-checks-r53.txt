@@ -1,0 +1,10 @@
+usage: validate-openspec-change.mjs [--digest | --reviewed] <change-dir>
+passed
+
+ 7 pass
+ 0 fail
+ 7 expect() calls
+Ran 7 tests across 2 files. [5.00ms]
+954aae1d8a239af994c88db3ef575591de70c95e
+HEAD 82e54ad9e132e45c633ce56f71e50d19841fb10a
+reviewed: OKAY in round 1

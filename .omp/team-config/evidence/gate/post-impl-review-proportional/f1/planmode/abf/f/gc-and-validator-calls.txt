@@ -1,0 +1,37 @@
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo . --plan-only --plan .omp/plans/release-approvals.md; echo exit=$?; node $S/gate-convergence.mjs --help 2>&1 | head -60
+passed
+exit=0
+gate-convergence: Unknown option '--help'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- "--help"
+
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; wc -l $S/gate-convergence.mjs; node $S/gate-convergence.mjs 2>&1 | head -40
+726 /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+gate-convergence: unknown command (none)
+
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; GC="node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md"; $GC baseline --sha HEAD; echo e=$?; $GC ready --lane F2; echo e=$?
+BASELINE d70b69864af5 recorded
+e=0
+READY
+e=0
+
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md snapshot --lane F2; echo e=$?
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-f/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 d70b69864af5
+PLAN /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-f/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md
+e=0
+
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo . --trailer .omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt --invocation implementation-audit --verdict PASS --plan .omp/plans/release-approvals.md; echo e=$?; git check-ignore -v .omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt
+passed
+e=0
+.gitignore:7:!/.omp/team-config/evidence/**/*trailer*	.omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt
+
+
+##### S=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --repo . --plan .omp/plans/release-approvals.md wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=PASS --outcome strategic-risk-review=INCONCLUSIVE --trailer implementation-audit=.omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt; echo e=$?
+DECISION: CONTINUE
+WAVE F2 1 total=1 fix_induced=0 unlocated=1
+e=0
+

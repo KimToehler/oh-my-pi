@@ -1,0 +1,33 @@
+Working...
+Wave 1 of the F2 gate is recorded as a failure, and fix round 1 is committed. The gate is now waiting on the delta review of that fix, which needs a reply file from you.
+
+**Setup**
+- `feat/csv-total` was checked out in the main checkout, so I switched that checkout to `main` and reviewed in a locked worktree at `.worktrees/review-csv-total`. Before switching I confirmed the checkout had no modified, untracked, ignored or stashed files, so nothing was lost.
+- The plan checks passed (planning review OKAY in round 1). `main` is already an ancestor of the branch, so no merge was needed. Depth is standard per `gate.md`, so one `implementation-audit` runs. Risk tier is product and mandatory class is none.
+
+**Wave 1**
+- **Manual QA:** 14 rows, all passed. Rows s1–s5 are carried from F1 (commit `ecd418f` only added evidence files); I ran nine new rows (q6–q14) into `.omp/team-config/evidence/gate/csv-total/wave-1/`.
+  - One row looked wrong: `big,1234567.89` printed `1234,567.89`. It passed only because tasks.md 3.1 accepts digits "with or without grouping separators". I flagged the placement in the brief.
+- **implementation-audit:** the brief is `brief-implementation-audit-w1.md` and the reply is `a-w1-reply.md`.
+  - The model check counts: the session ran on `onara/cx/gpt-6.1-sol` at `high`, matching the `auditor.md` pin. There is no `auditor` override in config.
+  - The reply is copied byte-for-byte to `.omp/team-config/evidence/csv-total/f2/wave-1/trailer-implementation-audit.txt`, and the trailer check passed.
+  - Verdict FAIL with two blockers:
+    - **B1:** `src/format.ts:11` only puts a comma before the last three digits, so any total of a million or more is misgrouped.
+    - **B2:** no test reached the grouping code, so the suite passed despite B1.
+  - Neither blocker can be accepted: B1 breaks the goal figure, and B2 leaves real behaviour unproven.
+- The convergence script returned CONTINUE, and standard depth allows one fix round.
+
+**Fix round 1**
+- `2e85d9d` adds rows 4.1 and 4.2 under a new `## TODOs` section in `tasks.md`.
+- `aa9b7e1` makes `groupThousands` put a comma before every run of three digits, adds formatter tests from 999.99 up to 1,234,567.00, and ticks both rows.
+- **Before the fix:** the new test failed, printing `1000,000.00` where `1,000,000.00` was expected.
+- **Guard check:** with the grouping code temporarily reverted to `main`'s version, the test also fails. I restored the file from a backup; it is identical to the commit.
+- **After the fix:** the full suite passes (6 pass, 0 fail) and both plan checks pass.
+- The patch and manifest for the delta review are at `.omp/team-config/gate-deltas/F2-4.1-aa9b7e1e3a6e-20261102211034/`.
+- The delta brief carries ten rows, whose totals are under 1,000 or which print no total. It marks s5, q8, q13 and the test suite (q14) for re-running in wave 2.
+
+Adding rows to `tasks.md` makes `review.md`'s digest stale, so `validate-openspec-change.mjs --reviewed` will now fail. The F2 validator doesn't check this.
+
+No gate record is written or staged yet.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/out-a/brief-delta-round1.md

@@ -1,0 +1,52 @@
+Working...
+# Review Work: Final Report
+
+## Overall Verdict: PASSED
+
+The merge gate passes on its second wave. In wave 1, manual QA failed: the `report` command used the runner's local date instead of the UTC date when run without `--as-of`. I fixed that in `145e0c2`, the fix was reviewed, and wave 2 passed both QA and the implementation audit. The record validated before and after its commit.
+
+Decision reason: `gate.md` sets depth to `standard` (Mandatory class none, Risk tier product). The final diff adds no persisted or transmitted field, new recipient, auth path, schema, wire contract or shared mutable state, so one `implementation-audit` was enough.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (6 rows, 6 artifacts) | orchestrator | - | - | PASS (wave 2); FAIL on QA4 in wave 1 | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+- **QA4, wave 1 (fixed in `145e0c2`)**: `src/today.ts:3` used `toLocaleDateString`, so the default as-of date followed the runner's time zone.
+  - **What happened:** under `TZ=Pacific/Kiritimati` the report listed an invoice only 29 UTC days overdue with a 2.00 fee. Run in this machine's own zone (Europe/Berlin) at the spec's example time, 2026-03-01T23:30Z, the date came out as `2026-03-02`.
+  - **Fix (TODO row 4.2):** `today()` now returns `toISOString().slice(0, 10)`. A regression test runs under Europe/Berlin and Pacific/Kiritimati. I saw it fail first (`Received: "2026-03-02"`), then pass.
+  - **Fix review:** the plan reviewer returned OKAY on `a0ccec2..145e0c2`.
+
+## Covered by one invocation
+The audit covered correctness, architecture, wire contracts, security and privacy, and whether the testing is adequate.
+
+## Key Findings
+Three non-blocking notes from the audit:
+- **N1:** amounts are plain JavaScript `number`s with no stated range, so the design's "no floating point" claim only holds below very large magnitudes.
+- **N2:** the QA leap-year invoice is already at the 25% cap, so it can't reveal a one-day counting error.
+- **N3:** no test checks that the input array is left unchanged, or that rounding stays per invoice when there are several.
+
+## Recommendations
+- Optional follow-ups for N1–N3; none of them blocks the merge.
+- `tasks.md` 3.1 names an `f1/` evidence folder, but I put the QA captures under `wave-1/` and `wave-2/` as the skill prescribes. The 3.1 check (`test -d …/late-fee-report`) still passes.
+- Wave-1 captures stay untracked because the record doesn't cite them.
+- Type-checking can't run here because `bun-types` isn't installed. The editor errors on `bun:test` and `process` show up in the existing `src/fee.test.ts` too; `bun test` runs fine.
+
+## Repository state
+- The review ran in the locked worktree `../f1a-standard-r3-review` on `feat/late-fee-report`, now at `15c438e`.
+- To create it, I switched your main checkout from that branch to `main`, after confirming it had no modified, untracked or ignored files.
+- The branch hasn't been merged.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 145e0c2d914492ca69891951f776e2e472fcf8e9 · plan_sha256 cc47bd6539978326ef81b6522f80c7c46c3c6db73a8172b42b58715fdaa2639b
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: Mandatory class none, no review/gate/release mechanism changed)
+  override: none
+  record .omp/team-config/evidence/gate/late-fee-report.json · validate-gate-record.mjs exit 0 at 15c438e4b670952fc50758d080e7f2c4113f789f
+- code committed after reviewed_sha: none
+```

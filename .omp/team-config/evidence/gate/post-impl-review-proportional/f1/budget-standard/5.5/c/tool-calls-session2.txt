@@ -1,0 +1,49 @@
+     1	read	skill://review-work
+     2	read	artifact://0:176-470
+     3	bash	wc -l ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md; ls ~/.omp/profiles/pirp/agent/skills/review-work/ ~/.omp/profiles/pirp/agent/skills/review-work/scripts
+     4	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-330:raw
+     5	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:330-470:raw
+     6	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-240:raw
+     7	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:176-200
+     8	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:204-235
+     9	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:239-260
+    10	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:220:raw
+    11	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:300-330
+    12	bash	git status --short --branch && git log --oneline -15 && git worktree list && git branch -a
+    13	read	rule://worktrees
+    14	bash	git log --graph --oneline --all -20 && git show --stat --format='%H %an %s' HEAD HEAD~1 0cd516d
+    15	bash	for f in openspec/changes/csv-total/*.md openspec/changes/csv-total/specs/csv-total/spec.md openspec/changes/csv-total/.openspec.yaml; do echo "===== $f"; cat "$f"; done
+    16	bash	for f in src/*.ts test/*.ts package.json README.md .gitignore; do echo "===== $f"; cat "$f"; done; ls -la; git show main:src/money.ts; git diff ec36fb4 main --stat
+    17	bash	git show 1e88cd0; git log --oneline --all -- src/format.ts
+    18	bash	find .omp -type f | sort; echo; cat .omp/team-config/evidence/gate/csv-total/f1/s5-large.md; echo ====; cat .omp/team-config/evidence/gate/csv-total/f1/s1-happy.md
+    19	bash	cd .omp/team-config/evidence/gate/csv-total/f1 && cat s2-malformed.md s3-cents.md s4-empty.md
+    20	grep	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs;/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs
+    21	bash	ls -la ~/.omp/agent/skills/review-work 2>&1 | head -3; diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work 2>&1 | head; echo PI=$PI_CODING_AGENT_DIR; ls ~/.omp/profiles/pirp/agent/agents/ 2>&1; o
+    22	bash	sed -n '1,15p' /Users/tim/.omp/profiles/pirp/agent/agents/auditor.md
+    23	bash	cd /Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts && wc -l *.mjs && node gate-convergence.mjs --help 2>&1 | head -60
+    24	grep	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    25	grep	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs
+    26	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-layout.mjs
+    27	todo	
+    28	bash	git status --short --ignored --untracked-files=all; echo "rc=$?"; git rev-parse HEAD
+    29	bash	git switch --detach HEAD && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list
+    30	eval	
+    31	eval	
+    32	eval	
+    33	eval	
+    34	eval	
+    35	eval	
+    36	eval	
+    37	read	.worktrees/review-csv-total/.omp/team-config/evidence/gate/csv-total/wave-1/regression-cli-errors.md:14-32
+    38	edit	
+    39	eval	
+    40	eval	
+    41	eval	
+    42	bash	cd /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D && ls -la && wc -l c-w1-reply.md c-sess.jsonl && cat c-w1-reply.md
+    43	bash	cd /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D && jq -c '{type, role: .message.role, provider: (.message.provider // .provider), model: (.message.model // .model), thinkingLevel}' c-sess.jsonl
+    44	eval	
+    45	eval	
+    46	eval	
+    47	eval	
+    48	eval	
+    49	read	rule://merge-gate-proof

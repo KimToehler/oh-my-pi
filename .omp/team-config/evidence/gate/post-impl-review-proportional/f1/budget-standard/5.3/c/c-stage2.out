@@ -1,0 +1,36 @@
+Working...
+The F2 merge gate for `csv-total` **passed**: QA has 5 of 5 rows passing, implementation-audit returned PASS, and `validate-gate-record.mjs` printed `passed` (exit 0) both before and after the record commit.
+
+**Setup:**
+- **Review worktree:** I switched the main checkout to `main`, guarded by a check that it had no uncommitted or untracked files. That freed `feat/csv-total` for a review worktree at `.worktrees/review-csv-total`, which is locked with reason `review:feat/csv-total`.
+- **Merged `main`:** `main` was not an ancestor of the branch head. It had moved on with `c065578`, which makes `groupThousands` add thousands separators. I merged it as `3c11e3c`; `bun test` shows 4 pass.
+- **Plan checks:** `--plan-only` passed, and `validate-openspec-change.mjs --reviewed` reports OKAY in round 1. The gate-convergence commands baseline, ready and snapshot (wave 1) all succeeded.
+
+**QA (I ran it):**
+- **Re-run:** only QA5 (`big,1234.50`), because only a total of 1000 or more reaches the code the merge changed. It printed `1,234.50` and exited 0, which passes since 3.1 allows grouping separators. The capture is `.omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md`.
+- **Carried from the F1 captures:** QA1 to QA4 (happy path, malformed line, exact cents, empty file). Each has its one-line reason in the matrix.
+
+**Reviewer (not dispatched, as you instructed):**
+- **Brief:** `payloads/F1D/r53/out-c/brief-implementation-audit-1.md`. It is the skill's template verbatim with the inputs filled in: goal, full diff, file context, plan bundle, QA matrix and the spec's criteria.
+- **Reply:** `c-w1-reply.md`, copied byte for byte to `wave-1/trailer-implementation-audit.md`. The trailer check passed.
+- **Model check against the pin `onara/cx/gpt-6.1-sol:high`:** the one assistant turn in the session file ran on `onara/cx/gpt-6.1-sol`, with `thinking_level_change` set to `high`. The trailer's `model_id` matches, so the dispatch counts.
+- **Wave 1 result:** `DECISION: PASS`, with 0 findings.
+
+**Note, not a blocker:** after the merge, totals of 1000 or more print with en-US separators (`1,234.50`). `design.md` lists "locale formatting" as a non-goal. The auditor saw this seam and did not block on it, and 3.1 explicitly allows grouping.
+
+The reply I used came from your fixed payload; no reviewer was actually sent. The validator can't detect that, by design.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range c06557869128d508064436716d833cc4399c167a...3c11e3c32ffadd0a8fb38b602f6520ee02431d12 · report none · Must-fix: 0 open / 0 fixed
+- review-work: RAN
+  reviewed_sha 3c11e3c32ffadd0a8fb38b602f6520ee02431d12 · plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/csv-total/wave-1/trailer-implementation-audit.md
+  strategic-risk-review: not run (gate.md Depth standard, Mandatory class none) · trailer none
+  override: none
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at afcc78f
+- code committed after reviewed_sha: none (afcc78f holds only the record, the trailer and the wave-1 QA capture)
+```
+
+`feat/csv-total` is ready to merge. Two cleanups are still to do: unlock and remove the review worktree, and switch the main checkout back to `feat/csv-total` if you want it there.

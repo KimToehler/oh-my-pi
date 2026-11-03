@@ -1,0 +1,10 @@
+row: QA7
+head: 7e122430af7fd360e66c47d1aad818bf34579531
+command: bun src/cli.ts (no argument)
+usage: bun src/cli.ts <report.json>
+exit: 2
+command: bun test
+ 8 pass
+ 0 fail
+Ran 8 tests across 2 files. [4.00ms]
+verdict: PASS

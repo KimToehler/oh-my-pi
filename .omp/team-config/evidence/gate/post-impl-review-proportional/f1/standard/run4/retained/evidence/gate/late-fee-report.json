@@ -1,0 +1,95 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/late-fee-report",
+  "plan_sha256": "e7198af769d234d353cfc0971283a81a9d5066dc24beb6f6611e3e4a58994ee4",
+  "reviewed_sha": "b5e75eb50c865195adff06ec2ffae8f115084ee8",
+  "diff_base": "7c09518d3c7862ed6cc7ce68289b1493299bf9ad",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard, Mandatory class none, Risk tier product; final diff adds a local CLI fee report with no auth, schema, wire contract or shared state, so one implementation-audit; wave 1 QA3 failed and was fixed by 4.2, wave 2 passed",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path: sample invoices report",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa1.txt",
+      "artifact_sha256": "c0e26f946ed61f5f985d7852224b080419f5ae3a030552190fec2c4bce9009f8"
+    },
+    {
+      "name": "QA2 late fee per invoice: periods, cap, boundaries, floor",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa2.txt",
+      "artifact_sha256": "055adac745ca5ead0c01f035da2a492201a2b527577fe469d9bc82316d4ef364"
+    },
+    {
+      "name": "QA3 capped fee rounded down to whole cents (wave-1 failure, fixed by 4.2)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa3.txt",
+      "artifact_sha256": "f4197697c15141836ba13a719bca3f4ba634237966f7c963fae1ffc979c433c1"
+    },
+    {
+      "name": "QA4 UTC calendar days across DST in runner zone",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa4.txt",
+      "artifact_sha256": "736084304fc08869576d40754b1639e18265dc9012cdb08c0cf0a839a693fc51"
+    },
+    {
+      "name": "QA5 ordering fee/due date/id, input-order independent",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa5.txt",
+      "artifact_sha256": "8309a152e55879f45dcab37e8c44617fd5072ef0e5226f238956736be3ef53c9"
+    },
+    {
+      "name": "QA6 negative control: zero-fee invoices not listed, total, empty input",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa6.txt",
+      "artifact_sha256": "ca127a771500e59584654e3dcffdad0bc6ea51fd0a2819dcdd8226d0393fe17e"
+    },
+    {
+      "name": "QA7 default as-of is today's UTC date",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa7.txt",
+      "artifact_sha256": "744a210964e1be98d39d4577ca1120925c0c54762603715c65cfa5e9101efa47"
+    },
+    {
+      "name": "QA8 regression: usage errors and project test suite",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/late-fee-report/wave-2/qa8.txt",
+      "artifact_sha256": "0e9278f8050e2488bc06f978bd412643a9d3f691a4d5a963b0d90da0b1a82936"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/late-fee-report/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "8b72b8203e25e6da230d2234e05cae0bdd759aae8431d548c5ac7ea710b84588",
+      "note": "wave 2 PASS, no blockers; notes N1 (float division without safe-integer bound) and N2 (no input-preservation assertion) non-blocking"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA3",
+      "severity": "high",
+      "location": "src/fee.ts:11",
+      "coverage": "src/fee.test.ts::capped fee is rounded down to whole cents",
+      "fix_sha": "b5e75eb50c865195adff06ec2ffae8f115084ee8"
+    }
+  ]
+}

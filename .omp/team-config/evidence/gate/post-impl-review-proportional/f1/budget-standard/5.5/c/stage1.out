@@ -1,0 +1,34 @@
+Working...
+## Implementation Complete
+
+**Change:** csv-total (to use a different change, run `/opsx-apply <other>`)
+**Schema:** omp-gated
+**Progress:** 4/4 tasks complete. `openspec instructions apply` now reports `all_done`.
+
+### Completed this session
+- [x] 3.1 F1. Manual QA on the real surface.
+  - **Merge:** `main` was not an ancestor of the head, so I merged it in as `ec36fb4`. It only adds `README.md`. `bun test` passed 4 of 4 after the merge.
+  - **Scenarios:** I ran `bun src/cli.ts total FILE` on the clean head `ec36fb4`:
+
+    | Evidence | Exit | stdout | stderr |
+    |---|---|---|---|
+    | `s1-happy.md` | 0 | `25.00` | empty |
+    | `s2-malformed.md` | 2 | empty | `error: line 1: malformed price` |
+    | `s3-cents.md` | 0 | `1.00` | empty |
+    | `s4-empty.md` | 0 | `0.00` | empty |
+    | `s5-large.md` | 0 | `1234.50` | empty |
+
+  - **Negative controls:** each evidence file also includes a run against a changed copy of `src/` in a temp directory, so the check is shown failing at least once. The worktree was not touched. Each change made its check fail:
+    - s1: the sum ignores each line's amount, so it prints `0.00`.
+    - s2: a malformed price is counted as zero, so it prints `0.00` and exits 0.
+    - s3: the total is printed as float dollars, so it prints `1`.
+    - s4: the cents lose their zero padding, so it prints `0.0`.
+    - s5: the thousands grouping drops the leading group, so it prints `234.50`.
+
+    The s2 and s3 changes are the spec's own negative controls.
+  - **Verify:** the task's `test -s …` command exits 0.
+  - **Commit:** `e28acf5` holds the five evidence files and the ticked `tasks.md`, added by explicit path. `validate-openspec-change.mjs` passes both with and without `--reviewed` ("reviewed: OKAY in round 1").
+
+One thing for the QA lane: in `src/format.ts`, `groupThousands` returns `String(whole)` unchanged, so large totals print without grouping. s5 accepts this because grouping separators are optional, but the function's comment suggests grouping was intended.
+
+As you asked, I stopped here and did not start the F2 merge gate (`review-work`) or any review. F2 is the next step before merging, and per `tasks.md` the merge happens only after the F2 record validates.

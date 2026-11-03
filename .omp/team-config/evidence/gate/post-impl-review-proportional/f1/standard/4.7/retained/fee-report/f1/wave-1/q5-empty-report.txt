@@ -1,0 +1,9 @@
+F1 QA row Q5 - empty report negative control via render command, head 82e54ad9e132e45c633ce56f71e50d19841fb10a
+fixture empty.json:
+  in| { "lines": [] }
+$ bun src/cli.ts <fixtures>/empty.json
+  od|            N   o       l   a   t   e       f   e   e   s  \n            
+  od| 
+  out| No late fees
+
+  exit=0

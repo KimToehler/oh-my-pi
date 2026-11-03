@@ -1,0 +1,16 @@
+## validator
+overridden
+exit=0
+## git log
+d0dea38 chore(gate): csv-total F2 merge-gate record (overridden: accepted residual sub-cent rounding), trailer and QA evidence
+4b7eb49 fix(format): print totals without thousands separators; formatter test (4.1)
+870b644 plan(csv-total): F2 wave 1 fix row 4.1 under tasks
+e4e3052 chore(gate): csv-total F2 merge-gate record (overridden: accepted residual sub-cent rounding), trailer and QA evidence
+aa9b7e1 fix(format): group every three digits of large totals; formatter tests (4.1, 4.2)
+2e85d9d plan(csv-total): F2 wave 1 fix rows 4.1, 4.2 under TODOs
+2a9922d chore: scaffold with omp-gated schema
+ecd418f test(f1): csv-total CLI QA, five scenarios
+4e5e75b feat: csv-total CLI, change folder
+## status
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa6-boundary-1000.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa7-million.md

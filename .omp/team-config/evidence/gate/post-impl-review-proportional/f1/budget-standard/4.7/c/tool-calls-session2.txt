@@ -1,0 +1,43 @@
+     1	read	skill://review-work
+     2	read	artifact://0:178-470
+     3	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:178-330
+     4	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:172,220
+     5	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:334-470
+     6	read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:356,380,382,386,390,396,433,462,465,466
+     7	bash	git status --short --branch && git log --oneline -15 && git branch -a && git worktree list && ls -la && ls openspec openspec/changes 2>/dev/null
+     8	read	rule://worktrees
+     9	bash	cat .gitignore package.json README.md; find src test openspec .omp -type f | sort; git log --stat --format='--- %H %s%n%b' main..HEAD
+    10	bash	for f in openspec/changes/csv-total/.openspec.yaml openspec/changes/csv-total/*.md openspec/changes/csv-total/specs/csv-total/spec.md src/*.ts test/csvtotal.test.ts openspec/config.yaml; do echo "===== $f"; cat -n "$f"; done
+    11	bash	git log --oneline --graph --all; echo; git show --stat --format='%H %s' main; echo; git diff 0cd516d 19eb3d4 --stat; git diff 0cd516d 19eb3d4
+    12	bash	for f in .omp/team-config/evidence/gate/csv-total/f1/*.md; do echo "===== $f"; cat -n "$f"; done; sed -n 14p openspec/changes/csv-total/tasks.md
+    13	bash	git show 7b6e2e2; git merge-base --is-ancestor main HEAD; echo "is-ancestor exit=$?"; git config --get-regexp 'user\.' ; bun --version; node --version
+    14	bash	ls -la ~/.omp/agent/skills/review-work/scripts/ ~/.omp/agent/skills/review-work; readlink -f ~/.omp/agent/skills/review-work; ls ~/.omp/agent/agents/ 2>/dev/null; ls ~/.omp/profiles/pirp/agent/agents/ 2>/dev/null; echo "OMP_PROFIL
+    15	bash	P=/Users/tim/.omp/profiles/pirp/agent; ls -la $P/skills/review-work $P/skills/review-work/scripts 2>&1; cmp $P/skills/review-work/SKILL.md ~/.omp/agent/skills/review-work/SKILL.md; echo cmp=$?; for f in validate-gate-record.mjs ga
+    16	bash	S=~/.omp/agent/skills/review-work/scripts; node $S/gate-convergence.mjs --help 2>&1 | cut -c1-300; node $S/validate-gate-record.mjs --help 2>&1 | cut -c1-300; cat $S/gate-layout.mjs
+    17	bash	git remote -v; echo "--"; git log --all --oneline --grep='total\|csv\|cents\|group' ; echo "--"; git log --oneline main -- src/format.ts src/money.ts src/cents.ts src/price.ts src/cli.ts test/; echo "--"; git show a951855 --stat -
+    18	bash	git status --porcelain=v1 --untracked-files=all --ignored; echo "exit=$? lines-above-are-dirty-state"; git stash list
+    19	bash	git switch --detach HEAD && git worktree add .worktrees/review-csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list
+    20	bash	S=~/.omp/agent/skills/review-work/scripts; node $S/validate-gate-record.mjs --repo . --plan-only --plan openspec/changes/csv-total; echo "exit=$?"; node $S/validate-openspec-change.mjs openspec/changes/csv-total; echo "oc-exit=$?"
+    21	bash	git merge --no-ff --no-edit main && git log --oneline -3 && git diff --stat HEAD^1 HEAD && git merge-base --is-ancestor main HEAD && echo ancestor-ok
+    22	bash	GC="node $HOME/.omp/agent/skills/review-work/scripts/gate-convergence.mjs --repo . --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "b=$?"; $GC ready --lane F2; echo "r=$?"; $GC snapshot --lane F2; echo "s=$?"
+    23	bash	D=.omp/team-config/gate-deltas; cat $D/F2-ec58e3fc1718-wave-1.snapshot.json; echo; wc -l $D/F2-ec58e3fc1718-wave-1.plan.md; shasum -a 256 $D/F2-ec58e3fc1718-wave-1.plan.md
+    24	eval	
+    25	eval	
+    26	bash	bun test 2>&1 | tr -d '\r' | sed 's/\x1b\[[0-9;]*m//g' > .omp/team-config/evidence/gate/csv-total/wave-1/bun-test.txt; echo "exit=${PIPESTATUS[0]}"; cat .omp/team-config/evidence/gate/csv-total/wave-1/bun-test.txt; git status --sh
+    27	bash	B=$(git merge-base main HEAD); echo base=$B; git diff --name-status $B HEAD; git diff $B HEAD > /tmp/csv-total-f2w1.diff; wc -l /tmp/csv-total-f2w1.diff
+    28	grep	.worktrees/review-csv-total/src;.worktrees/review-csv-total/test
+    29	read	.worktrees/review-csv-total/.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md:1-30
+    30	eval	
+    31	eval	
+    32	bash	P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D; ls -la $P $P/r47 2>&1 | cut -c1-200; cat -n $P/c-w1-reply.md; wc -l $P/c-sess.jsonl
+    33	read	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md
+    34	read	/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl
+    35	bash	F=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-sess.jsonl; echo "assistant turns (provider/model):"; jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.provider)/\(.message.mod
+    36	bash	mkdir -p .omp/team-config/evidence/csv-total/f2 && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/c-w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt && cmp /var/folders
+    37	bash	node ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs --repo . --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome qa=PASS --outcome i
+    38	eval	
+    39	bash	E=.omp/team-config/evidence/gate/csv-total; git add -- .omp/team-config/evidence/gate/csv-total.json .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt $E/wave-1/s5-large.md $E/wave-1/s6-cents-add.md $E/wave-1
+    40	eval	
+    41	bash	git add -- .omp/team-config/evidence/gate/csv-total.json && node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo . --record .omp/team-config/evidence/gate/csv-total.json --plan openspec/changes/csv-total; e
+    42	bash	git commit -q -m "chore(gate): F2 merge-gate record for csv-total" -m "F2 wave 1 on ab95eaf (main 7b6e2e2 merged): QA 11 rows PASS (s1-s4 carried from F1, s5 re-run, s6-s10 and unit suite new), implementation-audit PASS (auditor, 
+    43	read	rule://merge-gate-proof

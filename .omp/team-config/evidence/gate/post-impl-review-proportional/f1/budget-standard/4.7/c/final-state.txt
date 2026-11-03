@@ -1,0 +1,15 @@
+passed
+exit=0
+* 91a4409 chore(gate): F2 merge-gate record for csv-total
+*   ab95eaf Merge branch 'main' into feat/csv-total
+|\  
+| * 7b6e2e2 feat: group thousands in formatted totals of 1000 or more
+* | 90d50fa test(qa): F1 csv-total CLI on 5 scenarios, observed outputs match task 3.1 expectations
+* | 19eb3d4 Merge branch 'main' into feat/csv-total
+|\| 
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema
+$ git status --porcelain
+954aae1d8a239af994c88db3ef575591de70c95e

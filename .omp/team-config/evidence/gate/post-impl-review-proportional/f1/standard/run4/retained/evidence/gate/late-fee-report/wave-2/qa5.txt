@@ -1,0 +1,79 @@
+# QA5: ordering: fee desc, due date asc, id code-unit asc; independent of input order
+# head: b5e75eb50c865195adff06ec2ffae8f115084ee8
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa5-order-a.json
+[
+  {
+    "id": "b",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "z",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "a",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "B",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "big",
+    "amountCents": 50000,
+    "dueDate": "2026-01-15"
+  }
+]
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa5-order-b.json
+[
+  {
+    "id": "big",
+    "amountCents": 50000,
+    "dueDate": "2026-01-15"
+  },
+  {
+    "id": "B",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "a",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  },
+  {
+    "id": "z",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "b",
+    "amountCents": 10000,
+    "dueDate": "2026-01-12"
+  }
+]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa5-order-a.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z	2026-01-10	2.00
+B	2026-01-12	2.00
+a	2026-01-12	2.00
+b	2026-01-12	2.00
+TOTAL		18.00
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa5-order-b.json --as-of 2026-02-20
+big	2026-01-15	10.00
+z	2026-01-10	2.00
+B	2026-01-12	2.00
+a	2026-01-12	2.00
+b	2026-01-12	2.00
+TOTAL		18.00
+[exit 0]
+

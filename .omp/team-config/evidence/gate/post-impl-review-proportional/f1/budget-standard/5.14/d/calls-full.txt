@@ -1,0 +1,624 @@
+##### CALL 1 read
+{
+ "path": "skill://review-work",
+ "i": "Reading review-work skill"
+}
+
+##### CALL 2 read
+{
+ "path": "artifact://0:175-474",
+ "i": "Reading elided skill middle"
+}
+
+##### CALL 3 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:175-330",
+ "i": "Reading skill lines 175-330"
+}
+
+##### CALL 4 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:330-475",
+ "i": "Reading skill lines 330-475"
+}
+
+##### CALL 5 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:172-181",
+ "i": "Reading truncated QA lines"
+}
+
+##### CALL 6 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:220",
+ "i": "Reading blocking threshold line"
+}
+
+##### CALL 7 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:356",
+ "i": "Reading trailer repair line"
+}
+
+##### CALL 8 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:380-396",
+ "i": "Reading Phase 4/5 truncated lines"
+}
+
+##### CALL 9 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:433",
+ "i": "Reading eligibility line"
+}
+
+##### CALL 10 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:raw:457-500",
+ "i": "Reading fix waves lines"
+}
+
+##### CALL 11 bash
+git status --short --branch && git log --oneline -15 && git branch -a && git worktree list && ls -la
+
+##### CALL 12 read
+{
+ "path": "rule://worktrees",
+ "i": "Reading worktrees rule"
+}
+
+##### CALL 13 bash
+git diff --stat main...HEAD && cat .gitignore package.json && find .omp openspec src test -type f | sort
+
+##### CALL 14 bash
+git log --format='%H %an <%ae> %s' main..HEAD && git log --format='%H %s' -3 main && git merge-base --is-ancestor main HEAD && echo main-is-ancestor
+
+##### CALL 15 bash
+git worktree add .worktrees/review-csv-total -b review/csv-total feat/csv-total && git worktree lock .worktrees/review-csv-total --reason "review:feat/csv-total" && git worktree list
+
+##### CALL 16 bash
+for f in openspec/changes/csv-total/.openspec.yaml openspec/changes/csv-total/*.md openspec/changes/csv-total/specs/csv-total/spec.md; do echo "===== $f"; cat "$f"; done
+
+##### CALL 17 bash
+sed -n 's/.*Verify: //p' openspec/changes/csv-total/tasks.md | tail -1; for f in src/*.ts test/*.ts; do echo "===== $f"; cat -n "$f"; done; git diff main...HEAD -- src/format.ts src/money.ts
+
+##### CALL 18 bash
+git ls-tree -r --name-only main && git show main:src/format.ts && git grep -n "formatCents\|groupThousands" main -- . ; git log --oneline -20 -- src test openspec; for f in .omp/team-config/evidence/gate/csv-total/f1/*.md; do echo "===== $f"; cat "$f"; done
+
+##### CALL 19 bash
+ls ~/.omp/agent/skills/review-work/scripts/ ~/.omp/profiles/pirp/agent/skills/review-work/scripts/ 2>&1; echo; readlink -f ~/.omp/agent/skills/review-work 2>&1; ls ~/.omp/agent/agents/ ~/.omp/profiles/pirp/agent/agents/ 2>&1 | head -50
+
+##### CALL 20 bash
+diff -rq ~/.omp/agent/skills/review-work ~/.omp/profiles/pirp/agent/skills/review-work; diff -q ~/.omp/agent/agents/auditor.md ~/.omp/profiles/pirp/agent/agents/auditor.md; sed -n '1,20p' ~/.omp/profiles/pirp/agent/agents/auditor.md; omp config get task.agentModelOverrides; echo "exit=$?"
+
+##### CALL 21 bash
+SKILL_DIR=~/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; echo "exit=$?"; node $SKILL_DIR/scripts/gate-convergence.mjs --help 2>&1 | head -40
+
+##### CALL 22 bash
+git remote -v; git log --all --oneline --grep="csv\|total\|cents"; rg -n "TODO|FIXME|HACK" src test openspec/changes/csv-total; rg -n "formatCents|groupThousands|roundToCents|toCents|parsePrices" --glob '!node_modules' .; bun --version
+
+##### CALL 23 grep
+{
+ "pattern": "case '(baseline|ready|snapshot|wave|patch|delta|exempt|decide|retier|accept)'|--outcome|--trailer|--blocker|usage",
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs",
+ "i": "Finding GC command parsing"
+}
+
+##### CALL 24 bash
+SKILL_DIR=~/.omp/profiles/pirp/agent/skills/review-work; GC="node $SKILL_DIR/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; $GC baseline --sha HEAD; echo "exit=$?"; $GC ready --lane F2; echo "exit=$?"
+
+##### CALL 25 bash
+SKILL_DIR=~/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total snapshot --lane F2; echo "exit=$?"; git status --short
+
+##### CALL 26 eval
+import subprocess, tempfile, os, pathlib
+wt = "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total"
+tmp = tempfile.mkdtemp(prefix="csvtotal-qa-")
+head = subprocess.run(["git","rev-parse","HEAD"],cwd=wt,capture_output=True,text=True).stdout.strip()
+def run(name, content):
+    p = os.path.join(tmp, name)
+    pathlib.Path(p).write_bytes(content.encode())
+    r = subprocess.run(["bun","src/cli.ts","total",p],cwd=wt,capture_output=True,text=True)
+    return p, r
+cases = {
+ "mixed": "widget,19.99\n\nbad,abc\ngadget,5.01\nworse,\n",
+ "cents": "a,0.10\nb,0.20\n",
+ "variants": "a,\nb,abc12\nc,12abc\nd,NaN\ne,Infinity\nf,0x10\ng 12\nh,1.2.3\ni, 3.50 \n",
+ "crlf": "widget,19.99\r\ngadget,5.01\r\n",
+ "threefield": "widget,1,234.50\n",
+}
+res = {}
+for k,v in cases.items():
+    p,r = run(k+".csv", v)
+    res[k]=(p,r)
+    print(k, repr(r.stdout), repr(r.stderr), r.returncode)
+print(head, tmp)
+
+##### CALL 27 eval
+mainfmt = subprocess.run(["git","show","main:src/format.ts"],cwd=wt,capture_output=True,text=True).stdout
+pathlib.Path(tmp,"format-main.ts").write_text(mainfmt)
+script = f'''import {{ formatCents as head }} from "{wt}/src/format.ts"
+import {{ formatCents as base }} from "{tmp}/format-main.ts"
+for (const c of [0, 5, 99, 100, 1999, 99999, 100000, 123450, 100000000]) {{
+  console.log(`${{c}}\\tmain=${{base(c)}}\\thead=${{head(c)}}\\t${{base(c) === head(c) ? "same" : "differs"}}`)
+}}
+'''
+pathlib.Path(tmp,"regress.ts").write_text(script)
+rg = subprocess.run(["bun", os.path.join(tmp,"regress.ts")],cwd=wt,capture_output=True,text=True)
+print(rg.stdout, rg.stderr, rg.returncode)
+bt = subprocess.run(["bun","test"],cwd=wt,capture_output=True,text=True)
+print(bt.stdout[-2000:], bt.stderr[-2000:], bt.returncode)
+
+##### CALL 28 bash
+git diff --name-only 5b0f706 63687cd
+
+##### CALL 29 eval
+ev = pathlib.Path(wt, ".omp/team-config/evidence/gate/csv-total/wave-1"); ev.mkdir(parents=True, exist_ok=True)
+F1 = ".omp/team-config/evidence/gate/csv-total/f1"
+carry = "Carried from F1 (captured at 5b0f706): `git diff --name-only 5b0f706 63687cd` lists only the five F1 evidence files and openspec/changes/csv-total/tasks.md, none of which the CLI reads, so the observed behaviour cannot change."
+def cap(k, label):
+    p, r = res[k]
+    inp = pathlib.Path(p).read_bytes().decode().replace("\r", "\\r")
+    return f"""### {label}
+
+Input (`$QA_TMP/{k}.csv`, `\\r` shown literally where present):
+```
+{inp}```
+
+Command: `bun src/cli.ts total $QA_TMP/{k}.csv`
+
+stdout: `{r.stdout.rstrip(chr(10))}`
+
+stderr: `{r.stderr.rstrip(chr(10))}`
+
+exit: {r.returncode}
+"""
+hdr = f"Head: {head}\nRun from the review worktree; `$QA_TMP` is a disposable temp directory holding synthetic input.\n"
+docs = {}
+docs["r1-strict-parsing.md"] = f"""# F2 wave 1, row 1: Requirement "Price lines are parsed strictly"
+
+{hdr}
+Scenarios of the requirement, one row:
+
+- Valid lines are summed: `{F1}/s1-happy.md` (tracked at reviewed head). stdout `25.00`, exit 0. {carry}
+- Malformed price is rejected with its line number: `{F1}/s2-malformed.md` (tracked at reviewed head). stdout empty, stderr `error: line 1: malformed price`, exit 2. {carry}
+- Negative control (a malformed line is never counted as zero or skipped) and "naming each such line": new capture below, a file mixing valid lines, a blank line and two malformed lines (non-numeric price on line 3, empty price on line 5).
+
+{cap("mixed", "Capture: mixed valid, blank and malformed lines")}
+Expected: no total on stdout; stderr names lines 3 and 5 (blank line 2 counted in numbering); exit 2.
+Verdict: PASS. Observed matches: stdout empty, `error: lines 3, 5: malformed price`, exit 2.
+"""
+docs["r2-exact-cents.md"] = f"""# F2 wave 1, row 2: Requirement "Totals are exact in cents"
+
+{hdr}
+Scenarios of the requirement, one row:
+
+- Cents add exactly (`a,0.10`, `b,0.20` print `0.30`): new capture below (F1 had no capture of this scenario).
+- Empty file: `{F1}/s4-empty.md` (tracked at reviewed head). stdout `0.00`, exit 0. {carry}
+- Negative control (ten lines of `x,0.10` print `1.00`, never `0.9999999999999999` or `1`): `{F1}/s3-cents.md` (tracked at reviewed head). stdout `1.00`, exit 0. {carry}
+- Exactly two decimals on a large total: `{F1}/s5-large.md` (tracked at reviewed head). stdout `1,234.50`, exit 0; two decimals, digits `1234.50` with a grouping separator, which tasks.md 3.1 admits. {carry}
+
+{cap("cents", "Capture: cents add exactly")}
+Expected: `0.30`, exit 0.
+Verdict: PASS. Observed `0.30`, exit 0.
+"""
+docs["r4-edge-malformed.md"] = f"""# F2 wave 1, row 4: Riskiest edge, malformed price variants and CRLF input
+
+{hdr}
+The author's risk assessment names a malformed line counted as a number and a wrong line number. This row feeds price fields that `Number()` would coerce or that look numeric (empty, `NaN`, `Infinity`, `0x10`, embedded letters, two dots, no comma) next to one valid padded price, and a CRLF file of valid lines.
+
+{cap("variants", "Capture: malformed price variants")}
+Expected: no total; stderr names lines 1 through 8 and not line 9 (`i, 3.50 ` is a valid padded price); exit 2.
+Verdict: PASS. Observed matches.
+
+{cap("crlf", "Capture: CRLF line endings")}
+Expected: `25.00`, exit 0 (the `\\r` is not part of the price).
+Verdict: PASS. Observed matches.
+
+### Observation outside this row's expectation (not judged by QA)
+
+The spec does not define a line holding more than one comma, and the design lists quoted CSV fields and locale formatting as non-goals. The parser splits at the last comma (`src/price.ts:16`), so a price written with a thousands separator is summed as its last group without an error:
+
+{cap("threefield", "Capture: three comma-separated fields")}
+Recorded for the reviewer: the CLI's own output for totals of 1000.00 and more uses this separator (`{F1}/s5-large.md`).
+"""
+docs["r5-regression-format.md"] = f"""# F2 wave 1, row 5: Regression on adjacent behaviour, pre-existing `formatCents`
+
+{hdr}
+`src/format.ts` existed on `main` and the change rewrote `groupThousands`. Library script importing `formatCents` from `main:src/format.ts` (copied to `$QA_TMP/format-main.ts`) and from the head's `src/format.ts`, on boundary values in cents:
+
+Command: `bun $QA_TMP/regress.ts`
+
+```
+{rg.stdout}```
+exit: {rg.returncode}
+
+Expected: identical output below 1000.00; at 1000.00 and above the head adds a thousands separator and keeps two decimals (the intended change, admitted by tasks.md 3.1).
+Verdict: PASS. Observed: same below 100000 cents; grouped with two decimals from 100000 cents.
+
+Existing suite, `bun test` (exit {bt.returncode}):
+
+```
+{bt.stderr.strip()}
+```
+"""
+for n,t in docs.items():
+    (ev/n).write_text(t)
+print(subprocess.run("ls -la; file *",shell=True,cwd=ev,capture_output=True,text=True).stdout)
+
+##### CALL 30 read
+{
+ "path": ".worktrees/review-csv-total/.omp/team-config/evidence/gate/csv-total/wave-1/r4-edge-malformed.md",
+ "i": "Inspecting edge artifact"
+}
+
+##### CALL 31 bash
+cat .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json; echo; wc -c .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; shasum -a 256 .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md; git merge-base main HEAD; ls -la /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/ /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/out-d/
+
+##### CALL 32 eval
+import re
+skill = pathlib.Path("/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md").read_text()
+m = re.search(r"### `implementation-audit`.*?\n```\n(.*?)\n```\n", skill, re.S)
+template = m.group(1)
+assert template.startswith("Local implementation audit.") and template.rstrip().endswith("END-REVIEW-TRAILER")
+diff = subprocess.run(["git","diff","1cdbf10370a63e712a731f3cfd0e40dc7e5744cd","63687cd82a15a6c50d600ea3217a360e42f1d9ab"],cwd=wt,capture_output=True,text=True).stdout
+names = subprocess.run(["git","diff","--name-only","1cdbf10370a63e712a731f3cfd0e40dc7e5744cd","63687cd82a15a6c50d600ea3217a360e42f1d9ab"],cwd=wt,capture_output=True,text=True).stdout
+plan = pathlib.Path(wt,".omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md").read_text()
+EV=".omp/team-config/evidence/gate/csv-total"
+goal = f"""
+  Goal (proposal.md): add a `csvtotal total <file>` command that sums the prices of a `name,price` file and prints the total with two decimals, and rejects a malformed price line with exit code 2 and a message naming the line. Finance reconciles supplier price files by hand against the invoice; the CLI removes the manual sum and its rounding mistakes.
+  Constraints (design.md, gate.md): exact cents totals with a strict line parser; prices are scaled to whole cents on parse and summed as integers, formatting happens once on the total. Non-goals: quoted CSV fields, currencies other than a bare decimal, locale formatting. Mandatory class none, Depth standard, Risk tier product, Whole-diff review not needed (whole-diff surface reviewed in F2). Accepted residual risk: sub-cent rounding per line (`src/money.ts`). Out of scope for blocking: none.
+  Background: the author's risk assessment (gate.md) - a wrong total reaches a finance reconciliation; what can break is a malformed line counted as a number, a total that drifts by a cent, a wrong line number in the error. The CLI reads one local file, writes stdout and stderr, holds no credential or personal data and changes no shared state.
+  Behavioural contract: the two `### Requirement:` blocks of `openspec/changes/csv-total/specs/csv-total/spec.md`, in the plan below."""
+changed = f"""
+  Diff range {"1cdbf10370a63e712a731f3cfd0e40dc7e5744cd"}..{"63687cd82a15a6c50d600ea3217a360e42f1d9ab"} (merge-base with `main`..reviewed head, branch feat/csv-total). Changed files:
+{names}
+  Reviewed diff (`git diff 1cdbf10370a63e712a731f3cfd0e40dc7e5744cd 63687cd82a15a6c50d600ea3217a360e42f1d9ab`):
+```diff
+{diff}```"""
+ctxt = f"""
+  Workspace root (read-only for you): {wt}. Source: src/cli.ts, src/price.ts, src/cents.ts, src/money.ts, src/format.ts; test: test/csvtotal.test.ts; plan: openspec/changes/csv-total/ (folder plan); package.json (`bun test`).
+  Context mining (source -> finding -> why it matters):
+  - `git log` on the changed paths -> only 1cdbf10 (scaffold, on `main`), 5b0f706 (feature) and 63687cd (F1 evidence plus tasks.md checkbox) -> `src/format.ts` is the one pre-existing file; the change rewrote `groupThousands` from `String(whole)` to `whole.toLocaleString("en-US")`, while proposal.md Impact says "New files under `src/` and `test/` only".
+  - Importers -> `formatCents` is imported only by `src/cli.ts` and `test/csvtotal.test.ts`; `main` has no other consumer of `src/format.ts`.
+  - No git remote, so no issues or PRs to search; `rg TODO|FIXME|HACK` over src, test and the change folder -> none.
+  - QA observation (row 4 artifact, not judged by QA because the spec does not define a line with more than one comma) -> `widget,1,234.50` prints `234.50`, exit 0: `src/price.ts:16` splits at the last comma -> the CLI prints totals of 1000.00 and more with a comma separator (`{EV}/f1/s5-large.md`), so a grouped price in an input file is summed as its last group without an error.
+  - Code reading, not exercised -> `src/cli.ts:15` prints `cannot read <file>: no such file` when the error code is `EACCES` (permission denied) and a bare `cannot read <file>` for every other code including `ENOENT`.
+  - openspec/changes/csv-total/review.md -> planning review OKAY, round 1, no blockers or residuals.
+  Plan (the immutable wave-1 copy `.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.plan.md`, plan_sha256 d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5, verbatim):
+```
+{plan}```"""
+carry = "carried from F1, captured at 5b0f706; `git diff --name-only 5b0f706 63687cd` lists only the five F1 evidence files and tasks.md, which the CLI does not read"
+qa = f"""
+  Run by the orchestrator in the review worktree at 63687cd82a15a6c50d600ea3217a360e42f1d9ab, depth standard: one row per requirement plus happy path, riskiest edge and adjacent regression. Synthetic inputs in a disposable temp directory.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| 1 | Requirement: Price lines are parsed strictly (valid lines summed; malformed price rejected with its line number; negative control: malformed line never counted as zero or skipped, each line named) | `bun src/cli.ts total FILE` on `widget,19.99`/`gadget,5.01` (s1, {carry}); `widget,abc` (s2, {carry}); new: `widget,19.99`, blank, `bad,abc`, `gadget,5.01`, `worse,` | s1 `25.00` exit 0; s2 stderr names line 1, no stdout, exit 2; new: no stdout, stderr names lines 3 and 5, exit 2 | s1 `25.00` exit 0; s2 `error: line 1: malformed price`, exit 2; new: stdout empty, `error: lines 3, 5: malformed price`, exit 2 | PASS | `{EV}/wave-1/r1-strict-parsing.md` |
+| 2 | Requirement: Totals are exact in cents (cents add exactly; empty file; negative control ten x 0.10; two decimals on a large total) | new: `a,0.10`/`b,0.20`; s4 empty file, s3 ten lines `x,0.10`, s5 `big,1234.50` ({carry}) | `0.30`; `0.00` exit 0; `1.00`; digits `1234.50` with or without grouping | `0.30` exit 0; `0.00` exit 0; `1.00` exit 0; `1,234.50` exit 0 | PASS | `{EV}/wave-1/r2-exact-cents.md` |
+| 3 | Happy path the goal names | `bun src/cli.ts total FILE` on `widget,19.99`/`gadget,5.01` ({carry}) | `25.00`, exit 0 | `25.00`, empty stderr, exit 0 | PASS | `{EV}/f1/s1-happy.md` |
+| 4 | Riskiest edge: malformed price variants (empty, `abc12`, `12abc`, `NaN`, `Infinity`, `0x10`, no comma, `1.2.3`) beside valid ` 3.50 ` on line 9; CRLF file of valid lines | `bun src/cli.ts total $QA_TMP/variants.csv`; `bun src/cli.ts total $QA_TMP/crlf.csv` | variants: no stdout, stderr names lines 1-8 not 9, exit 2; CRLF: `25.00` exit 0 | `error: lines 1, 2, 3, 4, 5, 6, 7, 8: malformed price`, stdout empty, exit 2; CRLF `25.00` exit 0 | PASS | `{EV}/wave-1/r4-edge-malformed.md` |
+| 5 | Regression on adjacent behaviour: pre-existing `formatCents` (`main:src/format.ts` vs head) and the existing suite | `bun $QA_TMP/regress.ts` (imports both versions, cents 0, 5, 99, 100, 1999, 99999, 100000, 123450, 100000000); `bun test` | identical below 100000 cents; grouped with two decimals from 100000; suite green | same below 100000; `1,000.00`, `1,234.50`, `1,000,000.00` vs main `1000.00`, `1234.50`, `1000000.00`; `bun test` 4 pass 0 fail | PASS | `{EV}/wave-1/r5-regression-format.md` |
+
+  Carried rows and reasons: s1, s2, s3, s4, s5 (cited in rows 1-3) were captured by F1 at 5b0f706; the only later commit, 63687cd, adds those five evidence files and the tasks.md checkbox, none of which the CLI reads, so none of their observations can change. Re-run: none; the new captures above cover scenarios F1 did not.
+  QA note (unjudged): row 4 artifact also records `widget,1,234.50` printing `234.50`, exit 0 (see context mining)."""
+crit = """
+  From the plan's `### Requirement:` blocks and their Negative control scenarios:
+  1. Invariant: the command reads one `name,price` line per row, ignores blank lines, and refuses a file holding a line whose price is not a number, naming each such line.
+     Positive witness: `widget,19.99` and `gadget,5.01` print `25.00` and exit 0.
+     Negative control: a file holding a line with a malformed price for which a total is printed (the line counted as zero or skipped) MUST fail.
+     Observable: stdout, stderr and exit code of `csvtotal total <file>`; for `widget,abc` on line 1, a stderr message naming line 1, no total, exit 2.
+     Boundary: the CLI process output.
+  2. Invariant: the command sums whole cents and prints the total with exactly two decimals, so decimal fractions never drift.
+     Positive witness: `a,0.10` and `b,0.20` print `0.30`; an empty file prints `0.00` and exits 0.
+     Negative control: ten lines of `x,0.10` printing `0.9999999999999999` or `1` MUST fail; the command prints `1.00`.
+     Observable: the stdout line of `csvtotal total <file>`.
+     Boundary: the CLI process output."""
+brief = template.replace("{GOAL, CONSTRAINTS, BACKGROUND}", goal).replace("{CHANGED_FILES, DIFF}", changed).replace("{FILE PATHS, CONTEXT_MINING, PLAN}", ctxt).replace("{QA MATRIX}", qa).replace("{CRITERIA WITH FIVE FIELDS}", crit)
+assert "{" not in template.replace("{GOAL, CONSTRAINTS, BACKGROUND}","").replace("{CHANGED_FILES, DIFF}","").replace("{FILE PATHS, CONTEXT_MINING, PLAN}","").replace("{QA MATRIX}","").replace("{CRITERIA WITH FIVE FIELDS}","")
+out = pathlib.Path("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/out-d/brief-implementation-audit-wave1.md")
+out.write_text(brief)
+print(len(brief), brief[:600])
+
+##### CALL 33 bash
+cat -A /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/w1-reply.md | sed 's/\$$//' ; echo ======; cat /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/sess-w1.jsonl
+
+##### CALL 34 bash
+S=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/sess-w1.jsonl; jq -c 'select(.type=="message" and .message.role=="assistant") | {provider:.message.provider, model:.message.model}' $S; jq -c 'select(.type=="thinking_level_change") | .thinkingLevel' $S; jq -c 'select(.type=="model_change") | .model' $S
+
+##### CALL 35 bash
+mkdir -p .omp/team-config/evidence/csv-total/f2 && cp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit-wave-1.txt && cmp /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/w1-reply.md .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit-wave-1.txt && git check-ignore -v .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit-wave-1.txt; node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/csv-total/f2/trailer-implementation-audit-wave-1.txt --invocation implementation-audit --verdict FAIL --plan openspec/changes/csv-total; echo "exit=$?"
+
+##### CALL 36 bash
+node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=FAIL --trailer implementation-audit=.omp/team-config/evidence/csv-total/f2/trailer-implementation-audit-wave-1.txt --blocker wrong-read-error-message=src/cli.ts:15; echo "exit=$?"
+
+##### CALL 37 grep
+{
+ "pattern": "TODOs|row|tasks\\.md",
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs",
+ "i": "Finding fix-row handling in GC"
+}
+
+##### CALL 38 bash
+grep -n "^const ID" ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs; cat openspec/schemas/omp-gated/templates/tasks.md; grep -n -i "fix\|F2\|TODO" openspec/schemas/omp-gated/schema.yaml | head -40
+
+##### CALL 39 grep
+{
+ "pattern": "digest|tasks\\.md|TODOs|exclude",
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-openspec-change.mjs",
+ "i": "Checking review digest scope"
+}
+
+##### CALL 40 bash
+cd ~/.omp/profiles/pirp/agent/skills/review-work/scripts && grep -n "checkReview\|reviewDigest\|TODOs\|validateTasks" *.mjs | grep -v test; node validate-openspec-change.mjs --reviewed /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total/openspec/changes/csv-total; echo "exit=$?"
+
+##### CALL 41 read
+{
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts/validate-openspec-change.mjs:110-160",
+ "i": "Reading tasks.md validation rules"
+}
+
+##### CALL 42 todo
+{
+ "op": "init",
+ "i": "Tracking F2 fix round",
+ "list": [
+  {
+   "phase": "F2 fix round 1",
+   "items": [
+    "4.1 Fix EACCES message in src/cli.ts:15 with regression test",
+    "Full suite after last code commit",
+    "Delta review brief for fix range",
+    "Wave 2: snapshot, QA, implementation-audit brief",
+    "Phase 4/5 record, validate, commit"
+   ]
+  }
+ ]
+}
+
+##### CALL 43 read
+{
+ "path": ".worktrees/review-csv-total/openspec/changes/csv-total/tasks.md",
+ "i": "Reading tasks.md for anchors"
+}
+
+##### CALL 44 edit
+{
+ "i": "Adding F2 fix row 4.1",
+ "input": "[.worktrees/review-csv-total/openspec/changes/csv-total/tasks.md#2293]\nPUT >15:\n+## 4. F2 fixes\n+\n+- [ ] 4.1 F2 wave 1 B1 (`wrong-read-error-message`, `src/cli.ts:15`): a file unreadable by permission (`EACCES`) prints `error: cannot read <file>: permission denied` instead of `no such file`, still exit 2; a CLI test runs it on a mode-000 file. Verify: `bun test test/cli.test.ts`\n+\n"
+}
+
+##### CALL 45 write
+{
+ "path": ".worktrees/review-csv-total/test/cli.test.ts",
+ "i": "Adding CLI read-error regression test",
+ "content": "import { afterEach, expect, test } from \"bun:test\"\nimport { chmodSync, mkdtempSync, rmSync, writeFileSync } from \"node:fs\"\nimport { tmpdir } from \"node:os\"\nimport { join } from \"node:path\"\n\nconst cli = join(import.meta.dir, \"..\", \"src\", \"cli.ts\")\nlet dir: string | undefined\n\nafterEach(() => {\n  if (dir) rmSync(dir, { recursive: true, force: true })\n  dir = undefined\n})\n\nconst run = (file: string) => Bun.spawnSync([\"bun\", cli, \"total\", file], { stderr: \"pipe\", stdout: \"pipe\" })\n\ntest(\"a file unreadable by permission is reported as permission denied\", () => {\n  if (process.getuid?.() === 0) return // root reads mode-000 files, so EACCES cannot occur\n  dir = mkdtempSync(join(tmpdir(), \"csvtotal-\"))\n  const file = join(dir, \"prices.csv\")\n  writeFileSync(file, \"widget,19.99\\n\")\n  chmodSync(file, 0o000)\n  const result = run(file)\n  expect(result.exitCode).toBe(2)\n  expect(result.stdout.toString()).toBe(\"\")\n  expect(result.stderr.toString()).toBe(`error: cannot read ${file}: permission denied\\n`)\n})\n"
+}
+
+##### CALL 46 bash
+bun test test/cli.test.ts 2>&1 | grep -E "pass|fail|Expected|Received|error:" ; id -u
+
+##### CALL 47 edit
+{
+ "i": "Fixing EACCES message",
+ "input": "[.worktrees/review-csv-total/src/cli.ts#0000]\nPUT 15.=15:\n+  if (code === \"EACCES\") console.error(`error: cannot read ${file}: permission denied`)\n"
+}
+
+##### CALL 48 edit
+{
+ "i": "Fixing EACCES message",
+ "input": "[.worktrees/review-csv-total/src/cli.ts#CE58]\nPUT 15.=15:\n+  if (code === \"EACCES\") console.error(`error: cannot read ${file}: permission denied`)\n"
+}
+
+##### CALL 49 bash
+bun test test/cli.test.ts 2>&1 | grep -E "^\(|pass$|fail$| pass| fail"
+
+##### CALL 50 edit
+{
+ "i": "Ticking fix row 4.1",
+ "input": "[.worktrees/review-csv-total/openspec/changes/csv-total/tasks.md#0970]\nPUT 18.=18:\n+- [x] 4.1 F2 wave 1 B1 (`wrong-read-error-message`, `src/cli.ts:15`): a file unreadable by permission (`EACCES`) prints `error: cannot read <file>: permission denied` instead of `no such file`, still exit 2; a CLI test runs it on a mode-000 file. Verify: `bun test test/cli.test.ts`\n"
+}
+
+##### CALL 51 bash
+git add src/cli.ts test/cli.test.ts openspec/changes/csv-total/tasks.md && git commit -q -m "fix(cli): report EACCES as permission denied (F2 4.1)" && git log --oneline -1 && git status --short && bun test 2>&1 | grep -E " pass$| fail$|^Ran"
+
+##### CALL 52 bash
+SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $SK/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total; node $SK/validate-openspec-change.mjs --reviewed "$PWD/openspec/changes/csv-total"; echo "reviewed-exit=$?"; H=$(git rev-parse HEAD); node $SK/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total patch --base 63687cd82a15a6c50d600ea3217a360e42f1d9ab --head $H --out .omp/team-config/gate-deltas/F2-4.1-${H:0:12}-$(date -u +%Y%m%d%H%M%S); echo "exit=$?"
+
+##### CALL 53 grep
+{
+ "pattern": "PLACEHOLDER\\s*=",
+ "path": "/Users/tim/.omp/profiles/pirp/agent/skills/review-work/scripts",
+ "i": "Finding placeholder regex"
+}
+
+##### CALL 54 edit
+{
+ "i": "Removing placeholder-like token from 4.1",
+ "input": "[.worktrees/review-csv-total/openspec/changes/csv-total/tasks.md#BB9F]\nPUT 18.=18:\n+- [x] 4.1 F2 wave 1 B1 (`wrong-read-error-message`, `src/cli.ts:15`): a file unreadable by permission (`EACCES`) prints `error: cannot read FILE: permission denied` instead of `no such file`, still exit 2; a CLI test runs it on a mode-000 file. Verify: `bun test test/cli.test.ts`\n"
+}
+
+##### CALL 55 bash
+SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; node $SK/validate-gate-record.mjs --repo "$PWD" --plan-only --plan openspec/changes/csv-total && git add openspec/changes/csv-total/tasks.md && git commit -q -m "docs(openspec): fix row 4.1 names FILE without angle brackets" && node $SK/validate-openspec-change.mjs --reviewed "$PWD/openspec/changes/csv-total"; echo "reviewed-exit=$?"; git log --oneline -3
+
+##### CALL 56 bash
+SK=~/.omp/profiles/pirp/agent/skills/review-work/scripts; H=$(git rev-parse HEAD); D=.omp/team-config/gate-deltas/F2-4.1-${H:0:12}-$(date -u +%Y%m%d%H%M%S); node $SK/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total patch --base 63687cd82a15a6c50d600ea3217a360e42f1d9ab --head $H --out $D; echo "exit=$?"; ls -la $D; cat $D/manifest.json
+
+##### CALL 57 eval
+m = re.search(r"Delta brief \(substitute.*?\n```\n(.*?)\n```\n", skill, re.S)
+dt = m.group(1)
+gate = pathlib.Path(wt,"openspec/changes/csv-total/gate.md").read_text()
+acc = gate[gate.index("- **Accepted residual risks**"):gate.index("- **Out of scope for blocking**")].rstrip("\n")
+oos = gate[gate.index("- **Out of scope for blocking**"):].rstrip("\n")
+inv = "Feature-specific criteria: not in plan\n" + acc + "\n" + oos
+tasks = pathlib.Path(wt,"openspec/changes/csv-total/tasks.md").read_text()
+row = [l for l in tasks.split("\n") if l.startswith("- [x] 4.1 ")][0]
+EVW = ".omp/team-config/evidence/gate/csv-total/wave-1"
+carried = f"""- Row 1, Requirement: Price lines are parsed strictly (`{EVW}/r1-strict-parsing.md`): every capture reads an existing readable file, so `readFileSync` succeeds and the changed `catch` branch at `src/cli.ts:15` never runs; parsing and summing code is untouched.
+- Row 2, Requirement: Totals are exact in cents (`{EVW}/r2-exact-cents.md`): same reason, readable files only; `src/price.ts`, `src/cents.ts`, `src/money.ts` and `src/format.ts` are untouched.
+- Row 3, Happy path (`.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md`): readable file, the changed branch is never reached.
+- Row 4, Riskiest edge, malformed variants and CRLF (`{EVW}/r4-edge-malformed.md`): readable files, the changed branch is never reached.
+- Row 5, Regression on adjacent behaviour, `formatCents` main vs head and `bun test` (`{EVW}/r5-regression-format.md`): `src/format.ts` and `test/csvtotal.test.ts` are untouched, so the formatter comparison and the four existing tests cannot change; the range adds `test/cli.test.ts`, which the fix verification ran (`bun test`: 5 pass, 0 fail after f93afea) and which the wave-2 QA covers through a new real-surface row for the read-error messages, not through row 5."""
+brief_d = (dt.replace("{REPO ROOT}", wt).replace("{PLAN PATH}", "openspec/changes/csv-total")
+  .replace("{PLAN INVARIANTS}", inv).replace("{FIX ROWS}", row).replace("{CARRIED ROWS}", carried)
+  .replace("{BASE SHA}", "63687cd82a15a6c50d600ea3217a360e42f1d9ab").replace("{HEAD SHA}", "12d38d8843e31d29b8a7316c31f4c448c374dc91")
+  .replace("{FIX SHAS}", "f93afeaea9ec68e98c6c8b9daed138b65a5dc5e1, 12d38d8843e31d29b8a7316c31f4c448c374dc91")
+  .replace("{MANIFEST PATH}", wt + "/.omp/team-config/gate-deltas/F2-4.1-12d38d8843e3-20261103141449/manifest.json"))
+assert "{" not in brief_d, brief_d
+p = pathlib.Path("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/out-d/brief-delta-round1.md")
+p.write_text(brief_d)
+print(brief_d)
+
+##### CALL 58 todo
+{
+ "op": "done",
+ "i": "Marking fix, suite and delta brief done",
+ "task": "4.1 Fix EACCES message in src/cli.ts:15 with regression test"
+}
+
+##### CALL 59 todo
+{
+ "op": "done",
+ "i": "Marking full suite done",
+ "task": "Full suite after last code commit"
+}
+
+##### CALL 60 todo
+{
+ "op": "block",
+ "i": "Blocking on delta reply file",
+ "task": "Delta review brief for fix range",
+ "reason": "Brief written; awaiting user-supplied plan-reviewer reply file"
+}
+
+##### CALL 61 bash
+P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d; cat $P/delta1-ok.json; echo; D=.omp/team-config/gate-deltas/F2-4.1-12d38d8843e3-20261103141449; cp $P/delta1-ok.json $D/verdict.json && cmp $P/delta1-ok.json $D/verdict.json && node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total delta --lane F2 --dir $D --row 4.1; echo "exit=$?"
+
+##### CALL 62 bash
+GC="node $HOME/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan openspec/changes/csv-total"; git merge-base --is-ancestor main HEAD && echo main-ancestor; $GC ready --lane F2; echo "exit=$?"; $GC snapshot --lane F2; echo "exit=$?"
+
+##### CALL 63 eval
+import subprocess, tempfile, os, pathlib, re
+wt = "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total"
+head = subprocess.run(["git","rev-parse","HEAD"],cwd=wt,capture_output=True,text=True).stdout.strip()
+tmp = tempfile.mkdtemp(prefix="csvtotal-qa2-")
+locked = os.path.join(tmp,"locked.csv"); pathlib.Path(locked).write_text("widget,19.99\n"); os.chmod(locked, 0)
+missing = os.path.join(tmp,"missing.csv")
+caps=[]
+for label,p in [("Unreadable by permission (mode 000)", locked), ("Missing file", missing)]:
+    r = subprocess.run(["bun","src/cli.ts","total",p],cwd=wt,capture_output=True,text=True)
+    caps.append((label, p.replace(tmp,"$QA_TMP"), r.stdout.replace(tmp,"$QA_TMP"), r.stderr.replace(tmp,"$QA_TMP"), r.returncode))
+    print(label, repr(r.stdout), repr(r.stderr), r.returncode)
+os.chmod(locked, 0o600)
+print(head, os.getuid())
+
+##### CALL 64 eval
+ev = pathlib.Path(wt, ".omp/team-config/evidence/gate/csv-total/wave-2"); ev.mkdir(parents=True, exist_ok=True)
+body = f"""# F2 wave 2, row 6: Fix 4.1, read-error messages of the CLI
+
+Head: {head}
+Run from the review worktree as uid 501 (not root); `$QA_TMP` is a disposable temp directory holding synthetic input.
+
+"""
+exp = {"Unreadable by permission (mode 000)": "stdout empty; stderr `error: cannot read $QA_TMP/locked.csv: permission denied`; exit 2",
+       "Missing file": "stdout empty; stderr `error: cannot read $QA_TMP/missing.csv` (the unchanged neutral branch); exit 2"}
+for label,p,out,err,code in caps:
+    setup = "`printf 'widget,19.99\\n' > $QA_TMP/locked.csv && chmod 000 $QA_TMP/locked.csv`" if "locked" in p else "no file created at that path"
+    body += f"""### Capture: {label}
+
+Setup: {setup}
+
+Command: `bun src/cli.ts total {p}`
+
+stdout: `{out.rstrip(chr(10))}`
+
+stderr: `{err.rstrip(chr(10))}`
+
+exit: {code}
+
+Expected: {exp[label]}.
+Verdict: PASS. Observed matches.
+
+"""
+(ev/"r6-read-errors.md").write_text(body.rstrip("\n")+"\n")
+print((ev/"r6-read-errors.md").read_text())
+
+##### CALL 65 eval
+skill = pathlib.Path("/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md").read_text()
+template = re.search(r"### `implementation-audit`.*?\n```\n(.*?)\n```\n", skill, re.S).group(1)
+BASE="1cdbf10370a63e712a731f3cfd0e40dc7e5744cd"; HEAD=head
+g=lambda *a: subprocess.run(["git",*a],cwd=wt,capture_output=True,text=True).stdout
+diff=g("diff",BASE,HEAD); names=g("diff","--name-only",BASE,HEAD)
+plan = pathlib.Path(wt,".omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md").read_text()
+import json
+snap = json.loads(pathlib.Path(wt,".omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapshot.json").read_text())
+EV=".omp/team-config/evidence/gate/csv-total"
+goal = """
+  Goal (proposal.md): add a `csvtotal total <file>` command that sums the prices of a `name,price` file and prints the total with two decimals, and rejects a malformed price line with exit code 2 and a message naming the line. Finance reconciles supplier price files by hand against the invoice; the CLI removes the manual sum and its rounding mistakes.
+  Constraints (design.md, gate.md): exact cents totals with a strict line parser; prices are scaled to whole cents on parse and summed as integers, formatting happens once on the total. Non-goals: quoted CSV fields, currencies other than a bare decimal, locale formatting. Mandatory class none, Depth standard, Risk tier product, Whole-diff review not needed (whole-diff surface reviewed in F2). Accepted residual risk: sub-cent rounding per line (`src/money.ts`). Out of scope for blocking: none.
+  Background: the author's risk assessment (gate.md) - a wrong total reaches a finance reconciliation; what can break is a malformed line counted as a number, a total that drifts by a cent, a wrong line number in the error. The CLI reads one local file, writes stdout and stderr, holds no credential or personal data and changes no shared state.
+  Behavioural contract: the two `### Requirement:` blocks of `openspec/changes/csv-total/specs/csv-total/spec.md`, in the plan below."""
+changed = f"""
+  Diff range {BASE}..{HEAD} (merge-base with `main`..reviewed head, branch review/csv-total = feat/csv-total plus the F2 fix round). Changed files:
+{names}
+  Reviewed diff (`git diff {BASE} {HEAD}`):
+```diff
+{diff}```"""
+ctxt = f"""
+  Workspace root (read-only for you): {wt}. Source: src/cli.ts, src/price.ts, src/cents.ts, src/money.ts, src/format.ts; tests: test/csvtotal.test.ts, test/cli.test.ts; plan: openspec/changes/csv-total/ (folder plan); package.json (`bun test`).
+  Context mining (source -> finding -> why it matters):
+  - `git log {BASE}..{HEAD}` -> 5b0f706 (feature), 63687cd (F1 evidence plus tasks.md checkbox), f93afea (F2 fix 4.1: `EACCES` message and `test/cli.test.ts`), 12d38d8 (tasks.md row 4.1 wording only) -> the fix round followed an F2 wave-1 FAIL whose one blocker was the `EACCES` message at `src/cli.ts:15`; its delta review returned OKAY.
+  - `git log` on the changed paths -> `src/format.ts` is the one pre-existing file (scaffold 1cdbf10 on `main`); the change rewrote `groupThousands` from `String(whole)` to `whole.toLocaleString("en-US")`, while proposal.md Impact says "New files under `src/` and `test/` only".
+  - Importers -> `formatCents` is imported only by `src/cli.ts` and `test/csvtotal.test.ts`; `main` has no other consumer of `src/format.ts`.
+  - No git remote, so no issues or PRs to search; `rg TODO|FIXME|HACK` over src, test and the change folder -> none.
+  - QA observation (wave-1 row 4 artifact, not judged by QA because the spec does not define a line with more than one comma) -> `widget,1,234.50` prints `234.50`, exit 0: `src/price.ts:16` splits at the last comma -> the CLI prints totals of 1000.00 and more with a comma separator (`{EV}/f1/s5-large.md`), so a grouped price in an input file is summed as its last group without an error.
+  - `validate-openspec-change.mjs --reviewed openspec/changes/csv-total` -> review.md is stale since fix row 4.1 was added to tasks.md (reviewed digest cbecfe31..., current 87dccf44...) -> the planning review predates the F2 fix row; the F2 plan-only validation passes.
+  Plan (the immutable wave-2 copy `.omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.plan.md`, plan_sha256 {snap['plan_sha256']}, verbatim):
+```
+{plan}```"""
+carry_reason = "carried: captured at 63687cd (wave 1); the only later commits, f93afea and 12d38d8, change the `catch` branch of `readFileSync` in `src/cli.ts`, add `test/cli.test.ts` and reword tasks.md row 4.1, and this row reads only readable files, so it never reaches the changed branch; the fix-round delta review (OKAY) saw this carry"
+qa = f"""
+  Run by the orchestrator in the review worktree, depth standard: one row per requirement plus happy path, riskiest edge and adjacent regression, plus one row for fix 4.1 at {HEAD}. Synthetic inputs in a disposable temp directory.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| 1 | Requirement: Price lines are parsed strictly (valid lines summed; malformed price rejected with its line number; negative control: malformed line never counted as zero or skipped, each line named) | `bun src/cli.ts total FILE` on `widget,19.99`/`gadget,5.01` (F1 s1); `widget,abc` (F1 s2); `widget,19.99`, blank, `bad,abc`, `gadget,5.01`, `worse,` | s1 `25.00` exit 0; s2 stderr names line 1, no stdout, exit 2; mixed: no stdout, stderr names lines 3 and 5, exit 2 | s1 `25.00` exit 0; s2 `error: line 1: malformed price`, exit 2; mixed: stdout empty, `error: lines 3, 5: malformed price`, exit 2 | PASS ({carry_reason}) | `{EV}/wave-1/r1-strict-parsing.md` |
+| 2 | Requirement: Totals are exact in cents (cents add exactly; empty file; negative control ten x 0.10; two decimals on a large total) | `a,0.10`/`b,0.20`; F1 s4 empty file, s3 ten lines `x,0.10`, s5 `big,1234.50` | `0.30`; `0.00` exit 0; `1.00`; digits `1234.50` with or without grouping | `0.30` exit 0; `0.00` exit 0; `1.00` exit 0; `1,234.50` exit 0 | PASS ({carry_reason}) | `{EV}/wave-1/r2-exact-cents.md` |
+| 3 | Happy path the goal names | `bun src/cli.ts total FILE` on `widget,19.99`/`gadget,5.01` (F1 s1, captured at 5b0f706) | `25.00`, exit 0 | `25.00`, empty stderr, exit 0 | PASS ({carry_reason}) | `{EV}/f1/s1-happy.md` |
+| 4 | Riskiest edge: malformed price variants (empty, `abc12`, `12abc`, `NaN`, `Infinity`, `0x10`, no comma, `1.2.3`) beside valid ` 3.50 ` on line 9; CRLF file of valid lines | `bun src/cli.ts total $QA_TMP/variants.csv`; `bun src/cli.ts total $QA_TMP/crlf.csv` | variants: no stdout, stderr names lines 1-8 not 9, exit 2; CRLF: `25.00` exit 0 | `error: lines 1, 2, 3, 4, 5, 6, 7, 8: malformed price`, stdout empty, exit 2; CRLF `25.00` exit 0 | PASS ({carry_reason}) | `{EV}/wave-1/r4-edge-malformed.md` |
+| 5 | Regression on adjacent behaviour: pre-existing `formatCents` (`main:src/format.ts` vs head) and the existing suite | `bun $QA_TMP/regress.ts` (both versions, cents 0, 5, 99, 100, 1999, 99999, 100000, 123450, 100000000); `bun test` | identical below 100000 cents; grouped with two decimals from 100000; suite green | same below 100000; `1,000.00`, `1,234.50`, `1,000,000.00` vs main `1000.00`, `1234.50`, `1000000.00`; `bun test` 4 pass 0 fail | PASS (carried: captured at 63687cd; the range leaves `src/format.ts` and `test/csvtotal.test.ts` untouched, so neither the formatter comparison nor the four existing tests can change; the fix verification ran the grown suite, `bun test` 5 pass 0 fail after f93afea; the delta review saw this carry) | `{EV}/wave-1/r5-regression-format.md` |
+| 6 | Fix 4.1: read-error messages (file unreadable by permission; missing file, the unchanged branch) | `chmod 000 $QA_TMP/locked.csv; bun src/cli.ts total $QA_TMP/locked.csv`; `bun src/cli.ts total $QA_TMP/missing.csv` (uid 501) | locked: no stdout, `error: cannot read $QA_TMP/locked.csv: permission denied`, exit 2; missing: no stdout, `error: cannot read $QA_TMP/missing.csv`, exit 2 | as expected for both | PASS (new capture at {HEAD[:12]}) | `{EV}/wave-2/r6-read-errors.md` |
+
+  QA note (unjudged): the wave-1 row 4 artifact also records `widget,1,234.50` printing `234.50`, exit 0 (see context mining)."""
+crit = """
+  From the plan's `### Requirement:` blocks and their Negative control scenarios:
+  1. Invariant: the command reads one `name,price` line per row, ignores blank lines, and refuses a file holding a line whose price is not a number, naming each such line.
+     Positive witness: `widget,19.99` and `gadget,5.01` print `25.00` and exit 0.
+     Negative control: a file holding a line with a malformed price for which a total is printed (the line counted as zero or skipped) MUST fail.
+     Observable: stdout, stderr and exit code of `csvtotal total <file>`; for `widget,abc` on line 1, a stderr message naming line 1, no total, exit 2.
+     Boundary: the CLI process output.
+  2. Invariant: the command sums whole cents and prints the total with exactly two decimals, so decimal fractions never drift.
+     Positive witness: `a,0.10` and `b,0.20` print `0.30`; an empty file prints `0.00` and exits 0.
+     Negative control: ten lines of `x,0.10` printing `0.9999999999999999` or `1` MUST fail; the command prints `1.00`.
+     Observable: the stdout line of `csvtotal total <file>`.
+     Boundary: the CLI process output."""
+brief = template.replace("{GOAL, CONSTRAINTS, BACKGROUND}", goal).replace("{CHANGED_FILES, DIFF}", changed).replace("{FILE PATHS, CONTEXT_MINING, PLAN}", ctxt).replace("{QA MATRIX}", qa).replace("{CRITERIA WITH FIVE FIELDS}", crit)
+out = pathlib.Path("/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/out-d/brief-implementation-audit-wave2.md")
+out.write_text(brief); print(len(brief), snap)
+
+##### CALL 66 bash
+P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d; cat $P/w2-reply.md; echo =====; S=$P/sess-w2.jsonl; jq -c 'select(.type=="message" and .message.role=="assistant") | {provider:.message.provider, model:.message.model}' $S; jq -c 'select(.type=="thinking_level_change") | .thinkingLevel' $S; jq -c 'select(.type=="model_change") | .model' $S
+
+##### CALL 67 bash
+P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d; mkdir -p .omp/team-config/evidence/csv-total/wave-2 && cp $P/w2-reply.md .omp/team-config/evidence/csv-total/wave-2/implementation-audit-reply.md && git check-ignore -q .omp/team-config/evidence/csv-total/wave-2/implementation-audit-reply.md && echo ignored; cp $P/out-d/brief-implementation-audit-wave2.md $P/out-d/brief-implementation-audit-wave2-retry.md && cmp $P/out-d/brief-implementation-audit-wave2.md $P/out-d/brief-implementation-audit-wave2-retry.md && echo brief-same; cat $P/w2-retry-reply.md; echo =====; S=$P/sess-w2-retry.jsonl; jq -c 'select(.type=="message" and .message.role=="assistant") | {provider:.message.provider, model:.message.model}' $S; jq -c 'select(.type=="thinking_level_change") | .thinkingLevel' $S; jq -c 'select(.type=="model_change") | .model' $S
+
+##### CALL 68 bash
+P=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d; cp $P/w2-retry-reply.md .omp/team-config/evidence/csv-total/wave-2/implementation-audit-retry-reply.md && git check-ignore -q .omp/team-config/evidence/csv-total/wave-2/implementation-audit-retry-reply.md && echo ignored; grep -n '^model:' ~/.omp/profiles/pirp/agent/agents/auditor.md; omp config get task.agentModelOverrides; node ~/.omp/profiles/pirp/agent/skills/review-work/scripts/gate-convergence.mjs --repo "$PWD" --plan openspec/changes/csv-total wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-ec58e3fc1718-wave-2.snapshot.json --outcome qa=PASS --outcome implementation-audit=INCONCLUSIVE; echo "exit=$?"; git status --short
+
+##### CALL 69 todo
+{
+ "op": "block",
+ "i": "Blocking wave 2 on pin",
+ "task": "Wave 2: snapshot, QA, implementation-audit brief",
+ "reason": "implementation-audit ran on onara/cc/claude-opus-5 (high) twice instead of pin onara/cx/gpt-6.1-sol:high; wave recorded INCONCLUSIVE; repeat once pin resolves"
+}

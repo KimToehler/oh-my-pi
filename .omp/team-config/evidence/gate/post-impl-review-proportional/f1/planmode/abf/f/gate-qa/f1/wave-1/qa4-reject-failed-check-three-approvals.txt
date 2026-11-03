@@ -1,0 +1,28 @@
+QA4 reject-failed-check-three-approvals
+HEAD d70b69864af5234457b07e367a1a18d063fe2f01
+cwd: repo root; command run on a real pty (python os.openpty)
+fixture qa4.json (disposable, synthetic):
+{
+  "version": "1.4.0",
+  "author": "ann",
+  "checks": {
+    "build": true,
+    "tests": false
+  },
+  "approvals": [
+    {
+      "reviewer": "bob"
+    },
+    {
+      "reviewer": "cy"
+    },
+    {
+      "reviewer": "dee"
+    }
+  ]
+}
+$ bun scripts/gate.ts qa4.json
+REJECT failed checks: tests
+exit status: 1
+expected: stdout `REJECT failed checks: tests`, exit 1
+verdict: PASS

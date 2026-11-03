@@ -1,0 +1,1 @@
+{"verdict":"OKAY","summary":"The range replaces the wrong cause in the permission-denied read message and corrects the exit status of the directory read branch; it touches no other branch, and the carried QA rows never reach either."}

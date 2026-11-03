@@ -1,0 +1,38 @@
+Working...
+I stopped the gate before dispatching any reviewer. No reviewers ran, no QA ran, and nothing in the repo changed. There is no `GC baseline`, snapshot, plan edit, commit or gate record.
+
+**Why it stopped:** the reviewer model settings disagree. The review-work skill requires both review invocations to run on the model and effort pinned in `auditor.md`. It says to dispatch nothing when `task.agentModelOverrides` has an `auditor` entry with a different model or effort.
+
+| Setting | Value |
+|---|---|
+| `~/.omp/profiles/pirp-med/agent/agents/auditor.md` (line 5, `model:`) | `onara/cx/gpt-6.1-sol:high` |
+| `omp config get task.agentModelOverrides` → `auditor` | `onara/cx/gpt-6.1-sol:medium` |
+
+The model is the same, but the effort differs (`high` vs `medium`). Any dispatch now would run on `medium`, and Phase 3's model check would not count it.
+
+**Done before the stop (read-only):**
+- **Depth:** `risky`. The plan changes `scripts/gate.ts`, which decides which release candidates ship, so it is a release mechanism. Mandatory class is `none`. Risk tier is already `product`, so you don't need to agree to a re-tier. Both reviews would run, `implementation-audit` and `strategic-risk-review`, each on `auditor`.
+- **Plan check:** `validate-gate-record.mjs --plan-only --plan .omp/plans/gate-quorum.md` printed `passed` and exited 0.
+- **Branches:** `main` (`ec85cd1`) is already in the history of `feat/gate-quorum` (`7b490ff`), so no merge is needed. The reviewed diff is `ec85cd1...7b490ff`: `scripts/gate.ts`, `scripts/gate.test.ts` and the plan.
+- **Independence:** the diff was written by `onara/cc/claude-opus-5-5` and would be reviewed by a GPT model, so it would be labelled `cross-provider`.
+
+**Next:** make the two settings match, either by removing or changing the `auditor` entry in `task.agentModelOverrides`, or by changing the pin in `auditor.md`. Then re-run the gate.
+
+When it resumes, it will:
+1. Move the main checkout to `main`, then create and lock a review worktree for `feat/gate-quorum`. The branch is checked out here now, so it can't be added as a worktree yet.
+2. Mark F1 and F2 `[x]` and commit that.
+3. Run `GC baseline`, `ready` and `snapshot`.
+4. Run QA.
+5. Dispatch both reviewers in one batch.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: NOT RUN (auditor model conflict: auditor.md pins onara/cx/gpt-6.1-sol:high, task.agentModelOverrides.auditor is onara/cx/gpt-6.1-sol:medium; dispatch stopped per Phase 3 model check)
+  reviewed_sha NOT RUN (no wave) · plan_sha256 NOT RUN (plan not frozen)
+  implementation-audit: NOT RUN (model conflict)
+  strategic-risk-review: NOT RUN (model conflict)
+  override: none
+  record NOT RUN (no record written)
+- code committed after reviewed_sha: NOT RUN (no reviewed_sha)
+```

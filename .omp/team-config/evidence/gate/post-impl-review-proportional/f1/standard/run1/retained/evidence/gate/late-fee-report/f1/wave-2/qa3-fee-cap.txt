@@ -1,0 +1,8 @@
+$ git rev-parse HEAD
+951b31abca24010414cc0f6975f74b5e1700bbb0
+$ cat cap.json
+[{ "id": "CAP", "amountCents": 10000, "dueDate": "2025-01-01" }]
+$ bun src/cli.ts cap.json --as-of 2026-02-15
+CAP	2025-01-01	25.00
+TOTAL		25.00
+exit=0

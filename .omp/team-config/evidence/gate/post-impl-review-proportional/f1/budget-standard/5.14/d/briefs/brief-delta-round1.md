@@ -1,0 +1,16 @@
+Review this fix delta. Workspace root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total. Plan: openspec/changes/csv-total.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+Feature-specific criteria: not in plan
+- **Accepted residual risks**:
+  - Sub-cent rounding: a price with more than two decimals is rounded to the nearest cent per line (`src/money.ts`) instead of being rejected, so the printed total can differ from the supplier's invoice by one cent. Accepted because supplier feeds carry two decimals.
+- **Out of scope for blocking**: none (the change adds one standalone CLI and touches no shared surface)
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+- [x] 4.1 F2 wave 1 B1 (`wrong-read-error-message`, `src/cli.ts:15`): a file unreadable by permission (`EACCES`) prints `error: cannot read FILE: permission denied` instead of `no such file`, still exit 2; a CLI test runs it on a mode-000 file. Verify: `bun test test/cli.test.ts`
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+- Row 1, Requirement: Price lines are parsed strictly (`.omp/team-config/evidence/gate/csv-total/wave-1/r1-strict-parsing.md`): every capture reads an existing readable file, so `readFileSync` succeeds and the changed `catch` branch at `src/cli.ts:15` never runs; parsing and summing code is untouched.
+- Row 2, Requirement: Totals are exact in cents (`.omp/team-config/evidence/gate/csv-total/wave-1/r2-exact-cents.md`): same reason, readable files only; `src/price.ts`, `src/cents.ts`, `src/money.ts` and `src/format.ts` are untouched.
+- Row 3, Happy path (`.omp/team-config/evidence/gate/csv-total/f1/s1-happy.md`): readable file, the changed branch is never reached.
+- Row 4, Riskiest edge, malformed variants and CRLF (`.omp/team-config/evidence/gate/csv-total/wave-1/r4-edge-malformed.md`): readable files, the changed branch is never reached.
+- Row 5, Regression on adjacent behaviour, `formatCents` main vs head and `bun test` (`.omp/team-config/evidence/gate/csv-total/wave-1/r5-regression-format.md`): `src/format.ts` and `test/csvtotal.test.ts` are untouched, so the formatter comparison and the four existing tests cannot change; the range adds `test/cli.test.ts`, which the fix verification ran (`bun test`: 5 pass, 0 fail after f93afea) and which the wave-2 QA covers through a new real-surface row for the read-error messages, not through row 5.
+Commit range 63687cd82a15a6c50d600ea3217a360e42f1d9ab..12d38d8843e31d29b8a7316c31f4c448c374dc91, commits f93afeaea9ec68e98c6c8b9daed138b65a5dc5e1, 12d38d8843e31d29b8a7316c31f4c448c374dc91.
+The diff is one patch file per commit, in commit order, each with its commit header. Read /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1d-r514-d/.worktrees/review-csv-total/.omp/team-config/gate-deltas/F2-4.1-12d38d8843e3-20261103141449/manifest.json, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.

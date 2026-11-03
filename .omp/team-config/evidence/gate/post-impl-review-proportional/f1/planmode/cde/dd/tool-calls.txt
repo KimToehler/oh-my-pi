@@ -1,0 +1,47 @@
+read	skill://review-work
+read	artifact://0:180-470
+read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-330
+read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:330-470
+bash	awk 'NR==220||NR==356||NR==380||NR==382||NR==386||NR==390||NR==433||NR==462||NR==465||NR==466' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md
+bash	awk 'NR==220||NR==356||NR==380||NR==382||NR==386||NR==390||NR==433||NR==462||NR==465||NR==466||NR==172{print NR": "substr($0,700)}' ~/.omp/profiles/pirp/agent/skills/review-work/SKILL.md | fold -w 600
+bash	git status --short --branch && git log --oneline -15 && git worktree list && git branch -a
+read	.omp/plans/gate-quorum.md
+read	rule://worktrees
+bash	git diff --stat main...HEAD; git merge-base --is-ancestor main HEAD && echo main-is-ancestor; git diff main...HEAD -- scripts/gate.ts; ls -a .omp .omp/team-config 2>/dev/null; ls .omp/team-config/gate-convergence* .omp/team-config/evidence 2>/dev/null
+bash	ls -a; cat .gitignore 2>/dev/null; cat package.json 2>/dev/null; ls scripts; SKILL_DIR=~/.omp/agent/skills/review-work; ls $SKILL_DIR/scripts; ls ~/.omp/agent/agents/auditor.md ~/.omp/profiles/pirp/agent/agents/auditor.md 2>&1; omp config get task.agentModelOv
+bash	head -12 ~/.omp/profiles/pirp/agent/agents/auditor.md; echo ---; head -12 ~/.omp/agent/agents/auditor.md; echo; echo $PI_CODING_AGENT_DIR $OMP_AGENT_DIR; cat scripts/gate.ts scripts/gate.test.ts README.md; ls scripts/fixtures 2>/dev/null
+bash	ls ~/.omp/profiles/pirp/agent/skills/review-work/scripts && diff -rq ~/.omp/profiles/pirp/agent/skills/review-work/scripts ~/.omp/agent/skills/review-work/scripts; echo rc=$?
+edit	
+bash	node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/gate-quorum.md
+bash	git add .omp/plans/gate-quorum.md && git commit -q -m "docs(plan): re-tier gate-quorum to product (risky gate depth, agreed by Tim)" && git log --oneline -1
+bash	GC="node $HOME/.omp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan .omp/plans/gate-quorum.md"; $GC baseline --sha HEAD; echo rc=$?; $GC ready --lane F2; echo rc=$?
+bash	GC="node $HOME/.omp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan .omp/plans/gate-quorum.md"; $GC snapshot --lane F2; echo rc=$?
+bash	bun --version; git rev-parse HEAD; git log --oneline -20 -- scripts/gate.ts scripts/gate.test.ts; git log --all --oneline --grep=approv; grep -rn "TODO\|FIXME\|HACK" scripts/gate.ts scripts/gate.test.ts; grep -rln "gate" --include=*.ts --include=*.md --include
+eval	
+bash	git check-ignore -v .omp/team-config/evidence/gate/gate-quorum/f1/wave-1/qa1-two-distinct.txt; echo ignore-rc=$?; git remote -v; git diff --name-only main...HEAD; cmp .omp/plans/gate-quorum.md .omp/team-config/gate-deltas/F2-303451fd6c4f-wave-1.plan.md && echo
+bash	git diff main...HEAD
+bash	git diff --no-color main...HEAD > /tmp/gate-quorum-diff.patch; wc -l /tmp/gate-quorum-diff.patch
+read	/tmp/gate-quorum-diff.patch:raw
+eval	
+eval	
+eval	
+bash	git diff --no-color main...HEAD | grep -n -v '^[+ -]' ; git diff --no-color main...HEAD | grep -c ''; git diff --no-color main...HEAD -- scripts/gate.ts | cat -A | sed -n '1,20p' | cut -c1-120
+bash	git diff --no-color main...HEAD -- scripts/gate.test.ts | cat -A | cut -c1-140
+task	auditor: Local implementation audit. No PR lookup, remote fetch, file write, or sub-revie | auditor: Read-only strategic risk review. Do not run commands, fetch network context, mod
+wait	
+eval	
+eval	
+read	history://StrategicRiskReview
+bash	f=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-d-tier/2026-11-02T20-15-38-009Z_01a19de7-3619-738d-aac2-0c69056df4e1/StrategicRiskReview.jsonl; jq -c 'select(.type=="thinking_level_change" or .type=="model_change") ' $f; jq -r 'select(.type=="message" 
+wait	
+eval	
+bash	f=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-d-tier/2026-11-02T20-15-38-009Z_01a19de7-3619-738d-aac2-0c69056df4e1/ImplementationAudit.jsonl; ls $f && jq -c 'select(.type=="thinking_level_change" or .type=="model_change") | {type,model,thinkingLevel}
+grep	~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs;~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs;~/.omp/agent/skills/review-work/scripts/plan-contract.mjs;~/.omp/agent/skills/review-work/scripts/trailer.mjs
+bash	GC="node $HOME/.omp/agent/skills/review-work/scripts/gate-convergence.mjs --repo $PWD --plan .omp/plans/gate-quorum.md"; E=.omp/team-config/evidence/gate/gate-quorum/wave-1; $GC wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-303451fd6c4f-wave-1.snap
+grep	~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs
+eval	
+eval	
+bash	git commit -q -m "chore(gate): F2 merge-gate record for gate-quorum" && git log --oneline -1 && node ~/.omp/agent/skills/review-work/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/gate-quorum.json --plan .omp/plans/gate-
+read	rule://merge-gate-proof
+bash	rm -f /tmp/brief-audit.txt /tmp/brief-strat.txt /tmp/gate-quorum-diff.patch; rm -rf /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/gate-quorum-qa-* ; git rev-parse HEAD cadab73
+bash	jq -r '.plan_sha256, .reviewed_sha, .diff_base' .omp/team-config/evidence/gate/gate-quorum.json; git diff --name-only cadab73..HEAD | grep -v '^.omp/team-config/evidence/gate/' ; echo "non-evidence-files=$?"

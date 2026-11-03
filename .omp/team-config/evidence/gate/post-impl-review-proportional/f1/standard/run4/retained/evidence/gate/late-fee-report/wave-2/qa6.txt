@@ -1,0 +1,39 @@
+# QA6: negative control: invoices with a 0-cent fee get no line; total sums listed lines only; empty input
+# head: b5e75eb50c865195adff06ec2ffae8f115084ee8
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa6-zero-fee.json
+[
+  {
+    "id": "FRESH",
+    "amountCents": 10000,
+    "dueDate": "2026-02-10"
+  },
+  {
+    "id": "NOT-DUE",
+    "amountCents": 10000,
+    "dueDate": "2026-03-10"
+  },
+  {
+    "id": "TINY",
+    "amountCents": 10,
+    "dueDate": "2026-01-10"
+  },
+  {
+    "id": "LISTED",
+    "amountCents": 10000,
+    "dueDate": "2026-01-10"
+  }
+]
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa6-empty.json
+[]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa6-zero-fee.json --as-of 2026-02-20
+LISTED	2026-01-10	2.00
+TOTAL		2.00
+[exit 0]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-2/fixtures/qa6-empty.json --as-of 2026-02-20
+TOTAL		0.00
+[exit 0]
+

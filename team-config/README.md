@@ -231,7 +231,7 @@ Awaiting `incomplete`, and a resumed session re-runs that round in full and tria
 with the re-run's. Only a round that delivered nothing and carries nothing writes no record. Verification of the change itself follows review-work's
 `Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
-login. F2 delta reviews and F3 keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
+login. F2, its delta reviews and an on-demand `integration-review` keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
 The record carries the digest of the folder it reviewed and the round's subagent ids. OpenSpec reports apply as
 `blocked` while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
 
@@ -245,6 +245,22 @@ artifact changed after the review (`stale`; ticking tasks does not count). Re-ru
 `openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
+
+The post-implementation gate is proportional, like the plan review. Its depth comes from `gate.md` `Depth` (a plan-mode plan
+derives it from its class and whether it changes a review, gate or release mechanism; the orchestrator may raise it, never
+lower it). A `standard` gate dispatches one `implementation-audit` at F2; a `risky` gate dispatches it and
+`strategic-risk-review` together in one batch. Both lanes run on `auditor`, pinned in `auditor.md` to
+`onara/cx/gpt-6.1-sol:high`; the gate checks the pin before dispatch and each session file after it, and a dispatch that ran
+on another model or effort does not count: it gets one fresh retry and is then recorded INCONCLUSIVE. The former F3 whole-diff
+lane is folded into F2, whose reviewers read the whole diff; `integration-review` stays available on demand. Fix rounds are
+bounded by depth (1 for `standard`, 2 for `risky`), each ending in a closing wave that re-runs QA and, when it passes, every
+reviewer lane; when a closing wave still fails, the gate asks you once whether to fix once more, re-plan, Stop or, for
+eligible blockers only, Override. F1 runs one QA row per requirement plus three minimum rows at `standard` and one row per
+scenario at `risky`; after a fix or a merge of the default branch only the rows its diff can change are re-run, and the
+carried rows with their reasons go to the reviewers.
+
+A gate whose F2 baseline predates the deploy finishes under the text it started with. Running sessions restart after
+`scripts/deploy-local.sh`. Profiles and custom agent directories need their own install to receive the new `auditor.md`.
 
 When a task names a worktree for the change, `/opsx-apply` implements only while the session runs inside it, because
 relative paths and task ticks resolve against the session's directory. Anywhere else, the agent moves the session there

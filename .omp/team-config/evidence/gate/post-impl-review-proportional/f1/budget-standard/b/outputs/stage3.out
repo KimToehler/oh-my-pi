@@ -1,0 +1,8 @@
+Working...
+I recorded your re-plan decision, so the F2 gate for `csv-total` has not passed and this branch must not be merged.
+
+- **Recorded:** `GC decide --lane F2 --choice replan --by Tim --reason "the boundary tests belong to the formatter's own plan"` printed `RECORDED convergence_decision lane=F2 wave=2 choice=replan`.
+- **Lane closed:** `GC ready --lane F2` now prints `NOT READY` and says "F2 wave 2 decided replan: no further wave in this lane". No further wave can run in this gate; the formatter boundary tests go to your separate plan.
+- **Nothing written after the decision:** no code, no commits, no gate record, nothing staged.
+- **Branch state:** `feat/csv-total` is at `20fb5fb` (fix 4.1) with a clean tracked tree.
+- **Evidence left untracked:** the wave-1 and wave-2 QA captures under `.omp/team-config/evidence/gate/csv-total/` and the wave-2 audit reply at `.omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md`. The review artifacts in `.omp/team-config/gate-deltas/` are not tracked either, as the skill requires.

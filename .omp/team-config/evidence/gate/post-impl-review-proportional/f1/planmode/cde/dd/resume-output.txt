@@ -1,0 +1,49 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The F1 manual QA passed 8/8 and both reviewers returned PASS. The record validates, and nothing is blocking the merge.
+
+Decision reason: depth is `risky` because the change alters what the release gate admits. I re-tiered the plan from internal-tooling to product with your agreement before the baseline (commit `cadab73`). I also changed the mandatory class from `none` to `auth-secrets-pii`, because `strategic-risk-review` reported `security_delta: yes`: the approval quorum decides who can admit a release.
+Mandatory class: `auth-secrets-pii`. The plan still says `none`; the class was re-judged on the final diff.
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (8 rows, 8 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol (high) | cross-provider | PASS | HIGH |
+| strategic-risk-review | auditor | onara/cx/gpt-6.1-sol (high) | cross-provider | PASS | HIGH |
+
+Both reviewers ran on the auditor's pinned model and effort. I checked every assistant turn in their session files with `jq`: `onara cx/gpt-6.1-sol` at thinking level `high`. `GC wave` for F2 wave 1 printed `DECISION: PASS`, with 0 blockers.
+
+## Blocking Issues
+None.
+
+## Covered by one invocation
+`implementation-audit` covered correctness, architecture, wire contracts, security/privacy and verification. `strategic-risk-review` covered the whole-diff view.
+
+## Key Findings
+- **Re-classification:** the two reviewers disagreed on `security_delta`: the audit said `no`, the strategic review said `yes`. The validator blocks a record that says `none` when any trailer says `yes`, so I set the record to `auth-secrets-pii`. Both invocations had already run, so no further review was needed.
+- **Accepted residual, flagged by both reviewers:** the quorum counts distinct strings, not distinct people. One person can approve under two different names. The plan's "Accepted residual risks" covers this.
+- **Weak test (non-blocking):** `scripts/gate.test.ts:15-17` tests a failed check with only one approval, so it would still pass if failed-check handling were removed. QA5 covers the real case: a failed check with two distinct approvers is refused.
+- **Missing evidence (non-blocking):** there is no record of the tests failing before the fix.
+
+## Recommendations
+- Change the failed-check test to use `["a","b"]` and assert the reason `failed checks: unit`.
+- Describe the release assurance as "two distinct approver strings" until a trusted identity source supplies approver names.
+- After the record commit, `GC ready --lane F2` prints `NOT READY` and lists `a9ae9a5` as unreviewed. That check is for starting another wave and doesn't affect this record: `a9ae9a5` only touches `.omp/team-config/evidence/gate/**`, and the validator still passes at that HEAD.
+- QA captures are in `.omp/team-config/evidence/gate/gate-quorum/f1/wave-1/`, which meets both the plan's `f1/` path and the skill's `wave-<n>/` rule.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha cadab7323ac71557f20ec65425fb17ebd0b096f2 · plan_sha256 ba2dc8e2a011fbb36a932d0c216ac4ecf80092bb43020c270da331d2da9c1fd1
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/gate-quorum/wave-1/trailer-implementation-audit.txt
+  strategic-risk-review: PASS · trailer .omp/team-config/evidence/gate/gate-quorum/wave-1/trailer-strategic-risk-review.txt
+  override: none
+  record .omp/team-config/evidence/gate/gate-quorum.json · validate-gate-record.mjs exit 0 at a9ae9a5c0a60994d189524fceb95cce6be070c25
+- code committed after reviewed_sha: none
+```
+
+The gate is cleared for merging `feat/gate-quorum` (head `a9ae9a5`) into `main`. Should I merge it?

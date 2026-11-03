@@ -1,0 +1,31 @@
+Working...
+## Implementation complete
+
+**Change:** csv-total
+**Schema:** omp-gated
+**Progress:** 4/4 tasks complete (`state: all_done`)
+
+### Completed this session
+- [x] 3.1 F1. Manual QA on the real surface.
+  - `main` was not an ancestor of the head, so I merged it into `feat/csv-total` as `dd2b9c6`. It brought in only `README.md`.
+  - I ran `bun src/cli.ts total FILE` with bun 1.4.4 on head `dd2b9c6`, the commit after the last code commit. Each fixture was written to a temp directory.
+
+| Scenario | Input | Exit | stdout | stderr |
+|---|---|---|---|---|
+| `s1-happy.md` | `widget,19.99` / `gadget,5.01` | 0 | `25.00` | (empty) |
+| `s2-malformed.md` | `widget,abc` | 2 | (empty) | `error: line 1: malformed price` |
+| `s3-cents.md` | 10 × `x,0.10` | 0 | `1.00` | (empty) |
+| `s4-empty.md` | (0 bytes) | 0 | `0.00` | (empty) |
+| `s5-large.md` | `big,1234.50` | 0 | `1234.50` | (empty) |
+
+Every result above is the expected one. Whether they pass is the QA lane's call.
+
+Each evidence file under `.omp/team-config/evidence/gate/csv-total/f1/` records the head SHA, the exact input, the exit code and verbatim stdout and stderr. The files were generated from the captured output.
+
+### Checks
+- The pre-edit check `validate-openspec-change.mjs --reviewed` passed (OKAY, round 1).
+- The task's Verify command printed `VERIFY-OK`.
+- I re-ran `validate-openspec-change.mjs` after ticking the box in `tasks.md`, and it passed.
+- Commit `45b7048` (`test(csv-total): F1 manual QA evidence, tick 3.1`) contains `tasks.md` and the five evidence files, added by explicit path. The working tree is clean.
+
+As you asked, I didn't start the F2 merge gate (`review-work`) or any review. The change must not be merged or archived until F2 has run and its record validates.

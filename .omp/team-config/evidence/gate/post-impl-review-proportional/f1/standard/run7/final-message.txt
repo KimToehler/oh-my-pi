@@ -1,0 +1,53 @@
+Working...
+# Review Work: Final Report
+
+## Overall Verdict: PASSED
+
+The gate failed in wave 1. One fix round brought it to a pass in wave 2, and the validator accepted the gate record (exit 0).
+
+Decision reason: `gate.md` sets Depth `standard`. Checked against the final diff, the Mandatory class is `none`: no auth, credential, PII, schema, externally supported wire/API or shared state is touched. So only one `implementation-audit` was required.
+Mandatory class: `none`
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA, wave 2 (6 rows, 6 artifacts) | orchestrator | - | - | PASS | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+None open. Wave 1, on commit `82e54ad`, failed two QA rows:
+- **QA3:** 123456789 cents printed as `1234,567.89`.
+- **QA5:** 100000000 cents printed as `1000,000.00`.
+
+The cause was in `formatAmount`: it inserted only one comma. The fix was added to `tasks.md` as row 2.2 and committed as `b38f716`:
+- Grouping now puts a comma after every three integer digits.
+- A new test covers it; I watched it fail against the old code, then pass with the fix.
+- The full suite passes: 8 pass, 0 fail.
+- `plan-reviewer` reviewed the fix delta and returned OKAY.
+
+The F1 checkbox 3.1 was ticked in a separate commit, `5871014`, which `GC` recorded as exempt because it is a checkbox only.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security/privacy and verification were all covered by the single `implementation-audit`. The auditor ran on its pin for all 46 turns at effort `high`, with no fallback, checked with `jq` against its session file.
+
+## Key Findings
+- **`review.md` is stale (auditor note N1, non-blocking).** It still records round 1 as approved. But commits `efccebc`, `f082981` and `82e54ad` each edited the spec and updated the digest in `review.md` without a new review. One of those edits removed "Lines are never reordered or filtered". Fix row 2.2 has since changed the folder again. I left `review.md` alone, because updating its digest would claim a review that never happened.
+- **Some coverage is manual only (auditor note N2, non-blocking).** Fee rounding and the cap boundaries are checked only by manual QA row QA1, and the CLI only by manual QA, with no automated tests.
+- **Typecheck cannot run.** `tsc` fails because `bun-types` is not installed (there is no `node_modules`). This was already the case before this branch.
+
+## Recommendations
+- Run a real planning review of the current change folder before archiving it, so `review.md` matches what was actually reviewed.
+- Optionally, move the QA1 boundary cases and a CLI smoke test into the automated tests.
+
+**Checkout change:** your main checkout at `f1a-standard-r7b` is now on `main`. It was completely clean, so nothing was lost. I switched it so the review could run in a separate, locked worktree, `.worktrees/review-fee-report`, which holds `feat/fee-report`. The wave-1 QA captures are left untracked under `f1/wave-1/`, as the skill requires for uncited evidence.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha 5871014a9a3c82119e0fd227885b9ede004779b4 · plan_sha256 100d980a686befe3a528991fd4e8504868c536a9bf9d3f3839df9d090ee5f6ae
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: Mandatory class none, no review/gate/release mechanism changed)
+  override: none
+  record .omp/team-config/evidence/gate/fee-report.json · validate-gate-record.mjs exit 0 at 4d9128948bd9bb632c8f919b3d9e63035143a8c1
+- code committed after reviewed_sha: none (4d91289 adds only the record, trailer and cited QA artifacts)
+```

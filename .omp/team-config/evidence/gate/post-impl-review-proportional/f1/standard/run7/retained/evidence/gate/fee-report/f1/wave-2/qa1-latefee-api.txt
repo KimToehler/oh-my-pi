@@ -1,0 +1,44 @@
+# QA1 lateFee public API with QA-chosen amounts and days
+HEAD 5871014a9a3c82119e0fd227885b9ede004779b4
+cwd: review worktree (repo root)
+
+$ cat /tmp/fee-qa/fee-probe.ts
+exit=0
+stdout repr: '\nimport { lateFee } from "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/src/fee";\nconst cases: [number, number, number][] = [\n  [10000, 30, 200], [10000, 400, 2500], [10000, 29, 0], [10000, 0, 0],\n  [10000, 59, 200], [10000, 60, 400], [10000, 360, 2400], [10000, 389, 2400],\n  [10000, 390, 2500], [199, 30, 3], [0, 100, 0], [123456789, 365, 29629629], [1, 3650, 0],\n];\nlet bad = 0;\nfor (const [a, d, want] of cases) {\n  const got = lateFee(a, d);\n  const ok = got === want && Number.isInteger(got);\n  if (!ok) bad++;\n  console.log(`lateFee(${a}, ${d}) = ${got} expected ${want} ${ok ? "OK" : "MISMATCH"}`);\n}\nconsole.log(`mismatches=${bad}`);\n'
+stdout:
+
+import { lateFee } from "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/src/fee";
+const cases: [number, number, number][] = [
+  [10000, 30, 200], [10000, 400, 2500], [10000, 29, 0], [10000, 0, 0],
+  [10000, 59, 200], [10000, 60, 400], [10000, 360, 2400], [10000, 389, 2400],
+  [10000, 390, 2500], [199, 30, 3], [0, 100, 0], [123456789, 365, 29629629], [1, 3650, 0],
+];
+let bad = 0;
+for (const [a, d, want] of cases) {
+  const got = lateFee(a, d);
+  const ok = got === want && Number.isInteger(got);
+  if (!ok) bad++;
+  console.log(`lateFee(${a}, ${d}) = ${got} expected ${want} ${ok ? "OK" : "MISMATCH"}`);
+}
+console.log(`mismatches=${bad}`);
+
+$ bun /tmp/fee-qa/fee-probe.ts
+exit=0
+stdout repr: 'lateFee(10000, 30) = 200 expected 200 OK\nlateFee(10000, 400) = 2500 expected 2500 OK\nlateFee(10000, 29) = 0 expected 0 OK\nlateFee(10000, 0) = 0 expected 0 OK\nlateFee(10000, 59) = 200 expected 200 OK\nlateFee(10000, 60) = 400 expected 400 OK\nlateFee(10000, 360) = 2400 expected 2400 OK\nlateFee(10000, 389) = 2400 expected 2400 OK\nlateFee(10000, 390) = 2500 expected 2500 OK\nlateFee(199, 30) = 3 expected 3 OK\nlateFee(0, 100) = 0 expected 0 OK\nlateFee(123456789, 365) = 29629629 expected 29629629 OK\nlateFee(1, 3650) = 0 expected 0 OK\nmismatches=0\n'
+stdout:
+lateFee(10000, 30) = 200 expected 200 OK
+lateFee(10000, 400) = 2500 expected 2500 OK
+lateFee(10000, 29) = 0 expected 0 OK
+lateFee(10000, 0) = 0 expected 0 OK
+lateFee(10000, 59) = 200 expected 200 OK
+lateFee(10000, 60) = 400 expected 400 OK
+lateFee(10000, 360) = 2400 expected 2400 OK
+lateFee(10000, 389) = 2400 expected 2400 OK
+lateFee(10000, 390) = 2500 expected 2500 OK
+lateFee(199, 30) = 3 expected 3 OK
+lateFee(0, 100) = 0 expected 0 OK
+lateFee(123456789, 365) = 29629629 expected 29629629 OK
+lateFee(1, 3650) = 0 expected 0 OK
+mismatches=0
+
+expected: every case OK, mismatches=0

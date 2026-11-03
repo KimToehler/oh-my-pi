@@ -1,0 +1,59 @@
+The tree is fully clean, with no untracked or ignored files and no stash. Detaching changes no files. Next I create the review worktree and lock it.
+The ledger says CONTINUE, and a `standard` gate has one fix round left, so Fix waves step 4 applies. First the fix row goes into the plan's task list. Then a RED test, then the fix.
+Both new tests go RED for the reason QA found. Now the fix:
+Next, the fix row in `tasks.md`. It is ticked in the same commit that implements it.
+Verifying: the changed module's tests, then the full suite (the fix round has one code commit), plus the OpenSpec folder checks.
+That rule is satisfied: the fix delta goes to `plan-reviewer` with the delta brief verbatim (one fresh item, no `model`). Dispatching now:
+Verdict: OKAY, no blockers, and the QA1 carry is confirmed. Storing the structured result verbatim as `verdict.json`, then recording `GC delta` and checking the model the delta review ran on.
+The delta reviewer fell back to `onara/cc/claude-opus-5` for 2 turns, which is the implementer's vendor. Checking which turns those were, and whether the verdict came from the fallback:
+`implementation-audit` returned PASS with no blockers. Next: store the reply verbatim at the tracked trailer path, run the Phase 3 model check against the pin, and run the trailer check.
+Wave 2: **DECISION: PASS**. Before writing the Phase 5 record, I'm checking the validator's rules for the optional `blockers` array, because I'll list the two fixed QA blockers in it.
+The validator printed `passed` on the staged record. Committing the evidence, then validating a second time against HEAD:
+Both validator runs printed `passed`, and the commit after `reviewed_sha` touches only evidence paths. Before reporting, I'm reading the merge-gate-proof rule and removing the throwaway QA driver.
+# Review Work - Final Report
+
+## Overall Verdict: PASSED
+
+The F2 gate for `fee-report` passed on its second wave. The first manual QA run (F1) failed: amounts of one million or more were grouped wrong. I fixed that, the fix was reviewed, and the second wave passed QA and the audit. Nothing has been merged.
+
+Decision reason: `gate.md` sets Depth `standard` (class `none`, tier `product`, no review, gate or release mechanism changed). I re-checked the final diff and it is still class `none`, so one `implementation-audit` ran.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (5 rows, 5 artifacts) | orchestrator | - | - | PASS (wave 2) | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | PASS | HIGH |
+
+## Blocking Issues
+None open. Wave 1 history:
+- **Wave 1 failed on QA2 and QA4.** `formatAmount` (`src/render.ts:16`) inserted only one comma. It printed `1234,567.89` instead of `1,234,567.89` and `1000,000.00` instead of `1,000,000.00`, which breaks the spec scenario "Large fee grouped". I recorded the wave in the ledger (CONTINUE) before changing anything.
+- **Fix (task row 4.1).** Commit `b652d66` adds the row to `tasks.md`, groups every three digits, and adds two tests. Both tests failed against the old code before the fix. The fix-delta reviewer (`plan-reviewer`) returned OKAY and confirmed that QA1 could be carried.
+- **Ticking F1 (3.1).** Commit `b46287d` only ticks the box in `tasks.md`, so I exempted it from review with a recorded reason.
+- **Wave 2 passed.** QA passed and the audit returned PASS, giving DECISION: PASS.
+
+## Covered by one invocation
+Correctness, architecture, wire contracts, security and privacy, and verification were all covered by the single `implementation-audit`.
+
+## Key Findings
+- **QA evidence.** All rows were captured on `b652d66` in `.omp/team-config/evidence/gate/fee-report/f1/`, through a real pty plus a byte-exact `od -c` capture. QA1 (the late-fee calculation) was captured in wave 1 and copied unchanged, because nothing after it touches `src/fee.ts`. The test suite passes 9/9, and the CLI exits 2 with a usage line when given no argument.
+- **Audit notes (none blocking).**
+  - `src/fee.test.ts` has no permanent tests for the rounding and cap-transition cases; only manual QA covers them.
+  - The planning review in `openspec/changes/fee-report/review.md` is now stale: `validate-openspec-change.mjs --reviewed` fails because fix row 4.1 changed the planning artifacts. The gate validator doesn't check this.
+- **The delta review is not independent of the implementer.** Its pinned GPT model stalled for about 15 minutes, and the turn that produced the OKAY ran on the fallback `onara/cc/claude-opus-5`, the same vendor that wrote the code. The skill only enforces the model pin for `auditor`, so the recorded OKAY stands. The wave-2 audit (GPT, cross-provider) did read the whole diff, fix included.
+- **Main checkout state.** The skill requires reviewing from a separate worktree. The branch was already checked out in your main checkout, so I detached the main checkout at `82e54ad` (the tree was clean, no files changed). I then reviewed in a locked worktree at `.worktrees/review-fee-report`, after adding `.worktrees/` to `.git/info/exclude`. `feat/fee-report` now sits at `0506786` there.
+
+## Recommendations
+- Before archiving or reusing the plan review, re-run the planning review (or accept that it is stale).
+- To merge, run `git switch feat/fee-report` in the main checkout after removing the review worktree (`git worktree unlock` and `git worktree remove .worktrees/review-fee-report`).
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN
+  reviewed_sha b46287d4d6bc9be18b44430e985b6dacf594060f · plan_sha256 475a0e0fee6a222ed05e35027b7b068c03869da96326cb37120882f1a8349499
+  implementation-audit: PASS · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/fee-report/f2/trailer-implementation-audit.txt
+  strategic-risk-review: not run (depth standard: class none, tier product, no review/gate/release mechanism change)
+  override: none
+  record .omp/team-config/evidence/gate/fee-report.json · validate-gate-record.mjs exit 0 at 0506786b (before and after the record commit)
+- code committed after reviewed_sha: none (0506786 touches only the record, trailer and cited QA artifacts)
+```

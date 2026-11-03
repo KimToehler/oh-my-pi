@@ -1,0 +1,2 @@
+{"ts":"2026-11-02T23:45:27.285Z","event":"gate_baseline","plan":"openspec/changes/quota-remaining","base_sha":"58c6cf0fa183a2aa29aeb52b66207ceefab97f21","risk_tier":"product"}
+{"ts":"2026-11-02T23:50:38.187Z","event":"gate_wave","plan":"openspec/changes/quota-remaining","lane":"F2","wave":1,"reviewed_sha":"58c6cf0fa183a2aa29aeb52b66207ceefab97f21","outcomes":{"qa":"PASS","implementation-audit":"PASS","strategic-risk-review":"PASS"},"blockers_total":0,"blockers_fix_induced":0,"fix_induced":[],"unlocated":[],"decision":"PASS"}

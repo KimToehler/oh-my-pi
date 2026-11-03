@@ -1,0 +1,96 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "1dac51dad86fcbf9e16fa0553b0d394d84061ae889b889dd1f40bc08c17ddef1",
+  "reviewed_sha": "c9b007ab1e4997752155a0a27eff4d1b91b9be61",
+  "diff_base": "2a9922d238ebc1c427bb1aa35881ae0d0d80cde3",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "Depth standard from gate.md (class none, no review/gate/release mechanism changed; final diff re-checked: no new recipient, persisted field, auth path, schema, wire contract or shared state); wave 2 audit FAIL on B1 sub-cent rounding, covered by the plan's Accepted residual risks; fix budget spent; override by Tim.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 requirement: price lines are parsed strictly (valid sum, malformed line, negative control)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa1-strict-parse.md",
+      "artifact_sha256": "53c3338c24e3326656fc13b4d8891254baf9f2cfce4cf384ac994009b885bc26"
+    },
+    {
+      "name": "QA2 requirement: totals are exact in cents (0.30, empty file 0.00, ten x 0.10 = 1.00)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa2-exact-cents.md",
+      "artifact_sha256": "f79d76f3ac16e5966a3034336d427dfbebb695f4c94a7ed271b0dde1296cd34e"
+    },
+    {
+      "name": "QA3 happy path: widget,19.99 + gadget,5.01 -> 25.00",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa3-happy.md",
+      "artifact_sha256": "0f069d68ee3254ce70beca47be62e0c3c122fac7d8f29af048abcde8d5da65a9"
+    },
+    {
+      "name": "QA4 riskiest edge: CRLF file, blank line, malformed lines 3 and 5 named, no total, exit 2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa4-riskiest-edge.md",
+      "artifact_sha256": "956d98c45fc4d041d118ee111802af25c1ed860503476c6d18363cde2734e6b6"
+    },
+    {
+      "name": "QA5 regression on formatCents/groupThousands across 999.99 to 1,234,567.89",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa5-formatter-regression.md",
+      "artifact_sha256": "f17e99d8981e2142f339f5156ed0795dbe545ed91533e734c6aefb74fe8e4a0f"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/trailer-implementation-audit.md",
+      "trailer_sha256": "4c09d7eedbe095c1b0ed2e96c6fb72e36b7c25ce43b019012de51806cb9c63f3",
+      "note": "F2 wave 2 on c9b007a: B1 src/money.ts:2 sub-cent rounding (class sub-cent-rounding); downgraded as accepted-residual"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA5",
+      "severity": "high",
+      "location": "src/format.ts:11",
+      "coverage": "test/csvtotal.test.ts::totals of 1,000 or more group every three digits",
+      "fix_sha": "c9b007ab1e4997752155a0a27eff4d1b91b9be61"
+    },
+    {
+      "id": "B1",
+      "severity": "high",
+      "location": "src/money.ts:2",
+      "coverage": "not-testable:left unfixed under override; accepted residual sub-cent rounding in gate.md"
+    }
+  ],
+  "downgrades": [
+    {
+      "invocation": "implementation-audit",
+      "blocker": "B1",
+      "rule": "accepted-residual",
+      "reason": "gate.md Accepted residual risks names sub-cent rounding of prices with more than two decimals in src/money.ts, total off by one cent",
+      "disposition": "residual"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "the remaining blocker is the accepted residual sub-cent rounding; accept it."
+  }
+}

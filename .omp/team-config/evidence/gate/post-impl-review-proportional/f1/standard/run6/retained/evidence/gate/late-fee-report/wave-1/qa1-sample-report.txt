@@ -1,0 +1,17 @@
+TZ(effective)=CET cwd=review-late-fee-report head=a8cbb6c
+
+$ cat samples/invoices.json
+[
+  { "id": "INV-1", "amountCents": 10000, "dueDate": "2026-01-10" },
+  { "id": "INV-2", "amountCents": 10000, "dueDate": "2026-01-12" },
+  { "id": "INV-3", "amountCents": 50000, "dueDate": "2025-12-01" },
+  { "id": "INV-4", "amountCents": 20000, "dueDate": "2026-02-10" }
+]
+[exit 0]
+
+$ bun src/cli.ts samples/invoices.json --as-of 2026-02-20
+INV-3	2025-12-01	20.00
+INV-1	2026-01-10	2.00
+INV-2	2026-01-12	2.00
+TOTAL		24.00
+[exit 0]

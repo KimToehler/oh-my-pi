@@ -1,0 +1,53 @@
+# QA2 Requirement: Fee report rendering (render command on QA-built reports)
+## scenario Lines and total
+$ script -q /dev/null bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-lines.json   # pty
+^Da	2026-01-10	2.00
+b	2026-01-12	12.50
+TOTAL		14.50
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-lines.json | od -c   # exact stdout bytes
+0000000    a  \t   2   0   2   6   -   0   1   -   1   0  \t   2   .   0
+0000020    0  \n   b  \t   2   0   2   6   -   0   1   -   1   2  \t   1
+0000040    2   .   5   0  \n   T   O   T   A   L  \t  \t   1   4   .   5
+0000060    0  \n                                                        
+0000062
+exit=0 stderr_bytes=0
+
+CHECK lines-and-total: stdout equals expected bytes -> MATCH
+
+## scenario Large fee grouped
+$ script -q /dev/null bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-big.json   # pty
+^Dbig	2026-01-10	1,234,567.89
+TOTAL		1,234,567.89
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-big.json | od -c   # exact stdout bytes
+0000000    b   i   g  \t   2   0   2   6   -   0   1   -   1   0  \t   1
+0000020    ,   2   3   4   ,   5   6   7   .   8   9  \n   T   O   T   A
+0000040    L  \t  \t   1   ,   2   3   4   ,   5   6   7   .   8   9  \n
+0000060
+exit=0 stderr_bytes=0
+
+CHECK large-fee-grouped: stdout equals expected bytes -> MATCH
+
+## scenario Negative control (no lines)
+$ script -q /dev/null bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-empty.json   # pty
+^DNo late fees
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-empty.json | od -c   # exact stdout bytes
+0000000    N   o       l   a   t   e       f   e   e   s  \n            
+0000015
+exit=0 stderr_bytes=0
+
+CHECK empty-report: stdout equals expected bytes -> MATCH
+
+## given order kept, 5 cents is 0.05
+$ script -q /dev/null bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-order-cents.json   # pty
+^Dz	2026-03-01	0.05
+y	2026-02-01	0.07
+TOTAL		0.12
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa2-order-cents.json | od -c   # exact stdout bytes
+0000000    z  \t   2   0   2   6   -   0   3   -   0   1  \t   0   .   0
+0000020    5  \n   y  \t   2   0   2   6   -   0   2   -   0   1  \t   0
+0000040    .   0   7  \n   T   O   T   A   L  \t  \t   0   .   1   2  \n
+0000060
+exit=0 stderr_bytes=0
+
+CHECK order-and-cents: stdout equals expected bytes -> MATCH
+

@@ -1,0 +1,226 @@
+----- toolu_01NDXP5nmu8Nti3EawENW8MN
+82e54ad docs(openspec): shorten fee rendering requirement
+ openspec/changes/fee-report/review.md                | 2 +-
+ openspec/changes/fee-report/specs/fee-report/spec.md | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+f082981 docs(openspec): fee-report design and spec wording (integer cents, CLI newline)
+ openspec/changes/fee-report/design.md                | 2 +-
+ openspec/changes/fee-report/review.md                | 2 +-
+ openspec/changes/fee-report/specs/fee-report/spec.md | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+efccebc docs(openspec): fee-report spec wording
+ openspec/changes/fee-report/review.md                | 2 +-
+ openspec/changes/fee-report/specs/fee-report/spec.md | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+1bbb337 feat: fee report rendering and render command
+ samples/report.json |  7 +++++++
+ src/cli.ts          |  9 +++++++++
+ src/render.test.ts  | 24 ++++++++++++++++++++++++
+ src/render.ts       | 25 +++++++++++++++++++++++++
+ 4 files changed, 65 insertions(+)
+f481f55 feat: late fee from amount and days overdue
+ src/fee.test.ts | 14 ++++++++++++++
+ src/fee.ts      | 10 ++++++++++
+ 2 files changed, 24 insertions(+)
+00326d1 docs(openspec): fee-report change
+ openspec/changes/fee-report/.openspec.yaml         |  2 ++
+ openspec/changes/fee-report/design.md              | 23 ++++++++++++++
+ openspec/changes/fee-report/gate.md                |  9 ++++++
+ openspec/changes/fee-report/proposal.md            | 21 +++++++++++++
+ openspec/changes/fee-report/review.md              | 19 ++++++++++++
+ .../changes/fee-report/specs/fee-report/spec.md    | 36 ++++++++++++++++++++++
+ openspec/changes/fee-report/tasks.md               | 18 +++++++++++
+ 7 files changed, 128 insertions(+)
+
+no TODO/FIXME/HACK
+
+passed
+openspec exit=0
+reviewed: OKAY in round 1
+reviewed exit=0
+passed
+plan-only exit=0
+/opt/homebrew/bin/gh
+/opt/homebrew/bin/bun
+/Users/tim/.nvm/versions/node/v25.9.0/bin/node
+
+----- toolu_01FTyJkLAhvWYYTaAeuY1GFK
+gh: To use GitHub CLI in automation, set the GH_TOKEN environment variable.
+gate-convergence: Unknown option '--help'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- "--help"
+
+----- toolu_01GfpfRUJhfhvmj2sgboSkhu
+BASELINE 82e54ad9e132 recorded
+baseline exit=0
+READY
+ready exit=0
+
+----- toolu_018EJjXHrN3dNRqewGhiQzCq
+/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/.omp/team-config/gate-deltas/F2-60317599da07-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 82e54ad9e132
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/.omp/team-config/gate-deltas/F2-60317599da07-wave-1.plan.md
+snapshot exit=0
+!! .omp/
+
+----- toolu_01EnNDKihvqvEtZyTKUkoqQQ
+25:const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+validate-openspec-change.mjs:31:const PLACEHOLDER = /<[^>]+>|\b(?:TBD|TODO)\b/i;
+
+----- toolu_01DY2mr1jkivxCrJAwguoVp9
+315: * so a caller that digests the same snapshot validates exactly the bytes it pins.
+320:	for (const file of ["proposal.md", "gate.md", "tasks.md"]) {
+328:	if (snapshot.has("tasks.md")) validateTasks(text("tasks.md"), errors);
+336:	for (const file of ["proposal.md", "gate.md", "tasks.md", ".openspec.yaml"]) {
+345:const REVIEW_FILE = "review.md";
+350: * The digest a review is bound to: the change folder's bundle without the review record itself, with every tracked
+355:	const reviewed = new Map(snapshot);
+356:	reviewed.delete(REVIEW_FILE);
+357:	const tasks = reviewed.get("tasks.md");
+361:		reviewed.set("tasks.md", Buffer.from(reset.join("\n")));
+363:	return bundleDigest(buildBundle(reviewed));
+376:/** Checks review.md against the current digest; returns the defects and, when it passes, the line to print. */
+382:	for (const field of ["Verdict", "Reviewed digest", "Reviewer", "Round", "Override"]) {
+393:	const reviewedDigest = values.get("Reviewed digest");
+394:	if (reviewedDigest !== undefined && !/^[0-9a-f]{64}$/.test(reviewedDigest))
+395:		errors.push(`${REVIEW_FILE} Reviewed digest: expected the 64-hex digest printed by --digest`);
+446:	if (reviewedDigest !== current)
+448:			`${REVIEW_FILE}: stale: the change changed after review (reviewed ${reviewedDigest}, current ${current}); re-run the review`,
+455:		summary: verdict === "REJECT" ? `reviewed: REJECT overridden by the user: ${override}` : `reviewed: OKAY in round ${round}`,
+459:const USAGE = "usage: validate-openspec-change.mjs [--digest | --reviewed] <change-dir>";
+463:	const mode = args[0] === "--digest" || args[0] === "--reviewed" ? args.shift() : undefined;
+480:	// One race-checked snapshot feeds the checks, the digest and the review record, so all three see the same bytes.
+491:	if (mode === "--digest") {
+validate-gate-record.mjs:11:import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
+validate-gate-record.mjs:345:  if (ignored.status === 0) block(field, `${relative} sits on a git-ignored path and cannot be reviewed; write it to a tracked path`)
+validate-gate-record.mjs:369:function absentAtReviewedSha(context, reviewedSha, relative) {
+validate-gate-record.mjs:370:  const existed = spawnSync("git", ["-C", context.repo, "cat-file", "-e", `${reviewedSha}:${relative}`], { encoding: "utf8" })
+validate-gate-record.mjs:375:function reportMayBePinned(context, reviewedSha, absolutePath, bytes) {
+validate-gate-record.mjs:381:  return absentAtReviewedSha(context, reviewedSha, relative)
+vali
+----- toolu_01X3LXRQpm62UMG1WNK9ngpm
+DECISION: CONTINUE
+WAVE F2 1 total=2 fix_induced=0 unlocated=2
+wave exit=0
+
+----- toolu_01UK35pfvw6VEnaArGxmsbk3
+/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/.omp/team-config/gate-deltas/F2-2.2-b38f71699a85-20261102223933/manifest.json
+exit=0
+b38f71699a854ea303f3edc420a3d5465f9e879d
+
+----- toolu_01QQ8QZXh8beHUvg4wpj6HqH
+{
+  "verdict": "OKAY",
+  "summary": "The delta fixes repeated thousands grouping at the shared formatter used by both report lines and totals. The added tests cover the specified large-fee scenario and the million-unit boundary. No subsystem is added, no protection is removed or weakened, and no blocking regression is evident.",
+  "blockers": [],
+  "notes": [
+    "Reviewed the complete manifest-listed patch and the current formatter, callers, tests, and rendering specification. Tests were not executed in this review; runtime verification remains with the main agent."
+  ]
+}RECORDED fix_delta_review rows=2.2 round=1 verdict=OKAY
+delta exit=0
+
+----- toolu_01As3KdNvM7YazEvFz59R67q
+ openspec/changes/fee-report/tasks.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+5871014a9a3c82119e0fd227885b9ede004779b4
+RECORDED delta_exemption 5871014a9a3c
+exempt exit=0
+passed
+review.md: stale: the change changed after review (reviewed 217e3cf3d0628cfaa8b5d9a07f549df36737de2717c179f3d3700df92e5c7207, current 4c28ca9aede5b0ffdaa161366f9dcf8e4a3b28adec9dc86b2e3bd556069b418b); re-run the review
+reviewed exit=1
+3.1 verify ok
+READY
+
+----- toolu_01WeBon8m47cQt7oGmpLMyoY
+main-ancestor
+/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/.omp/team-config/gate-deltas/F2-60317599da07-wave-2.snapshot.json
+SNAPSHOT F2 wave 2 5871014a9a3c
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7b/.worktrees/review-fee-report/.omp/team-config/gate-deltas/F2-60317599da07-wave-2.plan.md
+exit=0
+
+----- toolu_01RuARGiPQfU491o2XQbqMce
+1
+0
+passed
+trailer check exit=0
+
+----- toolu_016Go9nn7tTz2VPo7srT5N6k
+DECISION: PASS
+WAVE F2 2 total=0 fix_induced=0 unlocated=0
+wave exit=0
+{
+  "plan_sha256": "100d980a686befe3a528991fd4e8504868c536a9bf9d3f3839df9d090ee5f6ae",
+  "reviewed_sha": null,
+  "head": null
+}
+100d980a686befe3a528991fd4e8504868c536a9bf9d3f3839df9d090ee5f6ae  .omp/team-config/gate-deltas/F2-60317599da07-wave-2.plan.md
+
+----- toolu_01T2ktjb4tZh1GvFhf1geGfc
+574:  if (typeof record.decision_reason !== "string" || record.decision_reason.trim() === "") {
+575:    block("decision_reason", "must be a non-empty line")
+577:  if (record.decision_reason.includes("\n")) block("decision_reason", "must be one line")
+754:  for (const [index, blocker] of requireArray(record, "blockers").entries()) {
+759:    if (overallPass && (typeof blocker.fix_sha !== "string" || !sha.test(blocker.fix_sha))) {
+
+----- toolu_01Vn3SvGqkJgFG885vhzTCvt
+
+  // Classification is set while planning; a delta can appear mid-wave. The reviewer sees the final
+  // diff, so its answer overrides a stale "none" rather than inheriting it.
+  if (reportedSecurityDelta && record.mandatory_class === "none") {
+    block("mandatory_class", "a reviewer reported a security or privacy delta, so none is stale; reclassify against the final diff and run both invocations")
+  }
+
+  const overallPass = verdicts.length === reviewers.length && verdicts.every((entry) => entry.verdict === "PASS")
+  if (hasOverride && overallPass) block("override", "must not accompany a full PASS verdict set")
+  for (const [index, blocker] of requireArray(record, "blockers").entries()) {
+    const coverage = blocker?.coverage
+    if (typeof coverage !== "string" || (!/^.+::.+$/.test(coverage) && !/^not-testable:.+/.test(coverage))) {
+      block(`blockers.${index}.coverage`, "must be path::test name or not-testable:<reason>")
+    }
+    if (overallPass && (typeof blocker.fix_sha !== "string" || !sha.test(blocker.fix_sha))) {
+      block(`blockers.${index}.fix_sha`, "full 40-hex SHA required when PASS is claimed")
+    }
+  }
+  validateDowngrades(record, verdicts, hasOverride, blockersByInvocation)
+  // An override reaching this point carries at least one non-PASS verdict (the full-PASS case
+  // blocked above), so it must stay distinguishable from a clean PASS to anyone reading stdout.
+  return hasOverride ? "overridden" : "passed"
+}
+
+const DOWNGRADE_RULES = new Set(["below-threshold", "accepted-residual", "out-of-scope", "frozen"])
+const DOWNGRADE_DISPOSITIONS = new Set(["residual", "follow-up"])
+
+// An override over a FAIL leaves that reviewer's blockers unfixed. Each one must be accounted for
+// by name, with the rule that lets it go and where it goes; an override naming only some of them
+// would hide the rest behind one attributable signature.
+function validateDowngrades(record, verdicts, hasOverride, blockersByInvocation) {
+
+----- toolu_01YTw43Awkk9CppAoeVTP7sG
+A  .omp/team-config/evidence/gate/fee-report.json
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa1-latefee-api.txt
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa2-cli-sample.txt
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa3-cli-large-fee.txt
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa4-cli-empty.txt
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa5-cli-grouping-bounds.txt
+A  .omp/team-config/evidence/gate/fee-report/f1/wave-2/qa6-regression.txt
+A  .omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/
+blocked
+whole_diff.reason: record says "not needed (whole-diff surface reviewed in F2)" but gate.md says "whole-diff surface reviewed in F2"; the reason comes from gate.md
+pre-commit validate exit=1
+
+----- toolu_01JFWXXDWVaB4Tq4yL5KAxk5
+4d91289 chore(gate): fee-report F2 merge-gate record, trailer and QA evidence
+passed
+post-commit validate exit=0
+4d9128948bd9bb632c8f919b3d9e63035143a8c1
+.omp/team-config/evidence/gate/fee-report.json
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa1-latefee-api.txt
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa2-cli-sample.txt
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa3-cli-large-fee.txt
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa4-cli-empty.txt
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa5-cli-grouping-bounds.txt
+.omp/team-config/evidence/gate/fee-report/f1/wave-2/qa6-regression.txt
+.omp/team-config/evidence/gate/fee-report/f2/wave-2/trailer-implementation-audit.txt
+?? .omp/team-config/evidence/gate/fee-report/f1/wave-1/
+?? .worktrees/
+85d72a3 main@{0}: clone: from /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r7
+

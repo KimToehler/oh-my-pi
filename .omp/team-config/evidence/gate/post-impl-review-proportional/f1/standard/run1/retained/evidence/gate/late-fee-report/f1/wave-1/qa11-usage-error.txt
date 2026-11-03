@@ -1,0 +1,3 @@
+$ bun src/cli.ts samples/invoices.json
+usage: bun src/cli.ts <invoices.json> --as-of YYYY-MM-DD
+exit=2

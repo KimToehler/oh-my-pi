@@ -1,0 +1,18 @@
+# QA3 render command on a one-line report with 123456789 cents (spec scenario Large fee grouped)
+HEAD 82e54ad9e132e45c633ce56f71e50d19841fb10a
+cwd: review worktree (repo root)
+
+$ cat /tmp/fee-qa/big.json
+exit=0
+stdout repr: '{ "lines": [ { "id": "big", "dueDate": "2026-01-10", "feeCents": 123456789 } ] }\n'
+stdout:
+{ "lines": [ { "id": "big", "dueDate": "2026-01-10", "feeCents": 123456789 } ] }
+
+$ bun src/cli.ts /tmp/fee-qa/big.json
+exit=0
+stdout repr: 'big\t2026-01-10\t1234,567.89\nTOTAL\t\t1234,567.89\n'
+stdout:
+big	2026-01-10	1234,567.89
+TOTAL		1234,567.89
+
+expected: 'big\t2026-01-10\t1,234,567.89\nTOTAL\t\t1,234,567.89\n'

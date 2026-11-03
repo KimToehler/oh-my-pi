@@ -1,0 +1,14 @@
+BASELINE 8a1d0d6d1056 recorded
+READY
+SNAPSHOT F2 wave 1 8a1d0d6d1056
+DECISION: CONTINUE
+WAVE F2 1 total=2 fix_induced=0 unlocated=0
+RECORDED fix_delta_review rows=4.1,4.2 round=1 verdict=OKAY
+READY
+SNAPSHOT F2 wave 2 3556de877f6f
+DECISION: CONTINUE
+WAVE F2 2 total=1 fix_induced=0 unlocated=1
+READY
+SNAPSHOT F2 wave 3 3556de877f6f
+DECISION: CONTINUE
+WAVE F2 3 total=1 fix_induced=0 unlocated=0

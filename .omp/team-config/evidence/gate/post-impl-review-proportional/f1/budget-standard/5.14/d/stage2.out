@@ -1,0 +1,28 @@
+The gate has not passed and no gate record was written. Wave 2's implementation-audit is INCONCLUSIVE: the audit and its one allowed retry both ran on a different model from the reviewer's configured one, so neither counts.
+
+**Which model ran:** both sessions (`sess-w2.jsonl`, `sess-w2-retry.jsonl`) show `onara/cc/claude-opus-5` at effort `high`, and both trailers report `model_id: onara/cc/claude-opus-5`. The reviewer (`auditor`) is pinned to `onara/cx/gpt-6.1-sol:high` in `auditor.md`, and `task.agentModelOverrides` has no `auditor` entry. The config therefore doesn't explain the switch; the dispatch was routed to a different model somewhere outside it.
+
+That model is also the one that wrote the diff. Even if accepted, the review would be same-model, not the cross-provider review this gate relies on.
+
+**What happened this round:**
+- **Delta review of the fix** (`63687cd..12d38d8`, task 4.1): `delta1-ok.json` returned OKAY. I stored it as `verdict.json` and recorded it against row 4.1.
+- **Wave 2 setup:** the readiness check passed and the snapshot is at `12d38d8`.
+- **Wave 2 QA, 6 rows, all PASS:**
+  - Rows 1–5 carry over from wave 1, because the fix only touches the file-read error branch, which those rows never reach. The delta review saw these carries and accepted them.
+  - New row 6 runs the real CLI on a mode-000 file and gets `error: cannot read …: permission denied`, exit 2. A missing file still gets the plain `error: cannot read …`, exit 2. The capture is in `wave-2/r6-read-errors.md`.
+- **Wave 2 audit:** I kept both replies verbatim as evidence, untracked, in `.omp/team-config/evidence/csv-total/wave-2/`. Neither was submitted as a trailer. I recorded the wave as `qa=PASS`, `implementation-audit=INCONCLUSIVE` with no trailer, and the convergence script printed `DECISION: CONTINUE`.
+
+Because the wave is incomplete rather than failed, the skill offers no budget question and no override. It also commits no fix and doesn't spend the remaining fix round.
+
+**Next step:** once the reviewer actually runs on `onara/cx/gpt-6.1-sol:high`, I repeat the wave on the same tree (`12d38d8`) from Fix waves step 1: a new snapshot, QA carried over, then a new implementation-audit brief. I haven't written that brief: re-dispatching now would hit the same model mismatch. Send a reply and session file for the repeated wave once the routing is fixed, and I'll continue.
+
+**State:**
+- The review worktree `.worktrees/review-csv-total` is locked on branch `review/csv-total` at `12d38d8`, with the two fix commits `f93afea` and `12d38d8`. `feat/csv-total` hasn't moved.
+- The wave-1 and wave-2 QA files and the wave-1 trailer are untracked, as the skill requires until the record is written.
+- Adding row 4.1 to `tasks.md` makes `review.md`'s recorded digest stale for `validate-openspec-change.mjs --reviewed`. The gate's own plan check (`--plan-only`) still passes.
+
+Briefs are in `/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D-d/out-d/`:
+- `brief-implementation-audit-wave1.md`
+- `brief-delta-round1.md`
+- `brief-implementation-audit-wave2.md`
+- `brief-implementation-audit-wave2-retry.md`

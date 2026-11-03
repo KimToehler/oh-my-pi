@@ -1,0 +1,12 @@
+== ImplementationAuditW1Retry  (/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-f/2026-11-02T20-24-36-572Z_01a19def-6ddc-7453-926d-09c968f5d93e/ImplementationAuditW1Retry.jsonl)
+{"model_change":"onara/cx/gpt-6.1-sol"}
+{"thinking_level_change":"high"}
+assistant turns (provider model):   30 onara cx/gpt-6.1-sol;
+== StrategicRiskReviewW1  (/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-f/2026-11-02T20-24-36-572Z_01a19def-6ddc-7453-926d-09c968f5d93e/StrategicRiskReviewW1.jsonl)
+{"model_change":"onara/cx/gpt-6.1-sol"}
+{"thinking_level_change":"high"}
+assistant turns (provider model):   17 onara cx/gpt-6.1-sol;
+== StrategicRiskReviewW1Retry  (/Users/tim/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-f/2026-11-02T20-24-36-572Z_01a19def-6ddc-7453-926d-09c968f5d93e/StrategicRiskReviewW1Retry.jsonl)
+{"model_change":"onara/cx/gpt-6.1-sol"}
+{"thinking_level_change":"high"}
+assistant turns (provider model):   16 onara cx/gpt-6.1-sol;

@@ -1,0 +1,7 @@
+read	skill://review-work
+read	.omp/plans/gate-quorum.md
+read	artifact://0:180-470
+read	/Users/tim/.omp/profiles/pirp/agent/skills/review-work/SKILL.md:180-470
+bash	git status --short --branch && git log --oneline -10 && git branch -a && git worktree list
+bash	git diff --stat main...HEAD && git diff main...HEAD -- scripts
+bash	ls -la .omp .omp/team-config 2>/dev/null; git ls-files .omp; git merge-base --is-ancestor main HEAD && echo main-is-ancestor

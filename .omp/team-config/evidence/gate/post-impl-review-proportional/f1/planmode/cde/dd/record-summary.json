@@ -1,0 +1,29 @@
+{
+  "plan": ".omp/plans/gate-quorum.md",
+  "mandatory_class": "auth-secrets-pii",
+  "decision_reason": "risky: change alters release-gate admission (decide() approval quorum); plan re-tiered internal-tooling->product with Tim's agreement before baseline; mandatory_class reclassified none->auth-secrets-pii on the final diff because strategic-risk-review reported security_delta yes (approval quorum is an authorisation path)",
+  "depth": null,
+  "risk_tier": null,
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "override": null,
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "agent": null,
+      "model_id": null,
+      "independence": null,
+      "verdict": "PASS"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": null,
+      "model_id": null,
+      "independence": null,
+      "verdict": "PASS"
+    }
+  ],
+  "reviewed_sha": "cadab7323ac71557f20ec65425fb17ebd0b096f2",
+  "downgrades": null
+}

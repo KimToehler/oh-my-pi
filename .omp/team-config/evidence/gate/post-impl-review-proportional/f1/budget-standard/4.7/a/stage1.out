@@ -1,0 +1,18 @@
+Working...
+Wave 1 of the F2 gate failed in manual QA, so no reviewer was dispatched. The fix is committed and the gate is now waiting on the delta review. The gate has not passed; nothing is ready to merge.
+
+**Why wave 1 failed.** The F1 rows s1–s5 carried over as passing. I added a regression row because the diff changes `groupThousands` in `src/format.ts`, which already existed on `main`. That row (Q6) failed: a total of 1,234,567.00 prints `1234,567.00`, where `main` printed `1234567.00`. Two other new rows passed: Q7 (bad prices among good lines are rejected, naming lines 3 and 4) and Q8 (`0.10 + 0.20` prints `0.30`). The wave is recorded with `qa=FAIL` and blocker `QA6`. The convergence script said CONTINUE, and standard depth allows one fix round.
+
+**The fix.**
+- A fix row under a new `## TODOs` heading in `openspec/changes/csv-total/tasks.md`.
+- `groupThousands` now puts a comma before every group of three digits.
+- A regression test, which failed before the fix (`1234,567.00`). After it, `bun test` shows 5 pass and 0 fail, and the CLI prints `1,234,567.00`.
+- All three are in commit `58aa50fd80a17a2228ad58cf1a3b52bebbad35ff`. The patch set for the delta review is at `.omp/team-config/gate-deltas/F2-1-58aa50fd80a1-20261102233135/manifest.json`.
+
+**Deviations and risks:**
+- **No separate review worktree.** `feat/csv-total` is checked out in this checkout, the only worktree. A second worktree on the same branch would need `--force`, and switching this checkout to another branch needs your consent. So the gate runs in place. I ran no destructive git command.
+- **Planning review now stale.** Adding the fix row changes the digest of `tasks.md`. `validate-openspec-change.mjs --reviewed` now reports `review.md` as stale (it passed at `ecd418f`). That is the check `/opsx-apply` runs before the first source edit. The gate's own plan check still passes.
+- **Carried and re-run rows.** The brief carries Q1–Q4, Q7 and Q8, because the fix only touches totals of 1,000 or more. Wave 2 must re-run Q5 (`1234.50`) and Q6.
+- **Evidence not yet staged.** The wave-1 captures in `.omp/team-config/evidence/gate/csv-total/wave-1/` stay unstaged until Phase 5.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D/r47/out-a/brief-delta-round1.md

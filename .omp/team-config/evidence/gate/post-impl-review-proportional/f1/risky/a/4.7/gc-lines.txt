@@ -1,0 +1,5 @@
+BASELINE 69ca02af5f15 recorded
+READY
+SNAPSHOT F2 wave 1 69ca02af5f15
+DECISION: PASS
+WAVE F2 1 total=0 fix_induced=0 unlocated=0

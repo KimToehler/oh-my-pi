@@ -1,0 +1,41 @@
+# QA8: regression: usage errors exit 2 without output; project test suite
+# head: fcb3ef6d772fecd300435f8d3967f244799380b9
+
+$ bun src/cli.ts
+
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --asof 2026-02-20
+
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --as-of
+
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+src/fee.test.ts:
+(pass) one complete period charges 2% [0.17ms]
+(pass) fee is capped at 25% of the amount [0.01ms]
+(pass) 29 days overdue charges nothing
+(pass) days overdue are UTC calendar days across a DST change in the runner's zone [0.08ms]
+
+src/today.test.ts:
+(pass) formats the UTC date as YYYY-MM-DD [0.02ms]
+
+src/report.test.ts:
+(pass) higher fee is listed first [0.09ms]
+(pass) equal fees are listed by due date, then id [0.06ms]
+(pass) invoice without a fee is not listed [0.01ms]
+
+ 8 pass
+ 0 fail
+ 11 expect() calls
+Ran 8 tests across 3 files. [5.00ms]
+[exit 0]
+

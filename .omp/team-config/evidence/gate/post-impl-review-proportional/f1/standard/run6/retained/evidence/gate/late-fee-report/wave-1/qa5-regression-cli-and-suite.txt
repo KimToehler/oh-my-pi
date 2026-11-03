@@ -1,0 +1,28 @@
+TZ(effective)=CET cwd=review-late-fee-report head=a8cbb6c
+
+$ bun src/cli.ts samples/invoices.json
+[0m[31musage: bun src/cli.ts <invoices.json> --as-of YYYY-MM-DD[0m
+[exit 2]
+
+$ bun src/cli.ts
+[0m[31musage: bun src/cli.ts <invoices.json> --as-of YYYY-MM-DD[0m
+[exit 2]
+
+$ bun test 2>&1
+[0m[1mbun test [0m[2mv1.4.4 (5d9cc0f4f)[0m
+[0m
+src/fee.test.ts:
+[0m[32m✓[0m[0m[1m one complete period charges 2%[0m [0m[2m[1.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fee is capped at 25% of the amount[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m 29 days overdue charges nothing[0m
+[0m
+src/report.test.ts:
+[0m[32m✓[0m[0m[1m higher fee is listed first[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m equal fees are listed by due date, then id[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invoice without a fee is not listed[0m [0m[2m[0.01ms[0m[2m][0m
+
+[0m[32m 6 pass[0m
+[0m[2m 0 fail[0m
+ 9 expect() calls
+Ran 6 tests across 2 files. [0m[2m[[1m6.00ms[0m[2m][0m
+[exit 0]

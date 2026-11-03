@@ -1,0 +1,43 @@
+QA7 adjacent regression: usage errors exit 2 with usage line (no file, --as-of without date, unknown flag); full bun test suite; typecheck
+
+$ bun src/cli.ts
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --as-of
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --since 2026-02-20
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun test
+bun test v1.4.4 (5d9cc0f4f)
+
+src/fee.test.ts:
+(pass) one complete period charges 2% [0.21ms]
+(pass) fee is capped at 25% of the amount [0.01ms]
+(pass) 29 days overdue charges nothing
+(pass) days overdue are UTC calendar days across a DST change in the runner's zone [0.31ms]
+
+src/today.test.ts:
+(pass) formats the UTC date as YYYY-MM-DD [0.03ms]
+
+src/report.test.ts:
+(pass) higher fee is listed first [0.81ms]
+(pass) equal fees are listed by due date, then id [0.09ms]
+(pass) invoice without a fee is not listed [0.01ms]
+
+ 8 pass
+ 0 fail
+ 11 expect() calls
+Ran 8 tests across 3 files. [12.00ms]
+[exit 0]
+
+$ tsc -p . --noEmit 2>&1 | grep -v "^$" | head -5; echo tsc-exit=${PIPESTATUS[0]}
+error TS2688: Cannot find type definition file for 'bun-types'.
+  The file is in the program because:
+    Entry point of type library 'bun-types' specified in compilerOptions
+tsc-exit=1
+[exit 0]

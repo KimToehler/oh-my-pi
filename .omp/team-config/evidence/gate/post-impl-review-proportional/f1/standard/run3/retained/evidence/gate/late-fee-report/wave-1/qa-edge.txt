@@ -1,0 +1,19 @@
+^Drepo HEAD: a0ccec20abe7bee717bd656a008665926b8149d0
+runner clock (UTC): 2026-11-02T21:08:09Z; runner zone: Europe/Berlin
+
+$ bun src/cli.ts /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/latefee-qa/empty.json --as-of 2026-02-20
+TOTAL		0.00
+[exit 0]
+
+$ bun src/cli.ts
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --as-of
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+
+$ bun src/cli.ts samples/invoices.json --since 2026-02-20
+usage: bun src/cli.ts <invoices.json> [--as-of YYYY-MM-DD]
+[exit 2]
+

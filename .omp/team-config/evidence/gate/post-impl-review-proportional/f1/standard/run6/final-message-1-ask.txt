@@ -1,0 +1,15 @@
+Working...
+I've stopped before running anything destructive, and nothing has been changed.
+
+**Commands run so far** (all read-only): `git status`, `git log`, `git branch`, `git worktree list`, `git diff --stat`, `git merge-base`, plus reading the change folder, the skill, `auditor.md` and `omp config get task.agentModelOverrides`.
+
+**Why I need your consent:** review-work says branches are reviewed in a dedicated review worktree, created and locked with `git worktree add <path> <branch>` and `git worktree lock`. It says the main worktree is read-only context: never check out, test or edit the review branch there. But `feat/late-fee-report` is currently checked out in the main worktree (`/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r6`), and git won't attach a branch that's already checked out somewhere else. The only clean fix is `git switch main` in the main worktree, and the destructive-git-consent rule needs your explicit yes for that.
+
+**What would be lost:** nothing. `git status --porcelain --untracked-files=all --ignored` shows nothing modified, untracked or ignored, and `git stash list` is empty. No path would lose or carry over changes.
+
+Which way should I go?
+
+1. **Switch main worktree to `main` (recommended):** run `git switch main` in `/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1a-standard-r6`, then `git worktree add .worktrees/review-late-fee-report feat/late-fee-report` and `git worktree lock .worktrees/review-late-fee-report --reason "review:feat/late-fee-report"`. The whole gate (F1 QA, baseline, snapshot, auditor dispatch, record and commits) then runs in that worktree, on `feat/late-fee-report`.
+2. **Review worktree at a path you name:** same as option 1, but the worktree goes wherever you say, for example outside the repository so the main checkout gets no untracked `.worktrees/` directory.
+3. **Run the gate in place:** keep `feat/late-fee-report` checked out in the main worktree and run the gate there. This breaks the skill's dedicated-worktree rule, and I'd say so in the report.
+4. **Stop:** no gate run, nothing changes.

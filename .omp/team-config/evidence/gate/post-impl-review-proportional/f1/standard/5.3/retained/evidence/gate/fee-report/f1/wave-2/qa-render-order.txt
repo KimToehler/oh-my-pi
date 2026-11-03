@@ -1,0 +1,6 @@
+head: 1e202e028453b80e20c18c83fddc46259106a562
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/order.json
+exit: 0
+stdout (repr, exact bytes): 'z\t2026-02-01\t0.01\na\t2026-01-01\t0.02\nTOTAL\t\t0.03\n'
+stderr: ''
+note: expected lines in the given order z then a (no sorting)

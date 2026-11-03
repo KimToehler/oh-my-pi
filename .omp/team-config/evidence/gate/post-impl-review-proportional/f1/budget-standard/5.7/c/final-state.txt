@@ -1,0 +1,17 @@
+passed
+exit=0
+* 5f9e557 gate(csv-total): F2 merge-gate record, wave 1 PASS at 60d56444ecce (implementation-audit PASS, QA 5/5)
+*   60d5644 Merge branch 'main' into feat/csv-total
+|\  
+| * 066253a feat: group thousands in formatted totals of 1000 or more
+* | 55e3e3b qa(csv-total): F1 bun src/cli.ts total on 5 scenarios at 03369ba; observed 25.00, exit 2 line 1, 1.00, 0.00, 1234.50
+* | 03369ba Merge branch 'main' into feat/csv-total
+|\| 
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema
+{"whole_diff":{"run":false,"reason":"whole-diff surface reviewed in F2"},"mandatory_class":"none","reviewers_run":["implementation-audit"]}
+5f9e557 60d5644
+60d5644 55e3e3b 066253a
+066253a cac67ef

@@ -1,0 +1,43 @@
+QA6 riskiest edge: capped fee on large invoices (amountCents*25 above 2^31-1) and empty input
+
+$ cat /tmp/latefee-qa/qa6-large.json
+[
+ {
+  "id": "cap-85899345",
+  "amountCents": 85899345,
+  "dueDate": "2025-01-01"
+ },
+ {
+  "id": "cap-85899346",
+  "amountCents": 85899346,
+  "dueDate": "2025-01-01"
+ },
+ {
+  "id": "cap-1M-dollars",
+  "amountCents": 100000000,
+  "dueDate": "2025-01-01"
+ },
+ {
+  "id": "2pct-1M-dollars",
+  "amountCents": 100000000,
+  "dueDate": "2026-01-10"
+ }
+]
+[exit 0]
+
+expected (spec: 25% / 2% of amount, whole cents rounded down): cap-1M-dollars=250000.00, cap-85899346=214748.36, cap-85899345=214748.36, 2pct-1M-dollars=20000.00, TOTAL=699496.72
+$ bun src/cli.ts /tmp/latefee-qa/qa6-large.json --as-of 2026-02-15
+cap-85899345	2025-01-01	214748.36
+2pct-1M-dollars	2026-01-10	20000.00
+TOTAL		234748.36
+[exit 0]
+
+$ bun -e 'import {lateFee} from "./src/fee"; for (const a of [85899345, 85899346, 100000000]) console.log(a, lateFee({id:"x", amountCents:a, dueDate:"2025-01-01"}, "2026-02-15"), Math.floor(a*25/100));'
+85899345 21474836 21474836
+85899346 -21474837 21474836
+100000000 -17949673 25000000
+[exit 0]
+
+$ bun src/cli.ts /tmp/latefee-qa/qa6-empty.json --as-of 2026-02-15
+TOTAL		0.00
+[exit 0]

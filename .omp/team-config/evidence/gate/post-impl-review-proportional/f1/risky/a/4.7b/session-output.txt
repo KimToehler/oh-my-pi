@@ -1,0 +1,40 @@
+Working...
+Wave 1 of the F2 gate for `quota-remaining` is recorded and passed. `GC wave` printed `DECISION: PASS` with `total=0 fix_induced=0 unlocated=0` (exit 0). As you asked, I fixed nothing and wrote no record; nothing is staged or committed.
+
+**Setup**
+- `--plan-only --plan openspec/changes/quota-remaining` → `passed`; `validate-openspec-change.mjs --reviewed` → `OKAY in round 1`.
+- Depth is `risky` and Risk tier is `product`, both from `gate.md`, so both reviewers ran and no re-tier was needed. Mandatory class: `none`.
+- The `auditor.md` pin is `onara/cx/gpt-6.1-sol:high`. `task.agentModelOverrides` has no `auditor` entry.
+- `main` (`6bdaef7`) is already an ancestor of HEAD, so no merge was needed.
+- `GC baseline` recorded 58c6cf0fa183, `GC ready` returned `READY`, and `GC snapshot` pinned wave 1 at `58c6cf0`. Plan copy: `.omp/team-config/gate-deltas/F2-cd570c447411-wave-1.plan.md` (`plan_sha256 1e505edc…6ae3`).
+
+**Manual QA (F1 reuse, plus the rows it lacked)**
+The matrix is at `.omp/team-config/evidence/gate/quota-remaining/wave-1/qa-matrix.md`. All 8 rows pass.
+- **Rows 1–3 carried from F1** (tracked `f1/` captures from `0cced13`). The later commits `c1848ea` and `58c6cf0` touch only evidence and `review.md`; `git diff 0cced13 HEAD -- src test package.json` is empty, so they can't change what those rows observed.
+- **Rows 4–8 run new on the snapshot head**, because the F1 matrix was missing them:
+  - the fractional-`used` negative control (`RangeError`, not `7.5`);
+  - a fractional `limit`;
+  - the boundary cases `1 0 0 0`;
+  - `NaN` and `Infinity` inputs (`RangeError`);
+  - a `checkQuota` regression check (`bun test` 2 pass, 0 fail).
+
+**Reviewers**
+Both ran in one batch with the verbatim briefs.
+
+| Invocation | Agent | Model (session + trailer) | Independence | Verdict |
+|---|---|---|---|---|
+| Manual QA | orchestrator | – | – | PASS (8 rows) |
+| implementation-audit | auditor | `onara/cx/gpt-6.1-sol`, thinking `high` | cross-provider vs `onara/cc/claude-opus-5-5` | PASS, no blockers |
+| strategic-risk-review | auditor | `onara/cx/gpt-6.1-sol`, thinking `high` | cross-provider | PASS, no blockers |
+
+- Both model checks match the pin on every assistant turn, with no fallback.
+- Trailers are stored verbatim under `.omp/team-config/evidence/quota-remaining/f2/wave-1/`, and both trailer checks returned `passed`.
+- The first dispatch was stopped by the `delegation` rule before anything launched (`proc://` was empty). The identical retry ran once per lane.
+
+**Non-blocking reviewer notes worth deciding on before the record**
+1. **Mandatory class (audit N1):** the audit argues the new public export belongs under `wire-contract-api`, not `none`. The record's `mandatory_class` has to match `gate.md`. Changing `gate.md` changes the plan bytes, which voids this wave and means re-review.
+2. **No unit tests (both reviewers):** `test/quota.test.ts` doesn't cover `remaining()`, so `bun test` can't catch a regression in it.
+3. **F1 task overstated (both reviewers):** `tasks.md` 2.1 is checked as covering every scenario, but the fractional negative control exists only in `wave-1/`.
+4. **Negative inputs (audit N4):** the QA matrix says negative inputs are "unspecified"; the audit says they are only unexercised.
+
+**Deviation from the skill:** I ran the gate in this checkout, which is git's main worktree with `feat/quota-remaining` checked out, not in a separate locked review worktree. Adding a second worktree would have needed `--force` on the same branch and would have split the ledger, and git can't lock the main worktree. The tracked tree hasn't changed; only untracked QA and trailer files were added.

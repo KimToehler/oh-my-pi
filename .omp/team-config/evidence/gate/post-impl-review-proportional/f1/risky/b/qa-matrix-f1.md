@@ -1,0 +1,16 @@
+# F1 QA matrix: jobq-lifecycle
+
+Head: e784622a632dec126331541a71853b1e19854076 (last code commit 89d8aa1). Channel: library, bun 1.4.4 scripts importing `src/` in the review worktree; synthetic data, snapshots in fresh temp dirs. Each artifact holds the exact script, stdout, stderr and exit code.
+
+| # | Scenario | Exact command / action | Expected | Observed | Verdict | Artifact |
+|---|----------|------------------------|----------|----------|---------|----------|
+| QA1 | Spec: claim a queued job | `bun run qa1-claim-queued.ts`: add `a`, `claim("a","w1")` | resolves `true`; `a` running, owner `w1` | `true`; `{state:running, owner:w1}` | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa1-claim-queued.txt` |
+| QA2 | Spec negative control: second claimer | `bun run qa2-claim-negative-control.ts`: `w1` claims `a`, then `w2` claims `a` | `w2` claim resolves `false`; owner stays `w1` | `true` then `false`; owner `w1` | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa2-claim-negative-control.txt` |
+| QA3 | Spec: complete a claimed job | `bun run qa3-complete-claimed.ts`: claim `a`, `complete("a")` | `a` done with no owner | `{state:done}`, owner absent | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa3-complete-claimed.txt` |
+| QA4 | Spec negative control: complete unknown id | `bun run qa4-complete-unknown-negative-control.ts`: `complete("missing")` | throws | threw `Error: unknown job missing` | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa4-complete-unknown-negative-control.txt` |
+| QA5 | Spec: snapshot written on claim | `bun run qa5-snapshot-written.ts`: claim `a`, read snapshot file | snapshot lists `a` as running | `[{id:a,state:running,owner:w1}]` | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa5-snapshot-written.txt` |
+| QA6 | Spec negative control: unwritable snapshot path | `bun run qa6-unwritable-snapshot-negative-control.ts`: queue on `/nonexistent-dir/snap.json`, claim `b` | claim rejects (does not resolve `true`) | rejected with ENOENT; `b` back to queued | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa6-unwritable-snapshot-negative-control.txt` |
+| QA7 | Happy path: add, claim by two workers, snapshot, complete, fail | `bun run qa7-happy-path-lifecycle.ts` | both claims `true`; snapshot lists both running; `a` done, `b` failed with attempts 1 | as expected | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa7-happy-path-lifecycle.txt` |
+| QA8 | Riskiest edge: concurrent claims (50 jobs x 2 workers via `Promise.all`) | `bun run qa8-concurrent-claims-edge.ts` | exactly one winning claim per job; last snapshot lists all 50 running | 50 jobs with one winner, 0 with two; owners `[w1]`; 50 running on disk | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa8-concurrent-claims-edge.txt` |
+| QA9 | Regression on adjacent behaviour: restore and requeue | `bun run qa9-regression-restore-requeue.ts` | restore rebuilds `a` running/`w1` and `c` queued; requeue after fail gives queued | as expected | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa9-regression-restore-requeue.txt` |
+| QA10 | Regression: existing test suite | `bun test` | 5 pass, 0 fail | 5 pass, 0 fail | PASS | `.omp/team-config/evidence/gate/jobq-lifecycle/f1/qa10-bun-test-suite.txt` |

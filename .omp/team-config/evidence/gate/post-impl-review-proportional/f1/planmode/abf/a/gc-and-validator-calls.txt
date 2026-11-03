@@ -1,0 +1,67 @@
+
+##### SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan .omp/plans/release-approvals.md; echo "exit=$?"; git merge-base --is-ancestor main HEAD; echo "ancestor=$?"
+passed
+exit=0
+ancestor=0
+
+
+##### SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/gate-convergence.mjs --help 2>&1 | cut -c1-300 | sed -n 1,60p
+gate-convergence: Unknown option '--help'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- "--help"
+
+
+##### set -e; SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; P=.omp/plans/release-approvals.md ⏎ node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --plan-only --plan $P ⏎ git add $P && git commit -q -m "chore(plan): freeze release-approvals plan for F2 gate" && git log --oneline -1 ⏎ GC="node $SKILL_DIR/scripts/gate-convergence.mjs --repo $PWD --plan $P" ⏎ $GC baseline --sha HEAD; $GC ready --lane F2; $GC snapshot --lane F2
+passed
+31375ec chore(plan): freeze release-approvals plan for F2 gate
+BASELINE 31375ec1bc7f recorded
+READY
+/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-a2/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json
+SNAPSHOT F2 wave 1 31375ec1bc7f
+PLAN /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-a2/.omp/team-config/gate-deltas/F2-a71330735c89-wave-1.plan.md
+
+
+##### S=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-a2/2026-11-02T20-23-10-166Z_01a19dee-1c56-72a1-a42b-db08e9a3f794/StrategicRiskReviewW1.jsonl; jq -c 'select(.type=="model_change" or .type=="thinking_level_change") | {type,model,thinkingLevel}' $S; jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.provider)/\(.message.model)"' $S | sort | uniq -c ⏎ SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt --invocation strategic-risk-review --verdict PASS --plan .omp/plans/release-approvals.md; echo exit=$?
+{"type":"model_change","model":"onara/cx/gpt-6.1-sol","thinkingLevel":null}
+{"type":"thinking_level_change","model":null,"thinkingLevel":"high"}
+     20 onara/cx/gpt-6.1-sol
+passed
+exit=0
+
+
+##### S=~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1c-a2/2026-11-02T20-23-10-166Z_01a19dee-1c56-72a1-a42b-db08e9a3f794/ImplementationAuditW1Retry.jsonl; jq -c 'select(.type=="model_change" or .type=="thinking_level_change") | {type,model,thinkingLevel}' $S; jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.provider)/\(.message.model)"' $S | sort | uniq -c ⏎ SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --trailer .omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt --invocation implementation-audit --verdict PASS --plan .omp/plans/release-approvals.md; echo exit=$?
+{"type":"model_change","model":"onara/cx/gpt-6.1-sol","thinkingLevel":null}
+{"type":"thinking_level_change","model":null,"thinkingLevel":"high"}
+     27 onara/cx/gpt-6.1-sol
+passed
+exit=0
+
+
+##### SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; P=.omp/plans/release-approvals.md; T=.omp/team-config/evidence/release-approvals/f2 ⏎ node $SKILL_DIR/scripts/gate-convergence.mjs --repo "$PWD" --plan $P wave --lane F2 --snapshot .omp/team-config/gate-deltas/F2-a71330735c89-wave-1.snapshot.json --outcome qa=PASS --outcome implementation-audit=PASS --outcome strategic-risk-review=PASS --trailer implementation-audit=$T/trailer-implementation-audit.txt --trailer strategic-risk-review=$T/trailer-strategic-risk-review.txt; echo exit=$?
+DECISION: PASS
+WAVE F2 1 total=0 fix_induced=0 unlocated=0
+exit=0
+
+
+##### E=.omp/team-config/evidence/gate/release-approvals/f1/wave-1; T=.omp/team-config/evidence/release-approvals/f2 ⏎ git add .omp/team-config/evidence/gate/release-approvals.json $T/trailer-implementation-audit.txt $T/trailer-strategic-risk-review.txt $E/qa1-happy-path.txt $E/qa2-duplicate-approval.txt $E/qa3-self-approval.txt $E/qa4-failed-check.txt $E/qa5-no-approvals.txt $E/qa6-author-plus-two.txt $E/qa7-self-and-duplicate.txt $E/qa8-malformed-reviewer.txt $E/qa9-usage-regression.txt $E/qa10-unit-suite.txt && git status --short ⏎ SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/release-approvals.json --plan .omp/plans/release-approvals.md; echo exit=$?
+A  .omp/team-config/evidence/gate/release-approvals.json
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa1-happy-path.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa10-unit-suite.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa2-duplicate-approval.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa3-self-approval.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa4-failed-check.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa5-no-approvals.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa6-author-plus-two.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa7-self-and-duplicate.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa8-malformed-reviewer.txt
+A  .omp/team-config/evidence/gate/release-approvals/f1/wave-1/qa9-usage-regression.txt
+A  .omp/team-config/evidence/release-approvals/f2/trailer-implementation-audit.txt
+A  .omp/team-config/evidence/release-approvals/f2/trailer-strategic-risk-review.txt
+passed
+exit=0
+
+
+##### git commit -q -m "chore(gate): record F2 merge gate for release-approvals" && git log --oneline -1 && git status --short; SKILL_DIR=/Users/tim/.omp/profiles/pirp/agent/skills/review-work; node $SKILL_DIR/scripts/validate-gate-record.mjs --repo "$PWD" --record .omp/team-config/evidence/gate/release-approvals.json --plan .omp/plans/release-approvals.md; echo exit=$?; git rev-parse HEAD
+51e1358 chore(gate): record F2 merge gate for release-approvals
+passed
+exit=0
+51e1358d2b504f565cf00124ae314c0f9456c96f
+

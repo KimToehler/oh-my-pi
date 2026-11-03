@@ -1,0 +1,29 @@
+Working...
+The F2 gate has not passed. In wave 2, `gate-convergence` printed STOP. The skill has me ask you how to proceed, so nothing has been changed, merged or recorded since.
+
+## What happened
+- **Wave 1** (head `dc48c96`): QA failed rows QA7 and QA10. Invoices with equal fees came out in input order because `src/report.ts` sorted by fee only. No reviewer was sent. Ledger: total 2, fix_induced 0, CONTINUE.
+- **Fix round 1**: I added task 2.2 to `tasks.md` and made two commits:
+  - `6bb9989`: ties now break by due date, then by id.
+  - `951b31a`: the tie-break test now uses ids that sort opposite to the dates, so it fails if only the id is compared.
+  
+  The tests failed before the fix and pass after it, and the full suite passes (7 tests). `plan-reviewer` checked each commit and returned OKAY both times. `c2c2f92` only ticks the F1 checkbox (task 3.1), so it was exempted from review.
+- **Wave 2** (snapshot `c2c2f92`): all 14 QA rows passed. `implementation-audit` (`auditor`, `onara/cx/gpt-6.1-sol`, effort high, cross-provider) returned **FAIL** with one blocker. Its trailer check passed and the model check matched the pin. Ledger: total 1, fix_induced 1. **STOP: fix-induced blockers rose from 0 to 1.**
+
+## The open blocker
+**B1** is in `src/report.ts:20`, in a line my fix added. The id tie-break uses `localeCompare(..., "en")`, which treats two different but equivalent-looking ids (e.g. `INV-\u00e9` and `INV-e\u0301`) as equal. Two such invoices with the same fee and due date would then print in input order. Its stated consequence: it breaks the spec rule that the order must not depend on the input file (`spec.md:24`). The damage is reversible by regenerating the report.
+
+Ids like that are unlikely in a machine-generated export. Even so, the blocker cites a spec requirement, so it can't be accepted or frozen, and `gate.md` accepts no residual risks. That's why freeze is not offered.
+
+## Question
+`gate-convergence` printed STOP after F2 wave 2 (wave 1: 2 blockers, 0 fix-induced; wave 2: 1 blocker, 1 fix-induced). How do you want to proceed?
+
+1. **continue**: one more fix wave. Compare the id by exact code units (no locale), add a regression test for both input orders, get that commit delta-reviewed, then run wave 3 with QA and a fresh `implementation-audit`.
+2. **re-plan**: write a separate plan for the report-ordering mechanism.
+
+I recommend **continue**, since it's a one-line comparator change. Your answer is recorded with `GC decide --lane F2 --choice continue|replan --by <you> --reason <text>`.
+
+## Where things stand
+- All gate work is in the locked worktree `.worktrees/review-late-fee-report`, on branch `review/late-fee-report` at `c2c2f92`. `feat/late-fee-report` and the main checkout are untouched at `dc48c96`.
+- No destructive git command was run.
+- No gate record was written. The QA captures and the reviewer trailer are saved in the worktree but not staged.

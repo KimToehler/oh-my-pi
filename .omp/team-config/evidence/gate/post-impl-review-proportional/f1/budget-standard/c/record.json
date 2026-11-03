@@ -1,0 +1,69 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "aba51593da95898f6a2a1f9bd90e747d3d26f76d",
+  "diff_base": "e1c4b549f7d99148121b9f08e1d7e282723a6b3b",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, no review/gate/release mechanism change); final diff incl. merged main e1c4b54 (thousands grouping in src/format.ts) adds no class, so one implementation-audit; QA1-QA4 carried (merge reaches groupThousands only for totals >= 1000), QA5 re-run on the merged head",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 s1 happy path (Requirement: Price lines are parsed strictly / Valid lines are summed): PASS (carried from F1 on 299d2d6)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "4e7a40c3b0263c3142f76917cfb0ed0ac4fb137dfba116e82f7cdb8dce88a6a9"
+    },
+    {
+      "name": "QA2 s2 malformed price, riskiest edge (Malformed price is rejected with its line number + Negative control): PASS (carried from F1 on 299d2d6)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "07173e9a267dcb4e9311064498aa25eaa7d3f4573bd0b689ca5b9ea7e8ab4fac"
+    },
+    {
+      "name": "QA3 s3 exact cents negative control (Requirement: Totals are exact in cents / Negative control): PASS (carried from F1 on 299d2d6)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "964b08b37253b22a02273e590bb714def62a99e342f3992ee8a64bb2361aa53b"
+    },
+    {
+      "name": "QA4 s4 empty file edge (Requirement: Totals are exact in cents / Empty file): PASS (carried from F1 on 299d2d6)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "4e68e1aaa0d1ff9ce88119f4577e4a5e0336b31184e12401fdca7342ee59561b"
+    },
+    {
+      "name": "QA5 s5 large total, regression on adjacent behaviour (merged main formatter e1c4b54): PASS (re-run in F2 wave 1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md",
+      "artifact_sha256": "d93f4c11c420bb72bd4f1f5d8d5a683842f8114c5bd69db31a7bf74a66f15bd8"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1 on aba51593da95, GC wave DECISION: PASS; no blockers; model check: session turns onara/cx/gpt-6.1-sol, thinking high = auditor.md pin"
+    }
+  ],
+  "blockers": []
+}

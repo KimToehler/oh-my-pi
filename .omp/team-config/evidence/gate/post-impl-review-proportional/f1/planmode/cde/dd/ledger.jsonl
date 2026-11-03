@@ -1,0 +1,2 @@
+{"ts":"2026-11-02T20:17:15.823Z","event":"gate_baseline","plan":".omp/plans/gate-quorum.md","base_sha":"cadab7323ac71557f20ec65425fb17ebd0b096f2","risk_tier":"product"}
+{"ts":"2026-11-02T20:24:04.424Z","event":"gate_wave","plan":".omp/plans/gate-quorum.md","lane":"F2","wave":1,"reviewed_sha":"cadab7323ac71557f20ec65425fb17ebd0b096f2","outcomes":{"qa":"PASS","implementation-audit":"PASS","strategic-risk-review":"PASS"},"blockers_total":0,"blockers_fix_induced":0,"fix_induced":[],"unlocated":[],"decision":"PASS"}

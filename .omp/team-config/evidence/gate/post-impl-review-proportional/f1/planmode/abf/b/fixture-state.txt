@@ -1,0 +1,11 @@
+### git log --oneline
+0ab24cb chore(plan): mark final verification wave of release-approvals
+6bd7b6c feat(gate): admit a release only with two independent approvals
+0bec2da chore: install omp-gated schema
+f8def7c chore: release gate baseline and plan
+### git status --porcelain
+?? .omp/team-config/
+### schema.yaml blob
+954aae1d8a239af994c88db3ef575591de70c95e
+### worktrees
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1c-b 0ab24cb [feat/release-approvals]

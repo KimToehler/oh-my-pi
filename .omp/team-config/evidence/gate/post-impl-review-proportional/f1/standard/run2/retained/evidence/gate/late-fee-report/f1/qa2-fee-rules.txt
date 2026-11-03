@@ -1,0 +1,23 @@
+fixture fee.json: [{"id":"ONE-PERIOD","amountCents":10000,"dueDate":"2026-01-10"},{"id":"CAP","amountCents":10000,"dueDate":"2025-01-01"},{"id":"DAY29","amountCents":10000,"dueDate":"2026-01-17"},{"id":"DAY30","amountCents":10000,"dueDate":"2026-01-16"},{"id":"DAY60","amountCents":10000,"dueDate":"2025-12-17"},{"id":"ROUND","amountCents":12345,"dueDate":"2026-01-10"},{"id":"NOT-DUE","amountCents":10000,"dueDate":"2026-03-01"}]
+expected as of 2026-02-15: CAP 25.00, DAY60 4.00, ROUND 2.46, ONE-PERIOD 2.00, DAY30 2.00, DAY29 and NOT-DUE absent, TOTAL 35.46
+
+### fee rules, system zone
+$ bun src/cli.ts /tmp/lfr-fixtures.IKXKeV/fee.json --as-of 2026-02-15
+CAP	2025-01-01	25.00
+DAY60	2025-12-17	4.00
+ROUND	2026-01-10	2.46
+ONE-PERIOD	2026-01-10	2.00
+DAY30	2026-01-16	2.00
+TOTAL		35.46
+[exit 0]
+
+### fee rules, TZ=UTC
+$ env TZ=UTC bun src/cli.ts /tmp/lfr-fixtures.IKXKeV/fee.json --as-of 2026-02-15
+CAP	2025-01-01	25.00
+DAY60	2025-12-17	4.00
+ROUND	2026-01-10	2.46
+ONE-PERIOD	2026-01-10	2.00
+DAY30	2026-01-16	2.00
+TOTAL		35.46
+[exit 0]
+

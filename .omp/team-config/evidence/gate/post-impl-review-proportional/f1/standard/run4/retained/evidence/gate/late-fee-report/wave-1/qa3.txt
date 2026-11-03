@@ -1,0 +1,46 @@
+# QA3: riskiest edge: capped fee (25%) in whole cents rounded down for amounts not divisible by 4
+# head: fcb3ef6d772fecd300435f8d3967f244799380b9
+
+$ cat .omp/team-config/evidence/gate/late-fee-report/wave-1/fixtures/qa3-cap-rounding.json
+[
+  {
+    "id": "CAP-10000",
+    "amountCents": 10000,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "CAP-10001",
+    "amountCents": 10001,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "CAP-10002",
+    "amountCents": 10002,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "CAP-10003",
+    "amountCents": 10003,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "CAP-1",
+    "amountCents": 1,
+    "dueDate": "2025-01-01"
+  },
+  {
+    "id": "CAP-3",
+    "amountCents": 3,
+    "dueDate": "2025-01-01"
+  }
+]
+
+$ bun src/cli.ts .omp/team-config/evidence/gate/late-fee-report/wave-1/fixtures/qa3-cap-rounding.json --as-of 2026-02-15
+CAP-10002	2025-01-01	25.01
+CAP-10003	2025-01-01	25.01
+CAP-10000	2025-01-01	25.00
+CAP-10001	2025-01-01	25.00
+CAP-3	2025-01-01	0.01
+TOTAL		100.03
+[exit 0]
+
