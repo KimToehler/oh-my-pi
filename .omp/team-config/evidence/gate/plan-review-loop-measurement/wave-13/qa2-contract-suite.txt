@@ -3,7 +3,8 @@ $ bun test scripts/score-plan-review-replay.test.ts
  75 pass
  0 fail
  266 expect() calls
-Ran 75 tests across 1 file. [61.00ms]
+Ran 75 tests across 1 file. [65.00ms]
 
-$ bun -e "trials pointing at a non-completed verifier"
+$ bun -e 'const d=await Bun.file(".omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json").json(); const by=new Map(d.attempts.map(a=>[a.id,a])); console.log(d.trials.filter(t=>t.verifierAttempt!==null && by.get(t.verifierAttempt)?.status!=="completed").length);'
 0
+(0 = no trial selects a non-completed verifier attempt)
