@@ -1,0 +1,25 @@
+Working...
+Wave 2 is recorded as INCONCLUSIVE and the gate has not passed. Both wave 2 audit dispatches ran on Claude instead of the pinned auditor model, so there is no valid review of the fixed tree yet.
+
+**Why the audit is INCONCLUSIVE.** The auditor is pinned to `onara/cx/gpt-6.1-sol:high` in `auditor.md`, with no `auditor` entry in `task.agentModelOverrides`.
+
+| Dispatch | Model and effort that ran | Trailer `model_id` | Counts? |
+|---|---|---|---|
+| Wave 2, first dispatch, review turn | `onara/cx/gpt-6.1-sol`, high | none (trailer missing) | no: the repair answer below ran on the wrong model |
+| Same reviewer, repair answer | `onara/cc/claude-opus-5`, high | `onara/cx/gpt-6.1-sol` (wrong) | no |
+| Fresh retry, the one the skill allows | `onara/cc/claude-opus-5`, high | `onara/cc/claude-opus-5` | no: second mismatch, so the audit is INCONCLUSIVE |
+
+Claude also wrote the diff (`onara/cc/claude-opus-5-5`), so these replies would have been a same-model review in any case.
+
+**What's recorded:**
+- `GC wave --lane F2 --snapshot …wave-2.snapshot.json --outcome qa=PASS --outcome implementation-audit=INCONCLUSIVE`, with no trailer, printed `DECISION: CONTINUE` and `WAVE F2 2 total=1 fix_induced=0 unlocated=1`.
+- The three replies are kept unchanged as git-ignored evidence in `.omp/team-config/evidence/csv-total/wave-2/`: `implementation-audit-reply.md`, `implementation-audit-repair-reply.md` and `implementation-audit-retry-reply.md`. None of them was used as the audit's trailer.
+- Wave 2 QA passed all 7 rows. Wave 1's and wave 2's QA files are still unstaged.
+- No gate record has been written and nothing is committed beyond the fix round.
+
+**Next, under the skill's rule for an incomplete wave:**
+- This is not a failed wave, so there's no budget question and no override.
+- No fix is committed.
+- Once dispatches actually run on the pinned model, the wave is repeated on the same tree (`3556de8`) from step 1. The repeat doesn't use up a fix round.
+
+I can't fix the routing from here. The pin and the config I can see are both correct, but the subagent sessions still resolved to `onara/cc/claude-opus-5`, so the cause is on the routing side. Once auditor dispatches resolve to `onara/cx/gpt-6.1-sol` at effort `high`, tell me and give me a reply file and session file for the repeated wave. I'll take its snapshot, write its brief with the wave 2 QA carried, and continue.

@@ -1,0 +1,21 @@
+## fixture git
+3556de8 2026-11-03 17:33:29 +0100 fix(cli): EACCES says permission denied, EISDIR exits 2 (F2 rows 4.1, 4.2)
+4d50074 2026-11-03 17:32:57 +0100 plan(csv-total): fix rows 4.1, 4.2 name the path as FILE
+ae1e4a5 2026-11-03 17:32:46 +0100 plan(csv-total): F2 wave 1 fix rows 4.1, 4.2
+8a1d0d6 2026-11-03 17:26:21 +0100 test(f1): csv-total CLI QA, five scenarios
+fbc1cb8 2026-11-03 17:26:20 +0100 chore: scaffold with omp-gated schema
+81c2b7b 2026-11-03 17:26:20 +0100 feat: csv-total CLI, change folder
+## review worktree status
+?? .omp/team-config/evidence/gate/csv-total/wave-1/
+?? .omp/team-config/evidence/gate/csv-total/wave-2/
+?? .omp/team-config/evidence/gate/csv-total/wave-3/
+## fixture root status
+?? .worktrees/
+## HEAD at each wave
+wave 1 reviewed_sha 8a1d0d6d1056a1eb92a3aae2f5a0205178d88479
+wave 2 reviewed_sha 3556de877f6f9290a54a0d11dc8b906652981043
+wave 3 reviewed_sha 3556de877f6f9290a54a0d11dc8b906652981043
+## tree of HEAD
+2f646f829befa391173039807163c887b238afa6
+## commits after wave-2 ledger ts (16:36:19Z=17:36:19+0100)
+(none above = no fix commit after closing wave)

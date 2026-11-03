@@ -1,0 +1,23 @@
+Working...
+Wave 2 is not done yet: the audit returned PASS, but its reply has no trailer block. The skill handles that with one trailer-repair message to the same reviewer, so I've written that message and am stopping until its answer arrives.
+
+**Fix round 1 is closed:**
+- I saved `delta1-ok.json` unchanged as `verdict.json` in `.omp/team-config/gate-deltas/F2-4.1-3556de877f6f-20261103163333/`.
+- The delta step recorded `fix_delta_review rows=4.1,4.2 round=1 verdict=OKAY`, and the gate then reported `READY`.
+
+**Wave 2 setup:** `main` is still an ancestor of the branch, so no merge was needed. The wave 2 snapshot is taken at `3556de8`, plan digest `14bc0151…a8e389d`.
+
+**Wave 2 QA: all 7 rows passed.**
+- **Rows 1, 2, 3, 4, 6:** reused from wave 1 without re-running. They only read normal, readable files, and the fix only touches the branch that runs when the file can't be read. The delta review accepted these carries.
+- **Row 5 (re-run):** the fix changed the test file, so I ran it again. Formatter output below 1000.00 is still identical to `main` (11 of 11 values), and `bun test` gives 6 passed, 0 failed. Captured in `wave-2/qa-regression.md`.
+- **Row 7 (new):** checks the two fixed error cases through the CLI. A file with mode 000 prints `permission denied` and exits 2. A directory prints `is a directory` and exits 2. A missing file still prints `error: cannot read FILE` and exits 2. Captured in `wave-2/qa-read-errors.md`.
+
+**Wave 2 audit (from `w2-reply.md`):**
+- The brief is at `out-e/brief-implementation-audit-wave-2.md`.
+- The session file shows every reviewer turn ran on `onara/cx/gpt-6.1-sol` at effort `high`, matching the auditor's pinned model. The model reported in the trailer still has to be compared once a trailer exists.
+- The trailer check prints `blocked`: no `REVIEW-TRAILER-v1` / `END-REVIEW-TRAILER` block on its own line.
+- I kept the reply unchanged as local, git-ignored evidence at `.omp/team-config/evidence/csv-total/wave-2/implementation-audit-reply.md`.
+
+Wave 2 is not recorded yet and nothing is staged. When you send the repair answer and its session file, I'll check the model across the whole session, including the repair turn. Then I'll store the trailer, run the trailer check against the first reply's PASS, and record wave 2.
+
+AWAITING REPLY: follow-up to implementation-audit, message at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D-e/out-e/message-implementation-audit-wave-2-1.md

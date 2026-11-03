@@ -1,0 +1,20 @@
+Working...
+I've written the delta brief and am stopping, because you haven't named a reply file for the delta review yet.
+
+**What's done:**
+- **Review worktree:** I switched the main checkout from `feat/csv-total` to `main` after confirming it had no changes of any kind, including untracked and ignored files. The review runs in `.worktrees/review-csv-total`, which is locked with reason `review:feat/csv-total`.
+- **Plan check:** The plan-only validation passed. Depth is `standard`, Risk tier is `product` and Mandatory class is `none`. `main` is already an ancestor of the branch, so no merge was needed. The auditor's pinned model is `onara/cx/gpt-6.1-sol:high` and there is no override for it in the config.
+- **Wave 1 QA:** all 6 rows passed. Five earlier captures (s1–s5) were reused without re-running, because the commit after them changes no code. The new captures are in `wave-1/` under the record's evidence directory and are not staged yet.
+- **Wave 1 audit (from `w1-reply.md`):** the model check passed and the trailer check passed. The verdict is FAIL with two blockers:
+  - B1: an unreadable file printed `no such file` (`src/cli.ts:15`).
+  - B2: a directory as input exited 1 instead of 2 (`src/cli.ts:16`).
+  - Recorded wave 1 printed `DECISION: CONTINUE`, which uses the one fix round `standard` depth allows.
+- **Fix round 1:**
+  - I added fix rows 4.1 and 4.2 to `tasks.md` under `## TODOs` in commit `ae1e4a5`.
+  - Commit `4d50074` reworded them because the OpenSpec validator rejected `<file>` as placeholder text. That first commit went in before the validator result was checked; I added a follow-up commit rather than amend.
+  - Commit `3556de8` fixes both blockers and adds two CLI tests. Both tests failed on the old code; after the fix, `bun test` gives 6 passed, 0 failed.
+- **Delta patches:** the range `8a1d0d6..3556de8` is written to `.omp/team-config/gate-deltas/F2-4.1-3556de877f6f-20261103163333/`.
+
+When you send the delta reply, I'll save it as `verdict.json`, run the delta step for rows 4.1 and 4.2, then start wave 2. That wave re-runs QA row 5, adds a row for the two fixed error cases, and needs a reply file for the wave 2 audit.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//pirp-fix/payloads/F1D-e/out-e/brief-delta-F2-4.1-round-1.md
