@@ -52,7 +52,7 @@ One further rule shapes the `post` column: a target is a retained automatic bloc
 | false claim | 2 | 0 |
 | severity error / pending | 0 | 0 |
 
-39 of 100 fresh findings are independently valid defects that match no frozen target; 30 of them are independently blocking (S 25, T 5) and nine are below the current threshold (S 7, T 2). The 85-target ledger is therefore a lower bound on what these plans contained, and single-reviewer recall against it understates discovery.
+39 of 100 fresh findings are independently valid defects that match no frozen target; 30 of them are independently blocking (S 25, T 5) and nine are below the current threshold (S 7, T 2). The 85-target ledger is therefore a lower bound on what these plans contained: recall against it counts ledger targets only and omits these discoveries, so it is recall against that ledger, not against every defect the plans held. The per-item `additionalMechanisms` list unions mechanism labels across trials; two labels can describe one defect, so its length is a label count, not a defect count.
 
 ## Triage
 
