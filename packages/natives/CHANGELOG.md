@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Fixed the first run of each compiled-binary release refusing every subagent worker ("omp source changed since this process started") because the freshly extracted native addon looked modified after startup
 - Fixed `lsFiles(others=true, excludeStandard=false)` on a worktree whose untracked list overflows the subprocess capture returning ignored directories as single entries and nested repositories without their trailing `/`; it now matches `git ls-files --others`
 ### Changed
 

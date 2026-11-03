@@ -214,6 +214,24 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 		}
 	});
 
+	it("dates an extracted addon before this process started, so workers never see it as changed", async () => {
+		const testDir = await fs.mkdtemp(path.join(os.tmpdir(), "natives-embedded-zstd-"));
+		try {
+			const content = Buffer.from("native addon");
+			const filename = "pi_natives.linux-arm64.node";
+			const zstdPath = path.join(testDir, `${filename}.zst`);
+			await Bun.write(zstdPath, Bun.zstdCompressSync(content));
+			const files: EmbeddedAddonFile[] = [{ variant: "default", filename, size: content.length, zstdPath }];
+
+			extractEmbeddedAddons({ files, targetDir: testDir });
+			const { mtimeMs } = await fs.stat(path.join(testDir, filename));
+			expect(mtimeMs).toBeLessThanOrEqual(performance.timeOrigin);
+			expect(mtimeMs).toBe((await fs.stat(process.execPath)).mtimeMs);
+		} finally {
+			await fs.rm(testDir, { recursive: true, force: true });
+		}
+	});
+
 	it("rejects a zstd frame whose size disagrees with the manifest", async () => {
 		const testDir = await fs.mkdtemp(path.join(os.tmpdir(), "natives-embedded-zstd-"));
 		try {
