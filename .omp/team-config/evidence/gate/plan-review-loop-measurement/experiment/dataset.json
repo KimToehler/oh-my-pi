@@ -1071,10 +1071,10 @@
       "mechanism": "M01-coach-target-block-position",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:127",
+        "openspec/changes/strength-progression-targets/design.md:132",
+        "private-source:kt#ea39d19f:64-70",
+        "openspec/changes/strength-progression-targets/tasks.md:29"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1084,9 +1084,9 @@
       "mechanism": "M02-ledger-rir-unverified",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:38",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "private-source:html#6460480c:23-26"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1096,9 +1096,9 @@
       "mechanism": "M03-multiweek-deload",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "private-source:sql#bf9a8911:30",
+        "openspec/changes/strength-progression-targets/design.md:20",
+        "openspec/changes/strength-progression-targets/design.md:66"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1108,9 +1108,9 @@
       "mechanism": "M04-german-outcome-copy-unverified",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:38",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:166"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1120,9 +1120,9 @@
       "mechanism": "M05-final-block-denominator-missing",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/design.md:118-122",
+        "openspec/changes/strength-progression-targets/tasks.md:23-24",
+        "private-source:ts#d91e6faa:53-58"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1132,12 +1132,12 @@
       "mechanism": "M06-suggestion-removed-before-consumers",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6"
+        "openspec/changes/strength-progression-targets/tasks.md:18",
+        "openspec/changes/strength-progression-targets/tasks.md:24",
+        "private-source:json#a9f442b4:16",
+        "private-source:ts#a21bff98:1487",
+        "private-source:json#d15db9e0:7",
+        "private-source:json#bd5088a2:150"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1147,9 +1147,9 @@
       "mechanism": "M07-i18n-overwrites-german",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:38",
+        "private-source:json#a9f442b4:25",
+        "private-source:md#67ea703f:24"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1159,10 +1159,10 @@
       "mechanism": "M08-e1rm-clamp-vs-doubled-step",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36",
+        "openspec/changes/strength-progression-targets/design.md:56",
+        "private-source:kt#e70ac187:94-108",
+        "private-source:kt#da2fc13e:111-116"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1172,9 +1172,9 @@
       "mechanism": "M09-progress-noncurrent-block-untested",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/design.md:116",
+        "openspec/changes/strength-progression-targets/tasks.md:23",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:192"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1184,10 +1184,10 @@
       "mechanism": "M10-coach-deload-weight-split",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:74-76",
+        "private-source:kt#ea39d19f:105",
+        "private-source:kt#8cc68e6e:33-37",
+        "openspec/changes/strength-progression-targets/design.md:132"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1197,10 +1197,10 @@
       "mechanism": "M11-deload-calibrate-precedence-untested",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:10",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "openspec/changes/strength-progression-targets/tasks.md:12",
+        "openspec/changes/strength-progression-targets/tasks.md:19"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1210,8 +1210,8 @@
       "mechanism": "M12-final-block-countdown-test",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/tasks.md:24",
+        "private-source:ts#d91e6faa:39-50"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1221,9 +1221,9 @@
       "mechanism": "M13-reduce-reset-line-untested",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:37",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "openspec/changes/strength-progression-targets/design.md:100-106"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1233,8 +1233,8 @@
       "mechanism": "M14-exhausted-cursor-deload-flag",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "private-source:kt#71b829a4:70",
+        "private-source:kt#71b829a4:93-104"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1244,8 +1244,8 @@
       "mechanism": "M15-gate-class",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/gate.md:3",
+        "openspec/changes/strength-progression-targets/gate.md:8"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1255,10 +1255,10 @@
       "mechanism": "M16-localized-projection-omitted",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "private-source:kt#09059c25:740-744",
+        "private-source:kt#c5c5a328:49-83",
+        "private-source:kts#b32633eb:382",
+        "openspec/changes/strength-progression-targets/tasks.md:18"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1268,10 +1268,10 @@
       "mechanism": "M17-null-value-outcome-copy",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:101-106",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:47",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "openspec/changes/strength-progression-targets/tasks.md:37"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1281,8 +1281,8 @@
       "mechanism": "M14-exhausted-cursor-deload-flag",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "private-source:kt#71b829a4:93-104",
+        "private-source:kt#ea39d19f:115"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1292,8 +1292,8 @@
       "mechanism": "M18-history-sink-inventory",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/design.md:125",
+        "openspec/changes/strength-progression-targets/tasks.md:29-30"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1303,10 +1303,10 @@
       "mechanism": "M19-null-deload-multipliers",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "private-source:kt#3cf9fe14:266-273",
+        "private-source:kt#5748b484:20-21",
+        "private-source:kt#f85b5d2d:17-18",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1316,8 +1316,8 @@
       "mechanism": "M20-oas-nullable",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/design.md:87-92",
+        "openspec/changes/strength-progression-targets/tasks.md:18"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1327,8 +1327,8 @@
       "mechanism": "M21-requireOwnedDay-current",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "private-source:kt#aada34c6:42-53",
+        "private-source:kt#c17ef703:1504-1507"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1338,8 +1338,8 @@
       "mechanism": "M22-ramp-rounding-untested",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99",
+        "openspec/changes/strength-progression-targets/tasks.md:12"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1349,8 +1349,8 @@
       "mechanism": "M23-unilateral-every-set",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36",
+        "openspec/changes/strength-progression-targets/design.md:81"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1360,8 +1360,8 @@
       "mechanism": "M04-german-outcome-copy-unverified",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/tasks.md:38",
+        "openspec/changes/strength-progression-targets/tasks.md:45"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1371,9 +1371,9 @@
       "mechanism": "M24-proactive-calendar-deload",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "private-source:kt#2d66698f:115-127",
+        "openspec/changes/strength-progression-targets/proposal.md:42",
+        "openspec/changes/strength-progression-targets/tasks.md:23-25"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1383,8 +1383,8 @@
       "mechanism": "M25-reduce-reset-collision-untested",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:10",
+        "openspec/changes/strength-progression-targets/tasks.md:12"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1394,8 +1394,8 @@
       "mechanism": "M18-history-sink-inventory",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/tasks.md:29-30",
+        "openspec/changes/strength-progression-targets/design.md:125"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1405,9 +1405,9 @@
       "mechanism": "M26-coach-prompt-registry",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:31",
+        "private-source:kt#a5c4d11a:188-192",
+        "private-source:md#5a58e05c:28-34"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1417,8 +1417,8 @@
       "mechanism": "M27-top-set-and-side-tie-rule",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/strength-progression-targets/design.md:81",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1428,7 +1428,7 @@
       "mechanism": "M28-deload-status-registry",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1"
+        "openspec/changes/strength-progression-targets/tasks.md:23-25"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1438,9 +1438,9 @@
       "mechanism": "M29-red-first-not-structured",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:3",
+        "openspec/changes/strength-progression-targets/tasks.md:18-19",
+        "openspec/changes/strength-progression-targets/tasks.md:29"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1593,11 +1593,11 @@
       "mechanism": "M-facade-failure-record-omitted",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/finish-modality-program-route/tasks.md:26",
+        "openspec/changes/finish-modality-program-route/proposal.md",
+        "private-source:ts#334aa289:18-31",
+        "private-source:ts#a813e5d1:124-146",
+        "private-source:ts#ee10796b:669-675"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1607,13 +1607,13 @@
       "mechanism": "M-every-child-intersection-contradiction",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:59",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:61-63",
+        "private-source:json#45ded489:9",
+        "private-source:json#c1c6a372:4",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#bd5a845c:57-63"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1623,12 +1623,12 @@
       "mechanism": "M-resolver-drops-explicit-horizon",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6"
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:65-67",
+        "private-source:kt#fb4c885a:18-49",
+        "private-source:kt#b23dec18:78-81",
+        "private-source:kt#cb9a69dc:226",
+        "private-source:kt#15ebe61b:76-92"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1638,11 +1638,11 @@
       "mechanism": "M-unavailable-predicate-trips-resistance-backstop",
       "blocking": "blocking",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/finish-modality-program-route/design.md:38-40",
+        "openspec/changes/finish-modality-program-route/tasks.md:19-22",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:42-44",
+        "private-source:kt#de700d43:351-357",
+        "private-source:kt#000883ec:15-21"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1652,10 +1652,10 @@
       "mechanism": "M-mixed-version-combination-killswitch",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/finish-modality-program-route/design.md:8-10",
+        "openspec/changes/finish-modality-program-route/design.md:57",
+        "openspec/changes/finish-modality-program-route/gate.md:7",
+        "private-source:kt#0fd074c5:13-14"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1665,8 +1665,8 @@
       "mechanism": "M-task6-verify-nondiscriminating",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "openspec/changes/finish-modality-program-route/tasks.md:35",
+        "openspec/changes/finish-modality-program-route/tasks.md:36"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1676,10 +1676,10 @@
       "mechanism": "M-f1-config-transition-and-label-verify",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/finish-modality-program-route/tasks.md:45",
+        "private-source:kt#0fd074c5:13-14",
+        "private-source:kt#a54d7492:65-75",
+        "private-source:yml#b3bab413:217-224"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1689,9 +1689,9 @@
       "mechanism": "M-f3-header-only-verify",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/finish-modality-program-route/tasks.md:44",
+        "openspec/changes/finish-modality-program-route/gate.md:6",
+        "openspec/changes/finish-modality-program-route/tasks.md:50"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1701,14 +1701,14 @@
       "mechanism": "M-f1-s1-unreachable-via-picker",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/finish-modality-program-route/tasks.md:45",
+        "private-source:kt#8a13da92:95-97",
+        "private-source:kt#a54d7492:65-76",
+        "private-source:kt#d517d535:33",
+        "private-source:kt#c6a2137c:183",
+        "private-source:kt#c6a2137c:272-280",
+        "private-source:kt#c6a2137c:329-337",
+        "private-source:kt#c6a2137c:509-512"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -1718,9 +1718,9 @@
       "mechanism": "M-f1-credential-sink-inventory",
       "blocking": "below-threshold",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/finish-modality-program-route/tasks.md:45",
+        "openspec/changes/finish-modality-program-route/gate.md:3",
+        "private-source:md#96d508af"
       ],
       "reason": "Target assessment retained locally; private-repository claim text is not published."
     },
@@ -5186,49 +5186,49 @@
       "id": "TrialTSmt1.1",
       "trial": "T-Smt-1",
       "index": 1,
-      "description": "Fresh finding TrialTSmt1.1 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — terminal stop cancels sibling calls\",\"defect\":\"The proposed terminal-tool mechanism does not guarantee that sibling calls finish: it aborts the run signal while the batch is still executing. A normal batch containing session_move followed by a queued exclusive call can skip that call, while an already-running signal-aware call can be cancelled. This breaks the stated batch contract and can leave partially performed, potentially irreversible user work.\",\"evidence\":\"design.md:60-71 and tasks.md:21 assume terminal abort preserves siblings. packages/coding-agent/src/session/agent-session.ts:3923-3929,5562-5576 abort the agent on the tool result; packages/agent/src/agent-loop.ts:3304-3312,3533-3542,3849-3860 pass that signal to tools and skip calls whose signal has aborted.\",\"change\":\"Implement a stop-after-batch mechanism that does not abort sibling tool signals; test an in-flight abort-aware sibling and a sibling queued behind an exclusive call, as well as the no-further-provider-request condition.\"}"
     },
     {
       "id": "TrialTSmt1.2",
       "trial": "T-Smt-1",
       "index": 2,
-      "description": "Fresh finding TrialTSmt1.2 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — first worktree cannot be created\",\"defect\":\"A fresh checkout normally has no .worktrees directory. The design requires realpath of that directory and of the target's parent before creation, but never creates the parent. Consequently the first requested worktree fails rather than being created; the failure is reversible but defeats the primary autonomous workflow.\",\"evidence\":\"design.md:111-116 and tasks.md:27 require the existing parent realpath; specs/session-relocation/spec.md:31-39 requires creation of a missing worktree. The manual fixture in tasks.md:41 already contains .worktrees/a, so it cannot expose this case.\",\"change\":\"Safely create or otherwise handle a missing configured worktree directory, then validate its resolved location before creating the worktree; add a fresh-checkout negative/control test and real-surface scenario.\"}"
     },
     {
       "id": "TrialTSmt1.3",
       "trial": "T-Smt-1",
       "index": 3,
-      "description": "Fresh finding TrialTSmt1.3 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Architecture — shared helper changes existing worktree CLI contract\",\"defect\":\"The proposed helper's branch/base-only interface cannot represent existing detached checkouts, forced branch creation, or the CLI's current interpretation of explicit commits and -b. Applying its new default-main-HEAD and existing-branch rules to the CLI changes ordinary existing commands, despite the stated unchanged behavior. Affected checkout or branch changes can be difficult to reverse if user work is involved.\",\"evidence\":\"design.md:120-126 and tasks.md:11 prescribe one helper with only repository, path, branch, base and settings. packages/coding-agent/src/cli/worktree-cli.ts:49-57,99-145 supports forceBranch, detach, commit, and creates -b from the caller's HEAD; proposal.md:64 promises no /move or /wt behavior change and design.md:53-55 calls for shared CLI behavior.\",\"change\":\"Preserve the CLI's full ref-selection and force/detach semantics, separating its policy from a shared low-level add operation where necessary; add regression tests for -b, -B, --detach, explicit commit and invocation from a different worktree.\"}"
     },
     {
       "id": "TrialTSmt1.4",
       "trial": "T-Smt-1",
       "index": 4,
-      "description": "Fresh finding TrialTSmt1.4 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Verification — resume requirement is not exercised\",\"defect\":\"The plan never verifies that the relocated session is discoverable by an actual resume from the destination. A correctly placed file can still be excluded by the resume listing or indexed under the wrong identity, so all specified tests and QA could pass while this required behavior fails. The damage is a reversible but broken session-resumption workflow.\",\"evidence\":\"specs/session-relocation/spec.md:74-82 requires omp --resume to list the session; tasks.md:33 checks only the session-file bucket, and tasks.md:41 has no resume scenario.\",\"change\":\"Add an end-to-end move followed by the real destination-scoped resume discovery, asserting that the moved session is listed and can be resumed.\"}"
     },
     {
       "id": "TrialTSmt1.5",
       "trial": "T-Smt-1",
       "index": 5,
-      "description": "Fresh finding TrialTSmt1.5 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Executability — RPC verification assumes a nonexistent field\",\"defect\":\"The specified RPC test cannot verify the target cwd using the current get_state response: it contains no cwd field. Implementing only the listed relocator leaves the task's required verification impossible; adding the field instead is an unplanned RPC wire/API change.\",\"evidence\":\"tasks.md:35 requires get_state to report the target cwd; packages/coding-agent/src/modes/rpc/rpc-mode.ts:2030-2074 constructs the response without cwd.\",\"change\":\"Either verify the RPC move through an existing observable such as a destination-relative tool interaction, or explicitly design and test the RPC state contract change and its client compatibility.\"}"
     },
     {
       "id": "TrialSRtr3.1",
       "trial": "S-Rtr-3",
       "index": 1,
-      "description": "Fresh finding TrialSRtr3.1 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Repair entry-path parity\",\"defect\":\"Following task 4.1 literally leaves existing malformed-trailer branches that order immediate re-dispatch. A normal FAIL reply whose blocker lines disagree with its trailer can therefore bypass the new same-reviewer repair procedure. The same conflict exists for an APPROVE trailer under the existing normalization rule. This breaks the repair-before-re-dispatch requirement; the damage is reversible but repeats the full review the change is intended to avoid.\",\"evidence\":\"openspec/changes/review-trailer-repair/tasks.md:19 specifically replaces only the sentence beginning “A reply carrying no trailer is the same case” and adds the messaging exception. team-config/agent/skills/review-work/SKILL.md:325 separately says a FAIL with disagreeing blocker lists must be re-dispatched; SKILL.md:291 orders re-dispatch for an APPROVE trailer. Both remain inconsistent with design.md:31-41 and specs/review-trailer/spec.md:63, which apply repair when a usable reply's trailer fails the check. The task 4.1 checker does not detect either retained instruction.\",\"change\":\"Explicitly reconcile every existing malformed-trailer and verdict-normalization branch with the new repair procedure. Route eligible replies through one common repair decision, while clearly preserving the cases that require a fresh review rather than a formatting repair. Update the scenarios and verification to cover those branches.\"}"
     },
     {
       "id": "TrialSRtr3.2",
       "trial": "S-Rtr-3",
       "index": 2,
-      "description": "Fresh finding TrialSRtr3.2 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Gate classification — Existing state-machine transition guard\",\"defect\":\"The plan treats changing the admission guard for an F2 gate-wave transition as outside concurrency/state-machine changes because it adds no event shape or state. That is not the relevant distinction: a previously permitted transition now depends on reviewer-artifact validation. In the normal missing/malformed-trailer case motivating this change, the ledger must remain in the previous state rather than advance. Class none allows omission of the mandatory strategic review for this change to an audit-trail transition. This is recoverable before merge by correcting the classification and review depth.\",\"evidence\":\"openspec/changes/review-trailer-repair/gate.md:3 declares Mandatory class none; gate.md:5 justifies this with “the new wave precondition validates input and adds no state or transition.” design.md:29 and tasks.md:15 explicitly add the new guard before append. The existing transition is visible in team-config/agent/skills/review-work/scripts/gate-convergence.mjs:471-563, including outcome validation, decide, and gate_wave append. openspec/config.yaml:12 requires full review for concurrency/state-machine changes; unchanged ledger event shapes do not make a changed transition guard exempt.\",\"change\":\"Classify the delivered gate-transition change as concurrency-state and require both implementation-audit and strategic-risk-review at F2. Keep product risk tier; no credential classification is needed merely for ordinary verification sessions.\"}"
     },
     {
       "id": "TrialSRtr3.3",
       "trial": "S-Rtr-3",
       "index": 3,
-      "description": "Fresh finding TrialSRtr3.3 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Verification — Material model-driven behavior is not exercised\",\"defect\":\"The planned live run proves that an auditor can answer a manually sent repair message, but not that an orchestrator following the shipped guidance chooses repair before re-dispatch. It can pass when the first reply is already a valid PASS and when the orchestrator's repair-selection or failed-repair handling is broken. Thus the central workflow change and its riskiest branch remain unproven. This evidence gap can permit the conflicting instructions above to ship; it is reversible by correcting the QA before merge.\",\"evidence\":\"openspec/changes/review-trailer-repair/tasks.md:25 defines s3 as dispatching an auditor, manually sending TRAILER REPAIR, and checking its response and absence of tool calls. It does not require a malformed original reply, an orchestrator session consuming the updated guidance, or observation of the fresh-dispatch branch after a failed repair. tasks.md:19-20 only inspect text fragments. Those checks can pass with the conflicting SKILL.md:291/325 instructions retained, despite specs/review-trailer/spec.md:65-79 requiring repair-first, failed-repair fallback, and no repair for unusable verdicts.\",\"change\":\"Add fresh ordinary orchestrator-session QA using the shipped guidance and explicit disposable malformed/missing-trailer fixtures. Retain the actual tool interactions showing same-reviewer repair before any new dispatch, plus a failed or verdict-changing repair leading to the bounded fresh dispatch and an unusable-verdict adjacent case. Keep the existing live same-reviewer run as transport/response evidence; judge retained behavior directly rather than adding a command that re-scores it.\"}"
     },
     {
       "id": "TrialSFmp1.1",
@@ -5288,61 +5288,61 @@
       "id": "TrialSRtr1.1",
       "trial": "S-Rtr-1",
       "index": 1,
-      "description": "Fresh finding TrialSRtr1.1 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Repair entry-path parity\",\"defect\":\"The planned guidance edit leaves an existing malformed-trailer path directing an immediate fresh dispatch. With an ordinary FAIL reply whose narrative blocker IDs disagree with its trailer, the shipped skill would contain both repair-first and re-dispatch-first instructions. This breaks the repair-before-re-dispatch requirement; the wasted review is recoverable.\",\"evidence\":\"openspec/changes/review-trailer-repair/tasks.md:19 specifically replaces the sentence beginning “A reply carrying no trailer is the same case” and amends the later messaging prohibition. However, team-config/agent/skills/review-work/SKILL.md:325 separately says: “A FAIL whose `Blocker B<n>:` lines and trailer `blockers:` field disagree is incomplete: re-dispatch it like a missing trailer”. This is a failure of the existing reconciliation check at scripts/validate-gate-record.mjs:590-598, so it falls within design.md:31's repair eligibility and specs/review-trailer/spec.md:62-79's requirement and negative control.\",\"change\":\"Inventory and reconcile every existing trailer-failure instruction, not only the missing-trailer sentence. Explicitly route blocker-reconciliation failures through the same single repair procedure, retaining fresh dispatch only for the stated fallback conditions.\"}"
     },
     {
       "id": "TrialSRtr1.2",
       "trial": "S-Rtr-1",
       "index": 2,
-      "description": "Fresh finding TrialSRtr1.2 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"openspec/config.yaml — Gate classification\",\"defect\":\"Mandatory class `none` incorrectly treats a changed admission condition in the existing convergence state machine as outside the state-machine class. A normal F2 wave with a malformed or absent trailer will now remain unrecorded instead of advancing the convergence ledger. This is intentional behaviour, but its classification currently permits omission of the mandatory strategic review of that change to the audit trail.\",\"evidence\":\"openspec/changes/review-trailer-repair/gate.md:3-5 declares `none` because the new precondition “adds no state or transition”. design.md:29 changes whether `wave` appends a transition. The existing machine calculates the next wave from ledger state at team-config/agent/skills/review-work/scripts/gate-convergence.mjs:471-475, decides and appends its convergence outcome at :547-563, and consumes STOP decisions at :566-590. openspec/config.yaml:13 requires full review for concurrency/state-machine changes; review-work/SKILL.md:98-104 also makes that class mandatory. Changing an existing transition's admission condition does not require adding a new event shape to qualify.\",\"change\":\"Classify this as `concurrency-state` and require both implementation-audit and strategic-risk-review. Keep the justified product risk tier and unchanged event/schema claims.\"}"
     },
     {
       "id": "TrialSRtr1.3",
       "trial": "S-Rtr-1",
       "index": 3,
-      "description": "Fresh finding TrialSRtr1.3 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"CHECK 3 / Change verification — Guidance proof\",\"defect\":\"The guidance verification cannot establish the required repair-first behaviour or its fallback. Its known-phrase checks can pass while a contrary redispatch instruction remains, and the live scenario manually sends a repair message rather than exercising an orchestrator following the shipped guidance. Thus normal missing/malformed replies, failed repairs, and conflicting/no-verdict replies can all be mishandled without failing the planned evidence. This leaves the central workflow improvement unproven; the resulting unnecessary redispatches are recoverable.\",\"evidence\":\"openspec/changes/review-trailer-repair/tasks.md:19 tests absence of one exact old sentence and presence of repair-message fragments; :20 similarly checks sentence/marker containment. The surviving redispatch instruction at team-config/agent/skills/review-work/SKILL.md:325 is not detected by that command. Yet specs/review-trailer/spec.md:77-79 requires the check to fail whenever the shipped guidance still prescribes redispatch first. tasks.md:25's s3 dispatches an auditor, then directly sends `TRAILER REPAIR.` and checks the resulting trailer; it does not require an initially missing/malformed trailer, observe an orchestrator choosing repair before `task`, or exercise failed-repair/no-verdict handling. The `Change verification` section of skill://review-work requires fresh ordinary sessions to exercise each changed mechanism, its riskiest branch, and adjacent behaviour.\",\"change\":\"Retain structural header/marker checks where useful, but do not treat a denylist of old prose as proof of routing semantics. Add fresh ordinary orchestrator sessions on disposable fixtures that expose missing and malformed replies, observe same-reviewer repair before redispatch, and cover failed repair/verdict change plus no-verdict or conflicting-verdict handling. Retain original and repaired replies, successful tool interactions, and dispatch ordering; judge those outputs directly rather than adding a behavioural rescoring command.\"}"
     },
     {
       "id": "TrialSRtr1.4",
       "trial": "S-Rtr-1",
       "index": 4,
-      "description": "Fresh finding TrialSRtr1.4 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Executability — Shared-module extraction verification\",\"defect\":\"The extraction cannot pass task 1.1's named verification with the existing suite unchanged. Moving the required criterion predicate into the shared module necessarily breaks an existing test that searches for that predicate in the validator source. This is a deterministic implementation-time failure, not a possible runtime regression, and is readily reversible.\",\"evidence\":\"openspec/changes/review-trailer-repair/design.md:25 moves every record-independent trailer rule into trailer.mjs; :54 promises “the record check's existing suite runs unchanged against it”. tasks.md:7 repeats the extraction and runs validate-gate-record.test.mjs without a test adaptation task. But team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:1376-1385 reads only the validator source and requires it to contain `criteria.every((criterion) => !planText.includes(criterion.invariant))`. The predicate currently lives at validate-gate-record.mjs:562 and is among the rules that D1 moves.\",\"change\":\"Include the extraction-sensitive test update in task 1.1: inspect the shared production predicate after the move, or replace that source-location assertion with a discriminating test of the shared production seam. Preserve the existing copied-plus-original-criterion regression coverage, and remove the claim that the suite can run unchanged.\"}"
     },
     {
       "id": "TrialSApp3.1",
       "trial": "S-App-3",
       "index": 1,
-      "description": "Fresh finding TrialSApp3.1 (item App); claim text retained locally."
+      "description": "{\"area\":\"Correctness — session-denial answer propagation\",\"defect\":\"D3/D4 add a deny-session answer and record it in the wrapper, but do not migrate requestApproval's answer filter. Following the specified changes, an ordinary ACP “always reject” answer becomes a one-call denial before reaching the new recording branch. Later parent and descendant calls therefore remain authorized by their ordinary policies, breaking the central session-denial requirement. The missing session preference is reversible; subsequent authorized shell effects may not be.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:39 maps deny:session to deny-session; design.md:44 records it only when requestApproval returns that answer. tasks.md:13 specifies the new answer type, runner state, and wrapper handling, while tasks.md:18 changes requestApproval for call metadata. packages/coding-agent/src/tools/approval.ts:730-734 accepts only once, session, and valid grant objects; every other UI answer returns deny. specs/tool-approval/spec.md:44 requires all later matching calls to be denied.\",\"change\":\"Explicitly update requestApproval to preserve deny-session only when session scope is offered, while rejecting it for per-call prompts. Keep the task 2.2 and ACP tests on the real requestApproval→wrapper path, asserting that a second call and a child call are denied without another UI interaction.\"}"
     },
     {
       "id": "TrialSApp3.2",
       "trial": "S-App-3",
       "index": 2,
-      "description": "Fresh finding TrialSApp3.2 (item App); claim text retained locally."
+      "description": "{\"area\":\"Correctness — MCP default-mode contract\",\"defect\":\"The promised default-mode effect cannot follow from the proposed resolver reuse: existing MCP tools are write-tier, not exec-tier. An unconfigured ACP session using write will still execute MCP tools without requesting permission. This contradicts the proposal and design's stated user-visible result and is absent from the parity tests. MCP calls can have irreversible external effects; this is not merely a documentation typo about an internal symbol.\",\"evidence\":\"openspec/changes/acp-permission-parity/proposal.md:10 includes MCP tools among exec-tier calls that will ask; design.md:68 repeats that unconfigured ACP users get MCP prompts. packages/coding-agent/src/mcp/tool-bridge.ts:728 and :866 declare approval = write for both MCP tool implementations. packages/coding-agent/src/tools/settings.ts:309-310 documents write as auto-approving read/write, and src/tools/approval.ts:444-445 implements the tier-based allow. tasks.md:20 tests task/eval/vibe_spawn but not MCP.\",\"change\":\"Reconcile the intended contract explicitly. If MCP calls must prompt by default, design the shared tier/policy change and its TUI consequences, and test both MCP implementations through top-level and mounted dispatch. Otherwise obtain an explicit scope correction and remove the MCP-prompt promise rather than presenting it as achieved.\"}"
     },
     {
       "id": "TrialSApp3.3",
       "trial": "S-App-3",
       "index": 3,
-      "description": "Fresh finding TrialSApp3.3 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — approval UI entry-path parity\",\"defect\":\"Adding approve to the ACP UI object does not make that object available to all approval consumers. For clients without form elicitation, the existing ACP setup still skips installing the tool UI context. A browser prelude host call inside an approved eval therefore fails before sending its permission request. Normal wrapper approvals can work while this path remains broken, violating the requirement that every approval prompt work without elicitation. The failure is reversible but blocks legitimate ACP browser workflows.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:31-36 and tasks.md:18 change createAcpExtensionUiContext and prelude call metadata, but do not change tool-context installation. packages/coding-agent/src/modes/acp/acp-agent.ts:2709-2710 calls setToolUIContext only inside the supportsFormElicitation condition. src/sdk.ts:4403-4404 shows that setter installs the tool context. src/eval/preludes.ts:101-106 rejects when that context lacks UI, before requestApproval at :108-110. src/tools/browser/prelude-definition.ts:36 declares browser host calls exec-tier. specs/acp-tool-permissions/spec.md:56 requires every approval prompt to work without elicitation.\",\"change\":\"Install the approval-capable tool UI context independently of form-elicitation support, preserving separate capability gating for form-only features. Add real ACP v1/v2 tests with no elicitation capability that approve eval and then exercise an exec-tier browser/prelude host call, proving its request reaches the client.\"}"
     },
     {
       "id": "TrialSApp3.4",
       "trial": "S-App-3",
       "index": 4,
-      "description": "Fresh finding TrialSApp3.4 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 4 — v2 cancellation outcome preservation\",\"defect\":\"D3 relies on receiving a cancelled outcome, but the reused v2 transport normalizes cancellation into a selected reject_once response. With the new option IDs, that synthetic ID is not even offered, so the new adapter reports an unknown-option failure instead of cancellation. A normal user cancelling a v2 permission card thus violates the explicit result-status requirement. No tool execution is needed to trigger this; the incorrect status is reversible.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:39 requires cancelled→ToolAbortError; specs/acp-tool-permissions/spec.md:94-98 requires a cancelled result. packages/coding-agent/src/modes/acp/acp-surface-v2.ts:536-545 passes responses through interpretV2PermissionOutcome. src/modes/acp/acp-event-mapper-v2.ts:175-183 preserves only known selections and maps everything else to the fixed reject_once ID defined at :39. test/acp-event-mapper-v2.test.ts:318 currently asserts this lossy cancellation mapping. tasks.md:22 calls for new request-shape tests and unknown-outcome rejection, not cancellation preservation.\",\"change\":\"Preserve valid cancelled outcomes through the v2 normalizer and distinguish malformed/unknown responses from user rejection. Add a real v2 cancellation round trip asserting cancellation classification and zero execution, plus cancellation while a permission request remains unanswered. Specify where the active turn signal enters the new approve transport; the existing wrapper's requestApproval call at wrapper.ts:445-450 is not itself raced with that signal.\"}"
     },
     {
       "id": "TrialSApp3.5",
       "trial": "S-App-3",
       "index": 5,
-      "description": "Fresh finding TrialSApp3.5 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 7 — edit target discovery and permission locations\",\"defect\":\"The plan removes the edit-aware target extraction but reuses a helper that cannot inspect the actual hashline, apply_patch, or sloppy payloads. Consequently ordinary destructive edits in supported edit modes produce permission requests with no file locations; patch-mode renames also lose their destination. This breaks the request metadata requirement and removes information from the authorization dialog. The metadata failure is reversible, although approving the obscured destructive action may not be.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:31 removes getPermissionIntent, and :36 derives locations from extractPermissionLocations using call args. specs/acp-tool-permissions/spec.md:56 requires locations for touched files. packages/coding-agent/src/edit/schemas.ts:32-48 defines apply_patch/hashline/sloppy inputs as { input: string }; patch rename is nested in edits at :17-29. src/session/acp-permission-gate.ts:113-155 only examines top-level path/file/paths/oldPath/newPath/from/to/source/destination unless explicitPaths is supplied. The existing proxy supplies inspected intent paths at src/session/session-tools.ts:982-986; D2 does not replace that source.\",\"change\":\"Expose one tool-owned structured target artifact from the same inspection used for edit approval, and carry it into the ACP request rather than independently guessing targets from raw argument fields. Test locations for hashline and apply_patch deletion, multi-file edits, and both source and destination of a move.\"}"
     },
     {
       "id": "TrialSApp3.6",
       "trial": "S-App-3",
       "index": 6,
-      "description": "Fresh finding TrialSApp3.6 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — subagent lifecycle verification coverage\",\"defect\":\"Tasks 4.1/4.2 enumerate warm revival, persisted revival, restore, isolation, and workpool paths, but their listed controls do not exercise several of those paths. Omitting the new fields specifically from a revival constructor can leave every named new test green while a normally parked or restored child runs a denied command or reads stale disk content. This undermines verification of requirements that expressly include revived descendants. Lost-buffer behavior is reversible; an inherited-denial bypass can permit irreversible shell effects.\",\"evidence\":\"openspec/changes/acp-permission-parity/tasks.md:27-28 lists task, running-child, grandchild, vibe, eval-denial, and basic bridge tests, but no warm/cold revival, restore, or workpool-reuse controls; isolation is tested only for filesystem routing, not denial inheritance. specs/acp-client-bridge/spec.md:10 explicitly includes revived agents, and specs/tool-approval/spec.md:63 applies to every ancestor/descendant. The distinct reconstruction boundaries exist at packages/coding-agent/src/task/executor.ts:4218, task/persisted-revive.ts:228, task/restore.ts:89, and task/workpool.ts:401. F1 at tasks.md:35 exercises initial task children only.\",\"change\":\"Add an entry-path matrix marking ledger and reduced-bridge propagation, with justified exceptions, and controls that uniquely traverse warm park/revive, persisted revival/restore, workpool follow-up, isolated denial inheritance, and eval-child filesystem routing. Prove each control goes red when propagation is removed at its own boundary, not merely when the common initial-spawn seam is broken.\"}"
     },
     {
       "id": "Replacement1SSpt3.1",
@@ -5492,25 +5492,25 @@
       "id": "TrialSSmt3.1",
       "trial": "S-Smt-3",
       "index": 1,
-      "description": "Fresh finding TrialSSmt3.1 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — terminal batch handling\",\"defect\":\"D1 reuses an abort mechanism that does not preserve running sibling tools. With a successful session_move and a slower read or foreground bash call in the same batch, the move aborts the signal supplied to that sibling. The batch may finish by recording cancellation rather than completing the requested operation. This violates the batch-completion requirement; a partially executed shell operation can also leave user work incomplete, with reversibility depending on that operation.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:62-70 claims the batch finishes while distinguishing this approach from an abort that kills siblings; tasks.md:21 implements this by generalising the existing terminal-result predicate. However, packages/coding-agent/src/session/agent-session.ts:5564-5573 calls agent.abort immediately after the qualifying result. packages/agent/src/agent.ts:1553-1554 aborts the controller without special handling for this reason. packages/agent/src/agent-loop.ts:3309-3312,3348,3637-3641 supplies that same signal to sibling executions, and :3534-3543 skips calls whose signal is already aborted. Read operations explicitly observe cancellation at packages/coding-agent/src/tools/read.ts:591,718,2941.\",\"change\":\"Separate stopping the next provider request from cancelling the current batch, or defer the terminal abort until all batch executions have completed. Extend task 4.1 with a deliberately delayed, cancellation-sensitive sibling and assert successful completion—not merely that both result records exist—and cover a call waiting behind an exclusive sibling.\"}"
     },
     {
       "id": "TrialSSmt3.2",
       "trial": "S-Smt-3",
       "index": 2,
-      "description": "Fresh finding TrialSSmt3.2 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — tool availability lifecycle\",\"defect\":\"The plan gates tool construction on a relocator installed only after session creation, but does not specify rebuilding or reconciling the registry when that handler is installed. On normal host startup the factory therefore omits session_move before the host can install its relocator. Following the cited setter precedent alone leaves the feature unavailable. This prevents ordinary use of the feature and is reversible by correcting registration.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:75-90 and tasks.md:28 require building the tool only when a relocator is installed; tasks.md:33-35 install handlers in the hosts. In the existing lifecycle, packages/coding-agent/src/sdk.ts:2568 constructs tools before AgentSession itself is created at :4728; :4863 only then marks the session available. ACP likewise obtains an already-created session at packages/coding-agent/src/modes/acp/acp-agent.ts:1493-1496. The proposed precedent, packages/coding-agent/src/session/agent-session.ts:3180-3182, only assigns handler fields and performs no registry reconciliation.\",\"change\":\"Define the bootstrap and removal lifecycle explicitly: either provide host capability before initial tool construction or make setting/clearing the relocator reconcile the built-in registry and provider-facing tool presentation. Test actual host startup with no preinstalled fake handler, plus removal, while retaining the print/SDK/subagent exclusions.\"}"
     },
     {
       "id": "TrialSSmt3.3",
       "trial": "S-Smt-3",
       "index": 3,
-      "description": "Fresh finding TrialSSmt3.3 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 4 — missing worktree-directory state\",\"defect\":\"D4 requires realpath of the configured worktree directory before allowing creation, but does not handle that directory itself being absent. A fresh repository normally has no .worktrees directory. Its first session_move creation therefore cannot satisfy the prescribed validation, despite being a required supported operation. The failure is local and reversible, but blocks the principal create-and-move workflow.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:111-115 requires a missing target's parent's realpath to equal realpath(<primaryRoot>/<worktree.repoDir>); tasks.md:27 repeats that validation before creation. Neither task 2 nor task 5 specifies safely creating the absent parent or validating a missing parent through its existing ancestors. The manual QA fixture in tasks.md:41 already has .worktrees/a, so it cannot expose this failure.\",\"change\":\"Specify validation and creation for an absent configured worktree directory, preserving containment and symlink checks and avoiding filesystem side effects for rejected targets. Add a production-tool test and real-surface creation scenario starting with no .worktrees directory.\"}"
     },
     {
       "id": "TrialSSmt3.4",
       "trial": "S-Smt-3",
       "index": 4,
-      "description": "Fresh finding TrialSSmt3.4 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 8 — competing pending moves\",\"defect\":\"There is no admission or tie-breaking rule for two session_move calls in one assistant batch. Both may validate and create worktrees, then record a singular pending move; whichever finishes last can determine the destination while both calls report success. This is plausible parallel tool use, not a manually constructed filesystem race. It violates the successful-call target contract and makes the resulting checkout nondeterministic; the created local worktrees and mistaken relocation are reversible.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:75-76 defines requestSessionMove as recording the pending move and returning whether a relocator is installed, not whether another request already owns the transition. D3 at :95-101 consumes that singular pending move and starts one continuation. tasks.md:27 schedules the request only after optional worktree creation, and tasks.md:21-23 contain no competing-request control. The existing scheduler permits shared tool calls to execute concurrently at packages/agent/src/agent-loop.ts:3838-3856.\",\"change\":\"Define one deterministic per-batch move admission policy and reserve ownership before creation side effects. Reject conflicting requests visibly, or otherwise define an explicit supported selection contract. Add tests with two requests whose validation/creation finishes in opposite orders, proving the selected target, rejected result, side effects and continuation count.\"}"
     },
     {
       "id": "TrialTFmp1.1",
@@ -5534,145 +5534,145 @@
       "id": "TrialSRtr2.1",
       "trial": "S-Rtr-2",
       "index": 1,
-      "description": "Fresh finding TrialSRtr2.1 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Repair entry-path parity and verification\",\"defect\":\"A malformed FAIL trailer can still take the immediate re-dispatch path, and the planned guidance check will not detect it. The normal trigger is a review with findings whose narrative blocker IDs disagree with its trailer. Task 4.1 changes the missing-trailer sentence but leaves the preceding explicit re-dispatch instruction unaddressed. This breaks repair-before-re-dispatch and repeats the expensive review; the damage is reversible. The live QA does not close this gap because it explicitly sends a repair message rather than exercising the guidance's decision on a malformed reply.\",\"evidence\":\"openspec/changes/review-trailer-repair/tasks.md:19 replaces “A reply carrying no trailer is the same case …”; its Verify command checks that exact phrase and the presence of repair text, but not the preceding instruction. team-config/agent/skills/review-work/SKILL.md:325 separately says a FAIL with disagreeing blocker lines and trailer IDs is incomplete: “re-dispatch it like a missing trailer”. Keeping that clause while making all named edits lets the guidance check exit zero, contrary to openspec/changes/review-trailer-repair/specs/review-trailer/spec.md:77-79. tasks.md:25's s3-live-repair manually requests repair without requiring an initially malformed reply or observing repair-first dispatch selection.\",\"change\":\"Explicitly replace every immediate re-dispatch instruction for a repair-eligible trailer failure, including the blocker-reconciliation clause. Strengthen the guidance negative control so retaining that clause fails. Exercise the repair-first workflow on a malformed or missing-trailer reply in a fresh ordinary session, and retain the actions and outputs showing repair precedes fresh dispatch; also exercise failed repair falling back to fresh dispatch.\"}"
     },
     {
       "id": "TrialSRtr2.2",
       "trial": "S-Rtr-2",
       "index": 2,
-      "description": "Fresh finding TrialSRtr2.2 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"plan-merge-gate — Mandatory class\",\"defect\":\"The plan changes an admission guard of the persisted gate state machine but classifies it as none because it adds no state or transition. A reviewer PASS/FAIL with a missing or invalid trailer currently appends a wave; the planned guard prevents that transition. Unchanged event shapes do not make this an unchanged state machine. Normal gate execution can therefore proceed with fewer mandatory reviewers than repository policy requires, weakening review of the audit-trail change. This is reversible by reclassifying and running the required review.\",\"evidence\":\"openspec/changes/review-trailer-repair/gate.md:3 sets Mandatory class to none, and gate.md:5 justifies it by saying the new precondition “adds no state or transition”. design.md:29 (D3) adds checks before append. team-config/agent/skills/review-work/scripts/gate-convergence.mjs:501-563 derives outcomes, convergence decisions and persisted gate_wave events; its lines 1-5 identify it as the writer and judge of those ledger events. openspec/config.yaml:12 requires full review for concurrency/state-machine changes, and team-config/agent/skills/review-work/SKILL.md:92-98 makes both reviewer invocations mandatory for that class.\",\"change\":\"Set Mandatory class to concurrency-state and require both implementation-audit and strategic-risk-review at F2. Describe the changed transition guard and its persisted consequence rather than relying on unchanged schemas or the absence of new state names.\"}"
     },
     {
       "id": "TrialSRtr2.3",
       "trial": "S-Rtr-2",
       "index": 3,
-      "description": "Fresh finding TrialSRtr2.3 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Verification — Shared-module extraction\",\"defect\":\"Performing the specified extraction makes task 1.1's verification fail even when behavior is preserved. The plan expressly promises the existing suite runs unchanged, but that suite asserts that the moved predicate remains literally inside validate-gate-record.mjs. The ordinary trigger is implementing D1 as written; tasks 1.1 and 5.1 then cannot pass. This is a reversible test-maintenance defect.\",\"evidence\":\"openspec/changes/review-trailer-repair/design.md:25 moves the trailer rules into trailer.mjs, and design.md:53 says the record check's existing suite runs unchanged. tasks.md:7 requires that existing suite for the extraction. team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs:1376-1385 reads only validate-gate-record.mjs and asserts it contains the exact string `criteria.every((criterion) => !planText.includes(criterion.invariant))`. D1 moves that predicate out of that file.\",\"change\":\"Include the affected test migration in task 1.1: inspect the shared module for the quantifier while retaining the assertion against the shipped skill text. Preserve the copied-criterion and appended-criterion behavioral coverage; do not retain dead predicate text merely to satisfy the source assertion.\"}"
     },
     {
       "id": "TrialSSmt1.1",
       "trial": "S-Smt-1",
       "index": 1,
-      "description": "Fresh finding TrialSSmt1.1 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — terminal stop cancels sibling tools\",\"defect\":\"D1 assumes the terminal-tool abort stops only subsequent provider requests while sibling tools finish normally. The existing mechanism also aborts the signal supplied to sibling tools. In an ordinary batch containing session_move and a still-running foreground bash call, the successful move would interrupt that call rather than let it finish. This violates the batch-completion requirement and can leave partially completed local operations; the damage is potentially recoverable, but not necessarily automatically reversible.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:62-64 proposes extending the terminal-result predicate without changing batch cancellation. packages/coding-agent/src/session/agent-session.ts:5562-5576 invokes agent.abort(TERMINAL_TOOL_RESULT_ABORT_REASON) from the after-tool hook. packages/agent/src/agent-loop.ts:3309-3348 gives ordinary sibling tools that same run signal, and :3633-3636 passes it to execute. packages/coding-agent/src/tools/bash.ts:1601-1625 passes the signal into foreground bash execution. tasks.md:21 tests a relative read, but does not require a sibling that remains running when session_move completes.\",\"change\":\"Separate stop-before-next-provider-call from cancellation of the active batch, or defer the terminal abort until every sibling has completed. Explicitly add the necessary agent-loop work to the plan. Test with a barrier-controlled running sibling: complete session_move first, prove the sibling is not aborted and finishes in the old cwd, then prove relocation occurs with no intervening provider request.\"}"
     },
     {
       "id": "TrialSSmt1.2",
       "trial": "S-Smt-1",
       "index": 2,
-      "description": "Fresh finding TrialSSmt1.2 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — first worktree cannot pass target validation\",\"defect\":\"D4 requires realpath of the configured worktree directory before creation, but never establishes that directory when it is absent. A normal checkout that has never used .worktrees therefore cannot create its first worktree through the specified sequence. This directly breaks the creation goal; it is reversible by manually creating the parent, but the tool is intended to remove that manual prerequisite.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:111-115 accepts a missing target only by comparing its parent's realpath with realpath(<primaryRoot>/<worktree.repoDir>). tasks.md:27 orders that validation before addRepoWorktree, without a missing-parent path. The real-session fixture in tasks.md:41 already contains .worktrees/a, so it cannot expose this failure. The existing creation helper explicitly creates its parent before adding a worktree at packages/coding-agent/src/session/session-worktree.ts:149-154.\",\"change\":\"Define safe validation and creation when the configured parent itself is missing: establish containment from the existing canonical ancestor, validate the configured relative components, then create the parent at the appropriate approved side-effect boundary. Add a real-git test starting with no .worktrees directory, and prove the first creation succeeds while invalid targets create neither parent nor branch.\"}"
     },
     {
       "id": "TrialSSmt1.3",
       "trial": "S-Smt-1",
       "index": 3,
-      "description": "Fresh finding TrialSSmt1.3 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — relocator installation occurs after tool construction\",\"defect\":\"The plan gates construction on an installed relocator, but installs that relocator on an already-created AgentSession. It specifies neither late tool registration nor registry reconciliation when the handler changes. Following the cited setter precedent leaves session_move absent on ordinary host startup, defeating the feature entirely. This is reversible by fixing registration, but prevents the planned user workflow.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:75-90 and tasks.md:21,28,33-35 combine handler-gated construction with host-installed setters. packages/coding-agent/src/sdk.ts:2568 constructs built-in tools before the AgentSession is constructed at :4728. The cited precedent, packages/coding-agent/src/session/agent-session.ts:3180-3182, only stores its handler. Late built-in registration is a separate mechanism in packages/coding-agent/src/sdk.ts:3738-3777, limited to SETTINGS_GATED_BUILTIN_TOOL_NAMES.\",\"change\":\"Specify how setSessionRelocator atomically reconciles registration, active-tool visibility and the prompt after installation and removal, or supply host relocation capability before initial tool construction. Add host-startup tests using the actual create-session-then-install sequence, rather than only a ToolSession fixture that already has a relocator.\"}"
     },
     {
       "id": "TrialSSmt1.4",
       "trial": "S-Smt-1",
       "index": 4,
-      "description": "Fresh finding TrialSSmt1.4 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — shared helper drops existing CLI creation modes\",\"defect\":\"The proposed shared helper models only branch creation/checkout with a base. It cannot express the existing CLI's detached checkout and forced branch-reset modes, and its new main-checkout-HEAD default differs from the CLI's caller-relative HEAD default. Moving the CLI core into this contract without an explicit preservation design breaks normal supported CLI calls. These local checkout/ref changes may be recoverable, but they violate existing consumers outside the excluded /move and /wt behavior.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:121-127 and tasks.md:11 specify addRepoWorktree({ repository, path, branch, base, settings }) and its branch policy. packages/coding-agent/src/cli/worktree-cli.ts:118-129 supports -B, --detach and commit-based detached checkout, while :131-133 defaults a new branch to the invoking repository's HEAD. packages/coding-agent/test/cli/worktree-add-hook.test.ts:35-38 already exercises worktree add --detach <path> HEAD, demonstrating a consumer the proposed contract must preserve.\",\"change\":\"Separate the tool's branch/default-base policy from the shared low-level worktree-add operation. Give the shared operation an explicit resolved checkout mode/ref and any required force semantics, or document an equally complete adapter that preserves every existing CLI mode. Add controls for --detach, -B, commit/tag targets and invocation from a linked worktree whose HEAD differs from the primary checkout.\"}"
     },
     {
       "id": "TrialSSmt1.5",
       "trial": "S-Smt-1",
       "index": 5,
-      "description": "Fresh finding TrialSSmt1.5 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — headless verification does not prove destination prompt context\",\"defect\":\"The continued-run requirement applies to TUI, ACP and RPC, but destination-only rule injection and relative-read assertions are planned only for TUI. ACP/RPC tests can pass with changed session.cwd and emitted continuation events while their rescope leaves the cached source prompt intact. The design's claim that the full prompt is rebuilt before every prompt is also not a general guarantee in the cited code. Consequently the planned verification can accept a headless implementation that violates a material requirement. The resulting wrong-context operation is local and potentially reversible, but breaks the stated value proof.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:17-20 claims a full rebuild before each prompt. packages/coding-agent/src/session/session-tools.ts:2080-2093 can return the cached base prompt at agent start, and :2173-2177 explicitly requires callers to refresh after relevant side effects. tasks.md:33 checks destination rules and relative reads only for TUI; :34-35 checks ACP notifications/cwd and RPC events/state. tasks.md:41's ACP manual scenario likewise requires continuation updates, not evidence of the destination rule in the first provider request. The requirement and its negative control are in specs/session-relocation/spec.md:84-96.\",\"change\":\"Correct the rebuild claim and identify the explicit refresh operation that guarantees the first headless continuation's context. Exercise the shared headless rescope with a destination-only rule and distinct relative file contents, and retain the first continuation request's prompt plus tool result. Cover both ACP and RPC adapters, with a control that omits the headless refresh and fails the requirement.\"}"
     },
     {
       "id": "TrialTRtr1.1",
       "trial": "T-Rtr-1",
       "index": 1,
-      "description": "Fresh finding TrialTRtr1.1 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"CHECK 2 — Original-review blocker identity\",\"defect\":\"A repaired FAIL can silently lose an original blocker. The standalone check reconciles the repair reply’s blocker lines against its own trailer, not against the original reply. If the reviewer accidentally reproduces B1 but omits B2 and returns a trailer listing B1, the repair passes; the later gate record can omit B2 from the required disposition. This weakens the review audit trail and can permit an override without accounting for a real finding; the lost evidence is recoverable only while the original remains available.\",\"evidence\":\"design.md:29-39 stores the original separately, validates only the repair reply and original verdict, and continues on a pass. The existing validator reconciles only the narrative in the supplied artifact with its trailer (team-config/agent/skills/review-work/scripts/validate-gate-record.mjs:481-497,572-599).\",\"change\":\"Compare the original and repaired blocker lines or identities before accepting a repair, reject omissions or changes, and cover a two-blocker original with a one-blocker repair as a negative control.\"}"
     },
     {
       "id": "TrialTRtr1.2",
       "trial": "T-Rtr-1",
       "index": 2,
-      "description": "Fresh finding TrialTRtr1.2 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Gate classification\",\"defect\":\"The plan classifies the change as mandatory class none even though it changes the admission guard of the gate convergence state machine: an F2 wave that previously advanced or recorded a decision now refuses before the transition when a trailer is absent or invalid. In ordinary gate operation this bypasses the configured mandatory strategic review for a state-machine change; the missing review is reversible before merge.\",\"evidence\":\"gate.md:3-5 claims the new wave precondition adds no state or transition; design.md:25-27 changes which inputs can reach the transition. gate-convergence.mjs:471-563 checks wave state and appends the next gate_wave decision. openspec/config.yaml:9-11 requires full review for concurrency/state-machine changes.\",\"change\":\"Classify the delivered change as concurrency-state and plan both mandatory review invocations.\"}"
     },
     {
       "id": "TrialTRtr1.3",
       "trial": "T-Rtr-1",
       "index": 3,
-      "description": "Fresh finding TrialTRtr1.3 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Verification — Real repair workflow\",\"defect\":\"The only live repair QA sends a repair message after an ordinary auditor reply; it does not require a missing or malformed trailer, exercise the decision to repair rather than redispatch, or demonstrate the failing-repair fallback. Thus the central workflow can be broken while the prescribed real-session evidence passes. This leaves the material behavior unproved; the verification gap is reversible before merge.\",\"evidence\":\"tasks.md:25 specifies a real auditor, stored reply, direct repair message and successful trailer check, but does not require the original reply to trigger repair or exercise the fallback. The required triggering and fallback behavior is in specs/review-trailer/spec.md:62-71.\",\"change\":\"Exercise the shipped orchestration guidance in fresh ordinary sessions with an actual missing or malformed original trailer, retain the original and repair interactions, and demonstrate both successful repair and a failed repair leading to bounded fresh dispatch.\"}"
     },
     {
       "id": "TrialTRtr1.4",
       "trial": "T-Rtr-1",
       "index": 4,
-      "description": "Fresh finding TrialTRtr1.4 (item Rtr); claim text retained locally."
+      "description": "{\"area\":\"Verification — Guidance negative control\",\"defect\":\"The specified guidance check can pass while the exact forbidden behavior remains: it checks for one old literal sentence and for the presence of repair-related substrings, not whether a differently worded instruction still directs fresh dispatch first. This violates the requirement’s explicit negative control for normal instruction edits; it is reversible before merge.\",\"evidence\":\"tasks.md:19 checks `s.includes(\\\"A reply carrying no trailer is the same case\\\")`, the repair-message prefix, and substring checks in the rules. specs/review-trailer/spec.md:77-79 requires the check to fail whenever the shipped guidance still prescribes fresh redispatch first.\",\"change\":\"Make the negative control discriminate the stated conflicting guidance, including a differently worded redispatch-first instruction, and demonstrate the check fails on that broken fixture.\"}"
     },
     {
       "id": "TrialSApp2.1",
       "trial": "S-App-2",
       "index": 1,
-      "description": "Fresh finding TrialSApp2.1 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 / CHECK 7 — Speculative task authorization\",\"defect\":\"The denial check is added only to ExtensionToolWrapper.execute, but task children can start before that method runs. With the default-enabled speculative launcher, a running child can launch a grandchild despite an inherited session denial for task. Rejecting the finalized task call afterward cannot undo work the grandchild already performed.\",\"evidence\":\"design.md:42-49 confines denial enforcement to the wrapper and runner; tasks.md:27 does not update speculative authorization. In packages/coding-agent/src/speculation/host.ts:216-233, authorizeLaunch delegates to #policyGate, which checks resolveApproval and lifecycle handlers but no denial ledger. packages/coding-agent/src/task/speculative-launch.ts:300-309 then calls launcher.start; src/task/index.ts:875-898 starts the run directly. src/task/settings.ts:268-271 defaults task.speculativeLaunch to true. Concrete trigger: an ACP parent has an already-running child, answers always reject to a later task prompt, and that child streams another task call in its inherited yolo mode. This violates specs/tool-approval/spec.md:62-63. Spawn cancellation is reversible; completed child writes or commands need not be.\",\"change\":\"Make ordinary and speculative authorization consume the same live denial predicate before any child starts. Inventory streamed launches alongside ordinary execution, warm follow-up, parked revival, persisted revival, workpool, isolated task, eval agent(), and vibe paths. Add a real speculative-launch regression with an inherited task denial, including a denial recorded after the child started; assert that no grandchild begins, rather than merely checking that finalized dispatch fails. Add path-specific controls for the currently untested revival/workpool seams.\"}"
     },
     {
       "id": "TrialSApp2.2",
       "trial": "S-App-2",
       "index": 2,
-      "description": "Fresh finding TrialSApp2.2 (item App); claim text retained locally."
+      "description": "{\"area\":\"Correctness — Session-denial answer propagation\",\"defect\":\"D3 returns deny-session from the ACP approve implementation, while D4 assumes requestApproval forwards it. The existing requestApproval normalizer converts that answer to ordinary deny. The listed core changes do not include updating this normalizer, so following the described cutover loses the remembered rejection and the next bash call prompts again.\",\"evidence\":\"design.md:39 maps deny:session to deny-session; design.md:44 records a denial only when requestApproval returns deny-session. tasks.md:13 names the answer type, runner and wrapper changes; tasks.md:18 changes requestApproval for call metadata but does not address its answer normalization. packages/coding-agent/src/tools/approval.ts:724-734 forwards only once, an offered session answer, or a recognized grant; every other answer becomes deny. This breaks specs/tool-approval/spec.md:43-49 and specs/acp-tool-permissions/spec.md:70-71 under the ordinary Always reject flow. The immediate call remains denied, but the session-wide authorization decision is lost.\",\"change\":\"Explicitly update requestApproval to preserve deny-session only when the prompt offers session scope. Audit its other answer consumers for the new variant. Require the ACP rejection regression to traverse createAcpExtensionUiContext, the real requestApproval normalizer, and the real wrapper/runner; do not inject deny-session below the normalizer.\"}"
     },
     {
       "id": "TrialSApp2.3",
       "trial": "S-App-2",
       "index": 3,
-      "description": "Fresh finding TrialSApp2.3 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 / CHECK 7 — Mounted-device permission parity\",\"defect\":\"Deleting the ACP proxy does not eliminate double prompting for write xd://<tool>. The outer write wrapper and inner device wrapper remain separate approval paths. Explicit device prompt policies cause both to prompt; critical device commands additionally receive an outer mode-raised prompt with session choices before the inner per-call prompt. That contradicts the claimed single-dialog cutover and the required critical-command option set.\",\"evidence\":\"design.md:31-32 says deleting the proxy makes double prompting disappear, and tasks.md:18-22 covers only direct tool calls. packages/coding-agent/src/internal-urls/xd-protocol.ts:31-49 derives the outer decision using only resolveToolTier plus policyKey, dropping the device's override/source semantics; :100-110 dispatches the inner tool with xdevApproved. packages/coding-agent/src/extensibility/extensions/wrapper.ts:359-381 deliberately bypasses only tier-raised prompts, not explicit policies or overrides. src/tools/approval.ts:461-468 allows session scope for an outer mode-raised prompt. Thus default-write ACP with write xd://bash and tools.approval.bash: prompt produces two requests; a critical bash payload produces an outer session-capable prompt and an inner override prompt. This violates the D1 goal and specs/acp-tool-permissions/spec.md:80-82. The effect is reversible extra/incorrect consent dialogs, not an asserted arbitrary-command bypass.\",\"change\":\"Design one authoritative approval handoff for mounted execution that preserves the full device decision and the checked effective arguments, without bypassing revised arguments, denials, explicit policies, or provider safety checks. Add ACP tests through actual write xd:// dispatch for ordinary execution, explicit prompt/deny, critical commands, session approval/denial, and revised arguments; assert request count and offered options.\"}"
     },
     {
       "id": "TrialSApp2.4",
       "trial": "S-App-2",
       "index": 4,
-      "description": "Fresh finding TrialSApp2.4 (item App); claim text retained locally."
+      "description": "{\"area\":\"Correctness — Permission locations for destructive edits\",\"defect\":\"Moving extractPermissionLocations unchanged and deleting getPermissionIntent loses the parsed paths supplied by the old destructive-edit gate. Supported hashline/apply_patch payloads contain input rather than top-level path fields, so destructive edit permission requests will have empty locations. Move destinations are also not recovered from the patch body.\",\"evidence\":\"specs/acp-tool-permissions/spec.md:55-56 requires requests to list the touched file locations. design.md:31 deletes getPermissionIntent and retains extractPermissionLocations; design.md:36 and tasks.md:18 specify extracting locations from call args without a replacement parsed-path source. packages/coding-agent/src/edit/schemas.ts:33-46 defines apply_patch/hashline/sloppy payloads as { input: string }. src/session/acp-permission-gate.ts:123-139 only handles explicitPaths or top-level path-like fields. The old proxy supplies permissionIntent.paths at src/session/session-tools.ts:984-988, derived from editInspect in src/session/acp-permission-gate.ts:25-44. Ordinary deletion or rename patches therefore lose the locations required by the new contract. This is a reversible wire/UI regression.\",\"change\":\"Carry tool-derived parsed locations through the approval prompt, reusing the edit inspection that already provides paths and file operations, including move destinations. Preserve effective-argument identity. Add request-level tests for delete and move payloads in the supported input-based edit modes, checking absolute source and destination locations.\"}"
     },
     {
       "id": "TrialTApp1.1",
       "trial": "T-App-1",
       "index": 1,
-      "description": "Fresh finding TrialTApp1.1 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 7 — denial subject identity\",\"defect\":\"The proposed denial key is derived from the resolved policy rather than the underlying device identity. A device denied in the parent can be allowed in a yolo subagent, or after an applicable fallback policy changes. This breaks inherited session denials; any resulting tool effects can be irreversible.\",\"evidence\":\"design.md:42-43 uses `resolved.policyKey ?? tool.name`; design.md:49 propagates that key to children. `src/internal-urls/xd-protocol.ts:45-49` assigns the device policy key, but `src/tools/approval.ts:385-401` drops it in the yolo branch when there is no applicable user policy, and :425-433 can return the fallback tool policy key instead. Subagents run in yolo (design.md:10). Thus a parent denial of an `xd://` device is looked up as `write` by the child. The tests in tasks.md:27 cover bash, not device identities.\",\"change\":\"Carry a stable authorization subject independent of policy provenance through every resolution branch, use it for recording and checking denials, and test a denied device in the parent and a yolo descendant, including a fallback-policy case.\"}"
     },
     {
       "id": "TrialTApp1.2",
       "trial": "T-App-1",
       "index": 2,
-      "description": "Fresh finding TrialTApp1.2 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 4 — permission option admission\",\"defect\":\"The response mapping checks for unknown IDs, not whether a known ID was actually offered in this particular request. A client returning `session` for a per-call destructive prompt, or a known grant ID for a different target, can violate the explicit negative control and potentially authorize later calls without consent; file effects can be irreversible.\",\"evidence\":\"design.md:38-39 defines global stable IDs and says only an unknown ID throws. specs/acp-tool-permissions/spec.md:89-91 requires rejection of an ID not in the request; tasks.md:18 tests an unknown ID but not a known, unoffered one.\",\"change\":\"Validate the response against the exact option IDs and grant payloads emitted for that request before mapping it; test known but unoffered session and grant IDs as well as an unknown ID.\"}"
     },
     {
       "id": "TrialTApp1.3",
       "trial": "T-App-1",
       "index": 3,
-      "description": "Fresh finding TrialTApp1.3 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — subagent entry-path parity\",\"defect\":\"The inheritance and bridge tests do not exercise several expressly supported creation and revival paths. A missing propagation at one of those sites can silently bypass a denial or use disk instead of an unsaved editor buffer while every specified test passes; resulting writes can overwrite user work.\",\"evidence\":\"design.md:49,61 and tasks.md:27-28 require propagation through task, structured eval, vibe, workpool, isolation, restore, persisted revive and executor revive. The listed inheritance tests cover task, grandchild, vibe and eval only; the bridge tests cover task, vibe and one isolated child. specs/acp-client-bridge/spec.md:9-10 expressly includes revived agents, and specs/tool-approval/spec.md:62-63 requires every subagent.\",\"change\":\"Provide a path-by-path propagation matrix and discriminating tests for workpool/follow-up, isolated execution, restore and persisted/executor revival, including bridge read/write where applicable and inherited denial on each path.\"}"
     },
     {
       "id": "TrialTApp1.4",
       "trial": "T-App-1",
       "index": 4,
-      "description": "Fresh finding TrialTApp1.4 (item App); claim text retained locally."
+      "description": "{\"area\":\"Real-session verification\",\"defect\":\"The requested retained F1 evidence cannot establish that a task child actually attempted bash and was denied, or that the child received the unsaved buffer. ACP frames alone need not expose child tool calls, so the QA can report success without proving the two central subagent behaviors.\",\"evidence\":\"tasks.md:35 asks for one PASS/FAIL line and a frame excerpt for scenarios (b) and (d); design.md:24 excludes subagent progress rendering in ACP. The plan does not require retaining the child interaction, its denial result, or its returned buffer content.\",\"change\":\"Specify observable child outputs or retained session/tool artifacts showing the attempted bash, denial and absence of its side effect, and the exact unsaved content received; judge those artifacts along with the ACP frames.\"}"
     },
     {
       "id": "RerunSSmt2.1",
       "trial": "S-Smt-2",
       "index": 1,
-      "description": "Fresh finding RerunSSmt2.1 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"Correctness — D1 terminal batch boundary\",\"defect\":\"The existing terminal-tool mechanism prevents another provider call by aborting the run's shared signal; it does not let running sibling tools finish normally. When session_move completes before a foreground bash or another signal-aware sibling, the sibling receives cancellation and can leave partial work. This violates the batch-completion requirement. The trigger is an ordinary multi-tool batch; interrupted local work is generally reversible, but not guaranteed to be harmless.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:24-27,62-64 proposes reusing agent.abort(TERMINAL_TOOL_RESULT_ABORT_REASON) while asserting that the batch finishes. packages/coding-agent/src/session/agent-session.ts:5562-5573 performs that abort; packages/agent/src/agent.ts:1553-1554 aborts the controller. packages/agent/src/agent-loop.ts:3309-3312 gives sibling calls that signal, :3534-3542 skips calls after it aborts, and :3633-3636 passes it into executing tools. packages/coding-agent/src/tools/bash.ts:1601-1613 passes it into bash execution. This contradicts specs/session-relocation/spec.md:54-58.\",\"change\":\"Separate stop-before-next-provider-call from cancellation of the current tool batch, or defer the terminal abort until every sibling has settled. Extend task 4.1 with a deliberately held, signal-aware sibling that must complete successfully in the old cwd, alongside the existing provider-request and persistence-order assertions.\"}"
     },
     {
       "id": "RerunSSmt2.2",
       "trial": "S-Smt-2",
       "index": 2,
-      "description": "Fresh finding RerunSSmt2.2 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Host installation/catalog parity\",\"defect\":\"The plan gates construction of session_move on an installed relocator, but installs that relocator only after the host receives an already-created AgentSession. It specifies no registry reconciliation when the handler is installed or cleared. Following the cited setter precedent leaves the tool absent in normal TUI/ACP/RPC startup, defeating the feature. This is a normal-startup failure, reversible by fixing registration.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:75-91 and tasks.md:21,28,33-35 combine late host installation with build-time availability. packages/coding-agent/src/sdk.ts:2568 constructs built-ins before AgentSession construction has completed (:4863). InteractiveMode receives an existing AgentSession at packages/coding-agent/src/modes/interactive-mode.ts:1881-1894; RPC likewise receives one at modes/rpc/rpc-mode.ts:1344. The cited setter precedent, session/agent-session.ts:3180-3182, only assigns fields. Existing live built-in reconciliation is a separate mechanism in sdk.ts:3733-3757 and session/session-tools.ts:1978 onward.\",\"change\":\"Specify how setSessionRelocator installs/removes the built-in and refreshes its provider-facing catalog under the existing registry-mutation mechanism, or provide a construction-time host capability followed by safe handler wiring. Test the real lifecycle—create session, install host handler, inspect advertised tools, clear handler—not only a factory supplied with a preinstalled handler.\"}"
     },
     {
       "id": "RerunSSmt2.3",
       "trial": "S-Smt-2",
       "index": 3,
-      "description": "Fresh finding RerunSSmt2.3 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 4 — Missing-target admission\",\"defect\":\"D4 requires realpath of the target's parent and configured worktree directory before creation, but never establishes how an absent worktree directory is admitted. In a fresh repository without .worktrees, the first session_move to .worktrees/a cannot pass that validation. This breaks normal first-use autonomous creation; the failure is reversible but defeats a stated goal.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:111-116 requires the missing target's parent's realpath to equal realpath(<primaryRoot>/<worktree.repoDir>); tasks.md:27 puts that validation before creation. specs/session-relocation/spec.md:31 requires creation of a missing target without requiring its parent to exist. tasks.md:41 always initializes an existing .worktrees/a, so its F1 creation case cannot expose this failure. The native creator can create missing parents (crates/pi-vcs/src/git/mutate.rs:677), but the proposed validation prevents reaching it.\",\"change\":\"Define side-effect-free canonicalization/containment validation for missing configured-root components, then create the required parent only after validation, branch-argument checks and approval. Add a real tool test and QA case starting with no worktree directory, including a custom nested repoDir if supported.\"}"
     },
     {
       "id": "RerunSSmt2.4",
       "trial": "S-Smt-2",
       "index": 4,
-      "description": "Fresh finding RerunSSmt2.4 (item Smt); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Shared worktree helper preserves CLI contracts\",\"defect\":\"The proposed helper exposes only path/branch/base/settings and applies tool-specific branch/default rules to the CLI core. It cannot express the CLI's supported detached and forced-branch modes, and it changes the default source from the invoking checkout's HEAD to the main checkout's HEAD unless the CLI explicitly adapts it. Normal omp worktree add usage, including commands routed through the bash rewrite, would either regress or require an unplanned contract redesign. Wrong-base local branches are reversible, but break existing consumers.\",\"evidence\":\"openspec/changes/session-move-tool/design.md:121-126 and tasks.md:11 move the CLI core into the restricted helper with a primary-root HEAD default and existing-branch/base rejection. The current public option contract includes forceBranch and detach at packages/coding-agent/src/cli/worktree-cli.ts:49-57. Its implementation supports forced branch creation/reset at :118-123, explicit and inferred detached checkout at :124-129, and invoking-checkout HEAD defaults at :121,133. The existing test/cli/worktree-add-hook.test.ts:36-39 actually invokes --detach. The planned new helper tests do not cover CLI force/default parity; bash-worktree-rewrite.test.ts only checks rewritten command strings.\",\"change\":\"Separate CLI argument/ref selection from shared materialization, or expand the shared request to represent all existing CLI modes explicitly. Keep main-checkout HEAD defaulting at the new tool's policy boundary, or document the CLI adapter that preserves its current default. Add CLI tests from a linked checkout with a differing HEAD, plus -b existing-branch refusal, -B behavior, detached revision checkout and existing-branch checkout.\"}"
     },
     {
       "id": "RerunSFmp2.1",
@@ -5756,31 +5756,31 @@
       "id": "RerunSApp1.1",
       "trial": "S-App-1",
       "index": 1,
-      "description": "Fresh finding RerunSApp1.1 (item App); claim text retained locally."
+      "description": "{\"area\":\"Correctness — D7 default-setting precedence\",\"defect\":\"The proposed ACP default is a hard runtime override, not a default. After an initially unconfigured session starts, subsequently configuring a stricter mode cannot take effect through ordinary settings writes or reloads. The implicit write override continues to win, so writes can run without the newly requested approval. The settings mismatch is reversible; resulting unapproved mutations may not be.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:56 explicitly prescribes cfgToolsApprovalMode.override(nextSettings, \\\"write\\\"); tasks.md:21 tests only configuration present at session creation. packages/coding-agent/src/config/settings.ts:903-919 preserves hard runtime overrides when writing the global setting; :1001-1033 releases only soft pins when persisted configuration appears. Normal subagent preflight reloads settings at packages/coding-agent/src/task/structured-subagent.ts:360. This contradicts specs/acp-tool-permissions/spec.md:9, which requires configured values and normal precedence to apply unchanged.\",\"change\":\"Implement the ACP value as a yielding default, retaining the distinction between an implicit ACP default and an explicit runtime override. Add tests that start unconfigured, then configure always-ask through a settings write and a disk reload/re-scope; assert that it becomes effective, while an explicitly supplied yolo runtime override remains authoritative.\"}"
     },
     {
       "id": "RerunSApp1.2",
       "trial": "S-App-1",
       "index": 2,
-      "description": "Fresh finding RerunSApp1.2 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Approval entry-path parity for clients without elicitation\",\"defect\":\"Adding approve to the runner's ACP UI context does not enable the separate tool-context UI used by eval preludes. With a client lacking form elicitation, an approved eval call can reach a browser/computer prelude whose required approval is rejected locally instead of producing session/request_permission. This breaks the promised non-elicitation support on a path D2 explicitly includes. The failure is reversible but blocks legitimate calls.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:31-36 routes approval through createAcpExtensionUiContext and explicitly includes eval preludes; tasks.md:18 does not change tool-context activation. packages/coding-agent/src/modes/acp/acp-agent.ts:2697-2712 calls record.setToolUIContext(uiContext, true) only inside the supportsFormElicitation branch. packages/coding-agent/src/tools/context.ts:34-48 defaults that independent context to no UI. packages/coding-agent/src/eval/js/tool-bridge.ts:220-225 obtains this context, and src/eval/preludes.ts:101-107 rejects a required prompt when its UI is absent or hasUI is false. Outer eval approval tests in tasks.md:18-20 do not exercise this nested path.\",\"change\":\"Separate availability of permission approval from availability of form elicitation. Install the ACP approval-capable tool context even when forms are unsupported, while leaving form-dependent features capability-gated. Add a no-elicitation test that approves eval, invokes an enabled exec-tier prelude, receives its permission request, and exercises both allow and reject outcomes.\"}"
     },
     {
       "id": "RerunSApp1.3",
       "trial": "S-App-1",
       "index": 3,
-      "description": "Fresh finding RerunSApp1.3 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 4 / CHECK 6 — Cancellation is not preserved end to end\",\"defect\":\"The cancellation contract is not carried through the proposed shared path. In particular, the existing v2 adapter converts a valid cancelled response into a synthetic selected rejection; with D3's renamed option IDs, that becomes an unknown-option failure rather than cancellation. Also, removing the proxy removes its turn-signal race, but D2/3.1 supplies no replacement signal plumbing through requestApproval. A normal cancellation can therefore be misreported or remain pending. These failures are reversible but violate the explicit cancellation requirement.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:39 promises ToolAbortError for cancelled outcomes and an aborted-turn race; specs/acp-tool-permissions/spec.md:113-125 requires cancellation rather than failure. packages/coding-agent/src/modes/acp/acp-event-mapper-v2.ts:175-183 normalizes every non-selected response to selected/reject_once; test/acp-event-mapper-v2.test.ts:306-320 explicitly locks cancelled into that normalization. tasks.md:22 updates v2 request shape and unknown outcomes but does not replace this cancellation behavior. The old signal race is at src/session/session-tools.ts:960-993; the replacement wrapper request at src/extensibility/extensions/wrapper.ts:438-443 and helper at src/tools/approval.ts:699-731 do not pass the execute signal to approve, although the UI signature supports dialog options at src/extensibility/extensions/types.ts:334-337.\",\"change\":\"Preserve cancelled as a distinct outcome in both wire adapters, and explicitly forward the executing call's AbortSignal through the shared approval helper to the ACP request/race. Add v1 and v2 round-trip controls for client cancellation, abort while the permission promise never settles, and a late allow response after abort; assert cancellation status and zero execution.\"}"
     },
     {
       "id": "RerunSApp1.4",
       "trial": "S-App-1",
       "index": 4,
-      "description": "Fresh finding RerunSApp1.4 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 7 — Permission locations lose edit targets during cutover\",\"defect\":\"Reusing extractPermissionLocations on raw args after deleting getPermissionIntent loses supported edit targets. apply_patch/hashline/sloppy payloads contain only input, so their location list becomes empty; patch-mode renames retain the source path but lose the destination. This breaks the requirement to list the files touched by the pending call and removes existing editor navigation metadata. The metadata loss is reversible.\",\"evidence\":\"openspec/changes/acp-permission-parity/design.md:31 removes getPermissionIntent and :36 derives locations from extractPermissionLocations; tasks.md:18 repeats that approach without edit-location tests. packages/coding-agent/src/session/acp-permission-gate.ts:105-150 extracts only top-level path-like fields unless explicitPaths is supplied; the current proxy supplies inspected intent paths at src/session/session-tools.ts:979-983. src/edit/schemas.ts:16-44 places rename under edits and exposes apply_patch/hashline/sloppy as input-only payloads. Existing coverage asserts both rename locations in test/agent-session-acp-permission.test.ts:470-503 and an inspected apply_patch deletion location at :536-572; that file is scheduled for rewriting.\",\"change\":\"Carry inspected edit targets, including move destinations, into the shared prompt metadata instead of independently guessing them from raw argument field names. Reuse the edit inspection/target source already used for approval resolution. Preserve location assertions across patch, apply_patch, hashline, and sloppy destructive calls, including multi-file operations.\"}"
     },
     {
       "id": "RerunSApp1.5",
       "trial": "S-App-1",
       "index": 5,
-      "description": "Fresh finding RerunSApp1.5 (item App); claim text retained locally."
+      "description": "{\"area\":\"CHECK 6 — Subagent inheritance verification omits independent entry paths\",\"defect\":\"The production-path inventory is broad, but the planned controls do not cover it. Tasks 4.1/4.2 can pass while denial or bridge forwarding is omitted from warm revival, cold/persisted revival, restore, workpool follow-up, or eval-child bridge setup. These are ordinary supported paths, not excluded risks. A revived child can then execute a parent-denied call or read stale disk content while all newly listed tests remain green; execution may have irreversible effects.\",\"evidence\":\"openspec/changes/acp-permission-parity/tasks.md:27 requires changes at eight spawn/revival sites but lists denial tests only for task, a live child, a grandchild, vibe, and eval. tasks.md:28 lists bridge tests for task/vibe and isolation, but none for eval or revival. Independent creation paths exist at packages/coding-agent/src/task/executor.ts:4191-4225 (warm revival) and src/task/persisted-revive.ts:228 onward (cold revival); restore/workpool/vibe follow-up enter runSubagentFollowUpTurn, which obtains or revives the session at src/task/executor.ts:3823-3827 rather than traversing initial runSubprocess construction.\",\"change\":\"Add a path-by-field verification matrix and a discriminating control for each independent creation/revival/consumption path, marking genuinely shared paths with the shared artifact they consume. At minimum exercise warm park/revive, cold revival under the current parent, interrupted restore, workpool follow-up, eval-child filesystem routing, and isolated-child denial inheritance. Exercise real wrapper denial and bridge I/O, not only captured option presence.\"}"
     }
   ],
   "adjudications": [
@@ -5793,7 +5793,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptCor.2"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -5807,7 +5807,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptCor.8"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -5821,7 +5821,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptVer.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -5835,7 +5835,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptVer.2"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -5851,7 +5851,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptVer.3"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -5865,7 +5865,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:F61SptChk.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6006,7 +6006,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpCor.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6020,7 +6020,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpCor.3"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6034,7 +6034,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpCor.4"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6048,7 +6048,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpVer.4"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6062,7 +6062,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpVer.5"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6076,7 +6076,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpChk.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6090,7 +6090,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:FocusFmpChk.2"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6132,7 +6132,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:B61Spt1.5"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6146,7 +6146,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:B61Spt2.6"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6300,7 +6300,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:ReplayFmp1.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6314,7 +6314,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:ReplayFmp1.2"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6328,7 +6328,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:ReplayFmp2.1"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6342,7 +6342,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:ReplayFmp2.2"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6356,7 +6356,7 @@
       "validity": "annotated",
       "blocking": "unresolved",
       "evidence": [
-        "private-repository-coordinate:1"
+        "annotation:ReplayFmp2.3"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published.",
       "kind": "known-target"
@@ -6814,14 +6814,14 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/finish-modality-program-route/design.md:38-40",
+        "openspec/changes/finish-modality-program-route/tasks.md:19-20",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:42-44",
+        "private-source:kt#de700d43:217-219",
+        "private-source:kt#de700d43:351-357",
+        "private-source:kt#de700d43:872",
+        "private-source:kt#000883ec:15-16",
+        "private-source:kt#fe6210dc:138-141"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6835,9 +6835,9 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/finish-modality-program-route/tasks.md:26",
+        "private-source:ts#334aa289:18-31",
+        "private-source:ts#a813e5d1:124-146"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6849,14 +6849,14 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/finish-modality-program-route/design.md:31",
+        "openspec/changes/finish-modality-program-route/tasks.md:8",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#9aa2d3fb:175-176",
+        "private-source:kt#7e3f4eb3:66-76",
+        "private-source:kt#7e3f4eb3:129-135",
+        "private-source:kt#049e1abd:509-556",
+        "private-source:kt#95cebc2b:216-235"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6870,9 +6870,9 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/finish-modality-program-route/tasks.md:26",
+        "private-source:ts#a813e5d1:124-146",
+        "private-source:ts#ee10796b:669-675"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6886,17 +6886,17 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9",
-        "private-repository-coordinate:10",
-        "private-repository-coordinate:11"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:59",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:61-63",
+        "private-source:json#45ded489:3",
+        "private-source:json#45ded489:9",
+        "private-source:json#c1c6a372:4",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#bd5a845c:57-63",
+        "private-source:kt#bd5a845c:324-340",
+        "private-source:kt#1f4468dd:20-21",
+        "private-source:kt#b23dec18:78-81"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6908,16 +6908,16 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9",
-        "private-repository-coordinate:10"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:59",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#fb4c885a:40-46",
+        "private-source:kt#b23dec18:78-81",
+        "private-source:kt#1f4468dd:20-21",
+        "private-source:kt#cb9a69dc:162",
+        "private-source:json#45ded489:9",
+        "private-source:kt#94a51c9e:18",
+        "private-source:kt#94a51c9e:241-242"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6931,15 +6931,15 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9"
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#fb4c885a:18-22",
+        "private-source:kt#fb4c885a:40-46",
+        "private-source:kt#9aa2d3fb:212",
+        "private-source:kt#cb9a69dc:226",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:65-67",
+        "private-source:kt#7e3f4eb3:22-23",
+        "private-source:kt#7e3f4eb3:140-151"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6953,15 +6953,15 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9"
+        "openspec/changes/finish-modality-program-route/design.md:20",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#9aa2d3fb:198-214",
+        "private-source:kt#cb9a69dc:226",
+        "private-source:kt#fb4c885a:18-22",
+        "private-source:kt#fb4c885a:40-46",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:65-67",
+        "private-source:kt#15ebe61b:76-92"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6975,18 +6975,18 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9",
-        "private-repository-coordinate:10",
-        "private-repository-coordinate:11",
-        "private-repository-coordinate:12"
+        "openspec/changes/finish-modality-program-route/design.md:38-40",
+        "openspec/changes/finish-modality-program-route/tasks.md:19-21",
+        "private-source:kt#000883ec:39-48",
+        "private-source:kt#8cec6ef2:75",
+        "private-source:kt#8cec6ef2:272",
+        "private-source:kt#8cec6ef2:289-292",
+        "private-source:kt#8cec6ef2:361-376",
+        "private-source:kt#c68f76c2:189-194",
+        "private-source:kt#7637c786:60",
+        "private-source:kt#7637c786:130",
+        "private-source:kt#de700d43:351-357",
+        "private-source:kt#fe6210dc:138-141"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -6998,9 +6998,9 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "openspec/changes/strength-progression-targets/tasks.md:31",
+        "private-source:gitignore#bc37d034:168-170"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7012,12 +7012,12 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "private-source:ts#61c81c77:255-263",
+        "private-source:kt#2e08abd1:128",
+        "openspec/changes/strength-progression-targets/design.md:66",
+        "private-source:kt#71b829a4:70"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7031,10 +7031,10 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:74-76",
+        "private-source:kt#ea39d19f:105",
+        "private-source:kt#ea39d19f:141-161",
+        "private-source:kt#8cc68e6e:33-37"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7048,10 +7048,10 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36",
+        "openspec/changes/strength-progression-targets/design.md:56",
+        "openspec/changes/strength-progression-targets/design.md:138",
+        "private-source:kt#e70ac187:94-108"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7063,9 +7063,9 @@
       "blocking": "below-threshold",
       "kind": "unsupported-consequence",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "private-source:kt#e83a6c0b:220-238",
+        "private-source:ts#a21bff98:1811",
+        "private-source:html#87713ee6:677-694"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7077,10 +7077,10 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/tasks.md:36-37",
+        "private-source:html#87713ee6:685",
+        "private-source:ts#e0e440da:147-160",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:177"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7094,10 +7094,10 @@
       "blocking": "below-threshold",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:81",
+        "private-source:kt#e70ac187:46",
+        "private-source:kt#462774c0:196-205",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:47"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7109,11 +7109,11 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:107-110",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "private-source:kt#165ed891:410",
+        "private-source:kt#2e08abd1:128"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7125,10 +7125,10 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/tasks.md:36-37",
+        "private-source:html#87713ee6:685",
+        "private-source:ts#e0e440da:147-160",
+        "private-source:ts#e0e440da:230-240"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7140,9 +7140,9 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/tasks.md:31",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "openspec/changes/strength-progression-targets/design.md:128"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7156,11 +7156,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "private-source:kt#09059c25:733-745",
+        "private-source:kt#c5c5a328:13-47",
+        "private-source:kt#c5c5a328:49-83",
+        "private-source:kts#b32633eb:382",
+        "openspec/changes/strength-progression-targets/tasks.md:18-19"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7174,11 +7174,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/tasks.md:38",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "private-source:ts#1c0100e7:72-75",
+        "private-source:html#6460480c:23-26",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:177"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7190,11 +7190,11 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:58",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:73",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36",
+        "private-source:kt#da2fc13e:95-101"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7206,8 +7206,8 @@
       "blocking": "below-threshold",
       "kind": "unsupported-consequence",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "private-source:kt#462774c0:83-123",
+        "private-source:kt#462774c0:196-205"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7219,9 +7219,9 @@
       "blocking": "below-threshold",
       "kind": "unsupported-consequence",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "private-source:kt#e83a6c0b:220-238",
+        "private-source:ts#a813e5d1:343-366",
+        "private-source:html#87713ee6:694"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7235,11 +7235,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:36",
+        "openspec/changes/strength-progression-targets/design.md:56",
+        "private-source:kt#e70ac187:94-108",
+        "private-source:kt#da2fc13e:142-149",
+        "openspec/changes/strength-progression-targets/tasks.md:12"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7253,11 +7253,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/design.md:117-122",
+        "openspec/changes/strength-progression-targets/tasks.md:23-24",
+        "private-source:kt#c17ef703:1437-1445",
+        "private-source:ts#d91e6faa:19",
+        "private-source:ts#d91e6faa:53-58"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7269,11 +7269,11 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "private-source:ts#a21bff98:1806-1813",
+        "private-source:kt#e83a6c0b:220-238",
+        "private-source:ts#28a4ac80:571-578",
+        "openspec/changes/strength-progression-targets/tasks.md:19",
+        "openspec/changes/strength-progression-targets/design.md:67"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7285,10 +7285,10 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:58",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:73",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "private-source:kt#e70ac187:67-70"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7300,10 +7300,10 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:58",
+        "private-source:kt#da2fc13e:95-101",
+        "private-source:ts#e0e440da:138-144",
+        "openspec/changes/strength-progression-targets/tasks.md:12"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7315,11 +7315,11 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/design.md:66",
+        "openspec/changes/strength-progression-targets/design.md:117-120",
+        "private-source:kt#e21b6b34:29-35",
+        "private-source:kt#71b829a4:70-85",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7331,8 +7331,8 @@
       "blocking": "below-threshold",
       "kind": "unsupported-consequence",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2"
+        "private-source:kt#e83a6c0b:232-238",
+        "private-source:html#87713ee6:694"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7346,10 +7346,10 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/design.md:118-122",
+        "openspec/changes/strength-progression-targets/tasks.md:23-24",
+        "private-source:ts#d91e6faa:19",
+        "private-source:ts#d91e6faa:53-58"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7361,9 +7361,9 @@
       "blocking": "below-threshold",
       "kind": "useful-note",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3"
+        "openspec/changes/strength-progression-targets/design.md:78-80",
+        "private-source:kt#462774c0:173-184",
+        "openspec/changes/strength-progression-targets/tasks.md:7"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7885,13 +7885,13 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7"
+        "openspec/changes/finish-modality-program-route/design.md:38-40",
+        "openspec/changes/finish-modality-program-route/tasks.md:19-20",
+        "private-source:kt#de700d43:218-219",
+        "private-source:kt#de700d43:351-357",
+        "private-source:kt#de700d43:872",
+        "private-source:kt#000883ec:15-16",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:45-47"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7905,11 +7905,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/finish-modality-program-route/tasks.md:19-20",
+        "openspec/changes/finish-modality-program-route/design.md:37-40",
+        "private-source:kt#de700d43:351-356",
+        "private-source:kt#000883ec:15-16",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:45-47"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7923,11 +7923,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/finish-modality-program-route/tasks.md:26",
+        "openspec/changes/finish-modality-program-route/design.md:44",
+        "private-source:ts#334aa289:20-31",
+        "private-source:ts#a813e5d1:130-144",
+        "private-source:ts#ee10796b:669-675"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7941,15 +7941,15 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:65-67",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#fb4c885a:18-48",
+        "private-source:kt#b23dec18:78-81",
+        "private-source:kt#cb9a69dc:225",
+        "private-source:kt#9aa2d3fb:205-214",
+        "private-source:kt#7e3f4eb3:23",
+        "private-source:kt#7e3f4eb3:144-148"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7963,14 +7963,14 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:59",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:61-63",
+        "private-source:json#45ded489:3",
+        "private-source:json#45ded489:9",
+        "private-source:json#c1c6a372:4",
+        "private-source:kt#1222c9db:116-140",
+        "private-source:kt#bd5a845c:58-67",
+        "openspec/changes/finish-modality-program-route/design.md:42"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -7984,18 +7984,18 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8",
-        "private-repository-coordinate:9",
-        "private-repository-coordinate:10",
-        "private-repository-coordinate:11",
-        "private-repository-coordinate:12"
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:59-63",
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:json#45ded489:9",
+        "private-source:json#77dd8e45:104",
+        "private-source:json#c1c6a372:4",
+        "private-source:kt#bd5a845c:58-67",
+        "private-source:kt#fb4c885a:39-47",
+        "private-source:kt#b23dec18:78-81",
+        "private-source:kt#1f4468dd:16-23",
+        "private-source:kt#94a51c9e:18",
+        "private-source:kt#94a51c9e:239-240"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8007,10 +8007,10 @@
       "blocking": "below-threshold",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/finish-modality-program-route/tasks.md:35",
+        "openspec/changes/finish-modality-program-route/tasks.md:45",
+        "private-source:kt#74ec5ffb:125-128",
+        "private-source:kt#74ec5ffb:162"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8024,11 +8024,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/finish-modality-program-route/design.md:42",
+        "openspec/changes/finish-modality-program-route/tasks.md:14",
+        "private-source:kt#fb4c885a:18-23",
+        "private-source:kt#fb4c885a:39-47",
+        "openspec/changes/finish-modality-program-route/specs/program-generation/spec.md:65-67"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8040,14 +8040,14 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/strength-progression-targets/design.md:98",
+        "openspec/changes/strength-progression-targets/tasks.md:36",
+        "openspec/changes/strength-progression-targets/tasks.md:37",
+        "private-source:html#87713ee6:685",
+        "private-source:ts#e0e440da:146-160",
+        "private-source:ts#e0e440da:235-239",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:177",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8061,11 +8061,11 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5"
+        "openspec/changes/strength-progression-targets/design.md:116-122",
+        "openspec/changes/strength-progression-targets/tasks.md:23-24",
+        "private-source:kt#c17ef703:1437-1445",
+        "private-source:ts#d91e6faa:19",
+        "private-source:ts#d91e6faa:53-58"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8077,10 +8077,10 @@
       "blocking": "below-threshold",
       "kind": "unsupported-consequence",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4"
+        "openspec/changes/strength-progression-targets/tasks.md:31",
+        "openspec/changes/strength-progression-targets/tasks.md:45",
+        "private-source:gitignore#bc37d034:168",
+        "private-source:kt#c4d2a0ed:35-110"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8092,13 +8092,13 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:58",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:73",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:10",
+        "openspec/changes/strength-progression-targets/tasks.md:12",
+        "private-source:kt#e70ac187:66-69",
+        "private-source:kt#da2fc13e:95-101"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8110,12 +8110,12 @@
       "blocking": "below-threshold",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6"
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:110",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "private-source:ts#61c81c77:257-264",
+        "private-source:kt#1d745781:101",
+        "private-source:kt#46fa5106:32"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8127,14 +8127,14 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/strength-progression-targets/design.md:66",
+        "openspec/changes/strength-progression-targets/design.md:117-120",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:99",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:110",
+        "private-source:kt#e21b6b34:30-34",
+        "private-source:kt#71b829a4:70",
+        "private-source:kt#71b829a4:79-84",
+        "private-source:kt#438286b6:84"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8146,13 +8146,13 @@
       "blocking": "blocking",
       "kind": "additional-defect",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7"
+        "openspec/changes/strength-progression-targets/design.md:79",
+        "openspec/changes/strength-progression-targets/tasks.md:8",
+        "private-source:kt#e70ac187:53",
+        "private-source:kt#c17ef703:1123-1155",
+        "private-source:ts#a21bff98:3407",
+        "private-source:html#87713ee6:694",
+        "private-source:ts#e0e440da:208-210"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     },
@@ -8166,14 +8166,14 @@
       "blocking": "blocking",
       "kind": "known-target",
       "evidence": [
-        "private-repository-coordinate:1",
-        "private-repository-coordinate:2",
-        "private-repository-coordinate:3",
-        "private-repository-coordinate:4",
-        "private-repository-coordinate:5",
-        "private-repository-coordinate:6",
-        "private-repository-coordinate:7",
-        "private-repository-coordinate:8"
+        "openspec/changes/strength-progression-targets/design.md:74-76",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:114",
+        "openspec/changes/strength-progression-targets/specs/strength-progression/spec.md:121",
+        "openspec/changes/strength-progression-targets/tasks.md:12",
+        "private-source:kt#3cf9fe14:265-273",
+        "private-source:kt#f85b5d2d:17-18",
+        "private-source:kt#56bb5f5e:44-46",
+        "private-source:kt#8cc68e6e:21-23"
       ],
       "reason": "Adjudication reasoning retained locally; private-repository claim text is not published."
     }

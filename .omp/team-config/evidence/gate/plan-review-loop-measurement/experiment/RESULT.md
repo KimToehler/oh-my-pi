@@ -137,3 +137,12 @@ bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format md |
 ```
 
 This directory carries digests of all 140 inputs but not their bytes: plan fixtures, briefs and raw sessions stay in the local run directory, two of the five plans belong to a private repository. `check` (which re-hashes supplied bytes) therefore runs only against that local run directory; `report` runs here and reproduces `summary.json` exactly.
+
+`dataset.json` itself is derived from the local run dataset by a tested command, so the sanitization is reproducible rather than narrated:
+
+```
+bun <repo>/scripts/score-plan-review-replay.ts publish <run-dir> \
+  --private strength-progression-targets,finish-modality-program-route
+```
+
+It withholds only private claim text and private source paths; a private source coordinate becomes a stable `private-source:<ext>#<sha256-8>:<lines>` pseudonym, so distinct files stay distinguishable and repeats stay alignable. `f1/publication.md` carries the field table.

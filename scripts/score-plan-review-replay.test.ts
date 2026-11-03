@@ -8,6 +8,7 @@ import { run } from "./score-plan-review-replay";
 import { attempt, base } from "./plan-review-replay-input-fixtures";
 import "./score-plan-review-replay-report.test";
 import "./plan-review-replay-validation-cases";
+import "./plan-review-replay-publish-cases";
 
 const dirs: TempDir[] = [];
 afterEach(async () => {

@@ -23,15 +23,24 @@ Task 3.1 requires completion of the 20 intended reviewer cells. All 20 ran on th
 
 Of the five plan items, `Spt` (strength-progression-targets) and `Fmp` (finish-modality-program-route) come from a private repository; `Smt`, `App` and `Rtr` are plans of this repository.
 
+Since F2 wave 5 the published dataset is **derived** from the local one by a committed, tested command, so the rules below are executable rather than narrated:
+
+```
+bun scripts/score-plan-review-replay.ts publish <run-dir> \
+  --private strength-progression-targets,finish-modality-program-route > experiment/dataset.json
+```
+
+The rules are field-wise, never item-wise: a value is withheld because it carries private repository content, not because its item is private.
+
 | field | public items (Smt/App/Rtr) | private items (Spt/Fmp) |
 |---|---|---|
-| finding `description` | replaced by `Fresh finding <id> (item <code>); claim text retained locally.` | same |
-| adjudication / triage / target `reason` | kept, absolute paths rewritten to repository-relative | replaced by `… retained locally; private-repository claim text is not published.` |
-| `evidence` coordinates | kept as repository-relative `path:line` | replaced by `private-repository-coordinate:<n>`, preserving the count |
+| fresh finding `description` | published as reviewed | replaced by `Fresh finding <id> (item <code>); claim text retained locally.` |
+| adjudication / triage / target `reason` | kept, local paths redacted | replaced by `… retained locally; private-repository claim text is not published.` |
+| `evidence` coordinates | kept as repository-relative `path:line` | the item's own `openspec/changes/<item>/…` coordinates and the experiment's own `annotation:`/`trial:`/`finding:` references are kept; a private source path becomes `private-source:<ext>#<sha256-8>:<lines>` |
 | historical finding text | already placeholders; never extracted | same |
 | `sources[]` | digest, id and provenance kept; `path` nulled, `provided` false | same |
 
-Fresh claim text is withheld for every item, not only the private ones: it is reviewer prose about unmerged plans and adds nothing the mechanism labels and numeric rows do not carry.
+The coordinate pseudonym is a digest of the file path: two distinct private files differ, the same file repeats identically across rows, and the line range survives, so a reader can count and align the evidence of a private-item judgment without learning a private file name. Private claim text and adjudication prose stay withheld, because they quote private implementation identifiers; the per-row `mechanism` label carries the published identity of each judgment.
 
 ## Leak scan of every staged file
 
