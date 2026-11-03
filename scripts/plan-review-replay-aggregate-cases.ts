@@ -141,6 +141,10 @@ describe("hand-calculated two-item dataset", () => {
 			ms: 180_000,
 			complete: false,
 		});
+		// The same failed verifier selected as the trial's verifier attempt: a pointer is not a result.
+		expect(
+			spanOf({ triage: "unavailable", reason: "verifier failed", verifierAttempt: "ver" }, [rev, failed]),
+		).toMatchObject({ ms: 180_000, complete: false });
 		// A verifier that was never dispatched leaves the same unfinished stage, with no attempt to point at.
 		expect(spanOf({ triage: "unavailable", reason: "verifier not dispatched" }, [rev])).toMatchObject({
 			ms: 60_000,

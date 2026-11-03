@@ -88,8 +88,10 @@ export function summarizeTiming(attempts: readonly Attempt[], trials: readonly T
 			return a === undefined ? [] : [a];
 		});
 		// A trial whose verifier never completed has no reviewer-plus-verifier envelope, whether its verifier
-		// failed, was excluded or was never dispatched. An empty trial makes no verifier call and is settled.
-		const unfinishedVerifier = t.verifierAttempt === null && t.triage !== "empty";
+		// failed, was excluded or was never dispatched — a pointer to a failed attempt is not a result. An
+		// empty trial makes no verifier call and is settled.
+		const verifier = t.verifierAttempt === null ? undefined : byId.get(t.verifierAttempt);
+		const unfinishedVerifier = t.triage !== "empty" && verifier?.status !== "completed";
 		const span =
 			mine.length < ids.length || mine.length === 0
 				? ({ ms: null, complete: false, reason: "attempts missing from dataset" } satisfies Span)

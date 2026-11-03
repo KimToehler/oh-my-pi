@@ -1,0 +1,9 @@
+$ bun test scripts/score-plan-review-replay.test.ts
+
+ 75 pass
+ 0 fail
+ 266 expect() calls
+Ran 75 tests across 1 file. [61.00ms]
+
+$ bun -e "trials pointing at a non-completed verifier"
+0
