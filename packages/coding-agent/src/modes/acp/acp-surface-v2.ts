@@ -353,7 +353,7 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		record.lastEmittedState = state.state;
 		this.#enqueue(record, () => {
 			this.#sendOrdered(record, {
-				sessionId: record.session.sessionId,
+				sessionId: record.protocolSessionId,
 				update: { sessionUpdate: "state_update", ...state },
 			}).catch((error: unknown) => {
 				logger.warn("ACP v2 state_update delivery failed", { error });
@@ -372,10 +372,14 @@ export class AcpSurfaceV2 implements AcpSurface<AcpWireV2> {
 		if (replayFrom !== undefined && replayFrom !== null && !replayStart) {
 			throw RequestError.invalidParams(undefined, "Unsupported replayFrom cursor");
 		}
-		const sessionId = record.session.sessionId;
+		const sessionId = record.protocolSessionId;
 		if (replayStart) {
 			const cwd = record.session.sessionManager.getCwd();
-			for (const { message, notifications } of iterateSessionReplay(record.session, this.#host.blobs)) {
+			for (const { message, notifications } of iterateSessionReplay(
+				record.session,
+				this.#host.blobs,
+				record.protocolSessionId,
+			)) {
 				const messageId =
 					(message.role === "user" ? sessionEntryIdOf(message as AgentMessage) : undefined) ?? crypto.randomUUID();
 				if (message.role === "user") {

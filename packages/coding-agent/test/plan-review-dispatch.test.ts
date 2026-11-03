@@ -338,7 +338,9 @@ describe("plan review through the real agent loop, per approval installer", () =
 					switches.push(model.id);
 				},
 				setActiveToolsByName: names => live.setActiveToolsByName(names),
-				restoreNonMCPToolPresentation: (enabled, mounted) => live.restoreNonMCPToolPresentation(enabled, mounted),
+				restoreNonMCPToolPresentation: (enabled, mounted, registered) =>
+					live.restoreNonMCPToolPresentation(enabled, mounted, registered),
+				getAllToolNames: () => live.getAllToolNames(),
 				getActiveToolNames: () => live.getActiveToolNames(),
 				getEnabledToolNames: () => live.getEnabledToolNames(),
 				getMountedXdevToolNames: () => live.getMountedXdevToolNames(),

@@ -152,7 +152,7 @@ describe("tui session move", () => {
 		const sourceDir = SessionManager.getDefaultSessionDir(source, agentDir);
 		expect(path.dirname(session.sessionManager.getSessionFile()!)).toBe(targetDir);
 		const inTarget = await SessionManager.listForPicker(target, targetDir);
-		expect(inTarget.map(info => info.id)).toContain(id);
+		expect((await inTarget.complete).map(info => info.id)).toContain(id);
 		const sourceFiles = fs.existsSync(sourceDir) ? fs.readdirSync(sourceDir) : [];
 		expect(sourceFiles.filter(file => file.endsWith(".jsonl") && file.includes(id))).toEqual([]);
 	});

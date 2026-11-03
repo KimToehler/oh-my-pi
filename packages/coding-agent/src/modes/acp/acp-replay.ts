@@ -280,7 +280,11 @@ export interface ReplayedMessage {
 }
 
 /** Walks the session transcript in order, yielding each message's v1 replay notifications. */
-export function* iterateSessionReplay(session: AgentSession, blobs: BlobStore): Generator<ReplayedMessage> {
+export function* iterateSessionReplay(
+	session: AgentSession,
+	blobs: BlobStore,
+	sessionId: string,
+): Generator<ReplayedMessage> {
 	const cwd = session.sessionManager.getCwd();
 	const replayedToolCallIds = new Set<string>();
 	const replayedToolCallArgs = new Map<string, unknown>();
@@ -289,7 +293,7 @@ export function* iterateSessionReplay(session: AgentSession, blobs: BlobStore): 
 			message,
 			notifications: messageToReplayNotifications(
 				blobs,
-				session.sessionId,
+				sessionId,
 				message,
 				cwd,
 				replayedToolCallIds,

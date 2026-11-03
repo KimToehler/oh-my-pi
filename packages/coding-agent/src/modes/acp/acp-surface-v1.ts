@@ -143,7 +143,7 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 			// the same cleanup rejection and fails accordingly.
 			this.#host.beginCancelCleanup(record, activeTurn.work).catch(async (error: unknown) => {
 				logger.warn("ACP cancel cleanup timed out; closing session", {
-					sessionId: record.session.sessionId,
+					acpSessionId: record.protocolSessionId,
 					error,
 				});
 				await this.#host.closeSession(params.sessionId, record);
@@ -199,10 +199,10 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 					// the implicit-cancel guard above).
 					cleanup.catch(async (error: unknown) => {
 						logger.warn("ACP cancel cleanup timed out; closing session", {
-							sessionId: record.session.sessionId,
+							acpSessionId: record.protocolSessionId,
 							error,
 						});
-						await this.#host.closeSession(record.session.sessionId, record);
+						await this.#host.closeSession(record.protocolSessionId, record);
 					});
 					return await pendingPrompt.promise;
 				}
@@ -351,9 +351,13 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 	}
 
 	async replay(record: ManagedSessionRecord): Promise<void> {
-		for (const { notifications } of iterateSessionReplay(record.session, this.#host.blobs)) {
+		for (const { notifications } of iterateSessionReplay(
+			record.session,
+			this.#host.blobs,
+			record.protocolSessionId,
+		)) {
 			for (const notification of notifications) {
-				await this.emit(record.session.sessionId, notification);
+				await this.emit(record.protocolSessionId, notification);
 			}
 		}
 	}

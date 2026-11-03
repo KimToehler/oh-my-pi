@@ -3,13 +3,14 @@
  * consent exactly as in the TUI, and the ACP UI context's `approve` turns each prompt into one
  * `session/request_permission` whose selected option maps back to the gate's answer.
  */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, spyOn, vi } from "bun:test";
 import { $ } from "bun";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import { Agent, type AgentTool, type AgentToolContext, type ToolTier } from "@oh-my-pi/pi-agent-core";
 import { createMockModel, type MockModelOptions } from "@oh-my-pi/pi-ai/providers/mock";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -23,6 +24,8 @@ import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp
 import type { WatchApprovalSupersede } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-approval";
 import type { AcpPermissionRequester } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-client-bridge";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { callSessionTool } from "@oh-my-pi/pi-coding-agent/eval/js/tool-bridge";
+import { createMCPToolName } from "@oh-my-pi/pi-coding-agent/mcp/tool-bridge";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type {
@@ -36,6 +39,8 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targets";
 import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
+import type { XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { getAgentDir, isRecord, setAgentDir, TempDir, withTimeout } from "@oh-my-pi/pi-utils";
@@ -681,6 +686,239 @@ function countingTool(name: string): AgentTool & { runs: number } {
 	};
 	return tool;
 }
+
+// ---------------------------------------------------------------------------
+// Eval bridge tool-name resolution (session level; the ACP approval gate itself is covered above)
+// ---------------------------------------------------------------------------
+
+let evalSession: AgentSession | undefined;
+afterEach(async () => {
+	await evalSession?.dispose();
+	evalSession = undefined;
+});
+
+/** Fake tool that records execute calls. */
+function makeFakeTool(name: string): AgentTool & { executeCalls: number } {
+	const tool = {
+		name,
+		label: name,
+		description: `Fake ${name}`,
+		parameters: type({ "command?": "string" }),
+		executeCalls: 0,
+		async execute() {
+			tool.executeCalls++;
+			return { content: [{ type: "text" as const, text: "ok" }] };
+		},
+	};
+	return tool;
+}
+
+function makeEvalToolSession(): ToolSession {
+	return {
+		cwd: root.path(),
+		hasUI: false,
+		getSessionFile: () => null,
+		getSessionSpawns: () => "*",
+		enableLsp: false,
+		settings: Settings.isolated({ "edit.mode": "apply_patch" }),
+		getArtifactsDir: () => null,
+		getSessionId: () => null,
+		getPlanModeState: () => undefined,
+	} as unknown as ToolSession;
+}
+
+async function createEvalSession(
+	tools: AgentTool[],
+	options?: { xdev?: XdevState; builtInToolNames?: string[] },
+): Promise<AgentSession> {
+	const model = getBundledModel("anthropic", "claude-sonnet-4-5");
+	if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
+
+	const agent = new Agent({
+		getApiKey: () => "test-key",
+		initialState: {
+			model,
+			systemPrompt: ["Test"],
+			tools,
+			messages: [],
+		},
+		convertToLlm,
+		streamFn: () => new AssistantMessageEventStream(),
+	});
+
+	const toolRegistry = options?.xdev?.tools ?? new Map<string, AgentTool>();
+	for (const tool of tools) toolRegistry.set(tool.name, tool);
+	return new AgentSession({
+		agent,
+		sessionManager: SessionManager.inMemory(root.path()),
+		settings: Settings.isolated({ "compaction.enabled": false }),
+		modelRegistry: {} as never,
+		toolRegistry,
+		xdev: options?.xdev,
+		builtInToolNames: options?.builtInToolNames,
+	});
+}
+
+it("eval applies a custom-wire patch exactly once through the canonical tool", async () => {
+	const evalToolSession = makeEvalToolSession();
+	const editTool = new EditTool(evalToolSession);
+	const executeSpy = spyOn(editTool, "execute");
+	evalSession = await createEvalSession([editTool as AgentTool]);
+	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
+	evalToolSession.getEvalBridgeToolNames = () => evalSession!.getEvalBridgeToolNames();
+	await Bun.write(path.join(root.path(), "eval-wire-old.txt"), "old\n");
+	const input =
+		"*** Begin Patch\n*** Add File: eval-wire.txt\n+ok\n*** Delete File: eval-wire-old.txt\n*** End Patch\n";
+
+	await callSessionTool("apply_patch", { input }, { session: evalToolSession });
+
+	expect(await Bun.file(path.join(root.path(), "eval-wire.txt")).text()).toBe("ok\n");
+	expect(await Bun.file(path.join(root.path(), "eval-wire-old.txt")).exists()).toBe(false);
+	expect(executeSpy).toHaveBeenCalledTimes(1);
+	expect(executeSpy.mock.calls[0]?.[1]).toEqual({ input });
+	expect(evalSession.getToolForEvalBridge("edit")?.name).toBe("edit");
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["edit", "apply_patch"]);
+	expect(new EvalTool(evalToolSession).description).toContain("`edit`, `apply_patch`");
+});
+
+it("eval refuses both canonical and wire names after their tool is disabled", async () => {
+	const edit = { ...makeFakeTool("edit"), customWireName: "apply_patch" };
+	evalSession = await createEvalSession([edit, makeFakeTool("read")]);
+	await evalSession.setActiveToolsByName(["read"]);
+
+	expect(evalSession.getToolForEvalBridge("edit")).toBeUndefined();
+	expect(evalSession.getToolForEvalBridge("apply_patch")).toBeUndefined();
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["read"]);
+});
+
+it("eval preserves raw patch validation when resolving a wire alias", async () => {
+	const evalToolSession = makeEvalToolSession();
+	const editTool = new EditTool(evalToolSession);
+	evalSession = await createEvalSession([editTool as AgentTool]);
+	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
+
+	const result = await callSessionTool("apply_patch", { input: "not a patch" }, { session: evalToolSession });
+
+	expect(result).toMatchObject({ hasError: true });
+});
+
+it("eval gives an exact custom name precedence even when that exact tool is disabled", async () => {
+	const edit = { ...makeFakeTool("edit"), customWireName: "apply_patch" };
+	const exact = makeFakeTool("apply_patch");
+	evalSession = await createEvalSession([edit, exact], { builtInToolNames: ["edit"] });
+
+	await evalSession.getToolForEvalBridge("apply_patch")!.execute("exact", {}, undefined);
+	expect(exact.executeCalls).toBe(1);
+	expect(edit.executeCalls).toBe(0);
+	expect(evalSession.hasBuiltInTool("apply_patch")).toBe(false);
+	await evalSession.setActiveToolsByName(["edit"]);
+	expect(evalSession.getToolForEvalBridge("apply_patch")).toBeUndefined();
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["edit"]);
+});
+
+it("eval rejects ambiguous wire names rather than choosing a registry insertion order", async () => {
+	const first = { ...makeFakeTool("first"), customWireName: "shared" };
+	const second = { ...makeFakeTool("second"), customWireName: "shared" };
+	evalSession = await createEvalSession([first, second]);
+
+	expect(evalSession.getToolForEvalBridge("shared")).toBeUndefined();
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["first", "second"]);
+});
+
+it("eval does not advertise tools that require a direct tool result", async () => {
+	evalSession = await createEvalSession([
+		{ ...makeFakeTool("checkpoint"), customWireName: "savepoint" },
+		{ ...makeFakeTool("rewind"), customWireName: "restorepoint" },
+		makeFakeTool("read"),
+	]);
+
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["read"]);
+});
+
+it("eval applies direct-only restrictions to the resolved tool rather than its wire spelling", async () => {
+	const tool = Object.assign(makeFakeTool("savepoint"), { customWireName: "checkpoint" });
+	evalSession = await createEvalSession([tool]);
+	const evalToolSession = makeEvalToolSession();
+	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
+
+	expect(evalSession.getEvalBridgeToolNames()).toEqual(["savepoint", "checkpoint"]);
+	await callSessionTool("checkpoint", {}, { session: evalToolSession });
+	expect(tool.executeCalls).toBe(1);
+});
+
+it("eval resolves xd:// and Claude Code MCP spellings over enabled tools only", async () => {
+	const tools = ["read", "mcp__srv_active", "mcp__srv_idle", "lsp", "ast_grep"].map(makeFakeTool);
+	const xdev: XdevState = {
+		tools: new Map(tools.map(tool => [tool.name, tool])),
+		mountedNames: new Set(),
+		builtInNames: new Set(),
+		isActive: name => evalSession?.getActiveToolNames().includes(name) ?? false,
+	};
+	evalSession = await createEvalSession(tools, { xdev });
+	await evalSession.setActiveToolsByName(["read", "mcp__srv_active"]);
+	xdev.mountedNames.add("lsp");
+	const evalToolSession = makeEvalToolSession();
+	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
+	evalToolSession.getToolByName = name => evalSession!.getToolByName(name);
+
+	await callSessionTool("mcp__srv__active", {}, { session: evalToolSession });
+	await callSessionTool("xd://lsp", {}, { session: evalToolSession });
+	await callSessionTool("xd://read", {}, { session: evalToolSession });
+	expect(tools.map(tool => tool.executeCalls)).toEqual([1, 1, 0, 1, 0]);
+
+	await expect(callSessionTool("mcp__srv__idle", {}, { session: evalToolSession })).rejects.toThrow(
+		"registered but not available",
+	);
+	await expect(callSessionTool("xd://ast_grep", {}, { session: evalToolSession })).rejects.toThrow(
+		"registered but not available",
+	);
+	await expect(callSessionTool("nope", {}, { session: evalToolSession })).rejects.toThrow("Unknown tool");
+});
+
+it("eval leaves a Claude Code MCP spelling unresolved when mounted and active tools both answer it", async () => {
+	const emitted = "mcp__foo__bar__foo_bar_baz";
+	const active = makeFakeTool(createMCPToolName("foo__bar", "foo_bar_baz"));
+	const mounted = makeFakeTool(createMCPToolName("foo", "bar__foo_bar_baz"));
+	const xdev: XdevState = {
+		tools: new Map([active, mounted].map(tool => [tool.name, tool])),
+		mountedNames: new Set(),
+		builtInNames: new Set(),
+		isActive: name => name === active.name,
+	};
+	evalSession = await createEvalSession([active, mounted], { xdev });
+	await evalSession.setActiveToolsByName([active.name]);
+	xdev.mountedNames.add(mounted.name);
+
+	expect(evalSession.getToolForEvalBridge(emitted)).toBeUndefined();
+	xdev.mountedNames.delete(mounted.name);
+	expect(evalSession.getToolForEvalBridge(emitted)?.name).toBe(active.name);
+});
+
+describe("acp approve: intercepted bash", () => {
+	it("acp approve: an intercepted bash command is refused without a permission request", async () => {
+		const client = acpClient(pick("allow_once"));
+		const cwd = workspace();
+		const sessionManager = SessionManager.inMemory(cwd);
+		const runner = acpRunner(sessionManager, cwd, client.request);
+		const bash = new ExtensionToolWrapper(
+			new BashTool({
+				...toolSession(cwd),
+				settings: Settings.isolated({ ...BASE_SETTINGS, "bashInterceptor.enabled": true }),
+				isToolActive: (name: string) => name === "read" || name === "bash",
+			} as ToolSession) as AgentTool,
+			runner,
+		);
+
+		await expect(
+			bash.execute("call-intercepted", { command: "cat file.txt" }, undefined, undefined, {
+				...toolContext(sessionManager, { "tools.approvalMode": "always-ask", "bashInterceptor.enabled": true }),
+				toolNames: ["read", "bash"],
+			} as AgentToolContext),
+		).rejects.toThrow("Use the `read` tool instead of cat/head/tail");
+
+		expect(client.requests).toHaveLength(0);
+	});
+});
 
 /**
  * A session on a scripted model. With `client`, every tool passes the ACP approval gate whose

@@ -24,7 +24,7 @@ import type { SessionEntry } from "../session/session-entries";
 import { extractSessionInit } from "../session/session-manager";
 import { collectSubSessions } from "../session/sub-sessions";
 import type { EventBus } from "../utils/event-bus";
-import { runSubagentFollowUpTurn } from "./executor";
+import { runSubagentFollowUpTurn, softRequestBudgetFor } from "./executor";
 import { persistedAgentDefinition } from "./persisted-revive";
 import { isTerminalYieldResult } from "../tools/yield";
 import { formatTaskResultSummary } from "./result-summary";
@@ -67,8 +67,8 @@ async function restoreSubagents(session: AgentSession, options: RestoreOptions):
 	if (!sessionFile || !manager) return [];
 	const registry = AgentRegistry.global();
 	await ensurePersistedRoster(registry, sessionFile);
-	const subSessions = await collectSubSessions(sessionFile, key => {
-		logger.warn("Subagent transcript unreadable; not restored", { key });
+	const subSessions = await collectSubSessions(sessionFile, {
+		onUnreadable: key => logger.warn("Subagent transcript unreadable; not restored", { key }),
 	});
 	// Parents first: a child's result is delivered to its parent's session.
 	const keys = Object.keys(subSessions).sort((a, b) => a.split("/").length - b.split("/").length);
@@ -103,6 +103,7 @@ async function restoreSubagents(session: AgentSession, options: RestoreOptions):
 					subagentEventBus: options.subagentEventBus,
 					artifactsDir: path.dirname(sessionFileOfRef),
 					maxRuntimeMs: cfgTaskMaxRuntimeMs.get(session.settings),
+					...softRequestBudgetFor(ref.displayName, session.settings),
 				});
 				const text = formatTaskResultSummary(result, { totalDurationMs: result.durationMs });
 				const structuredOutput = result.structuredOutput;

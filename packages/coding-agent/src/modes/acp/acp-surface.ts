@@ -73,7 +73,15 @@ export type PromptQueueState = {
  */
 export type PromptDispatchCancellation = { cancelled: boolean };
 
+/** An automatic-compaction lifecycle transition, sent as an `_omp/compaction/*` extension notification. */
+export type AcpCompactionNotification = {
+	method: "_omp/compaction/start" | "_omp/compaction/end";
+	params: Record<string, unknown>;
+};
+
 export type ManagedSessionRecord = {
+	/** Stable ACP handle, independent of the underlying durable session. */
+	readonly protocolSessionId: string;
 	session: AgentSession;
 	setToolUIContext: ((uiContext: ExtensionUIContext, hasUI: boolean) => void) | undefined;
 	mcpManager: MCPManager | undefined;
@@ -111,9 +119,12 @@ export type ManagedSessionRecord = {
 	 */
 	lastToolUpdateHashById: Map<string, number | bigint>;
 	extensionsConfigured: boolean;
-	// Installed inside `#scheduleBootstrapUpdates` (post-race-guard); released
-	// in `#disposeSessionRecord`. Lives independent of any prompt turn.
+	// Captured at registration, independently of prompt turns; released in `#disposeSessionRecord`.
+	// Delivery opens after the bootstrap guard or a client prompt proves the session is known.
 	lifetimeUnsubscribe: (() => void) | undefined;
+	commandMetadataUnsubscribe: (() => void) | undefined;
+	lifetimeUpdatesReady: boolean;
+	pendingCompactionNotifications: AcpCompactionNotification[] | undefined;
 	closedError: RequestError | undefined;
 	/**
 	 * In-flight prompt-event handlers and lifetime deliveries, keyed by a token

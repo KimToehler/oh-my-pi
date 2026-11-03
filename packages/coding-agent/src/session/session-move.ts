@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
-import type { AsyncJobManager } from "../async/job-manager";
-import { type AgentRef, AgentRegistry } from "../registry/agent-registry";
+import type { AsyncJobManagerApi } from "../async/job-manager";
+import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry/agent-registry";
 
 /** A model-requested session relocation, recorded by `session_move` and executed after the tool batch. */
 export interface SessionMoveRequest {
@@ -46,7 +46,7 @@ export interface RunningSessionWork {
 }
 
 export interface RunningSessionWorkScope {
-	asyncJobManager: AsyncJobManager | undefined;
+	asyncJobManager: AsyncJobManagerApi | undefined;
 	/** The session's agent id; jobs are filtered to this owner. Absent: every job of the manager. */
 	agentId: string | null | undefined;
 	/** The session's persisted file; its artifacts directory is the file path without `.jsonl`. */
@@ -54,7 +54,7 @@ export interface RunningSessionWorkScope {
 	/** Further artifacts directories of the same session tree (a move's source or target). */
 	extraArtifactsDirs?: readonly string[];
 	/** Defaults to the process-wide registry. */
-	registry?: AgentRegistry;
+	registry?: AgentRegistryApi;
 }
 
 /** A session's agent tree: its own agent and the subagents whose transcripts lie under its artifacts directories. */
@@ -148,7 +148,7 @@ export function findRunningSessionWork(scope: RunningSessionWorkScope): RunningS
 export async function rebaseDescendantSessionFiles(
 	oldSessionFile: string | null | undefined,
 	newSessionFile: string | null | undefined,
-	registry?: AgentRegistry,
+	registry?: AgentRegistryApi,
 ): Promise<string[]> {
 	const oldDir = artifactsDirOf(oldSessionFile);
 	const newDir = artifactsDirOf(newSessionFile);

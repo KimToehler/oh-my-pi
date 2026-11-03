@@ -43,7 +43,20 @@ interface HeldTree {
 	released: PromiseWithResolvers<void>;
 }
 
-export class RelocationAdmission {
+/**
+ * What agent activity uses of a {@link RelocationAdmission}, on any thread. A worker's
+ * proxy forwards to the main thread's instance; {@link hold} stays main-only there,
+ * because a held tree's `isMember` predicate runs synchronously on the owner.
+ */
+export interface RelocationAdmissionApi {
+	hold(tree: RelocationTree): RelocationLease;
+	admit(agentId: string): Promise<AdmissionTicket>;
+	tryAdmit(agentId: string): AdmissionTicket | undefined;
+	isLeased(agentId: string): boolean;
+	whenReleased(agentId: string): Promise<void>;
+}
+
+export class RelocationAdmission implements RelocationAdmissionApi {
 	readonly #resolveRef: (agentId: string) => AgentRef | undefined;
 	/** Held trees by root id. */
 	readonly #held = new Map<string, HeldTree>();

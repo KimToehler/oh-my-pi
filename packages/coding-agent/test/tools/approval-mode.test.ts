@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { closeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -18,6 +19,7 @@ import type {
 import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
@@ -51,15 +53,18 @@ describe("tools.approvalMode setting", () => {
 	// auth-storage discovery, settings init) nine times over.
 	let tempDir: string;
 	let session: AgentSession;
+	let authStorage: AuthStorage;
 
 	beforeAll(async () => {
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pi-approval-mode-${Snowflake.next()}-`));
 		const cwd = path.join(tempDir, "cwd");
 		fs.mkdirSync(cwd, { recursive: true });
 		const sessionManager = SessionManager.create(cwd, path.join(tempDir, "sessions"));
+		authStorage = await AuthStorage.create(":memory:");
 		const created = await createAgentSession({
 			cwd,
 			agentDir: tempDir,
+			authStorage,
 			sessionManager,
 			settings: Settings.isolated(BASE_SETTINGS),
 			model: getBundledModel("openai", "gpt-4o-mini"),
@@ -78,18 +83,11 @@ describe("tools.approvalMode setting", () => {
 
 	afterAll(async () => {
 		await session.dispose();
-		// Windows can briefly hold tempdir handles after session.dispose(); retry a few times.
-		for (let attempt = 0; attempt < 5; attempt++) {
-			try {
-				removeSyncWithRetries(tempDir);
-				break;
-			} catch (err) {
-				const code = (err as NodeJS.ErrnoException).code;
-				if (code !== "EBUSY" && code !== "ENOTEMPTY" && code !== "EPERM") throw err;
-				if (attempt === 4) break; // best-effort: OS will reclaim
-				await Bun.sleep(50 * (attempt + 1));
-			}
-		}
+		authStorage.close();
+		// The session opened `<agentDir>/agent.db` and `models.db`; Windows cannot delete open databases.
+		AgentStorage.close();
+		closeModelCache();
+		removeSyncWithRetries(tempDir);
 	});
 
 	function approvalSettings(extraSettings: Record<string, unknown> = {}): Settings {
@@ -182,7 +180,7 @@ describe("tools.approvalMode setting", () => {
 				settings,
 			} as AgentToolContext,
 		);
-		expect(textOf(result)).toContain("(no output)");
+		expect(textOf(result)).toContain("(no output, exit code 0)");
 	});
 
 	it("attributes bash pattern denies to tool policy", async () => {
@@ -218,7 +216,7 @@ describe("tools.approvalMode setting", () => {
 				autoApprove: true,
 			} as AgentToolContext,
 		);
-		expect(textOf(result)).toContain("(no output)");
+		expect(textOf(result)).toContain("(no output, exit code 0)");
 	});
 
 	it("xd:// dispatch approval (xdevPolicyKey) suppresses the tier-only re-prompt", async () => {
@@ -346,6 +344,8 @@ describe("approval prompts through a host dialog", () => {
 				setTheme: async () => ({ success: false, error: "not implemented" }),
 				getToolsExpanded: () => false,
 				setToolsExpanded: () => {},
+				rerenderMessage: () => {},
+				getLinkClicksAvailable: () => false,
 			} satisfies ExtensionUIContext,
 		);
 		return runner;

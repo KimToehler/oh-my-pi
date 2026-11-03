@@ -23,6 +23,7 @@ import type {
 	ElicitationPropertySchema,
 	InitializeRequest,
 	PromptRequest,
+	RequestPermissionRequest,
 	SessionConfigOption,
 	SessionNotification,
 } from "@oh-my-pi/pi-utils/acp";
@@ -63,6 +64,51 @@ import {
 afterEach(cleanupHarnessState);
 
 describe("ACP agent", () => {
+	it("keeps the ACP handle after the durable session changes", async () => {
+		const elicitations: CreateElicitationRequest[] = [];
+		const permissions: RequestPermissionRequest[] = [];
+		const harness = await createHarness({
+			extensionRunners: true,
+			elicitationHandler: async request => {
+				elicitations.push(request);
+				return { action: "accept", content: { value: "Yes" } };
+			},
+			requestPermission: async request => {
+				permissions.push(request);
+				return { outcome: { outcome: "cancelled" } };
+			},
+		});
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		// This harness reset delegates to the real SessionManager, as extension
+		// ctx.newSession does, and rolls the durable identifier in place.
+		await session.newSession();
+		expect(session.sessionId).not.toBe(created.sessionId);
+
+		const response = await harness.agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "ping" }],
+		});
+		expect(response.stopReason).toBe("end_turn");
+		expect(session.promptCalls).toContain("ping");
+		expect(harness.updates.some(update => update.update.sessionUpdate === "agent_message_chunk")).toBe(true);
+		expect(harness.updates.every(update => update.sessionId === created.sessionId)).toBe(true);
+
+		expect(await session.extensionRunner?.getUIContext().select("Continue?", ["Yes", "No"])).toBe("Yes");
+		expect(elicitations).toHaveLength(1);
+		expect(elicitations[0]).toMatchObject({ sessionId: created.sessionId });
+		await session.clientBridge?.requestPermission?.({ toolCallId: "call", toolName: "test", title: "Run tool" }, []);
+		expect(permissions).toHaveLength(1);
+		expect(permissions[0]?.sessionId).toBe(created.sessionId);
+
+		// After the handle closes (as across an agent restart), loading it reopens the conversation that continued under it.
+		const continued = session.sessionId;
+		await harness.agent.closeSession({ sessionId: created.sessionId });
+		await harness.agent.loadSession({ sessionId: created.sessionId, cwd: harness.cwdA, mcpServers: [] });
+		expect(harness.sessions.at(-1)?.sessionId).toBe(continued);
+		await harness.agent.dispose();
+	});
+
 	it("supports multiple live ACP sessions with model and lifecycle handlers", async () => {
 		const harness = await createHarness();
 		const first = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
@@ -824,19 +870,49 @@ describe("ACP agent", () => {
 		harness.abortController.abort();
 	});
 
+	it("buffers compaction notifications until the client knows the session", async () => {
+		const harness = await createHarness();
+		vi.useFakeTimers();
+		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
+		const session = harness.findSession(created.sessionId)!;
+		const emit = (event: AgentSessionEvent) => {
+			for (const listener of session.listeners()) listener(event);
+		};
+
+		emit({ type: "auto_compaction_start", reason: "threshold", action: "context-full" });
+		expect(harness.extNotifications).toEqual([]);
+		await advanceBootstrapGuard();
+		emit({ type: "auto_compaction_end", action: "context-full", result: undefined, aborted: false, willRetry: true });
+		await Promise.resolve();
+
+		expect(harness.extNotifications).toEqual([
+			{
+				method: "_omp/compaction/start",
+				params: { sessionId: created.sessionId, reason: "threshold", action: "context-full" },
+			},
+			{
+				method: "_omp/compaction/end",
+				params: expect.objectContaining({
+					sessionId: created.sessionId,
+					action: "context-full",
+					aborted: false,
+					willRetry: true,
+				}),
+			},
+		]);
+	});
+
 	it("pushes config_option_update when thinking level changes internally", async () => {
 		// Internal callers (slash commands, model auto-adjust, extension UI) call
 		// AgentSession.setThinkingLevel directly without going through the ACP
-		// setSessionConfigOption surface. Once the session-lifetime subscription
-		// is installed (after the 50ms bootstrap guard so the response has
-		// reached the client first), those changes must surface to clients as
+		// setSessionConfigOption surface. Once lifetime delivery opens after the
+		// bootstrap guard, those changes must surface to clients as
 		// `config_option_update` so TORTAS-style fleet views stay in sync.
 		const harness = await createHarness();
 		vi.useFakeTimers();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
 		const session = harness.findSession(created.sessionId)!;
-		// Advance past the 50ms bootstrap timer so the lifetime subscription is
-		// installed before we drive an internal thinking-level change.
+		// Open lifetime delivery before driving an internal thinking-level change.
 		await advanceBootstrapGuard();
 
 		const updatesBefore = harness.updates.length;
@@ -883,8 +959,8 @@ describe("ACP agent", () => {
 		const session = harness.findSession(created.sessionId)!;
 
 		const updatesBefore = harness.updates.length;
-		// Synchronously after `newSession` returns, the bootstrap timer has
-		// not fired yet, so the lifetime subscription is not installed.
+		// Without a prompt or the bootstrap timer firing, lifetime delivery
+		// remains gated even though event capture is already installed.
 		session.setThinkingLevel("high");
 
 		const beforeBootstrap = harness.updates
@@ -895,8 +971,7 @@ describe("ACP agent", () => {
 					notification.update.sessionUpdate === "config_option_update",
 			);
 		expect(beforeBootstrap.length).toBe(0);
-		// After advancing through the 50ms bootstrap timer, the subscription is
-		// installed and subsequent changes do surface.
+		// Opening delivery lets subsequent internal changes reach the client.
 		await advanceBootstrapGuard();
 		const baseline = harness.updates.length;
 		session.setThinkingLevel("medium");
@@ -922,9 +997,8 @@ describe("ACP agent", () => {
 		const harness = await createHarness();
 		vi.useFakeTimers();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
-		// Wait past the bootstrap guard so the lifetime subscription is
-		// installed and the client-driven setSessionConfigOption produces
-		// exactly one notification through it.
+		// Open lifetime delivery so setSessionConfigOption produces exactly one
+		// notification through the session listener.
 		await advanceBootstrapGuard();
 
 		const updatesBefore = harness.updates.length;
@@ -1038,15 +1112,14 @@ describe("ACP agent", () => {
 		}
 	});
 
-	it("still pushes config_option_update for /effort before the lifetime subscription exists", async () => {
-		// Pre-bootstrap there is no lifetime subscription, so the explicit
-		// notifyConfigChanged is the only path that tells the client — same
-		// contract as `setSessionConfigOption`'s pre-bootstrap push.
+	it("pushes config_option_update for /effort before the bootstrap timer fires", async () => {
+		// An early client prompt opens lifetime delivery; /effort must emit
+		// exactly one config update without waiting for the bootstrap timer.
 		const harness = await createHarness();
 		vi.useFakeTimers();
 		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
-		// Deliberately do not advance the 50ms bootstrap guard: the lifetime
-		// subscription is not installed yet.
+		// Do not advance the guard: the prompt itself establishes that
+		// the client already knows this session.
 
 		const updatesBefore = harness.updates.length;
 		await harness.agent.prompt({
@@ -1071,8 +1144,8 @@ describe("ACP agent", () => {
 	it("pushes config_option_update when the model changes internally", async () => {
 		// Internal callers (prewalk hand-offs, retry-fallback, model cycling)
 		// change AgentSession's model directly without going through the ACP
-		// setSessionConfigOption surface. Once the session-lifetime subscription
-		// is installed, those changes must surface to clients as
+		// setSessionConfigOption surface. Once lifetime delivery is ready,
+		// those changes must surface to clients as
 		// `config_option_update` — otherwise a client's model indicator (e.g.
 		// Zed's status bar) goes stale the moment prewalk hands off to a
 		// cheaper model mid-session.
@@ -4823,6 +4896,19 @@ describe("ACP agent", () => {
 			});
 		});
 
+		it("refuses secret input requests without emitting a plaintext form elicitation", async () => {
+			const { connection, calls } = createElicitConnection(async () => ({
+				action: "accept",
+				content: { value: "shh" },
+			}));
+			const ctx = createAcpExtensionUiContext(connection, () => "session-secret-input", FORM_CAPABILITIES);
+
+			const result = await ctx.input("API key", "sk-...", { secret: true });
+
+			expect(result).toBeUndefined();
+			expect(calls).toHaveLength(0);
+		});
+
 		it("translates editor to a string elicitation with the prefill as default", async () => {
 			const { connection, calls } = createElicitConnection(async () => ({
 				action: "accept",
@@ -5050,37 +5136,6 @@ describe("ACP agent", () => {
 			});
 
 			expect(result).toBeUndefined();
-		});
-
-		it("reads the sessionId getter on every elicitation so mid-flight session changes are reflected", async () => {
-			// `record.session.sessionId` mutates when an extension command calls
-			// `ctx.switchSession` / `ctx.newSession`. Snapshotting it once at
-			// factory time would route later elicitations to the pre-switch id.
-			const { connection, calls } = createElicitConnection(async () => ({
-				action: "accept",
-				content: { value: "ok" },
-			}));
-			let currentSessionId = "session-before-switch";
-			const ctx = createAcpExtensionUiContext(connection, () => currentSessionId, FORM_CAPABILITIES);
-
-			await ctx.select("Pick", ["a"]);
-			currentSessionId = "session-after-switch";
-			await ctx.confirm("Continue?", "post-switch");
-			await ctx.input("Name?");
-
-			expect(calls).toHaveLength(3);
-			// Each call must be a session-scoped form elicitation. Spelled as three
-			// separate narrows because `mode === "form"` alone leaves both
-			// `ElicitationRequestScope` and `ElicitationSessionScope` in the union —
-			// only `"sessionId" in call` picks the session-scoped variant — and
-			// loop-style narrows don't propagate to the assertions below.
-			const [first, second, third] = calls;
-			if (first?.mode !== "form" || !("sessionId" in first)) throw new Error("first call missing sessionId");
-			if (second?.mode !== "form" || !("sessionId" in second)) throw new Error("second call missing sessionId");
-			if (third?.mode !== "form" || !("sessionId" in third)) throw new Error("third call missing sessionId");
-			expect(first.sessionId).toBe("session-before-switch");
-			expect(second.sessionId).toBe("session-after-switch");
-			expect(third.sessionId).toBe("session-after-switch");
 		});
 	});
 

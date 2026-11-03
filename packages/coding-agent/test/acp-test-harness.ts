@@ -464,10 +464,23 @@ export class FakeAgentSession {
 		return this.contextUsage;
 	}
 
-	async switchSession(sessionPath: string): Promise<boolean> {
-		await this.sessionManager.setSessionFile(sessionPath);
+	readonly #sessionChangeCallbacks = new Set<() => void>();
+
+	registerSessionChangeCallback(callback: () => void): () => void {
+		this.#sessionChangeCallbacks.add(callback);
+		return () => this.#sessionChangeCallbacks.delete(callback);
+	}
+
+	#adoptDurableSession(): void {
+		const previous = this.sessionId;
 		this.sessionId = this.sessionManager.getSessionId();
 		this.agent.sessionId = this.sessionId;
+		if (this.sessionId !== previous) for (const callback of this.#sessionChangeCallbacks) callback();
+	}
+
+	async switchSession(sessionPath: string): Promise<boolean> {
+		await this.sessionManager.setSessionFile(sessionPath);
+		this.#adoptDurableSession();
 		return true;
 	}
 
@@ -480,8 +493,7 @@ export class FakeAgentSession {
 
 	async newSession(): Promise<boolean> {
 		await this.sessionManager.newSession();
-		this.sessionId = this.sessionManager.getSessionId();
-		this.agent.sessionId = this.sessionId;
+		this.#adoptDurableSession();
 		return true;
 	}
 
@@ -704,6 +716,7 @@ export type SetToolUIContextSpy = (uiContext: ExtensionUIContext, hasUI: boolean
 export interface AgentHarness {
 	agent: AcpAgent;
 	updates: SessionNotification[];
+	extNotifications: Array<{ method: string; params: Record<string, unknown> }>;
 	abortController: AbortController;
 	sessions: FakeAgentSession[];
 	setToolUIContextSpies: SetToolUIContextSpy[];
@@ -845,6 +858,7 @@ export async function createHarness(
 	const { cwdA, cwdB } = await prepareHarnessRoots();
 
 	const updates: SessionNotification[] = [];
+	const extNotifications: AgentHarness["extNotifications"] = [];
 	const abortController = new AbortController();
 	const connection = {
 		sessionUpdate: async (notification: SessionNotification) => {
@@ -852,6 +866,9 @@ export async function createHarness(
 			// microtask before the push and perturb ordering-sensitive tests.
 			if (options.sessionUpdateHook) await options.sessionUpdateHook(notification);
 			updates.push(notification);
+		},
+		extNotification: async (method: string, params: Record<string, unknown>) => {
+			extNotifications.push({ method, params });
 		},
 		unstable_createElicitation: options.elicitationHandler
 			? async (req: CreateElicitationRequest) => options.elicitationHandler!(req)
@@ -893,6 +910,7 @@ export async function createHarness(
 		cwdA,
 		cwdB,
 		findSession: (sessionId: string) => sessions.find(session => session.sessionId === sessionId),
+		extNotifications,
 	};
 }
 
