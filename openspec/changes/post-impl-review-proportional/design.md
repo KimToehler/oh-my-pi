@@ -9,7 +9,7 @@ See proposal.md (Why). The post-implementation flow lives in `team-config/agent/
 - `validate-gate-record.mjs:547-551`: `whole_diff.run` must match the `gate.md` `Whole-diff review` field. When the field says not needed, the record repeats its reason verbatim. `validate-openspec-change.mjs:183` accepts `not needed (<reason>)`.
 - An Override needs only `override.by`, `override.reason` and one `downgrades` entry per FAIL blocker (`validate-gate-record.mjs:579-590`, `:769-792`). It reads no `gate-convergence` decision. `GC decide` refuses unless the last wave stopped (`gate-convergence.mjs:618`). The only STOPs are the trend rules and the internal-tooling cap (`:283-296`).
 - The validator puts no wave constraint on QA artifact paths: it has no `wave-` match.
-- The seed resolves `@review` to `onara/cx/gpt-6.1-terra:high` and `@oracle` to `onara/cx/gpt-6.1-sol:xhigh` (`team-config/seed/config.yml:11-13`). Its retry chain switches a stalled `gpt-6.1-sol` to `claude-opus-5` (`:27-28`). An agent's frontmatter `model:` pins its model, for example `blocker-verifier.md:5`.
+- The seed resolves `@review` to `onara/cx/gpt-6.1-terra:high` and `@oracle` to `onara/cx/gpt-6.1-sol:xhigh` (`team-config/seed/config.yml:11-13`). Its retry chain maps `gpt-6.1-sol` to `claude-opus-5` (`:33-34`); since main `ddbd95d024` it switches only on a usage limit (`retry.fallbackOn: usage-limit`, `:25`), while a profile config that predates that key still switches on any provider error (`team-config/README.md:112-114`). An agent's frontmatter `model:` pins its model, for example `blocker-verifier.md:5`.
 
 ## Goals / Non-Goals
 
@@ -80,7 +80,7 @@ A `task.agentModelOverrides.auditor` entry wins over the definition (`packages/c
 
 Detection alone is not the cheap half. In the plan-review loop measurement 9 of 26 fresh `sol:high` dispatches (35%) lost their pin: the provider stream ended with `stream_disconnected: stream closed before response.completed` and the runtime continued the same session on `claude-opus-5`, the failures concentrating on the largest inputs at $3.67-6.62 per lost attempt and consuming 45% of that run's spend (`.omp/team-config/evidence/gate/plan-review-loop-measurement/f1/replays.md`, committed on main). This change's own F1 recorded the same mechanism on a non-pinned dispatch (`f1/standard.md:36`). A `risky` gate on a large diff is exactly that shape of request, so the INCONCLUSIVE-and-retry rule above can double the cost of the most expensive lane. Two prevention levers exist outside this change's files and belong in the migration plan, not in its specs:
 - the session runtime no longer switches models on such a cut: a mid-stream transport drop with streamed progress is retried once on the same model before the fallback chain is consulted (main `7c737ac11f`, `packages/coding-agent/src/session/turn-recovery.ts`). A deploy older than that commit still substitutes silently.
-- the seed's own chain is the other source: `team-config/seed/config.yml:27-28` maps `gpt-6.1-sol` to `claude-opus-5`, and `retry.fallbackOn: usage-limit` or dropping that entry keeps the pin by construction.
+- the seed's own chain is the other source: `team-config/seed/config.yml:33-34` maps `gpt-6.1-sol` to `claude-opus-5`. Since main `ddbd95d024` the seed sets `retry.fallbackOn: usage-limit` (`:25`), which keeps the pin by construction on a fresh install; a profile config that predates the key still switches on any provider error until the key is merged into it (`team-config/README.md:112-114`).
 
 With either lever in place the session check of this decision stays as the backstop it was meant to be. Neither lever is part of this change's cutover; the migration plan names them as a precondition for the measured cost of a `risky` gate.
 
@@ -154,7 +154,7 @@ The change introduces no mechanism the `Build vs. adopt` paragraph covers. It im
 
 ## Migration Plan
 
-1. Before the first `risky` gate runs under this text, make the pin hold instead of only being checked (D4): the deployed omp must contain main `7c737ac11f`, and the retry chain that maps `gpt-6.1-sol` to `claude-opus-5` (`team-config/seed/config.yml:27-28`) is either dropped for that entry or paired with `retry.fallbackOn: usage-limit` in the profiles that run gates. Neither is a file of this change; skipping the step leaves the INCONCLUSIVE retry as the only defence and pays for it per large diff.
+1. Before the first `risky` gate runs under this text, make the pin hold instead of only being checked (D4): the deployed omp must contain main `7c737ac11f`, and every profile that runs gates carries `retry.fallbackOn: usage-limit` from the seed (main `ddbd95d024`, `team-config/seed/config.yml:25`) or drops the chain entry that maps `gpt-6.1-sol` to `claude-opus-5` (`:33-34`); the deploy seeds `config.yml` only where none exists, so an existing profile is merged by hand. Neither is a file of this change; skipping the step leaves the INCONCLUSIVE retry as the only defence and pays for it per large diff.
 2. Merge, then run `scripts/deploy-local.sh` for this agent directory. For onara and weaver, rerun `install-openspec-workflow.mjs`.
 3. Restart running sessions so they load the new `auditor.md` and skill text.
 4. Rollback: revert the merge and redeploy. No record, ledger or trailer format changes, so records written under either text stay valid.
