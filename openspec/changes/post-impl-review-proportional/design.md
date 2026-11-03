@@ -97,7 +97,7 @@ A record needs PASS trailers bound to `reviewed_sha`. A fix after the last wave 
 - `standard`: 1 fix round, so at most 2 waves;
 - `risky`: 2 fix rounds, so at most 3 waves.
 
-This is the same number of fix rounds that plan review allows per depth. A closing wave re-runs every lane of the depth on the fixed tree. If it still fails, the wave is recorded, and the user is asked once before any edit or dispatch, with the open blockers and their disposition under `Blocker disposition`:
+This is the same number of fix rounds that plan review allows per depth. A closing wave re-runs QA on the fixed tree and, when QA passes, every reviewer lane of the depth; a wave whose QA fails dispatches no reviewer, as Phase 1 already says, and counts as a failing wave. If it still fails, the wave is recorded, and the user is asked once before any edit or dispatch, with the open blockers and their disposition under `Blocker disposition`:
 - one more fix round, then the ask again;
 - re-plan;
 - Stop;

@@ -253,10 +253,11 @@ lower it). A `standard` gate dispatches one `implementation-audit` at F2; a `ris
 `onara/cx/gpt-6.1-sol:high`; the gate checks the pin before dispatch and each session file after it, and a dispatch that ran
 on another model or effort does not count: it gets one fresh retry and is then recorded INCONCLUSIVE. The former F3 whole-diff
 lane is folded into F2, whose reviewers read the whole diff; `integration-review` stays available on demand. Fix rounds are
-bounded by depth (1 for `standard`, 2 for `risky`), each ending in a closing wave of every lane; when a closing wave still
-fails, the gate asks you once whether to fix once more, re-plan, Stop or, for eligible blockers only, Override. F1 runs one QA
-row per requirement plus three minimum rows at `standard` and one row per scenario at `risky`; after a fix or a merge of the
-default branch only the rows its diff can change are re-run, and the carried rows with their reasons go to the reviewers.
+bounded by depth (1 for `standard`, 2 for `risky`), each ending in a closing wave that re-runs QA and, when it passes, every
+reviewer lane; when a closing wave still fails, the gate asks you once whether to fix once more, re-plan, Stop or, for
+eligible blockers only, Override. F1 runs one QA row per requirement plus three minimum rows at `standard` and one row per
+scenario at `risky`; after a fix or a merge of the default branch only the rows its diff can change are re-run, and the
+carried rows with their reasons go to the reviewers.
 
 A gate whose F2 baseline predates the deploy finishes under the text it started with. Running sessions restart after
 `scripts/deploy-local.sh`. Profiles and custom agent directories need their own install to receive the new `auditor.md`.

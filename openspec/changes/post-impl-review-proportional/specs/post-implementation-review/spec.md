@@ -13,7 +13,7 @@ The F2 gate SHALL take its depth from the change's `gate.md` `Depth` bullet. For
 #### Scenario: Standard change
 
 - **WHEN** a change with Depth `standard` reaches F2
-- **THEN** exactly one `implementation-audit` invocation runs per wave
+- **THEN** exactly one `implementation-audit` invocation runs in each wave whose QA passes, and a wave whose QA fails dispatches no reviewer
 
 #### Scenario: Risky change
 
@@ -85,17 +85,17 @@ Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the mod
 
 ### Requirement: Fix rounds are bounded by depth
 
-After a failing wave the gate SHALL allow one fix round at `standard` depth and two at `risky` depth. Each fix round SHALL end in a closing wave that re-runs every lane of the depth on the fixed tree. A `gate-convergence` STOP before the budget is spent SHALL keep its existing ask.
+After a failing wave the gate SHALL allow one fix round at `standard` depth and two at `risky` depth. Each fix round SHALL end in a closing wave on the fixed tree that re-runs QA and, when QA passes, every reviewer lane of the depth; a closing wave whose QA fails is a failing wave. A `gate-convergence` STOP before the budget is spent SHALL keep its existing ask.
 
 #### Scenario: Standard fix round
 
 - **WHEN** a `standard` gate's first wave fails, and its fixes are delta-reviewed and committed
-- **THEN** a second wave runs `implementation-audit` on the fixed tree, and no third wave starts without the user
+- **THEN** a second wave re-runs QA on the fixed tree and, when QA passes, `implementation-audit`, and no third wave starts without the user
 
 #### Scenario: Risky budget
 
 - **WHEN** a `risky` gate's second wave fails
-- **THEN** a second fix round and a third wave run, with both lanes
+- **THEN** a second fix round and a third wave run, with both reviewer lanes when its QA passes
 
 #### Scenario: Negative control
 
