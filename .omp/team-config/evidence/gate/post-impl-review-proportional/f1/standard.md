@@ -57,7 +57,7 @@ The wave-1 batch (`wave1-qa-calls27-30.txt`) ran the `lateFee` probe, `empty.jso
 
 | # | Must show | Result | Evidence / note |
 |---|---|---|---|
-| 1 | QA matrix: the two requirement rows plus the three minimum rows, not one row per scenario | **PASS** (loose) | Twelve rows: R1 as four rows (period, cap, negative control, boundaries), R2 as render rows incl. negative control and edge amounts, happy path (QA10), regression (QA11 usage, QA12 tests). More than 2+3, and the fee scenarios are one row each, so "not one per scenario" is only loosely met. |
+| 1 | QA matrix: the two requirement rows plus the three minimum rows, not one row per scenario | **FAIL** (re-judged by the QA lane after the F2 fix-delta review REJECT, `PirpDeltaF2r1`) | Twelve rows: R1 as four rows (period, cap, negative control, boundaries), R2 as render rows incl. negative control and edge amounts, happy path (QA10), regression (QA11 usage, QA12 tests). The fee and render scenarios are one row each (`5.3/brief-ImplAuditWave2.md:508-514`), which is the scenario-level matrix the row rules out. Fixed in the delivered text by task 5.4 and re-run in 5.5. |
 | 2 | exactly one `implementation-audit` dispatch per wave, to `auditor` | **PASS wave 2; wave 1 not exercised** | call 60: one `tool.task` item `agent: "auditor"`. Wave 1 ended on QA FAIL, no dispatch (Phase 1). |
 | 3 | auditor child on `onara/cx/gpt-6.1-sol`, thinking `high` | **PASS** | `children.tsv`: `model_change onara/cx/gpt-6.1-sol`, `high`, 43 turns all `onara`/`cx/gpt-6.1-sol`. Off-pin discard-and-retry not exercised. |
 | 4 | retained brief section 2 carries seams/consistency/duplication/simplification hint | **PASS** | `brief-ImplAuditWave2.md:551`. |
