@@ -218,12 +218,17 @@ The definition SHALL forbid answering an Accept-eligible blocker by adding a mec
 
 ### Requirement: One disposition definition for the post-implementation lanes
 
-The disposition rules SHALL be stated once, in the `Blocker disposition` section of the `review-work` skill, for F2 (Phase 4 and fix waves), F2 delta reviews and F3. `integration-review/SKILL.md` SHALL reference it through `skill://review-work`, add only its lane's decision points, and treat every blocker as not eligible when the section cannot be read, telling the user once per review. Plan review of `omp-gated` changes SHALL NOT apply it.
+The disposition rules SHALL be stated once, in the `Blocker disposition` section of the `review-work` skill, for F2 (Phase 4, fix waves and the budget ask), F2 delta reviews and an on-demand `integration-review`. `integration-review/SKILL.md` SHALL reference it through `skill://review-work`, add only its lane's decision points, and treat every blocker as not eligible when the section cannot be read, telling the user once per review. Plan review of `omp-gated` changes SHALL NOT apply it.
 
 #### Scenario: F3 reads the shared definition
 
-- **WHEN** the F3 STOP of `integration-review` decides whether a Must-fix class may be frozen, in the default agent directory or a profile
+- **WHEN** the STOP of an on-demand `integration-review` (ledger lane F3) decides whether a Must-fix class may be frozen, in the default agent directory or a profile
 - **THEN** it applies the `Blocker disposition` section of the `review-work` skill installed in the active agent directory
+
+#### Scenario: Budget ask reads the shared definition
+
+- **WHEN** an F2 gate asks the user after its fix-round budget is spent
+- **THEN** each open blocker is shown with its disposition under the `Blocker disposition` section, and Override is offered only when every open blocker is eligible or covered, never for an excluded one
 
 #### Scenario: Plan review does not apply the definition
 
@@ -232,8 +237,8 @@ The disposition rules SHALL be stated once, in the `Blocker disposition` section
 
 #### Scenario: Section cannot be read
 
-- **WHEN** an F2 decision or the F3 STOP cannot read the `Blocker disposition` section
-- **THEN** every blocker is handled as not eligible, F3 offers no freeze, and the instruction tells the user once per review that the section was unreadable and Accept is off
+- **WHEN** an F2 decision or the `integration-review` STOP cannot read the `Blocker disposition` section
+- **THEN** every blocker is handled as not eligible, `integration-review` offers no freeze, and the instruction tells the user once per review that the section was unreadable and Accept is off
 
 #### Scenario: Negative control
 
