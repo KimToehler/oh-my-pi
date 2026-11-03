@@ -1,0 +1,11 @@
+d65d015 chore(gate): fee-report F2 merge-gate record, trailer and QA evidence
+4aedb11 docs(openspec): fee-report tick F1 3.1 and fix 4.1
+1e202e0 fix: group every three integer digits in fee amounts
+9734ef6 docs(openspec): fee-report F2 fix row 4.1 (amount grouping)
+82e54ad docs(openspec): shorten fee rendering requirement
+f082981 docs(openspec): fee-report design and spec wording (integer cents, CLI newline)
+efccebc docs(openspec): fee-report spec wording
+1bbb337 feat: fee report rendering and render command
+f481f55 feat: late fee from amount and days overdue
+00326d1 docs(openspec): fee-report change
+85d72a3 chore: feereport base project

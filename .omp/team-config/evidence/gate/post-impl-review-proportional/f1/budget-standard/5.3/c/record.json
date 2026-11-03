@@ -1,0 +1,69 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "d218dbf0113e8404403ed606d619f9382e2982dc87bc4e42146a3e2f2889cdf5",
+  "reviewed_sha": "3c11e3c32ffadd0a8fb38b602f6520ee02431d12",
+  "diff_base": "c06557869128d508064436716d833cc4399c167a",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, Risk tier product); final diff re-classified: new local CLI, no auth, schema, wire contract or shared state, so one implementation-audit",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 s1 happy path: widget,19.99 + gadget,5.01 prints 25.00 (carried from F1; merge cannot reach totals < 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s1-happy.md",
+      "artifact_sha256": "51fab9ffe89289731869be09237c1a43b4d378e029323fd7f30c029380c24f76"
+    },
+    {
+      "name": "QA2 s2 malformed: widget,abc exits 2 naming line 1, no total (carried from F1; no total is formatted)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "e2f3f125fd1afb7688f71c3dcd71733e50af9ed5d75bee459bebb4f40238e20e"
+    },
+    {
+      "name": "QA3 s3 exact cents: ten x,0.10 print 1.00 (carried from F1; merge cannot reach totals < 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "47d55bfcf362d27b4d0b2a426f91db5c6398954bec4c8e33ad64c8b217b7137c"
+    },
+    {
+      "name": "QA4 s4 empty file prints 0.00 (carried from F1; merge cannot reach totals < 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "f58dfd7a8e2b62b8a5b1c8f021325c974da862af0b426164bcf39ad5282dae83"
+    },
+    {
+      "name": "QA5 s5 large: big,1234.50 prints 1,234.50 (re-run on 3c11e3c after merging main)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/s5-large.md",
+      "artifact_sha256": "4eeef81ec0737c0e4a1d729616c16aac3ada0f5aee25162195d9c499885be0ff"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/trailer-implementation-audit.md",
+      "trailer_sha256": "3dffa4a017e9d773ea9d44ed0f92497d0d045bb32ef9ae995395fb213245a79a",
+      "note": "F2 wave 1 DECISION: PASS; no blockers; reply stored verbatim at .omp/team-config/evidence/gate/csv-total/wave-1/trailer-implementation-audit.md"
+    }
+  ],
+  "blockers": []
+}

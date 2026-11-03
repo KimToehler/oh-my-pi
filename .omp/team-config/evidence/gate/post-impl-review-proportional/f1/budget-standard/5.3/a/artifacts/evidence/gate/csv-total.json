@@ -1,0 +1,114 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/csv-total",
+  "plan_sha256": "644eee531814b564834f6602627900f931e03c4bbaca39052b073995f8e978a7",
+  "reviewed_sha": "4b7eb4999e12b11667a887bde9f89b5e7ec1ad40",
+  "diff_base": "2a9922d238ebc1c427bb1aa35881ae0d0d80cde3",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, no review, gate or release mechanism changes); final diff adds a standalone local CLI with no new network recipient, persisted structure, auth path, schema or shared state; one fix round (4.1) spent, wave 2 audit FAIL on the accepted residual sub-cent rounding, overridden by Tim at the budget ask",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 happy path widget,19.99 + gadget,5.01 prints 25.00 (re-run at reviewed head)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa1-s1-happy.md",
+      "artifact_sha256": "93764f52fa289d7ddb718d6091759e3c580d967490695be2bb5cd620a4ee2665"
+    },
+    {
+      "name": "QA2 malformed price widget,abc exits 2 naming line 1, no total (carried from 4e5e75b: parse error path unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s2-malformed.md",
+      "artifact_sha256": "2bb0e7324e2cf277f7e59e084b5aeb70001093da3d3ad792d8cf02718bbf560b"
+    },
+    {
+      "name": "QA3 ten lines x,0.10 print 1.00 (carried from 4e5e75b: total below 1000 never reaches changed formatter)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s3-cents.md",
+      "artifact_sha256": "11525ab3a8e2da47652ae3f89df783e5d7ed86f25b626e6718bb5e27e7701ddb"
+    },
+    {
+      "name": "QA4 empty file prints 0.00 (carried from 4e5e75b: total below 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/f1/s4-empty.md",
+      "artifact_sha256": "efcdae5be453e0570385562f45235f3b117980c4467f533f5b57abf4bee76c2f"
+    },
+    {
+      "name": "QA5 big,1234.50 prints 1234.50 (re-run at reviewed head)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa5-s5-large.md",
+      "artifact_sha256": "c6f0ef72f9b02dc35e238baf3a9b8551c393167ac4a09afd75366a49b79337ef"
+    },
+    {
+      "name": "QA6 regression: formatter boundary 999.99 + 0.01 prints 1000.00 (re-run at reviewed head)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa6-boundary-1000.md",
+      "artifact_sha256": "8d293abda02b71a992575194bc86dcce475806a05df9f23b334caa3ac0f1f570"
+    },
+    {
+      "name": "QA7 big,1234567.00 prints 1234567.00 (re-run after fix 4.1; wave 1 printed 1234,567.00)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-2/qa7-million.md",
+      "artifact_sha256": "1752e57b813f49818d6f584f45bc61f809823ce8b0eb2dd0023aff771dee90d5"
+    },
+    {
+      "name": "QA8 a,0.10 + b,0.20 print 0.30 (carried from wave 1 at ecd418f: total below 1000)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa8-cents-pair.md",
+      "artifact_sha256": "b06ca8da0b6c1c8fc350dd78c776ff7bcf25311116802fed09c9d6bffdea2d3d"
+    },
+    {
+      "name": "QA9 two malformed lines named as lines 1, 3, exit 2, no total (carried from wave 1 at ecd418f: parse error path unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/csv-total/wave-1/qa9-two-malformed.md",
+      "artifact_sha256": "314cccbb4ca74215a54c9d005bcf00d991a354cabd6aa43c1587815e1617711f"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "FAIL",
+      "trailer_artifact": ".omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md",
+      "trailer_sha256": "4c09d7eedbe095c1b0ed2e96c6fb72e36b7c25ce43b019012de51806cb9c63f3",
+      "note": "wave 2 at reviewed_sha: B1 sub-cent-rounding src/money.ts:2, covered by gate.md Accepted residual risks"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA7",
+      "severity": "high",
+      "location": "src/format.ts:11",
+      "coverage": "test/csvtotal.test.ts::totals of four and seven integer digits print their digits without separators",
+      "fix_sha": "4b7eb4999e12b11667a887bde9f89b5e7ec1ad40"
+    }
+  ],
+  "downgrades": [
+    {
+      "invocation": "implementation-audit",
+      "blocker": "B1",
+      "rule": "accepted-residual",
+      "reason": "gate.md Accepted residual risks names sub-cent rounding per line in src/money.ts with a one-cent invoice difference, the defect and consequence B1 states",
+      "disposition": "residual"
+    }
+  ],
+  "override": {
+    "by": "Tim",
+    "reason": "the remaining blocker is the accepted residual sub-cent rounding; accept it."
+  }
+}

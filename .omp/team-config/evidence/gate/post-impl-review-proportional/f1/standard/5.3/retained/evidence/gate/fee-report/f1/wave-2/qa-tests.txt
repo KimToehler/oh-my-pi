@@ -1,0 +1,6 @@
+head: 1e202e028453b80e20c18c83fddc46259106a562
+$ bun test
+exit: 0
+stdout (repr, exact bytes): 'bun test v1.4.4 (5d9cc0f4f)\n'
+stderr: '\nsrc/fee.test.ts:\n(pass) one complete period charges 2% [0.09ms]\n(pass) fee is capped at 25% of the amount\n(pass) 29 days overdue charges nothing\n\nsrc/render.test.ts:\n(pass) lines and total [0.20ms]\n(pass) cents are zero padded\n(pass) thousands are grouped\n(pass) every group of three integer digits is separated\n(pass) large fee grouped on the line and the total [0.02ms]\n(pass) empty report\n\n 9 pass\n 0 fail\n 9 expect() calls\nRan 9 tests across 2 files. [5.00ms]\n'
+note: expected the committed suite, including the two new grouping tests, to pass

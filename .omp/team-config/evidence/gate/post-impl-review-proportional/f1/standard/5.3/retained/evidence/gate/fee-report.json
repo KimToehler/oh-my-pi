@@ -1,0 +1,126 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/fee-report",
+  "plan_sha256": "0e150a1af82b4cfe27451443de87eadb708ba3e889759a3261c9b7153af13a62",
+  "reviewed_sha": "4aedb1199ae224282974a4b954f21f1bc3877848",
+  "diff_base": "85d72a39c903cdf2a590ced47d0bf8f77d41febb",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md Depth standard (Mandatory class none, no review/gate/release mechanism); final diff adds no network recipient, persisted or transmitted structure, auth path, migration, external wire contract or shared state, so one implementation-audit; wave 1 QA failed QA6/QA8, fixed in 1e202e0 (delta OKAY), wave 2 PASS",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "QA1 lateFee one complete period: (10000, 30) = 200 (carried from wave 1: src/fee.ts untouched by 82e54ad..4aedb11)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-latefee.txt",
+      "artifact_sha256": "39c28bc1796c135d1cf63f8cb0c2b03cefc04a5f86bf2da29e6a237d97e5af9b"
+    },
+    {
+      "name": "QA2 lateFee cap: (10000, 400) = 2500 (carried from wave 1, as QA1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-latefee.txt",
+      "artifact_sha256": "39c28bc1796c135d1cf63f8cb0c2b03cefc04a5f86bf2da29e6a237d97e5af9b"
+    },
+    {
+      "name": "QA3 lateFee negative control: (10000, 29) = 0 (carried from wave 1, as QA1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-latefee.txt",
+      "artifact_sha256": "39c28bc1796c135d1cf63f8cb0c2b03cefc04a5f86bf2da29e6a237d97e5af9b"
+    },
+    {
+      "name": "QA4 lateFee period boundaries, zero inputs and round-down (carried from wave 1, as QA1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-latefee.txt",
+      "artifact_sha256": "39c28bc1796c135d1cf63f8cb0c2b03cefc04a5f86bf2da29e6a237d97e5af9b"
+    },
+    {
+      "name": "QA5 render command: lines and total, exact bytes with one trailing newline (re-run at 1e202e0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-render-two-lines.txt",
+      "artifact_sha256": "7acbe06cc7b0c569c0a78234cf4e7f27b436ff235128cdf6e5db72637b7583cf"
+    },
+    {
+      "name": "QA6 render command: large fee grouped 1,234,567.89 on line and TOTAL (re-run at 1e202e0; failed in wave 1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-render-big.txt",
+      "artifact_sha256": "017be108546ee48cfd88441eb6c08eb6f874a52364a0685ea25fe563c331bd19"
+    },
+    {
+      "name": "QA7 render command negative control: empty report prints exactly No late fees (carried from wave 1: unchanged early return, cli.ts unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-render-empty.txt",
+      "artifact_sha256": "00df31a378d14abb845bb8d78c845900d667deed0171387abfb939a9c89e9e55"
+    },
+    {
+      "name": "QA8 render command edge amounts 0.05, 1,000,000.00, 1,000.05, TOTAL 1,001,000.10 (re-run at 1e202e0; failed in wave 1)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-render-edge-amounts.txt",
+      "artifact_sha256": "b8d0b67ed4716269e1b98f1e3a96a7e444158ba0bb72dc5cfdafd357427def86"
+    },
+    {
+      "name": "QA9 render command keeps the given line order (re-run at 1e202e0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-render-order.txt",
+      "artifact_sha256": "186fa5eb87d2c43c8840a44bb5d8dc3f9a2d8ef301d896306cbcfdbeb62be8fc"
+    },
+    {
+      "name": "QA10 happy path: render command on samples/report.json (re-run at 1e202e0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-render-sample.txt",
+      "artifact_sha256": "6aa009d482cbc2446dd0f50cee2e68ee5991e800a9a64812e5950e9d616e80db"
+    },
+    {
+      "name": "QA11 regression: render command without argument prints usage and exits 2 (carried from wave 1: cli.ts unchanged)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-1/qa-usage.txt",
+      "artifact_sha256": "9c2c420fbc2891e7eb5c904346bec3551beb1fa33d473f65b8546b75d8508dae"
+    },
+    {
+      "name": "QA12 regression: bun test, 9 pass 0 fail (re-run at 1e202e0)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/fee-report/f1/wave-2/qa-tests.txt",
+      "artifact_sha256": "6ce5ea2b232cce675e5976b3931d84f0eb78e758558fd91f3fe7114dddc88a8f"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/fee-report/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "a8b99f57f8c20d14962448eccffb25436634a0991f2bd3a9b13fa94c040f07e8",
+      "note": "F2 wave 2 auditor ImplAuditWave2: no blockers; notes on undocumented numeric range and CLI/fee-boundary coverage held in manual QA rather than committed tests"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "QA6",
+      "severity": "high",
+      "location": "src/render.ts:16",
+      "coverage": "src/render.test.ts::large fee grouped on the line and the total",
+      "fix_sha": "1e202e028453b80e20c18c83fddc46259106a562"
+    },
+    {
+      "id": "QA8",
+      "severity": "high",
+      "location": "src/render.ts:16",
+      "coverage": "src/render.test.ts::every group of three integer digits is separated",
+      "fix_sha": "1e202e028453b80e20c18c83fddc46259106a562"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+Working...
+The F2 gate for `csv-total` is complete. Its result is **overridden**, not passed: wave 2's audit failed on the sub-cent rounding, and your override accepts that as the residual risk `gate.md` already names. The record validator printed `overridden` (exit 0) both before and after the record was committed at `d0dea38`. I have not merged.
+
+As you instructed, no reviewer was dispatched. Each reviewer's answer is your fixed reply file, and I wrote the brief I would have sent next to it in `payloads/F1D/r53/out-a/`.
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (9 rows, 9 artifacts) | orchestrator | - | - | PASS (wave 2) | - |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL overridden | MED |
+
+**Blocking issues**
+- **QA7, fixed:** in wave 1, a total of `1234567.00` printed `1234,567.00`. Fix 4.1 (`4b7eb49`) puts `src/format.ts` back to what `main` has, so totals print without thousands separators. A test added for four- and seven-digit totals failed before the fix and passes after.
+- **B1, accepted:** `src/money.ts:2` uses `Math.round(amount * 100)`, so `1.005` prints as `1.00` and a total can be one cent off the invoice. It is recorded as a residual risk on your instruction, under the entry `gate.md` already has for exactly this.
+
+**Things you should know**
+- **Delta review:** the first review rejected only the reuse of QA1's old evidence; I re-ran QA1 and it passed. The second review returned OKAY, but its summary describes "grouping every run of three digits", while the fix removes grouping altogether.
+- **Audit reply:** it refers to "an earlier reading of this tree", but wave 1 ran no audit.
+- **Remote branch:** `origin/feat/csv-total` holds an earlier attempt at this gate, which fixed the same bug the other way (grouping every three digits). This branch has diverged from it, so pushing will need a decision.
+- **Unstaged files:** `wave-1/qa6-boundary-1000.md` and `wave-1/qa7-million.md` stay untracked. The record cites only the wave-2 runs of those rows.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+  range n/a · report n/a · Must-fix: n/a
+- review-work: RAN
+  reviewed_sha 4b7eb4999e12b11667a887bde9f89b5e7ec1ad40 · plan_sha256 644eee531814b564834f6602627900f931e03c4bbaca39052b073995f8e978a7
+  implementation-audit: FAIL overridden · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md
+  strategic-risk-review: not run (depth standard per gate.md)
+  override: by Tim · 1 downgrades (accepted-residual: 1)
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at d0dea38
+- code committed after reviewed_sha: none
+```

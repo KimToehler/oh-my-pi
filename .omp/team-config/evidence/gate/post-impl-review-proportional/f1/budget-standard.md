@@ -1,6 +1,96 @@
 # F1-D `standard` budget and carries (task 4.5)
 
-## 4.7 re-run
+## 5.3 re-run
+
+Task 5.3, re-run of 4.5 (a) and 4.5 (c) after 5.1 and 5.2 (commit `0daf2c284d`: `SKILL.md` record example puts only the parenthesized reason into `whole_diff.reason`; Phase 1 step 1 `:172` says a carried row's command is not executed again, a script capturing several rows runs for the stale rows alone; step 4 `:182` builds the matrix from the rows step 3 lists). QA lane: R53D. Profile `pirp` (redeployed from `0daf2c284d`; `cmp` of its `SKILL.md` against `team-config/agent/skills/review-work/SKILL.md` of the worktree: identical). Sessions ran `omp --profile pirp -p` (follow-ups `--resume <session file>`). Every reviewer result is a fixed payload from `$TMPDIR/pirp-fix/payloads/F1D/` (unchanged); no `task` item was dispatched (`grep -P "\ttask\t"` over all tool-call lists: 0 hits). Retained copies under `budget-standard/5.3/`: `a/` and `c/`, each with prompts, session outputs per stage (`*-stage*.out`, `session*.wall`), `tool-calls*.txt` (ordered, from the session jsonl), `gc-lines*.txt`, `ledger.jsonl`, `record.json`, `final-state.txt`, `briefs/` (the briefs the sessions wrote) and `artifacts/` (QA captures, trailers, gate-deltas).
+
+**4.5 (b) is carried by task 5.3**: its must-show items (the fix-induced STOP ask and `GC decide`) depend on neither carries nor the record; the 4.5 result of the earlier run (section "Earlier 4.5 run" below) stands, not re-run.
+
+### Deviations and honesty notes (5.3)
+
+1. **Profile instead of `PI_CODING_AGENT_DIR=$TMPDIR/pirp-agent`**, same reason as before (that variable does not redirect subagent discovery). `~/.omp/agent` was never written; the scripts the sessions call there are byte-identical to the branch's.
+2. **Fixtures `f1d-r53-a` and `f1d-r53-c` are fresh copies at the 4.7 starting commits**, not the advanced fixtures. (a): clone of `f1d-a-budget` with `feat/csv-total` checked out at `ecd418f` and `main` at `2a9922d` (`merge-base --is-ancestor main HEAD` = 0); (c): `git init` + fetch of the two commits from `f1d-c-moving`, `feat/csv-total` = `0cd516d`, `main` = `cac67ef` (`--is-ancestor` = 1, diverged). Schema blob `954aae1d8a239af994c88db3ef575591de70c95e` in both. Setup checks before any session: `bun test` 4 pass; `validate-openspec-change.mjs --reviewed` OKAY; `validate-gate-record.mjs --plan-only` passed; `openspec validate csv-total --strict` valid. Side effect of cloning (a): the clone keeps `origin/feat/csv-total` (`e4e3052`, the earlier 4.5 run's commits); the session noticed it in `git log --all` and in its final summary (a context-mining remark in its wave-2 brief), it did not use it. The 4.7 (a) runs were also clones.
+3. **No payload and no fixture was changed.** Prompts are the 4.7 prompts with `r47/` replaced by `r53/` for the brief directory (`a/prompt-a1.txt`, `a/resume-a2.txt`, `c/prompt-c1.txt`, `c/prompt-c2.txt`; `a/answer-a3.txt` is the earlier Override text verbatim: `Override: the remaining blocker is the accepted residual sub-cent rounding; accept it. — Tim`). None names the expected outcome, the planted defect or the rule under test. (c): session 1 `/opsx-apply csv-total. Implement the one remaining task ... do not start the F2 merge gate or any review.`, then `c/c-main2.sh` (the earlier `payloads/c-main2.sh`; `c065578` on `main`), then session 2.
+4. **All reviewer replies and child session files are synthetic**, as in 4.7 (`a-w1-reply.md` never read, `a-w2-reply.md`, `c-w1-reply.md`, `a-sess.jsonl`, `c-sess.jsonl`, structured delta verdicts). Real `auditor` / `plan-reviewer` agents were never run; the Phase 3 model check ran against the synthetic files (provider `onara`, model `cx/gpt-6.1-sol`, thinking `high`).
+5. **(a) was run once.** Wave 1 again ended in the session's own QA before any reviewer was dispatched (see the table), exactly as in 4.7; recorded as such, fixture and payload not altered.
+6. Not a finding: (c) session 2 added a locked worktree `.worktrees/review-csv-total` and committed the record there; (a) worked in place (its prompt gave it the checkout).
+
+### (a) Class `none`, `standard`, budget ask and Override (5.3)
+
+Fixture `f1d-r53-a`, session `a/session-file.txt` (`~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1d-r53-a/2026-11-03T07-48-53-577Z_01a1a061-e8c9-744d-af09-3394e58c5c40.jsonl`). Wall time: stage 1 (to `AWAITING REPLY: delta review`) 293 s, stage 2 (delta verdicts, wave-2 audit reply, ends at the ask) 159 s, stage 3 (Override) 57 s.
+
+Ordered tool calls (`a/tool-calls.txt`, 70 calls): 19 `validate-gate-record --plan-only` passed; 20 `GC baseline` / `ready`; 21 `GC snapshot` (wave 1); 22 `bun test`; **23 `eval` QA: new rows QA6-QA9 only, captured into `wave-1/`** (QA1-QA5 are the F1 captures s1-s5, reused unchanged on the unchanged head `ecd418f`); 24 `GC wave --outcome qa=FAIL --blocker QA7` (no reviewer dispatched; QA7 `big,1234567.00` printed `1234,567.00`); 34-35 fix row 4.1 added under a new `## 4. F2 fixes` heading of `tasks.md`; 36 commit `870b644`; 38 `bun test` (RED), 40-41 fix, 43 fix commit `4b7eb49`; 44 `GC patch`; 46 `eval` writes `brief-delta-round1.md` (stage 1 ends there). Stage 2: 49-51 `verdict.json` = REJECT payload, `GC delta` round 1; **52 re-run of QA1** (`bun src/cli.ts total` on `widget,19.99`/`gadget,5.01`, `wave-2/qa1-s1-happy.md`); 53 `GC patch`; 54 writes `brief-delta-round1-review2.md`; 55 OKAY payload, `GC delta` round 2; 56 `GC snapshot` wave 2; **57 `eval` batch script (QA5, QA6, QA7 only)**; 59 writes `brief-implementation-audit-wave2.md`; 61-62 Phase 3 model check of `a-sess.jsonl` (matches the pin); 63 trailer stored, 64 `GC wave` -> `CONTINUE`; 65 `todo`, ask printed, stop. Stage 3: 66-69 record, staged, validated, committed `d0dea38`.
+
+GC lines (`a/gc-lines.txt`): `BASELINE ecd418fce4a8 recorded`; `READY`; `SNAPSHOT F2 wave 1`; `DECISION: CONTINUE` / `WAVE F2 1 total=1 fix_induced=0 unlocated=1`; `RECORDED fix_delta_review rows=4.1 round=1 verdict=REJECT`; `NOT READY`; `RECORDED fix_delta_review rows=4.1 round=2 verdict=OKAY`; `READY`; `SNAPSHOT F2 wave 2 4b7eb4999e12`; `DECISION: CONTINUE` / `WAVE F2 2 total=1 fix_induced=0 unlocated=0`. Ledger `a/ledger.jsonl` (5 events).
+
+Carry observations:
+- First delta brief (`a/briefs/brief-delta-round1.md` lines 10-16, the `{CARRIED ROWS}` block): carried QA1 (s1-happy), QA2, QA3, QA4, QA8, QA9, each with a one-line reason (total whole part < 1000 never reaches the changed `groupThousands`; or the parse error path ends before `formatCents`); QA5, QA6, QA7 stated as re-run (whole part >= 1000 reaches the changed code).
+- REJECT payload names the carry of QA1; the session recorded round 1, re-ran QA1 (call 52, stdout `25.00`, exit 0) before writing the second brief, whose `{CARRIED ROWS}` (`brief-delta-round1-review2.md`) lists QA2, QA3, QA4, QA8, QA9 as carried and QA1 as re-run ("after the previous delta review rejected its carry").
+- Wave-2 QA matrix (`a/briefs/brief-implementation-audit-wave2.md`, built by call 59): QA1, QA5, QA6, QA7 re-run on `4b7eb49` (artifacts `wave-2/qa1,qa5,qa6,qa7*.md`); QA2, QA3, QA4 carried from F1 (`ecd418f`), QA8, QA9 carried from wave 1 (`ecd418f`), each with its reason.
+- **Observable (i) (no carried row's command executed after the fix).** Between the fix commit (call 43) and the wave-2 record, the only calls that execute `src/cli.ts total` are call 52 (QA1, the row whose carry the delta review rejected, run on its own: a single-row script) and call 57 (a batch script holding exactly QA5, QA6, QA7, the three stale rows; the carried rows QA2, QA3, QA4, QA8, QA9 are not in it). `grep` over the ordered tool-call arguments for `cli.ts|bun test` after call 43 finds only 52 and 57; the only other post-fix execution is the unit suite `bun test` (calls 38 and 41 during the fix itself, a verification of the fix, not a matrix row). No other eval (46, 54, 59) invokes the CLI. Method: `a/tool-calls.txt` plus the full arguments of calls 46, 52, 54, 57, 59 from the session jsonl. PASS.
+- **Observable (ii) (record `whole_diff.reason`).** `a/record.json`: `"whole_diff":{"run":false,"reason":"whole-diff surface reviewed in F2"}`; `gate.md` line 7: `Whole-diff review: not needed (whole-diff surface reviewed in F2)`; reason equals the parenthesized text. `validate-gate-record.mjs --record ... --plan openspec/changes/csv-total` -> `overridden`, exit 0 (rerun by me, `a/final-state.txt`). PASS.
+
+The ask (`a/stage2.out`): B1 (`sub-cent-rounding`, `src/money.ts:2`) is covered by `gate.md` Accepted residual risks, no exclusion applies; offers one more fix round, re-plan, Stop, Override. Record (`a/record.json`): `override: {"by":"Tim","reason":"the remaining blocker is the accepted residual sub-cent rounding; accept it."}`, `downgrades: [{invocation implementation-audit, blocker B1, rule accepted-residual, disposition residual}]`, `reviewers_run: [implementation-audit]`, class `none`.
+
+| Must show (4.5 (a), the 4.6 carry rule, 5.x observables) | Result | Pointer |
+|---|---|---|
+| Class `none`, Depth `standard`, `gate.md` Accepted residual risks names a defect class with its consequence | PASS | fixture `gate.md`; `--plan-only` passed (`a/tool-calls.txt` call 19) |
+| Wave 1 FAIL with two blockers **from a fixed payload** | **FAIL (not reached)**: the session's own QA found the planted large-total defect first (QA7), recorded `qa=FAIL` with one blocker (`total=1 unlocated=1`) and never read `a-w1-reply.md` (0 mentions in its tool-call arguments). This follows the skill (QA before review) and is the same outcome as both 4.7 runs, not an effect of 5.1/5.2. Not altered. | `a/gc-lines.txt` line 6; `a/tool-calls.txt` call 24 |
+| First delta brief carries every row the fix cannot change, one-line reason each, in `{CARRIED ROWS}` | PASS | `a/briefs/brief-delta-round1.md` 10-16 |
+| Delta payload rejects the carry of one row; the session re-runs that row before wave 2 | PASS | ledger round 1 REJECT; call 52 before `GC snapshot` wave 2 (call 56); `a/artifacts/evidence/gate/csv-total/wave-2/qa1-s1-happy.md` |
+| No other untouched row is re-run; a carry the diff can change is not carried | PASS | wave 2 re-ran QA1 (rejected), QA5, QA6, QA7 (all reach the changed code); QA2-4, QA8, QA9 carried |
+| Wave 2 FAIL with one blocker of the covered class; `GC wave` prints `CONTINUE` | PASS | `a/gc-lines.txt` lines 13-14 |
+| One ask before any edit offering one more fix round, re-plan, Stop, Override | PASS | `a/stage2.out` (the ask is the last output; call 64 `GC wave` then `todo`, no edit or commit after) |
+| Override answer: record carries `override.by`, `override.reason`, an `accepted-residual` downgrade, validates `overridden` | PASS | `a/record.json`, `a/final-state.txt` |
+| 5.x (i): no carried row's command executed after the fix | PASS | see above |
+| 5.x (ii): `whole_diff.reason` equals the parenthesized `gate.md` reason, record validates | PASS | see above |
+
+Remark: the session's wave-1 QA ran four first-time rows (QA6-QA9) in call 23 and reused the F1 captures as QA1-QA5 on the unchanged head `ecd418f`; QA5 was re-run in wave 2 because the fix changes totals of 1000 or more.
+
+### (b) Adjacent control (5.3)
+
+Carried by task 5.3 (see the opening paragraph); not re-run.
+
+### (c) Moving default branch (5.3)
+
+Fixture `f1d-r53-c`: `main` = scaffold `a951855` + `cac67ef` (README); `feat/csv-total` = scaffold + `0cd516d` (task 3.1 unticked, its text starts "merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; ..."). `git merge-base --is-ancestor main HEAD` -> 1 at the start. Sessions: `c/session-files.txt` (`2026-11-03T07-48-53-600Z...` and `2026-11-03T07-50-09-241Z...`).
+
+**Session 1** (`/opsx-apply ... Implement the one remaining task ...`, 72 s): `c/tool-calls-session1.txt` (19 calls). Call 13 `git merge-base --is-ancestor main HEAD` (not an ancestor) then `git merge --no-edit main` -> merge commit `dd2b9c6` (parents `0cd516d`, `cac67ef`); 14 and 16 `eval` captures of the five rows after the merge; 18 Verify (`test -s` on all five files); 19 validator, `git add` by explicit path, commit `45b7048`. No gate started (no `gate-convergence` call). `a`-style captures `c/artifacts/evidence/gate/csv-total/f1/s1..s5` record `Head: dd2b9c69e842...` (5 of 5, `grep` count).
+
+**Second `main` commit** (`c/c-main2.sh`): `c065578` changes `groupThousands` (`toLocaleString("en-US")`), reached only for totals of 1000 or more; of the five F1 rows only `s5` (`big,1234.50`: `1234.50` before, `1,234.50` after) is changed by it.
+
+**Session 2** (fresh session, F2 prompt with the fixed wave-1 payload, 344 s): `c/tool-calls-session2.txt` (38 calls), `c/gc-lines-session2.txt`. Order: 1-16 skill and context; 18 `git switch main && git worktree add .worktrees/review-csv-total ... && worktree lock`; **19 `git merge --no-edit main`** (merge `3c11e3c`, parents `45b7048`, `c065578`) and `bun test`; 20 plan-only and openspec validators; **21 `GC baseline` (`BASELINE 3c11e3c32ffa recorded`) / `ready`**; 22 `GC snapshot`; **23 `eval`: one CLI execution, the `s5` fixture `big,1234.50`, into `wave-1/s5-large.md`**; 26-29 brief built; 30 reads the payload, 31 jq model check of the synthetic child (matches the pin); 32 trailer byte-identical; 33 `GC wave` -> `DECISION: PASS`, `WAVE F2 1 total=0`; 34-37 record, staged, validated, committed `afcc78f`. GC lines: `BASELINE 3c11e3c32ffa recorded`; `READY`; `SNAPSHOT F2 wave 1`; `DECISION: PASS`; `WAVE F2 1 total=0 fix_induced=0 unlocated=0`.
+
+Wave-1 `{QA MATRIX}` (`c/briefs/brief-implementation-audit-1.md` lines 662-666; built in call 27):
+
+| Row | Disposition | Reason stated |
+|---|---|---|
+| QA1 s1 happy | CARRIED (F1 capture at `dd2b9c6`) | only changed hunk is `groupThousands`, reached only for whole part >= 1000; total 25 |
+| QA2 s2 malformed | CARRIED | no total is formatted |
+| QA3 s3 cents | CARRIED | total 1.00 < 1000 |
+| QA4 s4 empty | CARRIED | total 0.00 < 1000 |
+| QA5 s5 large | **RE-RUN** (`wave-1/s5-large.md`, `1,234.50`) | reaches the merged `groupThousands` |
+
+- **Observable (i) (no carried row's command executed after the merge).** After the merge (call 19) the session executed the CLI exactly once (call 23, the `s5` fixture); calls 27-29, 34, 36 only read, hash (`sha256` of the F1 captures) and write briefs/records and invoke no `bun src/cli.ts`; `bun test` at call 19 is the unit suite, not an F1 row. s1-s4 were not executed; their artifacts are the unchanged F1 captures cited by sha256 in the matrix and the record. Method: `c/tool-calls-session2.txt` plus the full code of calls 6, 7, 14, 23, 26-29, 34, 36 (`bun src/cli.ts` appears in call 23 only). PASS.
+- Observable (ii) was not asked for (c) (the record is a plain PASS); for the record: `c/record.json` `whole_diff` is `{"run":false,"reason":"whole-diff surface reviewed in F2"}`, `validate-gate-record.mjs` -> `passed` (`c/final-state.txt`).
+
+| Must show (4.5 (c), the 4.6 carry rule, 5.x (i)) | Result | Pointer |
+|---|---|---|
+| At start the default branch and the work branch have diverged; a real merge commit is needed | PASS | `--is-ancestor` -> 1 (session 1 call 13); `dd2b9c6` has two parents |
+| Session 1 merges `main` and commits the merge before capturing the first F1 row | PASS | call 13 merge, call 14 captures; `s*.md` Head `dd2b9c6` |
+| Session 1 stops after F1 is captured and committed | PASS | `45b7048`; no gate started |
+| Second `main` commit changes the behaviour of exactly one row | PASS | only `s5` (`1234.50` vs `1,234.50`) |
+| Session 2 merges `main` again before `GC baseline` | PASS | call 19 merge `3c11e3c`, call 21 baseline |
+| Re-runs exactly the touched row before wave 1's review starts | PASS | only `wave-1/s5-large.md` among the F1 rows; call 23 before the reply is read at call 30 |
+| Every other F1 row is carried with a one-line reason in the `{QA MATRIX}` of the wave-1 brief | PASS | table above; brief lines 662-666 |
+| Carry rule: no row the merge cannot change is re-run, no touched row is carried | PASS | s1-s4 carried, s5 re-run |
+| 5.x (i): no carried row's command executed after the merge | PASS | see above |
+
+### Result and instruction defects (5.3)
+
+One must-show item of 4.5 (a) is not met in this re-run: **wave 1 FAIL with two blockers from the fixed payload** (the session's own QA caught the planted defect first; same as both 4.7 runs, a fixture property, not a 5.1/5.2 effect; the item is carried from the earlier 4.5 run). Every carry item and both 5.x observables hold for (a) and (c). No defect in the 5.1/5.2 text was observed. Unexercised: the real `auditor` / `plan-reviewer`; a mismatching child (substitution path); (b) (carried).
+
+## 4.7 re-run (superseded by 5.3)
 
 Task 4.7, re-run of 4.5 (a) and (c) after task 4.6 made the QA carry mandatory (`SKILL.md` Phase 1 step 1 `:172`, Fix waves step 5b `:495`). QA lane: R45. Text under test: commit `18d2df6c03` (`SKILL.md` of the profile `pirp` compared byte-identical with `git show HEAD:team-config/agent/skills/review-work/SKILL.md`: `cmp` clean). Sessions ran `omp --profile pirp -p` (follow-ups `--resume <session file>`). Every reviewer result is a fixed payload from `$TMPDIR/pirp-fix/payloads/F1D/` (the earlier 4.5 payload files, unchanged); no `task` item was dispatched in any session (`grep -P "\ttask\t"` over all tool-call lists is empty). Retained copies live under `budget-standard/4.7/`: `a/` (run 1, primary), `a2/` (run 2, a second attempt, see below), `c/`. Each holds `prompt*.txt`, `stage*.out` (session stdout per stage) with `stage*.start`/`.end` (UTC), `tool-calls*.txt` (ordered tool calls via jq), `gc-lines*.txt`, `ledger.jsonl`, `briefs/` (the briefs the sessions wrote), `artifacts/` (trailers, QA captures, gate-deltas incl. `verdict.json`), `record.json`, `final-state.txt` (validator output, `git log`, `git status`), session file paths. (b) is **carried by task 4.7**: its must-show items (the fix-induced STOP ask and `GC decide`) do not depend on carries; the 4.5 result below stands for it.
 

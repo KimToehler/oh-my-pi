@@ -1,0 +1,7 @@
+58c6cf0 Record plan review
+c1848ea Add F1 QA evidence for quota-remaining
+0cced13 Add remaining() to quota-lib
+?? .worktrees/
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1b-r53-a                                   58c6cf0 [feat/quota-remaining]
+/private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/f1b-r53-a/.worktrees/review-quota-remaining 58c6cf0 (detached HEAD) locked
+?? .omp/team-config/evidence/gate/quota-remaining/wave-1/

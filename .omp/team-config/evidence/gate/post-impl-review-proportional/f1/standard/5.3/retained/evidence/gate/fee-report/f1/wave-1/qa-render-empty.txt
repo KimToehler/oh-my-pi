@@ -1,0 +1,5 @@
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/empty.json
+exit: 0
+stdout (repr, exact bytes): 'No late fees\n'
+stderr: ''
+note: expected exactly No late fees plus one newline, no TOTAL line

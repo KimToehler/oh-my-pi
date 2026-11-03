@@ -1,0 +1,5 @@
+BASELINE 58c6cf0fa183 recorded
+READY
+SNAPSHOT F2 wave 1 58c6cf0fa183
+DECISION: PASS
+WAVE F2 1 total=0 fix_induced=0 unlocated=0

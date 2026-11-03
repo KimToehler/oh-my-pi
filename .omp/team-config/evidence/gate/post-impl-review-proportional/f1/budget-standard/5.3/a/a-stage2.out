@@ -1,0 +1,35 @@
+Working...
+The gate has not passed. Wave 2 passed manual QA, but the implementation audit returned FAIL with one blocker. Standard depth allows one fix round and it is used up, so the skill now requires me to ask you before any further edit or dispatch.
+
+**Fix round 1, delta review**
+- **First review (REJECT):** the change itself was judged sound; only the carry of QA1 was rejected. I re-ran QA1 on `4b7eb49` and it printed `25.00`, exit 0 (`wave-2/qa1-s1-happy.md`). No new commit was needed.
+- **Second review (OKAY):** same range, brief `brief-delta-round1-review2.md`. `GC ready` then reported READY.
+- **Mismatch in that reply:** the OKAY summary describes "grouping every run of three digits". The fix actually removes thousands grouping entirely, so the summary does not describe the reviewed patches.
+
+**Wave 2, at `4b7eb49`**
+- **QA:** all 9 rows pass. QA5–QA7 were re-run and now print `1234.50`, `1000.00` and `1234567.00`. QA2, QA3, QA4, QA8 and QA9 were carried, each with a reason. `bun test`: 5 pass.
+- **Audit brief:** `brief-implementation-audit-wave2.md`.
+- **Model check:** passed. The session file shows provider `onara`, model `cx/gpt-6.1-sol` and thinking level `high`, matching the auditor pin. The reviewer's reported model, `onara/cx/gpt-6.1-sol`, also matches.
+- **Audit reply:** stored verbatim at `.omp/team-config/evidence/csv-total/f2/wave-2-trailer-implementation-audit.md` and passed the trailer check. The reply mentions "an earlier reading of this tree", but no audit ran in wave 1 of this gate.
+- **Ledger:** I recorded the wave with QA PASS, implementation-audit FAIL and blocker `sub-cent-rounding=src/money.ts:2`. `GC wave` returned `DECISION: CONTINUE`.
+
+Ledger numbers:
+
+| Wave | Open blockers | Fix-induced | Unlocated |
+|---|---|---|---|
+| 1 | 1 (QA7) | 0 | 1 |
+| 2 | 1 (`sub-cent-rounding`) | 0 | 0 |
+
+Fix rounds used: 1 of 1.
+
+**Open blocker and its disposition**
+- **B1** (high, `src/money.ts:2`): `Math.round(amount * 100)` rounds in binary floating point. So `1.005` becomes `1.00` instead of `1.01`, and the printed total can differ from the supplier's invoice by one cent.
+- **Disposition: covered.** `gate.md`'s Accepted residual risks names the same defect and consequence: a price with more than two decimals is rounded per line in `src/money.ts`, and the total can differ from the invoice by one cent. It is not eligible on its own, because its stated consequence breaks the goal. No exclusion applies: the class is none, `security_delta` is no, and it does not touch the audit trail, the class, the tier or the gate.
+
+Nothing is staged or committed for the record yet. The `wave-1/`, `wave-2/` and trailer files are still unstaged.
+
+Question: wave 2 failed with the fix budget spent. How do you want to proceed?
+- **One more fix round**, then this ask repeats after its closing wave.
+- **Re-plan:** a separate plan for the affected mechanism.
+- **Stop.**
+- **Override:** every open blocker is eligible or covered. The record would carry one `downgrades` entry for B1 with rule `accepted-residual`, and your reason in `override.reason`.

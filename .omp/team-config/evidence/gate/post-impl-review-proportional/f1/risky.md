@@ -1,6 +1,51 @@
 # F1-B `risky` (task 4.3): evidence
 
-## 4.7 re-run
+## 5.3 re-run
+
+Primary run of task 4.3 (a) after tasks 5.1 and 5.2. **Text under test: HEAD `0daf2c284d`** (`team-config/agent/skills/review-work/SKILL.md` Phase 1 step 1 `:172`, step 4 `:182`). Profile `pirp` was already redeployed from it; `risky/a/5.3/deploy-check.txt` holds `diff -rq` of the profile's `skills/review-work` against the branch (nothing printed) and the branch HEAD. Session: `omp --profile pirp -p`, same profile-instead-of-`PI_CODING_AGENT_DIR` deviation as the earlier runs (`PI_CODING_AGENT_DIR` does not redirect subagent discovery, `packages/coding-agent/src/config.ts:86`). `~/.omp/agent` never written.
+
+**4.3 (b) is carried by task 5.3, not re-run**: every fix round's diff changes every row, so nothing is carried and 5.1/5.2 cannot change its observations. Its 4.7 result (below) stands.
+
+Fixture `$TMPDIR/pirp-fix/f1b-r53-a`: `git clone -b feat/quota-remaining` of `f1b-r47b-a` (the 4.7 `(a) second run, valid captures` fixture; the clone carries tracked history only, none of that session's untracked wave-1 files), origin removed. History `0cced13` (code), `c1848ea` (F1 captures in Phase 1 matrix format, exact command and verbatim output per row, rows 1-3, no negative-control row for `remaining(2.5, 10)`), `58c6cf0` (`review.md` only). Identical captures to the 4.7 fixture (`diff -q` of the three files and the matrix against `risky/a/5.3/pre-existing-f1-captures/`: no output). Before launch: `validate-openspec-change.mjs --reviewed` printed `reviewed: OKAY in round 1`; `git diff 0cced13 HEAD --stat -- src test package.json` empty; tracked tree clean. Prompt `risky/a/5.3/prompt.txt` is byte-identical to `risky/a/4.7b/prompt.txt` (stop after wave 1 with `GC wave`).
+
+Session file `risky/a/5.3/session-path.txt` (`~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1b-r53-a/2026-11-03T07-48-23-931Z_01a1a061-74fb-7101-b62e-8ee25527223e.jsonl`). Wall time 369 s. Final text `session-output.txt`. 41 tool calls in order: `tool-calls.tsv` (key arguments).
+
+Call summary: 1-5 skill, `SKILL.md:172` and other long lines; 6-10 repo state, change folder, `git diff`, `cat` of `src/quota.ts`, tests and the three F1 capture files; 11-17 worktrees rule, script and pin checks; 18 `validate-gate-record.mjs --plan-only` and `validate-openspec-change.mjs` (exit 0); 19 history/grep; 20 `git worktree add --detach .worktrees/review-quota-remaining 58c6cf0…` and lock; 21 `GC baseline`, `GC ready`; 22 `GC snapshot --lane F2`; **24 the only QA execution** (below); 25-27 diff and briefs; 29 `tool.task` (python threw, nothing spawned, `proc://` empty at call 30); 31 identical retry, the only spawn: one call, two items; 32 matrix written; 33-39 results, trailers, model check; 40 `GC wave`; 41 cleanup.
+
+**Commands run before dispatch that could execute a QA row (observable (i))**, the full text of call 24 after `git diff --stat 0cced13 HEAD -- src test package.json` (empty) and `bun --version`:
+
+```
+cap r4-fractional-usage-control.txt "bun -e 'import {remaining} from \"./src/quota\"; console.log(remaining(2.5,10))'" "bun -e '… try { console.log(remaining(2.5,10)) } catch (e) { … }'"
+cap r5-edges.txt "bun -e '… console.log(remaining(10,10))'" "bun -e '… for (const [u,l] of [[3,10.5],[NaN,10],[3,Infinity],["3",10]]) { … }'"
+cap r6-regression-checkquota.txt "bun test" "bun -e '… console.log(checkQuota(3,10), checkQuota(10,10), checkQuota(12,10))'"
+```
+
+A grep over every `bash` command the session issued for `remaining(3,`, `remaining(12,`, `remaining(0,`, `s1-within`, `s2-above`, `s3-integers` matches only the matrix-row text of call 24 above, none of the carried commands (`remaining(3,10)`, `remaining(12,10)`, `remaining(0,5)`); the three carried capture files were only `cat`-read (call 10). `bun test` (row 6) is the session's own adjacent-behaviour row, not a carried row (`test/quota.test.ts` tests `checkQuota` only, as a reviewer noted). The wave ran no other script. Session matrix: `wave-1/qa-matrix.md`, 6 rows.
+
+Observed:
+- GC (`gc-lines.txt`, `gc-commands.txt`): `BASELINE 58c6cf0fa183 recorded`, `READY`, `SNAPSHOT F2 wave 1 58c6cf0fa183`, `DECISION: PASS`, `WAVE F2 1 total=0 fix_induced=0 unlocated=0`.
+- Children (`child-models.txt`): both `ImplAuditW1` and `StrategicRiskW1` `model_change` `onara/cx/gpt-6.1-sol`, `thinking_level_change` `high`, all assistant turns `onara cx/gpt-6.1-sol` (23 and 10). Trailers (`wave-1/trailer-*.txt`): `model_id: onara/cx/gpt-6.1-sol`, `verdict: PASS`, both passed `validate-gate-record.mjs --trailer` (`passed`, call 34/38).
+- Briefs as delivered (`delivered-brief-*.txt`): strategic brief `:255-259` has the four questions; `Blocker B<n>` appears only in the instruction line `:263`; no audit finding in it.
+- End state (`fixture-git-state.txt`): `git log` unchanged at `58c6cf0`; main checkout shows only untracked `.worktrees/`; review worktree only untracked `wave-1/` evidence; no fix, no record. This run used a locked detached review worktree (the 4.7 run used the main checkout). The session also said no `main` branch exists in the fixture, so it reviewed `6bdaef7..58c6cf0`; the diff is unchanged from 4.7.
+
+| Must-show item (4.3 a) and 5.x observables | Result | Pointer |
+|---|---|---|
+| Missing negative-control row (`remaining(2.5,10)`) run before any dispatch | PASS | call 24 (row 4, `wave-1/r4-fractional-usage-control.txt`: `RangeError`), first spawn call 31 |
+| Matrix with one row per scenario | PASS | `wave-1/qa-matrix.md` rows 1-4 = the four spec scenarios; rows 5-6 minimum rows (edges, adjacent regression) |
+| Wave 1 dispatched for real, both invocations in one `task` batch | PASS | call 31, one `tool.task`, two items (`agent: auditor`); the failed call 29 spawned nothing (call 30 `proc://` empty; one child pair on disk) |
+| Both on `auditor` at `onara/cx/gpt-6.1-sol` `high` | PASS | `child-models.txt` |
+| `strategic-risk-review` brief: four whole-diff questions, no audit findings | PASS | `delivered-brief-strategic-risk-review.txt:255-259`; `Blocker B<n>` only at `:263` instruction |
+| Wave recorded with `GC wave`; ends there, no fix, no record | PASS | call 40, `gc-lines.txt`; `fixture-git-state.txt` |
+| Pre-existing rows 1-3 carried, a reason each | PASS (caveat) | matrix rows 1-3 `PASS (carried)`; one shared reason in the matrix footer (later commits `c1848ea`, `58c6cf0` add evidence files and `review.md` only; `git diff --stat 0cced13 HEAD -- src test package.json` empty, call 24), not repeated per row. Same one-shared-reason caveat as 4.7 |
+| Missing negative-control row run, not carried | PASS | row 4 new |
+| 5.x (i): no carried row's command executed | PASS | commands above; carried `remaining(3,10)`, `remaining(12,10)`, `remaining(0,5)` never run; only rows 4-6 captured (`cap` calls) |
+| 5.x (ii): OpenSpec record `whole_diff.reason` equals the parenthesized gate.md reason and validates | Not exercised | prompt stops after wave 1, no record written (4.3 (a) never writes one) |
+
+Unexercised: Phase 4 override, a Phase 3 mismatch, a fix round, a record. Instruction defects: none found. Observed oddity, not an instruction defect: the session's first `tool.task` eval call raised a Python traceback with nothing spawned; the identical retry succeeded (same as 4.7 where the first call launched nothing).
+
+---
+
+## 4.7 re-run (superseded by 5.3)
 
 Primary run of task 4.3 (a) and (b), after task 4.6 (commit `18d2df6c03`). **Text under test: `18d2df6c03`** (`team-config/agent/skills/review-work/SKILL.md` Phase 1 step 1 `:172` and Fix waves step 5b `:495` read first). Profiles `pirp` and `pirp-med` were redeployed from that head (SKILL.md byte-identical to the branch, configs unchanged; `diff -rq` of the profile's `skills/review-work` against `team-config/agent/skills/review-work` printed nothing before launch). Sessions: `omp --profile pirp -p`, same deviation as the earlier runs (profile instead of `PI_CODING_AGENT_DIR`, which does not redirect subagent discovery, `packages/coding-agent/src/config.ts:86`). `~/.omp/agent` never written. Retained artifacts: `risky/a/4.7/` and `risky/b/4.7/`.
 

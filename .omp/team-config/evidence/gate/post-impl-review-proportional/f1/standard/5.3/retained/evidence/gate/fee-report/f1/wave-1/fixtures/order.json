@@ -1,0 +1,14 @@
+{
+  "lines": [
+    {
+      "id": "z",
+      "dueDate": "2026-02-01",
+      "feeCents": 1
+    },
+    {
+      "id": "a",
+      "dueDate": "2026-01-01",
+      "feeCents": 2
+    }
+  ]
+}

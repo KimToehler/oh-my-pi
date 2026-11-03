@@ -1,0 +1,10 @@
+# Capture on F2 wave-1 snapshot head 58c6cf0fa183a2aa29aeb52b66207ceefab97f21 (review worktree), 2026-11-03T07:50:08Z
+$ bun -e 'import {remaining} from "./src/quota"; console.log(remaining(10,10))'
+0
+[exit 0]
+$ bun -e 'import {remaining} from "./src/quota"; for (const [u,l] of [[3,10.5],[NaN,10],[3,Infinity],["3",10]]) { try { console.log(JSON.stringify([u,l]), "->", remaining(u,l)) } catch (e) { console.log(String(u), String(l), "->", e.constructor.name + ": " + e.message) } }'
+3 10.5 -> RangeError: quota values must be integers
+NaN 10 -> RangeError: quota values must be integers
+3 Infinity -> RangeError: quota values must be integers
+3 10 -> RangeError: quota values must be integers
+[exit 0]

@@ -1,0 +1,5 @@
+$ bun src/cli.ts
+exit: 2
+stdout (repr, exact bytes): ''
+stderr: 'usage: bun src/cli.ts <report.json>\n'
+note: expected usage message on stderr and exit 2 without an argument

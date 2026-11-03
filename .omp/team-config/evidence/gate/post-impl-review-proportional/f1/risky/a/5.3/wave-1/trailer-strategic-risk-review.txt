@@ -1,0 +1,58 @@
+### 1. Architecture and cross-module seams
+
+The implementation fits the supplied scope: one pure, constant-time helper in the existing quota module, with no dependencies, persistence, or changes to `checkQuota`.
+
+The relevant seams are:
+- **Public contract → implementation:** `spec.md:9,20` maps directly to the integer guard and clamp at `src/quota.ts:8-9`.
+- **Implementation → verification:** manual QA invokes the actual exported function, rather than mocks.
+- **Existing API → regression coverage:** `test/quota.test.ts:4-8` continues exercising the unchanged `checkQuota`.
+
+The repository search found no production callers of `remaining` or hand-written allowance subtraction outside the helper. Thus this establishes the library capability; it does not independently demonstrate adoption by customer-facing displays. Caller migration is not promised by this change, so that is not a blocker.
+
+### 2. Inconsistency, duplication, and simplification
+
+**Note N1 — Missing durable regression coverage.**  
+`test/quota.test.ts:2-8` imports and tests only `checkQuota`; the changed-file list adds no automated tests for `remaining`. Consequently, the reported “2 pass” regression run does not protect the new helper against later removal of its clamp or either integer check. Add direct tests covering the documented outcomes and invalid values in each argument. **Non-blocking:** the supplied manual QA exercises the new behavior successfully; this is a future-regression risk, not evidence of a present failure.
+
+**Note N2 — F1 completion metadata overstates its captured coverage.**  
+`openspec/changes/quota-remaining/tasks.md:9` marks “run each scenario” complete, but `f1/qa-matrix.md:7-9` contains only three of the four specified scenarios. The fractional-usage scenario at `spec.md:26-28` appears only in the supplied F2 matrix. Clarify that F2 supplies the missing observation rather than implying F1 originally covered everything. **Non-blocking:** F2 explicitly reports the omitted scenario producing `RangeError`, so the current review is not missing that behavioral observation.
+
+No duplicated implementation, needless abstraction, naming inconsistency, or unexpected scope expansion was found. Keeping the arithmetic and validation together is simpler than introducing another layer.
+
+### 3. Most consequential production failure
+
+Within the declared billing-display use, the most consequential supported failure would be silently displaying an incorrect allowance—particularly a negative value after overshoot or a plausible fractional value instead of surfacing invalid input.
+
+Both are handled:
+- `src/quota.ts:9` clamps overshoot to zero.
+- `src/quota.ts:8` checks both arguments before subtraction.
+- Supplied QA rows 2, 4, and 5 distinguish the intended outcomes from negative results, fractional results, and coerced invalid inputs.
+
+**Note N3 — Integer validation is not a numeric-range guarantee.**  
+At `src/quota.ts:8-9`, `Number.isInteger` permits finite integers outside the safe-integer range. **[INFERENCE from JavaScript number semantics]** sufficiently large opposite-sign accepted operands can make subtraction overflow to `Infinity`, contrary to the proposal’s “non-negative integer” wording. Document the supported numeric domain; if such values are genuinely supported, settle overflow and precision behavior explicitly. **Non-blocking:** no supplied consumer or realistic billing-display input establishes that this extreme range occurs in ordinary operation.
+
+There is no demonstrated change to credentials, authorization, personal data, or money-moving behavior.
+
+### 4. What a line-level reading would miss
+
+- Correct arithmetic does not establish downstream adoption; no display consumer is present in the reviewed tree.
+- A green existing suite is not regression coverage for this new export.
+- F1 evidence completeness and combined F1/F2 behavioral coverage are different claims.
+- The declared integer domain is broader than JavaScript’s exact arithmetic domain.
+
+**No blockers identified.** Review evidence comprised the complete supplied diff and plan artifacts, the supplied six-row QA matrix, local source/tests/package metadata, and a repository search for `remaining`, `checkQuota`, and `limit - used`, excluding sibling worktrees. No commands, network requests, edits, or independent runtime checks were performed.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Invalid operands cannot become plausible displayed allowances through coercion or subtraction.
+  positive_witness: remaining(3,10) produces 7.
+  negative_control: remaining(2.5,10) returning 7.5 instead of throwing MUST fail.
+  observable: Supplied QA records 7 for the valid call and RangeError with uncaught exit 1 for fractional usage.
+  boundary: Direct invocation of the exported helper in Bun, before any display formatting.
+END-REVIEW-TRAILER

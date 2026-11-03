@@ -1,0 +1,6 @@
+{"type":"model_change","id":"1f52a9dd","parentId":null,"timestamp":"2026-11-03T07:51:09.342Z","runtime":{"version":"18.13.1"},"model":"onara/cx/gpt-6.1-sol","resolvedModelIsFallback":false}
+{"type":"thinking_level_change","id":"c72dd995","parentId":"1f52a9dd","timestamp":"2026-11-03T07:51:09.342Z","runtime":{"version":"18.13.1"},"thinkingLevel":"high","configured":null}
+     23 ["onara","cx/gpt-6.1-sol"]
+{"type":"model_change","id":"b8fb3dcf","parentId":null,"timestamp":"2026-11-03T07:51:09.333Z","runtime":{"version":"18.13.1"},"model":"onara/cx/gpt-6.1-sol","resolvedModelIsFallback":false}
+{"type":"thinking_level_change","id":"1c9f73e8","parentId":"b8fb3dcf","timestamp":"2026-11-03T07:51:09.333Z","runtime":{"version":"18.13.1"},"thinkingLevel":"high","configured":null}
+     10 ["onara","cx/gpt-6.1-sol"]

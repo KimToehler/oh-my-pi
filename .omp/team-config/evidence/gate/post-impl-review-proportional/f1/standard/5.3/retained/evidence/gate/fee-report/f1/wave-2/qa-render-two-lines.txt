@@ -1,0 +1,6 @@
+head: 1e202e028453b80e20c18c83fddc46259106a562
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/wave-1/fixtures/two-lines.json
+exit: 0
+stdout (repr, exact bytes): 'a\t2026-01-10\t2.00\nb\t2026-01-12\t12.50\nTOTAL\t\t14.50\n'
+stderr: ''
+note: expected exact bytes a\t2026-01-10\t2.00\nb\t2026-01-12\t12.50\nTOTAL\t\t14.50 plus one trailing newline

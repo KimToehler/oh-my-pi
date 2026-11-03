@@ -1,0 +1,5 @@
+$ bun src/cli.ts samples/report.json
+exit: 0
+stdout (repr, exact bytes): 'inv-7\t2026-01-10\t25.00\ninv-3\t2026-01-12\t12.50\ninv-9\t2026-02-01\t2.00\nTOTAL\t\t39.50\n'
+stderr: ''
+note: expected inv-7 25.00, inv-3 12.50, inv-9 2.00 in file order, TOTAL 39.50

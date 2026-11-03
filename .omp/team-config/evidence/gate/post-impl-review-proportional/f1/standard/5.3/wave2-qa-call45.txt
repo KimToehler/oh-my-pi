@@ -1,0 +1,20 @@
+W2=os.path.join(REPO,'.omp/team-config/evidence/gate/fee-report/f1/wave-2')
+os.makedirs(W2,exist_ok=True)
+head=subprocess.run(['git','rev-parse','HEAD'],cwd=REPO,capture_output=True,text=True).stdout.strip()
+notes2={
+ 'two-lines':'expected exact bytes a\\t2026-01-10\\t2.00\\nb\\t2026-01-12\\t12.50\\nTOTAL\\t\\t14.50 plus one trailing newline',
+ 'big':'expected 1,234,567.89 on the line and on the TOTAL line',
+ 'edge-amounts':'expected 0.05, 1,000,000.00, 1,000.05 and TOTAL 1,001,000.10',
+ 'order':'expected lines in the given order z then a (no sorting)',
+ 'sample':'expected inv-7 25.00, inv-3 12.50, inv-9 2.00 in file order, TOTAL 39.50',
+ 'tests':'expected the committed suite, including the two new grouping tests, to pass',
+}
+c2={}
+for name,f in [('two-lines','two-lines.json'),('big','big.json'),('edge-amounts','edge-amounts.json'),('order','order.json')]:
+    c2[name]=cap(name,['bun','src/cli.ts',f'{FX}/{f}'])
+c2['sample']=cap('sample',['bun','src/cli.ts','samples/report.json'])
+c2['tests']=cap('tests',['bun','test'])
+for k,(t,r) in c2.items():
+    fn=f'{W2}/qa-render-{k}.txt' if k!='tests' else f'{W2}/qa-tests.txt'
+    open(fn,'w').write(f"head: {head}\n"+t+f"note: {notes2[k]}\n")
+    print(k); print(t)
