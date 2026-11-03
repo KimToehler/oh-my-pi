@@ -3,6 +3,10 @@ import { publishDataset } from "./plan-review-replay/publish";
 import type { Dataset } from "./plan-review-replay/types";
 import { base } from "./plan-review-replay-input-fixtures";
 
+/** The approved annotated-row sentence, verbatim as the frozen run carries it. */
+const TEMPLATE =
+	"Historical target annotation reproduced as descriptive reference; not inherited by fresh findings or asserted current-threshold truth.";
+
 /** One public item (`i1`, from the fixture) and one private item with its own trial and finding. */
 function dataset(): Dataset {
 	const d = base();
@@ -70,7 +74,7 @@ function dataset(): Dataset {
 				blocking: "unresolved",
 				kind: "known-target",
 				evidence: ["annotation:h1"],
-				reason: "Historical target annotation reproduced as descriptive reference.",
+				reason: TEMPLATE,
 			},
 			{
 				finding: "h-priv2",
@@ -80,7 +84,7 @@ function dataset(): Dataset {
 				blocking: "unresolved",
 				kind: "known-target",
 				evidence: ["annotation:h2"],
-				reason: "SecretService.load was annotated here by a reviewer",
+				reason: `${TEMPLATE} SecretService.load exposes customer records.`,
 			},
 		],
 	};
@@ -127,14 +131,14 @@ describe("publication sanitizer", () => {
 		expect(adj?.evidence[0]).toBe("annotation:x");
 	});
 
-	it("publishes the template rationale of an annotation but not other annotated prose", () => {
+	it("publishes only the complete annotation template, never prose appended to it", () => {
 		// The annotated template quotes nothing; withholding it would hide an experiment decision.
 		const annotated = out.adjudications.find(a => a.finding === "h-priv");
-		expect(annotated?.reason).toBe("Historical target annotation reproduced as descriptive reference.");
+		expect(annotated?.reason).toBe(TEMPLATE);
 		expect(annotated?.evidence).toEqual(["annotation:h1"]);
-		// Anything else on an annotated row is reviewer prose and stays withheld like any private claim.
-		const freeform = out.adjudications.find(a => a.finding === "h-priv2");
-		expect(freeform?.reason).not.toContain("SecretService");
+		// The template followed by reviewer prose is not the template: the whole reason stays withheld.
+		const extended = out.adjudications.find(a => a.finding === "h-priv2");
+		expect(extended?.reason).not.toContain("SecretService");
 	});
 
 	it("drops local paths from source metadata and never ships supplied bytes", () => {

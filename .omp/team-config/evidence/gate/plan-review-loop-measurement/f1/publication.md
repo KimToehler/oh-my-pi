@@ -35,7 +35,7 @@ The rules are field-wise, never item-wise: a value is withheld because it carrie
 | field | public items (Smt/App/Rtr) | private items (Spt/Fmp) |
 |---|---|---|
 | fresh finding `description` | published as reviewed | replaced by `Fresh finding <id> (item <code>); claim text retained locally.` |
-| adjudication / triage / target `reason` | kept, local paths redacted | replaced by `… retained locally; private-repository claim text is not published.`, except an `annotated` adjudication whose reason is the fixed historical-annotation template sentence, which quotes nothing; any other annotated prose stays withheld |
+| adjudication / triage / target `reason` | kept, local paths redacted | replaced by `… retained locally; private-repository claim text is not published.`, except an `annotated` adjudication whose reason is exactly one of the approved historical-annotation sentences, which quote nothing; any other annotated prose, including the approved sentence with text appended, stays withheld |
 | `evidence` coordinates | kept as repository-relative `path:line` | the item's own `openspec/changes/<item>/…` coordinates and the experiment's own `annotation:`/`trial:`/`finding:` references are kept; a private source path becomes `private-source:<ext>#<sha256-8>:<lines>` |
 | historical finding text | already placeholders; never extracted | same |
 | `sources[]` | digest, id and provenance kept; `path` nulled, `provided` false | same |

@@ -21,8 +21,13 @@ const LOCAL_PATH = /\/Users\/[^\s"]+/g;
 const PLAN_COORDINATE = /^openspec\/changes\/([^/]+)\/[^:]+(:.*)?$/;
 /** A coordinate that names a row of the experiment itself, never repository content. */
 const INTERNAL_COORDINATE = /^(annotation|trial|finding|attempt|triage|target):/;
-/** The fixed sentence every annotated row carries; it names the experiment decision and quotes nothing. */
-const ANNOTATION_TEMPLATE = /^Historical target annotation reproduced as descriptive reference\b/;
+/**
+ * The complete sentences an annotated row may carry: each names the experiment decision and quotes
+ * nothing. A prefix test would publish whatever prose follows it, so membership is exact.
+ */
+const ANNOTATION_TEMPLATES: Record<string, true> = {
+	"Historical target annotation reproduced as descriptive reference; not inherited by fresh findings or asserted current-threshold truth.": true,
+};
 
 function digest(text: string): string {
 	return createHash("sha256").update(text).digest("hex").slice(0, 8);
@@ -91,7 +96,7 @@ function publishAdjudication(a: Adjudication, item: string | undefined, options:
 	// An annotated row reproduces a historical annotation through a fixed template sentence that quotes
 	// nothing, so withholding it would hide an experiment decision. Only that sentence is exempt: any
 	// other annotated prose is reviewer text and stays withheld like every private claim.
-	const template = a.validity === "annotated" && ANNOTATION_TEMPLATE.test(a.reason);
+	const template = a.validity === "annotated" && Object.hasOwn(ANNOTATION_TEMPLATES, a.reason);
 	if (!isPrivate || template) return { ...a, evidence, reason: redactLocalPaths(a.reason) };
 	return {
 		...a,

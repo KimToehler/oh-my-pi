@@ -3,8 +3,8 @@ $ bun test scripts/score-plan-review-replay.test.ts
  75 pass
  0 fail
  267 expect() calls
-Ran 75 tests across 1 file. [63.00ms]
+Ran 75 tests across 1 file. [65.00ms]
 
-$ bun -e 'const d=await Bun.file("runs/plan-review-loop-measurement-20261102/dataset.json").json(); const a=d.adjudications.filter(x=>x.validity==="annotated"); console.log(a.length, a.filter(x=>/^Historical target annotation reproduced as descriptive reference\b/.test(x.reason)).length);'
+$ bun -e 'const d=await Bun.file("runs/plan-review-loop-measurement-20261102/dataset.json").json(); const T="Historical target annotation reproduced as descriptive reference; not inherited by fresh findings or asserted current-threshold truth."; const a=d.adjudications.filter(x=>x.validity==="annotated"); console.log(a.length, a.filter(x=>x.reason===T).length);'
 44 44
-(annotated rows, of which on-template)
+(annotated rows, of which exactly the approved template)
