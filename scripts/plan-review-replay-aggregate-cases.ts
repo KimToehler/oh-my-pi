@@ -116,27 +116,38 @@ describe("hand-calculated two-item dataset", () => {
 		expect(t.experimentWall).toMatchObject({ ms: 240_000, complete: false });
 	});
 
-	it("covers a failed verifier attempt in the trial span and never calls that span complete", () => {
+	it("ties trial-span completeness to the verifier stage, not to the attempts that happen to be listed", () => {
 		// A reviewer that completed and a verifier that failed afterwards: the trial consumed both, and no
 		// verifier outcome exists, so the reviewer-only interval must not be published as the whole trial.
-		const data: Dataset = {
-			...empty,
-			arms: [arm("S")],
-			items: [item("A")],
-			trials: [trial("t1", "S", "A", { reviewAttempts: ["rev"], triage: "unavailable", reason: "verifier failed" })],
-			attempts: [
-				attempt("rev", { trial: "t1", dispatched: "2026-01-01T00:00:00Z", terminal: "2026-01-01T00:01:00Z" }),
-				attempt("ver", {
-					trial: "t1",
-					stage: "verifier",
-					status: "failed",
-					dispatched: "2026-01-01T00:01:00Z",
-					terminal: "2026-01-01T00:03:00Z",
-				}),
-			],
+		const rev = attempt("rev", { trial: "t1", dispatched: "2026-01-01T00:00:00Z", terminal: "2026-01-01T00:01:00Z" });
+		const spanOf = (over: Partial<Dataset["trials"][number]>, attempts: Dataset["attempts"]) => {
+			const data: Dataset = {
+				...empty,
+				arms: [arm("S")],
+				items: [item("A")],
+				trials: [trial("t1", "S", "A", { reviewAttempts: ["rev"], ...over })],
+				attempts,
+			};
+			return scoreDataset(data).timing.trialSpans.find(s => s.trial === "t1")?.span;
 		};
-		const span = scoreDataset(data).timing.trialSpans.find(s => s.trial === "t1")?.span;
-		expect(span).toMatchObject({ ms: 180_000, complete: false });
+		const failed = attempt("ver", {
+			trial: "t1",
+			stage: "verifier",
+			status: "failed",
+			dispatched: "2026-01-01T00:01:00Z",
+			terminal: "2026-01-01T00:03:00Z",
+		});
+		expect(spanOf({ triage: "unavailable", reason: "verifier failed" }, [rev, failed])).toMatchObject({
+			ms: 180_000,
+			complete: false,
+		});
+		// A verifier that was never dispatched leaves the same unfinished stage, with no attempt to point at.
+		expect(spanOf({ triage: "unavailable", reason: "verifier not dispatched" }, [rev])).toMatchObject({
+			ms: 60_000,
+			complete: false,
+		});
+		// An empty trial makes no verifier call at all, so its reviewer envelope is the whole trial.
+		expect(spanOf({ triage: "empty" }, [rev])).toMatchObject({ ms: 60_000, complete: true });
 	});
 
 	it("labels confounded comparisons and never claims causality", () => {

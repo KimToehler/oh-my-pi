@@ -102,9 +102,9 @@ The report SHALL show per-item, per-trial and macro/micro recall, triage-retaine
 - **WHEN** disjoint targets are found in three repeats on one item
 - **THEN** each repeat's recall and their union are separate figures, and the union is labelled three-repeat coverage
 
-#### Scenario: Failed verifier after a completed reviewer
-- **WHEN** a trial's reviewer completes and its only verifier attempt fails
-- **THEN** the trial span covers both attempts and is reported incomplete, never as a reviewer-only complete span
+#### Scenario: Verifier stage never completed
+- **WHEN** a trial's reviewer completes and its verifier fails, is excluded or is never dispatched
+- **THEN** the trial span covers every attempt that ran and is reported incomplete, never as a reviewer-only complete span
 
 #### Scenario: Negative control
 - **WHEN** a historical arm has no retained dispatch-to-terminal timestamps

@@ -189,9 +189,10 @@ Observed on the published run after the fix: `H-Focus`'s arm `triage` object in 
 
 | fix | mutation | observed failure |
 |---|---|---|
-| a trial span covers every bound attempt and is incomplete while the verifier stage never completed | restore the selected-attempts envelope | the failed-verifier timing test fails: the reviewer-only 60 s interval is published as a complete span instead of 180 s incomplete |
+| a trial span covers every bound attempt | restore the selected-attempts envelope | the span test fails: the failed verifier's 180 s envelope collapses to the reviewer's 60 s |
+| completeness follows the verifier stage, not the presence of a failed attempt | require a failed verifier attempt again | the span test fails: a never-dispatched verifier publishes the reviewer-only interval as complete |
 
-Observed on the published run after the fix: every trial span in `summary.json` is byte-identical, because this run's two replaced verifier attempts (`VerifySRtr1`, `VerifySRtr3`, both `excluded`) ran inside their trial's envelope and every fresh trial has a completed verifier.
+Observed on the published run after the fix: every trial span in `summary.json` is byte-identical, because this run's two replaced verifier attempts (`VerifySRtr1`, `VerifySRtr3`, both `excluded`) ran inside their trial's envelope and every fresh trial has a completed verifier. The 20 historical spans stay unavailable for want of timestamps.
 
 ## 7. Re-read of the upstream F1 evidence
 

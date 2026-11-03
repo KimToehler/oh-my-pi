@@ -87,8 +87,9 @@ export function summarizeTiming(attempts: readonly Attempt[], trials: readonly T
 			const a = byId.get(id);
 			return a === undefined ? [] : [a];
 		});
-		const unfinishedVerifier =
-			t.verifierAttempt === null && mine.some(a => a.stage === "verifier" && a.status !== "completed");
+		// A trial whose verifier never completed has no reviewer-plus-verifier envelope, whether its verifier
+		// failed, was excluded or was never dispatched. An empty trial makes no verifier call and is settled.
+		const unfinishedVerifier = t.verifierAttempt === null && t.triage !== "empty";
 		const span =
 			mine.length < ids.length || mine.length === 0
 				? ({ ms: null, complete: false, reason: "attempts missing from dataset" } satisfies Span)
