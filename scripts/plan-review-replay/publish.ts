@@ -17,8 +17,8 @@ export interface PublishOptions {
 /** An absolute session path; a run-relative one names a file of the run directory and is safe. */
 const SESSION_PATH = /"session":"\/[^"]*"/g;
 const LOCAL_PATH = /\/Users\/[^\s"]+/g;
-/** A coordinate that names a file in the item's own OpenSpec change: the change name is already published. */
-const PLAN_COORDINATE = /^openspec\/changes\/[^/]+\/[^:]+(:.*)?$/;
+/** A coordinate that names a file of an OpenSpec change; only the item's own change is published. */
+const PLAN_COORDINATE = /^openspec\/changes\/([^/]+)\/[^:]+(:.*)?$/;
 /** A coordinate that names a row of the experiment itself, never repository content. */
 const INTERNAL_COORDINATE = /^(annotation|trial|finding|attempt|triage|target):/;
 
@@ -28,11 +28,12 @@ function digest(text: string): string {
 
 /**
  * Coordinates of a public item are published as they are. A private item's own plan files and the
- * experiment's internal references are published too; its source paths become stable pseudonyms, so
+ * experiment's internal references are published too; every other path becomes a stable pseudonym, so
  * distinct files stay distinguishable and repeats stay traceable without naming private code.
  */
-export function publishCoordinate(coordinate: string, isPrivate: boolean): string {
-	if (!isPrivate || INTERNAL_COORDINATE.test(coordinate) || PLAN_COORDINATE.test(coordinate)) return coordinate;
+export function publishCoordinate(coordinate: string, isPrivate: boolean, item: string): string {
+	if (!isPrivate || INTERNAL_COORDINATE.test(coordinate)) return coordinate;
+	if (PLAN_COORDINATE.exec(coordinate)?.[1] === item) return coordinate;
 	const match = /^(.*?)(:[0-9][^:]*)?$/.exec(coordinate);
 	const file = match?.[1] ?? coordinate;
 	const lines = match?.[2] ?? "";
@@ -73,7 +74,7 @@ function publishFinding(
 
 function publishTarget(target: Target, options: PublishOptions): Target {
 	const isPrivate = options.privateItems.includes(target.item);
-	const evidence = target.evidence.map(e => publishCoordinate(e, isPrivate));
+	const evidence = target.evidence.map(e => publishCoordinate(e, isPrivate, target.item));
 	if (!isPrivate) return { ...target, evidence, reason: redactLocalPaths(target.reason) };
 	return {
 		...target,
@@ -84,8 +85,10 @@ function publishTarget(target: Target, options: PublishOptions): Target {
 
 function publishAdjudication(a: Adjudication, item: string | undefined, options: PublishOptions): Adjudication {
 	const isPrivate = item !== undefined && options.privateItems.includes(item);
-	const evidence = a.evidence.map(e => publishCoordinate(e, isPrivate));
-	if (!isPrivate) return { ...a, evidence, reason: redactLocalPaths(a.reason) };
+	const evidence = a.evidence.map(e => publishCoordinate(e, isPrivate, item ?? ""));
+	// An annotated row reproduces a historical annotation; its rationale is the template sentence that
+	// says so and quotes nothing, so withholding it would hide an experiment decision, not private text.
+	if (!isPrivate || a.validity === "annotated") return { ...a, evidence, reason: redactLocalPaths(a.reason) };
 	return {
 		...a,
 		evidence,

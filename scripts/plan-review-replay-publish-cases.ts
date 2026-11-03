@@ -25,6 +25,7 @@ function dataset(): Dataset {
 					"backend/src/main/kotlin/Secret.kt:64-70",
 					"backend/src/main/kotlin/Other.kt:3",
 					"backend/src/main/kotlin/Secret.kt:90",
+					"openspec/changes/other-private-change/design.md:7",
 				],
 				reason: "The private plan quotes SecretService.load",
 			},
@@ -43,7 +44,11 @@ function dataset(): Dataset {
 				reason: "not triaged",
 			},
 		],
-		findings: [...d.findings, { id: "f-priv", trial: "t-priv", index: 1, description: "SecretService.load leaks" }],
+		findings: [
+			...d.findings,
+			{ id: "f-priv", trial: "t-priv", index: 1, description: "SecretService.load leaks" },
+			{ id: "h-priv", trial: "t-priv", index: 2, description: "Historical annotated finding h-priv." },
+		],
 		adjudications: [
 			...d.adjudications,
 			{
@@ -55,6 +60,16 @@ function dataset(): Dataset {
 				kind: "known-target",
 				evidence: ["annotation:x", "backend/src/main/kotlin/Secret.kt:64-70"],
 				reason: "SecretService.load is the trigger",
+			},
+			{
+				finding: "h-priv",
+				targets: ["p1"],
+				mechanism: "historical-annotation/h-priv",
+				validity: "annotated",
+				blocking: "unresolved",
+				kind: "known-target",
+				evidence: ["annotation:h1"],
+				reason: "Historical target annotation reproduced as descriptive reference.",
 			},
 		],
 	};
@@ -79,6 +94,8 @@ describe("publication sanitizer", () => {
 		expect(evidence[2]).not.toBe(evidence[1]);
 		expect(evidence[3]?.split(":")[1]).toBe(evidence[1]?.split(":")[1]);
 		expect(evidence.join(" ")).not.toContain("Secret.kt");
+		// Another change's plan is not this item's own plan, so it is pseudonymized like any other path.
+		expect(evidence[4]).toMatch(/^private-source:md#[0-9a-f]{8}:7$/);
 	});
 
 	it("publishes public coordinates, descriptions and reasons unchanged", () => {
@@ -97,6 +114,13 @@ describe("publication sanitizer", () => {
 		expect(adj?.reason).not.toContain("SecretService");
 		// The experiment's own references stay readable even on a private item.
 		expect(adj?.evidence[0]).toBe("annotation:x");
+	});
+
+	it("publishes the rationale of a reproduced historical annotation", () => {
+		// The annotated template quotes nothing; withholding it would hide an experiment decision.
+		const annotated = out.adjudications.find(a => a.validity === "annotated");
+		expect(annotated?.reason).toBe("Historical target annotation reproduced as descriptive reference.");
+		expect(annotated?.evidence).toEqual(["annotation:h1"]);
 	});
 
 	it("drops local paths from source metadata and never ships supplied bytes", () => {

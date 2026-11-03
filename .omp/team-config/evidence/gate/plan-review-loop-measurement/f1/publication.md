@@ -35,12 +35,12 @@ The rules are field-wise, never item-wise: a value is withheld because it carrie
 | field | public items (Smt/App/Rtr) | private items (Spt/Fmp) |
 |---|---|---|
 | fresh finding `description` | published as reviewed | replaced by `Fresh finding <id> (item <code>); claim text retained locally.` |
-| adjudication / triage / target `reason` | kept, local paths redacted | replaced by `… retained locally; private-repository claim text is not published.` |
+| adjudication / triage / target `reason` | kept, local paths redacted | replaced by `… retained locally; private-repository claim text is not published.`, except an `annotated` adjudication, whose rationale is the historical-annotation template and quotes nothing |
 | `evidence` coordinates | kept as repository-relative `path:line` | the item's own `openspec/changes/<item>/…` coordinates and the experiment's own `annotation:`/`trial:`/`finding:` references are kept; a private source path becomes `private-source:<ext>#<sha256-8>:<lines>` |
 | historical finding text | already placeholders; never extracted | same |
 | `sources[]` | digest, id and provenance kept; `path` nulled, `provided` false | same |
 
-The coordinate pseudonym is a digest of the file path: two distinct private files differ, the same file repeats identically across rows, and the line range survives, so a reader can count and align the evidence of a private-item judgment without learning a private file name. Private claim text and adjudication prose stay withheld, because they quote private implementation identifiers; the per-row `mechanism` label carries the published identity of each judgment.
+The coordinate pseudonym is a digest of the file path: two distinct private files differ, the same file repeats identically across rows, and the line range survives, so a reader can count and align the evidence of a private-item judgment without learning a private file name. A coordinate in a different OpenSpec change than the item's own is pseudonymized too. Fresh private claim text and fresh private adjudication prose stay withheld, because they quote private implementation identifiers; the per-row `mechanism` label carries the published identity of each judgment.
 
 ## Leak scan of every staged file
 
