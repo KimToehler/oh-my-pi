@@ -29,6 +29,7 @@
 
 ### Fixed
 
+- Fixed a gateway cutting a long reasoning stream (`stream_disconnected: stream closed before response.completed`) switching the session to a fallback model on the first failure: the turn is now retried once on the same model, as it already was for a raw socket drop
 - Fixed `omp --restore` reviving subagents that had already submitted their result before the crash; it re-ran them and overwrote their saved output, often with an empty one
 - Fixed ACP clients such as JetBrains Air running out of memory on long sessions: progress updates of running tool calls no longer carry the full raw tool output, and unchanged progress updates are no longer resent
 - Fixed typed "Other" answers to the ask tool being lost over ACP: clients such as JetBrains Air that return the typed text in the select field no longer end the turn as cancelled or drop the answer
