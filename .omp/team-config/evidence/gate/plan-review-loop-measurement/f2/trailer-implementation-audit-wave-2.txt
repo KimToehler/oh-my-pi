@@ -1,0 +1,40 @@
+## 1. Goal and behavioural contract
+
+The experiment distinguishes frozen-ledger recall from additional discoveries and discloses the limits of the historical comparison. One material verifier outcome is nevertheless absent from its published loss accounting:
+
+Blocker B1: **High — omitted verifier loss of an independently blocking additional discovery.** Trigger: an ordinary completed fresh trial produces a valid, independently blocking finding that does not match a frozen target, and the verifier refutes it. Preconditions are present in the published data: `Replacement1SSpt3.9` is an independently valid, blocking `additional-defect` with no target (`experiment/dataset.json:6994-7000`), while its verifier result is `refuted` and unprotected (`dataset.json:8431-8434`). Impact: the published triage tables report no false drops and discuss only two losses, but do not disclose this independently judged blocking finding that the verifier dropped. The target-only `0/36` figure is not itself wrong under the frozen contra…
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+The wave-1 repairs are visible in the implementation and published report: historical annotations are separated from adjudicated precision, partial post-triage coverage is labelled, round records are present, and agreement is derived from normalized repeat rows. The additional-discovery loss in B1 remains outside those calculations.
+
+**Note — non-blocking presentation risk:** The cost table in `experiment/RESULT.md` lists “unsuccessful” alongside stage costs even though it overlaps those stage buckets. The total is not the sum of all displayed rows; labelling the unsuccessful row explicitly as a subset would avoid double-counting by readers. This does not change the recorded total.
+
+## 3. Security and privacy delta
+
+**Note — non-blocking sanitization and QA scope:** `f1/adjudication.md:85` publishes a local `/Users/...` path. The supplied QA matrix describes a scan of all published artifacts, but `wave-2/qa5-publication-leak-scan.txt` shows a scan of five experiment files, not the F1 files. The path is not evidence of a real credential, third-party personal data, or access to a protected asset; it should nevertheless be sanitized and the scan scope described accurately.
+
+No security delta meeting the trailer’s definition was identified.
+
+## 4. Verification adequacy
+
+I reviewed the supplied QA capture and the published dataset, scorer, report, contract, specification, and F1 adjudication and replay evidence. The supplied suite and reproduction results support the exercised target-level calculations, but do not cover B1’s additional-defect verifier loss. I did not run tests or commands.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: FAIL
+blockers: B1
+adversarial_criteria:
+- invariant: A verifier outcome for an independently blocking discovery outside the frozen ledger must remain visible without being conflated with target-recall loss.
+  positive_witness: A refuted additional blocking mechanism appears in a separate verifier-outcome measure while the frozen-target denominator remains unchanged.
+  negative_control: A completed trial contains such a refutation but the published loss discussion reports only zero target losses and omits the additional mechanism.
+  observable: Normalized adjudication and triage rows joined by finding identity agree with the generated separate outcome and published result.
+  boundary: Scorer report and published experiment result.
+END-REVIEW-TRAILER
+
+[Some lines truncated to 768 chars. Use agent://ImplementationAuditWave2:raw:5-5 to read line 5 whole]

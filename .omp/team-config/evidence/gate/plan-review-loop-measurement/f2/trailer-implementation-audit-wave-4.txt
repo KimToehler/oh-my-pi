@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Reordering semantically unordered normalized rows must not change the calculated summary or its deterministic rendering.
+  positive_witness: Reversing the fixture's input arrays produces the same summary and rendered report.
+  negative_control: An implementation whose aggregation depends on input row order MUST fail the comparison.
+  observable: The row-reordering contract case compares both scored output and rendering.
+  boundary: Dataset aggregation and report rendering.
+END-REVIEW-TRAILER

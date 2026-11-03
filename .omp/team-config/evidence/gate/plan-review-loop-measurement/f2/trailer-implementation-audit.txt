@@ -1,0 +1,38 @@
+## 1. Goal and behavioural contract
+
+Blocker B1: **High — historical reference findings are presented as independently validated when they were not adjudicated.** `f1/adjudication.md:74-76` says the 110 historical claims were never extracted or blinded for adjudication. Yet `experiment/dataset.json:5792-5795` marks historical annotations as `valid`, and `scripts/plan-review-replay/report-trial.ts:202` uses valid findings in the independently adjudicated false-positive denominator. Consequently, `experiment/report.md:9-10` publishes historical false-positive rates of 0/24 and 0/20. These are not measured precision figures and can distort the historical comparison. Recover and adjudicate the historical reference claims as specified, or represent their validity as unavailable and prevent them from…
+
+Blocker B2: **High — recoverable historical round observations were omitted from the deliverable.** `experiment/dataset.json:8983` has an empty rounds array, and `experiment/RESULT.md:64` says no pinned round record was recovered. However, the unchanged archived records for the measured public items contain round numbers: `openspec/changes/archive/2026-10-26-session-move-tool/review.md:6` has 22, `2026-10-25-review-trailer-repair/review.md:6` has 17, and `2026-10-24-acp-permission-parity/review.md:6` has 12. The brief identifies these files as pre-existing, so the supplied base revision can pin their contents. Omitting all observations breaks the required descriptive round-record deliverable, even though savings are correctly marked not measured. Record the …
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Blocker B3: **High — partial historical triage is rendered as an arm-level post-triage result.** In the published dataset, `H-Replay-App-3` is the sole historical replay trial marked `empty`; the other completed historical replay trials have triage unavailable (`experiment/dataset.json:4167` and surrounding trial rows). `scripts/plan-review-replay/report-aggregate.ts:36-48,93-95` pools only computable post-triage values without disclosing coverage. The resulting `experiment/report.md:10` and `RESULT.md` table show H-Replay post recall as 0/11, although no current-verifier pass was observed for that arm. This is an ordinary outcome of the supplied dataset and makes an unavailable historical comparison look measured. Preserve the empty trial’s individual resul…
+
+Blocker B4: **Medium — a published reliability count cannot be reproduced from the published normalized inputs.** `experiment/RESULT.md:24` asserts 83/85 agreement between two target-assessment rounds, but the published dataset schema in `scripts/plan-review-replay/input.ts:20-101` retains only one blocking classification per target, not the second-round assessments. `f1/adjudication.md` identifies the local-only agreement artifact. Neither the report nor its scorer derives the published agreement count, despite `RESULT.md` stating that everything below is scorer-produced. Publish sanitized assessment rows for both rounds and compute the agreement from them, or remove the unsupported count and correct the production claim. **class:** published count dependen…
+
+## 3. Security and privacy delta
+
+No credential, authorization, third-party personal-data exposure, or weakened protected-asset access was established in the changed files. I reviewed the publication-sanitization evidence and QA5’s documented pattern hits; the scan is useful but not exhaustive proof of privacy.
+
+## 4. Verification adequacy
+
+I read all seven supplied QA captures, the immutable plan, scorer validation and aggregation paths, published result, and F1 input, baseline, replay, adjudication, publication and scorer evidence. The supplied QA establishes digest-tamper rejection, byte-identical report reproduction, and the reported contract-suite result. Reproduction alone does not establish that the normalized historical judgments or omitted round and agreement inputs are correct; the blockers above identify gaps not covered by those checks.
+
+## 5. Final verdict
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-terra
+security_delta: no
+verdict: FAIL
+blockers: B1,B2,B3,B4
+adversarial_criteria:
+- invariant: An arm-level aggregate must not silently generalize a computable subset to trials whose corresponding observation is unavailable.
+  positive_witness: A report labels a partial post-triage aggregate with its contributing trial coverage and distinguishes it from an arm-wide result.
+  negative_control: A report presents the one computable trial out of fourteen as the historical arm's post-triage performance without disclosing the missing thirteen.
+  observable: The rendered arm row and its coverage metadata identify the contributing and intended trial counts.
+  boundary: Normalized trial scoring and report aggregation.
+END-REVIEW-TRAILER
+
+[Some lines truncated to 768 chars. Use agent://F2Audit:raw:3-3 to read line 3 whole; cut lines run to line 11, each read the same way]

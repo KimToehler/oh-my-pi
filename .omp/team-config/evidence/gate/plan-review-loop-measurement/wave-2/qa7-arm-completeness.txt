@@ -1,0 +1,19 @@
+$ bun -e "<arm completeness, triage accounting and judgment coverage from the published dataset and summary>"
+arm H-Focus: intended 5 completed 5 trial.triage {"unavailable":5}
+arm H-Replay: intended 15 completed 14 trial.triage {"unavailable":14,"empty":1}
+arm T: intended 5 completed 5 trial.triage {"available":5}
+arm S: intended 15 completed 15 trial.triage {"available":15}
+
+scorer triagedTrials per arm (a trial counts as triaged when triage is not "unavailable"; an "empty" reviewer result retains nothing and is a real post-triage observation):
+  H-Focus: 0/5 -> macro post n/a (no completed trials with a computable denominator)
+  H-Replay: 1/14 -> macro post 0/1
+  S: 15/15 -> macro post 0.9373436748436748/5
+  T: 5/5 -> macro post 0.6671987734487734/5
+
+fresh findings 100, independently adjudicated 100
+adjudication validity across the dataset: {"annotated":44,"valid":88,"invalid":12}
+targets 85, repeated assessments 85, round records 5
+  H-Focus falsePositive: n/a (no independently adjudicated findings)
+  H-Replay falsePositive: n/a (no independently adjudicated findings)
+  S falsePositive: 7/75
+  T falsePositive: 5/25

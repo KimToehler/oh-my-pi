@@ -1,0 +1,5 @@
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format md | sed -n '/## Trials/,/## Finding kinds/p'
+## Trials
+| trial | pre | post | false drop | protected | surviving non-blocker | undecided | pending | invalid | annotated | pending findings |
+|---|---|---|---|---|---|---|---|---|---|---|
+| H-Focus-App-1 | 4/11 = 36.4% | n/a (historical triage unavailable; not retained by default) | n/a (historical triage unavailable; not retained by default) | n/a | n/a | n/a | n/a | 0 | 3 | 6 |

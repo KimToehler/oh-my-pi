@@ -1,0 +1,7 @@
+$ cd <repo>/.omp/.../experiment
+$ bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format json | cmp - summary.json
+cmp ok (exit 0)
+$ bun <repo>/scripts/score-plan-review-replay.ts report dataset.json --format md | cmp - report.md
+cmp ok (exit 0)
+$ bun scripts/score-plan-review-replay.ts publish runs/plan-review-loop-measurement-20261102 --private strength-progression-targets,finish-modality-program-route | cmp - experiment/dataset.json
+cmp ok (exit 0)

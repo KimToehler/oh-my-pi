@@ -1,0 +1,16 @@
+$ bun -e "<arm completeness, triage accounting, off-ledger losses and judgment coverage from the published artifacts>"
+arm H-Focus: intended 5 completed 5 trial.triage {"unavailable":5}
+arm H-Replay: intended 15 completed 14 trial.triage {"unavailable":14,"empty":1}
+arm S: intended 15 completed 15 trial.triage {"available":15}
+arm T: intended 5 completed 5 trial.triage {"available":5}
+
+  H-Focus: triaged 0/5, falseDrop n/a (no discovered independently blocking targets or triage unavailable), falsePositive n/a (no independently adjudicated findings), triage {"retained":0,"protected":0,"undecided":0,"pending":0,"survivingNonBlocker":0,"downgraded":0,"falseDrop":0,"legitimateResidual":0,"unresolvedDrop":0}, offLedger {"discovered":0,"retained":0,"protected":0,"undecided":0,"pending":0,"dropped":0}
+  H-Replay: triaged 1/14, falseDrop n/a (no discovered independently blocking targets or triage unavailable), falsePositive n/a (no independently adjudicated findings), triage {"retained":0,"protected":0,"undecided":0,"pending":0,"survivingNonBlocker":0,"downgraded":0,"falseDrop":0,"legitimateResidual":0,"unresolvedDrop":0}, offLedger {"discovered":0,"retained":0,"protected":0,"undecided":0,"pending":0,"dropped":0}
+  S: triaged 15/15, falseDrop 0/36, falsePositive 7/75, triage {"retained":36,"protected":0,"undecided":0,"pending":0,"survivingNonBlocker":2,"downgraded":0,"falseDrop":0,"legitimateResidual":0,"unresolvedDrop":0}, offLedger {"discovered":25,"retained":24,"protected":0,"undecided":0,"pending":0,"dropped":1}
+  T: triaged 5/5, falseDrop 0/10, falsePositive 5/25, triage {"retained":10,"protected":0,"undecided":0,"pending":0,"survivingNonBlocker":1,"downgraded":0,"falseDrop":0,"legitimateResidual":0,"unresolvedDrop":0}, offLedger {"discovered":5,"retained":5,"protected":0,"undecided":0,"pending":0,"dropped":0}
+
+fresh findings 100, independently adjudicated 100
+adjudication validity: {"annotated":44,"valid":88,"invalid":12}
+targets 85, repeated assessments 85, round records 5
+refuted blocking off-ledger findings: Replacement1SSpt3.9
+surviving non-blocker pairs: TrialTSmt1.4->session-move-tool|R02.2 (finding below-threshold, target below-threshold); Replacement1SSpt3.8->strength-progression-targets|R22.1 (finding below-threshold, target below-threshold); RerunSApp1.5->acp-permission-parity|R07.1 (finding blocking, target below-threshold)

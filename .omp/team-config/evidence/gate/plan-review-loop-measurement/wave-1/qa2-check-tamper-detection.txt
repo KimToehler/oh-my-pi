@@ -1,0 +1,6 @@
+$ rm -rf /tmp/qa-tamper && cp -R runs/plan-review-loop-measurement-20261102 /tmp/qa-tamper
+$ printf '\n<!-- qa tamper -->\n' >> /tmp/qa-tamper/fixtures/Smt/design.md
+$ bun scripts/score-plan-review-replay.ts check /tmp/qa-tamper
+error: source Smt/design.md: sha256 mismatch for fixtures/Smt/design.md (expected 78a183dda0095cc1fa075f93a338439875c8e340c511d1c01c30ae60c5afb089, got 8e84246f6d8e259892f8a5fd8739738640bb856b0fd1ae11c1f935b6430cc30d)
+exit=1
+$ rm -rf /tmp/qa-tamper

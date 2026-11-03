@@ -30,6 +30,9 @@ const RATE_LIMIT_ERROR =
 const SOCKET_CLOSE_MID_STREAM =
 	"The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()";
 const RETRIABLE_SERVER_ERROR = "503 service unavailable: overloaded_error";
+// A gateway that cuts a Responses stream reports the premature close in-band as
+// a `response.failed` frame; the provider surfaces its code and message.
+const RESPONSES_STREAM_DISCONNECTED = "stream_disconnected: stream closed before response.completed";
 const CODEX_STEER_REJECTION =
 	"Codex error event: The experimental native turn lane cannot accept stateful WebSocket messages while a native turn is running. Start a new independent response.create turn instead. (code=unsupported_native_inflight_message)";
 
@@ -620,12 +623,18 @@ describe("AgentSession retry recovery", () => {
 		errorMessage: SOCKET_CLOSE_MID_STREAM,
 	};
 
-	it("retries a mid-stream socket drop on the same model before consulting the fallback chain", async () => {
+	it.each([
+		["socket close", SOCKET_CLOSE_MID_STREAM],
+		["gateway stream_disconnected", RESPONSES_STREAM_DISCONNECTED],
+	])("retries a mid-stream %s on the same model before consulting the fallback chain", async (_label, drop) => {
 		// The transport died after the model had already emitted reasoning, so the
 		// failure says nothing about model health: the first attempt stays on the
-		// primary instead of switching to the fallback chain.
+		// primary instead of switching to the fallback chain. A gateway reporting
+		// the cut as a premature Responses close is the same failure class as a
+		// raw socket drop — switching models there replays the whole reasoning
+		// turn on another model and silently changes who answered.
 		const { primary, requestedModels, fallbackEvents, sessionManager } = await runFallbackChainRecovery([
-			droppedAfterThinking,
+			{ ...droppedAfterThinking, errorMessage: drop },
 			{ content: ["recovered on the same model"], stopReason: "stop" },
 		]);
 

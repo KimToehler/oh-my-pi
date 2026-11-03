@@ -1,0 +1,14 @@
+# Frozen scoring contract
+
+Dataset version 1: Source, Arm, Item, Target, Attempt, Trial, Finding, Adjudication, Triage and RoundRecord tables as defined by scripts/plan-review-replay/types.ts. Historical annotations are descriptive references, not ground truth for fresh findings. Every fresh finding requires its own independent adjudication; missing judgment is pending, never a false positive or implicit match.
+
+- Discovery: independently valid finding matched to an original target in that item's frozen 85-ID ledger. Per-trial union removes duplicate findings. Distinct mechanisms and additional validated discoveries are separate counts; neither changes the historical denominator.
+- Retained automatic blocker: independently blocking finding, matching an independently blocking target, verifier confirmed and blocking. Missing historical triage is unavailable, never retained by default.
+- False drop: independently blocking discovered target with no surviving confirmed-blocking matching finding, excluding protected/undecided/pending dispositions. A surviving duplicate prevents a drop. Undiscovered and below-threshold targets are not false drops. Confirmed-but-nonblocking downgrade of an independently blocking target can be a false drop; legitimate residuals require independently below-threshold severity and a concrete stated consequence.
+- Pending: missing or unsettled independent match; protected/undecided triage; consequence-free downgrade. Pending/protected decisions never count as genuine false refutations. Zero denominator is null plus reason, never zero loss.
+- Item aggregation: trial recall, per-item trial mean and repeat union shown separately. Macro is mean across item rates; micro weights by original target count. Three-repeat S union is best-of-repeats, not one reviewer performance.
+- Attempts: intended pin versus actual model/effort events; substituted/failed attempts excluded from quality but all incurred costs retained. Historical unavailable actual fields are explicit, never inferred from arm intent. Missing usage makes totals incomplete lower bounds.
+- Timing: actual dispatch to terminal per stage; serial reviewer-plus-verifier trial envelope and fresh experiment wall envelope separately. Missing timestamps are unavailable; do not sum concurrent duration as wall time.
+- Attribution: enumerate all changed arm bindings and asymmetric sampling. No measured loop-only effects, non-inferiority or full fix-cycle savings. Round records are source-bound descriptive values; proposed budgets are counterfactual only.
+
+`input-manifest.json` is the scorer's Source[] index. Provided normalized/frozen inputs are hash-verified relative to dataset.json. Local raw references are explicitly not required for published reproduction; check additionally verifies locally supplied raw files. The normalized dataset is the scoring input, not an automated semantic judge.

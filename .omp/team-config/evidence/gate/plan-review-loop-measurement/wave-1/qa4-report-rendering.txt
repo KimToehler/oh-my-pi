@@ -1,0 +1,14 @@
+$ bun scripts/score-plan-review-replay.ts report .omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/dataset.json --format md | sed -n '1,12p'
+# Plan review replay report
+
+Unit: first-pass-replay. Targets: 85 (blocking 24, below-threshold 60, unresolved 1).
+Savings: not measured. Round budgets: counterfactual. No comparison is causal.
+
+## Arms
+| arm | trials done/intended | macro pre | macro post | micro pre | micro post | false drop | false positive |
+|---|---|---|---|---|---|---|---|
+| H-Focus | 5/5 | 1.619390331890332/5 = 32.4% | n/a (no completed trials with a computable denominator) | 23/85 = 27.1% | n/a (no completed trials with a computable denominator) | n/a (no discovered independently blocking targets or triage unavailable) | 0/24 = 0.0% |
+| H-Replay | 14/15 | 0.6460137085137085/5 = 12.9% | 0/1 = 0.0% | 8.5/85 = 10.0% | 0/11 = 0.0% | n/a (no discovered independently blocking targets or triage unavailable) | 0/20 = 0.0% |
+| S | 15/15 | 0.9477603415103414/5 = 19.0% | 0.9373436748436748/5 = 18.7% | 12.666666666666666/85 = 14.9% | 12.333333333333332/85 = 14.5% | 0/36 = 0.0% | 7/75 = 9.3% |
+| T | 5/5 | 0.7386273448773448/5 = 14.8% | 0.6671987734487734/5 = 13.3% | 11/85 = 12.9% | 10/85 = 11.8% | 0/10 = 0.0% | 5/25 = 20.0% |
+exit=0
