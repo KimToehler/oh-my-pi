@@ -78,6 +78,12 @@ A reply that does not count is kept verbatim as evidence, but its trailer is nev
 
 A `task.agentModelOverrides.auditor` entry wins over the definition (`packages/coding-agent/src/config/model-resolver.ts:1291-1293`). If it names another model or effort, or the definition names no model, the gate dispatches nothing and tells the user which setting conflicts. Plan review takes the override as its pin; this gate takes the definition, because the definition is the reviewed, team-owned choice that D4's evidence supports.
 
+Detection alone is not the cheap half. In the plan-review loop measurement 9 of 26 fresh `sol:high` dispatches (35%) lost their pin: the provider stream ended with `stream_disconnected: stream closed before response.completed` and the runtime continued the same session on `claude-opus-5`, the failures concentrating on the largest inputs at $3.67-6.62 per lost attempt and consuming 45% of that run's spend (`.omp/team-config/evidence/gate/plan-review-loop-measurement/f1/replays.md`, committed on main). This change's own F1 recorded the same mechanism on a non-pinned dispatch (`f1/standard.md:36`). A `risky` gate on a large diff is exactly that shape of request, so the INCONCLUSIVE-and-retry rule above can double the cost of the most expensive lane. Two prevention levers exist outside this change's files and belong in the migration plan, not in its specs:
+- the session runtime no longer switches models on such a cut: a mid-stream transport drop with streamed progress is retried once on the same model before the fallback chain is consulted (main `7c737ac11f`, `packages/coding-agent/src/session/turn-recovery.ts`). A deploy older than that commit still substitutes silently.
+- the seed's own chain is the other source: `team-config/seed/config.yml:27-28` maps `gpt-6.1-sol` to `claude-opus-5`, and `retry.fallbackOn: usage-limit` or dropping that entry keeps the pin by construction.
+
+With either lever in place the session check of this decision stays as the backstop it was meant to be. Neither lever is part of this change's cutover; the migration plan names them as a precondition for the measured cost of a `risky` gate.
+
 Alternatives:
 - terra plus oracle, as today. Rejected on the pilot data.
 - `sol:xhigh`. Unmeasured and more expensive.
@@ -107,7 +113,9 @@ Alternatives:
 
 ### D6: No verifier triage after implementation
 
-Plan review needed the `blocker-verifier` because 85 of 106 later-round blockers were latent and recall per reviewer was 0.19-0.43. After implementation the blockers are mostly real: 87 of 126 were product defects, and the rest were verification, artifact or evidence gaps that the threshold already handles. The gate already demands substantiated blockers with line evidence, and `sol:high` reported 0 unsupported blockers across today's 6 reviews. A verifier would add one dispatch per blocker to confirm what usually holds. `Blocker disposition` and the user's Override remain the release valves.
+Plan review adopted the `blocker-verifier` because 85 of 106 later-round blockers were latent and per-reviewer recall was estimated at 0.19-0.43. The measurement that has since run puts one fresh `sol:high` reviewer at the bottom of that range (macro 19.0% before triage, micro 14.9%) and, more to the point here, shows the verifier removing almost nothing: across 20 trials and 100 findings it dropped no independently blocking ledger target (0/36 in the `sol:high` arm, 0/10 in the `terra:medium` arm) and refuted 1 of 25 blocking mechanisms outside the ledger (`.omp/team-config/evidence/gate/plan-review-loop-measurement/experiment/RESULT.md`). After implementation the blockers are mostly real: 87 of 126 were product defects, and the rest were verification, artifact or evidence gaps that the threshold already handles. The gate already demands substantiated blockers with line evidence, and `sol:high` reported 0 unsupported blockers across today's 6 reviews. A verifier would add one dispatch per blocker to confirm what usually holds. `Blocker disposition` and the user's Override remain the release valves.
+
+The same figures weaken the verifier on the plan-review side, which plan-review-proportional kept. That is not this change's surface: it is listed as a follow-up measurement in tasks.md, to be decided on the plan-review corpus rather than inherited from this decision.
 
 Alternative: verify only disputed blockers. Rejected, because nothing defines "disputed" without a second review.
 
@@ -138,16 +146,18 @@ The change introduces no mechanism the `Build vs. adopt` paragraph covers. It im
 
 - [The `strategic-risk-review` lane loses its cross-check of audit false positives once it runs in parallel] → `sol:high` reported no unsupported blockers in the measured runs. The Override path and `Blocker disposition` handle a false blocker. The fix-delta check sees every fix.
 - [Two briefs on one model share blind spots: D2a, C3 and E1's wave-2 blockers were missed by every Sol run] → Named residual in `gate.md`. The budget ask shows the user what remains. A second family stays possible once one is measured as worth its cost.
-- [The pin makes the gate depend on one served model] → The review fails closed with a message instead of running on a substitute. Changing the pin is a one-line edit in `auditor.md`.
+- [Dropping a lane cuts breadth, the measured-weak axis: on plan review one fresh reviewer reached 14.9% of an 85-target ledger against 21.2% for three independent reviewers of the same model and brief, at 9.3% unsupported findings] → Named residual in `gate.md`. The cheap counter-measure, running one brief twice in parallel, is refused by `validate-gate-record.mjs:648-659`, which admits no duplicate invocation, so it belongs to Slice B. Until then the breadth bet rests on the pin, and the plan-review corpus bounds the mechanism only.
+- [The pin makes the gate depend on one served model] → The review fails closed with a message instead of running on a substitute. Changing the pin is a one-line edit in `auditor.md`. Measured frequency on the largest inputs is 9 of 26 dispatches (D4), so the migration plan's prevention step decides whether failing closed costs a message or a second full lane.
 - [A carried F1 row hides a regression the fix caused] → The carry reason is written down, and the delta reviewer sees the carried rows next to the fix diff.
 - [`whole_diff` and the delta review before a closing wave remain as vestiges until Slice B] → Accepted. They are correct, only redundant.
 - [Gates already in flight under the old text] → None: `openspec list --json` shows no active change. A plan-mode gate already baselined finishes under the text it started with, by a note in the README cutover entry.
 
 ## Migration Plan
 
-1. Merge, then run `scripts/deploy-local.sh` for this agent directory. For onara and weaver, rerun `install-openspec-workflow.mjs`.
-2. Restart running sessions so they load the new `auditor.md` and skill text.
-3. Rollback: revert the merge and redeploy. No record, ledger or trailer format changes, so records written under either text stay valid.
+1. Before the first `risky` gate runs under this text, make the pin hold instead of only being checked (D4): the deployed omp must contain main `7c737ac11f`, and the retry chain that maps `gpt-6.1-sol` to `claude-opus-5` (`team-config/seed/config.yml:27-28`) is either dropped for that entry or paired with `retry.fallbackOn: usage-limit` in the profiles that run gates. Neither is a file of this change; skipping the step leaves the INCONCLUSIVE retry as the only defence and pays for it per large diff.
+2. Merge, then run `scripts/deploy-local.sh` for this agent directory. For onara and weaver, rerun `install-openspec-workflow.mjs`.
+3. Restart running sessions so they load the new `auditor.md` and skill text.
+4. Rollback: revert the merge and redeploy. No record, ledger or trailer format changes, so records written under either text stay valid.
 
 ## Open Questions
 
