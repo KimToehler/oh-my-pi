@@ -172,7 +172,7 @@ export default function mergeGate(pi: ExtensionAPI) {
 				block: true,
 				reason:
 					`Plan local://${slug}-plan.md is not ready for approval: validate-gate-record.mjs --plan-only says\n${detail}\n` +
-					"Add or fix the `## Merge gate` section and the `## Final verification wave` (F3, F1, F2) per rule://plan-merge-gate, " +
+					"Add or fix the `## Merge gate` section and the `## Final verification wave` (F1, F2) per rule://plan-merge-gate, " +
 					"then propose again. If this work will not go through a merge gate, add the line `- Merge gate: not applicable (<reason>)`.",
 			};
 		}

@@ -56,7 +56,7 @@ A gated plan SHALL have no separate F3 lane. At `standard` depth the `implementa
 
 ### Requirement: Gate reviewers run on their pinned model
 
-Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the model and effort in its definition. A dispatch SHALL count only when every assistant turn in its session file ran on the pinned provider and model at the pinned effort, and its trailer `model_id` names that model. Otherwise the invocation SHALL be INCONCLUSIVE and get the one bounded fresh retry.
+Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the model and effort in its definition. A dispatch SHALL count only when every assistant turn in its session file ran on the pinned provider and model at the pinned effort, and its trailer `model_id` names that model. The check SHALL run after the dispatch and again after any trailer repair answer, before that trailer is accepted. Otherwise the invocation SHALL be INCONCLUSIVE and get the one bounded fresh retry.
 
 #### Scenario: Fallback model
 
@@ -77,6 +77,11 @@ Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the mod
 
 - **WHEN** the fresh retry also runs on a model other than the pin
 - **THEN** the invocation stays INCONCLUSIVE and `GC wave` records it without its trailer, both replies are kept verbatim as evidence, the gate does not pass, and the user is told which model ran
+
+#### Scenario: Repair turn substituted
+
+- **WHEN** a dispatch ran on the pin, its trailer needed one repair, and the repair answer came from another model
+- **THEN** the repaired trailer is not accepted, the dispatch does not count, and the invocation gets the bounded fresh retry
 
 #### Scenario: Negative control
 
