@@ -17,7 +17,12 @@ cycleOrder:
   - default
   - slow
 retry:
-  fallbackOn: any
+  # Only a usage limit may switch models. Other provider errors retry on the same
+  # model and then surface: a transient stream cut used to replay the whole turn
+  # on the next chain entry, which silently changed which model answered and cost
+  # more than the retry it replaced (45% of the spend in the plan-review loop
+  # measurement, 9 of 26 pinned dispatches). Pinned reviewer agents depend on it.
+  fallbackOn: usage-limit
   fallbackChains:
     onara/cc/claude-opus-5-5:
       - onara/cc/claude-opus-5
