@@ -1,0 +1,145 @@
+# QA1: every task Verify command of tasks.md, re-run on HEAD 7976f0c9ed14ef01ced6c6d282850aa06841fe77
+
+## 1.1
+$ bun -e 'import { parseAgentFields } from "./packages/coding-agent/src/discovery/helpers.ts"; const t = await Bun.file("team-config/agent/agents/auditor.md").text(); const a = parseAgentFields(Bun.YAML.parse(t.split(/^---$/m)[1])); if (a?.name !== "auditor" || a.model?.join() !== "onara/cx/gpt-6.1-sol:high") process.exit(1)'
+exit 0
+
+## 2.1
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const p = t.slice(t.indexOf("## Phase 0.5"), t.indexOf("## Phase 0.6")); if (["Depth", "gate.md", "never lower", "batch", "GC retier", "GC baseline", "internal-tooling", "never falls back"].some(n => !p.includes(n)) || p.includes("Consequence or uncertainty is high.") || t.includes("GPT-5.6 via")) process.exit(1)'
+exit 0
+
+## 2.2
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const a0 = t.indexOf("Local implementation audit."); const a = t.slice(a0, t.indexOf("END-REVIEW-TRAILER", a0)); const s0 = t.indexOf("Read-only strategic risk review."); const s = t.slice(s0, t.indexOf("END-REVIEW-TRAILER", s0)); const p2 = t.slice(t.indexOf("## Phase 2: Launch"), t.indexOf("## Phase 2.5")); const p3 = t.slice(t.indexOf("## Phase 3"), t.indexOf("## Phase 4")); const hints = ["seams", "consistency", "duplication", "simplification"]; if (a0 === -1 || s0 === -1 || hints.some(h => !a.includes(h)) || !["seams", "simplification"].every(h => s.includes(h)) || (s.match(/^[1-4][.] /gm) ?? []).length !== 4 || t.includes("{F3 REPORT PATH}") || t.includes("{AUDITOR FINDINGS}") || p2.includes("agent: \"oracle\"") || !["history://", "thinking_level_change", "agentModelOverrides"].every(n => p3.includes(n)) || !t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")).includes("without its trailer")) process.exit(1)' && bun test team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs
+exit 0; 313 pass; 0 fail
+
+## 2.3
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); if (["{CARRIED ROWS}", "closing wave", "one more fix round", "before any edit or dispatch", "never frozen", "re-plan"].some(n => !f.includes(n)) || !["can change the behaviour that row observed", "per requirement", "per scenario", "rejects its carry", "merge of the default branch"].every(n => p1.includes(n)) || t.includes("stales that capture: re-run the rows it covered")) process.exit(1)'
+exit 0
+
+## 2.4
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const d = t.slice(t.indexOf("## Blocker disposition"), t.indexOf("## Fix waves")); if (!d.includes("budget ask") || !d.includes("on-demand") || d.includes("delta reviews and F3 (")) process.exit(1)'
+exit 0
+
+## 3.1
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/integration-review/SKILL.md").text(); if (/final verification wave/i.test(t) || t.includes("BLOCKED: F3 must run") || !t.includes("skill://review-work")) process.exit(1)'
+exit 0
+
+## 3.2
+$ bun -e 'const t = await Bun.file("team-config/agent/rules/plan-merge-gate.md").text(); if (t.includes("F3.") || t.includes("(F3, F1, F2)") || !t.includes("whole-diff surface reviewed in F2") || !t.includes("risky") || !t.includes("merge the default branch")) process.exit(1)'
+exit 0
+
+## 3.3
+$ bun -e 'const d = "team-config/agent/skills/review-work/openspec/schemas/omp-gated/"; const s = Bun.YAML.parse(await Bun.file(d + "schema.yaml").text()); const g = s.artifacts.find(a => a.id === "gate").instruction; const k = s.artifacts.find(a => a.id === "tasks").instruction; const tt = await Bun.file(d + "templates/tasks.md").text(); const tg = await Bun.file(d + "templates/gate.md").text(); if (!g.includes("whole-diff surface reviewed in F2") || k.includes("INTEGRATION-REVIEW-REPORT-v1") || !k.includes("F2 is never a checkbox") || tt.includes("F3") || !tt.includes("merge the default branch") || !tg.includes("whole-diff surface reviewed in F2")) process.exit(1)' && bun test team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts
+exit 0; 166 pass; 0 fail
+
+## 3.4
+$ grep -q 'gpt-6.1-sol:high' team-config/README.md && grep -q 'closing wave' team-config/README.md && ! grep -q 'F2 delta reviews and F3 keep' team-config/README.md
+exit 0
+
+## 3.5
+$ bun -e 'const t = await Bun.file("team-config/agent/rules/delegation.md").text(); const p = t.slice(t.indexOf("**Overlapping tasks never run in the same batch.**"), t.indexOf("**Two or more concurrent editing tasks")); if (!p.includes("read-only") || !p.includes("share a batch") || !p.includes("Overlapping items go in separate")) process.exit(1)'
+exit 0
+
+## 4.1
+$ git merge-base --is-ancestor main HEAD && bun run test:team-config && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec validate post-impl-review-proportional --strict --no-interactive && ! grep -rn -E 'F3 REPORT PATH|F3 of a plan|final verification wave .F3' team-config/agent
+exit 0; Change 'post-impl-review-proportional' is valid; 697 pass; 0 fail
+
+## 4.2
+$ test -s .omp/team-config/evidence/gate/post-impl-review-proportional/f1/standard.md
+exit 0
+
+## 4.3
+$ test -s .omp/team-config/evidence/gate/post-impl-review-proportional/f1/risky.md
+exit 0
+
+## 4.4
+$ test -s .omp/team-config/evidence/gate/post-impl-review-proportional/f1/planmode.md
+exit 0
+
+## 4.5
+$ test -s .omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md
+exit 0
+
+## 4.6
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); if (!p1.includes("Never re-run a row the diff cannot change") || !p1.includes("reaches the changed code") || !f.includes("only when the range can change the behaviour of every row") || f.includes("when there are no carries")) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 4.7
+$ d=.omp/team-config/evidence/gate/post-impl-review-proportional/f1; grep -q '^## 4.7 re-run' $d/standard.md && grep -q '^## 4.7 re-run' $d/risky.md && grep -q '^## 4.7 re-run' $d/budget-standard.md
+exit 0
+
+## 5.1
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); if (!t.includes("\"reason\": \"whole-diff surface reviewed in F2\" }") || t.includes("\"reason\": \"not needed (") || !t.includes("the text inside the parentheses of the plan") ) process.exit(1)'
+exit 0
+
+## 5.2
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); if (!p1.includes("A carried row'"'"'s command is not executed again") || !p1.includes("run it for the stale rows alone") || !p1.includes("one row per item step 3 lists") || p1.includes("Build the QA matrix** - one row per scenario")) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.3
+$ d=.omp/team-config/evidence/gate/post-impl-review-proportional/f1; grep -q '^## 5.3 re-run' $d/standard.md && grep -q '^## 5.3 re-run' $d/risky.md && grep -q '^## 5.3 re-run' $d/budget-standard.md
+exit 0
+
+## 5.4
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); if (!p1.includes("exercises that requirement'"'"'s scenarios inside the one row") || !p1.includes("never split it into a row per scenario")) process.exit(1)' && grep -q '^| 1 | QA matrix.*| \*\*FAIL\*\*' .omp/team-config/evidence/gate/post-impl-review-proportional/f1/standard.md && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.5
+$ d=.omp/team-config/evidence/gate/post-impl-review-proportional/f1; grep -q '^## 5.5 re-run' $d/standard.md && grep -q '^## 5.5 re-run' $d/budget-standard.md
+exit 0
+
+## 5.6
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const r = await Bun.file("team-config/agent/rules/plan-merge-gate.md").text(); const tt = await Bun.file("team-config/agent/skills/review-work/openspec/schemas/omp-gated/templates/tasks.md").text(); if (!t.includes("are folded into that requirement'"'"'s row, whose artifact is one file citing them") || r.includes("one evidence path per scenario") || tt.includes("One evidence path per scenario") || !tt.includes("One evidence path per row")) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.7
+$ grep -q '^## 5.7 re-run' .omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md
+exit 0
+
+## 5.8
+$ C=openspec/changes/post-impl-review-proportional; git merge-base --is-ancestor 5d87647712 HEAD && sed -n 25p team-config/seed/config.yml | grep -q 'fallbackOn: usage-limit' && sed -n 33p team-config/seed/config.yml | grep -q 'gpt-6.1-sol:' && ! grep -q 'config.yml:27-28' $C/design.md $C/gate.md && grep -q 'config.yml:33-34' $C/gate.md
+exit 0
+
+## 5.9
+$ bun -e 'const s = await Bun.file("openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md").text(); const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); if (!s.includes("runs in each wave whose QA passes, and a wave whose QA fails dispatches no reviewer") || !s.includes("re-runs QA and, when QA passes, every reviewer lane of the depth") || !f.includes("re-runs QA and, when QA passes, every reviewer lane of the depth") || f.includes("closing wave of every lane")) process.exit(1)' && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec validate post-impl-review-proportional --strict --no-interactive
+exit 0; Change 'post-impl-review-proportional' is valid
+
+## 5.10
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); if (!p1.includes("Every capture that file cites is already tracked in the reviewed tree, or the file carries that capture'"'"'s observed output verbatim")) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.11
+$ grep -q '^## 5.11 re-run' .omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md
+exit 0
+
+## 5.12
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const s = await Bun.file("openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md").text(); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); if (!f.includes("A closing wave with an INCONCLUSIVE invocation is incomplete, not failed") || !f.includes("it gets no budget ask and no Override") || !s.includes("#### Scenario: Incomplete closing wave") || !s.includes("A closing wave with an INCONCLUSIVE invocation is incomplete, not failed")) process.exit(1)' && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec validate post-impl-review-proportional --strict --no-interactive
+exit 0; Change 'post-impl-review-proportional' is valid
+
+## 5.13
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const s = await Bun.file("openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md").text(); const p1 = t.slice(t.indexOf("## Phase 1"), t.indexOf("## Phase 2: Launch")); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); if (!p1.includes("This governs QA rows only: the fix verification of Fix waves step 4") || !f.includes("This verification runs even when a carried QA row has the same command") || !s.includes("#### Scenario: Fix verification beside a carried row")) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.14
+$ grep -q '^## 5.14 F1-D (d)' .omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md
+exit 0
+
+## 5.15
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const s = await Bun.file("openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md").text(); const f = t.slice(t.indexOf("## Fix waves"), t.indexOf("## Phase 5")); if (f.includes("once the pin resolves") || !f.includes("once that cause is resolved (the pin, a timeout, a missing or malformed reply)") || !f.includes("is not a wave the budget counts") || !s.includes("except the repeat of an incomplete closing wave") || !s.includes("SHALL NOT count as a budget wave")) process.exit(1)' && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec validate post-impl-review-proportional --strict --no-interactive
+exit 0; Change 'post-impl-review-proportional' is valid
+
+## 5.16
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); const s = await Bun.file("openspec/changes/post-impl-review-proportional/specs/post-implementation-review/spec.md").text(); if (!t.includes("and again after each trailer repair answer before its trailer is accepted") || !t.includes("repeat the model check on the whole session file, repair turn included") || !s.includes("#### Scenario: Repair turn substituted") || !s.includes("again after any trailer repair answer")) process.exit(1)' && DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 openspec validate post-impl-review-proportional --strict --no-interactive
+exit 0; Change 'post-impl-review-proportional' is valid
+
+## 5.17
+$ bun -e 'const t = await Bun.file("team-config/agent/extensions/merge-gate.ts").text(); if (t.includes("(F3, F1, F2)") || !/Final verification wave.? \(F1, F2\) per rule:\/\/plan-merge-gate/.test(t)) process.exit(1)' && bun run test:team-config
+exit 0; 697 pass; 0 fail
+
+## 5.18
+$ grep -q '^## 5.18 F1-D (e)' .omp/team-config/evidence/gate/post-impl-review-proportional/f1/budget-standard.md
+exit 0
+
+## 5.19
+$ bun -e 'const t = await Bun.file("team-config/agent/skills/review-work/SKILL.md").text(); if (!t.includes("Only when the repaired trailer fails the check, the repair turn fails the model check, or the reviewer cannot be reached")) process.exit(1)'
+exit 0
