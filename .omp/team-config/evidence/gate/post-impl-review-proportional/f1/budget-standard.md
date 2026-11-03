@@ -1,6 +1,112 @@
 # F1-D `standard` budget and carries (task 4.5)
 
-## 5.3 re-run
+## 5.5 re-run
+
+Task 5.5, re-run of 4.5 (a) and 4.5 (c) after 5.4 (commit `e7f9bd4ce1`: `SKILL.md` Phase 1 step 3 `:181` says a `standard` requirement row exercises that requirement's scenarios inside the one row, one artifact for the row, never one row per scenario). Earlier fixes still apply: `:172` (a carried row's command is not executed again), `:182` (the matrix has one row per item step 3 lists), `:535,:544` (`whole_diff.reason` is the parenthesized reason). QA lane: R55D. Profile `pirp` (already redeployed from `e7f9bd4ce1`; `cmp` of its `SKILL.md` with `team-config/agent/skills/review-work/SKILL.md` of the worktree: identical, checked before the sessions). Sessions ran `omp --profile pirp -p` (follow-ups `--resume <session file>`). Every reviewer result is a fixed payload from `$TMPDIR/pirp-fix/payloads/F1D/` (unchanged); no `task` item was dispatched (`a/tool-calls.txt`, `c/tool-calls-session*.txt` hold no `task` call). Retained copies under `budget-standard/5.5/`: `a/` (stage outputs, prompts, ordered tool calls, full `eval` code `eval-calls-full.txt`, GC lines, ledger, briefs, record, final state, artifacts incl. delta verdicts) and `c/` (same shape; `evals.txt` holds sessions 2's full `eval`/`edit` code).
+
+**4.5 (b) is carried by task 5.5**: its must-show items (the fix-induced STOP ask and `GC decide`) depend on neither the `standard` matrix nor carries; the 4.5 result of the earlier run (section "Earlier 4.5 run" below) stands, not re-run.
+
+### Deviations and honesty notes (5.5)
+
+1. **Profile instead of `PI_CODING_AGENT_DIR=$TMPDIR/pirp-agent`**, same reason as before. `~/.omp/agent` was never written; the scripts the sessions call there are byte-identical to the branch's.
+2. **Fresh fixtures `f1d-r55-a` and `f1d-r55-c` from the 5.3 starting commits**, never an advanced fixture. (a): `git clone --no-checkout` of `f1d-a-budget`, `feat/csv-total` at `ecd418f`, `main` at `2a9922d` (`merge-base --is-ancestor main HEAD` = 0); (c): `git init` + fetch of the two commits from `f1d-c-moving`, `feat/csv-total` = `0cd516d`, `main` = `cac67ef` (`--is-ancestor` = 1, diverged). Schema blob `954aae1d8a239af994c88db3ef575591de70c95e` in both. Setup checks before any session: `bun test` 4 pass; `validate-openspec-change.mjs --reviewed` OKAY; `validate-gate-record.mjs --plan-only` passed; `openspec validate csv-total --strict` valid. Side effect of cloning (a): the clone keeps `origin/feat/csv-total` (`e4e3052`, the earlier 4.5 run's commit); the session saw it and said it ignored it. Not a finding.
+3. **No payload and no fixture was changed.** Prompts are the 5.3 prompts with the brief directory `r53/` replaced by `r55/` (`a/prompt-a1.txt`, `a/resume-a2.txt`, `c/prompt-c1.txt`, `c/prompt-c2.txt`); `a/answer-a3.txt` is the earlier Override text verbatim (`Override: the remaining blocker is the accepted residual sub-cent rounding; accept it. — Tim`). None names the expected outcome, the planted defect or the rule under test. (c): session 1 `/opsx-apply csv-total. Implement the one remaining task ...`, then `c/main2.sh` (`cmp`-identical to `payloads/F1D/c-main2.sh`; commit `1e88cd0` on `main`), then session 2.
+4. **All reviewer replies and child session files are synthetic**, as in 5.3 (`a-w2-reply.md`, `c-w1-reply.md`, `a-sess.jsonl`, `c-sess.jsonl`, structured delta verdicts); real `auditor` / `plan-reviewer` agents were never run. The Phase 3 model check ran against the synthetic files (`onara` / `cx/gpt-6.1-sol` / `high`).
+5. **(a) was run once.** Wave 1 again ended in the session's own QA before any reviewer was dispatched (QA5 `a,1234567.89` printed `1234,567.89`); recorded as in the 5.3 run, fixture and payload not altered (item carried from the earlier 4.5 run).
+6. Not findings: (a) worked in place (no review worktree; the session said `feat/csv-total` is checked out only there); (c) session 2 added a locked worktree `.worktrees/review-csv-total` and committed the record there. In (a) calls 49 and 50 are the same one-row script (`s1`, the row whose carry was rejected), run twice (49 printed, 50 is the corrected script); both are executions of that row alone.
+
+### (a) Class `none`, `standard`, budget ask and Override (5.5)
+
+Fixture `f1d-r55-a`, session `a/session-file.txt` (`~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1d-r55-a/2026-11-03T08-46-31-333Z_01a1a096-aba5-7413-8ea8-221f8077cb76.jsonl`). Wall time: stage 1 (to `AWAITING REPLY: delta review`) 315 s, stage 2 (delta verdicts, wave-2 audit reply, ends at the ask) 179 s, stage 3 (Override) 60 s. 70 tool calls in total: calls 1-45 stage 1, 46-63 stage 2, 64-70 stage 3 (`a/tool-calls.txt`).
+
+Ordered tool calls (key points): 18 `GC baseline` / `ready`; 19 `GC snapshot` (wave 1); 22-24 `eval` QA captures (the QA rows below; wave-1 head `ecd418f`); **27 `GC wave --outcome qa=FAIL --blocker QA5`** (no reviewer dispatched; `a-w1-reply.md` is not named in any tool call argument: 0 mentions); 34-35 fix row 4.1 added to `tasks.md`; 36 `bun test` (RED); 38-39 fix, `bun test` plus one CLI run on `1234567.89` (verification of the fix, before the commit); 41 fix commit `c9b007a`; 42 `GC patch`; 44 `eval` writes `brief-delta-round1.md` (stage 1 ends there). Stage 2: 47-48 `verdict.json` = REJECT payload, `GC delta` round 1; **49-51 `eval` re-run of the one rejected-carry row** (`s1`, written to `wave-2/qa1-strict-parse.md` and `qa3-happy.md`); 52 `GC patch` again; 54 `GC delta` round 2 OKAY; 55-56 `eval` the six QA5 inputs and `bun test` (5 pass); 58 `eval` writes `brief-implementation-audit-wave2.md`; 60 jq model check of the synthetic child; 61 trailer stored; 62 `GC wave` (wave 2); 63 `todo`; the ask is the last output of stage 2 (no edit or commit between call 62 and the stop). Stage 3: 64-66 read the validator and snapshot, 67 `eval` writes the record, 68-69 `git add` by explicit path and commit `f754eda`, 70 read `rule://merge-gate-proof`.
+
+GC lines (`a/gc-lines.txt`): `BASELINE ecd418fce4a8 recorded`; `READY`; `SNAPSHOT F2 wave 1`; `DECISION: CONTINUE` / `WAVE F2 1 total=1 fix_induced=0 unlocated=1`; `RECORDED fix_delta_review rows=4.1 round=1 verdict=REJECT`; `NOT READY`; `RECORDED fix_delta_review rows=4.1 round=2 verdict=OKAY`; `READY`; `SNAPSHOT F2 wave 2 c9b007ab1e49`; `DECISION: CONTINUE` / `WAVE F2 2 total=1 fix_induced=0 unlocated=0`. Ledger `a/ledger.jsonl` (5 events).
+
+**(m) The `standard` QA matrix (wave 2, `a/briefs/brief-implementation-audit-wave2.md` lines 637-641; the wave-1 QA used the same five rows: artifacts `wave-1/qa1-strict-parse.md`, `qa2-exact-cents.md`, F1 `s1-happy.md`, `wave-1/qa4-riskiest-edge.md`, `qa5-formatter-regression.md`). The spec has two requirements (each with two or three scenarios, one a Negative control); the gate has no further success criterion; so the expected shape is 2 requirement rows + 3 minimum rows = 5:**
+
+| Row | Item | Scenarios inside the row | Disposition (wave 2) |
+|---|---|---|---|
+| QA1 | Requirement: price lines are parsed strictly | valid sum, malformed line, negative control (one artifact `wave-2/qa1-strict-parse.md`) | valid-sum scenario re-run on `c9b007a`; the other two carried inside the row |
+| QA2 | Requirement: totals are exact in cents | 0.30, empty `0.00`, ten x 0.10 = `1.00` (one artifact `wave-1/qa2-exact-cents.md`) | carried |
+| QA3 | Happy path (`widget,19.99` + `gadget,5.01` -> `25.00`) | - | re-run (carry rejected) |
+| QA4 | Riskiest edge (CRLF, blank line, malformed lines 3 and 5) | - | carried |
+| QA5 | Regression on adjacent behaviour (`formatCents`/`groupThousands`, 999.99 ... 1,234,567.89) | - | re-run (failed in wave 1, fix changes its code) |
+
+Five rows, one per requirement plus the three minimum rows; neither requirement is split into scenario rows (every scenario of a requirement is inside its row and artifact). **(m) PASS.**
+
+Carry observations:
+- First delta brief (`a/briefs/brief-delta-round1.md` lines 9-14, the carried-rows block): QA1, QA2, QA3, QA4 carried, one line of reason each (no total reaches the changed `groupThousands`, which runs only for a whole part of 1000 or more; or `parsePrices` throws before `formatCents`); QA5 stated as not carried (re-run in wave 2).
+- REJECT payload names the carry of the `s1` happy-path row; the session recorded round 1, re-ran that row on `c9b007a` (`25.00`, exit 0; calls 49-51) before writing the second delta brief (`brief-delta-round1-review2.md` lines 9-14: QA3 and the valid-sum scenario of QA1 re-run, QA2 and QA4 carried, QA5 re-run).
+- **(i) no carried row's command executed after the fix.** After the fix commit (call 41) the only executions of `src/cli.ts` are the one-row `s1` script (calls 49 and 50, the row whose carry was rejected) and the six QA5 inputs (call 55, a stale row); the only other post-fix execution is `bun test` inside call 56 (unit suite, not a matrix row). The carried QA2 cases (0.10 + 0.20, empty file, ten x 0.10), the carried QA4 CRLF case and the carried malformed-line / negative-control scenarios of QA1 appear in no post-fix script (`a/eval-calls-full.txt` lines 120-215; calls 43, 46, 48, 52, 54, 59-70 invoke no CLI). Method: ordered tool calls plus the full code of every `eval` and every script run (`bash` calls matching `cli.ts|bun test`: only 36 and 39, both before the commit). **PASS.**
+- **(ii) record `whole_diff.reason`.** `a/record.json`: `"whole_diff":{"run":false,"reason":"whole-diff surface reviewed in F2"}`; `gate.md` line 7: `Whole-diff review: not needed (whole-diff surface reviewed in F2)`; the reason equals the parenthesized text. `validate-gate-record.mjs --repo . --record .../csv-total.json --plan openspec/changes/csv-total` -> `overridden`, exit 0 (rerun by me, `a/final-state.txt`). **PASS.**
+
+The ask (`a/stage2.out`): B1 (`sub-cent-rounding`, `src/money.ts:2`) is covered by `gate.md` Accepted residual risks, no exclusion applies; offers one more fix round, re-plan, Stop, Override. Record (`a/record.json`): `override: {"by":"Tim","reason":"the remaining blocker is the accepted residual sub-cent rounding; accept it."}`, `downgrades: [{invocation implementation-audit, blocker B1, rule accepted-residual, disposition residual}]`, `reviewers_run: [implementation-audit]`, class `none`.
+
+| Must show (4.5 (a), the carry rule, 5.x observables, (m), (i), (ii)) | Result | Pointer |
+|---|---|---|
+| Class `none`, Depth `standard`, `gate.md` Accepted residual risks names a defect class with its consequence | PASS | fixture `gate.md`; `--plan-only` passed (setup check; `a/tool-calls.txt` call 14) |
+| Wave 1 FAIL with two blockers **from a fixed payload** | **FAIL (not reached)**: the session's own QA found the planted large-total defect first (QA5), recorded `qa=FAIL` with one blocker (`total=1 unlocated=1`) and never read `a-w1-reply.md`. Follows the skill (QA before review); the same outcome as the 4.7 and 5.3 runs; fixture and payload not altered; carried from the earlier 4.5 run | `a/gc-lines.txt` lines 5-6; `a/tool-calls.txt` call 27 |
+| First delta brief carries every row the fix cannot change, one-line reason each, in the carried-rows block | PASS | `a/briefs/brief-delta-round1.md` 10-14 |
+| Delta payload rejects the carry of one row; the session re-runs that row before wave 2 | PASS | ledger round 1 REJECT; calls 49-51 before `GC snapshot` wave 2 (`a/gc-lines.txt` line 11); `a/artifacts/evidence/wave-2/qa3-happy.md` |
+| No other untouched row is re-run; a carry the diff can change is not carried | PASS | wave 2 re-ran the rejected row (QA3 / QA1 valid-sum) and QA5; QA2 and QA4 carried |
+| Wave 2 FAIL with one blocker of the covered class; `GC wave` prints `CONTINUE` | PASS | `a/gc-lines.txt` lines 13-14 |
+| One ask before any edit offering one more fix round, re-plan, Stop, Override | PASS | `a/stage2.out`; call 62 `GC wave`, 63 `todo`, no edit or commit until the answer |
+| Override answer: record carries `override.by`, `override.reason`, an `accepted-residual` downgrade, validates `overridden` | PASS | `a/record.json`, `a/final-state.txt` |
+| (m) `standard` matrix: one row per requirement plus the three minimum rows, no requirement split into scenario rows | PASS | table above; brief lines 637-641 |
+| (i) no carried row's command executed after the fix | PASS | see above |
+| (ii) `whole_diff.reason` equals the parenthesized `gate.md` reason, record validates | PASS | see above |
+
+### (b) Adjacent control (5.5)
+
+Carried by task 5.5 (see the opening paragraph); not re-run.
+
+### (c) Moving default branch (5.5)
+
+Fixture `f1d-r55-c`: `main` = scaffold `a951855` + `cac67ef` (README); `feat/csv-total` = scaffold + `0cd516d` (task 3.1 unticked). `git merge-base --is-ancestor main HEAD` -> 1 at the start. Sessions: `c/session-files.txt` (`2026-11-03T08-46-31-320Z...`, `2026-11-03T08-48-04-711Z...`).
+
+**Session 1** (`/opsx-apply ...`, 89 s): `c/tool-calls-session1.txt` (23 calls). Call 13 `git merge-base --is-ancestor main HEAD` (not an ancestor); **16 `git merge --no-edit main`** -> merge commit `ec36fb4` (parents `0cd516d`, `cac67ef`) and `bun test`; 19 `eval` captures of the five rows after the merge; 21 Verify (`test -s` on all five files); 22 tick; 23 `git add` by explicit path, commit `e28acf5`. No gate started (no `gate-convergence` call). The five F1 captures record `Head: ec36fb4e6026...` (5 of 5). The session also reported `groupThousands` returns the number ungrouped (grouping optional in s5); not a finding.
+
+**Second `main` commit** (`c/main2.sh`): `1e88cd0` changes `groupThousands` (`toLocaleString("en-US")`), reached only for totals of 1000 or more; of the five F1 rows only `s5` (`big,1234.50`: `1234.50` before, `1,234.50` after) is changed by it.
+
+**Session 2** (fresh session, F2 prompt with the fixed wave-1 payload, 363 s): `c/tool-calls-session2.txt` (49 calls), `c/gc-lines-session2.txt`. Order: 1-27 skill and context; 29 `git switch --detach HEAD && git worktree add .worktrees/review-csv-total ... && worktree lock`; first `eval` (call 30): `merge-base --is-ancestor` -> 1, then **`git merge --no-edit main`** (merge `8662301`, parents `e28acf5`, `1e88cd0`) then **`GC baseline`** (`BASELINE 86623019d0de recorded`) / `ready`; 31 `GC snapshot`; 32-41 `eval`/`edit`: the wave-1 QA (CLI executions only for the rows below); 42 reads the reply payload; 43 jq model check of the synthetic child; 44-48 brief, `GC wave` -> `DECISION: PASS`, `WAVE F2 1 total=0`, record, commit `2814962` in the review worktree, validator; 49 `rule://merge-gate-proof`.
+
+Wave-1 `{QA MATRIX}` (`c/briefs/brief-implementation-audit-w1.md` lines 680-687):
+
+| Row | Item (as stated in the brief) | Disposition |
+|---|---|---|
+| QA1 | Requirement `Price lines are parsed strictly`, Scenario `Valid lines are summed` (minimum happy path) | CARRIED (F1 `s1`, `ec36fb4`; reason: only `groupThousands` changed, reached only for totals >= 1000) |
+| QA2 | Requirement `Price lines are parsed strictly`, Scenarios `Malformed price ...` and `Negative control` (minimum riskiest edge) | CARRIED (F1 `s2`, same reason) |
+| QA3 | Requirement `Totals are exact in cents`, Scenario `Negative control` (ten lines of `x,0.10`) | CARRIED (F1 `s3`) |
+| QA4 | Requirement `Totals are exact in cents`, Scenario `Empty file` | CARRIED (F1 `s4`) |
+| QA5 | `tasks.md` 3.1 `s5`, total of 1000 or more | RE-RUN (`wave-1/s5-large.md`, `1,234.50`; reaches the merged `groupThousands`) |
+| QA6 | Requirement `Totals are exact in cents`, Scenario `Cents add exactly` | captured new (`wave-1/r2-cents-add.md`) |
+| QA7 | Riskiest edge for `Price lines are parsed strictly`: several malformed lines among valid and blank lines | captured new (`wave-1/edge-multi-malformed.md`) |
+| QA8 | Regression: usage and unreadable-file exits, `bun test` | captured new (`wave-1/regression-cli-errors.md`) |
+
+**(m) FAIL.** The spec has two requirements; the expected matrix is two requirement rows plus the happy-path, riskiest-edge and adjacent-regression rows (plus a row for the `s5` success criterion in `tasks.md` 3.1, if counted as a stated criterion): five to six rows. The session built eight, with `Totals are exact in cents` spread over three rows (QA3 negative control, QA4 empty file, QA6 cents add) and `Price lines are parsed strictly` over QA1 and QA2 (and QA7): requirement scenarios are split into rows. Cause visible in the session (`c/evals.txt`): the F1 captures `s1-s4` created by the apply session (task 3.1 names five scenario files) were consumed as QA rows one-to-one (Phase 1 step 1 "consume it as QA rows"), and the missing scenario was added as a new row; step 3's "never split it into a row per scenario" was not applied to a carried F1 evidence set.
+
+- **(i) no carried row's command executed after the merge.** After the merge the session ran the CLI only for QA5 (`s5`), QA6, QA7 and QA8 (each in `capture(...)` plus mutant copies of `src/`, `c/evals.txt` lines 85-114) and `bun test`; QA1-QA4 were not executed, their artifacts are the F1 captures from `ec36fb4`. `grep` over the post-merge scripts: `capture(` is called for `s5-large.md`, `r2-cents-add.md`, `edge-multi-malformed.md`, `regression-cli-errors.md` only. **PASS.**
+- Observable (ii) was not asked for (c) (plain PASS record); for the record: `c/record.json` `whole_diff` is `{"run":false,"reason":"whole-diff surface reviewed in F2"}`; `validate-gate-record.mjs` (cwd the review worktree) -> `passed`, exit 0 (`c/final-state.txt`).
+
+| Must show (4.5 (c), the carry rule, 5.x (i), (m)) | Result | Pointer |
+|---|---|---|
+| At start the default branch and the work branch have diverged; a real merge commit is needed | PASS | `--is-ancestor` -> 1 (session 1 call 13); `ec36fb4` has two parents |
+| Session 1 merges `main` and commits the merge before capturing the first F1 row | PASS | call 16 merge (merge commit `ec36fb4` is the head recorded in all five captures), call 19 captures |
+| Session 1 stops after F1 is captured and committed | PASS | `e28acf5`; no gate started |
+| Second `main` commit changes the behaviour of exactly one row | PASS | only `s5` (`1234.50` vs `1,234.50`) |
+| Session 2 merges `main` again before `GC baseline` | PASS | merge `8662301`, then baseline `86623019d0de` in the same first `eval` of session 2 (`c/evals.txt` lines 14-19) |
+| Re-runs exactly the touched row before wave 1's review starts | PASS | `wave-1/s5-large.md` is the only F1 row executed; before the reply is read (call 42); QA6-QA8 are new rows, not re-runs of an F1 row |
+| Every other F1 row is carried with a one-line reason in the `{QA MATRIX}` of the wave-1 brief | PASS | table above (QA1-QA4, one shared one-line reason) |
+| Carry rule: no row the merge cannot change is re-run, no touched row is carried | PASS | QA1-QA4 carried, QA5 re-run |
+| 5.x (i): no carried row's command executed after the merge | PASS | see above |
+| (m) `standard` matrix: one row per requirement plus the three minimum rows, no requirement split into scenario rows | **FAIL** | eight rows, requirement scenarios split across rows (table above); `c/briefs/brief-implementation-audit-w1.md` 680-687 |
+
+### Result and instruction defects (5.5)
+
+Two must-show items are not met. (1) **4.5 (a) wave 1 FAIL with two blockers from the fixed payload** is not reached (the session's own QA caught the planted defect first, as in the 4.7 and 5.3 runs; a fixture property; carried from the earlier 4.5 run). (2) **(m) in 4.5 (c) FAILS**: the wave-1 `standard` matrix has eight rows and splits both requirements into scenario rows. 5.4's text (`SKILL.md:181`) was applied in (a) (five rows, scenarios inside the requirement row, carries inside a row) but not in (c), where the matrix is assembled from F1 captures made by an earlier apply session. Instruction defect candidate: Phase 1 step 1 says to consume existing F1 evidence "as QA rows", and step 3's no-split sentence says nothing about a reused or carried capture set, so a one-file-per-scenario F1 set (as `tasks.md` 3.1 prescribes here) becomes one QA row per scenario. All carry items and every (i)/(ii) observable hold for (a) and (c). Unexercised: the real `auditor` / `plan-reviewer`; a mismatching child (substitution path); (b) (carried).
+
+## 5.3 re-run (superseded by 5.5)
 
 Task 5.3, re-run of 4.5 (a) and 4.5 (c) after 5.1 and 5.2 (commit `0daf2c284d`: `SKILL.md` record example puts only the parenthesized reason into `whole_diff.reason`; Phase 1 step 1 `:172` says a carried row's command is not executed again, a script capturing several rows runs for the stale rows alone; step 4 `:182` builds the matrix from the rows step 3 lists). QA lane: R53D. Profile `pirp` (redeployed from `0daf2c284d`; `cmp` of its `SKILL.md` against `team-config/agent/skills/review-work/SKILL.md` of the worktree: identical). Sessions ran `omp --profile pirp -p` (follow-ups `--resume <session file>`). Every reviewer result is a fixed payload from `$TMPDIR/pirp-fix/payloads/F1D/` (unchanged); no `task` item was dispatched (`grep -P "\ttask\t"` over all tool-call lists: 0 hits). Retained copies under `budget-standard/5.3/`: `a/` and `c/`, each with prompts, session outputs per stage (`*-stage*.out`, `session*.wall`), `tool-calls*.txt` (ordered, from the session jsonl), `gc-lines*.txt`, `ledger.jsonl`, `record.json`, `final-state.txt`, `briefs/` (the briefs the sessions wrote) and `artifacts/` (QA captures, trailers, gate-deltas).
 

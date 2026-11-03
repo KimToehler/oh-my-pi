@@ -1,0 +1,6 @@
+DECISION: CONTINUE
+WAVE F2 1 total=2 fix_induced=0 unlocated=2
+RECORDED fix_delta_review rows=4.1 round=1 verdict=OKAY
+RECORDED delta_exemption b46287d4d6bc
+DECISION: PASS
+WAVE F2 2 total=0 fix_induced=0 unlocated=0

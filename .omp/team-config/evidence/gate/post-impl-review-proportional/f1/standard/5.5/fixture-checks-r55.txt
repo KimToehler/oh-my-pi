@@ -1,0 +1,16 @@
+# fixture checks r55
+reviewed: OKAY in round 1
+--plan-only:
+passed
+bun test v1.4.4 (5d9cc0f4f)
+
+ 7 pass
+ 0 fail
+ 7 expect() calls
+Ran 7 tests across 2 files. [4.00ms]
+954aae1d8a239af994c88db3ef575591de70c95e
+82e54ad9e132e45c633ce56f71e50d19841fb10a
+85d72a39c903cdf2a590ced47d0bf8f77d41febb
+profile diff:
+1
+{"reviewer":"@review","plan-reviewer":"onara/cx/gpt-6.1-sol:high"}

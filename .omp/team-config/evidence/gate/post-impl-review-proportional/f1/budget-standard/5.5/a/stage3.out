@@ -1,0 +1,48 @@
+Working...
+# Review Work - Final Report
+
+## Overall Verdict: FAILED, merge allowed by override (Tim)
+
+The merge gate is not a clean pass. QA passed in wave 2, but the code review failed on one finding. You accepted that finding as the risk the plan already lists, and the gate record now validates as `overridden`. The branch is ready to merge on that basis.
+
+Decision reason: depth `standard` comes from `gate.md`, and I re-checked the class against the final diff. Wave 2's review failed on B1, which the plan's Accepted residual risks covers. The fix budget was spent, so Tim overrode.
+Mandatory class: none
+
+| Invocation | Agent | Exact model ID | Independence | Verdict | Confidence |
+|---|---|---|---|---|---|
+| Manual QA (5 rows, 5 artifacts) | orchestrator | - | - | PASS (wave 2) | HIGH |
+| implementation-audit | auditor | onara/cx/gpt-6.1-sol | cross-provider | FAIL, overridden | HIGH |
+
+## Blocking Issues
+- **QA5 (wave 1), fixed in c9b007a:** totals of 1,000,000 or more printed `1234,567.89`. `groupThousands` now puts a separator before every group of three digits, and a new test covers it. That test failed before the fix and passes after it.
+- **B1 (wave 2), not fixed, overridden:** `src/money.ts:2` rounds a price with more than two decimals using floating point, so `1.005` becomes 1.00 and the total can be one cent off. It is covered by the plan's Accepted residual risks and recorded as a downgrade with rule `accepted-residual`, disposition `residual`.
+
+## Covered by one invocation
+`implementation-audit` covered all five sections: goal and contract; correctness, regressions, architecture and wire contracts; security and privacy; verification adequacy; final verdict. No strategic-risk review was needed at `standard` depth.
+
+## Key Findings
+- **Fix round 1:** the first delta review returned REJECT. It objected only to reusing the old happy-path QA capture after the fix. I re-ran that check on c9b007a (`25.00`, exit 0), and the second review of the same commit range returned OKAY.
+- **Wave 2 audit:**
+  - **Model check passed:** the session ran on the auditor's pinned model with thinking `high`, and the trailer's `model_id` matches.
+  - **Trailer check passed:** the reply is stored verbatim.
+  - **Security:** the trailer reports `security_delta: no`.
+- **Ledger:** wave 1 failed on QA5. Fix round 1 covered row 4.1. Wave 2 recorded the review FAIL, and the convergence script's decision was CONTINUE. The override was recorded in the gate record, not in the convergence ledger, because the skill's budget question writes nothing there.
+
+## Recommendations
+- **Sub-cent rounding is still live:** to remove it rather than accept it, reject prices with more than two decimals in `toCents`. That would be a separate change with its own gate.
+- **Planning-review stamp is stale:** row 4.1 in `tasks.md` changed the change folder after its planning review, so the digest in `review.md` no longer matches. The merge-gate validator passes anyway, because `plan_sha256` binds the folder as it is now.
+- **Two uncited captures stay untracked:** the failed wave-1 QA5 capture and the wave-1 QA1 capture are not cited by the record, so the skill keeps them unstaged.
+- **Briefs written, nothing dispatched:** all three briefs are in `out-a/` (`brief-delta-round1.md`, `brief-delta-round1-review2.md`, `brief-implementation-audit-wave2.md`).
+- **Wave-1 reply unused:** the wave-1 audit reply (`a-w1-reply.md`) was never used, because QA failed in wave 1 and the skill skips the reviewer then.
+
+```
+Gate proof
+- integration-review: not needed (whole-diff surface reviewed in F2)
+- review-work: RAN (reviewer replies from user-supplied fixed payloads; briefs written, no live dispatch, per user instruction)
+  reviewed_sha c9b007ab1e4997752155a0a27eff4d1b91b9be61 · plan_sha256 1dac51dad86fcbf9e16fa0553b0d394d84061ae889b889dd1f40bc08c17ddef1
+  implementation-audit: FAIL overridden · auditor · onara/cx/gpt-6.1-sol · trailer .omp/team-config/evidence/gate/csv-total/wave-2/trailer-implementation-audit.md
+  strategic-risk-review: not run (depth standard: one implementation-audit)
+  override: by Tim · 1 downgrades (accepted-residual: 1)
+  record .omp/team-config/evidence/gate/csv-total.json · validate-gate-record.mjs exit 0 at f754eda (prints "overridden"; also exit 0 before the record commit)
+- code committed after reviewed_sha: none (f754eda adds only the record, trailer and QA evidence)
+```

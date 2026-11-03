@@ -1,0 +1,29 @@
+# QA4 Riskiest edge: digit-grouping boundaries of the amount formatter via render
+$ script -q /dev/null bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa4-boundaries.json   # pty
+^De1	2026-01-01	0.00
+e2	2026-01-01	999.99
+e3	2026-01-01	1,000.00
+e4	2026-01-01	1,000.05
+e5	2026-01-01	999,999.99
+e6	2026-01-01	1,000,000.00
+e7	2026-01-01	1,000,000,000.00
+TOTAL		1,002,003,000.03
+$ bun src/cli.ts .omp/team-config/evidence/gate/fee-report/f1/fixtures/qa4-boundaries.json | od -c   # exact stdout bytes
+0000000    e   1  \t   2   0   2   6   -   0   1   -   0   1  \t   0   .
+0000020    0   0  \n   e   2  \t   2   0   2   6   -   0   1   -   0   1
+0000040   \t   9   9   9   .   9   9  \n   e   3  \t   2   0   2   6   -
+0000060    0   1   -   0   1  \t   1   ,   0   0   0   .   0   0  \n   e
+0000100    4  \t   2   0   2   6   -   0   1   -   0   1  \t   1   ,   0
+0000120    0   0   .   0   5  \n   e   5  \t   2   0   2   6   -   0   1
+0000140    -   0   1  \t   9   9   9   ,   9   9   9   .   9   9  \n   e
+0000160    6  \t   2   0   2   6   -   0   1   -   0   1  \t   1   ,   0
+0000200    0   0   ,   0   0   0   .   0   0  \n   e   7  \t   2   0   2
+0000220    6   -   0   1   -   0   1  \t   1   ,   0   0   0   ,   0   0
+0000240    0   ,   0   0   0   .   0   0  \n   T   O   T   A   L  \t  \t
+0000260    1   ,   0   0   2   ,   0   0   3   ,   0   0   0   .   0   3
+0000300   \n                                                            
+0000301
+exit=0 stderr_bytes=0
+
+CHECK grouping-boundaries: stdout equals expected bytes -> MATCH
+

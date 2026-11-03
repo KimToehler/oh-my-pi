@@ -2,7 +2,79 @@
 
 Fresh ordinary `omp` sessions on disposable fixtures, profile `pirp` (this branch's team-config), base prompt of `local://pirp-f1-context.md` (OpenSpec variant, no fixed payload: every dispatch real). Judged directly from the retained outputs. Nothing here is committed.
 
-## 5.3 re-run
+## 5.5 re-run
+
+Task 5.5: 4.2 F1-A re-run in full after F2 fix 5.4 (`SKILL.md` Phase 1 step 3 `:181`: a `standard` requirement row exercises that requirement's scenarios inside the one row, one artifact, never a row per scenario). **Text under test: HEAD `e7f9bd4ce1`**; profile `pirp` already redeployed (checked: `diff -rq` of the profile `review-work` skill against `team-config/agent/skills/review-work` empty; the profile `SKILL.md` carries the "never split" sentence; `omp config get task.agentModelOverrides` → `{"reviewer":"@review","plan-reviewer":"onara/cx/gpt-6.1-sol:high"}`, no `auditor` entry). Same profile-instead-of-`PI_CODING_AGENT_DIR` deviation as below. This section is the primary run; 5.3 and everything under it are superseded.
+
+**Result: PASS on every must-show item that was exercised, and on (m), (i), (ii).** Wave 1 FAIL on the planted `formatAmount` defect through QA (QA2, QA4); fix `b652d66` touches `src/render.ts`, `src/render.test.ts`, `tasks.md`; delta brief carries QA1 with a reason; delta OKAY; wave-2 QA ran QA2-QA5 only and copied QA1; wave 2 PASS; record `passed`, `whole_diff.reason` = `whole-diff surface reviewed in F2`. The `standard` matrix has five rows: two requirements plus the three minimum rows, no requirement split by scenario.
+
+### Setup
+
+* Fixture `$TMPDIR/pirp-fix/f1a-r55`: fresh `git init -b main`, objects fetched from `f1a-standard-r7b`, `feat/fee-report` cut at `82e54ad`, `main` = `85d72a3`, tracking refs removed, no remote, clean tree. Content identical to the 5.3 starting fixture. Prompt unchanged: `$TMPDIR/pirp-fix/payloads/F1A/prompt7.txt` (no fixed payload, all dispatches real).
+* Fixture checks (`standard/5.5/fixture-checks-r55.txt`): `validate-openspec-change.mjs --reviewed` → `reviewed: OKAY in round 1`; `--plan-only` → `passed`; `bun test` 7 pass 0 fail; schema blob `954aae1d8a239af994c88db3ef575591de70c95e`.
+* Launch: `env -u PI_PROFILE -u OMP_PROFILE -u PI_CODING_AGENT_DIR -u PI_SESSION_FILE -u PI_SESSION_ID -u PI_NO_TITLE omp --profile pirp -p "$(cat prompt7.txt)"` from the fixture; one invocation, no ask, no resume. Wall time 1743 s.
+* Session: `~/.omp/profiles/pirp/agent/sessions/-tmp-pirp-fix-f1a-r55/2026-11-03T08-46-12-717Z_01a1a096-62ed-7434-869c-9ecdcd680ee3.jsonl` (`standard/5.5/session-path.txt`).
+* Retained under `standard/5.5/`: `tool-calls.tsv` (86 calls), `calls-after-fix-full.tsv` (calls 54-86, longer args), `children.tsv`, `session-assistant-text.txt`, `gc-output-lines.txt`, `brief-DeltaReview41.md`, `brief-ImplAuditW2.md` (retained child first message; `Complete assignment thoroughly:` is the harness prefix), `reply-*.md`, `qa-driver-run.sh` (the session's `/tmp/qa-fee/run.sh` as written, from its `write` call), `final-message.txt`, `final-validator.txt`, `retained/` (`evidence/gate/fee-report.json` record, wave-1/wave-2 captures, trailer, `ledger.jsonl`, `gate-deltas/`, `final-state.txt`). The session switched the main checkout to a detached head (clean tree) and reviewed in a locked worktree `.worktrees/review-fee-report` (`final-state.txt`: `0506786` record, `b46287d` tick, `b652d66` fix; porcelain: untracked wave-1 captures and `f1/fixtures/`).
+
+### Ordered tool calls (full list `5.5/tool-calls.tsv`)
+
+1. Skill reading (1-5), context (6-19), todo, `git switch --detach` + review worktree (22), diff and validators (23-33)
+2. `GC baseline`, `GC ready`, `GC snapshot --lane F2` (34)
+3. Wave 1 QA at `82e54ad`: driver `/tmp/qa-fee/run.sh` written (36), edited (38, 41), run with rows `QA1 QA2 QA3 QA4 QA5` (42): five rows
+4. `GC wave --lane F2 --outcome qa=FAIL --blocker QA2 --blocker QA4` (44) → `DECISION: CONTINUE`. **No reviewer dispatched in wave 1.**
+5. Fix: row 4.1 in `tasks.md`, RED/GREEN (45-53), commit `b652d66` (54), `GC patch` (55)
+6. Delta review: `task` → `plan-reviewer:DeltaReview41` (56); **wave-2 QA (57)** `run.sh … QA2 QA3 QA4 QA5` then `cp wave-1/qa1-late-fee.txt f1/` + `cmp`; `wait` (59), verdict → delta dir and `GC delta --row 4.1` (60) → `RECORDED fix_delta_review rows=4.1 round=1 verdict=OKAY`; tick commit `b46287d` and `GC exempt` (66) → `RECORDED delta_exemption`
+7. `GC snapshot` wave 2 (67), brief built in `eval` (74), `eval` → `tool.task` item `agent: "auditor"` name `ImplAuditW2` (75), `wait` (76), trailer copied (77), `GC wave … --outcome qa=PASS --outcome implementation-audit=PASS --trailer …` (78) → PASS, record built (80-81), commit `0506786`, `validate-gate-record` `passed` (82), `read rule://merge-gate-proof` (83)
+
+`GC` lines (`gc-output-lines.txt`, `retained/ledger.jsonl`): `DECISION: CONTINUE` / `WAVE F2 1 total=2 fix_induced=0 unlocated=2`; `RECORDED fix_delta_review rows=4.1 round=1 verdict=OKAY`; `RECORDED delta_exemption b46287d4d6bc`; `DECISION: PASS` / `WAVE F2 2 total=0 fix_induced=0 unlocated=0`.
+
+Dispatched `task` items (all two): `plan-reviewer` `DeltaReview41` and `auditor` `ImplAuditW2`. No `strategic-risk-review`, no F3. Children (`children.tsv`): `ImplAuditW2`: `model_change onara/cx/gpt-6.1-sol`, `thinking_level_change high`, 23 turns all `onara`/`cx/gpt-6.1-sol`. `DeltaReview41` (plan-reviewer, own config, not under test): `onara/cx/gpt-6.1-sol` `high`, 14 turns, 2 turns on `onara/cc/claude-opus-5` after a fallback; OKAY.
+
+### (m) The `standard` QA matrix: one row per requirement plus the three minimum rows
+
+The change has two requirements (`spec.md:8` "Late fee from amount and days overdue", `:23` "Fee report rendering"), three scenarios each (`:11,15,19`, `:26,30,34`); `gate.md`/`proposal.md` state no further success criteria. The wave-2 matrix passed to the auditor (`brief-ImplAuditW2.md:498-505`, columns `# | Scenario | command | expected | observed | verdict | artifact`; cells abbreviated here), and the wave-1 driver ran the same five ids:
+
+```
+QA1 | Requirement: Late fee from amount and days overdue (scenarios One complete period, Fee cap, Negative control 29 days, plus 0/59/60/360/390 days, rounding 99c and 49c, zero amount, cap on 123456789c) | lateFee via library API | 12/12 OK | PASS (carried: captured at 82e54ad … never src/fee.ts; delta review confirmed the carry) | f1/qa1-late-fee.txt
+QA2 | Requirement: Fee report rendering (scenarios Lines and total, Large fee grouped, Negative control no lines; given order kept; 5 cents is 0.05) | cli via pty and pipe, od -c, cmp | all four byte checks MATCH | PASS (captured at b652d66; carried across b46287d) | f1/qa2-render.txt
+QA3 | Happy path: render the shipped samples/report.json | | MATCH | PASS | f1/qa3-sample-happy-path.txt
+QA4 | Riskiest edge: digit-grouping boundaries 0 … 100000000000 cents and their total | | MATCH (wave 1 FAILED here) | PASS | f1/qa4-grouping-boundaries.txt
+QA5 | Regression: committed test suite and CLI usage error | bun test; bun src/cli.ts | 9 pass 0 fail; usage, exit 2 | PASS | f1/qa5-regression.txt
+```
+
+Five rows = 2 requirement rows (QA1, QA2) + happy path (QA3) + riskiest edge (QA4) + adjacent regression (QA5). Each requirement's three scenarios sit inside its one row with one artifact (QA1 names scenarios One complete period, Fee cap, Negative control; QA2 names Lines and total, Large fee grouped, Negative control). No scenario row exists. The session stated no reason about matrix shape (`session-assistant-text.txt` has no remark on it); its matrix is the 5.4 shape. **PASS** (the 5.3 run built twelve rows).
+
+### Observable (i): no carried-row command executed after the fix
+
+Carried row (delta brief `brief-DeltaReview41.md`, `{CARRIED ROWS}`): **QA1** ("the range changes only src/render.ts, src/render.test.ts and tasks.md, and QA1 observes only `lateFee` in src/fee.ts, which imports nothing from render"), plus "QA2, QA3, QA4, QA5: re-run, not carried". After the fix commit (call 54) every call is listed in `calls-after-fix-full.tsv`; the only ones touching row commands: call 53 (just before the commit, the fix's own check) `bun test src/render.test.ts` and `bun test` (stale row QA5's command, not QA1); call 57 runs the driver `run.sh … QA2 QA3 QA4 QA5` (`qa-driver-run.sh:29-30`: the driver runs only the rows named; QA1 is its first case, `:31`, and was not named) and then `cp` + `cmp` of the wave-1 QA1 capture (a copy, no `lateFee` execution). `grep -i 'qa1\|lateFee\|fee.ts'` over calls 54-86 finds only that `cp`, the brief text, the record build and the staging of the artifact. No `lateFee` call, no `qa1-fee.ts` run after the fix; the 5.2/5.3 failure (batch script re-executing carried rows) does not recur. **PASS.**
+
+### Observable (ii): record
+
+`retained/evidence/gate/fee-report.json`: `whole_diff` = `{"run": false, "reason": "whole-diff surface reviewed in F2"}`; the fixture `gate.md:7` reads `Whole-diff review: not needed (whole-diff surface reviewed in F2)`; the parenthesized reason equals `whole_diff.reason` exactly. `validate-gate-record.mjs --repo . --record .omp/team-config/evidence/gate/fee-report.json --plan openspec/changes/fee-report` → `passed`, exit 0 (the session's run at `0506786`; my re-run: `final-validator.txt`). Other fields: `reviewers_run: ["implementation-audit"]`, `mandatory_class: none`, `implementation_models: ["onara/cc/claude-opus-5-5"]`, `reviewed_sha b46287d4d6bc9be18b44430e985b6dacf594060f`, blockers QA2 and QA4 (high, with `fix_sha b652d66`, coverage tests). **PASS.**
+
+### Must-show items (4.2 row), judged strictly on the 5.5 run
+
+| # | Must show | Result | Evidence / note |
+|---|---|---|---|
+| 1 | QA matrix: the two requirement rows plus the three minimum rows, not one row per scenario | **PASS** | five rows, see (m); `brief-ImplAuditW2.md:498-505` |
+| 2 | exactly one `implementation-audit` dispatch per wave, to `auditor` | **PASS wave 2; wave 1 not exercised** | call 75: one `tool.task` item `agent: "auditor"` in wave 2; wave 1 ended on QA FAIL with no dispatch (Phase 1), so the wave-1 half is unexercised, not observed |
+| 3 | auditor child on `onara/cx/gpt-6.1-sol`, thinking `high` | **PASS** | `children.tsv`: `ImplAuditW2` `model_change onara/cx/gpt-6.1-sol`, `high`, 23 turns all `onara`/`cx/gpt-6.1-sol`. Off-pin retry not exercised |
+| 4 | retained brief section 2 carries seams/consistency/duplication/simplification hint | **PASS** | `brief-ImplAuditW2.md:548` |
+| 5 | no `strategic-risk-review`, no F3 | **PASS** | only `plan-reviewer` and `auditor` items; proof block `strategic-risk-review: not run (depth standard…)`, `integration-review: not needed` |
+| 6 | wave 1 FAIL on the planted defect | **PASS via QA; auditor path not exercised** | `GC wave 1` `{"qa":"FAIL"}`, blockers QA2 (`1234,567.89`), QA4 (`1000,000.00`), `CONTINUE` |
+| 7 | the fix | **PASS** | row 4.1, two regression tests failing before the fix (call 47), commit `b652d66` (`render.ts` 3 lines), suite 9/9 |
+| 8 | one real delta review whose brief lists the carried rows with reasons | **PASS** | one real `plan-reviewer` dispatch; `{CARRIED ROWS}` = QA1 with its reason; verdict OKAY (`retained/gate-deltas/F2-4.1-*/verdict.json`) |
+| 9 | rows the fix touches re-run, the others carried (never re-run an untouched row in place of carrying it; a capturing script runs for the stale rows alone) | **PASS** | wave-2 matrix: QA1 carried with reason and wave-1 artifact; QA2-QA5 re-run at `b652d66`; no touched row carried; (i) holds |
+| 10 | wave 2 PASS | **PASS** | `DECISION: PASS`, `WAVE F2 2 total=0`; trailer PASS on `onara/cx/gpt-6.1-sol`, trailer check `passed` |
+| 11 | record validates `passed` | **PASS** | exit 0, session and my re-run |
+| 12 | off-pin router fallback → discard and retry | **not exercised** | the auditor did not fall back |
+| (m) | one row per requirement plus three minimum rows, no scenario rows | **PASS** | above |
+| (i) | no carried-row command executed after fix | **PASS** | above |
+| (ii) | record `whole_diff.reason` = parenthesized reason, validates | **PASS** | above |
+
+Observations: the delta reviewer's pinned model stalled and its OKAY turn ran on the fallback `onara/cc/claude-opus-5` (plan-reviewer, not under test; the session noted it). `review.md` is stale after the fix row (session reported; the gate validator tolerates it). No instruction defect found in `:172`, `:181`, `:182` or the record example; the session followed them.
+
+## 5.3 re-run (superseded by 5.5)
 
 Task 5.3: 4.2 F1-A re-run in full after fixes 5.1/5.2. **Text under test: HEAD `0daf2c284d`** (`SKILL.md` record example reason `whole-diff surface reviewed in F2`; Phase 1 step 1 `:172` "carried row's command is not executed again"). Profile `pirp` already redeployed (checked: `diff -rq` of the profile `review-work` skill against `team-config/agent/skills/review-work` empty; `:172` carries the new sentence); config unchanged, no `auditor` entry in `task.agentModelOverrides`. Same profile-instead-of-`PI_CODING_AGENT_DIR` deviation as below. The 4.7 section further down and everything under it is superseded by this one.
 

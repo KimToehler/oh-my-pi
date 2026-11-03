@@ -1,0 +1,15 @@
+# QA1 Requirement: Late fee from amount and days overdue (library API, bun)
+$ bun .omp/team-config/evidence/gate/fee-report/wave-1/fixtures/qa1-fee.ts
+lateFee(10000, 30) = 200  expected 200  OK  (scenario One complete period)
+lateFee(10000, 400) = 2500  expected 2500  OK  (scenario Fee cap)
+lateFee(10000, 29) = 0  expected 0  OK  (scenario Negative control (29 days -> 0))
+lateFee(10000, 0) = 0  expected 0  OK  (0 days)
+lateFee(10000, 59) = 200  expected 200  OK  (59 days = 1 complete period)
+lateFee(10000, 60) = 400  expected 400  OK  (60 days = 2 periods)
+lateFee(10000, 360) = 2400  expected 2400  OK  (12 periods = 24%)
+lateFee(10000, 390) = 2500  expected 2500  OK  (13 periods = 26% -> cap 25%)
+lateFee(99, 30) = 1  expected 1  OK  (1.98 cents rounds down to 1)
+lateFee(49, 30) = 0  expected 0  OK  (0.98 cents rounds down to 0)
+lateFee(0, 400) = 0  expected 0  OK  (zero amount)
+lateFee(123456789, 400) = 30864197  expected 30864197  OK  (cap on large amount, floor(30864197.25))
+fails=0

@@ -11,7 +11,7 @@ time, after reviewers were paid for, so get it right at plan time.
 
 ```
 ## Final verification wave
-- [ ] F1. Manual QA on the real surface, one evidence path per scenario in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
+- [ ] F1. Manual QA on the real surface, one evidence path per QA row the plan's depth sets (review-work Phase 1 step 3: one per requirement plus the three minimum rows at `standard`, one per scenario at `risky`) in the `f1/` directory below the record's evidence directory (by default `.omp/team-config/evidence/gate/<plan basename>/f1/`): first merge the default branch into the work branch when it is not an ancestor of the head, and commit; then run QA on the head after the last code commit
 - [ ] F2. Merge gate: `review-work`, SHA-bound team-config.merge-gate/v3 record validated
 
 ## Merge gate

@@ -1,0 +1,23 @@
+## validator (cwd worktree)
+passed
+exit=0
+## git log
+* 2814962 gate(csv-total): F2 merge-gate record, wave 1 PASS on 86623019
+*   8662301 Merge branch 'main' into feat/csv-total
+|\  
+| * 1e88cd0 feat: group thousands in formatted totals of 1000 or more
+* | e28acf5 qa(csv-total): F1 on ec36fb4, bun src/cli.ts total matches all 5 scenarios; each probe red on a mutant
+* | ec36fb4 Merge branch 'main' into feat/csv-total
+|\| 
+| * cac67ef docs: add README
+* | 0cd516d feat: csv-total CLI, change folder
+|/  
+* a951855 chore: scaffold with omp-gated schema
+## status main checkout
+?? .worktrees/
+## status worktree
+## whole_diff
+{"whole_diff":{"run":false,"reason":"whole-diff surface reviewed in F2"},"mandatory_class":"none","reviewers_run":["implementation-audit"]}
+## parents of 86623019/ec36fb4
+8662301 e28acf5 1e88cd0
+ec36fb4 0cd516d cac67ef

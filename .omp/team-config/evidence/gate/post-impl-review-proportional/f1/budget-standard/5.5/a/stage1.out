@@ -1,0 +1,36 @@
+Working...
+**REVIEW FAILED in wave 1.** Manual QA found a real bug, so no auditor was dispatched. I committed a fix, and the gate is now paused until the delta review of that fix comes back.
+
+**What failed:** a total of 1,000,000 or more prints the wrong number. `a,1234567.89` prints `1234,567.89`, and `1,000,000.00` prints `1000,000.00`. The cause is the regex in `groupThousands` (`src/format.ts:11`), which only ever inserts one comma, before the last three digits.
+
+| # | Scenario | Verdict | Artifact |
+|---|---|---|---|
+| QA1 | Requirement "price lines are parsed strictly": valid sum, malformed line 1, plus a new check that a bad line among good ones gives no total, exit 2, `line 2` | PASS (two scenarios reused from F1) | `wave-1/qa1-strict-parse.md` |
+| QA2 | Requirement "totals are exact in cents": new `0.10+0.20 → 0.30`; empty file and ten × 0.10 reused from F1 | PASS | `wave-1/qa2-exact-cents.md` |
+| QA3 | Happy path, `25.00` | PASS (reused from F1) | `f1/s1-happy.md` |
+| QA4 | Riskiest edge: Windows line endings, a blank line, bad prices on lines 3 and 5 → `lines 3, 5: malformed price`, exit 2, no total | PASS | `wave-1/qa4-riskiest-edge.md` |
+| QA5 | Regression in the formatter: 999.99, 1,000.00, 1,234.50, 1,234,567.89 | **FAIL** | `wave-1/qa5-formatter-regression.md` |
+
+The rows reused from F1 were captured at the code commit 4e5e75b. The only later commit, ecd418f, added evidence files and ticked a checkbox, so it can't change what they showed. QA ran in a real terminal session, and the captures sit untracked in `.omp/team-config/evidence/gate/csv-total/wave-1/` until the record step.
+
+**Gate steps run so far:**
+- The plan check of the change folder passed.
+- Depth is `standard`, as `gate.md` says, and the mandatory class is `none`.
+- The auditor is pinned to `onara/cx/gpt-6.1-sol:high` with no conflicting override. Since the diff was written by `onara/cc/claude-opus-5-5`, the review would count as cross-provider.
+- `main` is already contained in the branch, so no merge was needed.
+- The convergence ledger has the baseline at ecd418f and the wave 1 snapshot. Wave 1 is recorded as `qa=FAIL` with blocker `QA5`, and the ledger's decision is CONTINUE.
+
+**The fix (one round allowed at this depth):**
+- I added row 4.1 under a new `## TODOs` heading in `tasks.md`.
+- I added tests for 999.99, 1,000.00, 999,999.99, 1,000,000.00 and 1,234,567.89. Before the fix they failed (`1000,000.00`).
+- I changed the regex to `/\B(?=(\d{3})+(?!\d))/g`. After that, `bun test` shows 5 pass, 0 fail, and the CLI prints `1,234,567.89`.
+- All of this is commit c9b007a.
+- The patch for the delta review is in `.omp/team-config/gate-deltas/F2-4.1-c9b007ab1e49-20261103085058/`.
+
+**Things to know:**
+- **Wave 1 reply unused:** the implementation-audit reply you named for wave 1 (`a-w1-reply.md`) isn't used. The skill skips the reviewer when QA fails. The audit will run in wave 2 on the fixed code, and that needs its own reply file.
+- **Planning-review stamp now stale:** adding the fix row changed the change folder, so the digest stamped in `review.md` no longer matches. As far as I could see, the gate's validator doesn't check that stamp, but a `validate-openspec-change.mjs --reviewed` check would now fail.
+- **No separate review worktree:** the skill asks for one, but `feat/csv-total` is checked out only in this checkout. A second worktree couldn't hold the same branch, so I ran the gate here.
+- **Same fix already on `origin`:** `origin/feat/csv-total` already has an earlier gate run with this grouping fix (aa9b7e1) and an overridden record. This gate ignores that branch and reviews the local one.
+
+AWAITING REPLY: delta review, brief at /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/pirp-fix/payloads/F1D/r55/out-a/brief-delta-round1.md

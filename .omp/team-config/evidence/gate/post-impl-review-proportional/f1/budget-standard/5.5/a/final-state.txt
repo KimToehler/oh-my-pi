@@ -1,0 +1,16 @@
+## validator
+overridden
+exit=0
+## git log
+f754eda chore(gate): csv-total F2 merge-gate record (overridden: accepted residual sub-cent rounding), trailer and QA evidence
+c9b007a fix(format): group every three digits of totals of 1,000 or more; formatter tests (4.1)
+ecd418f test(f1): csv-total CLI QA, five scenarios
+4e5e75b feat: csv-total CLI, change folder
+2a9922d chore: scaffold with omp-gated schema
+## status
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa1-strict-parse.md
+?? .omp/team-config/evidence/gate/csv-total/wave-1/qa5-formatter-regression.md
+## record whole_diff/override/downgrades
+{"whole_diff":{"run":false,"reason":"whole-diff surface reviewed in F2"},"override":{"by":"Tim","reason":"the remaining blocker is the accepted residual sub-cent rounding; accept it."},"downgrades":[{"invocation":"implementation-audit","blocker":"B1","rule":"accepted-residual","reason":"gate.md Accepted residual risks names sub-cent rounding of prices with more than two decimals in src/money.ts, total off by one cent","disposition":"residual"}],"reviewers_run":["implementation-audit"],"mandatory_class":"none"}
+## gate.md whole-diff line
+7:- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
