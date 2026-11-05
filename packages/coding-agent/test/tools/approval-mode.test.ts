@@ -345,6 +345,7 @@ describe("approval prompts through a host dialog", () => {
 				getToolsExpanded: () => false,
 				setToolsExpanded: () => {},
 				rerenderMessage: () => {},
+				refreshTranscript: () => {},
 				getLinkClicksAvailable: () => false,
 			} satisfies ExtensionUIContext,
 		);

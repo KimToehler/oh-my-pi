@@ -24,11 +24,11 @@ import type { AdvisorConfig } from "@oh-my-pi/pi-tui/overlays/advisor-config";
 import type { AsyncJob, AsyncJobDeliveryState, AsyncJobManager, AsyncJobManagerApi } from "../async";
 import type { EffectiveExtensionRoots } from "../capability/types";
 import type { AgentDefinition } from "../task/types";
+import type { AgentRegistryApi } from "../registry/agent-registry";
 import type { SessionAccountPoolScope } from "../config/account-pools";
 import type { ModelRegistry } from "../config/model-registry";
 import type { PromptTemplate } from "../config/prompt-templates";
 import type { Settings } from "../config/settings";
-import type { AgentRegistryApi } from "../registry/agent-registry";
 import type { SkillsSettings } from "../extensibility/settings";
 import type { CursorMcpResourceAdapter } from "../cursor";
 import type { RawSseDebugBuffer } from "@oh-my-pi/pi-tui/apps/debug/raw-sse-buffer";
@@ -371,7 +371,10 @@ export interface AgentSessionConfig {
 	asyncJobManager?: AsyncJobManagerApi;
 	/** Registry identity used for IRC routing. */
 	agentId?: string;
-	/** Registry this session was created with; the post-move running-work re-check reads it. Default: AgentRegistry.global(). */
+	/**
+	 * Registry this session was created with. The post-move running-work re-check reads it (default:
+	 * AgentRegistry.global()); its awaits table records this agent blocked on the user while a dialog waits for their answer.
+	 */
 	agentRegistry?: AgentRegistryApi;
 	/** Whether this is a top-level or subagent session. */
 	agentKind?: "main" | "sub";

@@ -279,7 +279,7 @@ describe("AgentSession submission outcome", () => {
 		expect(userTexts(manager)).toEqual(["first", "steer A"]);
 	});
 
-	it("settles a steer lost with its delivery record at quiescence, and never inserts it afterwards", async () => {
+	it("settles a steer an aborted switch restored to the queue at quiescence, and never inserts it afterwards", async () => {
 		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-submission-record-"));
 		const manager = SessionManager.create(tempDir, tempDir);
 		await createSession({ hold: [0], sessionManager: manager });
@@ -304,8 +304,8 @@ describe("AgentSession submission outcome", () => {
 		await held.promise;
 		expect(session.agent.peekSteeringQueue()).toEqual([]);
 
-		// A switch disconnects the run from the transcript, so the run's emission of A is never
-		// recorded; the forced failure then rolls back to queues that never held A's record.
+		// The switch aborts the run before that model call starts, so the loop hands A back to the
+		// steering queue instead of emitting it; the forced failure then rolls back to those queues.
 		vi.spyOn(manager, "setSessionFile").mockRejectedValueOnce(new Error("forced switch failure"));
 		const switching = session.switchSession(sessionFile);
 		releaseHeld.resolve();
@@ -314,12 +314,14 @@ describe("AgentSession submission outcome", () => {
 		removeGate();
 		await session.waitForIdle();
 		expect(a.outcomes).toEqual([]);
-		expect(session.agent.peekSteeringQueue()).toEqual([]);
+		expect(userTexts(manager)).not.toContain("steer A");
+		expect(session.agent.peekSteeringQueue()).toHaveLength(1);
 
 		session.settlePendingSubmissions();
 		expect(a.outcomes).toEqual([{ kind: "dropped" }]);
 		await session.waitForIdle();
 		expect(a.outcomes).toEqual([{ kind: "dropped" }]);
+		expect(session.agent.peekSteeringQueue()).toEqual([]);
 		expect(userTexts(manager)).not.toContain("steer A");
 	});
 

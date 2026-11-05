@@ -10,7 +10,7 @@ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/route
 import { resolveApprovedPlan } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
 import { readPlanFile, resolvePlanFilePath } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-files";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools/index";
-import { unwrapHashlineHeaderPath } from "@oh-my-pi/pi-coding-agent/tools/plan-mode-guard";
+import { unwrapHashlineHeaderPath } from "@oh-my-pi/pi-coding-agent/tools/hashline-header-path";
 import { stripWriteContent } from "@oh-my-pi/pi-coding-agent/tools/write-content";
 
 /** The plan a proposal approves: its absolute path and the text on disk. */
