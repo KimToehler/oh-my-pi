@@ -13,12 +13,23 @@
  * canonically on every run, so do not edit it by hand. A manifest that is not exactly the v1 or v2
  * shape is rejected before any change.
  *
- * Usage: bun scripts/install-team-config.ts   (scripts/deploy-local.sh runs it after installing omp)
+ * Usage: bun scripts/install-team-config.ts [--with-profiles]
+ *   Installs into the active agent dir. `--with-profiles` (what scripts/deploy-local.sh passes) also
+ *   updates the default agent dir and every `~/.omp/profiles/<name>/agent` that already holds a
+ *   team-config manifest: they all run the one deployed omp binary, so a profile left on older
+ *   team config can break against it. Profiles never installed into stay untouched.
  */
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
+import {
+	getAgentDir,
+	getBaseConfigRoot,
+	isEexist,
+	isEnoent,
+	normalizeProfileName,
+	resolveEquivalentPath,
+} from "@oh-my-pi/pi-utils";
 
 const MANIFEST_NAME = ".team-config-manifest.json";
 const SKIPPED_NAMES = new Set([".DS_Store", "__pycache__", ".pytest_cache"]);
@@ -621,25 +632,65 @@ export async function installTeamConfig(options: InstallOptions): Promise<Instal
 	return report;
 }
 
+/**
+ * Agent dirs one deploy updates: `primary` first, then the default agent dir and every named
+ * profile's agent dir under `configRoot` that already holds a team-config manifest, each once.
+ */
+export async function teamConfigTargets(primary: string, configRoot: string): Promise<string[]> {
+	const candidates = [path.join(configRoot, "agent")];
+	let profiles: string[] = [];
+	try {
+		profiles = (await fs.readdir(path.join(configRoot, "profiles"))).sort();
+	} catch (err) {
+		if (!isEnoent(err)) throw err;
+	}
+	for (const name of profiles) {
+		let valid: string | undefined;
+		try {
+			valid = normalizeProfileName(name);
+		} catch {
+			continue;
+		}
+		if (valid === name) candidates.push(path.join(configRoot, "profiles", name, "agent"));
+	}
+	const targets = [primary];
+	const seen = new Set([resolveEquivalentPath(primary)]);
+	for (const dir of candidates) {
+		const key = resolveEquivalentPath(dir);
+		if (seen.has(key)) continue;
+		try {
+			if (!(await fs.lstat(path.join(dir, MANIFEST_NAME))).isFile()) continue;
+		} catch (err) {
+			if (isEnoent(err)) continue;
+			throw err;
+		}
+		seen.add(key);
+		targets.push(dir);
+	}
+	return targets;
+}
+
 if (import.meta.main) {
-	const agentDir = getAgentDir();
-	const report = await installTeamConfig({
-		repoDir: path.resolve(import.meta.dir, ".."),
-		agentDir,
-		timestamp: new Date().toISOString().replace(/[:.]/g, "-"),
-	});
-	const list = (label: string, items: string[]) => {
-		if (items.length > 0) console.log(`  ${label} (${items.length}): ${items.join(", ")}`);
-	};
-	console.log(`Team config → ${agentDir}`);
-	list("added", report.added);
-	list("updated", report.updated);
-	list("removed", report.removed);
-	list("seeded", report.seeded);
-	if (report.backupDir)
-		console.log(`  previous content of ${report.backedUp.length} file(s) saved in ${report.backupDir}`);
-	for (const notice of report.notices) console.log(`  notice: ${notice}`);
-	if (report.seeded.includes("models.yml")) {
-		console.log(`  next: put ONARA_ROUTER_KEY=<your key> into ${path.join(agentDir, ".env")}`);
+	const primary = getAgentDir();
+	const agentDirs = process.argv.includes("--with-profiles")
+		? await teamConfigTargets(primary, getBaseConfigRoot())
+		: [primary];
+	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+	for (const agentDir of agentDirs) {
+		const report = await installTeamConfig({ repoDir: path.resolve(import.meta.dir, ".."), agentDir, timestamp });
+		const list = (label: string, items: string[]) => {
+			if (items.length > 0) console.log(`  ${label} (${items.length}): ${items.join(", ")}`);
+		};
+		console.log(`Team config → ${agentDir}`);
+		list("added", report.added);
+		list("updated", report.updated);
+		list("removed", report.removed);
+		list("seeded", report.seeded);
+		if (report.backupDir)
+			console.log(`  previous content of ${report.backedUp.length} file(s) saved in ${report.backupDir}`);
+		for (const notice of report.notices) console.log(`  notice: ${notice}`);
+		if (report.seeded.includes("models.yml")) {
+			console.log(`  next: put ONARA_ROUTER_KEY=<your key> into ${path.join(agentDir, ".env")}`);
+		}
 	}
 }

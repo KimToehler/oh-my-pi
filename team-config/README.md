@@ -57,6 +57,12 @@ before it is replaced; the deploy output names the directory.
 
 `.team-config-manifest.json` is installer control state, not a user file: the installer rewrites it canonically on every run, so do not edit it by hand. A manifest that is not exactly the v1 or v2 shape is rejected before any change.
 
+Every profile shares the deployed binary, so the deploy also syncs each `~/.omp/profiles/<name>/agent` that already holds
+a `.team-config-manifest.json`, after `~/.omp/agent`. A profile without one stays untouched; install into it once with
+`env -u OMP_PROFILE -u PI_PROFILE PI_CODING_AGENT_DIR=~/.omp/profiles/<name>/agent bun scripts/install-team-config.ts`
+and later deploys keep it current. An agent dir outside `~/.omp` (a custom `PI_CODING_AGENT_DIR`) needs that command
+after every deploy.
+
 `OMP_SKIP_TEAM_CONFIG=1 scripts/deploy-local.sh` installs only the binary.
 
 Before building, the deploy checks the OpenSpec CLI (`scripts/ensure-openspec-cli.ts`): a missing CLI or a version
@@ -94,7 +100,7 @@ The default gate record location is `.omp/team-config/evidence/gate/<plan basena
 
 1. Finish or close every open gate before deploying: the ledger and gate-delta state move to the new paths, and a gate left open in the old layout loses its state.
 2. Restart every omp session after deploying: a running session keeps the old merge-gate hook in memory (and keeps enforcing the old record id).
-3. Install into every profile or custom agent directory: `scripts/deploy-local.sh` covers only the default one (`~/.omp/agent`).
+3. Install once into every profile that lacks the team config, and after every deploy into a custom agent directory (see the deploy notes above); profiles that already carry it are synced by `scripts/deploy-local.sh`.
 4. If your `config.yml` sets `plan.autosaveDir` to an `.omo` path, remove it after the deploy notice names it; plans then land in `.omp/plans`.
 5. Nothing defaults to `.omo` any more: plans autosave to `.omp/plans`, and the ledger and gate deltas live under `.omp/team-config/`. The old `.omo` ledger and deltas are not read, and an old `omo.merge-gate` record is read only to refuse it. A plan you pass by path still works wherever it lies; move plans and evidence you want found in the default places.
 
@@ -260,7 +266,7 @@ scenario at `risky`; after a fix or a merge of the default branch only the rows 
 carried rows with their reasons go to the reviewers.
 
 A gate whose F2 baseline predates the deploy finishes under the text it started with. Running sessions restart after
-`scripts/deploy-local.sh`. Profiles and custom agent directories need their own install to receive the new `auditor.md`.
+`scripts/deploy-local.sh`, which also syncs every profile that already carries the team config; a custom agent directory needs its own install to receive the new `auditor.md`.
 
 When a task names a worktree for the change, `/opsx-apply` implements only while the session runs inside it, because
 relative paths and task ticks resolve against the session's directory. Anywhere else, the agent moves the session there

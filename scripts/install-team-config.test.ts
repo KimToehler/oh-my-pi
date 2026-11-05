@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
-import { type InstallOptions, installTeamConfig } from "./install-team-config";
+import { type InstallOptions, installTeamConfig, teamConfigTargets } from "./install-team-config";
 
 const dirs: TempDir[] = [];
 afterEach(async () => {
@@ -741,5 +741,29 @@ describe("installTeamConfig", () => {
 			expect(report.notices).toEqual([]);
 			expect(await t.read(t.agent("config.yml"))).toBe(content);
 		});
+	});
+});
+
+describe("teamConfigTargets", () => {
+	test("adds the default agent dir and only profiles that already carry the team config, each once", async () => {
+		const tmp = await TempDir.create("@team-config-targets-");
+		dirs.push(tmp);
+		const root = tmp.path();
+		const manifest = (dir: string) => Bun.write(path.join(root, dir, ".team-config-manifest.json"), "{}");
+		await manifest("agent");
+		await manifest("profiles/prp/agent");
+		await manifest("profiles/active/agent");
+		await fs.mkdir(path.join(root, "profiles", "plain", "agent"), { recursive: true });
+		await manifest("profiles/Bad Name/agent");
+		await fs.mkdir(path.join(root, "profiles", "dirmanifest", "agent", ".team-config-manifest.json"), {
+			recursive: true,
+		});
+
+		const primary = path.join(root, "profiles", "active", "agent");
+		expect(await teamConfigTargets(primary, root)).toEqual([
+			primary,
+			path.join(root, "agent"),
+			path.join(root, "profiles", "prp", "agent"),
+		]);
 	});
 });

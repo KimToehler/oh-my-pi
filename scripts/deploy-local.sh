@@ -90,9 +90,11 @@ log "Smoke testing $TARGET.new"
 
 # Team config before publishing: an installer failure must leave the live
 # binary and omp.deployed untouched. It may have applied part of the config.
+# Every profile that already carries the team config runs this binary too, so
+# --with-profiles updates those agent dirs as well.
 if [ "${OMP_SKIP_TEAM_CONFIG:-}" != 1 ]; then
 	log "Syncing team config"
-	if ! (cd "$WT" && bun scripts/install-team-config.ts); then
+	if ! (cd "$WT" && bun scripts/install-team-config.ts --with-profiles); then
 		echo "Team config sync failed: the binary was NOT replaced, and the team config may be partially applied. Fix the cause and rerun the deploy." >&2
 		exit 1
 	fi
