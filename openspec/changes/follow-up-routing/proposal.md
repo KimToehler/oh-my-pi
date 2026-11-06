@@ -6,8 +6,8 @@ A merged change leaves findings that nobody owes a fix but a later change should
 
 ## What Changes
 
-- `/opsx-archive` gains a team step before the move. It collects the follow-ups of the change from the gate record and the replies the record binds, and appends each as one bullet to the `## Follow-ups` section of the plan or roadmap the proposal names. If no such document is named, or several are, it asks the user for the destination, with an option to skip. Skipped items appear in the archive summary. Bullets for items the change itself resolved are deleted from their document.
-- `/opsx-propose` gains a team step. Before the proposal is drafted, it reads the `## Follow-ups` sections of the plans or roadmaps the request or project names. Items whose named code or area the change touches go into the proposal, which lists them by their bullet text.
+- `/opsx-archive` gains a team step before the move. It collects the follow-ups of the change from the gate record and the replies the record binds, and appends each as one bullet, identified by the artifact it came from and its finding id, to the `## Follow-ups` section of the plan or roadmap the proposal names. If no such document is named, or several are, it asks the user for the destination (a named document, a path the user enters, or skip). Skipped items appear in the archive summary. Bullets the change took are deleted from the documents its proposal records for them.
+- `/opsx-propose` gains a team step. Before the proposal is drafted, it reads the `## Follow-ups` sections of the plans or roadmaps the request or project names. Items whose named code or area the change touches go into the proposal, which lists each with its document's path and its bullet text.
 - The README's OpenSpec bump procedure names all three team additions to the generated commands (the existing `opsx-apply.md` step 4 and the two new steps) and how to re-apply them after a regeneration.
 - No change to the gate record schema, the validator, `review-work`'s blocker disposition or any review verdict.
 
