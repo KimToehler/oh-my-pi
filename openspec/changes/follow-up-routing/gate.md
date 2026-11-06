@@ -1,0 +1,9 @@
+# Gate
+
+- **Mandatory class**: none
+- **Depth**: standard (the class is none; the change adds steps after a gate has decided and before planning starts, and alters no review, gate or release mechanism: no verdict, blocker disposition, record field or validator rule changes)
+- **Risk tier**: internal-tooling
+- **Author's risk assessment**: Two command texts and the README of the team config, deployed to every omp profile. Worst cases: the archive copies a resolved blocker or a residual as a follow-up (noise in a roadmap), writes into a document the user did not choose, or edits a trailer and so breaks a merged record's digests; the propose step silently drops a matching item, so the loop stays open as today. None reaches a protected asset: the step reads gate artifacts and writes Markdown in the user's repository, which git shows and reverts. Internal-tooling because it is dev workflow tooling; class `none` because no auth path, schema, external contract or state-machine transition changes.
+- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
+- **Accepted residual risks**: Which reply text counts as a non-blocking finding and which change "touches" an item's location are the agent's judgement from free text; F1 shows the steps on fixtures, not a compliance rate. Bullets edited by hand after recording are not found for removal; the archive summary names them and a person deletes them.
+- **Out of scope for blocking**: plan-mode plans and their gates; backfilling follow-ups of changes archived before this change; plan-review residuals in `review.md`; script or validator enforcement of the steps; the generated parts of `opsx-archive.md` and `opsx-propose.md` outside the added steps, their renumbering and the output templates' new line.
