@@ -1,0 +1,60 @@
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/f2/
+├─ 🗒 .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+├─ 🗒 .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/wave-1/
+└─ 📝 .omp/team-config/evidence/gate/widget-cache/wave-1/trailer-implementation-audit.md
+
+ I'm only reading the two bound trailers and the "Out of scope for blocking" section in gate.md, and skipping wave-1 since it isn't bound. I'll also check the roadmap doc.
+
+ Reading only the bound trailers (wave-1 is unbound, not read), gate.md scope, and the named roadmap doc.
+
+ • Read (4)
+   ├─ .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+   ├─ .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt
+   ├─ openspec/changes/widget-cache/gate.md
+   └─ docs/roadmap/widgets.md
+
+ I'm going through the collected items: a follow-up to downgrade B1 from the strategic-risk-review trailer, pointing at src/cache.ts:12, and two audit notes, one about src/cache.ts:40 never evicting entries and a second
+ one about src/cache that's still open.
+
+ I'm checking how the audit and risk-review notes about src/cache.ts:40 should be recorded. Both notes describe the same missing eviction, but they come from different sources, so I'm keeping them as separate items. I'm
+ also weighing whether the blocker about removed widgets' memory falls under the out-of-scope cache memory accounting area, which would change how it's classified.
+
+ I'm weighing whether the memory-retention blocker B2 belongs under the out-of-scope cache memory accounting area, which would make it a non-blocking finding to collect. Its consequence is stale entries staying in
+ memory, but it reads more like an invalidation problem, so I'm still undecided on how to classify it.
+
+ I'm deciding whether the second blocker, about memory staying around for removed widgets, counts as a non-blocking finding in the out-of-scope cache memory area. I'm leaning toward leaving it out, since the reviewer
+ explicitly downgraded it to a residual and its real subject is widget removal, not memory accounting. I'll note that choice in the summary as a judgment call.
+
+ I'm weighing which findings to collect, and I'm settling that the duplicate notes on src/cache.ts:40 stay as separate items since they come from different sources. The only Markdown destination named is
+ docs/roadmap/widgets.md, which has no Follow-ups section, so I'll need to ask the user where to put them before archiving.
+
+ Now I'm drafting the last bullets for the follow-up list: the cache keys entries by widget id alone, so an edited widget can keep rendering old HTML, and set never evicts. I'm also noting that storedAt gets taken
+ before rendering, which would make entries look older than they are.
+
+ I'm going to present the last few collected items as bullets and then ask where the follow-ups should go, since the only Markdown destination, docs/roadmap/widgets.md, has no Follow-ups section.
+
+ Four follow-ups from the gate record are collected: the widget cache keys only by id and never evicts, and set records storedAt too early. I didn't read wave-1/ because the record binds only the f2/ trailers, and I
+ need you to pick where these go since docs/roadmap/widgets.md has no ## Follow-ups section.
+
+╭─── Ask: dest ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Where should the 4 follow-up items go?                                                                                                                                                                                  │
+│  ○ docs/roadmap/widgets.md                                                                                                                                                                                               │
+│    ↳ Adds a ## Follow-ups section at the end with the 4 bullets                                                                                                                                                          │
+│  ○ Skip                                                                                                                                                                                                                  │
+│    ↳ Write nothing; the summary lists the items in full                                                                                                                                                                  │
+╰─── 2 options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Choosing follow-up destination
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Where should the 4 follow-up items go?                                                                                                                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ docs/roadmap/widgets.md (Recommended)                                                                                                                                                                                │
+│       Adds a ## Follow-ups section at the end with the 4 bullets                                                                                                                                                         │
+│   ○ Skip                                                                                                                                                                                                                 │
+│       Write nothing; the summary lists the items in full                                                                                                                                                                 │
+│   ○ Other (type your own)                                                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide                                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,19 @@
+Working...
+## Archive Complete
+
+**Change:** widget-cache
+**Schema:** omp-gated
+**Archived to:** `openspec/changes/archive/2026-11-06-widget-cache/`
+**Specs:** No delta specs. The change sets `skip_specs`, so the specs artifact counts as complete.
+**Follow-ups:** 3 added to `docs/roadmap/widgets.md` under `## Follow-ups`. The proposal has no `## Follow-ups taken` section, so no bullets were removed.
+
+All artifacts are complete and all 3 tasks are done.
+
+**What was added and why:**
+- **Added, B1 (strategic-risk-review):** the cache keys entries by widget id only, so a widget whose props changed keeps showing its old HTML (`src/cache.ts:12`). This was the only downgrade marked as a follow-up.
+- **Added, note 2 (implementation-audit):** `storedAt` is set before rendering, so entries look older than their HTML (`src/cache.ts:40`). The roadmap already had a similar bullet, but it was filed under `widget-cache-old`. Its source differs, so this one counts as a separate item.
+- **Added, note 1 (strategic-risk-review):** `set` never evicts entries (`src/cache.ts:40`). The implementation audit raised the same issue at the same line. I kept the two as separate bullets because each has its own source.
+- **Skipped, note 1 (implementation-audit):** the "`set` never evicts" bullet with this exact source was already in the roadmap.
+- **Not collected, B2:** removed widgets' HTML stays in memory. Its downgrade is marked `residual`, not follow-up. I also judged it outside the gate's out-of-scope area ("cache memory accounting"), because it's about invalidating removed widgets. Tell me if you read that area differently and want B2 added.
+
+I only read the two review files the gate record points to; I didn't read the earlier `wave-1/` review. The record has no whole-diff review.

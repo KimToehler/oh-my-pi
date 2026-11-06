@@ -1,0 +1,17 @@
+## git status --porcelain
+ D openspec/changes/widget-cache/.openspec.yaml
+ D openspec/changes/widget-cache/design.md
+ D openspec/changes/widget-cache/gate.md
+ D openspec/changes/widget-cache/proposal.md
+ D openspec/changes/widget-cache/review.md
+ D openspec/changes/widget-cache/tasks.md
+?? openspec/changes/archive/
+## sha256 of the gate record and every pinned file
+3de2ed5a2d0086cf2d7635534f348a9d2e91282011f892ecd026e952a905ee86  .omp/team-config/evidence/gate/widget-cache.json
+ec1380476b27908bb03d3429f2d0779cd47903b23b377df53691dbe71c50a035  .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+330b9d00be2762fb59ef642afe1cad7ddb6fab0343e00f7b0122f2e9169d6f73  .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt
+2c910d367572ea2e9ca291ec1f3d55b2e10eb6e600c167b5e69a0929a925ccf7  .omp/team-config/evidence/gate/widget-cache/f1/a.md
+## pinned digests recorded in the record vs actual
+match .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+match .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt
+match .omp/team-config/evidence/gate/widget-cache/f1/a.md

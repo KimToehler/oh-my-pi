@@ -1,0 +1,60 @@
+ All artifacts done, 3/3 tasks. Now the delta spec, main spec, proposal, and gate record.
+
+ ✔ Read openspec/changes/widget-cache/specs/widget-cache/spec.md
+
+🔍 Glob: openspec/specs/**;.omp/team-config/evidence/gate/**;openspec/changes/** 18 files · in .omp/team-config/evidence/gate/**, openspec/changes/**
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/
+├─ 🧾 .omp/team-config/evidence/gate/widget-cache.json
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/f1/
+├─ 📝 .omp/team-config/evidence/gate/widget-cache/f1/a.md
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/f2/
+├─ 🗒 .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+├─ 📁 .omp/team-config/evidence/gate/widget-cache/wave-1/
+├─ 📝 .omp/team-config/evidence/gate/widget-cache/wave-1/trailer-implementation-audit.md
+└─ … 10 more files
+skipped missing: openspec/specs/**
+
+ ✔ Read openspec/changes/widget-cache/proposal.md
+
+ There's no main spec yet, so this would be a new capability with only added requirements and it will need syncing. I'm weighing whether to read the gate record and gate.md before prompting, with a combined summary
+ coming first and follow-ups after. I'll read the gate record and artifacts read-only, along with .openspec.yaml. The proposal says to skip specs, but the specs artifact is already done and a delta exists, so I'll check
+ .openspec.yaml to resolve that.
+
+ • Read (3)
+   ├─ .omp/team-config/evidence/gate/widget-cache.json
+   ├─ openspec/changes/widget-cache/.openspec.yaml
+   └─ openspec/changes/widget-cache/gate.md
+
+ I'm going to read only the bound trailer, f2, and skip wave-1. There's no downgrades field, so I'll just read the trailer.
+
+ ✔ Read .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+
+ I've got no follow-ups to act on: nothing was downgraded, the notes say "none", and there's nothing about cache memory accounting, so no destination prompt is needed. The proposal's "None (instruction-level change set;
+ skip_specs)" doesn't match the artifacts, since .openspec.yaml doesn't declare skip_specs and the specs artifact already has a delta, so I'll flag that. The widget-cache main spec will be created as ADDED only.
+
+ I'm noting that the proposal's skip_specs claim conflicts with the .openspec.yaml file and the existing specs delta, so I'll ask whether to sync now or archive without syncing.
+
+ Sync checks are clear: all 6 artifacts and 3 tasks are done, and the one delta spec adds a new widget-cache capability with no blockers. The proposal's "None" under New Capabilities conflicts with the real delta spec,
+ so I'm going by the spec and CLI status, and I'll sync widget-cache from it next.
+
+╭─── Ask: sync ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  widget-cache's delta spec isn't synced yet. Its main spec doesn't exist and would be created from the ADDED requirement. How should I proceed?                                                                          │
+│  ○ Sync now                                                                                                                                                                                                              │
+│    ↳ Create openspec/specs/widget-cache/spec.md from the delta, check it, then archive.                                                                                                                                  │
+│  ○ Archive without syncing                                                                                                                                                                                               │
+│    ↳ Move the change to the archive. The main specs stay unchanged and the capability won't be in openspec/specs/.                                                                                                       │
+╰─── 2 options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking about spec sync
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ widget-cache's delta spec isn't synced yet. Its main spec doesn't exist and would be created from the ADDED requirement. How should I proceed?                                                                           │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Sync now (Recommended)                                                                                                                                                                                               │
+│       Create openspec/specs/widget-cache/spec.md from the delta, check it, then archive.                                                                                                                                 │
+│   ○ Archive without syncing                                                                                                                                                                                              │
+│       Move the change to the archive. The main specs stay unchanged and the capability won't be in openspec/specs/.                                                                                                      │
+│   ○ Other (type your own)                                                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide                                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

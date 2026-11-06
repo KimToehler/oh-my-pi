@@ -1,0 +1,36 @@
+diff --git a/docs/follow-ups.md b/docs/follow-ups.md
+new file mode 100644
+index 0000000..2dda0ff
+--- /dev/null
++++ b/docs/follow-ups.md
+@@ -0,0 +1,6 @@
++## Follow-ups
++
++- `get` keys entries by widget id only, so a widget whose props changed still renders its old HTML after an edit. `src/cache.ts:12`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt, B1
++- `set` never evicts, so the cache grows without bound in a long-running dashboard. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt, note 1
++- `set` takes `storedAt` before rendering, so an entry looks older than its HTML and any later age check would expire it early. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt, note 2
++- `set` never evicts, so the cache grows without bound in a long-running dashboard. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt, note 1
+diff --git a/openspec/changes/widget-cache/.openspec.yaml b/openspec/changes/archive/2026-11-06-widget-cache/.openspec.yaml
+similarity index 100%
+rename from openspec/changes/widget-cache/.openspec.yaml
+rename to openspec/changes/archive/2026-11-06-widget-cache/.openspec.yaml
+diff --git a/openspec/changes/widget-cache/design.md b/openspec/changes/archive/2026-11-06-widget-cache/design.md
+similarity index 100%
+rename from openspec/changes/widget-cache/design.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/design.md
+diff --git a/openspec/changes/widget-cache/gate.md b/openspec/changes/archive/2026-11-06-widget-cache/gate.md
+similarity index 100%
+rename from openspec/changes/widget-cache/gate.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/gate.md
+diff --git a/openspec/changes/widget-cache/proposal.md b/openspec/changes/archive/2026-11-06-widget-cache/proposal.md
+similarity index 100%
+rename from openspec/changes/widget-cache/proposal.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/proposal.md
+diff --git a/openspec/changes/widget-cache/review.md b/openspec/changes/archive/2026-11-06-widget-cache/review.md
+similarity index 100%
+rename from openspec/changes/widget-cache/review.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/review.md
+diff --git a/openspec/changes/widget-cache/tasks.md b/openspec/changes/archive/2026-11-06-widget-cache/tasks.md
+similarity index 100%
+rename from openspec/changes/widget-cache/tasks.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/tasks.md

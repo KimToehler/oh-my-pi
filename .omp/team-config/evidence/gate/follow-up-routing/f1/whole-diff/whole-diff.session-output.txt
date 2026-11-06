@@ -1,0 +1,19 @@
+Working...
+## Archive Complete
+
+**Change:** widget-cache
+**Schema:** omp-gated
+**Archived to:** `openspec/changes/archive/2026-11-06-widget-cache/`
+**Specs:** No delta specs. The `specs` artifact is skipped because the change declares `skip_specs`, so there was nothing to sync.
+**Follow-ups:** 5 added to `docs/roadmap/widgets.md` under its existing `## Follow-ups` section. The proposal has no `## Follow-ups taken` entries, so no bullets were removed.
+
+The 5 items:
+- **B1** (`src/cache.ts:12`): `get` keys entries by widget id only, so a widget whose props changed still shows its old HTML. The reviewer's FAIL on this was downgraded, and the gate record marks it as a follow-up.
+- **Implementation audit, note 1** (`src/cache.ts:40`): `set` never evicts, so the cache grows without limit in a long-running dashboard.
+- **Implementation audit, note 2** (`src/cache.ts:40`): `set` records `storedAt` before rendering, so an entry looks older than its HTML.
+- **Strategic risk review, note 1** (`src/cache.ts:40`): the same never-evicts finding as audit note 1. I kept it as a separate bullet because it comes from a different reviewer, and the workflow says not to merge items that share a location.
+- **Integration review, note 1** (`src/render.ts:3`): the wrapper markup is built in two places, so a markup change has to be made twice. This report was read because the gate record says the whole-diff review ran, even though `gate.md` says it was "not needed".
+
+**B2** (removed widgets' HTML staying in memory) was not added. The gate record accepts it as a residual risk rather than a follow-up, and I judged that it falls outside the "cache memory accounting" area that `gate.md` excludes from blocking. If you count it as memory accounting, it needs adding by hand.
+
+All artifacts are complete (specs skipped) and all 3 tasks are done.

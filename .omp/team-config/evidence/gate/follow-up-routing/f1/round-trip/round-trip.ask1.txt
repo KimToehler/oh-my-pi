@@ -1,0 +1,60 @@
+│ openspec/changes/widget-cache/design.md                                                                                                                                                                                  │
+│ openspec/changes/widget-cache/proposal.md                                                                                                                                                                                │
+│ openspec/changes/widget-cache/review.md                                                                                                                                                                                  │
+│ === roadmap                                                                                                                                                                                                              │
+│      1   # Widget program                                                                                                                                                                                                │
+│      2                                                                                                                                                                                                                   │
+│      3   ## Follow-ups                                                                                                                                                                                                   │
+│      4                                                                                                                                                                                                                   │
+│      5   - `get` keys entries by widget id only, so a widget whose props changed still renders its old HTML. `src/cache.ts:12`. Source: `widget-shell`                                                                   │
+│ .omp/team-config/evidence/gate/widget-shell/f2/trailer-strategic-risk-review.txt, B1                                                                                                                                     │
+╰─── Wall: 0.01s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm noting that nothing is being downgraded, and I should check the trailer for any non-blocking findings. The openspec/specs check is confusing: find printed no error, so the directory must exist but be empty, which
+ seems fine.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   cat -n .omp/team-config/evidence/gate/widget-cache-size-eviction/f2/trailer-implementation-audit.txt                                                                                                                   │
+│   ;                                                                                                                                                                                                                      │
+│   ls -la openspec/specs                                                                                                                                                                                                  │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (13 earlier lines, showing 10 of 23) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│     14   invocation: implementation-audit                                                                                                                                                                                │
+│     15   sections_covered: 1,2,3,4,5                                                                                                                                                                                     │
+│     16   model_id: fixture/auditor                                                                                                                                                                                       │
+│     17   security_delta: no                                                                                                                                                                                              │
+│     18   verdict: PASS                                                                                                                                                                                                   │
+│     19   blockers: none                                                                                                                                                                                                  │
+│     20   END-REVIEW-TRAILER                                                                                                                                                                                              │
+│ total 0                                                                                                                                                                                                                  │
+│ drwxr-xr-x 2 tim wheel  64 Nov  6 21:53 .                                                                                                                                                                                │
+│ drwxr-xr-x 6 tim wheel 192 Nov  6 21:53 ..                                                                                                                                                                               │
+╰─── Wall: 0.00s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I've got no follow-ups collected, but I did take one: the entry pointing at docs/roadmap/w.md and its bullet, which I can see verbatim on line 5. I'll delete it at step 5. For the sync decision, widget-render-cache
+ will get a new main spec with seven ADDED requirements, so I need to ask whether to sync now (recommended) or archive without syncing.
+
+ All six artifacts are done and all nine tasks are complete, with one new main spec to be created for widget-render-cache from its seven added requirements. No follow-ups need adding, though one follow-up from
+ proposal.md at docs/roadmap/w.md:5 will be removed when the change is archived.
+
+╭─── Ask: sync ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Delta spec widget-render-cache needs sync (new main spec, 7 ADDED requirements). How to proceed?                                                                                                                        │
+│  ○ Sync now                                                                                                                                                                                                              │
+│    ↳ Create openspec/specs/widget-render-cache/spec.md from the delta, verify, then archive                                                                                                                              │
+│  ○ Archive without syncing                                                                                                                                                                                               │
+│    ↳ Move the change to archive; main specs stay empty                                                                                                                                                                   │
+╰─── 2 options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Asking about spec sync
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Delta spec widget-render-cache needs sync (new main spec, 7 ADDED requirements). How to proceed?                                                                                                                         │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Sync now (Recommended)                                                                                                                                                                                               │
+│       Create openspec/specs/widget-render-cache/spec.md from the delta, verify, then archive                                                                                                                             │
+│   ○ Archive without syncing                                                                                                                                                                                              │
+│       Move the change to archive; main specs stay empty                                                                                                                                                                  │
+│   ○ Other (type your own)                                                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide                                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

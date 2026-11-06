@@ -1,0 +1,16 @@
+Working...
+## Archive Complete
+
+**Change:** widget-cache
+**Schema:** omp-gated
+**Archived to:** `openspec/changes/archive/2026-11-06-widget-cache/`
+**Specs:** No delta specs. The change sets `skip_specs`, so the specs artifact counts as skipped, not missing.
+**Follow-ups:** 4 added to `docs/roadmap/widgets.md` under `## Follow-ups`. The proposal has no `## Follow-ups taken` section, so no bullets were removed.
+- **B1** (from the strategic-risk review, marked follow-up): the cache keys entries by widget id only, so a widget shows its old HTML after its props change. `src/cache.ts:12`.
+- **Implementation audit, note 1:** `set` never evicts, so the cache grows without limit in a long-running dashboard. `src/cache.ts:40`.
+- **Implementation audit, note 2:** `set` records `storedAt` before rendering, so a later age check would expire entries early. `src/cache.ts:40`.
+- **Strategic-risk review, note 1:** the same eviction finding as audit note 1. It's added as its own bullet because a different review reported it. Merge the two by hand if you want one entry.
+
+B2 (a removed widget's HTML stays in memory) is marked as an accepted risk in the gate record, not a follow-up, so it wasn't added. No whole-diff review was run, so there was no integration-review report to read.
+
+All artifacts are complete (specs skipped) and all 3 tasks are done.

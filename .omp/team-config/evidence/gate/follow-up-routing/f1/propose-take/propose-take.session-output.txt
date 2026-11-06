@@ -1,0 +1,34 @@
+Working...
+I created the change `widget-cache-size-eviction` in `openspec/changes/widget-cache-size-eviction/` and wrote every artifact through tasks, then stopped before the review as you asked. `openspec validate --strict` and the team change validator both pass. Status shows 5 of 6 artifacts done. Nothing is committed and no project code was changed.
+
+**Artifacts**
+- **`proposal.md`**: why the cache needs a size limit and what changes. It adds one new capability, `widget-render-cache`, and one new dependency, `lru-cache`. The existing function signatures stay the same.
+- **`specs/widget-render-cache/spec.md`**: seven requirements, each with scenarios and a negative control:
+  - a size budget that the cache never goes over
+  - the least recently used entries are removed first
+  - HTML larger than the whole budget is returned but not cached
+  - the budget can be changed while the dashboard runs
+  - the cache reports how many bytes it holds
+  - a widget whose props changed is rendered again
+  - props that can't be turned into JSON skip the cache
+- **`design.md`**: the cache will use the `lru-cache` package (version 11.5.3, pinned) instead of the current unlimited `Map`. It also covers the new functions, how the props check works, and the test setup. The build-vs-adopt section records that `quick-lru` was rejected because it limits the number of entries, not bytes. I checked how `lru-cache` behaves with a test install in a scratch folder outside the repo, then deleted it.
+- **`gate.md`**: risk class `none`, standard review depth, product tier. Two risks are accepted:
+  - A props change only in a function, `undefined` or symbol value isn't detected, so the widget keeps showing its old HTML.
+  - The stored props aren't counted against the budget.
+- **`tasks.md`**: four groups (dependency and test runner, cache storage, props-aware rendering, final QA with 10 rows). Each task has a check command.
+
+Design was not skipped.
+
+**Decisions I made without asking**
+- "Size" means the UTF-8 bytes of the cached HTML, not the number of entries. The default budget is 1 MiB.
+- Rendering a widget from the cache or reading its HTML by id counts as use; only checking whether an entry exists does not.
+- HTML larger than the whole budget is returned but not stored, and any older entry for that widget is dropped.
+- A budget that isn't a positive whole number is rejected with an error and nothing changes.
+- Tests will run with `bun test`. The repo has no tests or test runner today.
+
+**Follow-up taken**
+- From `docs/roadmap/widgets.md`: "`get` keys entries by widget id only, so a widget whose props changed still renders its old HTML." It's in `src/cache.ts`, which this change rewrites. I left the other follow-up (escaping `w.id` in `src/render.ts`) alone because this change doesn't touch that file.
+
+**Still pending:** the `review` artifact. It runs an independent reviewer and writes `review.md`. Implementation can't start until it exists, because the apply step checks for it before editing any code.
+
+The artifacts are ready for review. Run the review first; when it passes, run `/opsx-apply`.

@@ -1,0 +1,10 @@
+Working...
+## Archive Complete
+
+**Change:** widget-cache
+**Schema:** omp-gated
+**Archived to:** `openspec/changes/archive/2026-11-06-widget-cache/`
+**Specs:** No delta specs. The change declares `skip_specs`, so the specs artifact was skipped and there was nothing to sync.
+**Follow-ups:** none collected. There is no gate record at `.omp/team-config/evidence/gate/widget-cache.json`. The proposal has no `## Follow-ups taken` section, so nothing was removed from `docs/roadmap/widgets.md`.
+
+All artifacts complete. All tasks complete (3/3).

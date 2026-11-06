@@ -1,0 +1,37 @@
+diff --git a/docs/roadmap/widgets.md b/docs/roadmap/widgets.md
+index 968a8d7..94f76d5 100644
+--- a/docs/roadmap/widgets.md
++++ b/docs/roadmap/widgets.md
+@@ -8,3 +8,8 @@
+ ## Follow-ups
+ 
+ - `renderWidget` does not escape `w.id`, so an id with a quote breaks the markup. `src/render.ts:3`. Source: `widget-shell` .omp/team-config/evidence/gate/widget-shell/f2/trailer-implementation-audit.txt, note 1
++- `get` keys entries by widget id only, so a widget whose props changed still renders its old HTML after an edit. `src/cache.ts:12`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt, B1
++- `set` never evicts, so the cache grows without bound in a long-running dashboard. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt, note 1
++- `set` takes `storedAt` before rendering, so an entry looks older than its HTML and any later age check would expire it early. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt, note 2
++- `set` never evicts, so the cache grows without bound in a long-running dashboard. `src/cache.ts:40`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt, note 1
++- The cache and `renderWidget` both build the widget wrapper markup, so a markup change has to be made twice. `src/render.ts:3`. Source: `widget-cache` .omp/team-config/evidence/gate/widget-cache/f3-integration-review-report.md, note 1
+diff --git a/openspec/changes/widget-cache/.openspec.yaml b/openspec/changes/archive/2026-11-06-widget-cache/.openspec.yaml
+similarity index 100%
+rename from openspec/changes/widget-cache/.openspec.yaml
+rename to openspec/changes/archive/2026-11-06-widget-cache/.openspec.yaml
+diff --git a/openspec/changes/widget-cache/design.md b/openspec/changes/archive/2026-11-06-widget-cache/design.md
+similarity index 100%
+rename from openspec/changes/widget-cache/design.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/design.md
+diff --git a/openspec/changes/widget-cache/gate.md b/openspec/changes/archive/2026-11-06-widget-cache/gate.md
+similarity index 100%
+rename from openspec/changes/widget-cache/gate.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/gate.md
+diff --git a/openspec/changes/widget-cache/proposal.md b/openspec/changes/archive/2026-11-06-widget-cache/proposal.md
+similarity index 100%
+rename from openspec/changes/widget-cache/proposal.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/proposal.md
+diff --git a/openspec/changes/widget-cache/review.md b/openspec/changes/archive/2026-11-06-widget-cache/review.md
+similarity index 100%
+rename from openspec/changes/widget-cache/review.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/review.md
+diff --git a/openspec/changes/widget-cache/tasks.md b/openspec/changes/archive/2026-11-06-widget-cache/tasks.md
+similarity index 100%
+rename from openspec/changes/widget-cache/tasks.md
+rename to openspec/changes/archive/2026-11-06-widget-cache/tasks.md

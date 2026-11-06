@@ -1,0 +1,60 @@
+│     print(f"=== {f}")                                                                                                                                                                                                    │
+│     cat -n f"{f}"                                                                                                                                                                                                        │
+│   print("=== gate.md")                                                                                                                                                                                                   │
+│   cat openspec/changes/widget-cache/gate.md                                                                                                                                                                              │
+│   print("=== roadmap")                                                                                                                                                                                                   │
+│   cat -n docs/roadmap/widgets.md                                                                                                                                                                                         │
+│   ls docs docs/roadmap                                                                                                                                                                                                   │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (62 earlier lines, showing 10 of 72) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│      3   ## Next                                                                                                                                                                                                         │
+│      4                                                                                                                                                                                                                   │
+│      5   - Size-based eviction for the render cache.                                                                                                                                                                     │
+│      6   - Keyboard navigation between widgets.                                                                                                                                                                          │
+│ docs:                                                                                                                                                                                                                    │
+│ roadmap                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                          │
+│ docs/roadmap:                                                                                                                                                                                                            │
+│ other.md                                                                                                                                                                                                                 │
+│ widgets.md                                                                                                                                                                                                               │
+╰─── Wall: 0.01s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm collecting the open items: the B1 downgrade follow-up from the strategic-risk review at src/cache.ts:12, and two unlabelled notes from the implementation audit, both at src/cache.ts:40, which I need to keep
+ separate. I'm also starting on the non-blocking notes from the strategic-risk trailer.
+
+ I'm weighing whether B2 belongs with the non-blocking items. It's a blocker the reviewer named and then downgraded as residual, which means accepted rather than follow-up, so I'm leaning toward leaving it out.
+
+ I'm sorting out whether B2 belongs with the non-blocking items. Its downgrade disposition is residual rather than follow-up, and the memory angle might count as out of scope, but I'll leave it out and note in the
+ summary that it was excluded because it's recorded as accepted.
+
+ I'm settling the destination: the only Markdown document outside openspec/ that proposal.md names is docs/roadmap/widgets.md, and it has no Follow-ups heading, so I'll ask the user where the items should go, with a
+ skip option and a path entry.
+
+ I'm working through the remaining items from the trailers: the unlabelled notes from the implementation audit and the strategic-risk review, keeping each one with its own source and location.
+
+ I'm deciding not to read the qa artifact f1/a.md, since the task only calls for the trailers, and I'll ask the user where the items should go now that I have the context text ready.
+
+ All artifacts are done, the three tasks are complete, and there are no delta specs to sync. Four follow-ups from the widget-cache gate need a home, but docs/roadmap/widgets.md has no ## Follow-ups section, so please
+ tell me where they should go.
+
+╭─── Ask: dest ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Where should the 4 follow-up items go? (Choose Other to enter a path.)                                                                                                                                                  │
+│  ○ docs/roadmap/widgets.md                                                                                                                                                                                               │
+│    ↳ Named in proposal.md. A ## Follow-ups section will be added at the end of the file.                                                                                                                                 │
+│  ○ Skip                                                                                                                                                                                                                  │
+│    ↳ Write nothing. The summary will list all items in full.                                                                                                                                                             │
+╰─── 2 options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Choosing follow-up destination
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Where should the 4 follow-up items go? (Choose Other to enter a path.)                                                                                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ docs/roadmap/widgets.md (Recommended)                                                                                                                                                                                │
+│       Named in proposal.md. A ## Follow-ups section will be added at the end of the file.                                                                                                                                │
+│   ○ Skip                                                                                                                                                                                                                 │
+│       Write nothing. The summary will list all items in full.                                                                                                                                                            │
+│   ○ Other (type your own)                                                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide                                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

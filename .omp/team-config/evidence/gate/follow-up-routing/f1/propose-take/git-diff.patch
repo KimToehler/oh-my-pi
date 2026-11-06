@@ -1,0 +1,301 @@
+diff --git a/openspec/changes/widget-cache-size-eviction/.openspec.yaml b/openspec/changes/widget-cache-size-eviction/.openspec.yaml
+new file mode 100644
+index 0000000..c3eefb5
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: omp-gated
++created: 2026-11-06
+diff --git a/openspec/changes/widget-cache-size-eviction/design.md b/openspec/changes/widget-cache-size-eviction/design.md
+new file mode 100644
+index 0000000..430a634
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/design.md
+@@ -0,0 +1,78 @@
++# Design
++
++## Context
++
++See proposal.md (Why). Current state, observed in the repository:
++
++- `src/cache.ts:10` stores entries in a module-level `Map<string, CacheEntry>` keyed by widget id; nothing ever removes an entry except `invalidate` (`:18`) and `clear` (`:22`).
++- `src/cache.ts:12` `get(id)` reads by id; `render(widget)` (`:30`) returns `get(widget.id)` when present, so a widget whose `props` changed is served its old HTML.
++- `src/render.ts:3` wraps every widget's output in `<div data-id="…">…</div>`, so a rendered entry is never shorter than 21 bytes.
++- `package.json` has no dependencies, no scripts and no test runner; there is no `test/` directory. `bun` 1.4.4 and `node` 26 are on the machine; `bun test` runs TypeScript directly.
++- The cache is a module singleton used by the dashboard shell; tests share that singleton and must reset it between cases.
++
++## Goals / Non-Goals
++
++**Goals:**
++- Bound the cache by the UTF-8 byte size of the HTML it holds, evicting least recently used entries (specs/widget-render-cache/spec.md).
++- Stop serving HTML rendered from outdated props (taken follow-up).
++- Keep the existing exported signatures (`get`, `has`, `invalidate`, `clear`, `size`, `render`, `CacheEntry`).
++
++**Non-Goals:**
++- Time-based expiry; `storedAt` stays informational.
++- Counting the props fingerprint against the byte budget (see Risks).
++- Escaping `w.id` in `src/render.ts` (the other roadmap follow-up; this change does not touch that file).
++- Persisting the cache or sharing it across tabs/processes.
++
++## Decisions
++
++**D1. Size-bounded LRU from `lru-cache`.** The store becomes `new LRUCache<string, CacheEntry>({ maxSize, sizeCalculation })`, where `sizeCalculation` returns the UTF-8 byte length of `entry.html`. `maxEntrySize` keeps its default (equal to `maxSize`). Behaviour verified with a scratch install of 11.5.3 outside this repository:
++- `get` marks the entry most recently used; `has` does not (doc comment on `LRUCache.has` in the package's `src/index.ts`: "without updating the recency of use").
++- Setting an entry larger than `maxEntrySize` stores nothing and deletes the existing entry for that key, leaving the others — exactly the "Output larger than the budget is not cached" requirement.
++- `calculatedSize` is the running byte total; `size` the entry count.
++- `sizeCalculation` returning 0 throws; unreachable here because rendered HTML is at least 21 bytes (Context).
++Alternative: keep the `Map` and rely on its insertion order (delete + re-set on use, evict from `keys().next()`) with a hand-kept byte counter — rejected, see Build vs. adopt.
++
++**D2. Module API.** Exported additions in `src/cache.ts`:
++- `DEFAULT_MAX_BYTES = 1_048_576`.
++- `totalBytes(): number` → `calculatedSize`.
++- `setMaxBytes(bytes: number): void` — throws `RangeError` unless `Number.isSafeInteger(bytes) && bytes > 0`, before touching state. `lru-cache`'s `maxSize` is read-only, so it builds a new store with the new budget and re-inserts the old entries from `rentries()` (least to most recently used), which preserves recency order and lets the new store evict the oldest until the budget holds. The module-level binding then points at the new store.
++`get`, `has`, `invalidate`, `clear` and `size` delegate to the store with unchanged signatures. Alternative: a `configure({ maxBytes })` options object — rejected, one option does not need an options bag.
++
++**D3. Props fingerprint in the entry.** `CacheEntry` gains `propsKey: string`, the `JSON.stringify(widget.props)` the HTML was rendered from. `render(widget)`:
++1. Compute the fingerprint; if `JSON.stringify` throws (cycle, BigInt) or returns `undefined`, delete any entry for `widget.id` and return `renderWidget(widget)` without storing.
++2. `const hit = store.get(widget.id)`; return `hit.html` when `hit.propsKey === fingerprint`.
++3. Otherwise render, store `{ html, storedAt, propsKey }` (replacing the stale entry), return the HTML.
++The map key stays the widget id, so `get(id)`/`invalidate(id)` keep working and a widget never occupies budget with several prop variants. Alternatives: key by `id + fingerprint` — rejected, stale variants would hold budget until evicted and `invalidate(id)` could not find them; compare `props` by reference — rejected, widgets that mutate `props` in place would still be served stale HTML.
++
++**D4. Tests with `bun test`.** One file `test/cache.test.ts` using `bun:test`; `beforeEach` calls `clear()` and `setMaxBytes(DEFAULT_MAX_BYTES)` so cases do not leak through the singleton. A helper builds a widget whose rendered HTML has an exact byte length (21 bytes of wrapper + id + body) and counts calls to its `render()`. `describe` blocks are named after the spec requirements so each task's Verify can select its block with `-t`.
++
++### Build vs. adopt: size-bounded LRU cache
++- Repository: none. Searched `src/cache.ts`, `src/render.ts`, `src/widget.ts` and `package.json` (no dependencies, no `node_modules`); `src/cache.ts:10` is an unbounded `Map` with no eviction.
++- Platform: `Map` iterates in insertion order (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map), which gives an ordering primitive but no size accounting, budget or eviction; partial only.
++- Candidates: `lru-cache` — https://github.com/isaacs/node-lru-cache; newest release 11.5.3, 2026-09-18 (deps.dev); licence BlueOak-1.0.0; maintained; adopt: `maxSize` + `sizeCalculation` + `maxEntrySize` cover the byte budget, LRU order, oversized-entry rejection and byte total. `quick-lru` — https://github.com/sindresorhus/quick-lru; newest release 7.3.0, 2025-10-10 (deps.dev); licence MIT; maintained; reject, gap: `maxSize` counts entries only, no per-entry size calculation, so it cannot bound bytes.
++- Decision: adopt `lru-cache` 11.5.3.
++
++### Build vs. adopt: UTF-8 byte length
++- Repository: none; searched the same paths as above.
++- Platform: `TextEncoder.prototype.encode` returns the UTF-8 bytes (https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder/encode), available in browsers, Node and Bun.
++- Candidates: not searched, covered above.
++- Decision: adopt the platform `TextEncoder` (one module-level instance; one encode per stored entry).
++
++### Build vs. adopt: props change detection
++- Repository: none; searched the same paths as above.
++- Platform: `JSON.stringify` (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify) serializes plain props deterministically for the same key order and throws on cycles and BigInt, which D3 uses as the bypass signal.
++- Candidates: not searched, covered above.
++- Decision: adopt the platform `JSON.stringify`; the fingerprint is compared for equality only and never parsed.
++
++## Risks / Trade-offs
++
++- [Props whose only change is in a function, `undefined` or symbol value serialize identically, so the old HTML is served] → Widget props are data in this dashboard; recorded as an accepted residual risk in gate.md.
++- [Same props with a different key order produce a different fingerprint] → Causes one extra render, never stale output.
++- [The fingerprint string is held in memory but not counted against the byte budget] → The budget bounds HTML as the spec defines; very large props raise real memory above the budget. Accepted residual risk.
++- [`JSON.stringify` of large props runs on every `render` call, including hits] → Cost is proportional to props size, far below a widget render; measured in F1's happy-path row.
++- [`setMaxBytes` rebuilds the store, O(entries)] → Called rarely (configuration), 40 widgets on the reference board.
++- [New runtime dependency] → Single package with no dependencies of its own (`npm view lru-cache@11.5.3 dependencies` is empty) and a dedicated `browser` export, so the dashboard's browser bundle does not pull Node-only modules; version pinned through `bun.lock`.
++
++## Migration Plan
++
++No data migration: the cache is in-memory and starts empty. Deploy with the new dependency installed (`bun install`). Rollback: revert the change commits; the old `Map` cache needs nothing from the new one.
+diff --git a/openspec/changes/widget-cache-size-eviction/gate.md b/openspec/changes/widget-cache-size-eviction/gate.md
+new file mode 100644
+index 0000000..3b62ae7
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/gate.md
+@@ -0,0 +1,9 @@
++# Gate
++
++- **Mandatory class**: none
++- **Depth**: standard (the class is none and no review, gate or release mechanism changes)
++- **Risk tier**: product
++- **Author's risk assessment**: The change rewrites the dashboard's in-memory render cache and adds one runtime dependency. Worst realistic failures: wrong recency order evicting hot widgets (extra renders, slower refresh), a stale-props bug left in place (a widget showing outdated data until reload), or an accounting error letting memory grow past the budget. No persistence, credentials, user data or network boundary is involved, and every failure is recovered by a page reload. `src/cache.ts` is an exported module of a private, unpublished package whose signatures stay unchanged, so no independently released contract exists (class `none`); it ships in the product dashboard, so the tier is `product`.
++- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
++- **Accepted residual risks**: Props changes confined to function-, `undefined`- or symbol-valued keys are invisible to the JSON fingerprint, so such a widget is served its previous HTML until `invalidate(id)`; the props fingerprint is held in memory but not counted against the byte budget, so actual memory can exceed the budget by the size of the cached widgets' serialized props.
++- **Out of scope for blocking**: Escaping `w.id` in `src/render.ts` (separate roadmap follow-up, file untouched by this change); time-based expiry of entries; any code in the dashboard shell outside this repository.
+diff --git a/openspec/changes/widget-cache-size-eviction/proposal.md b/openspec/changes/widget-cache-size-eviction/proposal.md
+new file mode 100644
+index 0000000..a0b3949
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/proposal.md
+@@ -0,0 +1,38 @@
++# Proposal
++
++## Why
++
++The render cache in `src/cache.ts` grows without bound: every widget rendered stays in memory until `invalidate` or `clear`, so a long-running dashboard holds the HTML of every widget it ever showed. The widget roadmap (`docs/roadmap/widgets.md`, Next) schedules size-based eviction for the render cache, and the cache also serves stale HTML when a widget's props change, which a bounded cache would keep doing.
++
++## What Changes
++
++- The render cache gets a byte budget: the accounted size of the cache is the UTF-8 byte length of the HTML it holds, and it never exceeds the budget after a render. Default budget 1 MiB (1,048,576 bytes); the dashboard can change it at runtime.
++- When storing a new render would exceed the budget, the least recently used entries are evicted until it fits. Serving a widget from the cache and reading its HTML by id count as use; checking presence does not.
++- Rendered HTML larger than the whole budget is returned to the caller but not stored; a previous entry for that widget is dropped so it cannot be served stale.
++- Lowering the budget evicts least recently used entries immediately; a budget that is not a positive integer is rejected and the budget stays unchanged.
++- The cache reports its accounted byte total next to the existing entry count.
++- A render of a widget whose props differ from the props its cached HTML was rendered with re-renders and replaces the entry instead of returning the old HTML (follow-up below). Props that cannot be serialized to JSON bypass the cache.
++- `get`, `has`, `invalidate`, `clear`, `size` and `render` keep their signatures. Behaviour change for callers: an entry can now disappear without `invalidate`/`clear`, which `get`'s existing `string | undefined` return already allows.
++- New runtime dependency `lru-cache` (see design.md, Build vs. adopt).
++
++## Capabilities
++
++### New Capabilities
++
++- `widget-render-cache`: the dashboard's cache of rendered widget HTML — when it serves cached HTML, when it re-renders, and how its memory is bounded.
++
++### Modified Capabilities
++
++None (the project has no specs yet; the earlier `widget-cache` change declared `skip_specs`).
++
++## Impact
++
++- `src/cache.ts`: storage moves to a size-bounded LRU; new budget setter and byte-total accessor; props check in `render`.
++- `src/render.ts`, `src/widget.ts`: unchanged.
++- `package.json`: adds `lru-cache` as a dependency and a `test` script; adds `bun.lock`.
++- New tests under `test/` (the repository has none today), run with `bun test`.
++- Dashboard shell (not in this repository): may call the new budget setter; nothing it calls today changes signature.
++
++## Follow-ups taken
++
++- `docs/roadmap/widgets.md`: `get` keys entries by widget id only, so a widget whose props changed still renders its old HTML. `src/cache.ts:12`. Source: `widget-shell` .omp/team-config/evidence/gate/widget-shell/f2/trailer-strategic-risk-review.txt, B1
+diff --git a/openspec/changes/widget-cache-size-eviction/specs/widget-render-cache/spec.md b/openspec/changes/widget-cache-size-eviction/specs/widget-render-cache/spec.md
+new file mode 100644
+index 0000000..03a8a52
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/specs/widget-render-cache/spec.md
+@@ -0,0 +1,112 @@
++# Spec Delta
++
++## Purpose
++
++Keeps the rendered HTML of dashboard widgets so unchanged widgets are not re-rendered on every refresh, while bounding the memory the cache holds.
++
++## ADDED Requirements
++
++### Requirement: Byte budget bounds the cache
++The render cache SHALL keep the accounted size of its entries at or below its byte budget after every operation. An entry's accounted size is the UTF-8 byte length of its rendered HTML. The default budget is 1,048,576 bytes.
++
++#### Scenario: Renders beyond the budget stay within it
++- **WHEN** the budget is 100 bytes and widgets whose HTML is 40 bytes each are rendered one after another, five in total
++- **THEN** after each render the cache's reported byte total is at most 100 and it holds at most two entries
++
++#### Scenario: Default budget
++- **WHEN** the cache is used without setting a budget
++- **THEN** cached HTML totalling exactly 1,048,576 bytes is held in full, and rendering one more widget evicts the least recently used entry
++
++#### Scenario: Negative control
++- **WHEN** the budget is 100 bytes and a third 40-byte widget is rendered while two 40-byte entries are cached
++- **THEN** a cache that then reports a byte total of 120 or holds three entries MUST fail the check
++
++### Requirement: Least recently used entries are evicted first
++When storing a render would exceed the budget, the cache SHALL evict entries in least-recently-used order until the new entry fits, and SHALL keep the new entry. Storing an entry, serving a widget's HTML from the cache, and reading an entry's HTML by widget id mark it most recently used; checking whether an entry exists does not.
++
++#### Scenario: A served entry survives eviction
++- **WHEN** the budget holds two 40-byte entries, widgets A then B are rendered, A is rendered again and served from the cache, then widget C is rendered
++- **THEN** B is evicted and A and C remain cached
++
++#### Scenario: Reading by id counts as use
++- **WHEN** widgets A then B are cached at a budget of two entries, A's HTML is read by id, then widget C is rendered
++- **THEN** B is evicted and A remains cached
++
++#### Scenario: Presence check does not count as use
++- **WHEN** widgets A then B are cached at a budget of two entries, the cache is asked whether A exists, then widget C is rendered
++- **THEN** A is evicted and B remains cached
++
++#### Scenario: Negative control
++- **WHEN** A then B are cached at a budget of two entries, A is served from the cache, then C is rendered
++- **THEN** a cache that evicts A (insertion order instead of use order) MUST fail the check
++
++### Requirement: Output larger than the budget is not cached
++When a widget's rendered HTML is larger than the whole budget, the cache SHALL return that HTML to the caller without storing it, SHALL drop any entry it held for that widget, and SHALL leave every other entry in place.
++
++#### Scenario: Oversized render is returned but not stored
++- **WHEN** the budget is 100 bytes, widget B is cached, and widget A renders 150 bytes of HTML
++- **THEN** the render returns A's 150-byte HTML, A is not cached, and B is still cached
++
++#### Scenario: Oversized re-render drops the old entry
++- **WHEN** widget A is cached with 40 bytes of HTML and its props change so that it now renders 150 bytes at a budget of 100
++- **THEN** A is no longer cached and reading A's HTML by id returns nothing
++
++#### Scenario: Negative control
++- **WHEN** the budget is 100 bytes and widget A renders 150 bytes of HTML while B is cached
++- **THEN** a cache that evicts B, stores A, or keeps A's earlier HTML MUST fail the check
++
++### Requirement: Budget can be changed at runtime
++The cache SHALL accept a new byte budget that is a positive integer. Lowering the budget SHALL evict least recently used entries immediately until the cache fits. A budget that is zero, negative, fractional or not a finite number SHALL be rejected with an error, leaving the budget and every entry unchanged.
++
++#### Scenario: Lowering the budget evicts at once
++- **WHEN** widgets A, B and C (40 bytes each) are cached in that order at the default budget and the budget is set to 80 bytes
++- **THEN** A is evicted before any further render, and B and C remain cached
++
++#### Scenario: Raising the budget keeps entries
++- **WHEN** two 40-byte entries are cached at a budget of 80 bytes and the budget is raised to 200
++- **THEN** both entries remain cached and a third 40-byte render evicts nothing
++
++#### Scenario: Negative control
++- **WHEN** the budget is set to 0, -1, 1.5 or NaN while entries are cached
++- **THEN** a cache that accepts the value, changes its budget, or evicts any entry MUST fail the check
++
++### Requirement: Cache reports its accounted bytes
++The cache SHALL report its current byte total, equal to the sum of the accounted sizes of the entries it holds, alongside the existing entry count. Removing one entry or clearing the cache SHALL reduce the total by the removed entries' sizes.
++
++#### Scenario: Total follows stores and removals
++- **WHEN** widgets with 40 and 30 bytes of HTML are cached, then the first is invalidated, then the cache is cleared
++- **THEN** the reported total is 70, then 30, then 0, and the entry count is 2, then 1, then 0
++
++#### Scenario: Multi-byte characters count as bytes
++- **WHEN** a widget whose HTML contains the character "€" (3 bytes in UTF-8) is cached
++- **THEN** the reported total counts that character as 3 bytes, not 1
++
++#### Scenario: Negative control
++- **WHEN** a widget's HTML contains "€" and is cached
++- **THEN** a cache that reports the HTML's UTF-16 length instead of its UTF-8 byte length MUST fail the check
++
++### Requirement: Changed props are re-rendered
++When a widget is rendered and the cache holds HTML for its id that was rendered from props whose JSON serialization differs from the widget's current props, the cache SHALL render the widget again, return the new HTML, and replace the cached entry with it.
++
++#### Scenario: Props change produces new HTML
++- **WHEN** widget A is rendered with props `{"title":"Sales"}`, its props change to `{"title":"Costs"}`, and A is rendered again
++- **THEN** the second render returns HTML produced from `{"title":"Costs"}` and that HTML is what the cache now holds for A
++
++#### Scenario: Unchanged props are served from the cache
++- **WHEN** widget A is rendered twice with props `{"title":"Sales"}` and nothing in between
++- **THEN** the widget's own render runs once and the second call returns the cached HTML
++
++#### Scenario: Negative control
++- **WHEN** widget A is rendered with props `{"title":"Sales"}`, its props change to `{"title":"Costs"}`, and A is rendered again
++- **THEN** a cache that returns the HTML rendered from `{"title":"Sales"}` MUST fail the check
++
++### Requirement: Props that cannot be serialized bypass the cache
++When a widget's props cannot be serialized to JSON (for example they contain a cycle or a BigInt), the cache SHALL render the widget on every call, return the fresh HTML, store nothing for it, and drop any entry it held for that widget id.
++
++#### Scenario: Cyclic props render fresh each time
++- **WHEN** widget A has props that reference themselves and is rendered twice
++- **THEN** the widget's own render runs twice, both calls return its HTML, and A is not cached
++
++#### Scenario: Negative control
++- **WHEN** widget A was cached with serializable props and is then rendered with props containing a BigInt
++- **THEN** a cache that throws, returns A's earlier HTML, or still holds an entry for A MUST fail the check
+diff --git a/openspec/changes/widget-cache-size-eviction/tasks.md b/openspec/changes/widget-cache-size-eviction/tasks.md
+new file mode 100644
+index 0000000..914b42f
+--- /dev/null
++++ b/openspec/changes/widget-cache-size-eviction/tasks.md
+@@ -0,0 +1,26 @@
++# Tasks
++
++## 1. Dependency and test runner
++
++- [ ] 1.1 Add `lru-cache` pinned to `11.5.3` (`bun add --exact lru-cache@11.5.3`, which writes `bun.lock`) and a `"test": "bun test"` script to `package.json`. Verify: `bun install --frozen-lockfile && jq -e '.dependencies["lru-cache"] == "11.5.3" and .scripts.test == "bun test"' package.json && bun -e "import { LRUCache } from 'lru-cache'; if (typeof LRUCache !== 'function') process.exit(1)"`
++
++## 2. Size-bounded LRU storage
++
++- [ ] 2.1 In `src/cache.ts`, replace the `Map` with an `LRUCache` keyed by widget id holding `CacheEntry` values, per design D1/D2: export `DEFAULT_MAX_BYTES = 1_048_576`, `totalBytes()` and `setMaxBytes(bytes)` (RangeError for non-safe-integer or ≤ 0 before any state change; rebuild from `rentries()` to keep recency); `sizeCalculation` is the UTF-8 byte length from a module-level `TextEncoder`; `get`, `has`, `invalidate`, `clear`, `size` keep their signatures. Update the file's header comment to describe the byte-bounded LRU. Add `test/cache.test.ts` (`bun:test`, `beforeEach` → `clear()` + `setMaxBytes(DEFAULT_MAX_BYTES)`, a helper that builds a widget with an exact rendered byte length and counts its `render()` calls) with `describe` blocks named "Byte budget bounds the cache", "Cache reports its accounted bytes" and "Budget can be changed at runtime", covering every scenario of those three requirements, the negative controls included (five 40-byte renders at 100 never exceed 100 bytes/2 entries; exact 1,048,576 bytes held at the default and one more render evicts; "€" counts 3; 0, -1, 1.5 and NaN throw and leave budget and entries unchanged). Verify: `bun test test/cache.test.ts -t "Byte budget bounds the cache|Cache reports its accounted bytes|Budget can be changed at runtime"`
++- [ ] 2.2 Add `describe` blocks "Least recently used entries are evicted first" (render hit and `get` keep A, `has` does not; insertion-order eviction must fail) and "Output larger than the budget is not cached" with its first scenario and negative control for a new widget (150 bytes at budget 100 is returned, not stored, B kept). Fix `src/cache.ts` if any case fails (for example a `maxEntrySize` override or a recency-touching `has`). Verify: `bun test test/cache.test.ts -t "Least recently used entries are evicted first|Output larger than the budget is not cached"`
++- [ ] 2.3 Remove the delivered `- Size-based eviction for the render cache.` bullet from `## Next` in `docs/roadmap/widgets.md`, leaving `## Follow-ups` untouched. Verify: `! grep -qxF -- '- Size-based eviction for the render cache.' docs/roadmap/widgets.md && grep -qxF -- '- Keyboard navigation between widgets.' docs/roadmap/widgets.md && test "$(grep -c '^- ' docs/roadmap/widgets.md)" = 3`
++
++## 3. Props-aware rendering (taken follow-up)
++
++- [ ] 3.1 In `render(widget)`, add `propsKey` (the `JSON.stringify(widget.props)` the HTML was rendered from) to `CacheEntry` and serve a hit only when it equals the current fingerprint; otherwise re-render and replace the entry under the same id (design D3). Add `describe` "Changed props are re-rendered" (Sales → Costs returns new HTML and the cache holds it; unchanged props render once; returning Sales HTML must fail) and, inside "Output larger than the budget is not cached", the scenario "Oversized re-render drops the old entry" (40-byte A whose props change to a 150-byte render at budget 100 is no longer cached and `get("A")` is `undefined`). Verify: `bun test test/cache.test.ts -t "Changed props are re-rendered|Oversized re-render drops the old entry"`
++- [ ] 3.2 When the fingerprint throws or is `undefined`, delete any entry for the id and return `renderWidget(widget)` without storing. Add `describe` "Props that cannot be serialized bypass the cache" (cyclic props render twice and are not cached; A cached with serializable props then rendered with a BigInt prop does not throw, returns fresh HTML and leaves no entry). Verify: `bun test test/cache.test.ts -t "Props that cannot be serialized bypass the cache" && bun test`
++
++## 4. Final verification
++
++- [ ] 4.1 F1. Manual QA on the real surface: merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; then, on the head after the last code commit, drive the real `src/cache.ts` (with the real `src/render.ts` and `lru-cache`) from a `bun` QA script and capture its printed output for each row: row-01 byte budget (five 40-byte renders at budget 100: `totalBytes()`/`size()` after each never above 100/2); row-02 LRU order (A, B, A served, C → keys B evicted; `get` variant keeps A; `has` variant evicts A); row-03 oversized output (150-byte new widget returned, not stored, B kept; 40-byte A re-rendered at 150 bytes leaves no entry); row-04 runtime budget (A, B, C then 80 → A evicted at once; raise to 200 keeps both; 0, -1, 1.5, NaN throw RangeError with budget and entries unchanged); row-05 accounted bytes (70 → 30 → 0 with counts 2 → 1 → 0; "€" HTML counted as 3 bytes); row-06 changed props (Sales → Costs returns Costs HTML, render count 2; unchanged props render count 1); row-07 unserializable props (cyclic props render twice, no entry; BigInt after a cached render returns fresh HTML, no entry, no throw); row-08 happy path (40 widgets with realistic props rendered twice at the default budget: second pass is 40 hits and 0 renders; time per hit vs per render printed); row-09 riskiest edge (an entry of exactly the budget is cached, budget + 1 is not; exactly 1,048,576 bytes held at the default and the next render evicts the least recently used entry); row-10 regression (in-budget `get`/`has`/`invalidate`/`clear`/`size` behave as before and `git diff --exit-code main -- src/render.ts src/widget.ts` is empty). One evidence path per row in `.omp/team-config/evidence/gate/widget-cache-size-eviction/f1/`: `row-01-byte-budget.txt`, `row-02-lru-order.txt`, `row-03-oversized.txt`, `row-04-runtime-budget.txt`, `row-05-accounted-bytes.txt`, `row-06-changed-props.txt`, `row-07-unserializable-props.txt`, `row-08-happy-path.txt`, `row-09-budget-edge.txt`, `row-10-regression.txt`; the QA lane judges the observations. Verify: `d=.omp/team-config/evidence/gate/widget-cache-size-eviction/f1; for f in row-01-byte-budget row-02-lru-order row-03-oversized row-04-runtime-budget row-05-accounted-bytes row-06-changed-props row-07-unserializable-props row-08-happy-path row-09-budget-edge row-10-regression; do test -s "$d/$f.txt" || { echo "missing $f"; exit 1; }; done`
++
++## Workflow follow-up
++
++- F2 merge gate (`review-work`), after 4.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
++- Merge only after the F2 record validates.
++- On archive, `/opsx-archive` removes the taken `get`-keys-by-id follow-up from `docs/roadmap/widgets.md`.

@@ -1,0 +1,17 @@
+Working...
+## Archive Complete
+
+**Change:** widget-cache
+**Schema:** omp-gated
+**Archived to:** `openspec/changes/archive/2026-11-06-widget-cache/`
+**Specs:** No delta specs. The specs artifact was skipped (`skip_specs`).
+**Follow-ups:** I added 4 items to `docs/roadmap/widgets.md` and removed 1 of the 2 items listed under "Follow-ups taken". The other one wasn't found.
+- **Added from the gate record `widget-cache.json`:**
+  - B1, which was marked `follow-up`: `get` looks up cached entries by widget id only, so a widget whose props changed still shows its old HTML after an edit (`src/cache.ts:12`).
+  - Implementation-audit notes 1 and 2, both at `src/cache.ts:40`: the cache never evicts, and `storedAt` is set before rendering.
+  - Strategic-risk-review note 1, also at `src/cache.ts:40`. It reports the same "never evicts" problem as audit note 1. I kept it as a separate item because it comes from a different review.
+  - B2 was marked `residual`, so it wasn't added.
+- **Removed:** the `clear()` logging item from `widget-shell` (note 1).
+- **Not found:** the `size()` item from `widget-shell` (note 2) is still in the roadmap. The proposal's wording says "the dashboard's memory panel" but the roadmap says "the dashboard memory panel", so the text didn't match exactly and I left the item in place.
+
+All artifacts complete. All 3 tasks complete.

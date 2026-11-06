@@ -1,0 +1,60 @@
+   ├─ openspec/changes/widget-cache/proposal.md
+   ├─ openspec/changes/widget-cache/gate.md
+   ├─ .omp/team-config/evidence/gate/widget-cache.json
+   ├─ .omp/team-config/evidence/gate/widget-cache/f2/trailer-implementation-audit.txt
+   └─ .omp/team-config/evidence/gate/widget-cache/f2/trailer-strategic-risk-review.txt
+
+ I'm going through the collected items: the B1 finding is being downgraded to a follow-up, since get keys by id only leaves stale HTML after a props edit at src/cache.ts:12. I'm also noting that the set call at
+ src/cache.ts:40 never evicts entries.
+
+ I'm sorting out how to handle the audit notes that share the same location: the set call at src/cache.ts:40 shows up in several places, and I'm keeping each one as its own item. I'm also weighing whether the leftover
+ B2 memory finding counts as non-blocking under the out-of-scope rule, since it was recorded as a blocker and then downgraded as an accepted residual.
+
+ I'm leaning toward leaving B2 out of the collected items, since it's an accepted residual about removed-widget invalidation rather than memory accounting, though the eviction notes overlap that area. I'll mention the
+ exclusion in the summary. The audit and risk trailers contribute unlabelled notes that I'll number in order. The proposal only names source files, not Markdown documents, so there's nothing to offer as a destination.
+ That means I need to ask the user once about where the items should go.
+
+ I'm going to check whether any Markdown documents in the repo could take these items, since the proposal itself names none, and then ask the user where they should go.
+
+🔍 Glob: **/*.md;!openspec/** 20 files · in .
+├─ 📝 .omp/team-config/evidence/gate/widget-cache/f1/a.md
+├─ 📝 .omp/team-config/evidence/gate/widget-cache/wave-1/trailer-implementation-audit.md
+├─ 📝 docs/roadmap/widgets.md
+├─ 📝 openspec/changes/widget-cache/design.md
+├─ 📝 openspec/changes/widget-cache/gate.md
+├─ 📝 openspec/changes/widget-cache/proposal.md
+├─ 📝 openspec/changes/widget-cache/review.md
+├─ 📝 openspec/changes/widget-cache/tasks.md
+└─ … 12 more files
+skipped missing: !openspec/**
+
+ I'm checking whether the proposal names any Markdown documents, and it doesn't; it only mentions src/cache.ts and src/render.ts. So I'll ask the user with options, letting them enter a path or skip. I'm weighing
+ whether to offer a roadmap file as an option, but a rule says not to write to a document the proposal doesn't name or the user hasn't chosen, and suggesting that path would amount to pointing them toward it.
+
+ I'm settling on two options for the ask: "Enter a path" and "Skip". I'm leaving out the widget roadmap as an option, since the proposal doesn't name it and the user hasn't chosen it, and I'll just mention it as context
+ instead.
+
+ The widget-cache change checks out: artifacts are done, tasks are 3 of 3, and there are no delta specs to sync. Four follow-ups came from the gate record, and I still need you to choose where they should be recorded,
+ since proposal.md names no destination.
+
+╭─── Ask: followups_dest ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  The proposal names no document. Where should I write the 4 follow-up items? If the file has no ## Follow-ups section, I'll add one at the end.                                                                          │
+│  ○ Enter a path                                                                                                                                                                                                          │
+│    ↳ Type a repository path via Other, e.g. docs/roadmap/widgets.md                                                                                                                                                      │
+│  ○ Skip                                                                                                                                                                                                                  │
+│    ↳ Write nothing; all 4 items are listed in full in the archive summary                                                                                                                                                │
+╰─── 2 options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ⎋ Choosing follow-ups destination
+╭─ Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ The proposal names no document. Where should I write the 4 follow-up items? If the file has no ## Follow-ups section, I'll add one at the end.                                                                           │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ❯ ○ Enter a path                                                                                                                                                                                                         │
+│       Type a repository path via Other, e.g. docs/roadmap/widgets.md                                                                                                                                                     │
+│   ○ Skip                                                                                                                                                                                                                 │
+│       Write nothing; all 4 items are listed in full in the archive summary                                                                                                                                               │
+│   ○ Other (type your own)                                                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ select · n note · ↑/↓ move · ⎋ cancel · ⌥H hide                                                                                                                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

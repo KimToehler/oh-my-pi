@@ -1,0 +1,1 @@
+/opsx-propose make the widget cache evict by size. Create the artifacts up to and including tasks, then stop before the review artifact. Do not ask me questions; decide yourself.

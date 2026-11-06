@@ -1,0 +1,10 @@
+## git status --porcelain
+ D openspec/changes/widget-cache/.openspec.yaml
+ D openspec/changes/widget-cache/design.md
+ D openspec/changes/widget-cache/gate.md
+ D openspec/changes/widget-cache/proposal.md
+ D openspec/changes/widget-cache/review.md
+ D openspec/changes/widget-cache/tasks.md
+?? openspec/changes/archive/
+## sha256 of the gate record and every pinned file
+no gate record at .omp/team-config/evidence/gate/widget-cache.json

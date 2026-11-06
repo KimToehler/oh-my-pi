@@ -1,0 +1,17 @@
+## git status --porcelain
+ M docs/roadmap/w.md
+ D openspec/changes/widget-cache-size-eviction/.openspec.yaml
+ D openspec/changes/widget-cache-size-eviction/design.md
+ D openspec/changes/widget-cache-size-eviction/gate.md
+ D openspec/changes/widget-cache-size-eviction/proposal.md
+ D openspec/changes/widget-cache-size-eviction/review.md
+ D openspec/changes/widget-cache-size-eviction/specs/widget-render-cache/spec.md
+ D openspec/changes/widget-cache-size-eviction/tasks.md
+?? openspec/changes/archive/
+## sha256 of the gate record and every pinned file
+e7eb8b1cccc4b120baa9bf40133162545075cad2b2a50a86ed9f6db41f25503c  .omp/team-config/evidence/gate/widget-cache-size-eviction.json
+4e4acfab8416bed48312f5b366057f204b9d4a11453a7bb1a497e62d72aff77f  .omp/team-config/evidence/gate/widget-cache-size-eviction/f2/trailer-implementation-audit.txt
+c80eaa0e02be247639535ade7f60a4539e355cf58f4775ccfe62f8d9401d8fe9  .omp/team-config/evidence/gate/widget-cache-size-eviction/f1/a.md
+## pinned digests recorded in the record vs actual
+match .omp/team-config/evidence/gate/widget-cache-size-eviction/f2/trailer-implementation-audit.txt
+match .omp/team-config/evidence/gate/widget-cache-size-eviction/f1/a.md

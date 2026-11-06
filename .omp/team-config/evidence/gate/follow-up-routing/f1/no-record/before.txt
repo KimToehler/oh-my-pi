@@ -1,0 +1,3 @@
+## git status --porcelain
+## sha256 of the gate record and every pinned file
+no gate record at .omp/team-config/evidence/gate/widget-cache.json

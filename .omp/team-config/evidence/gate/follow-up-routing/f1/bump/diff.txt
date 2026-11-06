@@ -1,0 +1,107 @@
+$ v=$(cat team-config/openspec-version)  # 1.15.0
+$ diff -r "$tmp/.omp/commands" team-config/agent/commands
+diff -r /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.lkD0FW7l0f/.omp/commands/opsx-apply.md team-config/agent/commands/opsx-apply.md
+80c80
+< 4. **Read context files**
+---
+> 4. **Run in the change's worktree**
+81a82,119
+>    If a task names a worktree for this change (typically the first task, with a path such as
+>    `.worktrees/<slug>` in its text or Verify command), implementation happens only while the
+>    session's working directory is that worktree. The returned `sourcePath` and every relative path in
+>    edits and Verify commands resolve against the session's working directory. Working on from another
+>    checkout ticks the boxes in the wrong `tasks.md` and lands relative edits there. Move the session
+>    yourself with the `session_move` tool (written to `xd://session_move` when it is listed as a tool
+>    device). Do not ask the user to type `/move` while `session_move` is available.
+> 
+>    Resolve the task's worktree path against the primary checkout (the first `worktree` entry of
+>    `git worktree list --porcelain`) and pass that absolute path to `session_move`. Compare its real
+>    path with the real path of `git rev-parse --show-toplevel`:
+>    - **Same path**: continue. The worktree task is ticked once its Verify passes here.
+>    - **Worktree exists elsewhere**: before any edit or tick, call `session_move` with `path`.
+>    - **Worktree missing**: without a store, the change folder must be committed, or the new
+>      worktree will not contain it: `git status --porcelain -- <changeRoot>` must print nothing and
+>      `git ls-files -- <changeRoot>` must list its files. If not, stop and ask the user to commit it.
+>      Otherwise call `session_move` with `path`, plus the `branch` and `base` the task names; it
+>      creates the worktree and moves there. Leave out `base` when the branch already exists. If the
+>      tool refuses the path because it is not directly inside the worktree directory, create the
+>      worktree with `git worktree add <path> -b <branch> <base>` and call `session_move` with `path`
+>      only. Do not tick the worktree task before the move: its checkbox belongs to the worktree's
+>      `tasks.md`.
+> 
+>    Make `session_move` the last call of its message. The move runs after that tool batch and ends the
+>    run; the conversation then continues in the worktree. Continue this command there from step 2, so
+>    status, apply instructions and every `sourcePath` come from the worktree's change folder.
+> 
+>    If `session_move` refuses because background jobs or subagents of this session still run, wait
+>    for them or cancel them, then call it again. If the tool is not available or fails otherwise, stop
+>    before any edit or tick and tell the user to move this session and rerun this command:
+>    `/move <worktree path>`, then `/opsx-apply <name>`. `/move` works in the terminal UI and in ACP
+>    clients such as IntelliJ, and keeps the conversation. Never use or suggest `/wt`: it creates its
+>    own worktree and branch outside `.worktrees/`, not the one the task names.
+> 
+>    No task naming a worktree: skip this step.
+> 
+> 5. **Read context files**
+> 
+90c128
+< 5. **Show current progress**
+---
+> 6. **Show current progress**
+98c136
+< 6. **Implement tasks (loop until done or blocked)**
+---
+> 7. **Implement tasks (loop until done or blocked)**
+116c154
+< 7. **On completion or pause, show status**
+---
+> 8. **On completion or pause, show status**
+diff -r /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.lkD0FW7l0f/.omp/commands/opsx-archive.md team-config/agent/commands/opsx-archive.md
+141c141
+<    Then run the `/opsx-sync` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 5 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
+---
+>    Then run the `/opsx-sync` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 6 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
+162c162
+< 5. **Perform the archive**
+---
+> 5. **Route the change's follow-ups**
+163a164,181
+>    Follow-ups are findings a later change should pick up. This step only reads the gate record and the files it pins; it never edits, moves or annotates any of them.
+> 
+>    Collect from the change's gate record (`.omp/team-config/evidence/gate/<change-name>.json`, or the record path the repository's `review-work` convention names), and read nothing else:
+>    - every `downgrades` entry with `disposition: follow-up`;
+>    - every non-blocking finding in each `verdicts[].trailer_artifact` and, when `whole_diff.run` is true, in the integration-review report the record binds. A non-blocking finding is a note, or a finding in an area the change's `gate.md` names under `Out of scope for blocking`. Replies the record does not bind (earlier waves, retried dispatches, git-ignored reply copies) are not read.
+> 
+>    No gate record: collect nothing, and say so in the summary.
+> 
+>    Write each item as one bullet: the finding and its consequence, its location as `PATH:LINE` (or the area when no line applies), then `Source:` followed by the change name in backticks, the repository path of the artifact the item came from (for a downgrade, the trailer of its `invocation`), a comma, and the finding id: the downgrade's `blocker`, else the reviewer's own label for the finding, else `note <n>` for the n-th unlabelled finding in that artifact. The source text is the item's identity: skip an item whose source text already appears in the destination, and never merge two items that share a location.
+> 
+>    Destination: the Markdown documents outside `openspec/` that `proposal.md` names by repository path. When exactly one of them has a `## Follow-ups` section, append the items there without asking. Otherwise, and only when items were collected, ask the user once, offering each named document, a path the user enters, and skip; a chosen document without the section gains `## Follow-ups` at its end. Never write to a document the proposal does not name and the user did not choose.
+> 
+>    Each entry under `proposal.md`'s `## Follow-ups taken` names a document and a bullet: delete that bullet from that document. Keep every entry whose bullet you cannot find verbatim for the summary.
+> 
+>    Routing never blocks the archive: continue with the next step whatever was written or skipped.
+> 
+> 6. **Perform the archive**
+> 
+179c197
+< 6. **Display summary**
+---
+> 7. **Display summary**
+186a205
+>    - Follow-ups: the destination and the number of items added, the taken bullets removed and any not found; every collected item in full when the user skipped or nothing was written; or that no gate record was found
+196a216
+> **Follow-ups:** 2 added to docs/roadmap/x.md; 1 taken removed
+209a230
+> **Follow-ups:** none collected
+222a244,245
+> **Follow-ups:** skipped
+> - <each collected item in full>
+diff -r /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.lkD0FW7l0f/.omp/commands/opsx-propose.md team-config/agent/commands/opsx-propose.md
+117a118
+>       - **Take matching follow-ups (proposal only)**: before drafting `proposal.md`, read the `## Follow-ups` section of every plan or roadmap the request or the project context names. List every item whose location or area this change will touch under a `## Follow-ups taken` section after `## Impact`, one entry per item: the repository path of its document in backticks, a colon, then the bullet verbatim. Cover each in What Changes. Leave every other item alone, and never edit or delete a follow-up bullet now: `/opsx-archive` removes the taken ones from the documents the entries name when this change is archived. Name the taken items in the final summary; an item the user declines is removed from `## Follow-ups taken` and stays in its document.
+147a149
+> - Follow-ups taken, if any, with the document each came from
+168a171
+> - Never edit a `## Follow-ups` section while proposing; list taken items in the proposal instead
+diff exit=1

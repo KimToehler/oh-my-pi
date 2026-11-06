@@ -1,0 +1,29 @@
+Working...
+I created the change `widget-cache-size-eviction` with every artifact up to and including tasks, and stopped before the review artifact as you asked. It lives at `openspec/changes/widget-cache-size-eviction/` and is still uncommitted. Both `openspec validate --strict` and the team's `validate-openspec-change.mjs` check pass. Status is 5 of 6 artifacts; only `review` is open.
+
+**Decisions I made:**
+- **What "size" means:** the total UTF-8 bytes of the cached HTML, with a fixed budget of 1 MiB exported as `MAX_CACHE_BYTES`. When the budget is exceeded, the least recently used entries are evicted first.
+- **What counts as use:** a cache hit through `render` or `get` keeps an entry fresh; `has` does not.
+- **HTML larger than the whole budget:** it is still returned but not stored, and any older entry for that widget id is removed. HTML of exactly 1,048,576 bytes is stored.
+- **Exported functions:** all signatures stay the same, and `size()` still counts entries, not bytes.
+
+**Artifacts:**
+- **`proposal.md`:** why the cache needs a bound, what changes, the new capability `widget-render-cache`, and the impact.
+- **`specs/widget-render-cache/spec.md`:** 7 requirements, each with test scenarios and the required "negative control" (a broken behaviour the tests must catch). They cover hits when props are unchanged, re-rendering when props change, props that can't be copied, the byte budget, eviction order, oversized HTML and invalidation.
+- **`design.md`:**
+  - Each entry keeps one copy of the props it was rendered from, compared with `structuredClone` and `isDeepStrictEqual`. Props that can't be copied, such as functions, skip the cache.
+  - The hand-written `Map` is replaced with the `lru-cache` library (version 11.5.3, released 2026-09-18, no dependencies of its own). Its options cover the byte budget, the eviction order and the oversized rule, which I checked in its source code.
+  - The build-vs-adopt section rejects `quick-lru` and `mnemonist` because both limit the number of entries, not bytes.
+- **`gate.md`:** class `none`, risk tier `product`, depth `standard`. One accepted risk: the stored props copies are not counted against the 1 MiB budget.
+- **`tasks.md`:**
+  - Setup: add the dependency and a `bun test` script.
+  - Storage with eviction: tasks 2.1–2.4.
+  - Props freshness: tasks 3.1–3.2.
+  - Final checks: the full test suite and a manual QA pass with 10 evidence rows.
+
+  Each task's check runs only that task's tests (`bun test -t …`). Tests are written first and must fail against the current code.
+- **`design.md` wasn't skipped:** it adds a new library and a new way of checking props.
+
+**Follow-up taken (from `docs/roadmap/w.md`):** "`get` keys entries by widget id only, so a widget whose props changed still renders its old HTML. `src/cache.ts:12`." This change fixes it inside `render`. `get(id)` itself still looks up by id only, because changing its signature would break the dashboard shell that calls it, which isn't in this repository. That limit is listed under "Out of scope for blocking" in `gate.md`.
+
+All artifacts needed for implementation are ready except `review`, which `/opsx-apply` needs before any code is edited. The artifacts are ready for review. When you are ready, generate the review artifact (`openspec instructions review --change "widget-cache-size-eviction" --json`), then run `/opsx-apply`.
