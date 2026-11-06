@@ -62,6 +62,14 @@ Each item SHALL be one bullet: the finding and its consequence, its location as 
 - **WHEN** one trailer carries two different notes that both name `src/a.ts:12`
 - **THEN** both are recorded, as `note 1` and `note 2`
 
+#### Scenario: Same finding id in two artifacts
+- **WHEN** two bound trailers each carry one unlabelled note, so both have the finding id `note 1`
+- **THEN** both are recorded, each with its own artifact path in its source
+
+#### Scenario: Source differs only in the change name
+- **WHEN** the destination holds a bullet whose source equals a collected item's except for the change name
+- **THEN** the collected item is added
+
 #### Scenario: Negative control
 - **WHEN** the destination already holds a bullet whose source text equals a collected item's
 - **THEN** adding a second bullet with that source MUST fail the requirement
