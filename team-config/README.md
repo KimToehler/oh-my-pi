@@ -334,3 +334,8 @@ redistribution only free of charge for non-commercial purposes. `frontend` addit
 its own Apache-2.0 notice (`agent/skills/frontend/ATTRIBUTION.md`). `angular-developer` is
 [angular/skills](https://github.com/angular/skills) (MIT, Google LLC).
 The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.15.0 (MIT).
+
+## Follow-ups
+
+- `/opsx-archive` step 5 has no runtime proof that it collects a finding in an area `gate.md` names under `Out of scope for blocking`. F1 also never ran a proposal naming several documents that all have the section, or a repaired trailer, so those branches can misroute unnoticed. `team-config/agent/commands/opsx-archive.md:168`. Source: `follow-up-routing` `.omp/team-config/evidence/gate/follow-up-routing/f2/trailer-implementation-audit.txt`, N1
+- No capture shows that routing leaves the following sections byte-for-byte unchanged when `## Follow-ups` is not the last section of the destination, so an append under the next heading, or damage to it when a taken bullet is removed, would go unnoticed. `team-config/agent/commands/opsx-archive.md:174`. Source: `follow-up-routing` `.omp/team-config/evidence/gate/follow-up-routing/f2/trailer-implementation-audit.txt`, note 1
