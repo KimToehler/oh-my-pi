@@ -63,7 +63,7 @@ Each item SHALL be one bullet: the finding and its consequence, its location as 
 - **THEN** both are recorded, as `note 1` and `note 2`
 
 #### Scenario: Same finding id in two artifacts
-- **WHEN** two bound trailers each carry one unlabelled note, so both have the finding id `note 1`
+- **WHEN** two bound trailers each carry the same unlabelled note at `src/a.ts:12`, so both have the finding id `note 1` and the same change name and location
 - **THEN** both are recorded, each with its own artifact path in its source
 
 #### Scenario: Source differs only in the change name
