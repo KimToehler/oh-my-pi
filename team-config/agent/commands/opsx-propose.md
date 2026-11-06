@@ -115,6 +115,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
         - Identify the target project from the request and project context; the planning home may be separate from the code. If the target is unclear, ask. For greenfield or non-code changes, inspect the available structure and relevant documents. If source is unavailable, state the limitation and ask when it materially affects the plan.
         - Ground scope, approach, and tasks in what you find. Distinguish observed behavior from assumptions and proposed additions; surface conflicts with existing specs instead of silently deciding which is correct.
         - Do this discovery now, rather than leaving generic "explore the codebase" or "make a plan" tasks for implementation. Keep any necessary follow-up investigation specific to an unresolved question.
+      - **Take matching follow-ups (proposal only)**: before drafting `proposal.md`, read the `## Follow-ups` section of every plan or roadmap the request or the project context names. List every item whose location or area this change will touch under a `## Follow-ups taken` section after `## Impact`, one entry per item: the repository path of its document in backticks, a colon, then the bullet verbatim. Cover each in What Changes. Leave every other item alone, and never edit or delete a follow-up bullet now: `/opsx-archive` removes the taken ones from the documents the entries name when this change is archived. Name the taken items in the final summary; an item the user declines is removed from `## Follow-ups taken` and stays in its document.
       - Choose the output path before creating anything. If `resolvedOutputPath` is a glob, follow `instruction` to choose a concrete path inside `changeRoot` that matches the glob, and verify it remains inside `changeRoot` after resolving symlinks, both in its parent directories and in the file itself if it already exists; if it does not, stop and tell the user. Otherwise the output path is `resolvedOutputPath`
       - If the `instruction` field delegates creation to a specific skill or command, invoke it only if it can write the artifact to that output path; otherwise stop and tell the user. Then verify the artifact file exists at that output path
       - Otherwise create the artifact file using `template` as the structure and write it to that output path
@@ -145,6 +146,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
 After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions, plus any conditional artifact you skipped and why
+- Follow-ups taken, if any, with the document each came from
 - What's ready: "All artifacts needed for implementation are ready."
 - Prompt: "The artifacts are ready for review. When you are ready, run `/opsx-apply`."
 
@@ -166,3 +168,4 @@ After completing all artifacts, summarize:
 - Ask about ambiguities that would materially change scope, externally observable behavior, compatibility, or acceptance criteria; for minor details, make reasonable assumptions and record them
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
+- Never edit a `## Follow-ups` section while proposing; list taken items in the proposal instead

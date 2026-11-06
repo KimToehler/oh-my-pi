@@ -138,7 +138,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    form of main specs produced by this merge; do not use them as archive guidance,
    change CLI behavior, or copy the rule text into any output file.
 
-   Then run the `/opsx-sync` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 5 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
+   Then run the `/opsx-sync` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 6 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
 
    If the sync reports any stop or blocking condition, treat the sync as failed.
    Stop the archive immediately. Do not perform the post-sync content comparison and do not move its `changeRoot`.
@@ -159,7 +159,25 @@ In both branches, never create the root as a side effect: do not run `openspec i
 
    If the sync failed, or any capability does not match, report what differs and stop — do not archive. Nothing has moved and `changeRoot` is intact, so the user can fix the mismatch or re-run the sync and start the archive again.
 
-5. **Perform the archive**
+5. **Route the change's follow-ups**
+
+   Follow-ups are findings a later change should pick up. This step only reads the gate record and the files it pins; it never edits, moves or annotates any of them.
+
+   Collect from the change's gate record (`.omp/team-config/evidence/gate/<change-name>.json`, or the record path the repository's `review-work` convention names), and read nothing else:
+   - every `downgrades` entry with `disposition: follow-up`;
+   - every non-blocking finding in each `verdicts[].trailer_artifact` and, when `whole_diff.run` is true, in the integration-review report the record binds. A non-blocking finding is a note, or a finding in an area the change's `gate.md` names under `Out of scope for blocking`. Replies the record does not bind (earlier waves, retried dispatches, git-ignored reply copies) are not read.
+
+   No gate record: collect nothing, and say so in the summary.
+
+   Write each item as one bullet: the finding and its consequence, its location as `PATH:LINE` (or the area when no line applies), then `Source:` followed by the change name in backticks, the repository path of the artifact the item came from (for a downgrade, the trailer of its `invocation`), a comma, and the finding id: the downgrade's `blocker`, else the reviewer's own label for the finding, else `note <n>` for the n-th unlabelled finding in that artifact. The source text is the item's identity: skip an item whose source text already appears in the destination, and never merge two items that share a location.
+
+   Destination: the Markdown documents outside `openspec/` that `proposal.md` names by repository path. When exactly one of them has a `## Follow-ups` section, append the items there without asking. Otherwise, and only when items were collected, ask the user once, offering each named document, a path the user enters, and skip; a chosen document without the section gains `## Follow-ups` at its end. Never write to a document the proposal does not name and the user did not choose.
+
+   Each entry under `proposal.md`'s `## Follow-ups taken` names a document and a bullet: delete that bullet from that document. Keep every entry whose bullet you cannot find verbatim for the summary.
+
+   Routing never blocks the archive: continue with the next step whatever was written or skipped.
+
+6. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
    ```bash
@@ -176,7 +194,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    mv "<changeRoot>" "<planningHome.changesDir>/archive/<target-name>"
    ```
 
-6. **Display summary**
+7. **Display summary**
 
    Show archive completion summary including:
    - Change name
@@ -184,6 +202,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    - Archive location
    - Spec sync status (synced / sync skipped / no delta specs)
    - Note about any warnings (incomplete artifacts/tasks)
+   - Follow-ups: the destination and the number of items added, the taken bullets removed and any not found; every collected item in full when the user skipped or nothing was written; or that no gate record was found
 
 **Output On Success**
 
@@ -194,6 +213,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/<target-name>/
 **Specs:** ✓ Synced to main specs
+**Follow-ups:** 2 added to docs/roadmap/x.md; 1 taken removed
 
 All artifacts complete. All tasks complete.
 ```
@@ -207,6 +227,7 @@ All artifacts complete. All tasks complete.
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/<target-name>/
 **Specs:** No delta specs
+**Follow-ups:** none collected
 
 All artifacts complete. All tasks complete.
 ```
@@ -220,6 +241,8 @@ All artifacts complete. All tasks complete.
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/<target-name>/
 **Specs:** Sync skipped (user chose to skip)
+**Follow-ups:** skipped
+- <each collected item in full>
 
 **Warnings:**
 - Archived with 2 incomplete artifacts

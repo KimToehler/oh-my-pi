@@ -295,21 +295,23 @@ telemetry setting.
 ### Bumping OpenSpec
 
 `team-config/openspec-version` is the single pin; the deploy check reads it.
-`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version, with one
-team addition: step 4 of `opsx-apply.md` ("Run in the change's worktree"; the later steps are renumbered). They stay
-standalone so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then
-regenerate the commands with it and compare:
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version, with three
+team additions: step 4 of `opsx-apply.md` ("Run in the change's worktree"), step 5 of `opsx-archive.md` ("Route the
+change's follow-ups") and the `Take matching follow-ups (proposal only)` bullet of step 6a in `opsx-propose.md`, plus its
+Guardrails and Output lines; the later steps of the first two are renumbered, and `opsx-archive.md` also carries the
+`Follow-ups` summary bullet and output lines. They stay standalone so each deploys on its own. To bump, set the new
+version in `team-config/openspec-version`, then regenerate the commands with it and compare:
 
 ```sh
 v=$(cat team-config/openspec-version)
 tmp=$(mktemp -d) && git -C "$tmp" init -q
 DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun "@fission-ai/openspec@$v" init "$tmp" --tools oh-my-pi --profile core --no-animation
-diff -r "$tmp/.omp/commands" team-config/agent/commands   # only opsx-apply.md step 4 and its renumbering = no drift
+diff -r "$tmp/.omp/commands" team-config/agent/commands   # only the three team additions and their renumbering = no drift
 ```
 
-Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply step 4 of `opsx-apply.md` from the
-previous version (`git diff` shows it as removed), and rerun the diff. Update the version in the New machine install line
-and in Provenance, install the new CLI, and redeploy. Hand-edit the command files only for that team addition.
+Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply the three team additions from the
+previous version (`git diff` shows them as removed), and rerun the diff. Update the version in the New machine install line
+and in Provenance, install the new CLI, and redeploy. Hand-edit the command files only for these team additions.
 
 ## Changing the team config
 
