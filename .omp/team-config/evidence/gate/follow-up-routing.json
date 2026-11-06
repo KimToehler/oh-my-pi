@@ -1,0 +1,105 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/follow-up-routing",
+  "plan_sha256": "c4442edcc234e9118d0bcd7290e41c80fe9e8fb1f91b450ebe43f7b41a6037f2",
+  "reviewed_sha": "a100c2c7f0a05b6f19f3f2fa614fe167a61cd6ab",
+  "diff_base": "76caf13711a18aac9043417716927898e5c2e73d",
+  "reviewers_run": [
+    "implementation-audit"
+  ],
+  "decision_reason": "gate.md: Mandatory class none, Depth standard, Risk tier internal-tooling; the final diff adds instruction steps and README text only, no class trigger, so one implementation-audit runs.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "R1 Archive collects the change's follow-ups from its gate record",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R1-archive-collects.md",
+      "artifact_sha256": "c63f696246dbc0435b5fb9eca5b848bfae8759eb1d8956a14f71223bdfc73100"
+    },
+    {
+      "name": "R2 Routing leaves the gate record and its evidence unchanged",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R2-record-unchanged.md",
+      "artifact_sha256": "d1b3f56adbebd3b5d784d9f299e4c599a6d2f6261b3beaef1b0369a2bde7f1c2"
+    },
+    {
+      "name": "R3 Follow-ups go to the plan or roadmap the proposal names",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R3-destination.md",
+      "artifact_sha256": "e655d9a1847752f7af56d6a24686ff5a8a96a68577b062f107e4addc3c1cf2df"
+    },
+    {
+      "name": "R4 A follow-up item names its location and source",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R4-item-shape.md",
+      "artifact_sha256": "dbe349f2675c65b8c1edcb7b21ba93c4e7ea21f609ae3001d948a375b3dc6150"
+    },
+    {
+      "name": "R5 Skipped follow-ups stay visible and never block the archive",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R5-skip.md",
+      "artifact_sha256": "399da5545cb6b962929a812143823fad010b489b769e0f790bf57ce7862aa787"
+    },
+    {
+      "name": "R6 Propose takes matching follow-ups into the new change",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R6-propose-takes.md",
+      "artifact_sha256": "620283e1dae4a5ab3a4ec947bbfa769a8d8fab08e919d6672618795f8d86b629"
+    },
+    {
+      "name": "R7 Archiving a change removes the follow-ups it took",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R7-archive-removes.md",
+      "artifact_sha256": "2ae2127dfab604a1ad743d2a11be9bf5a0f58fd9eedc8477073804056ff2023a"
+    },
+    {
+      "name": "R8 The bump procedure names every team addition",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-R8-bump.md",
+      "artifact_sha256": "60a05ff2c098df9679ff69f3eea3edd2cefe5ecb543df19e623c51fbcd55464e"
+    },
+    {
+      "name": "M1 Happy path: archive routes follow-ups to the named roadmap",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-M1-happy-path.md",
+      "artifact_sha256": "ee482032668ca8a5daf6ca4dce5e3530e25609b754434cbff3ebe1bc47dc6519"
+    },
+    {
+      "name": "M2 Riskiest edge: destination ask with an unnamed document holding the section",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-M2-riskiest-edge.md",
+      "artifact_sha256": "aab7bc5512cde8b301351d29fd01441e80d109c014919d5330945903f0d48bc4"
+    },
+    {
+      "name": "M3 Adjacent regression: generated sync and move unchanged, nothing to route",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/follow-up-routing/wave-1/qa-M3-adjacent-regression.md",
+      "artifact_sha256": "36d8ec1f444ca5fb908a5b91016f939e15b52d3f6580a5b9036bfb1999337ce7"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/follow-up-routing/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "5f379e0c9508059a88cb2c8ef9f73bead0c2abeb3efef529c7d31444258a40d1",
+      "note": "no blockers; note N1: unexercised branches (several named documents with the section, repaired trailers, out-of-scope findings)"
+    }
+  ],
+  "blockers": []
+}

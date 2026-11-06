@@ -1,0 +1,55 @@
+## 1. Goal and behavioural contract
+
+Reviewed the complete immutable plan bundle, supplied delivered-file diff, command workflows, README bump procedure, relevant consumers, and retained F1 evidence.
+
+The implementation closes the intended loop: archive collects bound findings, routes them to an authorized document, and removes verbatim taken bullets; propose records matching follow-ups without modifying their documents. No gate schema, validator, blocker-disposition, or review-verdict changes appear in the supplied diff.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No substantiated blocker found.
+
+The cross-command seam is consistent:
+- `opsx-propose.md:118` records the document path and verbatim bullet.
+- `opsx-archive.md:176` consumes that representation for deletion.
+- `opsx-archive.md:172` retains artifact-path identity, avoiding collisions between findings sharing a location or reviewer label.
+- The archive step precedes the move, and the sync warning correctly references renumbered step 6.
+- The README names the three additions and their ancillary output/guardrail changes. The retained regeneration diff contains those additions and renumbering.
+
+Existing deployment and command-selection consumers remain compatible; no additional deployment mechanism or schema convention was introduced.
+
+## 3. Security and privacy delta
+
+No qualifying security delta identified. The delivered change does not touch credentials, authentication, authorization, third-party personal data, or access to a protected asset.
+
+The new instructions constrain finding sources to bound evidence and document writes to proposal-named or user-selected destinations. The collection snapshots show unchanged record and pinned-artifact digests. This review does not independently certify the evidence collection’s secret scan.
+
+## 4. Verification adequacy
+
+The retained evidence exercises actual agent behavior and resulting filesystem changes, not merely prompt-string assertions. I inspected collection tool interactions and output, collection before/after snapshots, destination patches, round-trip deletion proof, edited-bullet handling, skip output, and the regeneration diff.
+
+These support the supplied QA results: distinct artifact identities survive routing; residual and unbound findings are excluded in the exercised fixtures; skipped items remain visible; and taken bullets can be removed in a fresh archive session.
+
+**Note N1 — unexercised classification and destination branches.** `.omp/team-config/evidence/gate/follow-up-routing/f1/README.md:37` explicitly identifies missing coverage for several named documents with sections, repaired trailers, and affirmative out-of-scope findings. In particular, `opsx-archive.md:168` has no positive runtime witness for collecting an out-of-scope finding. Non-blocking: no incorrect outcome is demonstrated, the general collection and destination-question mechanisms were exercised, and repaired-trailer note loss is an explicitly accepted residual.
+
+My additional adversarial criterion concerns preservation of surrounding Markdown when a follow-up section is not the document’s final section. That layout was not established by the inspected captures; it is not reported as passed.
+
+No builds, tests, or sessions were run during this read-only audit.
+
+## 5. Final verdict
+
+No finding meets the brief’s blocking threshold. Residual uncertainty remains in the explicitly unexercised branches and free-text classification behavior.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Routing preserves unrelated Markdown sections byte-for-byte when the Follow-ups section is followed by another heading.
+  positive_witness: Items are inserted inside Follow-ups and a taken bullet is removed while the following Milestones heading and its contents remain unchanged.
+  negative_control: Routing appends items beneath Milestones or rewrites or deletes that section while removing a taken bullet.
+  observable: The destination document before-and-after diff shows only the intended bullet additions and deletion within the Follow-ups section.
+  boundary: Destination Markdown file on disk after archive routing.
+END-REVIEW-TRAILER
