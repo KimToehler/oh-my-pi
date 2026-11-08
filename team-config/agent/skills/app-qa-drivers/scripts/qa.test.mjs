@@ -23,7 +23,7 @@ import {
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -274,7 +274,6 @@ const pw = env.MAESTRO_DEV_PW ?? '';
   fs.writeFileSync(path.join(logDir, 'maestro.log'), record);
   const caseDir = path.join(outDir, '2026-11-07_120000', name);
   for (const d of ['screenshots', 'screen-hierarchy']) fs.mkdirSync(path.join(caseDir, d), { recursive: true });
-  fs.writeFileSync(path.join(caseDir, 'commands-(' + name + ').json'), JSON.stringify([{ inputText: user }, { inputText: pw }, ...leak.map((v) => ({ inputText: v }))]));
   fs.writeFileSync(path.join(caseDir, 'maestro.log'), record);
   fs.writeFileSync(path.join(caseDir, 'screenshots', 'step-001-tapOn.png'), png);
   fs.writeFileSync(path.join(caseDir, 'screen-hierarchy', 'step-001-tapOn.json'), '{"text":"' + user + '"}');
@@ -283,13 +282,28 @@ const pw = env.MAESTRO_DEV_PW ?? '';
   const derived = path.join(jvmTmp, 'maestro_xctestrunner_xcodebuild_output' + process.pid);
   fs.mkdirSync(derived, { recursive: true });
   fs.writeFileSync(path.join(derived, 'info.plist'), 'derived data\\n' + leak.join('\\n'));
-  const shot = (dir, file, bytes) => { const d = path.join(outDir, '2026-11-07_120000', dir, 'takeScreenshot'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, file), bytes); };
-  if (m.named) shot(name, 'home.png', png);
-  for (const s of m.shots ?? []) {
-    const bytes = s.data === 'pw' ? Buffer.concat([png, Buffer.from(pw)]) : s.data === 'b' ? pngB : png;
-    shot(s.dir ?? name, s.file, bytes);
+  // Maestro 2.12.1 writes every takeScreenshot of a flow and its subflows to the flow's one takeScreenshot/ folder, so a
+  // repeated name overwrites the file; only the command record keeps each one, with its artifact path, step and depth.
+  const entries = [];
+  const entry = (command, depth, artifacts) =>
+    entries.push({ command, metadata: { status: 'COMPLETED', ...(artifacts ? { artifacts } : {}), sequenceNumber: entries.length, depth } });
+  const shot = (s, bytes) => {
+    if (s.sub) entry({ runFlowCommand: { sourceDescription: s.sub + '.yaml' } }, 0);
+    if (!s.noFile) {
+      fs.mkdirSync(path.join(caseDir, 'takeScreenshot'), { recursive: true });
+      fs.writeFileSync(path.join(caseDir, 'takeScreenshot', s.file), bytes);
+    }
+    entry({ takeScreenshotCommand: { path: path.basename(s.file, '.png') } }, s.sub ? 1 : 0, [{ type: 'TAKE_SCREENSHOT', path: 'takeScreenshot/' + s.file }]);
+  };
+  if (m.named) shot({ file: 'home.png' }, png);
+  for (const s of m.shots ?? []) shot(s, s.data === 'pw' ? Buffer.concat([png, Buffer.from(pw)]) : s.data === 'b' ? pngB : png);
+  if (leak.length) shot({ file: 'leak.png' }, Buffer.concat([png, Buffer.from([0]), Buffer.from(leak.join(' '))]));
+  for (const d of m.dirs ?? []) {
+    fs.mkdirSync(path.join(caseDir, d), { recursive: true });
+    fs.writeFileSync(path.join(caseDir, d, 'clean.log'), 'nothing to see\\n');
   }
-  if (leak.length) shot(name, 'leak.png', Buffer.concat([png, Buffer.from([0]), Buffer.from(leak.join(' '))]));
+  for (const v of [user, pw, ...leak]) entry({ inputTextCommand: { text: v } }, 0);
+  fs.writeFileSync(path.join(caseDir, 'commands-(' + name + ').json'), m.badRecord ? '[{"command":' : JSON.stringify(entries));
   if (m.escapedOnly) fs.writeFileSync(path.join(caseDir, 'state.json'), JSON.stringify({ field: pw }));
   if (m.binaryLeak) fs.writeFileSync(path.join(caseDir, 'blob.bin'), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(pw)]));
   if (m.wordLog) fs.writeFileSync(path.join(caseDir, 'notes.log'), m.wordLog);
@@ -1281,7 +1295,13 @@ test('flow: credentials of a linked worktree come from the main checkout file of
   assert.equal(scan.stderr, `credentials: ${join(L.repo, 'secrets', 'qa-accounts.env')}\n`);
 });
 
-/** Asserts that no configured value of either foreign account, in any form, reached a sink of design D3. */
+/** Paths of every file and folder below `dir`, relative to it. */
+function pathsBelow(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true, recursive: true }).map((e) => relative(dir, join(e.parentPath, e.name))).sort();
+}
+
+/** Asserts that no configured value of either foreign account, in any form, reached a sink of design D3, path names included. */
 function assertNoForeignLeak(L, r, out) {
   const values = [ALPHA_USER, ALPHA_PW, BETA_USER, BETA_PW];
   assert.deepEqual(leaks(r.stdout + r.stderr, values), [], 'driver output');
@@ -1290,7 +1310,26 @@ function assertNoForeignLeak(L, r, out) {
     const bytes = readFileSync(f, 'latin1');
     assert.deepEqual(leaks(bytes, values.map((v) => Buffer.from(v, 'utf8').toString('latin1'))), [], f);
   }
+  for (const p of [...pathsBelow(root), ...pathsBelow(out)]) assert.deepEqual(leaks(p, values), [], `path ${p}`);
 }
+
+test('flow: sweep removes files and folders whose names hold a credential, failing and passing', async () => {
+  for (const fail of [true, false]) {
+    const L = layout({ fixture: 'foreign' });
+    // Clean bytes throughout: only the names carry the values (beta is the selected account, alpha is not).
+    L.maestro({ fail, failMessage: 'not there', shots: [{ file: `sign-in-${BETA_USER}.png` }, { file: 'menu.png' }], dirs: [ALPHA_PW] });
+    const out = join(L.root, 'evidence');
+    const r = await flow(L, ['--out', out]);
+    assert.equal(r.status, 1, r.stdout);
+    assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
+    assert.ok(r.lines.includes(`sweep: deleted ${join('out', '2026-11-07_120000', 'scenario', '[redacted]')}`), r.stdout);
+    if (!fail) {
+      assert.ok(r.lines.includes('flow: screenshot sign-in-[redacted].png removed by the sweep'), r.stdout);
+      assert.deepEqual(readdirSync(out), ['menu.png']);
+    } else assert.equal(existsSync(valueAfter(r, 'root: ')), true);
+    assertNoForeignLeak(L, r, out);
+  }
+});
 
 test('flow: credentials sentinel run across every sink leaves no value of either account, failing and passing', async () => {
   for (const fail of [true, false]) {
@@ -1618,26 +1657,28 @@ test('flow: screenshot a named screenshot is copied to --out and the root remove
   assert.equal(existsSync(valueAfter(r, 'root: ')), false);
 });
 
-const caseShot = (dir, file) => join('out', '2026-11-07_120000', dir, 'takeScreenshot', file);
+const caseShot = (file) => join('out', '2026-11-07_120000', 'scenario', 'takeScreenshot', file);
+const caseRecord = join('out', '2026-11-07_120000', 'scenario', 'commands-(scenario).json');
 
 test('flow: screenshot the flow and its subflow both naming home copy neither and fail the run', async () => {
+  // The fake, like Maestro 2.12.1, leaves one home.png on disk: the subflow's overwrote the flow's.
   const L = layout({
-    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { dir: 'signin', file: 'home.png', data: 'b' }, { file: 'menu.png' }] } },
+    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { sub: 'signin', file: 'home.png', data: 'b' }, { file: 'menu.png' }] } },
   });
   const out = join(L.root, 'evidence');
   const r = await flow(L, ['--out', out]);
   assert.equal(r.status, 1, r.stdout);
   assert.deepEqual(readdirSync(out), ['menu.png']);
-  assert.ok(r.lines.includes(`flow: screenshot home.png taken 2 times (${caseShot('scenario', 'home.png')}, ${caseShot('signin', 'home.png')})`), r.stdout);
+  assert.ok(r.lines.includes(`flow: screenshot home.png taken 2 times (${caseShot('home.png')} step 0, ${caseShot('home.png')} step 2 in signin.yaml)`), r.stdout);
   assert.ok(r.lines.includes(`screenshot: ${join(out, 'menu.png')}`));
   assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
   assert.equal(existsSync(valueAfter(r, 'root: ')), false);
 });
 
-test('flow: screenshot a clash stays a clash when the sweep removed one of the images', async () => {
+test('flow: screenshot a clash stays a clash when the sweep removed its one file', async () => {
   const L = layout({
     fixture: 'foreign',
-    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { dir: 'signin', file: 'home.png', data: 'pw' }] } },
+    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { sub: 'signin', file: 'home.png', data: 'pw' }] } },
   });
   const out = join(L.root, 'evidence');
   const r = await flow(L, ['--out', out]);
@@ -1648,6 +1689,25 @@ test('flow: screenshot a clash stays a clash when the sweep removed one of the i
   assertNoForeignLeak(L, r, out);
 });
 
+test('flow: screenshot an unreadable command record fails a passing run', async () => {
+  const L = layout({ state: { maestro: { ...DEFAULT_STATE.maestro, named: true, badRecord: true } } });
+  const out = join(L.root, 'evidence');
+  const r = await flow(L, ['--out', out]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(r.lines.includes(`flow: screenshot record unreadable: ${caseRecord}`), r.stdout);
+  assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
+});
+
+test('flow: screenshot a recorded screenshot with no file fails the run', async () => {
+  const L = layout({ state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'gone.png', noFile: true }, { file: 'menu.png' }] } } });
+  const out = join(L.root, 'evidence');
+  const r = await flow(L, ['--out', out]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.deepEqual(readdirSync(out), ['menu.png']);
+  assert.ok(r.lines.includes(`flow: screenshot gone.png missing (${caseShot('gone.png')} step 0)`), r.stdout);
+  assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
+});
+
 test('flow: screenshot a named screenshot the sweep removes fails the run', async () => {
   const L = layout({ fixture: 'foreign', state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png', data: 'pw' }, { file: 'menu.png' }] } } });
   const out = join(L.root, 'evidence');
@@ -1655,7 +1715,7 @@ test('flow: screenshot a named screenshot the sweep removes fails the run', asyn
   assert.equal(r.status, 1, r.stdout);
   assert.deepEqual(readdirSync(out), ['menu.png']);
   assert.ok(r.lines.includes('flow: screenshot home.png removed by the sweep'), r.stdout);
-  assert.ok(r.lines.includes(`sweep: deleted ${caseShot('scenario', 'home.png')}`), r.stdout);
+  assert.ok(r.lines.includes(`sweep: deleted ${caseShot('home.png')}`), r.stdout);
   assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
   assert.equal(existsSync(valueAfter(r, 'root: ')), false);
   assertNoForeignLeak(L, r, out);
@@ -1941,6 +2001,22 @@ test('scan: the foreign accounts and sentinel are hits, a value no account names
   assert.deepEqual(r.lines, ['alpha-pw.log', 'alpha-user.log', 'beta-pw.json', 'beta-user.log', 'canary.log'].map((n) => join(folder, n)));
   assert.deepEqual(leaks(r.stdout + r.stderr), []);
   assert.doesNotMatch(r.stdout + r.stderr, /CANARY/);
+});
+
+test('scan: a clean file whose name holds a password is a hit, printed with the value redacted', async () => {
+  const L = layout({ fixture: 'foreign', fakes: [] });
+  const folder = join(L.root, 'evidence');
+  mkdirSync(join(folder, `by-${BETA_USER}`), { recursive: true });
+  writeFileSync(join(folder, 'clean.log'), 'nothing to see\n');
+  writeFileSync(join(folder, `${ALPHA_PW}.log`), 'nothing to see\n');
+  writeFileSync(join(folder, `by-${BETA_USER}`, 'clean.log'), 'nothing to see\n');
+  const r = await runQa(L, ['scan', folder]);
+  assert.equal(r.status, 1);
+  assert.deepEqual(r.lines, [join(folder, '[redacted].log'), join(folder, 'by-[redacted]', 'clean.log')]);
+  assert.deepEqual(leaks(r.stdout + r.stderr), []);
+  const file = await runQa(L, ['scan', join(folder, `${ALPHA_PW}.log`)]);
+  assert.equal(file.status, 1);
+  assert.deepEqual(file.lines, [join(folder, '[redacted].log')]);
 });
 
 test('scan: without a credentials section only tokens and sentinels are hits', async () => {

@@ -357,10 +357,22 @@ function* walkFiles(path) {
   for (const entry of readdirSync(path).sort()) yield* walkFiles(join(path, entry));
 }
 
-/** Paths of the files below `path` that hold a token, a credential value or one of the `extra` literal terms. */
+/** Whether a path, relative to the folder it was found in, holds a credential (`pattern`, the redaction pattern). */
+export function pathHit(rel, pattern) {
+  if (!pattern) return false;
+  pattern.lastIndex = 0;
+  return pattern.test(rel);
+}
+
+/**
+ * Paths of the files below `path` whose contents hold a token, a credential value or one of the `extra` literal terms,
+ * or whose path relative to `path` (a file by its own name) holds a credential value.
+ */
 export function scanPaths(path, values, extra = []) {
   const pattern = credentialPattern(values, asBytes);
-  return [...walkFiles(path)].filter((f) => fileHit(readFileSync(f), pattern, extra));
+  const names = credentialPattern(values);
+  const base = lstatSync(path).isDirectory() ? path : dirname(path);
+  return [...walkFiles(path)].filter((f) => pathHit(relative(base, f), names) || fileHit(readFileSync(f), pattern, extra));
 }
 
 /** Redacts a flagged text file in place or deletes a flagged binary file; returns what it did. */
@@ -905,9 +917,13 @@ function* walkAll(path) {
   }
 }
 
+/** Maestro's command records, which hold every typed value and are deleted by the sweep. */
+const RECORD = /^commands.*\.json$/;
+
 /**
  * Removes Maestro's step screenshots and hierarchies (every image too after a failure) and its command records, then
- * redacts or deletes each file that still holds a credential or token. Returns the printed sweep lines.
+ * every file and folder whose path below the root holds a credential, then redacts or deletes each file that still
+ * holds a credential or token. Returns the printed sweep lines; `say` redacts a value in a printed path.
  */
 export function sweepRoot(root, values, failed) {
   const lines = [];
@@ -917,48 +933,101 @@ export function sweepRoot(root, values, failed) {
   }
   for (const e of [...walkAll(root)]) {
     if (e.dir) continue;
-    if (/^commands.*\.json$/.test(e.name)) {
+    if (RECORD.test(e.name)) {
       unlinkSync(e.path);
       lines.push(`sweep: deleted ${rel(e.path)}`);
     } else if (failed && IMAGE_EXT.has(extname(e.name).toLowerCase())) unlinkSync(e.path);
+  }
+  // A flagged folder's contents are flagged too; only the topmost flagged path of each branch is removed and printed.
+  const names = credentialPattern(values);
+  for (const e of [...walkAll(root)]) {
+    if (!pathHit(rel(e.path), names) || pathHit(rel(dirname(e.path)), names)) continue;
+    rmSync(e.path, { recursive: true, force: true });
+    lines.push(`sweep: deleted ${rel(e.path)}`);
   }
   for (const file of scanPaths(root, values)) lines.push(`sweep: ${neutralize(file, values)} ${rel(file)}`);
   return lines;
 }
 
-/** The named screenshots below the run's output directory, by file name, each with its sources sorted. */
-function namedScreenshots(outRoot) {
+/**
+ * The named screenshots of the run by file name, read before the sweep from Maestro's command records below `outRoot`:
+ * Maestro 2.12.1 writes a flow's and its subflows' screenshots of one name to one file, so only the records count
+ * them. Each source is the screenshot's path relative to `root` with the step (and subflow) that took it, and whether
+ * its file existed; a `takeScreenshot/` file no record names adds a source of its own. Returns the manifest and the
+ * records that could not be read.
+ */
+function namedScreenshots(outRoot, root) {
   const byName = new Map();
-  if (!existsSync(outRoot)) return byName;
-  for (const e of walkAll(outRoot)) {
-    if (e.dir || basename(dirname(e.path)) !== 'takeScreenshot') continue;
-    byName.set(e.name, [...(byName.get(e.name) ?? []), e.path].sort());
+  const unreadable = [];
+  if (!existsSync(outRoot)) return { byName, unreadable };
+  const add = (path, src) => {
+    const name = basename(path);
+    byName.set(name, [...(byName.get(name) ?? []), { path, src, present: existsSync(path) }]);
+  };
+  const all = [...walkAll(outRoot)].filter((e) => !e.dir).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const recorded = new Set();
+  for (const e of all.filter((f) => RECORD.test(f.name))) {
+    let entries;
+    try {
+      entries = JSON.parse(readFileSync(e.path, 'utf8'));
+    } catch {
+      entries = null;
+    }
+    if (!Array.isArray(entries)) {
+      unreadable.push(e.path);
+      continue;
+    }
+    const subflows = [];
+    for (const entry of entries) {
+      const meta = entry?.metadata ?? {};
+      const depth = Number.isInteger(meta.depth) ? meta.depth : 0;
+      const run = entry?.command?.runFlowCommand;
+      if (run) subflows[depth + 1] = run.sourceDescription ?? null;
+      for (const a of meta.artifacts ?? []) {
+        if (a?.type !== 'TAKE_SCREENSHOT' || typeof a.path !== 'string') continue;
+        const path = join(dirname(e.path), a.path);
+        recorded.add(path);
+        const sub = depth > 0 && subflows[depth] ? ` in ${subflows[depth]}` : '';
+        add(path, `${relative(root, path)} step ${meta.sequenceNumber}${sub}`);
+      }
+    }
   }
-  return byName;
+  for (const e of all) {
+    if (basename(dirname(e.path)) === 'takeScreenshot' && !recorded.has(e.path)) add(e.path, relative(root, e.path));
+  }
+  return { byName, unreadable };
 }
 
 /**
- * Copies each named screenshot to `out` under its file name and reports every one it could not: a name taken more than
- * once (none of them copied), one the sweep removed, a copy error, and a copy that holds a credential or token.
+ * Copies each named screenshot to `out` under its file name and reports every one it could not: an unreadable record
+ * (a clash cannot be ruled out), a name taken more than once (none of them copied), one whose file Maestro never
+ * wrote, one the sweep removed, a copy error, and a copy that holds a credential or token.
  * Returns whether every named screenshot was copied.
  */
-function exportScreenshots(manifest, root, out, values) {
+function exportScreenshots({ byName, unreadable }, root, out, values) {
   const pattern = credentialPattern(values, asBytes);
-  let complete = true;
-  for (const [file, sources] of manifest) {
+  let complete = unreadable.length === 0;
+  for (const record of unreadable) say(`flow: screenshot record unreadable: ${relative(root, record)}`);
+  for (const [file, sources] of byName) {
     if (sources.length > 1) {
-      say(`flow: screenshot ${file} taken ${sources.length} times (${sources.map((s) => relative(root, s)).join(', ')})`);
+      say(`flow: screenshot ${file} taken ${sources.length} times (${sources.map((s) => s.src).join(', ')})`);
       complete = false;
       continue;
     }
-    if (!existsSync(sources[0])) {
+    const [source] = sources;
+    if (!source.present) {
+      say(`flow: screenshot ${file} missing (${source.src})`);
+      complete = false;
+      continue;
+    }
+    if (!existsSync(source.path)) {
       say(`flow: screenshot ${file} removed by the sweep`);
       complete = false;
       continue;
     }
     const target = join(out, file);
     try {
-      copyFileSync(sources[0], target, constants.COPYFILE_EXCL);
+      copyFileSync(source.path, target, constants.COPYFILE_EXCL);
     } catch (e) {
       say(`flow: screenshot ${file} not copied: ${e.code ?? 'error'}`);
       complete = false;
@@ -1150,8 +1219,9 @@ async function cmdFlow(ctx, args) {
       result = readJunit(readFileSync(report, 'utf8'));
     } catch {}
     const passed = status === 0 && result !== null && !result.failed;
-    // Recorded before the sweep, so a named screenshot the sweep deletes is still accounted for.
-    const manifest = namedScreenshots(join(root, 'out'));
+    // Read from Maestro's command records before the sweep deletes them, so every named screenshot taken, one the
+    // sweep removes included, is accounted for.
+    const manifest = namedScreenshots(join(root, 'out'), root);
     for (const line of sweepRoot(root, redactValues, !passed)) say(line);
     const secs = result?.time != null ? ` ${Math.round(result.time * 10) / 10}s` : '';
     if (!passed) {
