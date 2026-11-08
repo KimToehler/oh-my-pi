@@ -18,6 +18,7 @@ The team skill `app-qa-drivers` tells agents to drive Compose Multiplatform apps
   - The skill's fresh-agent proof captures only tool-call arguments, driver output and the final report.
 - Tests move with the driver (`qa.test.mjs`, fake `spectre`, `maestro`, `xcrun`, `adb`, `ioreg`, `ps`) and run in `bun run test:team-config`, against three fixture configurations: onara's values, a populated one with unrelated keys, accounts and screens, and a minimal one (desktop app only).
 - The team skill documents the driver commands, the configuration file and the lock; the app repository's QA skill keeps only app values (tags, accounts, expected screens, launch steps, sign-in subflows).
+- The team rule `ui-automation-credentials` gains the evidence rule (an evidence file or folder the session did not write is only scanned, never read or listed) and a condition naming the skill, so a tool call naming `app-qa-drivers` loads the rule before any call of that reply runs; the skill alone reaches the model only after a first reply's calls have run.
 
 Not in this change: onara's cutover (its config file, deleting `app_kmp/scripts/qa.mjs`, the onboarding runner's lock path) and weaver's adoption (its config file, Android test tags as resource ids, its app QA skill). Each is its own change in its own repository, after this one is merged and deployed.
 
@@ -31,7 +32,7 @@ Not in this change: onara's cutover (its config file, deleting `app_kmp/scripts/
 ## Impact
 
 - New: `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs`, `qa.test.mjs` and test fixtures beside them; `package.json` `test:team-config` gains the test file.
-- Changed: `team-config/agent/skills/app-qa-drivers/SKILL.md`.
+- Changed: `team-config/agent/skills/app-qa-drivers/SKILL.md`, `team-config/agent/rules/ui-automation-credentials.md` (one condition, the description and one section).
 - Deployment: `scripts/deploy-local.sh` already mirrors `team-config/agent/**`; nothing new to install. Drivers stay external and pinned (Spectre 0.9.0, Maestro 2.12.1); Node with global `fetch`, no npm dependencies.
 - Consumers: none until onara and weaver add `.omp/app-qa.json`; until then the team skill routes a repository without the file to its own driver, so onara's `kmp-qa` skill, which delegates its procedure to the team skill, keeps working. Onara keeps running its own `app_kmp/scripts/qa.mjs` and its `${TMPDIR}/onara-qa/flow.lock` until its cutover change, so during that window the two drivers do not exclude each other on one device.
 - Credentials: the driver reads real dev passwords of a remote identity provider (onara's Keycloak realm) from the main checkout's gitignored file and hands them to Maestro; its redaction, sweep and scan are the guard.
