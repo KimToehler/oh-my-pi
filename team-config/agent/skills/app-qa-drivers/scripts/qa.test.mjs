@@ -289,11 +289,12 @@ const pw = env.MAESTRO_DEV_PW ?? '';
     entries.push({ command, metadata: { status: 'COMPLETED', ...(artifacts ? { artifacts } : {}), sequenceNumber: entries.length, depth } });
   const shot = (s, bytes) => {
     if (s.sub) entry({ runFlowCommand: { sourceDescription: s.sub + '.yaml' } }, 0);
+    const rel = path.join(s.dir ?? '', 'takeScreenshot', s.file);
     if (!s.noFile) {
-      fs.mkdirSync(path.join(caseDir, 'takeScreenshot'), { recursive: true });
-      fs.writeFileSync(path.join(caseDir, 'takeScreenshot', s.file), bytes);
+      fs.mkdirSync(path.dirname(path.join(caseDir, rel)), { recursive: true });
+      fs.writeFileSync(path.join(caseDir, rel), bytes);
     }
-    entry({ takeScreenshotCommand: { path: path.basename(s.file, '.png') } }, s.sub ? 1 : 0, [{ type: 'TAKE_SCREENSHOT', path: 'takeScreenshot/' + s.file }]);
+    entry({ takeScreenshotCommand: { path: path.basename(s.file, '.png') } }, s.sub ? 1 : 0, [{ type: 'TAKE_SCREENSHOT', path: rel }]);
   };
   if (m.named) shot({ file: 'home.png' }, png);
   for (const s of m.shots ?? []) shot(s, s.data === 'pw' ? Buffer.concat([png, Buffer.from(pw)]) : s.data === 'b' ? pngB : png);
@@ -845,6 +846,26 @@ test('preflight: two usable devices', async () => {
   assert.equal(given.lines[2], 'PASS device: emulator-5556 (given)');
 });
 
+test('preflight: a given device that is not booted fails, naming the booted devices', async () => {
+  const L = layout({ state: { iosDevices: [{ udid: 'SIM-1', name: 'A' }], androidDevices: ['emulator-5554'] } });
+  const ios = await runQa(L, ['preflight', 'ios', '--device', 'SIM-9']);
+  assert.equal(ios.status, 1);
+  assert.equal(ios.lines[2], 'FAIL device: SIM-9 is not booted (booted: SIM-1 (A)) -- fix: pass --device ID');
+  const android = await runQa(L, ['preflight', 'android', '--device', 'emulator-5556']);
+  assert.equal(android.status, 1);
+  assert.equal(android.lines[2], 'FAIL device: emulator-5556 is not booted (booted: emulator-5554) -- fix: pass --device ID');
+  const listed = await runQa(L, ['preflight', 'ios', '--device', 'SIM-1']);
+  assert.equal(listed.status, 0, listed.stdout);
+  assert.equal(listed.lines[2], 'PASS device: SIM-1 (given)');
+  L.set({ iosDevices: [], androidDevices: [] });
+  const noneIos = await runQa(L, ['preflight', 'ios', '--device', 'SIM-1']);
+  assert.equal(noneIos.status, 1);
+  assert.equal(noneIos.lines[2], 'FAIL device: SIM-1 is not booted (booted: none) -- fix: boot a simulator (xcrun simctl boot NAME)');
+  const noneAndroid = await runQa(L, ['preflight', 'android', '--device', 'emulator-5554']);
+  assert.equal(noneAndroid.status, 1);
+  assert.equal(noneAndroid.lines[2], 'FAIL device: emulator-5554 is not booted (booted: none) -- fix: start an emulator');
+});
+
 test('preflight: unhealthy backend', async () => {
   const L = layout();
   health = { code: 503, body: '{"status":"DOWN"}', hang: false };
@@ -1160,6 +1181,20 @@ test('desktop: capture writes NAME.png and NAME.json into --out', async () => {
   assert.equal(spectreCalls(L, 'capture').length, 1);
 });
 
+test('desktop: capture refuses a name whose PNG alone or JSON alone already exists', async () => {
+  const L = await attached();
+  for (const [kept, bytes] of [['home.json', '{"kept":true}\n'], ['home.png', 'kept png bytes']]) {
+    const out = join(L.root, `evidence-${kept}`);
+    mkdirSync(out);
+    writeFileSync(join(out, kept), bytes);
+    const r = await runQa(L, ['desktop', 'capture', 'home', '--out', out]);
+    assert.equal(r.status, 2, kept);
+    assert.deepEqual(readdirSync(out), [kept]);
+    assert.equal(readFileSync(join(out, kept), 'utf8'), bytes);
+  }
+  assert.equal(spectreCalls(L, 'capture').length, 0);
+});
+
 test('desktop: capture without a session writes nothing', async () => {
   const L = await attached();
   assert.equal((await runQa(L, ['desktop', 'detach'])).status, 0);
@@ -1457,6 +1492,22 @@ test('flow: device two booted or none are refused', async () => {
   assert.equal(maestroRuns(L).length, 0);
 });
 
+test('flow: device a given device that is not booted is refused before the lock', async () => {
+  const L = layout({ state: { iosDevices: [{ udid: 'SIM-1', name: 'A' }], androidDevices: ['emulator-5554'] } });
+  const ios = await flow(L, ['--device', 'SIM-9']);
+  assert.equal(ios.status, 2);
+  assert.equal(ios.lines.at(-1), 'flow: SIM-9 is not booted (booted: SIM-1 (A))');
+  const android = await runQa(L, ['flow', 'android', flowFile(L), '--device', 'emulator-5556']);
+  assert.equal(android.status, 2);
+  assert.equal(android.lines.at(-1), 'flow: emulator-5556 is not booted (booted: emulator-5554)');
+  L.set({ iosDevices: [] });
+  const none = await flow(L, ['--device', 'SIM-1']);
+  assert.equal(none.status, 2);
+  assert.equal(none.lines.at(-1), 'flow: SIM-1 is not booted (booted: none)');
+  assert.equal(existsSync(lockPath(L)), false);
+  assert.equal(maestroRuns(L).length, 0);
+});
+
 test('flow: root the result line comes from the junit report', async () => {
   const L = layout();
   const pass = await flow(L);
@@ -1679,6 +1730,34 @@ test('flow: screenshot a clash stays a clash when the sweep removed its one file
   const L = layout({
     fixture: 'foreign',
     state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { sub: 'signin', file: 'home.png', data: 'pw' }] } },
+  });
+  const out = join(L.root, 'evidence');
+  const r = await flow(L, ['--out', out]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.deepEqual(readdirSync(out), []);
+  assert.ok(r.lines.some((l) => l.startsWith('flow: screenshot home.png taken 2 times (')), r.stdout);
+  assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
+  assertNoForeignLeak(L, r, out);
+});
+
+test('flow: screenshot two files named home in different folders copy neither and fail the run', async () => {
+  const L = layout({
+    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { dir: 'other', file: 'home.png', data: 'b' }, { file: 'menu.png' }] } },
+  });
+  const out = join(L.root, 'evidence');
+  const r = await flow(L, ['--out', out]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.deepEqual(readdirSync(out), ['menu.png']);
+  const other = join('out', '2026-11-07_120000', 'scenario', 'other', 'takeScreenshot', 'home.png');
+  assert.ok(r.lines.includes(`flow: screenshot home.png taken 2 times (${caseShot('home.png')} step 0, ${other} step 1)`), r.stdout);
+  assert.equal(r.lines.some((l) => l.startsWith('PASS')), false);
+  assert.equal(existsSync(valueAfter(r, 'root: ')), false);
+});
+
+test('flow: screenshot two files named home in different folders, one swept, export neither', async () => {
+  const L = layout({
+    fixture: 'foreign',
+    state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png' }, { dir: 'other', file: 'home.png', data: 'pw' }] } },
   });
   const out = join(L.root, 'evidence');
   const r = await flow(L, ['--out', out]);
@@ -2032,6 +2111,55 @@ test('scan: without a credentials section only tokens and sentinels are hits', a
   const flagged = await runQa(L, ['scan', folder, '--credentials', join(L.root, 'any.env')]);
   assert.equal(flagged.status, 2);
   assert.match(flagged.stderr, /--credentials needs a credentials section/);
+});
+
+for (const [fixture, config] of [
+  ['foreign', undefined],
+  ['minimal', { ...CONFIGS.minimal, scan: { sentinels: ['CANARY'] } }],
+]) {
+  test(`scan: a sentinel in a matching file's name or folder is redacted (${fixture})`, async () => {
+    const L = layout({ fixture, config, fakes: [] });
+    const folder = join(L.root, 'evidence');
+    mkdirSync(join(folder, 'CANARY-run'), { recursive: true });
+    writeFileSync(join(folder, 'CANARY.log'), `access ${TOKEN}\n`);
+    writeFileSync(join(folder, 'CANARY-run', 'run.log'), `access ${TOKEN}\n`);
+    const r = await runQa(L, ['scan', folder]);
+    assert.equal(r.status, 1, r.stderr);
+    assert.deepEqual(r.lines, [join(folder, '[redacted]-run', 'run.log'), join(folder, '[redacted].log')]);
+    assert.doesNotMatch(r.stdout + r.stderr, /CANARY/);
+    assert.deepEqual(leaks(r.stdout + r.stderr), []);
+  });
+}
+
+test('scan: a symbolic link is not followed but reported as not scanned', async () => {
+  const L = layout({ fixture: 'minimal', fakes: [] });
+  const outside = join(L.root, 'outside');
+  mkdirSync(outside);
+  writeFileSync(join(outside, 'secret.log'), `access ${TOKEN}\n`);
+  const folder = join(L.root, 'evidence');
+  mkdirSync(folder);
+  writeFileSync(join(folder, 'clean.log'), 'nothing to see\n');
+  writeFileSync(join(folder, 'token.log'), `access ${TOKEN}\n`);
+  symlinkSync(join(outside, 'secret.log'), join(folder, 'latest.log'));
+  const r = await runQa(L, ['scan', folder]);
+  assert.equal(r.status, 2, r.stdout);
+  assert.deepEqual(r.lines, [join(folder, 'token.log'), `scan: not scanned: ${join(folder, 'latest.log')}`]);
+  assert.deepEqual(leaks(r.stdout + r.stderr), []);
+  const link = await runQa(L, ['scan', join(folder, 'latest.log')]);
+  assert.equal(link.status, 2, link.stdout);
+  assert.deepEqual(link.lines, [`scan: not scanned: ${join(folder, 'latest.log')}`]);
+  assert.deepEqual(leaks(link.stdout + link.stderr), []);
+});
+
+test('scan: a FIFO is reported as not scanned without being opened', { timeout: 15000 }, async () => {
+  const L = layout({ fixture: 'minimal', fakes: [] });
+  const folder = join(L.root, 'evidence');
+  mkdirSync(folder);
+  writeFileSync(join(folder, 'clean.log'), 'nothing to see\n');
+  assert.equal(spawnSync('mkfifo', [join(folder, 'pipe')]).status, 0);
+  const r = await runQa(L, ['scan', folder]);
+  assert.equal(r.status, 2, r.stdout);
+  assert.deepEqual(r.lines, [`scan: not scanned: ${join(folder, 'pipe')}`]);
 });
 
 // ---------- CLI ----------

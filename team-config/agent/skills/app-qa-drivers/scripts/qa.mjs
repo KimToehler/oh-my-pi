@@ -346,15 +346,18 @@ export function fileHit(buf, pattern, extra = []) {
   return token.test(bytes);
 }
 
-function* walkFiles(path) {
+/** Regular files below `path`, never following a link; every other entry that is no folder goes to `skipped`. */
+function* walkFiles(path, skipped) {
   const st = lstatSync(path);
-  if (st.isSymbolicLink()) return;
   if (st.isFile()) {
     yield path;
     return;
   }
-  if (!st.isDirectory()) return;
-  for (const entry of readdirSync(path).sort()) yield* walkFiles(join(path, entry));
+  if (!st.isDirectory()) {
+    skipped?.push(path);
+    return;
+  }
+  for (const entry of readdirSync(path).sort()) yield* walkFiles(join(path, entry), skipped);
 }
 
 /** Whether a path, relative to the folder it was found in, holds a credential (`pattern`, the redaction pattern). */
@@ -366,13 +369,14 @@ export function pathHit(rel, pattern) {
 
 /**
  * Paths of the files below `path` whose contents hold a token, a credential value or one of the `extra` literal terms,
- * or whose path relative to `path` (a file by its own name) holds a credential value.
+ * or whose path relative to `path` (a file by its own name) holds a credential value. Symbolic links and other entries
+ * that are neither a regular file nor a folder are never opened; their paths go to `skipped` when it is given.
  */
-export function scanPaths(path, values, extra = []) {
+export function scanPaths(path, values, extra = [], skipped) {
   const pattern = credentialPattern(values, asBytes);
   const names = credentialPattern(values);
   const base = lstatSync(path).isDirectory() ? path : dirname(path);
-  return [...walkFiles(path)].filter((f) => pathHit(relative(base, f), names) || fileHit(readFileSync(f), pattern, extra));
+  return [...walkFiles(path, skipped)].filter((f) => pathHit(relative(base, f), names) || fileHit(readFileSync(f), pattern, extra));
 }
 
 /** Redacts a flagged text file in place or deletes a flagged binary file; returns what it did. */
@@ -407,14 +411,20 @@ function cmdScan(ctx, args) {
     complain(`scan: --credentials needs a credentials section in ${ctx.path}`);
     return 2;
   }
+  const sentinels = ctx.config.scan?.sentinels ?? [];
+  // Printed paths hide the sentinels as well; the flow's sweep and redaction keep the credential values alone.
+  redactValues = { users: values.users, passwords: [...values.passwords, ...sentinels] };
+  const notScanned = [];
   let hits;
   try {
-    hits = scanPaths(target, values, ctx.config.scan?.sentinels ?? []);
+    hits = scanPaths(target, values, sentinels, notScanned);
   } catch {
     complain(`scan: cannot read ${target}`);
     return 2;
   }
   for (const hit of hits) say(hit);
+  for (const path of notScanned) say(`scan: not scanned: ${path}`);
+  if (notScanned.length) return 2;
   return hits.length ? 1 : 0;
 }
 
@@ -465,9 +475,12 @@ function androidDevices(adb) {
     .map((id) => ({ id, label: id }));
 }
 
-/** The one device to use: the given one, else the only booted one. */
+/** The one device to use: the given one when it is booted, else the only booted one. */
 export function chooseDevice(given, devices) {
-  if (given) return { id: given };
+  if (given) {
+    if (devices.some((d) => d.id === given)) return { id: given };
+    return { error: `${given} is not booted (booted: ${devices.map((d) => d.label).join(', ') || 'none'})` };
+  }
   if (devices.length === 1) return { id: devices[0].id };
   if (devices.length === 0) return { error: 'no booted device' };
   return { error: `${devices.length} booted devices (${devices.map((d) => d.label).join(', ')}); pass --device ID` };
@@ -1124,11 +1137,11 @@ async function cmdFlow(ctx, args) {
     return 2;
   }
   const devices = platform === 'ios' ? iosDevices() : androidDevices(resolveAdb(ctx));
-  if (devices === null && !args.flags.device) {
+  if (devices === null) {
     say(`flow: cannot list ${platform} devices; run ${INVOKE} preflight ${platform}`);
     return 2;
   }
-  const device = chooseDevice(args.flags.device, devices ?? []);
+  const device = chooseDevice(args.flags.device, devices);
   if (device.error) {
     say(`flow: ${device.error}`);
     return 2;
