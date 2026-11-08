@@ -37,7 +37,7 @@ Preflight SHALL check one target and print one line per check with its result an
 - **THEN** preflight exiting 0, or printing a passing line for the failed check, MUST fail this requirement
 
 ### Requirement: Desktop attach selects the one running JVM of the configured app
-Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and whose working directory lies in the current worktree, and keep the session for later desktop commands of the worktree. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching. An explicit process id SHALL select only one of those JVMs.
+Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and whose working directory belongs to the current worktree (the worktree that directory resolves to, not any directory below the current worktree's root), and keep the session for later desktop commands of the worktree. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching. An explicit process id SHALL select only one of those JVMs.
 
 #### Scenario: Two repositories' apps running
 - **WHEN** the desktop apps of two repositories run and attach is called in each repository
@@ -52,7 +52,7 @@ Desktop attach SHALL attach to the one running JVM whose main class is the confi
 - **THEN** it prints the configured launch hint and exits 2
 
 #### Scenario: Negative control
-- **WHEN** attach is called while two JVMs of the configured main class run in the worktree, only another repository's app runs, only another worktree's JVM of the configured main class runs, or an explicit process id names a JVM outside the worktree
+- **WHEN** attach is called while two JVMs of the configured main class run in the worktree, only another repository's app runs, only another worktree's JVM of the configured main class runs (a linked worktree below the main checkout included), or an explicit process id names a JVM of another worktree
 - **THEN** attaching to any of them, or exiting 0, MUST fail this requirement
 
 ### Requirement: A desktop session belongs to one worktree and one configuration
