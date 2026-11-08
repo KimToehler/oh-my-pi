@@ -37,7 +37,7 @@ Preflight SHALL check one target and print one line per check with its result an
 - **THEN** preflight exiting 0, or printing a passing line for the failed check, MUST fail this requirement
 
 ### Requirement: Desktop attach selects the one running JVM of the configured app
-Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and keep the session for the repository's later desktop commands, without changing another repository's session. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching.
+Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and keep the session for later desktop commands of the repository. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching.
 
 #### Scenario: Two repositories' apps running
 - **WHEN** the desktop apps of two repositories run and attach is called in each repository
@@ -50,6 +50,17 @@ Desktop attach SHALL attach to the one running JVM whose main class is the confi
 #### Scenario: Negative control
 - **WHEN** attach is called while two JVMs of the configured main class run, or only another repository's app runs
 - **THEN** attaching to any of them, or exiting 0, MUST fail this requirement
+
+### Requirement: A desktop session belongs to one worktree and one configuration
+A desktop session SHALL serve only the desktop commands of the worktree that attached it, with the configuration file and main class it was attached with, and attach or detach SHALL never change the session of another worktree or repository, whatever their configurations' names. A desktop command from that worktree with another configuration file or main class SHALL exit 2 asking for a new attach, without acting on the app or the session.
+
+#### Scenario: Same configuration name in two worktrees
+- **WHEN** two worktrees whose configurations share one `name` attach to their own apps, and a tap and a detach run in the first
+- **THEN** the tap acts on the first worktree's app, and the second worktree's later tap still acts on its own app
+
+#### Scenario: Negative control
+- **WHEN** a desktop command runs with `--config` naming another configuration than the one attached with, or a detach in one worktree runs while another worktree with the same configuration name is attached
+- **THEN** acting on an app, changing either session, or exiting 0 for the mismatched command MUST fail this requirement
 
 ### Requirement: Desktop actions address nodes by test tag
 Desktop tap, type and find SHALL take a Compose test tag and act on, or read, the one node of the attached app that carries it at the time of the call. When no node or several carry the tag, they SHALL act on nothing, name the tag and the match count, and exit non-zero. Desktop wait SHALL exit 0 once exactly one node carries the tag, and non-zero with the tag and last count when its timeout passes first.
@@ -133,14 +144,14 @@ When the configuration maps screen names to test tags, a flow run SHALL set `MAE
 - **THEN** Maestro starting MUST fail this requirement
 
 ### Requirement: Flow driver output reaches the caller only redacted
-A flow run SHALL start Maestro without a terminal and print only its own summary lines. Every line it prints or keeps SHALL have each configured credential value and each token replaced by `[redacted]`, a value written to the stream in two pieces included.
+A flow run SHALL start Maestro without a terminal and print only its own summary lines. Every line it prints or keeps SHALL have each configured credential value, of every configured account whether or not the run uses it, and each token replaced by `[redacted]`, a value written to the stream in two pieces included.
 
 #### Scenario: Driver echoes a credential
 - **WHEN** Maestro writes the username and the password to its standard output and standard error, the password split across two writes
 - **THEN** the run's output and its kept console log hold `[redacted]` in their place and neither value
 
 #### Scenario: Negative control
-- **WHEN** a flow run starts Maestro on a terminal, or prints or keeps a credential value or a token
+- **WHEN** a flow run starts Maestro on a terminal, or prints or keeps a credential value of any configured account or a token
 - **THEN** the run MUST fail this requirement
 
 ### Requirement: Flow runs use one device and never overlap another flow run on the host
@@ -195,6 +206,17 @@ A passing run SHALL copy each named screenshot to the output directory under its
 - **WHEN** two different screenshots named `home` produce one exported `home.png`, or a copy fails for a reason other than a name clash and is reported as an existing target
 - **THEN** the run exiting 0 or printing `PASS` MUST fail this requirement
 
+### Requirement: Named screenshots the sweep removes fail the run
+The run SHALL account for every named screenshot taken, as recorded before the sweep. A named screenshot the credential sweep deletes, before or after its copy, SHALL be printed by name as removed and make the run exit 1 without `PASS`; two named screenshots sharing a file name SHALL stay a clash when the sweep deleted one of them.
+
+#### Scenario: Swept named screenshot
+- **WHEN** a passing flow takes a named screenshot whose bytes match a configured credential
+- **THEN** the screenshot is in neither the root nor the output directory, the run prints its name as removed by the sweep and exits 1 without `PASS`
+
+#### Scenario: Negative control
+- **WHEN** a named screenshot the sweep deleted goes unreported, or one of two screenshots named `home` is swept and the other is exported as `home.png`
+- **THEN** the run exiting 0 or printing `PASS` MUST fail this requirement
+
 ### Requirement: The evidence scan reports leaking files by name only
 The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a binary file, followed by ten base64url characters), the configured sentinels, and, when credentials are configured, each password anywhere and each username where neither neighbour is an ASCII letter or digit, raw, JSON-escaped and XML-escaped. It SHALL print only matching paths and exit 1 on a match, 0 on none, 2 when a path cannot be read.
 
@@ -221,6 +243,10 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 - **WHEN** a fresh agent session gets the same task while Spectre is missing from its `PATH`
 - **THEN** it reports the preflight's failed line and its install hint, and drives the window by no other means
 
+#### Scenario: Simulator sign-in task
+- **WHEN** a fresh agent session in such a repository is asked to sign a configured account into the app on the simulator and show the screen after sign-in
+- **THEN** its tool calls run the shared driver's preflight for the simulator and a flow run of the repository's sign-in subflow with `--account`, and none runs Maestro directly, reads the credentials file or types a credential
+
 #### Scenario: Negative control
-- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a copy of the driver script into the repository, a read of the credentials file, or evidence reported as kept without a scan
+- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, or evidence reported as kept without a scan
 - **THEN** reporting this requirement as met MUST fail
