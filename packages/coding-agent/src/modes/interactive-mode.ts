@@ -44,6 +44,7 @@ import {
 	describeJobWidgetMiniSpark,
 	describeJobWidgetsHovercard,
 	type JobWidgetEntry,
+	type JobWidgetView,
 	jobWidgetGlance,
 	jobWidgetGlanceSpans,
 	jobWidgetSummary,
@@ -263,6 +264,7 @@ import {
 	initProgramStatus,
 	resendProgramStatus,
 	setProgramStatusEnabled,
+	settleStartupRun,
 } from "../utils/run-status";
 import {
 	disposeTerminalTitleState,
@@ -376,6 +378,7 @@ import {
 	getMarkdownTheme,
 	onTerminalAppearanceChange,
 	onThemeChange,
+	setMarkdownColorful,
 	setMarkdownMermaidRendering,
 	setSymbolPreset,
 	startMacOSAppearanceReprobeFallback,
@@ -413,6 +416,7 @@ import {
 	cfgDisplayCollapseCompacted,
 	cfgDisplayHideToolActivity,
 	cfgDisplayPinnedAgents,
+	cfgDisplayShellVisualization,
 	cfgDisplayShowTokenUsage,
 	cfgDisplayShowTurnTime,
 	cfgDisplaySubagentLivePreview,
@@ -446,6 +450,7 @@ import {
 	cfgTuiMaxInlineImages,
 	cfgTuiAutoGraph,
 	cfgTuiMouse,
+	cfgTuiColorfulMarkdown,
 	cfgTuiRenderMermaid,
 	cfgTuiRenderSvg,
 	cfgTuiResizeScrollback,
@@ -510,6 +515,7 @@ const cfgLiveUiSettings = combine({
 	"compaction.enabled": cfgCompactionEnabled,
 	"compaction.methodOrder": cfgCompactionMethodOrder,
 	"display.hideToolActivity": cfgDisplayHideToolActivity,
+	"display.shellVisualization": cfgDisplayShellVisualization,
 	"terminal.showImages": cfgTerminalShowImages,
 	"terminal.programStatus": cfgTerminalProgramStatus,
 	hideThinkingBlock: cfgHideThinkingBlock,
@@ -520,6 +526,7 @@ const cfgLiveUiSettings = combine({
 	"display.collapseCompacted": cfgDisplayCollapseCompacted,
 	"display.showTokenUsage": cfgDisplayShowTokenUsage,
 	"display.showTurnTime": cfgDisplayShowTurnTime,
+	"tui.colorfulMarkdown": cfgTuiColorfulMarkdown,
 	"tui.renderMermaid": cfgTuiRenderMermaid,
 	"tui.renderSvg": cfgTuiRenderSvg,
 	"extensionRenderers.assistantText": cfgExtensionAssistantTextRenderers,
@@ -864,9 +871,10 @@ const JOBS_SEGMENT: RunningSegmentSpec = {
 	act: "jobs.open",
 };
 
-/** The jobs segment with the widgets it was described from (`id:updatedAt:state` per widget). */
+/** The jobs segment with the widgets it was described from (`id:updatedAt:state` per widget) and their view refs. */
 interface JobsSegment extends RunningSegment {
 	readonly widgets: string;
+	readonly views: readonly JobWidgetView[];
 }
 
 /**
@@ -881,10 +889,13 @@ function jobsSegment(
 	if (running === 0) return undefined;
 	let widgets = "";
 	for (const entry of entries) widgets += `${entry.id}:${entry.view.updatedAt}:${entry.view.state};`;
-	if (prev?.running === running && prev.widgets === widgets) return prev;
+	// A refresh recomputes the view from the wall clock (rate decay) even when no data moved, swapping each
+	// `view` for a fresh object; the refs see that, the fields above do not.
+	const views = entries.map(entry => entry.view);
+	if (prev?.running === running && prev.widgets === widgets && sameItems(prev.views, views)) return prev;
 	const described =
 		entries.length > 0 ? describeJobsSegment(running, entries) : describeRunningSegment(JOBS_SEGMENT, running);
-	return { running, widgets, node: described };
+	return { running, widgets, views, node: described };
 }
 
 /**
@@ -1378,7 +1389,6 @@ export class InteractiveMode implements InteractiveModeContext {
 	#ownsStartedUi: boolean;
 	session: AgentSession;
 	sessionManager: SessionManager;
-	refreshScopedModelsAfterLogin?: () => Promise<void>;
 	settings: Settings;
 	keybindings: KeybindingsManager;
 	agent: Agent;
@@ -1537,8 +1547,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		const name = this.sessionManager.getSessionName();
 		if (!name) return undefined;
 		const pin = this.statusLine.isSessionPinned(this.sessionManager.getSessionId()) && theme.icon.pin;
-		const title = sanitizeStatusText(name);
-		return `\x1b[2;3m${pin ? `${pin} ${title}` : title}\x1b[23;22m`;
+		const styledTitle = `\x1b[2;3m${sanitizeStatusText(name)}\x1b[23;22m`;
+		return pin ? `${theme.fg("accent", pin)} ${styledTitle}` : styledTitle;
 	}
 	/** Live gen tok/s for the working row: the viewed session's own meter, so a
 	 * focused subagent shows its own reading and the main session's survives
@@ -2103,9 +2113,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		eventBus?: EventBus,
 		composer?: Composer,
 		subagentEventBus?: EventBus,
-		refreshScopedModelsAfterLogin?: () => Promise<void>,
 	) {
-		this.refreshScopedModelsAfterLogin = refreshScopedModelsAfterLogin;
 		this.session = session;
 		this.sessionManager = session.sessionManager;
 		this.settings = session.settings;
@@ -2172,6 +2180,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 
 		setTuiTight(cfgTuiTight.get(settings));
+		setMarkdownColorful(cfgTuiColorfulMarkdown.get(settings));
 		setMarkdownMermaidRendering(cfgTuiRenderMermaid.get(settings));
 		setSvgFigureRendering(cfgTuiRenderSvg.get(settings));
 		this.#applyAutoGraphSetting();
@@ -2693,7 +2702,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		setTerminalTitleStateEnabled(cfgTuiTitleState.get(this.settings));
 		setTerminalTitleSpinnerStyle(cfgTuiTitleSpinner.get(this.settings));
 		setTerminalTitleSpinnerInterval(cfgMotionResolved.get(this.settings).spinnerInterval);
-		initProgramStatus();
+		initProgramStatus({ startupRun: options.startupRun });
 		setProgramStatusEnabled(cfgTerminalProgramStatus.get(this.settings));
 		// OSC 133;A starts a shell prompt and invalidates working/blocked records.
 		// Only a frame that actually writes the mark needs a replacement; diff
@@ -4352,12 +4361,17 @@ export class InteractiveMode implements InteractiveModeContext {
 		if (
 			any(
 				"display.advisorCollapsedLines",
+				"display.shellVisualization",
 				"display.cacheMissMarker",
 				"display.collapseCompacted",
 				"display.showTokenUsage",
 				"display.showTurnTime",
 			)
 		) {
+			rebuildChat = true;
+		}
+		if (any("tui.colorfulMarkdown")) {
+			setMarkdownColorful(cfgTuiColorfulMarkdown.get(this.settings));
 			rebuildChat = true;
 		}
 		if (any("tui.renderMermaid")) {
@@ -4762,7 +4776,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				autoThinking: thinking === AUTO_THINKING,
 				// A fresh session derives tiers from settings, not this session's `/fast` toggles.
 				fastMode: this.session.isFastModeConfiguredFor(model),
-				usingSubscription: this.session.modelRegistry.isUsingOAuth(model),
+				usingSubscription: this.session.modelRegistry.isUsingSubscription(model),
 				autoCompactEnabled: this.session.autoCompactionEnabled,
 				compactionBoundaries: model.contextWindow
 					? statusLineHost.computeCompactionBoundaries(this.session, model.contextWindow, model)
@@ -6911,12 +6925,15 @@ export class InteractiveMode implements InteractiveModeContext {
 				// so it reaches native summarization without leaking into the public
 				// `customInstructions` channel on `session_before_compact` — extensions
 				// there treat that field as user focus and would query-bias the
-				// summary toward the plan boilerplate (issue #4359).
+				// summary toward the plan boilerplate (issue #4359). The model the
+				// transition below restores reads the summary.
+				const readerModel =
+					options.executionModel?.model ?? this.#planModePreviousModelState?.model ?? this.session.model;
 				compactOutcome = await this.handleCompactCommand(
 					undefined,
 					undefined,
 					outcome => this.#applyDeferredPlanModelTransition(outcome, options.executionModel),
-					compactionPrompt,
+					{ internalGuidance: compactionPrompt, readerModel },
 				);
 			}
 		} finally {
@@ -7619,6 +7636,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		await this.session.prompt(objective, { streamingBehavior: "steer" });
 	}
 
+	/** End the `working` hold of `init({ startupRun })` once the command-line prompts are dispatched. */
+	settleStartupRun(): void {
+		settleStartupRun();
+	}
+
 	async #startGoalFromObjective(
 		objective: string,
 		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
@@ -8237,6 +8259,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		// InteractiveMode instance (e.g. test harnesses, headless re-init).
 		setAutoQaConsentHandler(null, null);
 		setCfgApprovalHost(null);
+		setWordPredictionHost(undefined);
 		this.#disposeImageBlobWriter?.();
 		this.#disposeImageBlobWriter = undefined;
 		this.#hideSessionInfo();
@@ -8340,7 +8363,8 @@ export class InteractiveMode implements InteractiveModeContext {
 	/**
 	 * Tear down like {@link shutdown}, then relaunch the CLI with the original
 	 * launch argv (session-source flags and positional prompts stripped, see
-	 * {@link restartArgv}), resuming this session when it exists on disk.
+	 * {@link restartArgv}), restoring this session (`--restore`) when it exists on
+	 * disk: subagents the teardown cut off mid-turn go on in the new process.
 	 *
 	 * On POSIX the relaunch is a true `execvp(3)` image replacement: same PID,
 	 * same terminal, no lingering parent. Postmortem cleanups and stdout are
@@ -9315,16 +9339,28 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	/**
+	 * Whether {@link maybeAutoCreateWorktree} may stop to ask the user (`worktree.onStart: ask`).
+	 * It answers before the async git check, so it also says yes in a folder where the question
+	 * never shows.
+	 */
+	mayAskForStartupWorktree(): boolean {
+		return cfgWorktreeOnStart.get(this.settings) === "ask";
+	}
+
+	/**
 	 * Apply `worktree.onStart` to a fresh launch: optionally move the session into
 	 * a new worktree forked from clean `HEAD`. Silent no-op outside git checkouts;
 	 * failures become a warning so startup continues.
 	 */
 	async maybeAutoCreateWorktree(): Promise<void> {
 		try {
-			const policy = cfgWorktreeOnStart.get(this.settings);
-			if (policy === "off" || !(await canAutoCreateWorktree(this.sessionManager.getCwd()))) return;
 			if (
-				policy === "ask" &&
+				cfgWorktreeOnStart.get(this.settings) === "off" ||
+				!(await canAutoCreateWorktree(this.sessionManager.getCwd()))
+			)
+				return;
+			if (
+				this.mayAskForStartupWorktree() &&
 				!(await this.showHookConfirm(
 					"Create a worktree for this session?",
 					"Work happens on a new wt/* branch; this checkout stays untouched.",
@@ -9517,9 +9553,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		customInstructions?: string,
 		mode?: CompactMode,
 		beforeFlush?: (outcome: CompactionOutcome) => void | Promise<void>,
-		internalGuidance?: string,
+		options?: Pick<CompactOptions, "internalGuidance" | "readerModel">,
 	): Promise<CompactionOutcome> {
-		return this.#commandController.handleCompactCommand(customInstructions, mode, beforeFlush, internalGuidance);
+		return this.#commandController.handleCompactCommand(customInstructions, mode, beforeFlush, options);
 	}
 
 	handleHandoffCommand(customInstructions?: string): Promise<void> {

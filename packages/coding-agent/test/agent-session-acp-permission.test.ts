@@ -153,7 +153,7 @@ function initializeAcpUi(
 	runner.initialize(
 		{
 			sendMessage: () => {},
-			sendUserMessage: () => {},
+			sendUserMessage: async () => {},
 			appendEntry: () => {},
 			setLabel: () => {},
 			getActiveTools: () => [],
@@ -765,7 +765,7 @@ it("eval applies a custom-wire patch exactly once through the canonical tool", a
 	const executeSpy = spyOn(editTool, "execute");
 	evalSession = await createEvalSession([editTool as AgentTool]);
 	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
-	evalToolSession.getEvalBridgeToolNames = () => evalSession!.getEvalBridgeToolNames();
+	evalToolSession.getAdvertisedEvalToolNames = () => evalSession!.getAdvertisedEvalToolNames();
 	await Bun.write(path.join(root.path(), "eval-wire-old.txt"), "old\n");
 	const input =
 		"*** Begin Patch\n*** Add File: eval-wire.txt\n+ok\n*** Delete File: eval-wire-old.txt\n*** End Patch\n";

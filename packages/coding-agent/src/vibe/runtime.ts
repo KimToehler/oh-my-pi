@@ -1314,6 +1314,7 @@ export class VibeSessionRegistry {
 			asyncJobManager: session.asyncJobManager,
 			inheritedSessionAgents: session.getSessionAgents?.(),
 			mcpManager: session.mcpManager ?? MCPManager.instance(),
+			mcpToolScope: session.mcpToolScope,
 			contextFiles: session.contextFiles,
 			noContextFiles: session.noContextFiles,
 			skills: [...(session.skills ?? [])],

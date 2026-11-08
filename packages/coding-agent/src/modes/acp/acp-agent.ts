@@ -147,7 +147,7 @@ import {
 } from "./acp-goal";
 import { buildToolCallStartUpdate, extractAssistantMessageText } from "./acp-event-mapper";
 
-import { cfgDisabledExtensions } from "../../extensibility/settings";
+import { cfgDisabledExtensions, cfgExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
 
@@ -1596,9 +1596,14 @@ export class AcpAgent implements Agent {
 			}
 			case "_omp/extensions": {
 				const cwd = typeof params.cwd === "string" ? (params.cwd as string) : undefined;
-				const sm = await Settings.init();
+				const sm = cwd ? await Settings.loadReadOnly({ cwd }) : await Settings.init();
 				const disabledIds = cfgDisabledExtensions.get(sm);
-				const extensions = await loadAllExtensions(cwd, disabledIds);
+				const extensions = await loadAllExtensions(cwd, disabledIds, {
+					explicit: [],
+					mode: "merge",
+					configured: cfgExtensions.get(sm),
+					configuredLevel: sm.extensionsSourceLevel(),
+				});
 				return { extensions: extensions as unknown as Array<{ [key: string]: unknown }> };
 			}
 			case "_omp/extensions/toggle": {
@@ -3334,7 +3339,9 @@ export class AcpAgent implements Agent {
 					});
 				},
 				sendUserMessage: (content, options) => {
-					this.#trackExtensionUserMessage(record, record.session.sendUserMessage(content, options));
+					const task = record.session.sendUserMessage(content, options);
+					this.#trackExtensionUserMessage(record, task);
+					return task;
 				},
 				appendEntry: (customType, data) => {
 					record.session.sessionManager.appendCustomEntry(customType, data);

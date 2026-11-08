@@ -291,7 +291,7 @@ describe("approval prompts through a host dialog", () => {
 		runner.initialize(
 			{
 				sendMessage: () => {},
-				sendUserMessage: () => {},
+				sendUserMessage: async () => {},
 				appendEntry: () => {},
 				setLabel: () => {},
 				getActiveTools: () => [],

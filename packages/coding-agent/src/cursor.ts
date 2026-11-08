@@ -15,6 +15,7 @@ import {
 } from "@oh-my-pi/pi-agent-core";
 import type {
 	AssistantMessage,
+	CursorExecFrameContext,
 	CursorExecProvenance,
 	CursorMcpCall,
 	CursorMcpResource,
@@ -36,8 +37,10 @@ import {
 	piTimeout,
 	shellDeadlineSeconds,
 } from "@oh-my-pi/pi-ai/providers/cursor-pi-args";
-import { sanitizeText } from "@oh-my-pi/pi-utils";
+import { editDiffString } from "@oh-my-pi/pi-natives";
+import { isEnoent, sanitizeText } from "@oh-my-pi/pi-utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
+import { normalizeToLF, stripBom } from "./edit/normalize";
 import type { MCPResourceReadResult } from "./mcp/types";
 import {
 	approvalRestrictions,
@@ -54,6 +57,7 @@ import {
 	resolveToCwd,
 	splitPathAndSelPreferringLiteral,
 } from "./tools/path-utils";
+import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
 import type { TodoPhase, TodoStatus } from "@oh-my-pi/pi-tui/tools/todo";
 
 /** Phase used for Cursor-owned tasks with no local phase grouping. */
@@ -501,6 +505,57 @@ async function executeTool(
 	return message;
 }
 
+/** Tool result content as `executeTool` emits it: text passed through `sanitizeText`. */
+function sanitizedContent(content: ToolResultMessage["content"]): ToolResultMessage["content"] {
+	return content.map(c => (c.type === "text" ? { ...c, text: sanitizeText(c.text) } : c));
+}
+
+/** Bridge options whose tool runs surface no call of their own. */
+function withoutEvents(options: CursorRequestScope): CursorRequestScope {
+	return { ...options, emitEvent: undefined };
+}
+
+/**
+ * Writes a native StrReplace or Write back as its `edit` card's result: the
+ * diff against the file as it was, not a `write` call of its own.
+ */
+async function materializeEdit(
+	options: CursorRequestScope,
+	toolCallId: string,
+	pathArg: string,
+	content: string,
+): Promise<ToolResultMessage> {
+	const absolutePath = resolveToCwd(pathArg, options.getCwd?.() ?? options.cwd);
+	let before: string | undefined;
+	try {
+		before = await fs.promises.readFile(absolutePath, "utf8");
+	} catch (error) {
+		if (isEnoent(error)) before = "";
+	}
+	const written = await executeTool(withoutEvents(options), "write", toolCallId, { path: pathArg, content });
+	const result: ToolResultMessage = { ...written, toolName: "edit" };
+	if (!written.isError && before !== undefined) {
+		// `write` restores the file's CRLF and BOM, so compare both sides as `edit` does.
+		const { diff, firstChangedLine } = editDiffString(
+			normalizeToLF(stripBom(before).text),
+			normalizeToLF(stripBom(content).text),
+			absolutePath,
+		);
+		const writeDetails =
+			typeof written.details === "object" && written.details !== null ? written.details : undefined;
+		const details: EditToolDetails = { ...writeDetails, diff, firstChangedLine, path: absolutePath };
+		result.details = details;
+	}
+	options.emitEvent?.({
+		type: "tool_execution_end",
+		toolCallId,
+		toolName: "edit",
+		result: { content: sanitizedContent(result.content), details: result.details },
+		isError: result.isError,
+	});
+	return result;
+}
+
 function allowsDirectFileMutation(options: CursorExecBridgeOptions): boolean {
 	const grant = options.allowDirectFileMutation;
 	return typeof grant === "function" ? grant() : grant !== false;
@@ -694,14 +749,18 @@ function buildTodoSyncResult(
 }
 
 export class CursorExecHandlers implements ICursorExecHandlers {
-	readonly #request: CursorRequestScope;
+	/**
+	 * Not `#private`: the provider calls these handlers through the glyph codec's
+	 * Proxy, with the proxy as `this`, and a Proxy does not forward private fields.
+	 */
+	readonly requestScope: CursorRequestScope;
 
 	/** `request` marks a bridge bound to one provider request; only those seal on a proposal. */
 	constructor(
 		private options: CursorExecBridgeOptions,
 		request = false,
 	) {
-		this.#request = { ...options, barrier: new ProposalBarrier(request) };
+		this.requestScope = { ...options, barrier: new ProposalBarrier(request) };
 	}
 
 	/**
@@ -720,7 +779,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 * large file never advances. Composed with the same helper, so both frames
 	 * translate a range identically.
 	 */
-	async read(args: Parameters<NonNullable<ICursorExecHandlers["read"]>>[0]) {
+	async read(args: Parameters<NonNullable<ICursorExecHandlers["read"]>>[0], frame?: CursorExecFrameContext) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const composed = piReadPath(
 			args.path,
@@ -731,13 +790,14 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.#request, "read", toolCallId, { path: composed });
+		const options = frame?.editMaterialization ? withoutEvents(this.requestScope) : this.requestScope;
+		return await executeTool(options, "read", toolCallId, { path: composed });
 	}
 
 	async ls(args: Parameters<NonNullable<ICursorExecHandlers["ls"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		// Redirect ls to read tool, which handles directories
-		const toolResultMessage = await executeTool(this.#request, "read", toolCallId, { path: args.path });
+		const toolResultMessage = await executeTool(this.requestScope, "read", toolCallId, { path: args.path });
 		return toolResultMessage;
 	}
 
@@ -755,7 +815,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			contextAfter: args.contextAfter ?? args.context ?? 0,
 		});
 		const toolResultMessage = await executeTool(
-			this.#request,
+			this.requestScope,
 			"grep",
 			toolCallId,
 			{
@@ -769,11 +829,12 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		return toolResultMessage;
 	}
 
-	async write(args: Parameters<NonNullable<ICursorExecHandlers["write"]>>[0]) {
+	async write(args: Parameters<NonNullable<ICursorExecHandlers["write"]>>[0], frame?: CursorExecFrameContext) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const content = args.fileText ?? new TextDecoder().decode(args.fileBytes ?? new Uint8Array());
+		if (frame?.editMaterialization) return await materializeEdit(this.requestScope, toolCallId, args.path, content);
 		const toolResultMessage = await executeTool(
-			this.#request,
+			this.requestScope,
 			"write",
 			toolCallId,
 			{ path: args.path, content },
@@ -782,16 +843,27 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		return toolResultMessage;
 	}
 
+	/** Ends the live card of a native StrReplace or Write the server completed without writing. */
+	editSettled(result: ToolResultMessage): void {
+		this.options.emitEvent?.({
+			type: "tool_execution_end",
+			toolCallId: result.toolCallId,
+			toolName: "edit",
+			result: { content: sanitizedContent(result.content), details: result.details },
+			isError: result.isError,
+		});
+	}
+
 	async delete(args: Parameters<NonNullable<ICursorExecHandlers["delete"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeDelete(this.#request, args.path, toolCallId);
+		const toolResultMessage = await executeDelete(this.requestScope, args.path, toolCallId);
 		return toolResultMessage;
 	}
 
 	async shell(args: Parameters<NonNullable<ICursorExecHandlers["shell"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const timeoutSeconds = shellDeadlineSeconds(args);
-		const toolResultMessage = await executeTool(this.#request, "bash", toolCallId, {
+		const toolResultMessage = await executeTool(this.requestScope, "bash", toolCallId, {
 			command: args.command,
 			cwd: args.workingDirectory || undefined,
 			timeout: timeoutSeconds,
@@ -811,7 +883,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		}
 		const signal = this.options.signal;
 		if (signal?.aborted) return refuseAbortedCall(signal, toolCallId, toolName);
-		const sealed = this.#request.barrier.refusal(toolCallId, toolName);
+		const sealed = this.requestScope.barrier.refusal(toolCallId, toolName);
 		if (sealed) return sealed;
 
 		const timeoutSeconds = shellDeadlineSeconds(args);
@@ -912,7 +984,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	async diagnostics(args: Parameters<NonNullable<ICursorExecHandlers["diagnostics"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
-		const toolResultMessage = await executeTool(this.#request, "lsp", toolCallId, {
+		const toolResultMessage = await executeTool(this.requestScope, "lsp", toolCallId, {
 			action: "diagnostics",
 			file: args.path,
 		});
@@ -943,11 +1015,11 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		if (composed === null) {
 			return createToolResultMessage(call.toolCallId, "read", { content: [{ type: "text", text: "" }] }, false);
 		}
-		return await executeTool(this.#request, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
+		return await executeTool(this.requestScope, "read", call.toolCallId, { path: cursorRawReadPath(composed) });
 	}
 
 	async piBash(call: Parameters<NonNullable<ICursorExecHandlers["piBash"]>>[0]) {
-		return await executeTool(this.#request, "bash", call.toolCallId, {
+		return await executeTool(this.requestScope, "bash", call.toolCallId, {
 			command: call.args.command,
 			timeout: piTimeout(call.args.timeout),
 		});
@@ -968,14 +1040,14 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async piEdit(call: Parameters<NonNullable<ICursorExecHandlers["piEdit"]>>[0]) {
 		const edits = call.args.edits.map(edit => ({ old_string: edit.oldText, new_string: edit.newText }));
 		const args = edits.length === 1 ? { path: call.args.path, ...edits[0] } : { path: call.args.path, edits };
-		return await executeTool(this.#request, "edit", call.toolCallId, args, {
+		return await executeTool(this.requestScope, "edit", call.toolCallId, args, {
 			tool: this.options.getEditReplaceTool?.(),
 		});
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
 		return await executeTool(
-			this.#request,
+			this.requestScope,
 			"write",
 			call.toolCallId,
 			{ path: call.args.path, content: call.args.content },
@@ -1005,7 +1077,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		// path spec, and its `case` flag is case-SENSITIVITY, the inverse of the
 		// frame's `ignore_case`.
 		return await executeTool(
-			this.#request,
+			this.requestScope,
 			"grep",
 			call.toolCallId,
 			{
@@ -1028,7 +1100,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 */
 	async piFind(call: Parameters<NonNullable<ICursorExecHandlers["piFind"]>>[0]) {
 		const { pattern, path, limit } = call.args;
-		return await executeTool(this.#request, "glob", call.toolCallId, {
+		return await executeTool(this.requestScope, "glob", call.toolCallId, {
 			path: piJoinPath(path, pattern),
 			limit: piLimit(limit),
 		});
@@ -1039,7 +1111,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 * The frame's entry `limit` is not mapped; see {@link piLsPath}.
 	 */
 	async piLs(call: Parameters<NonNullable<ICursorExecHandlers["piLs"]>>[0]) {
-		return await executeTool(this.#request, "read", call.toolCallId, { path: piLsPath(call.args.path) });
+		return await executeTool(this.requestScope, "read", call.toolCallId, { path: piLsPath(call.args.path) });
 	}
 
 	/**
@@ -1101,7 +1173,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			}
 			const refusal = refuseByWritePolicy(this.options, "write", downloadPath);
 			if (refusal) throw new Error(refusal);
-			const sealed = this.#request.barrier.sealedReason;
+			const sealed = this.requestScope.barrier.sealedReason;
 			if (sealed) throw new Error(sealed);
 		}
 		const mcp = this.options.mcpResources;
@@ -1255,7 +1327,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 				const message = formatMcpToolErrorMessage(toolName, availableTools);
 				return createToolResultMessage(toolCallId, toolName, buildToolErrorResult(message), true);
 			}
-			return await executeTool(this.#request, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
+			return await executeTool(this.requestScope, "edit", toolCallId, normalizeCursorReplaceArgs(args), {
 				tool: replaceTool,
 			});
 		}
@@ -1267,7 +1339,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			return createToolResultMessage(toolCallId, toolName, result, true);
 		}
 
-		const toolResultMessage = await executeTool(this.#request, toolName, toolCallId, args, {
+		const toolResultMessage = await executeTool(this.requestScope, toolName, toolCallId, args, {
 			message: provenMessage(call, toolCallId),
 		});
 		return toolResultMessage;

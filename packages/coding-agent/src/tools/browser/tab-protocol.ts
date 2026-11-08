@@ -83,6 +83,7 @@ export type WorkerInitPayload =
 			/** The tab's upload staging folder, which outlives a recycled worker; see `UploadStaging`. */
 			uploadDir: string;
 			page: AttachPage;
+			viewport?: { width: number; height: number; deviceScaleFactor?: number };
 			dialogs?: "accept" | "dismiss";
 			/** Hostname patterns allowed for every page request. */
 			allowedDomains?: string[];
@@ -105,6 +106,8 @@ export type WorkerInitPayload =
 			 * names, since the user's own downloads land there too. Unset means an OMP-launched browser.
 			 */
 			userDriven?: boolean;
+			/** The browser is the omp relay: downloads arrive as page events, and the relay names where Chrome saved them. */
+			relay?: boolean;
 	  };
 
 /** Result of one host tool requested by browser-run JavaScript. */

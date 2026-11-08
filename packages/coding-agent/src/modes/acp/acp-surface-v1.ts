@@ -287,11 +287,13 @@ export class AcpSurfaceV1 implements AcpSurface<AcpWireV1> {
 	}
 
 	/**
-	 * Background-job wakes may start turns only while a prompt is open: they stream
-	 * into that prompt instead of running unseen by the client.
+	 * Background-job wakes may start turns only while a prompt is open and not
+	 * being cancelled: they stream into that prompt instead of running unseen by
+	 * the client.
 	 */
 	allowsAgentInitiatedWork(record: ManagedSessionRecord): boolean {
-		return record.promptTurn !== undefined && !record.promptTurn.settled;
+		const turn = record.promptTurn;
+		return turn !== undefined && !turn.settled && !turn.work.cancelRequested;
 	}
 
 	acceptsUpdates(): boolean {

@@ -12,7 +12,12 @@
 import type { IrcDeliveryReceipt, IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
 import { logger } from "@oh-my-pi/pi-utils";
 import type { AgentAwaitsApi } from "../../registry/agent-awaits";
-import type { AdoptOptions, AgentLifecycleApi, PersistedSubagentReviverFactory } from "../../registry/agent-lifecycle";
+import type {
+	AdoptOptions,
+	AgentLifecycleApi,
+	AgentReleaseOptions,
+	PersistedSubagentReviverFactory,
+} from "../../registry/agent-lifecycle";
 import type {
 	AgentHistorySummary,
 	AgentRef,
@@ -287,7 +292,7 @@ export class RemoteAgentLifecycle implements AgentLifecycleApi {
 		return Promise.reject(new Error("Prompting a live agent under admission runs on the main thread"));
 	}
 
-	release(id: string, expected?: AgentRefExpectation, options?: { tombstone?: boolean }): Promise<boolean> {
+	release(id: string, expected?: AgentRefExpectation, options?: AgentReleaseOptions): Promise<boolean> {
 		return this.#remote.call("release", id, expected, options);
 	}
 
