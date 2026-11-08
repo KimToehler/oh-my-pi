@@ -1,0 +1,2 @@
+Spectre daemon error: Agent reported timeout for waitForNode: TimeoutCancellationException: Timed out waiting for 1500 ms
+Hint: run "spectre guide traps" or "spectre guide --search <words>".
