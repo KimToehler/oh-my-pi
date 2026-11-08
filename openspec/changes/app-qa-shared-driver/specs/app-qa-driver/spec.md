@@ -52,7 +52,7 @@ Desktop attach SHALL attach to the one running JVM whose main class is the confi
 - **THEN** it prints the configured launch hint and exits 2
 
 #### Scenario: Negative control
-- **WHEN** attach is called while two JVMs of the configured main class run in the worktree, only another repository's app runs, only another worktree's JVM of the configured main class runs (a linked worktree below the main checkout included), or an explicit process id names a JVM of another worktree
+- **WHEN** attach is called while two JVMs of the configured main class run in the worktree and no process id is given, while only another repository's app runs, while only another worktree's JVM of the configured main class runs (a linked worktree below the main checkout included), or with an explicit process id naming a JVM of another worktree
 - **THEN** attaching to any of them, or exiting 0, MUST fail this requirement
 
 ### Requirement: A desktop session belongs to one worktree and one configuration
@@ -63,8 +63,8 @@ A desktop session SHALL serve only the desktop commands of the worktree that att
 - **THEN** the tap acts on the first worktree's app, and the second worktree's later tap still acts on its own app
 
 #### Scenario: Negative control
-- **WHEN** a desktop command runs with `--config` naming another configuration than the one attached with, or after `desktop.mainClass` changed in the configuration file attached with, or a detach in one worktree runs while another worktree with the same configuration name is attached
-- **THEN** acting on an app, changing either session, or exiting 0 for the mismatched command MUST fail this requirement
+- **WHEN** a desktop command runs with `--config` naming another configuration than the one attached with, or after `desktop.mainClass` changed in the configuration file attached with; or a detach in one worktree runs while another worktree with the same configuration name is attached
+- **THEN** acting on an app, changing the session or exiting 0 for the mismatched command, or changing the other worktree's session for that detach, MUST fail this requirement
 
 ### Requirement: Desktop actions address nodes by test tag
 Desktop tap, type and find SHALL take a Compose test tag and act on, or read, the one node of the attached app that carries it at the time of the call. When no node or several carry the tag, they SHALL act on nothing, name the tag and the match count, and exit non-zero. Desktop wait SHALL exit 0 once exactly one node carries the tag, and non-zero with the tag and last count when its timeout passes first.
