@@ -1,6 +1,6 @@
 # F1 cap-nc
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara and weaver worktrees, desktop
 
@@ -43,26 +43,26 @@ cwd `~/git/onara/.worktrees/qa-shared-f1`
 ```
 $ ls -lRT /tmp/app-qa-impl/f1caps/cap-nc | awk '{ if (NF>=10) print $5, $6, $7, $8, $9, $10; else print }'; shasum /tmp/app-qa-impl/f1caps/cap-nc/*/*
 total 0
-128 Nov 8 16:12:35 2026 first
-96 Nov 8 16:12:35 2026 json-only
-96 Nov 8 16:12:35 2026 png-only
+128 Nov 8 20:17:43 2026 first
+96 Nov 8 20:17:43 2026 json-only
+96 Nov 8 20:17:43 2026 png-only
 
 /tmp/app-qa-impl/f1caps/cap-nc/first:
-total 48
-3689 Nov 8 16:12:35 2026 home.json
-17408 Nov 8 16:12:35 2026 home.png
+total 128
+8659 Nov 8 20:17:43 2026 home.json
+52909 Nov 8 20:17:43 2026 home.png
 
 /tmp/app-qa-impl/f1caps/cap-nc/json-only:
-total 8
-3689 Nov 8 16:12:35 2026 home.json
+total 24
+8659 Nov 8 20:17:43 2026 home.json
 
 /tmp/app-qa-impl/f1caps/cap-nc/png-only:
-total 40
-17408 Nov 8 16:12:35 2026 home.png
-09e0761a9e192f7f147c71ad501c33258a425aec  /tmp/app-qa-impl/f1caps/cap-nc/first/home.json
-aca091b12c89f06299817567b58762c5a98e585f  /tmp/app-qa-impl/f1caps/cap-nc/first/home.png
-09e0761a9e192f7f147c71ad501c33258a425aec  /tmp/app-qa-impl/f1caps/cap-nc/json-only/home.json
-aca091b12c89f06299817567b58762c5a98e585f  /tmp/app-qa-impl/f1caps/cap-nc/png-only/home.png
+total 104
+52909 Nov 8 20:17:43 2026 home.png
+c73004a427930538e6a253be6df9d1f582169dce  /tmp/app-qa-impl/f1caps/cap-nc/first/home.json
+9e678e0708911d46266a49ffd3514e79ce49b8b1  /tmp/app-qa-impl/f1caps/cap-nc/first/home.png
+c73004a427930538e6a253be6df9d1f582169dce  /tmp/app-qa-impl/f1caps/cap-nc/json-only/home.json
+9e678e0708911d46266a49ffd3514e79ce49b8b1  /tmp/app-qa-impl/f1caps/cap-nc/png-only/home.png
 (exit 0)
 ```
 
@@ -117,26 +117,26 @@ cwd `~/git/onara/.worktrees/qa-shared-f1`
 ```
 $ ls -lRT /tmp/app-qa-impl/f1caps/cap-nc | awk '{ if (NF>=10) print $5, $6, $7, $8, $9, $10; else print }'; shasum /tmp/app-qa-impl/f1caps/cap-nc/*/*
 total 0
-128 Nov 8 16:12:35 2026 first
-96 Nov 8 16:12:35 2026 json-only
-96 Nov 8 16:12:35 2026 png-only
+128 Nov 8 20:17:43 2026 first
+96 Nov 8 20:17:43 2026 json-only
+96 Nov 8 20:17:43 2026 png-only
 
 /tmp/app-qa-impl/f1caps/cap-nc/first:
-total 48
-3689 Nov 8 16:12:35 2026 home.json
-17408 Nov 8 16:12:35 2026 home.png
+total 128
+8659 Nov 8 20:17:43 2026 home.json
+52909 Nov 8 20:17:43 2026 home.png
 
 /tmp/app-qa-impl/f1caps/cap-nc/json-only:
-total 8
-3689 Nov 8 16:12:35 2026 home.json
+total 24
+8659 Nov 8 20:17:43 2026 home.json
 
 /tmp/app-qa-impl/f1caps/cap-nc/png-only:
-total 40
-17408 Nov 8 16:12:35 2026 home.png
-09e0761a9e192f7f147c71ad501c33258a425aec  /tmp/app-qa-impl/f1caps/cap-nc/first/home.json
-aca091b12c89f06299817567b58762c5a98e585f  /tmp/app-qa-impl/f1caps/cap-nc/first/home.png
-09e0761a9e192f7f147c71ad501c33258a425aec  /tmp/app-qa-impl/f1caps/cap-nc/json-only/home.json
-aca091b12c89f06299817567b58762c5a98e585f  /tmp/app-qa-impl/f1caps/cap-nc/png-only/home.png
+total 104
+52909 Nov 8 20:17:43 2026 home.png
+c73004a427930538e6a253be6df9d1f582169dce  /tmp/app-qa-impl/f1caps/cap-nc/first/home.json
+9e678e0708911d46266a49ffd3514e79ce49b8b1  /tmp/app-qa-impl/f1caps/cap-nc/first/home.png
+c73004a427930538e6a253be6df9d1f582169dce  /tmp/app-qa-impl/f1caps/cap-nc/json-only/home.json
+9e678e0708911d46266a49ffd3514e79ce49b8b1  /tmp/app-qa-impl/f1caps/cap-nc/png-only/home.png
 (exit 0)
 ```
 

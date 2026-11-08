@@ -1,6 +1,6 @@
 # F1 tag-nc
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree, desktop
 
@@ -16,8 +16,8 @@ type: tag=chat-input textLength=19
 tap: tag=chat-send
 wait: tag=chat-reply count=1
 type: tag=chat-input textLength=19
-Spectre daemon error: Agent reported internalError for click: Reflective call failed: IllegalStateException: Cannot click AutomatorNode(key=window:0:0:49, tag=chat-send, text=Send, role=Button): its in-window bounds are empty (Rect.fromLTRB(0.0, 0.0, 0.0, 0.0)), so it has no on-screen point to target. The node is most likely scrolled outside its container's viewport, or not measured yet. Scroll it into view first (for example with scrollWheel on the scrollable container), then look the node up again. node.boundsInWindow.isEmpty tells you in advance whether a node can be targeted.
-Hint: run "spectre guide traps" or "spectre guide --search <words>".
+tap: tag=chat-send
+find: tag=chat-message count=2
 (exit 1)
 ```
 
@@ -26,8 +26,8 @@ Setup continued: the first reply pushed `chat-send` below the visible area; one 
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
-$ spectre scroll-wheel pid-81605 "$(spectre find --json pid-81605 home 2>/dev/null | jq -r ".nodes[0].childKeys[0]")" 40 2>&1 | grep -v WARNING; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop tap chat-send && sleep 5 && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop find chat-message
-Scrolled window:0:0:24 by 40 wheel clicks.
+$ spectre scroll-wheel pid-24595 "$(spectre find --json pid-24595 home 2>/dev/null | jq -r ".nodes[0].childKeys[0]")" 40 2>&1 | grep -v WARNING; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop tap chat-send && sleep 5 && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop find chat-message
+Scrolled window:0:0:159 by 40 wheel clicks.
 tap: tag=chat-send
 find: tag=chat-message count=2
 (exit 1)
@@ -75,9 +75,9 @@ capture: /tmp/app-qa-impl/f1caps/tag-nc/after.png
 capture: /tmp/app-qa-impl/f1caps/tag-nc/after.json
 chat 1, chat-input 1, chat-message 2, chat-reply 2, chat-send 1, display-name 1, home 1, jobs 1, jobs-empty 1, jobs-refresh 1, sign-out 1, snackbar 1
 505c505
-<     "captureDurationMs": 11,
+<     "captureDurationMs": 17,
 ---
->     "captureDurationMs": 15,
+>     "captureDurationMs": 11,
 (exit 0)
 ```
 

@@ -72,6 +72,7 @@ const BROKEN = [
   ]],
   ['capture-checks-png-only', 'desktop:', [['if (existsSync(png) || existsSync(json)) {', 'if (existsSync(png)) {']]],
   ['device-any-given-id', 'preflight:|flow: device', [['if (devices.some((d) => d.id === given)) return { id: given };', 'return { id: given };']]],
+  ['binary-searches-short-values', 'scan:|flow: screenshot', [['const pattern = text ? patterns.text : patterns.binary;', 'const pattern = patterns.text;']]],
 ];
 
 const dir = mkdtempSync(join(tmpdir(), 'qa-broken-'));

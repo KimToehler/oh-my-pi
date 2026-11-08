@@ -1,6 +1,6 @@
 # F1 tag-nav
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree, desktop
 
@@ -11,8 +11,8 @@ Setup: sign the onara app out so the login entry shows; the grown chat pushed `s
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
-$ spectre scroll-wheel pid-81605 "$(spectre find --json pid-81605 home 2>/dev/null | jq -r ".nodes[0].childKeys[0]")" 40 2>&1 | grep -v WARNING; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop tap sign-out && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop wait sign-in --timeout 20
-Scrolled window:0:0:24 by 40 wheel clicks.
+$ spectre scroll-wheel pid-24595 "$(spectre find --json pid-24595 home 2>/dev/null | jq -r ".nodes[0].childKeys[0]")" 40 2>&1 | grep -v WARNING; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop tap sign-out && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop wait sign-in --timeout 20
+Scrolled window:0:0:159 by 40 wheel clicks.
 tap: tag=sign-out
 wait: tag=sign-in count=1
 (exit 0)

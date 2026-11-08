@@ -1,4 +1,4 @@
-head: ba01b61b706d23f3dad7587ff439357b54cac5d4
+head: 4601774ed7365d589e38f609e5d0df23c1fbf309
 command: node .omp/team-config/evidence/gate/app-qa-shared-driver/f1/broken-copies.mjs team-config/agent/skills/app-qa-drivers/scripts/qa.mjs team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
 caught devtest-key-pattern (exit 1, pattern ^(flow: credentials|scan:))
   failed: flow: credentials parsing trims, strips one pair of matching quotes and keeps the last non-empty definition
@@ -90,4 +90,7 @@ caught capture-checks-png-only (exit 1, pattern ^(desktop:))
 caught device-any-given-id (exit 1, pattern ^(preflight:|flow: device))
   failed: preflight: a given device that is not booted fails, naming the booted devices
   failed: flow: device a given device that is not booted is refused before the lock
-exit: 0
+caught binary-searches-short-values (exit 1, pattern ^(scan:|flow: screenshot))
+  failed: flow: screenshot a short username alone in a named screenshot is exported
+  failed: scan: a short value alone in a binary file is not a hit, a password in one is
+exit 0

@@ -1,6 +1,6 @@
 # F1 nocred-plain
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch weaver worktree, Android emulator `emulator-5554` (weaver app `eu.weaver.app`)
 
@@ -27,16 +27,16 @@ appId: eu.weaver.app
 - launchApp
 - assertVisible: "Needs you"
 device: emulator-5554
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-rQYRmN
-out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-out-ZcnXFZ
-sweep: deleted out/2026-11-08_162028/plain/commands.json
-PASS plain 2.3s
+root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-KOOZMR
+out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-out-ausAy0
+sweep: deleted out/2026-11-08_202150/plain/commands.json
+PASS plain 5.3s
 (exit 0)
 ```
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 

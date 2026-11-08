@@ -1,6 +1,6 @@
 # F1 sweep-name
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree, iOS simulator `onara-f1`
 
@@ -18,13 +18,14 @@ appId: eu.onara.app.kmp
 driver exit 1
 credentials: /Users/[redacted]/git/onara/.dev-credentials.env
 device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-opO8kq
+root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-mPk6cp
 out: /tmp/app-qa-impl/f1out/sweep-name
-sweep: deleted out/2026-11-08_163628/name/commands.json
-sweep: deleted out/2026-11-08_163628/name/takeScreenshot/sign-in-[redacted].png
-sweep: redacted debug/.maestro/tests/2026-11-08_163628/maestro.log
+sweep: deleted out/2026-11-08_203132/name/commands.json
+sweep: deleted out/2026-11-08_203132/name/takeScreenshot/sign-in-[redacted].png
+sweep: redacted debug/.maestro/tests/2026-11-08_203132/maestro.log
+sweep: redacted out/2026-11-08_203132/name/logs/device-simulator.log
 flow: screenshot sign-in-[redacted].png removed by the sweep
-FAIL name 2s: named screenshots not exported
+FAIL name 4.5s: named screenshots not exported
 (exit 0)
 ```
 
@@ -45,14 +46,14 @@ The run root afterwards.
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
-$ ls -d "$TMPDIR"/app-qa-flow-opO8kq 2>&1
-ls: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa-flow-opO8kq: No such file or directory
+$ ls -d "$TMPDIR"/app-qa-flow-mPk6cp 2>&1
+ls: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa-flow-mPk6cp: No such file or directory
 (exit 1)
 ```
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 

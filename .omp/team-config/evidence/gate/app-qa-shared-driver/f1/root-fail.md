@@ -1,6 +1,6 @@
 # F1 root-fail
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch weaver worktree, Android emulator
 
@@ -15,11 +15,11 @@ appId: eu.weaver.app
 - launchApp
 - assertVisible: "qa-f1 text that is never shown"
 device: emulator-5554
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-irPqZ6
+root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-ZKeWZa
 out: /tmp/app-qa-impl/f1out/root-fail
-sweep: deleted out/2026-11-08_162107/absent/commands.json
-FAIL absent 19.6s: Assertion is false: "qa-f1 text that is never shown" is visible
-root kept: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-irPqZ6
+sweep: deleted out/2026-11-08_202212/absent/commands.json
+FAIL absent 18.7s: Assertion is false: "qa-f1 text that is never shown" is visible
+root kept: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-ZKeWZa
 (exit 1)
 ```
 
@@ -28,12 +28,12 @@ Contents of the kept root.
 cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
-$ cd "$TMPDIR"/app-qa-flow-irPqZ6 && find . -type f | sort; find . -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*hierarchy*" \) | wc -l; stat -f "%Sp" .
+$ cd "$TMPDIR"/app-qa-flow-ZKeWZa && find . -type f | sort; find . -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*hierarchy*" \) | wc -l; stat -f "%Sp" .
 ./console.log
-./debug/.maestro/tests/2026-11-08_162107/maestro.log
-./out/2026-11-08_162107/absent/logs/device-logcat.txt
-./out/2026-11-08_162107/absent/logs/maestro.log
-./out/2026-11-08_162107/absent/manifest.json
+./debug/.maestro/tests/2026-11-08_202212/maestro.log
+./out/2026-11-08_202212/absent/logs/device-logcat.txt
+./out/2026-11-08_202212/absent/logs/maestro.log
+./out/2026-11-08_202212/absent/manifest.json
 ./report.xml
        0
 drwx------
@@ -45,7 +45,7 @@ Kept root scanned.
 cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
-$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-irPqZ6
+$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-ZKeWZa
 (exit 0)
 ```
 

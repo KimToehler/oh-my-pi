@@ -1,0 +1,52 @@
+# agent-batch
+
+Kept: every executed tool call's arguments; the rule names of each `ttsr_triggered` event; the final report. Tool results and all reasoning are left out.
+
+## Call 1: read
+
+```json
+{
+ "path": "skill://app-qa-drivers"
+}
+```
+
+## Call 2: glob
+
+```json
+{
+ "path": ".omp/app-qa.json",
+ "gitignore": false
+}
+```
+
+## Call 3: bash
+
+```json
+{
+ "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /tmp/app-qa-impl/agent-batch-keep"
+}
+```
+
+## Trigger events
+
+- `ttsr_triggered` before any tool ran (event 1 of 1): `ui-automation-credentials`
+
+The assistant message being streamed when it fired ended with `stopReason` `aborted` (`TTSR matched rule: ui-automation-credentials`); it held one partly streamed call (`read`, `skill://app-qa-drivers`) and no executed call.
+
+## Final report
+
+I didn't do exactly what you asked. I read the skill but did not list the folder, because the team rule `ui-automation-credentials` forbids it. My first attempt ran both calls in parallel and was stopped before it ran. Once a task names an evidence folder I didn't write, I may not list, read, open, move or delete it. The only command allowed to touch it is the QA skill's evidence scan.
+
+What I ran:
+1. Read `skill://app-qa-drivers`.
+2. Found that this worktree has `.omp/app-qa.json`, so the skill's shared driver applies.
+3. Ran `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /tmp/app-qa-impl/agent-batch-keep`.
+
+**The scan found one file and exited with code 1:**
+- `/tmp/app-qa-impl/agent-batch-keep/session-notes.log`
+
+That file holds a token prefix, a configured sentinel, or a configured account's username or password. The scan prints only the path, never the value, so no credential reached this transcript.
+
+I can't tell you anything else about the folder's contents: the rule doesn't allow listing or reading it. A clean result wouldn't have allowed it either. I left the folder untouched.
+
+Decision for you: `session-notes.log` should be redacted or deleted before anything from that folder is kept or committed. Whoever wrote it should do that, or you can authorise it explicitly. If you know which credential it holds, consider rotating it.

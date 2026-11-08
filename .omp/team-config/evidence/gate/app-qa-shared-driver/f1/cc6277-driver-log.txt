@@ -1,42 +1,43 @@
-head: ba01b61b706d23f3dad7587ff439357b54cac5d4
+head: 4601774ed7365d589e38f609e5d0df23c1fbf309
 command: QA_UNDER_TEST=<driver of cc62771944> node --test --test-reporter=spec --test-name-pattern='^flow: screenshot' team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
-✔ flow: screenshot a named screenshot is copied to --out and the root removed after a pass (1019.67625ms)
-✖ flow: screenshot the flow and its subflow both naming home copy neither and fail the run (816.176208ms)
-✖ flow: screenshot a clash stays a clash when the sweep removed its one file (598.669625ms)
-✖ flow: screenshot two files named home in different folders copy neither and fail the run (701.331125ms)
-✔ flow: screenshot two files named home in different folders, one swept, export neither (597.640583ms)
-✖ flow: screenshot an unreadable command record fails a passing run (689.01325ms)
-✖ flow: screenshot a recorded screenshot with no file fails the run (592.885625ms)
-✔ flow: screenshot a named screenshot the sweep removes fails the run (746.04025ms)
-✔ flow: screenshot a copy failing with EACCES prints its code (549.20625ms)
-ℹ tests 9
+✔ flow: screenshot a named screenshot is copied to --out and the root removed after a pass (796.400584ms)
+✖ flow: screenshot the flow and its subflow both naming home copy neither and fail the run (717.816416ms)
+✖ flow: screenshot a clash stays a clash when the sweep removed its one file (707.053125ms)
+✖ flow: screenshot two files named home in different folders copy neither and fail the run (706.54ms)
+✔ flow: screenshot two files named home in different folders, one swept, export neither (695.08975ms)
+✖ flow: screenshot an unreadable command record fails a passing run (687.369917ms)
+✖ flow: screenshot a recorded screenshot with no file fails the run (734.205583ms)
+✔ flow: screenshot a named screenshot the sweep removes fails the run (704.215167ms)
+✖ flow: screenshot a short username alone in a named screenshot is exported (679.676625ms)
+✔ flow: screenshot a copy failing with EACCES prints its code (774.055667ms)
+ℹ tests 10
 ℹ suites 0
 ℹ pass 4
-ℹ fail 5
+ℹ fail 6
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 6681.70575
+ℹ duration_ms 7512.111958
 
 ✖ failing tests:
 
-test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1714:1
-✖ flow: screenshot the flow and its subflow both naming home copy neither and fail the run (816.176208ms)
-  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-lZAOBq/repo/.dev-credentials.env
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1715:1
+✖ flow: screenshot the flow and its subflow both naming home copy neither and fail the run (717.816416ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gkZyri/repo/.dev-credentials.env
   device: SIM-AAAA-1
-  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-lZAOBq/tmp/app-qa-flow-GUvhdb
-  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-lZAOBq/evidence
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gkZyri/tmp/app-qa-flow-Mhvbgi
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gkZyri/evidence
   sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
   sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
   sweep: redacted out/2026-11-07_120000/scenario/maestro.log
-  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-lZAOBq/evidence/home.png
-  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-lZAOBq/evidence/menu.png
+  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gkZyri/evidence/home.png
+  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gkZyri/evidence/menu.png
   PASS scenario 3.3s
   
   
   0 !== 1
   
-      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1721:10)
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1722:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
@@ -48,12 +49,12 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1714:1
     diff: 'simple'
   }
 
-test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1729:1
-✖ flow: screenshot a clash stays a clash when the sweep removed its one file (598.669625ms)
-  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-buhhO1/repo/secrets/qa-accounts.env
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1730:1
+✖ flow: screenshot a clash stays a clash when the sweep removed its one file (707.053125ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-mNfV5l/repo/secrets/qa-accounts.env
   device: SIM-AAAA-1
-  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-buhhO1/tmp/app-qa-flow-wBZNQn
-  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-buhhO1/evidence
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-mNfV5l/tmp/app-qa-flow-ozOWtb
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-mNfV5l/evidence
   sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
   sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
   sweep: redacted out/2026-11-07_120000/scenario/maestro.log
@@ -61,7 +62,7 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1729:1
   flow: screenshot home.png removed by the sweep
   FAIL scenario 3.3s: named screenshots not exported
   
-      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1738:10)
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1739:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
@@ -73,21 +74,20 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1729:1
     diff: 'simple'
   }
 
-test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1743:1
-✖ flow: screenshot two files named home in different folders copy neither and fail the run (701.331125ms)
-  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-sLsfuP/repo/.dev-credentials.env
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1744:1
+✖ flow: screenshot two files named home in different folders copy neither and fail the run (706.54ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gGXbSS/repo/.dev-credentials.env
   device: SIM-AAAA-1
-  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-sLsfuP/tmp/app-qa-flow-66dWDl
-  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-sLsfuP/evidence
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gGXbSS/tmp/app-qa-flow-TfSZ8s
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gGXbSS/evidence
   sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
   sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
   sweep: redacted out/2026-11-07_120000/scenario/maestro.log
   flow: screenshot home.png taken 2 times (out/2026-11-07_120000/scenario/other/takeScreenshot/home.png, out/2026-11-07_120000/scenario/takeScreenshot/home.png)
-  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-sLsfuP/evidence/menu.png
+  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-gGXbSS/evidence/menu.png
   FAIL scenario 3.3s: named screenshots not exported
   
-      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1752:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1753:10)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
     generatedMessage: false,
@@ -98,22 +98,22 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1743:1
     diff: 'simple'
   }
 
-test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1771:1
-✖ flow: screenshot an unreadable command record fails a passing run (689.01325ms)
-  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-EmHZlv/repo/.dev-credentials.env
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1772:1
+✖ flow: screenshot an unreadable command record fails a passing run (687.369917ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-36bSAM/repo/.dev-credentials.env
   device: SIM-AAAA-1
-  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-EmHZlv/tmp/app-qa-flow-lkqvEQ
-  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-EmHZlv/evidence
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-36bSAM/tmp/app-qa-flow-vOz9uR
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-36bSAM/evidence
   sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
   sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
   sweep: redacted out/2026-11-07_120000/scenario/maestro.log
-  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-EmHZlv/evidence/home.png
+  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-36bSAM/evidence/home.png
   PASS scenario 3.3s
   
   
   0 !== 1
   
-      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1775:10)
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1776:10)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
     generatedMessage: false,
@@ -124,22 +124,22 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1771:1
     diff: 'simple'
   }
 
-test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1780:1
-✖ flow: screenshot a recorded screenshot with no file fails the run (592.885625ms)
-  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-uuJ3Ex/repo/.dev-credentials.env
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1781:1
+✖ flow: screenshot a recorded screenshot with no file fails the run (734.205583ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-YsDEFx/repo/.dev-credentials.env
   device: SIM-AAAA-1
-  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-uuJ3Ex/tmp/app-qa-flow-SQZWQk
-  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-uuJ3Ex/evidence
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-YsDEFx/tmp/app-qa-flow-k6q9TY
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-YsDEFx/evidence
   sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
   sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
   sweep: redacted out/2026-11-07_120000/scenario/maestro.log
-  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-uuJ3Ex/evidence/menu.png
+  screenshot: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-YsDEFx/evidence/menu.png
   PASS scenario 3.3s
   
   
   0 !== 1
   
-      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1784:10)
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1785:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
@@ -147,6 +147,33 @@ test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1780:1
     code: 'ERR_ASSERTION',
     actual: 0,
     expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1804:1
+✖ flow: screenshot a short username alone in a named screenshot is exported (679.676625ms)
+  AssertionError [ERR_ASSERTION]: credentials: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-QiOhrs/short.env
+  device: SIM-AAAA-1
+  root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-QiOhrs/tmp/app-qa-flow-KWWmAu
+  out: /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-QiOhrs/evidence
+  sweep: deleted out/2026-11-07_120000/scenario/commands-(scenario).json
+  sweep: redacted debug/.maestro/tests/2026-11-07_120000/maestro.log
+  sweep: redacted out/2026-11-07_120000/scenario/maestro.log
+  sweep: deleted out/2026-11-07_120000/scenario/takeScreenshot/home.png
+  flow: screenshot home.png removed by the sweep
+  FAIL scenario 3.3s: named screenshots not exported
+  
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file://~/git/oh-my-pi/.worktrees/app-qa-shared-driver/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:1808:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
     operator: 'strictEqual',
     diff: 'simple'
   }

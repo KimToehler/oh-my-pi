@@ -1,6 +1,6 @@
 # F1 min-happy
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch weaver worktree, desktop
 
@@ -16,7 +16,7 @@ PASS driver: spectre 0.9.0
 PASS screen capture: granted
 PASS screen: unlocked
 preflight exit 0
-attach: pid=46324 session=pid-46324
+attach: pid=92882 session=pid-92882
 attach exit 0
 tag=shell-rail count=1 enabled=true focused=false textLength=0
 find shell-rail exit 0
@@ -40,7 +40,7 @@ find exit 0
 capture: /tmp/app-qa-impl/f1caps/min-happy/shell.png
 capture: /tmp/app-qa-impl/f1caps/min-happy/shell.json
 capture exit 0
-detach: session=pid-46324
+detach: session=pid-92882
 detach exit 0
 (exit 0)
 ```
@@ -57,4 +57,4 @@ scan exit 0
 
 ## Observation
 
-Weaver: preflight, attach (pid 46324, this worktree), wait and find on `shell-rail` (count 1, enabled), capture `shell` into a new folder, detach: each exit 0; the scan of the capture folder is clean. The capture shows the weaver shell with the rail and the session list. The probe find on `shell-bottom-bar` exited 1 with count 0: the window is wide, so the shell shows the rail instead of the bottom bar.
+Weaver: preflight, attach (pid 92882, this worktree), wait and find on `shell-rail` (count 1, enabled), capture `shell` into a new folder, detach: each exit 0; the scan of the capture folder is clean. The capture, viewed by the QA lane after the scan, shows the weaver shell with the rail and the session list. The probe find on `shell-bottom-bar` exited 1 with count 0: the window is wide, so the shell shows the rail instead of the bottom bar.

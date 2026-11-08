@@ -1,6 +1,6 @@
 # F1 root-nc
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch weaver worktree
 
@@ -12,7 +12,7 @@ cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
 $ mkdir -p /tmp/app-qa-impl/f1out/existing && touch /tmp/app-qa-impl/f1out/existing/keep.txt && stat -f "%z %Sm %N" /tmp/app-qa-impl/f1out/existing/*
-0 Nov  8 16:21:58 2026 /tmp/app-qa-impl/f1out/existing/keep.txt
+0 Nov  8 20:22:43 2026 /tmp/app-qa-impl/f1out/existing/keep.txt
 (exit 0)
 ```
 
@@ -30,13 +30,13 @@ cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
 $ stat -f "%z %Sm %N" /tmp/app-qa-impl/f1out/existing/*
-0 Nov  8 16:21:58 2026 /tmp/app-qa-impl/f1out/existing/keep.txt
+0 Nov  8 20:22:43 2026 /tmp/app-qa-impl/f1out/existing/keep.txt
 (exit 0)
 ```
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 

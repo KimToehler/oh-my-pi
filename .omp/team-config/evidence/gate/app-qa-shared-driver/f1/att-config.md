@@ -1,20 +1,18 @@
 # F1 att-config
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree, desktop
 
 ## Commands and output
 
-Onara attached (session pid-81605), home screen.
+Onara attached (its session record `2232988a363f7b96.json`), home screen.
 
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
 $ ls "$TMPDIR/app-qa/sessions"; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop find home
 2232988a363f7b96.json
-dd69b8d8f71bbc55.json
-e7c4acf968d3b37e.json
 tag=home count=1 enabled=true focused=false textLength=0
 (exit 0)
 ```
@@ -49,8 +47,6 @@ $ cp /tmp/app-qa-impl/onara-cfg.bak .omp/app-qa.json && git status --porcelain -
 ?? .omp/app-qa.json
   "desktop": { "mainClass": "eu.onara.app.MainKt", "launchHint": "./gradlew :desktopApp:run in app_kmp/" },
 2232988a363f7b96.json
-dd69b8d8f71bbc55.json
-e7c4acf968d3b37e.json
 tag=home count=1 enabled=true focused=false textLength=0
 tag=sign-out count=1 enabled=true focused=false textLength=6
 (exit 0)
@@ -58,7 +54,7 @@ tag=sign-out count=1 enabled=true focused=false textLength=6
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 

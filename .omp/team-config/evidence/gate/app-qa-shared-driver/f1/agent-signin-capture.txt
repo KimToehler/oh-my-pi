@@ -1,4 +1,4 @@
-# agent-signin capture
+# agent-signin
 
 Kept: every tool call's arguments; the output of calls that run a QA driver (`qa.mjs`); the final report. Other tool results and all reasoning are left out.
 
@@ -6,7 +6,8 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": "skill://app-qa-drivers"
+ "path": "rule://ui-automation-credentials",
+ "i": "Reading credential-safety rule"
 }
 ```
 
@@ -14,7 +15,7 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": "rule://ui-automation-credentials"
+ "path": "skill://app-qa-drivers"
 }
 ```
 
@@ -22,19 +23,12 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": ".omp/app-qa.json"
+ "path": ".omp/app-qa.json;.agents/skills/*-qa/SKILL.md;.omp/skills/*/SKILL.md",
+ "gitignore": false
 }
 ```
 
-## Call 4: glob
-
-```json
-{
- "path": ".agents/skills/*-qa/SKILL.md"
-}
-```
-
-## Call 5: read
+## Call 4: read
 
 ```json
 {
@@ -42,12 +36,22 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 }
 ```
 
-## Call 6: glob
+## Call 5: grep
 
 ```json
 {
- "path": "**/*-qa/SKILL.md",
- "hidden": true
+ "pattern": "app-qa|qa\\.mjs flow",
+ "path": ".agents;.omo;app_kmp",
+ "gitignore": false
+}
+```
+
+## Call 6: grep
+
+```json
+{
+ "pattern": "ios|iOS|account 2|--expect|qa\\.mjs|launch|install",
+ "path": "docs/agent-skills/kmp-qa/SKILL.md"
 }
 ```
 
@@ -55,11 +59,20 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": "docs/agent-skills/kmp-qa/SKILL.md"
+ "path": "app_kmp/maestro/signin-ios.yaml"
 }
 ```
 
-## Call 8: bash
+## Call 8: grep
+
+```json
+{
+ "pattern": "launchApp|stopApp|clearState|openLink",
+ "path": "app_kmp/maestro"
+}
+```
+
+## Call 9: bash
 
 ```json
 {
@@ -76,24 +89,16 @@ PASS device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
 FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404 -- fix: start the backend (SPRING_PROFILES_ACTIVE=local ./gradlew bootRun in backend_kt/ (SERVER_PORT=<port> when 8080 is taken)) or pass --port
 
 
-Wall time: 2.88 seconds
+Wall time: 3.36 seconds
 
 Command exited with code 1
-```
-
-## Call 9: read
-
-```json
-{
- "path": "app_kmp/maestro/signin-ios.yaml"
-}
 ```
 
 ## Call 10: bash
 
 ```json
 {
- "command": "lsof -nP -iTCP:8080 -iTCP:8081 -sTCP:LISTEN"
+ "command": "lsof -nP -iTCP -sTCP:LISTEN | awk 'NR==1 || /:80[0-9][0-9] /'"
 }
 ```
 
@@ -101,7 +106,7 @@ Command exited with code 1
 
 ```json
 {
- "pattern": "onara.devBackendPort",
+ "pattern": "devBackendPort",
  "path": "app_kmp/gradle.properties"
 }
 ```
@@ -123,68 +128,59 @@ PASS device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
 PASS backend: http://127.0.0.1:8081/actuator/health UP
 
 
-Wall time: 2.98 seconds
+Wall time: 3.90 seconds
 ```
 
 ## Call 13: grep
 
 ```json
 {
- "pattern": "devBackendPort",
+ "pattern": "devBackendPort|BACKEND_PORT|localhost:",
  "path": "app_kmp;!**/build/**"
 }
 ```
 
-## Call 14: grep
+## Call 14: bash
 
 ```json
 {
- "pattern": "localhost|127\\.0\\.0\\.1|PORT",
+ "command": "xcrun simctl get_app_container 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A eu.onara.app.kmp app"
+}
+```
+
+## Call 15: grep
+
+```json
+{
+ "pattern": "DEV_BACKEND_PORT",
  "path": "app_kmp/shared/build/generated/buildInfo",
  "gitignore": false
 }
 ```
 
-## Call 15: bash
+## Call 16: bash
 
 ```json
 {
- "command": "xcrun simctl get_app_container booted eu.onara.app.kmp app"
+ "command": "mkdir -m 700 /tmp/onara-signin-acct2-flow"
 }
 ```
 
-## Call 16: glob
+## Call 17: write
 
 ```json
 {
- "path": "app_kmp/maestro/*.yaml"
+ "path": "/tmp/onara-signin-acct2-flow/signin-account2.yaml",
+ "content": "appId: eu.onara.app.kmp\n---\n- launchApp:\n    clearState: true\n    stopApp: true\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 30000\n- runFlow:\n    file: ~/git/onara/.worktrees/qa-shared-f1/app_kmp/maestro/signin-ios.yaml\n- takeScreenshot: after-signin\n"
 }
 ```
 
-## Call 17: read
+## Call 18: bash
 
 ```json
 {
- "path": "app_kmp/maestro/onboarding.yaml"
-}
-```
-
-## Call 18: eval
-
-```json
-{
- "language": "py",
- "code": "import tempfile, os\nd = tempfile.mkdtemp(prefix=\"qa-acct2-\")\nos.chmod(d, 0o700)\nsub = os.path.abspath(\"app_kmp/maestro/signin-ios.yaml\")\nflow = f\"\"\"appId: eu.onara.app.kmp\n---\n- launchApp:\n    stopApp: false\n- runFlow: {sub}\n- takeScreenshot: after-signin\n\"\"\"\np = os.path.join(d, \"signin-acct2.yaml\")\nwrite(p, flow)\nprint(d)",
- "title": "Writing wrapper flow"
-}
-```
-
-## Call 19: bash
-
-```json
-{
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/signin-acct2.yaml --account 2 --expect onboarding --out /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/out",
- "timeout": 240
+ "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /tmp/onara-signin-acct2-flow/signin-account2.yaml --account 2 --expect onboarding --device 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A --out /tmp/onara-signin-acct2-out",
+ "timeout": 300
 }
 ```
 
@@ -193,17 +189,34 @@ Driver output:
 ```
 credentials: /Users/[redacted]/git/onara/.dev-credentials.env
 device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT
-out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/out
-sweep: deleted out/2026-11-08_163955/signin-acct2/commands.json
-sweep: redacted debug/.maestro/tests/2026-11-08_163955/maestro.log
-sweep: redacted out/2026-11-08_163955/signin-acct2/logs/device-simulator.log
-sweep: redacted out/2026-11-08_163955/signin-acct2/logs/maestro.log
-FAIL signin-acct2 33.6s: Assertion is false: "Username or email" is visible
-root kept: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT
+root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-zJhrND
+out: /tmp/onara-signin-acct2-out
+sweep: deleted out/2026-11-08_205228/signin-account2/commands.json
+sweep: redacted debug/.maestro/tests/2026-11-08_205228/maestro.log
+sweep: redacted out/2026-11-08_205228/signin-account2/logs/device-simulator.log
+sweep: redacted out/2026-11-08_205228/signin-account2/logs/maestro.log
+screenshot: /tmp/onara-signin-acct2-out/after-signin.png
+PASS signin-account2 42.1s
 
 
-Wall time: 44.98 seconds
+Wall time: 50.84 seconds
+```
+
+## Call 19: bash
+
+```json
+{
+ "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /tmp/onara-signin-acct2-out && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /tmp/onara-signin-acct2-flow"
+}
+```
+
+Driver output:
+
+```
+credentials: /Users/[redacted]/git/onara/.dev-credentials.env
+credentials: /Users/[redacted]/git/onara/.dev-credentials.env
+/tmp/onara-signin-acct2-flow/signin-account2.yaml
+
 
 Command exited with code 1
 ```
@@ -212,227 +225,25 @@ Command exited with code 1
 
 ```json
 {
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT"
+ "command": "rm -r /tmp/onara-signin-acct2-flow && test ! -e /tmp/onara-signin-acct2-flow && echo removed"
 }
 ```
 
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
-```
-
-## Call 21: glob
+## Call 21: read
 
 ```json
 {
- "path": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT/**",
- "hidden": true,
- "gitignore": false
+ "path": "/tmp/onara-signin-acct2-out/after-signin.png"
 }
-```
-
-## Call 22: read
-
-```json
-{
- "path": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT/console.log"
-}
-```
-
-## Call 23: read
-
-```json
-{
- "path": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT/report.xml"
-}
-```
-
-## Call 24: grep
-
-```json
-{
- "pattern": "(?i)(launch app|tap on|run flow|skipped|completed|failed|Fortfahren|Continue)",
- "path": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT/out/2026-11-08_163955/signin-acct2/logs/maestro.log"
-}
-```
-
-## Call 25: eval
-
-```json
-{
- "language": "py",
- "code": "probe = \"\"\"appId: eu.onara.app.kmp\n---\n- assertVisible:\n    id: \"sign-in\"\n    optional: true\n- assertVisible:\n    id: \"home\"\n    optional: true\n- assertVisible:\n    id: \"onboarding-welcome\"\n    optional: true\n- assertVisible:\n    id: \"sign-out\"\n    optional: true\n\"\"\"\nwrite(os.path.join(d, \"probe.yaml\"), probe)",
- "title": "Writing tag probe flow"
-}
-```
-
-## Call 26: bash
-
-```json
-{
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe.yaml --account 2 --out /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe-out",
- "timeout": 180
-}
-```
-
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
-device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-Sn471Q
-out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe-out
-sweep: deleted out/2026-11-08_164119/probe/commands.json
-sweep: redacted out/2026-11-08_164119/probe/logs/device-simulator.log
-PASS probe 20.1s
-
-
-Wall time: 26.85 seconds
-```
-
-## Call 27: eval
-
-```json
-{
- "language": "py",
- "code": "tags = [\"sign-in\", \"home\", \"onboarding-welcome\", \"sign-out\", \"display-name\"]\nbody = \"appId: eu.onara.app.kmp\\n---\\n\" + \"\".join(\n    f\"\"\"- runFlow:\n    when:\n      visible:\n        id: \"{t}\"\n    commands:\n      - takeScreenshot: tag-{t}\n\"\"\" for t in tags)\nwrite(os.path.join(d, \"probe2.yaml\"), body)",
- "title": "Writing marker probe flow"
-}
-```
-
-## Call 28: bash
-
-```json
-{
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe2.yaml --account 2 --out /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe2-out",
- "timeout": 180
-}
-```
-
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
-device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-XqaepZ
-out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe2-out
-sweep: deleted out/2026-11-08_164157/probe2/commands.json
-sweep: redacted out/2026-11-08_164157/probe2/logs/device-simulator.log
-screenshot: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe2-out/tag-onboarding-welcome.png
-PASS probe2 9.2s
-
-
-Wall time: 17.45 seconds
-```
-
-## Call 29: grep
-
-```json
-{
- "pattern": "(?i)keychain|SecItem|NSUserDefaults|prefersEphemeral|ASWebAuthenticationSession",
- "path": "app_kmp;!**/build/**"
-}
-```
-
-## Call 30: grep
-
-```json
-{
- "pattern": "(?i)signOut|sign-out|SIGN_OUT",
- "path": "app_kmp/ui/src/commonMain;!**/build/**"
-}
-```
-
-## Call 31: eval
-
-```json
-{
- "language": "py",
- "code": "flow = f\"\"\"appId: eu.onara.app.kmp\n---\n- clearKeychain\n- launchApp\n- runFlow: {sub}\n- takeScreenshot: after-signin\n\"\"\"\nwrite(os.path.join(d, \"signin-acct2-fresh.yaml\"), flow)",
- "title": "Writing fresh sign-in flow"
-}
-```
-
-## Call 32: bash
-
-```json
-{
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/signin-acct2-fresh.yaml --account 2 --expect onboarding --out /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/fresh-out",
- "timeout": 240
-}
-```
-
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
-device: 8A3D02EF-0395-4C1D-AA8C-0845639B1A7A
-root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-2DS5Ds
-out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/fresh-out
-sweep: deleted out/2026-11-08_164257/signin-acct2-fresh/commands.json
-sweep: redacted debug/.maestro/tests/2026-11-08_164257/maestro.log
-sweep: redacted out/2026-11-08_164257/signin-acct2-fresh/logs/device-simulator.log
-sweep: redacted out/2026-11-08_164257/signin-acct2-fresh/logs/maestro.log
-screenshot: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/fresh-out/after-signin.png
-PASS signin-acct2-fresh 44.2s
-
-
-Wall time: 55.34 seconds
-```
-
-## Call 33: bash
-
-```json
-{
- "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8"
-}
-```
-
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
-/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/signin-acct2-fresh.yaml
-/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/signin-acct2.yaml
-
-
-Command exited with code 1
-```
-
-## Call 34: read
-
-```json
-{
- "path": "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/fresh-out/after-signin.png"
-}
-```
-
-## Call 35: bash
-
-```json
-{
- "command": "rm -r /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8J8MvT /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe2-out /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/probe-out && rm /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/*.yaml && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8"
-}
-```
-
-Driver output:
-
-```
-credentials: /Users/[redacted]/git/onara/.dev-credentials.env
 ```
 
 ## Final report
 
-Account 2 is signed in on the iOS simulator (`onara-f1`). The driver's sign-in flow passed and landed on the onboarding welcome screen (`onboarding-welcome`).
+Account 2 is signed in on the iOS simulator, and the app opened on the onboarding welcome screen (`onboarding-welcome`). Account 2 is the onboarding account, so that is the expected place to land.
 
-**Screen after sign-in:** the onboarding welcome page in German. It reads "Willkommen bei Onara" and "Schön, dass du da bist." with the Onara wordmark and "Dein Tag, dein Rhythmus." Below are the language chips (Deutsch selected, English) and the "Loslegen" button. Screenshot: `/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-acct2-j1oyz6s8/fresh-out/after-signin.png` (the credential scan found nothing in it).
+**Screen after sign-in** (shown above): "Willkommen bei Onara", "Schön, dass du da bist.", the Onara wordmark, the language chips with Deutsch selected and English beside it, "Etwa zwei Minuten." and the **Loslegen →** button. It's saved at `/tmp/onara-signin-acct2-out/after-signin.png`.
 
-What got in the way:
-- **Backend:** Docker holds port 8080, so the backend check failed there. The backend that's up is on 8081. I ran the checks against 8081, and the last iOS build in this worktree uses 8081 too.
-- **Old session:** my first sign-in attempt failed because the app was already signed in on the onboarding screen, and nothing was typed. I couldn't tell which account that session belonged to, and onboarding has no sign-out button.
-- **I cleared the simulator's whole keychain** to end that session. That was the only way to sign out from there, but it removes every keychain item on this simulator, not just the app's. After that, account 2 signed in normally.
-
-**A risk to rotate:** the QA driver blanks out your macOS username (`/Users/[redacted]/…`) in every path it prints. It only blanks configured username and password values, so one of the dev account values in `.dev-credentials.env` matches your macOS username. The value itself never showed up in my output, but if it's a password, it's now guessable from that. It also makes the credential scan flag any file that contains a home-directory path.
-
-My temporary flow files, probe output and the failed run's logs are deleted; only the screenshot's folder is left, and a rescan of it is clean.
+- **Backend:** the first readiness check failed because Docker holds port 8080 and returns HTTP 404 there. The real backend is on 8081, which is also the port the installed debug app was built for, and the check passed there.
+- **How it signed in:** it ran in one Maestro run, which first relaunched the app with its local data cleared and then ran the repository's iOS sign-in flow. No login-page screenshot or screen dump was taken, and the screenshot was taken only after sign-in had finished. The run passed in 42 s.
+- **Credential safety:** the run deleted its `commands.json` and blanked the credentials in its three logs. The screenshot folder scanned clean.
+- **One scan hit:** the scan flagged my temporary flow file in `/tmp/onara-signin-acct2-flow/`. The file held no credential, only the path `~/...`. The match means one configured account value is the string `[redacted]`. I deleted the folder anyway.

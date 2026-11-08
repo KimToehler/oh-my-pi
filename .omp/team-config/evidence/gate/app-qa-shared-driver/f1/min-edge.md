@@ -1,6 +1,6 @@
 # F1 min-edge
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree `~/git/onara/.worktrees/qa-shared-f1`
 
@@ -12,11 +12,9 @@ cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
 $ find "${TMPDIR:-/tmp}/app-qa" 2>&1 | sort | while read -r p; do stat -f "%Sp %z %Sm %N" "$p"; done
-drwx------ 96 Nov  8 14:39:05 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa
-drwx------ 160 Nov  8 15:04:22 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions
--rw------- 197 Nov  8 15:21:46 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/2232988a363f7b96.json
--rw------- 208 Nov  8 15:02:55 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/dd69b8d8f71bbc55.json
--rw------- 206 Nov  8 15:04:22 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/e7c4acf968d3b37e.json
+drwx------ 96 Nov  8 18:13:50 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa
+drwx------ 96 Nov  8 18:16:30 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions
+-rw------- 197 Nov  8 18:12:00 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/2232988a363f7b96.json
 (exit 0)
 ```
 
@@ -52,11 +50,9 @@ cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
 $ find "${TMPDIR:-/tmp}/app-qa" 2>&1 | sort | while read -r p; do stat -f "%Sp %z %Sm %N" "$p"; done
-drwx------ 96 Nov  8 14:39:05 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa
-drwx------ 160 Nov  8 15:04:22 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions
--rw------- 197 Nov  8 15:21:46 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/2232988a363f7b96.json
--rw------- 208 Nov  8 15:02:55 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/dd69b8d8f71bbc55.json
--rw------- 206 Nov  8 15:04:22 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/e7c4acf968d3b37e.json
+drwx------ 96 Nov  8 18:13:50 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa
+drwx------ 96 Nov  8 18:16:30 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions
+-rw------- 197 Nov  8 18:12:00 2026 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T//app-qa/sessions/2232988a363f7b96.json
 (exit 0)
 ```
 

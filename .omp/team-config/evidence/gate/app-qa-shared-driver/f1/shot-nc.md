@@ -1,8 +1,8 @@
 # F1 shot-nc (*test*)
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4`.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309`.
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 
@@ -14,6 +14,11 @@ Tests passing in that log:
 - `flow: screenshot a clash stays a clash when the sweep removed its one file`
 - `flow: screenshot two files named home in different folders copy neither and fail the run`
 - `flow: screenshot two files named home in different folders, one swept, export neither`
+- `flow: screenshot the flow and its subflow both naming home copy neither and fail the run`
+- `flow: screenshot a clash stays a clash when the sweep removed its one file`
+- `flow: screenshot two files named home in different folders copy neither and fail the run`
+- `flow: screenshot an unreadable command record fails a passing run`
+- `flow: screenshot a recorded screenshot with no file fails the run`
 
 Broken-copy controls (`f1/broken-copies-log.txt`, command `node f1/broken-copies.mjs <qa.mjs> <qa.test.mjs>` on the head, each copy run through `QA_UNDER_TEST`; the lines below are copied from that log):
 
@@ -57,14 +62,6 @@ caught screenshots-grouped-by-source-path (exit 1, pattern ^(flow: screenshot))
   failed: flow: screenshot a copy failing with EACCES prints its code
 ```
 
-Driver of commit `cc62771944` under the head's tests (`f1/cc6277-driver-log.txt`, `QA_UNDER_TEST` naming that driver, pattern `^flow: screenshot`, exit 1), failing:
-
-- `flow: screenshot the flow and its subflow both naming home copy neither and fail the run`
-- `flow: screenshot a clash stays a clash when the sweep removed its one file`
-- `flow: screenshot two files named home in different folders copy neither and fail the run`
-- `flow: screenshot an unreadable command record fails a passing run`
-- `flow: screenshot a recorded screenshot with no file fails the run`
-
 ## Observation
 
-The suite fails each broken copy (exporting one `home.png`, reporting `EACCES` as an existing target, enumerating screenshots after the sweep, ignoring an unreadable command record, grouping by source path instead of file name, which the two-folder `home` tests catch). The driver of commit `cc62771944`, which counted `takeScreenshot/` files instead of Maestro's command records, fails five of the screenshot tests (`f1/cc6277-driver-log.txt`).
+The suite fails each broken copy (exporting one `home.png`, reporting `EACCES` as an existing target, enumerating screenshots after the sweep, ignoring an unreadable command record, grouping by source path instead of file name, which the two-folder `home` tests catch). The driver of commit `cc62771944`, which counted `takeScreenshot/` files instead of Maestro's command records, fails six of the ten screenshot tests (`f1/cc6277-driver-log.txt`): the five command-record tests, and the short-username screenshot test of task 1.10, because that driver still flags a value shorter than six bytes in a binary file.

@@ -1,6 +1,6 @@
-# agent-legacy capture
+# agent-legacy
 
-Kept: every tool call's arguments; the output of calls that run a QA driver (`qa.mjs`); the final report. Other tool results and all reasoning are left out. A configured account value in kept output is written `[redacted]`, as the driver prints it.
+Kept: every tool call's arguments; the output of calls that run a QA driver (`qa.mjs`); the final report. Other tool results and all reasoning are left out.
 
 ## Call 1: read
 
@@ -10,16 +10,7 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 }
 ```
 
-## Call 2: grep
-
-```json
-{
- "pattern": "(?i)preflight",
- "path": "scripts;.agents;.omo;docs;app_kmp"
-}
-```
-
-## Call 3: glob
+## Call 2: glob
 
 ```json
 {
@@ -29,15 +20,56 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 }
 ```
 
-## Call 4: read
+## Call 3: glob
 
 ```json
 {
- "path": "docs/agent-skills/kmp-qa/SKILL.md"
+ "path": "**/skills/*qa*/SKILL.md",
+ "hidden": true,
+ "gitignore": false
 }
 ```
 
-## Call 5: bash
+## Call 4: grep
+
+```json
+{
+ "pattern": "(?i)preflight",
+ "path": ".agents;.omo;.omp;scripts;app_kmp;docs",
+ "gitignore": false
+}
+```
+
+## Call 5: glob
+
+```json
+{
+ "path": "app_kmp/**/SKILL.md",
+ "hidden": true,
+ "gitignore": false
+}
+```
+
+## Call 6: grep
+
+```json
+{
+ "pattern": "devBackendPort",
+ "path": "app_kmp/gradle.properties"
+}
+```
+
+## Call 7: grep
+
+```json
+{
+ "pattern": "qa\\.mjs preflight",
+ "path": ".omo/rules;.omp/skills;app_kmp;nutritrain/.omo",
+ "gitignore": false
+}
+```
+
+## Call 8: bash
 
 ```json
 {
@@ -53,16 +85,21 @@ PASS screen capture: granted
 PASS screen: unlocked
 FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404 -- fix: start the backend (SPRING_PROFILES_ACTIVE=local ./gradlew bootRun in backend_kt/, SERVER_PORT=8080 when another project holds 8080) or pass --port
 exit=1
-
-
-Wall time: 1.24 seconds
 ```
 
-## Call 6: bash
+## Call 9: bash
 
 ```json
 {
- "command": "node app_kmp/scripts/qa.mjs preflight desktop --port 8081; echo \"exit=$?\"; lsof -nP -iTCP:8080 -iTCP:8081 -sTCP:LISTEN"
+ "command": "lsof -nP -iTCP:8080 -iTCP:8081 -sTCP:LISTEN; echo \"exit=$?\""
+}
+```
+
+## Call 10: bash
+
+```json
+{
+ "command": "node app_kmp/scripts/qa.mjs preflight desktop --port 8081; echo \"exit=$?\""
 }
 ```
 
@@ -74,50 +111,62 @@ PASS screen capture: granted
 PASS screen: unlocked
 PASS backend: http://127.0.0.1:8081/actuator/health UP
 exit=0
-COMMAND     PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-com.docke  2519  [redacted]   15u  IPv4 0x746b35b7d22a2523      0t0  TCP 127.0.0.1:8080 (LISTEN)
-java      85648  [redacted]  538u  IPv6  0x556656091c70fa1      0t0  TCP *:8081 (LISTEN)
 ```
 
-## Call 7: bash
+## Call 11: bash
 
 ```json
 {
- "command": "jps -l"
+ "command": "lsof -a -p 24526 -d cwd -Fn | grep '^n'; pgrep -fl eu.onara.app.MainKt | cut -c1-200; echo \"exit=$?\""
 }
 ```
 
-## Call 8: bash
+## Call 12: bash
 
 ```json
 {
- "command": "for p in 81605 96270 85648; do echo \"== $p cwd: $(lsof -a -p $p -d cwd -Fn | grep '^n' | cut -c2-)\"; ps -o args= -p $p | tr ' ' '\\n' | grep -iE 'backend|port|onara\\.' | grep -viE 'password|secret|token' ; done"
+ "command": "lsof -a -p 24595 -d cwd -Fn | grep '^n'; ps -o command= -p 24595 | tr ' ' '\\n' | grep -E 'resources.dir|devBackendPort'"
 }
 ```
 
-## Call 9: bash
+## Call 13: grep
 
 ```json
 {
- "command": "ps -o args= -p 81583 | tr ' ' '\\n' | grep -E '^-P|desktopApp|:run'; grep -n devBackendPort app_kmp/gradle.properties"
+ "pattern": "devBackendPort|DEV_BACKEND_PORT",
+ "path": "app_kmp;!**/build/**"
+}
+```
+
+## Call 14: grep
+
+```json
+{
+ "pattern": "DEV_BACKEND_PORT",
+ "path": "app_kmp/shared/build/generated/buildInfo",
+ "gitignore": false
 }
 ```
 
 ## Final report
 
-Yes, the desktop app is ready to be driven, as long as every driver call uses port 8081 and you accept that the backend belongs to a different worktree. This repo has no `.omp/app-qa.json`, so I used its own driver, `app_kmp/scripts/qa.mjs`, as its QA skill `kmp-qa` says.
+The desktop app is ready to be driven, as long as you pass `--port 8081`. Docker is holding 8080, so this worktree's backend runs on 8081.
 
-**Preflight results**
-- `node app_kmp/scripts/qa.mjs preflight desktop` (default port 8080) failed: exit 1, `FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404`. Docker Desktop (pid 2519) is listening on 8080, not the Onara backend.
-- With `--port 8081` it passed, exit 0:
-  - `PASS driver: spectre 0.9.0`
-  - `PASS screen capture: granted`
-  - `PASS screen: unlocked`
-  - `PASS backend: http://127.0.0.1:8081/actuator/health UP`
+This repository has no `.omp/app-qa.json`, so I used its own driver, `app_kmp/scripts/qa.mjs`.
 
-**State of the app and backend**
-- **This worktree's app is running and points at 8081.** It's `eu.onara.app.MainKt`, pid 81605, working directory `qa-shared-f1/app_kmp/desktopApp`. It was started with `:desktopApp:run -Ponara.devBackendPort=8081` and the main checkout's `.dev-credentials.env`.
-- **A second copy of the app is running** (pid 96270) from the `kmp-profile` worktree, signed in as dev account 2. Attaching is supposed to pick only the JVM started in this worktree, so it should choose 81605. I haven't run `desktop attach` to confirm that. If it lists both pids, use `--pid 81605`.
-- **The backend on 8081 runs `kmp-profile`'s code** (pid 85648, working directory `.worktrees/kmp-profile/backend_kt`), not this worktree's. That's fine for checks that only touch the app. Anything that depends on backend changes in this branch would be tested against the wrong code. The machine runs one backend at a time, so testing this branch's backend means stopping that one and starting this worktree's `bootRun` on 8081.
+**`node app_kmp/scripts/qa.mjs preflight desktop --port 8081`, exit 0:**
+- PASS driver: spectre 0.9.0
+- PASS screen capture: granted
+- PASS screen: unlocked
+- PASS backend: http://127.0.0.1:8081/actuator/health UP
 
-The next step is `node app_kmp/scripts/qa.mjs desktop attach`.
+**Without `--port`, exit 1:** `FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404`. Docker (pid 2519) is listening on 127.0.0.1:8080, so a backend on that port is not this app's.
+
+**The rest of the setup matches 8081:**
+- **Backend:** the Java process on 8081 (pid 24526) runs from this worktree's `backend_kt/`.
+- **Desktop app:** one JVM of the app (pid 24595) is running from this worktree's `app_kmp/desktopApp`, so `desktop attach` should pick it without needing `--pid`.
+- **App's backend port:** `app_kmp/gradle.properties` says 8080, but the generated `BuildInfo.kt` holds `DEV_BACKEND_PORT = 8081`, so the build was made for 8081. I'm assuming the running app was started from that build. Its launch time wasn't checked against the file.
+
+I didn't attach to the app, read the screen or sign in, so I don't know which screen it is on or whether it's signed in. Running `desktop attach` and then a `find` on the screen's tag will show that.
+
+One process slip: an early search of mine also covered `.omp/team-config/evidence/`, which holds evidence I didn't write. It returned only earlier preflight lines and no credentials, and I didn't open or change anything there.

@@ -1,4 +1,4 @@
-# agent-desktop capture
+# agent-desktop
 
 Kept: every tool call's arguments; the output of calls that run a QA driver (`qa.mjs`); the final report. Other tool results and all reasoning are left out.
 
@@ -14,7 +14,7 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": ".omp/app-qa.json;.agents/skills/*-qa/SKILL.md;.omp/skills/**/SKILL.md"
+ "path": ".omp/app-qa.json;.agents/skills/*-qa/SKILL.md"
 }
 ```
 
@@ -30,8 +30,7 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": "**/SKILL.md",
- "hidden": true
+ "path": "**/SKILL.md"
 }
 ```
 
@@ -47,35 +46,23 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "command": "ls app_kmp/scripts/qa.mjs ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop"
+ "command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop"
 }
 ```
 
 Driver output:
 
 ```
-~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs
-app_kmp/scripts/qa.mjs
 PASS driver: spectre 0.9.0
 PASS screen capture: granted
 PASS screen: unlocked
 FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404 -- fix: start the backend (SPRING_PROFILES_ACTIVE=local ./gradlew bootRun in backend_kt/ (SERVER_PORT=<port> when 8080 is taken)) or pass --port
 
 
-Wall time: 1.18 seconds
-
 Command exited with code 1
 ```
 
-## Call 7: read
-
-```json
-{
- "path": "rule://ui-automation-credentials"
-}
-```
-
-## Call 8: bash
+## Call 7: bash
 
 ```json
 {
@@ -92,7 +79,7 @@ PASS screen: unlocked
 PASS backend: http://127.0.0.1:8081/actuator/health UP
 ```
 
-## Call 9: bash
+## Call 8: bash
 
 ```json
 {
@@ -103,13 +90,13 @@ PASS backend: http://127.0.0.1:8081/actuator/health UP
 Driver output:
 
 ```
-attach: pid=81605 session=pid-81605
+attach: pid=24595 session=pid-24595
 
 
-Wall time: 7.01 seconds
+Wall time: 6.26 seconds
 ```
 
-## Call 10: bash
+## Call 9: bash
 
 ```json
 {
@@ -123,7 +110,7 @@ Driver output:
 tag=chat-input count=1 enabled=true focused=false textLength=0
 ```
 
-## Call 11: bash
+## Call 10: bash
 
 ```json
 {
@@ -138,10 +125,10 @@ type: tag=chat-input textLength=17
 tag=chat-input count=1 enabled=true focused=true textLength=17 equals=true
 
 
-Wall time: 2.86 seconds
+Wall time: 1.52 seconds
 ```
 
-## Call 12: bash
+## Call 11: bash
 
 ```json
 {
@@ -152,18 +139,20 @@ Wall time: 2.86 seconds
 Driver output:
 
 ```
-detach: session=pid-81605
+detach: session=pid-24595
 ```
 
 ## Final report
 
-The desktop app's chat field now holds exactly `qa f1 agent check`, checked by reading the field back through the QA driver.
+The chat field of the desktop app now holds exactly `qa f1 agent check`.
 
-- **Preflight:** the first run failed because port 8080 returned HTTP 404 instead of the backend. Rerun with `--port 8081`, every check passed and the backend reported `UP`.
-- **Attach:** connected to the one desktop app process running from this worktree, pid 81605.
-- **Before:** `find chat-input` found one field, enabled and empty (`textLength=0`).
-- **Type:** `type chat-input "qa f1 agent check"` wrote 17 characters into the field.
-- **Proof:** `find chat-input --equals "qa f1 agent check"` returned `count=1 enabled=true focused=true textLength=17 equals=true`. The field's text is exactly that string.
-- **Session:** I disconnected the driver afterwards. The text is still in the field and was not sent.
+**How it was done** (shared driver, Spectre 0.9.0):
+- **Preflight:** against the default port 8080, the backend check failed with HTTP 404, so something other than the backend answers there. With `--port 8081` all four checks passed and the backend health was `UP`.
+- **Attach:** the driver attached to the app's one running process (pid 24595). Before typing, `chat-input` was a single node, enabled, and empty (`textLength=0`).
+- **Type:** `desktop type chat-input "qa f1 agent check"` wrote 17 characters.
 
-I also tried to run Spectre's `spectre ps` directly, and a project rule on test automation with real accounts blocked it. Everything after that went through the QA driver only. Nothing was signed in or typed besides the test string. I took no screenshot or UI tree because the text match is the proof.
+**Proof:** `desktop find chat-input --equals "qa f1 agent check"` read the field back as `count=1 enabled=true focused=true textLength=17 equals=true`. That is an exact text match against the field itself.
+
+- No sign-in was needed, no screenshot or UI tree was taken, and no evidence files were written.
+- The text was not sent; it is still in the field.
+- I detached the driver session afterwards.

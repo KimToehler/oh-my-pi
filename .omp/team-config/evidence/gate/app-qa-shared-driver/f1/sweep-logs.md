@@ -1,6 +1,6 @@
 # F1 sweep-logs
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch onara worktree, iOS simulator `onara-f1`
 
@@ -11,7 +11,7 @@ The same run as `red-nc` (root `app-qa-flow-app-qa-flow-EKSQFk`): its output abo
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
-$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-EKSQFk --credentials /tmp/app-qa-impl/creds-wrong.env; echo "scan root (run credentials) exit $?"; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-EKSQFk; echo "scan root (configured file) exit $?"
+$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-Gh03U2 --credentials /tmp/app-qa-impl/creds-wrong.env; echo "scan root (run credentials) exit $?"; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan "$TMPDIR"/app-qa-flow-Gh03U2; echo "scan root (configured file) exit $?"
 scan root (run credentials) exit 0
 scan root (configured file) exit 0
 credentials: /tmp/app-qa-impl/creds-wrong.env
@@ -24,17 +24,17 @@ credentials: /Users/[redacted]/git/onara/.dev-credentials.env
 cwd `~/git/onara/.worktrees/qa-shared-f1`
 
 ```
-$ cd "$TMPDIR"/app-qa-flow-EKSQFk && for f in debug/.maestro/tests/*/maestro.log out/*/signin/logs/maestro.log out/*/signin/logs/device-simulator.log; do echo "$(grep -o "\[redacted\]" "$f" | wc -l | tr -d " ") $f"; done; ls out/*/signin/commands.json 2>&1
-5 debug/.maestro/tests/2026-11-08_163453/maestro.log
-2 out/2026-11-08_163453/signin/logs/maestro.log
-697 out/2026-11-08_163453/signin/logs/device-simulator.log
+$ cd "$TMPDIR"/app-qa-flow-Gh03U2 && for f in debug/.maestro/tests/*/maestro.log out/*/signin/logs/maestro.log out/*/signin/logs/device-simulator.log; do echo "$(grep -o "\[redacted\]" "$f" | wc -l | tr -d " ") $f"; done; ls out/*/signin/commands.json 2>&1
+5 debug/.maestro/tests/2026-11-08_202957/maestro.log
+2 out/2026-11-08_202957/signin/logs/maestro.log
+697 out/2026-11-08_202957/signin/logs/device-simulator.log
 ls: out/*/signin/commands.json: No such file or directory
 (exit 1)
 ```
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 

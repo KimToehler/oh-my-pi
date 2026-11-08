@@ -1,4 +1,4 @@
-# agent-missing capture
+# agent-missing
 
 Kept: every tool call's arguments; the output of calls that run a QA driver (`qa.mjs`); the final report. Other tool results and all reasoning are left out.
 
@@ -14,9 +14,7 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 
 ```json
 {
- "path": ".omp/app-qa.json",
- "hidden": true,
- "gitignore": false
+ "path": ".omp/app-qa.json;.agents/skills/*-qa/SKILL.md;.omp/skills/*/SKILL.md"
 }
 ```
 
@@ -28,21 +26,22 @@ Kept: every tool call's arguments; the output of calls that run a QA driver (`qa
 }
 ```
 
-## Call 4: glob
+## Call 4: grep
 
 ```json
 {
- "path": "**/*-qa/SKILL.md",
- "hidden": true,
- "gitignore": false
+ "pattern": "chat.*(input|field)|testTag\\(\".*[Cc]hat",
+ "path": ".agents;.omp;.omo/rules"
 }
 ```
 
-## Call 5: read
+## Call 5: grep
 
 ```json
 {
- "path": "docs/agent-skills/kmp-qa/SKILL.md"
+ "pattern": "testTag\\(\"[^\"]*(chat|composer|message)[^\"]*\"\\)",
+ "path": "app_kmp",
+ "case": false
 }
 ```
 
@@ -68,20 +67,20 @@ Command exited with code 1
 
 ## Final report
 
-I didn't type anything into the chat field, so there's nothing to show yet. The desktop check that has to pass before I drive the app failed:
+I didn't type the text, so there's nothing to prove yet. The desktop preflight failed, and the QA skill says to stop and report a failed preflight line rather than work around it.
 
-```
-FAIL driver: spectre not found -- fix: download spectre-macosArm64.zip from https://github.com/rock3r/spectre/releases/tag/v0.9.0, check its sha256 is 7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b, unzip it and put spectre on PATH (not brew: the tap tracks the newest release)
-FAIL screen capture: not checked, spectre not found -- fix: install spectre (see the driver line)
-PASS screen: unlocked
-FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404 -- fix: start the backend (SPRING_PROFILES_ACTIVE=local ./gradlew bootRun in backend_kt/ (SERVER_PORT=<port> when 8080 is taken)) or pass --port
-```
+Output of `qa.mjs preflight desktop`:
 
-That was `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop`, which exited with code 1. The QA skill says to stop at a failed check like this and report it, not work around it, so I didn't attach to the app, type, or use OS-level scripting.
+- **FAIL driver: spectre not found.** Fix: download `spectre-macosArm64.zip` from the Spectre v0.9.0 release (https://github.com/rock3r/spectre/releases/tag/v0.9.0). Check its sha256 is `7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b`, unzip it and put `spectre` on `PATH`. Don't use brew, because the tap installs the newest release instead of 0.9.0.
+- **FAIL screen capture:** not checked, because Spectre is missing.
+- **PASS screen:** unlocked.
+- **FAIL backend:** `http://127.0.0.1:8080/actuator/health` returned HTTP 404. Fix: start the backend with `SPRING_PROFILES_ACTIVE=local ./gradlew bootRun` in `backend_kt/`, or pass `--port` if it runs on another port.
 
-To unblock it:
-1. Install Spectre 0.9.0 as the driver line says, and put `spectre` on `PATH`.
-2. Start the backend, or pass `--port N` if it's already on another port. Something answered on 8080, but `/actuator/health` returned 404.
-3. Start the desktop app: `./gradlew :desktopApp:run` from `app_kmp/`.
+**Chat field tag:** searching `app_kmp` for a `testTag("…")` literal containing chat, composer or message found nothing. The tag may be defined as a constant, so I still have to find it before typing.
 
-Once those pass, I'll run `desktop attach`, then `desktop type chat-input "qa f1 agent check"`, then `desktop find chat-input --equals "qa f1 agent check"`. The proof is the `equals=true` line from that last command.
+**Existing evidence:** while searching, I came across a few existing QA evidence files from someone else's chat test. I didn't open them, as the credentials rule requires.
+
+Once Spectre 0.9.0 is on `PATH`, the backend is healthy and the desktop app is running (`./gradlew :desktopApp:run` in `app_kmp/`), the next steps are:
+1. Run `desktop attach`.
+2. Run `desktop type <chat-tag> "qa f1 agent check"`, which fails unless the field then holds exactly that text.
+3. Run `desktop find <chat-tag> --equals "qa f1 agent check"` as the proof.

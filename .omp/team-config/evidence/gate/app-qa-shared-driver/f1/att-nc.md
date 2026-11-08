@@ -1,6 +1,6 @@
 # F1 att-nc
 
-Head: `ba01b61b706d23f3dad7587ff439357b54cac5d4` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
+Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
 Surface: scratch weaver worktrees (two `:shell` JVMs in the first, one in the second)
 
@@ -12,8 +12,8 @@ cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
 $ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop detach; echo "detach exit $?"
-detach: no attached session for this worktree; run node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop attach
-detach exit 2
+detach: session=pid-92882
+detach exit 0
 (exit 0)
 ```
 
@@ -23,9 +23,9 @@ cwd `~/git/weaver/.worktrees/qa-shared-f1`
 
 ```
 $ for p in $(pgrep -f 'eu.weaver.app.shell.MainKt'); do echo "$p $(lsof -a -p $p -d cwd -Fn | tail -1 | sed "s|^n$HOME|~|")"; done
-45627 ~/git/weaver/.worktrees/qa-shared-f1b/app/shell
-46324 ~/git/weaver/.worktrees/qa-shared-f1/app/shell
-48308 ~/git/weaver/.worktrees/qa-shared-f1/app/shell
+54760 ~/git/weaver/.worktrees/qa-shared-f1/app/shell
+91778 ~/git/weaver/.worktrees/qa-shared-f1b/app/shell
+92882 ~/git/weaver/.worktrees/qa-shared-f1/app/shell
 (exit 0)
 ```
 
@@ -37,7 +37,7 @@ cwd `~/git/weaver/.worktrees/qa-shared-f1`
 $ ls "${TMPDIR:-/tmp}/app-qa/sessions"; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop attach; echo "attach exit $?"; ls "${TMPDIR:-/tmp}/app-qa/sessions"
 2232988a363f7b96.json
 dd69b8d8f71bbc55.json
-attach: 2 eu.weaver.app.shell.MainKt JVMs in this worktree (pids 46324, 48308); pass --pid N or stop all but one
+attach: 2 eu.weaver.app.shell.MainKt JVMs in this worktree (pids 54760, 92882); pass --pid N or stop all but one
 attach exit 2
 2232988a363f7b96.json
 dd69b8d8f71bbc55.json
@@ -46,7 +46,7 @@ dd69b8d8f71bbc55.json
 
 ## Test part
 
-Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (119 tests, 119 pass, 0 fail, exit 0).
+Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
 
 Tests passing in that log:
 
@@ -54,4 +54,4 @@ Tests passing in that log:
 
 ## Observation
 
-Two weaver `:shell` JVMs running in the first scratch worktree (pids 46324 and 48308; a third in the second scratch worktree is not in this worktree): attach printed both pids with `pass --pid N or stop all but one`, exit 2. The session directory lists the same records before and after (the two existing records belong to other worktrees), so no session was recorded.
+Two weaver `:shell` JVMs running in the first scratch worktree (pids 54760 and 92882; a third, 91778, in the second scratch worktree is not in this worktree): attach printed both pids with `pass --pid N or stop all but one`, exit 2. The session directory lists the same records before and after (the two existing records belong to other worktrees), so no session was recorded.
