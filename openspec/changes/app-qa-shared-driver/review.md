@@ -1,12 +1,12 @@
 # Review
 
 - **Verdict**: OKAY
-- **Reviewed digest**: 54d371152053d0c074d8382ef19a25e3a2a4cc1c7cf06cdfee41cb4e9138778a
+- **Reviewed digest**: 4497293b187a5401e1795ae1dbf8917738e220074d092cbf0886135d3cba379f
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, PlanRevDelta9_AQSD
+- **Reviewer**: plan-reviewer, PlanRev10A_AQSD, PlanRev10B_AQSD
 - **Verifier**: blocker-verifier, none
-- **Models**: PlanRevDelta9_AQSD onara/cx/gpt-6.1-sol
-- **Round**: 9
+- **Models**: PlanRev10A_AQSD onara/cx/gpt-6.1-sol; PlanRev10B_AQSD onara/cx/gpt-6.1-sol
+- **Round**: 10
 - **Awaiting**: none
 - **Override**: none
 
