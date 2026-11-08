@@ -204,14 +204,14 @@ After every flow run, before the root is kept or screenshots are copied out, the
 - **THEN** the run MUST fail this requirement
 
 ### Requirement: Named screenshots leave a run under distinct names or not at all
-A passing run SHALL copy each named screenshot to the output directory under its file name. When two named screenshots of the run share a file name, it SHALL copy neither, print the file name and both source names relative to the root, and exit 1. Any other copy error SHALL be printed as that error and exit 1. A run SHALL report `PASS` only when every named screenshot was copied.
+A passing run SHALL copy each named screenshot to the output directory under its file name. It SHALL count the named screenshots from Maestro's command records, so two screenshots taken under one file name count twice even when Maestro wrote them to one file. When two named screenshots of the run share a file name, it SHALL copy neither, print the file name and each source relative to the root with the step that took it, and exit 1. A command record it cannot read SHALL make a passing run print the record's name and exit 1. Any other copy error SHALL be printed as that error and exit 1. A run SHALL report `PASS` only when every named screenshot was copied.
 
 #### Scenario: Subflow and flow both name `home`
-- **WHEN** a passing flow and its subflow each take a screenshot named `home`
-- **THEN** the output directory holds no `home.png`, the run prints `home.png` with both source names and exits 1
+- **WHEN** a passing flow and its subflow each take a screenshot named `home`, and Maestro writes both to one file
+- **THEN** the output directory holds no `home.png`, the run prints `home.png` with both sources and exits 1
 
 #### Scenario: Negative control
-- **WHEN** two different screenshots named `home` produce one exported `home.png`, or a copy fails for a reason other than a name clash and is reported as an existing target
+- **WHEN** two screenshots named `home` produce one exported `home.png`, whether Maestro wrote them to two files or to one, an unreadable command record lets the run pass, or a copy fails for a reason other than a name clash and is reported as an existing target
 - **THEN** the run exiting 0 or printing `PASS` MUST fail this requirement
 
 ### Requirement: Named screenshots the sweep removes fail the run
