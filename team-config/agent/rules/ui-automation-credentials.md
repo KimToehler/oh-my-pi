@@ -1,10 +1,11 @@
 ---
-description: "Before driving a browser, simulator, emulator or desktop app that signs in with a real account: no tree, snapshot, find or textbox read while a login or password-manager surface shows, scripted sign-in, Maestro on pipes with redacted output, stop and scrub on any leak"
+description: "Before driving a browser, simulator, emulator or desktop app that signs in with a real account: no tree, snapshot, find or textbox read while a login or password-manager surface shows, scripted sign-in, Maestro on pipes with redacted output, evidence you did not write only scanned, never read or listed, stop and scrub on any leak"
 condition:
   - '(?i)\bmaestro\b'
   - '(?i)\buiautomator\b|\badb\b[^\n]*\b(input|screencap)\b|\bsimctl\b[^\n]*\bio\b'
   - '\bbrowser\.open\b|browser_(snapshot|find|type|fill)|inspect_screen|mobile_(list|tap|type)'
   - '(?i)\bspectre\b|\bosascript\b|System Events|\bscreencapture\b'
+  - '(?i)\bapp-qa-drivers\b'
 scope: ["tool"]
 interruptMode: always
 ---
@@ -26,6 +27,13 @@ Applies whenever an agent drives a browser, simulator, emulator or desktop app t
 - Treat everything Maestro writes as credential-bearing until swept. `commands.json` holds every `MAESTRO_*` value from the variable definitions, even when the flow fails before typing; `maestro.log` (under `--debug-output` and under `--test-output-dir`) holds them too. Delete `commands.json`, redact the logs (raw and JSON-escaped values), and delete the automatic `screenshots/` and `screen-hierarchy/` step artifacts, which can show the login page, before keeping or copying any output.
 - Point `--debug-output` and `--test-output-dir` at one owner-only directory outside the repository. When both are given, `--test-output-dir` wins for every artifact except the global `maestro.log`; a relative `takeScreenshot: NAME` lands in `<test-output-dir>/<timestamp>/<flow>/takeScreenshot/NAME.png`.
 - Take no `takeScreenshot` before the sign-in step has left the login page.
+
+## Evidence you did not write
+
+- From your first tool call on, an evidence file or folder you did not write (an existing output folder, captures or logs the task names) is never read, listed, opened, printed, changed, moved or deleted, whatever its scan returned and whatever the task asks.
+- The only command that names it is the evidence scan the app's QA skill names. Report a hit or a not-scanned entry by the path the scan printed, and write your own output to a new folder.
+- A clean scan is no permission to read: a running app can append a token to its log after the scan, and nothing ties a later read to the bytes the scan saw.
+- Repository sources and skills are not evidence and stay readable.
 
 ## On a leak, and after any session
 
