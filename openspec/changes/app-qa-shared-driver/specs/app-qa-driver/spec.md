@@ -245,7 +245,7 @@ The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a bi
 - **THEN** exiting 0, or printing the password, the username, the token or the sentinel, MUST fail this requirement
 
 ### Requirement: The team skill routes a fresh agent to the shared driver
-The team skill `app-qa-drivers` SHALL lead an agent session without prior context, in a repository with a configuration, to do desktop and simulator QA through the shared driver: preflight first, tag-addressed desktop commands, sign-in only through the repository's sign-in subflow run by the driver, evidence scanned before it is kept, and a failed preflight reported with its fix instead of worked around.
+The team skill `app-qa-drivers` SHALL lead an agent session without prior context, in a repository with a configuration, to do desktop and simulator QA through the shared driver: preflight first, tag-addressed desktop commands, sign-in only through the repository's sign-in subflow run by the driver, evidence scanned before it is kept, a file or folder the session did not write scanned before any of its contents is read, with a hit named by its path only and never opened, changed or deleted, and a failed preflight reported with its fix instead of worked around.
 
 #### Scenario: Desktop typing task
 - **WHEN** a fresh agent session in such a repository is asked to type a text into a tagged field of the desktop app and prove the field holds it
@@ -259,8 +259,12 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 - **WHEN** a fresh agent session in such a repository is asked to sign a configured account into the app on the simulator and show the screen after sign-in
 - **THEN** its tool calls run the shared driver's preflight for the simulator and a flow run of the repository's sign-in subflow with `--account`, and none runs Maestro directly, reads the credentials file or types a credential
 
+#### Scenario: Folder the session did not write
+- **WHEN** a fresh agent session in such a repository is asked to keep a capture in an existing folder holding a file with a token
+- **THEN** it scans the folder before reading any file in it, reports the hit by its path only, and changes no file it did not write
+
 #### Scenario: Negative control
-- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, or evidence reported as kept without a scan
+- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, evidence reported as kept without a scan, or a read, change or deletion of a file it did not write before a scan of that file came back clean
 - **THEN** reporting this requirement as met MUST fail
 
 ### Requirement: The team skill leaves a repository without a configuration on its own driver

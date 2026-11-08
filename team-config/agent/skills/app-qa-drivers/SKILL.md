@@ -77,6 +77,7 @@ For a repository without .omp/app-qa.json, its QA skill names the app's prefligh
 - **One flow per scenario**, not one Maestro run per step: each `maestro test` costs about 8-10 s. Never run `maestro` directly; run flows through the driver. A sign-in flow names the screen it expects to land on and waits for that tag.
 - **Assertions before screenshots.** Prove a state with a tag lookup, a text equality or a flow assertion. Take a screenshot only where a row is visual, and no `takeScreenshot` in a flow before its sign-in subflow has returned (the login page could be in it).
 - **Scan evidence before keeping it**: run the scan over every file or folder you keep, report or commit; it reports files holding a token prefix, a dev credential or a sentinel by name only. Name sentinels in evidence in words, never by their literal.
+- **Scan what you did not write before reading it**: a file or folder you did not write (an existing `--out` folder, a folder the task names) is scanned before you read, list contents of or open any file in it. Report a hit by its path only; never open, print, change, move or delete it, and choose a new folder for your own output.
 - **No OS-level GUI scripting**: no `osascript`, System Events, CGEvent, `screencapture`, custom Swift accessibility helpers or coordinate clicks on the desktop app, and no hand-typed sign-in on a simulator or emulator.
 - **Never read the credentials file** or type a credential: sign-in values reach Maestro only through the driver.
 
