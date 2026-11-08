@@ -1,0 +1,93 @@
+head: ba01b61b706d23f3dad7587ff439357b54cac5d4
+command: node .omp/team-config/evidence/gate/app-qa-shared-driver/f1/broken-copies.mjs team-config/agent/skills/app-qa-drivers/scripts/qa.mjs team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
+caught devtest-key-pattern (exit 1, pattern ^(flow: credentials|scan:))
+  failed: flow: credentials parsing trims, strips one pair of matching quotes and keeps the last non-empty definition
+  failed: flow: credentials of a linked worktree come from the main checkout file of the working directory
+  failed: flow: credentials sentinel run across every sink leaves no value of either account, failing and passing
+  failed: scan: the foreign accounts and sentinel are hits, a value no account names is not
+  failed: scan: a clean file whose name holds a password is a hit, printed with the value redacted
+caught account-1-home-defaults (exit 1, pattern ^(flow: (credentials|expect)))
+  failed: flow: credentials of the default account and the default screen without flags
+  failed: flow: credentials with a missing key stop the run before maestro starts and name the key
+  failed: flow: credentials of a linked worktree come from the main checkout file of the working directory
+  failed: flow: credentials sentinel run across every sink leaves no value of either account, failing and passing
+caught redact-selected-account-only (exit 1, pattern ^(flow: (credentials|redact)))
+  failed: flow: credentials sentinel run across every sink leaves no value of either account, failing and passing
+caught credentials-flag-without-section (exit 1, pattern ^(flow: credentials))
+  failed: flow: credentials and expect flags without their sections are refused before maestro starts
+caught password-in-argv (exit 1, pattern ^(flow: credentials))
+  failed: flow: credentials only in the environment, never in argv
+caught credentials-from-script-repository (exit 1, pattern ^(flow: credentials))
+  failed: flow: credentials of the default account and the default screen without flags
+  failed: flow: credentials of --account alpha with --expect welcome
+  failed: flow: credentials only in the environment, never in argv
+  failed: flow: credentials of a linked worktree come from the main checkout file of the working directory
+  failed: flow: credentials sentinel run across every sink leaves no value of either account, failing and passing
+caught health-status-only-when-string (exit 1, pattern ^(preflight:))
+  failed: preflight: a 2xx health answer passes only when a JSON status, if present, is exactly UP
+caught attach-by-main-class-alone (exit 1, pattern ^(desktop:))
+  failed: desktop: only another repository app of the same main class running is refused with its pid listed
+  failed: desktop: two worktrees whose configurations share one name each attach and act on their own JVM
+  failed: desktop: only another worktree JVM of the main class running is refused with its pid listed
+  failed: desktop: a linked worktree below the main checkout is another worktree
+  failed: desktop: an unreadable working directory is not attached and its pid is listed
+  failed: desktop: --pid naming a JVM outside the worktree is refused
+caught attach-by-directory-containment (exit 1, pattern ^(desktop:))
+  failed: desktop: a linked worktree below the main checkout is another worktree
+caught session-compares-config-path-only (exit 1, pattern ^(desktop:))
+  failed: desktop: a command with another configuration or main class than the attached one is refused
+caught lock-name-in-pid-file (exit 1, pattern ^(lock))
+  failed: lock: the holder writes its decimal pid alone into pid and its configuration name into name
+  failed: lock: a run from another repository holds it and refuses this one naming its pid and name
+  failed: lock: a lock written as maestro-onboarding.sh writes it refuses as live, then is taken once its holder removed it
+  failed: lock: simultaneous starts launch one driver
+  failed: lock: an unlocked maestro test process is refused
+caught screenshot-clash-exports-one (exit 1, pattern ^(flow: screenshot))
+  failed: flow: screenshot the flow and its subflow both naming home copy neither and fail the run
+  failed: flow: screenshot a clash stays a clash when the sweep removed its one file
+  failed: flow: screenshot two files named home in different folders copy neither and fail the run
+  failed: flow: screenshot two files named home in different folders, one swept, export neither
+caught screenshot-eacces-as-existing-target (exit 1, pattern ^(flow: screenshot))
+  failed: flow: screenshot a copy failing with EACCES prints its code
+caught screenshots-enumerated-after-sweep (exit 1, pattern ^(flow: screenshot))
+  failed: flow: screenshot the flow and its subflow both naming home copy neither and fail the run
+  failed: flow: screenshot a clash stays a clash when the sweep removed its one file
+  failed: flow: screenshot two files named home in different folders copy neither and fail the run
+  failed: flow: screenshot two files named home in different folders, one swept, export neither
+  failed: flow: screenshot an unreadable command record fails a passing run
+  failed: flow: screenshot a recorded screenshot with no file fails the run
+  failed: flow: screenshot a named screenshot the sweep removes fails the run
+caught screenshot-unreadable-record-ignored (exit 1, pattern ^(flow: screenshot))
+  failed: flow: screenshot an unreadable command record fails a passing run
+caught sweep-skips-xml-escaped-form (exit 1, pattern ^(flow: (sweep|credentials|redact)))
+  failed: flow: credentials sentinel run across every sink leaves no value of either account, failing and passing
+  failed: flow: redact a printed credential in the failure message and the report
+  failed: flow: sweep redacts an XML-escaped password in the report
+caught sweep-contents-only (exit 1, pattern ^(flow: (sweep|screenshot)))
+  failed: flow: sweep removes files and folders whose names hold a credential, failing and passing
+caught scan-contents-only (exit 1, pattern ^(scan:))
+  failed: scan: a clean file whose name holds a password is a hit, printed with the value redacted
+caught scan-skips-links-silently (exit 1, pattern ^(scan:))
+  failed: scan: a symbolic link is not followed but reported as not scanned
+  failed: scan: a FIFO is reported as not scanned without being opened
+caught scan-follows-links (exit 1, pattern ^(scan:))
+  failed: scan: a symbolic link is not followed but reported as not scanned
+caught scan-paths-without-sentinels (exit 1, pattern ^(scan:))
+  failed: scan: a sentinel in a matching file's name or folder is redacted (foreign)
+  failed: scan: a sentinel in a matching file's name or folder is redacted (minimal)
+caught scan-sentinels-redacted-only-with-credentials (exit 1, pattern ^(scan:))
+  failed: scan: a sentinel in a matching file's name or folder is redacted (minimal)
+caught screenshots-grouped-by-source-path (exit 1, pattern ^(flow: screenshot))
+  failed: flow: screenshot the flow and its subflow both naming home copy neither and fail the run
+  failed: flow: screenshot a clash stays a clash when the sweep removed its one file
+  failed: flow: screenshot two files named home in different folders copy neither and fail the run
+  failed: flow: screenshot two files named home in different folders, one swept, export neither
+  failed: flow: screenshot a recorded screenshot with no file fails the run
+  failed: flow: screenshot a named screenshot the sweep removes fails the run
+  failed: flow: screenshot a copy failing with EACCES prints its code
+caught capture-checks-png-only (exit 1, pattern ^(desktop:))
+  failed: desktop: capture refuses a name whose PNG alone or JSON alone already exists
+caught device-any-given-id (exit 1, pattern ^(preflight:|flow: device))
+  failed: preflight: a given device that is not booted fails, naming the booted devices
+  failed: flow: device a given device that is not booted is refused before the lock
+exit: 0
