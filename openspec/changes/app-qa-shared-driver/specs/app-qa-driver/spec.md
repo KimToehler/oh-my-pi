@@ -37,18 +37,22 @@ Preflight SHALL check one target and print one line per check with its result an
 - **THEN** preflight exiting 0, or printing a passing line for the failed check, MUST fail this requirement
 
 ### Requirement: Desktop attach selects the one running JVM of the configured app
-Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and keep the session for later desktop commands of the repository. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching.
+Desktop attach SHALL attach to the one running JVM whose main class is the configuration's and whose working directory lies in the current worktree, and keep the session for later desktop commands of the worktree. With no such JVM it SHALL print the configured launch hint, and with several it SHALL list their process ids; both exit 2 without attaching. An explicit process id SHALL select only one of those JVMs.
 
 #### Scenario: Two repositories' apps running
 - **WHEN** the desktop apps of two repositories run and attach is called in each repository
 - **THEN** each attaches to its own app, and a tap in one repository acts on that repository's app only
+
+#### Scenario: Same app in two worktrees
+- **WHEN** two worktrees of one repository each run the app with the same main class and attach is called in each
+- **THEN** each attaches to the JVM started in its own worktree
 
 #### Scenario: App not running
 - **WHEN** attach is called while the configured app is not running
 - **THEN** it prints the configured launch hint and exits 2
 
 #### Scenario: Negative control
-- **WHEN** attach is called while two JVMs of the configured main class run, or only another repository's app runs
+- **WHEN** attach is called while two JVMs of the configured main class run in the worktree, only another repository's app runs, only another worktree's JVM of the configured main class runs, or an explicit process id names a JVM outside the worktree
 - **THEN** attaching to any of them, or exiting 0, MUST fail this requirement
 
 ### Requirement: A desktop session belongs to one worktree and one configuration
@@ -59,7 +63,7 @@ A desktop session SHALL serve only the desktop commands of the worktree that att
 - **THEN** the tap acts on the first worktree's app, and the second worktree's later tap still acts on its own app
 
 #### Scenario: Negative control
-- **WHEN** a desktop command runs with `--config` naming another configuration than the one attached with, or a detach in one worktree runs while another worktree with the same configuration name is attached
+- **WHEN** a desktop command runs with `--config` naming another configuration than the one attached with, or after `desktop.mainClass` changed in the configuration file attached with, or a detach in one worktree runs while another worktree with the same configuration name is attached
 - **THEN** acting on an app, changing either session, or exiting 0 for the mismatched command MUST fail this requirement
 
 ### Requirement: Desktop actions address nodes by test tag
@@ -161,13 +165,17 @@ A flow run SHALL target the given device or else the platform's only booted devi
 - **WHEN** a flow run in one repository holds the lock and a flow run starts in another repository
 - **THEN** the second run exits 2 naming the holder's process id, without touching any device
 
+#### Scenario: Lock held by an app script
+- **WHEN** an app script holds the lock with a `pid` file holding only its process id, and a flow run starts, then starts again after the script has ended and removed its lock
+- **THEN** the first start exits 2 naming the script's process id as a live holder; the second takes the lock, and the lock is gone once that run finishes
+
 #### Scenario: Simultaneous starts
 - **WHEN** two flow runs start at the same moment
 - **THEN** exactly one of them starts Maestro, and the other exits 2 naming the running one
 
 #### Scenario: Negative control
 - **WHEN** two simulators are booted and no device is given, another repository's run holds the lock, a stale lock exists, or a Maestro test run without the lock is alive
-- **THEN** starting Maestro, or removing a lock the run did not take, MUST fail this requirement
+- **THEN** starting Maestro, removing a lock the run did not take, or leaving its own lock after it finishes, MUST fail this requirement
 
 ### Requirement: Flow driver files stay in one private temporary root
 A flow run SHALL direct every Maestro file, its JVM temporary files included, into one owner-only directory it creates in the system temporary directory, never below the repository, and SHALL create the output directory itself, refusing an existing path. It SHALL delete Maestro's step screenshots and hierarchies after every run. A passing run SHALL copy the named screenshots out and remove the root; a failing run SHALL delete every image and print the root; an interrupted run SHALL remove it.
@@ -249,4 +257,15 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 
 #### Scenario: Negative control
 - **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, or evidence reported as kept without a scan
+- **THEN** reporting this requirement as met MUST fail
+
+### Requirement: The team skill leaves a repository without a configuration on its own driver
+In a repository without a configuration, the team skill `app-qa-drivers` SHALL lead an agent session without prior context to the driver that repository's own QA skill names, never to the shared driver.
+
+#### Scenario: Repository without a configuration
+- **WHEN** a fresh agent session in a repository whose own QA skill names its own driver, and which has no configuration, is asked to run the desktop preflight
+- **THEN** its tool calls run that repository's driver's preflight and never the shared driver
+
+#### Scenario: Negative control
+- **WHEN** such a session's tool calls run the shared driver
 - **THEN** reporting this requirement as met MUST fail
