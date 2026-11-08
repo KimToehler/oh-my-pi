@@ -2,7 +2,7 @@
 
 Head: `4601774ed7365d589e38f609e5d0df23c1fbf309` (oh-my-pi `feat/app-qa-shared-driver`); driver run from `~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs` as deployed from this head.
 
-Surface: scratch onara worktree (iOS simulators, backend on 8081) and scratch weaver worktree (Android emulator `emulator-5554`)
+Surface: scratch onara worktree (iOS simulators, backend on 8081) and scratch weaver worktree (Android emulator `emulator-5554`), and the Mac locked for the last two steps
 
 ## Commands and output
 
@@ -72,6 +72,31 @@ PASS backend: http://127.0.0.1:8081/actuator/health UP
 (exit 1)
 ```
 
+Screen locked by hand (Ctrl+Cmd+Q; `/tmp/app-qa-impl/pre-nc-locked.sh` waited for `CGSSessionScreenIsLocked`, locked seen 21:35:46): onara preflight desktop.
+
+cwd `~/git/onara/.worktrees/qa-shared-f1`
+
+```
+$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop
+PASS driver: spectre 0.9.0
+PASS screen capture: granted
+FAIL screen: locked -- fix: unlock the screen
+FAIL backend: http://127.0.0.1:8080/actuator/health HTTP 404 -- fix: start the backend (SPRING_PROFILES_ACTIVE=local ./gradlew bootRun in backend_kt/ (SERVER_PORT=<port> when 8080 is taken)) or pass --port
+(exit 1)
+```
+
+Screen still locked: weaver preflight desktop.
+
+cwd `~/git/weaver/.worktrees/qa-shared-f1`
+
+```
+$ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop
+PASS driver: spectre 0.9.0
+PASS screen capture: granted
+FAIL screen: locked -- fix: unlock the screen
+(exit 1)
+```
+
 ## Test part
 
 Command: `node --test --test-reporter=spec team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs` on the head; full output in `f1/qa-test-log.txt` (121 tests, 121 pass, 0 fail, exit 0).
@@ -86,4 +111,4 @@ Tests passing in that log:
 
 ## Observation
 
-Each failing check printed its own line with the fix and the command exited 1: Maestro off `PATH` and `~/.maestro/bin` out of reach (weaver preflight android with `HOME` an empty directory: `FAIL driver: maestro not found` with the install command, the adb and device lines still pass); two simulators booted (onara preflight ios: `FAIL device: 2 booted devices (...); pass --device ID`); backend stopped (onara preflight ios against 8082, where nothing listens: `FAIL backend ... unreachable` with the start hint); `--device` naming a simulator that is shut down (`FAIL device: ... is not booted` listing the booted one). The empty `HOME` gained `.android`, written by `adb`, not by the driver; it was removed afterwards. Permission denied, other driver versions and the 2xx bodies are covered by the suite's tests listed below. The locked-screen case runs last, after every other GUI row.
+Each failing check printed its own line with the fix and the command exited 1: Maestro off `PATH` and `~/.maestro/bin` out of reach (weaver preflight android with `HOME` an empty directory: `FAIL driver: maestro not found` with the install command, the adb and device lines still pass); two simulators booted (onara preflight ios: `FAIL device: 2 booted devices (...); pass --device ID`); backend stopped (onara preflight ios against 8082, where nothing listens: `FAIL backend ... unreachable` with the start hint); `--device` naming a simulator that is shut down (`FAIL device: ... is not booted` listing the booted one). The empty `HOME` gained `.android`, written by `adb`, not by the driver; it was removed afterwards. Permission denied, other driver versions and the 2xx bodies are covered by the suite's tests listed below. Screen locked (run last, after every other GUI row): onara and weaver preflight desktop each print `FAIL screen: locked -- fix: unlock the screen` and exit 1, with the driver and screen-capture lines still passing; onara's backend line also fails there because 8080 belongs to another service, which `pre-port` covers.
