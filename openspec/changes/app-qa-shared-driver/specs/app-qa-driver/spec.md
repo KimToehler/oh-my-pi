@@ -193,14 +193,18 @@ A flow run SHALL direct every Maestro file, its JVM temporary files included, in
 - **THEN** the run MUST fail this requirement
 
 ### Requirement: Kept flow output holds no dev credential
-After every flow run, before the root is kept or screenshots are copied out, the run SHALL delete Maestro's command records and apply the evidence scan's credential and token matching to the root and to every copied file. It SHALL replace each match in a flagged text file by `[redacted]`, delete every other flagged file, print only the names of the files it changed or deleted, and never change a file it did not write.
+After every flow run, before the root is kept or screenshots are copied out, the run SHALL delete Maestro's command records and apply the evidence scan's credential and token matching to the root and to every copied file. It SHALL replace each match in a flagged text file by `[redacted]`, delete every other flagged file, print only the names of the files it changed or deleted, and never change a file it did not write. It SHALL also test the path of every file and folder below the root, relative to the root, for a configured username or password, matched as the evidence scan matches them, delete each file and folder whose path holds one, and print each such path with every value replaced by `[redacted]`.
 
 #### Scenario: Driver logs record the typed values
 - **WHEN** a sign-in flow fails and Maestro's log and report hold the account's username and a password containing a quote, an ampersand and a backslash
 - **THEN** the command record is deleted, the log and report are kept with `[redacted]` in place of each value, their names are printed, and the run exits 1
 
+#### Scenario: Credential in a file name
+- **WHEN** a passing flow takes a screenshot named `sign-in-` followed by the account's username, whose bytes hold no credential
+- **THEN** no path below the root or the output directory holds the username, the run prints that screenshot as removed by the sweep with `[redacted]` in place of the username, and exits 1 without `PASS`
+
 #### Scenario: Negative control
-- **WHEN** a kept root file or copied file contains a configured username or password, raw, JSON-escaped or XML-escaped, after the run ends
+- **WHEN** a kept root file or copied file contains a configured username or password, raw, JSON-escaped or XML-escaped, after the run ends, or the path of a kept root file or folder or of a copied file holds one where the evidence scan would match it, or a printed line holds one
 - **THEN** the run MUST fail this requirement
 
 ### Requirement: Named screenshots leave a run under distinct names or not at all
@@ -226,7 +230,7 @@ The run SHALL account for every named screenshot taken, as recorded before the s
 - **THEN** the run exiting 0 or printing `PASS` MUST fail this requirement
 
 ### Requirement: The evidence scan reports leaking files by name only
-The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a binary file, followed by ten base64url characters), the configured sentinels, and, when credentials are configured, each password anywhere and each username where neither neighbour is an ASCII letter or digit, raw, JSON-escaped and XML-escaped. It SHALL print only matching paths and exit 1 on a match, 0 on none, 2 when a path cannot be read.
+The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a binary file, followed by ten base64url characters), the configured sentinels, and, when credentials are configured, each password anywhere and each username where neither neighbour is an ASCII letter or digit, raw, JSON-escaped and XML-escaped. When credentials are configured, a file whose path relative to the scanned folder holds a password or username, matched the same way, SHALL match whatever its contents. It SHALL print only matching paths, each configured value in them replaced by `[redacted]`, and exit 1 on a match, 0 on none, 2 when a path cannot be read.
 
 #### Scenario: One leaking file
 - **WHEN** a folder holds a clean log and a log containing account 1's password
@@ -237,7 +241,7 @@ The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a bi
 - **THEN** the scan prints only the second log's path and exits 1
 
 #### Scenario: Negative control
-- **WHEN** a scanned file contains account 2's password, only a token, only a configured sentinel, or account 1's username between a slash and a space
+- **WHEN** a scanned file contains account 2's password, only a token, only a configured sentinel, or account 1's username between a slash and a space, or a clean file's name holds account 1's password
 - **THEN** exiting 0, or printing the password, the username, the token or the sentinel, MUST fail this requirement
 
 ### Requirement: The team skill routes a fresh agent to the shared driver
