@@ -297,7 +297,8 @@ const pw = env.MAESTRO_DEV_PW ?? '';
     entry({ takeScreenshotCommand: { path: path.basename(s.file, '.png') } }, s.sub ? 1 : 0, [{ type: 'TAKE_SCREENSHOT', path: rel }]);
   };
   if (m.named) shot({ file: 'home.png' }, png);
-  for (const s of m.shots ?? []) shot(s, s.data === 'pw' ? Buffer.concat([png, Buffer.from(pw)]) : s.data === 'b' ? pngB : png);
+  const shotData = { pw: Buffer.concat([png, Buffer.from(pw)]), user: Buffer.concat([png, Buffer.from([0]), Buffer.from(user), Buffer.from([0])]), b: pngB };
+  for (const s of m.shots ?? []) shot(s, shotData[s.data] ?? png);
   if (leak.length) shot({ file: 'leak.png' }, Buffer.concat([png, Buffer.from([0]), Buffer.from(leak.join(' '))]));
   for (const d of m.dirs ?? []) {
     fs.mkdirSync(path.join(caseDir, d), { recursive: true });
@@ -1800,6 +1801,16 @@ test('flow: screenshot a named screenshot the sweep removes fails the run', asyn
   assertNoForeignLeak(L, r, out);
 });
 
+test('flow: screenshot a short username alone in a named screenshot is exported', async () => {
+  const L = layout({ state: { maestro: { ...DEFAULT_STATE.maestro, shots: [{ file: 'home.png', data: 'user' }] } } });
+  const out = join(L.root, 'evidence');
+  const r = await flow(L, ['--out', out, '--credentials', shortUserCredentials(L.root)]);
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(readdirSync(out), ['home.png']);
+  assert.ok(readFileSync(join(out, 'home.png')).includes(Buffer.from([0, ...Buffer.from(SHORT_USER), 0])));
+  assert.ok(r.lines.some((l) => l.startsWith('PASS')), r.stdout);
+});
+
 test('flow: screenshot a copy failing with EACCES prints its code', async () => {
   const L = layout({ state: { maestro: { ...DEFAULT_STATE.maestro, named: true } } });
   const out = join(L.root, 'evidence');
@@ -2055,6 +2066,17 @@ test('scan: a username between a slash and a space is a hit', async () => {
   assert.equal(r.status, 1);
   assert.deepEqual(r.lines, [join(folder, 'home.log')]);
   assert.equal(standsAlone(r.stdout + r.stderr), false);
+});
+
+test('scan: a short value alone in a binary file is not a hit, a password in one is', async () => {
+  const L = layout({ fakes: [] });
+  const folder = join(L.root, 'evidence');
+  mkdirSync(folder);
+  writeFileSync(join(folder, 'short.png'), Buffer.concat([PNG, Buffer.from([0]), Buffer.from(SHORT_USER), Buffer.from([0])]));
+  writeFileSync(join(folder, 'password.png'), Buffer.concat([PNG, Buffer.from([0]), Buffer.from(PW1)]));
+  const r = await runQa(L, ['scan', folder, '--credentials', shortUserCredentials(L.root)]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.deepEqual(r.lines, [join(folder, 'password.png')]);
 });
 
 test('scan: redaction keeps a username inside a longer word', () => {

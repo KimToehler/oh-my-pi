@@ -333,15 +333,32 @@ const isText = (buf) => !buf.subarray(0, 8000).includes(0);
 /** A form's UTF-8 bytes as a latin1 string, so a pattern over `buf.toString('latin1')` matches byte for byte. */
 const asBytes = (s) => Buffer.from(s, 'utf8').toString('latin1');
 
-/** Whether a file's bytes hold a token, a credential (`pattern`) or one of the `extra` literal terms. */
-export function fileHit(buf, pattern, extra = []) {
+/**
+ * Image and archive bytes hold any three given letters by chance (a real three-letter username occurs in about one
+ * 345 KB screenshot in a hundred), so a binary file is searched only for values of at least this many UTF-8 bytes.
+ */
+const BINARY_MIN_BYTES = 6;
+
+/** The byte patterns `fileHit` takes: every value for a text file, the long values for a binary file. */
+function contentPatterns({ users, passwords }) {
+  const long = (vs) => vs.filter((v) => Buffer.byteLength(v, 'utf8') >= BINARY_MIN_BYTES);
+  return {
+    text: credentialPattern({ users, passwords }, asBytes),
+    binary: credentialPattern({ users: long(users), passwords: long(passwords) }, asBytes),
+  };
+}
+
+/** Whether a file's bytes hold a token, a credential (`patterns`, from `contentPatterns`) or one of the `extra` literal terms. */
+export function fileHit(buf, patterns, extra = []) {
   for (const term of extra) if (buf.includes(Buffer.from(term, 'utf8'))) return true;
   const bytes = buf.toString('latin1');
+  const text = isText(buf);
+  const pattern = text ? patterns.text : patterns.binary;
   if (pattern) {
     pattern.lastIndex = 0;
     if (pattern.test(bytes)) return true;
   }
-  const token = isText(buf) ? TOKEN : BINARY_TOKEN;
+  const token = text ? TOKEN : BINARY_TOKEN;
   token.lastIndex = 0;
   return token.test(bytes);
 }
@@ -373,10 +390,10 @@ export function pathHit(rel, pattern) {
  * that are neither a regular file nor a folder are never opened; their paths go to `skipped` when it is given.
  */
 export function scanPaths(path, values, extra = [], skipped) {
-  const pattern = credentialPattern(values, asBytes);
+  const patterns = contentPatterns(values);
   const names = credentialPattern(values);
   const base = lstatSync(path).isDirectory() ? path : dirname(path);
-  return [...walkFiles(path, skipped)].filter((f) => pathHit(relative(base, f), names) || fileHit(readFileSync(f), pattern, extra));
+  return [...walkFiles(path, skipped)].filter((f) => pathHit(relative(base, f), names) || fileHit(readFileSync(f), patterns, extra));
 }
 
 /** Redacts a flagged text file in place or deletes a flagged binary file; returns what it did. */
@@ -1018,7 +1035,7 @@ function namedScreenshots(outRoot, root) {
  * Returns whether every named screenshot was copied.
  */
 function exportScreenshots({ byName, unreadable }, root, out, values) {
-  const pattern = credentialPattern(values, asBytes);
+  const patterns = contentPatterns(values);
   let complete = unreadable.length === 0;
   for (const record of unreadable) say(`flow: screenshot record unreadable: ${relative(root, record)}`);
   for (const [file, sources] of byName) {
@@ -1046,7 +1063,7 @@ function exportScreenshots({ byName, unreadable }, root, out, values) {
       complete = false;
       continue;
     }
-    if (fileHit(readFileSync(target), pattern)) {
+    if (fileHit(readFileSync(target), patterns)) {
       unlinkSync(target);
       say(`sweep: deleted ${file}`);
       complete = false;

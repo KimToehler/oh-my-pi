@@ -7,6 +7,10 @@ description: "Use for hands-on QA of a Compose Multiplatform or mobile app: driv
 
 Drive apps through a driver that addresses UI nodes by test tag and returns small, structured results. OS-level GUI scripting and full trees cost tokens, break on window geometry and leak screen text into the transcript. The credential guardrails are the team rule `ui-automation-credentials`; read it before any sign-in.
 
+## Evidence you did not write
+
+This holds from your first tool call, before any QA command. An evidence file or folder you did not write (an existing `--out` folder, captures or logs the task names) is never read, listed, opened, printed, changed, moved or deleted, whatever its scan returned. The only command that names it is the driver's scan (on a repository without .omp/app-qa.json, the app's evidence scan). Report a hit or a not-scanned entry by the path the scan printed, and write your own output to a new folder. A clean scan is no permission to read: a running app can append a token to its log after the scan, and nothing ties a later read to the bytes the scan saw. Repository sources and skills are not evidence and stay readable.
+
 ## Which driver
 
 Look at the root of the repository (or worktree) you are working in:
@@ -77,7 +81,6 @@ For a repository without .omp/app-qa.json, its QA skill names the app's prefligh
 - **One flow per scenario**, not one Maestro run per step: each `maestro test` costs about 8-10 s. Never run `maestro` directly; run flows through the driver. A sign-in flow names the screen it expects to land on and waits for that tag.
 - **Assertions before screenshots.** Prove a state with a tag lookup, a text equality or a flow assertion. Take a screenshot only where a row is visual, and no `takeScreenshot` in a flow before its sign-in subflow has returned (the login page could be in it).
 - **Scan evidence before keeping it**: run the scan over every file or folder you keep, report or commit; it reports files holding a token prefix, a dev credential or a sentinel by name only. It never follows a symbolic link or opens a pipe or device: it prints such an entry as `scan: not scanned:` and exits 2, and a not-scanned entry is not evidence you may keep. Name sentinels in evidence in words, never by their literal.
-- **Evidence you did not write is never read**: an evidence file or folder you did not write (an existing `--out` folder, captures or logs the task names) is never read, listed, opened, printed, changed, moved or deleted, whatever its scan returned; only scan it. Report a hit or a not-scanned entry by the path the scan printed, and write your own output to a new folder. A clean scan is no permission to read: a running app can append a token to its log after the scan, and nothing ties a later read to the bytes the scan saw. Repository sources and skills are not evidence and stay readable.
 - **No OS-level GUI scripting**: no `osascript`, System Events, CGEvent, `screencapture`, custom Swift accessibility helpers or coordinate clicks on the desktop app, and no hand-typed sign-in on a simulator or emulator.
 - **Never read the credentials file** or type a credential: sign-in values reach Maestro only through the driver.
 
