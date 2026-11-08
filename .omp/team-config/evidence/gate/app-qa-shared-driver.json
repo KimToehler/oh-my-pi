@@ -1,0 +1,383 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/app-qa-shared-driver",
+  "plan_sha256": "ed26a595533121f1bddfbf3f1560c69a6c7c644a1fee240b576a01b6db54bd0c",
+  "reviewed_sha": "b47908cfa6d65236f5b1ba1e02e7dc861759c172",
+  "diff_base": "6edee995051d8226edae00f5d42c536c31c9ae32",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Mandatory class auth-secrets-pii (the driver reads real dev passwords of onara's Keycloak realm and hands them to Maestro; it also moves the evidence scan app repositories rely on): depth risky, both invocations; F2 wave 1 on b47908cfa6: QA 55/55 F1 rows PASS (carried from 4601774ed7, later commits touch only tasks.md and evidence), both reviewers PASS.",
+  "mandatory_class": "auth-secrets-pii",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 cfg-subdir",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cfg-subdir.md",
+      "artifact_sha256": "63e15608d591268f7508b5a9378d941a48d1934879b15b9e339b8b2539e1fce5"
+    },
+    {
+      "name": "F1 cfg-newer",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cfg-newer.md",
+      "artifact_sha256": "ffadbae3fbf33dd92e2b28c719a67744733c09ef9ed83a7824cbdf2ef09ab513"
+    },
+    {
+      "name": "F1 cfg-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cfg-nc.md",
+      "artifact_sha256": "90b421eb82f03fdf8f482a16b95292cc861c0cdfc2d5895c2033c1cefde08278"
+    },
+    {
+      "name": "F1 pre-nobackend",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/pre-nobackend.md",
+      "artifact_sha256": "31f7e0d841762435f9bb57552aa10acc9a5559d591371ee3e7fa6745945baf02"
+    },
+    {
+      "name": "F1 pre-port",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/pre-port.md",
+      "artifact_sha256": "188f924ac5fba141febd3c07f96d4b02fd3622c4d2f4f0c02918437637153416"
+    },
+    {
+      "name": "F1 pre-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/pre-nc.md",
+      "artifact_sha256": "adb02b7376bae96a9fb04d81b5e1ada3fee7214365195c81c9fca5966838d94d"
+    },
+    {
+      "name": "F1 att-two",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-two.md",
+      "artifact_sha256": "0f0f1bb48a889ce303bab138c38d4ac67ec500541ded967d5339a1edc4b03aa1"
+    },
+    {
+      "name": "F1 att-missing",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-missing.md",
+      "artifact_sha256": "a9ce90f49dc98db736c8080f79a25e7e1a3d284a644fec406dc927dca97c0cb8"
+    },
+    {
+      "name": "F1 att-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-nc.md",
+      "artifact_sha256": "d61915a8a6e7423f71e2d8c6304b9f75583af0b218bb1ffad23340804d8a8753"
+    },
+    {
+      "name": "F1 att-name",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-name.md",
+      "artifact_sha256": "2e9eb731b425dcb1003798b301dd634de6b4a578360a07986268cc444a7fccb6"
+    },
+    {
+      "name": "F1 att-otherwt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-otherwt.md",
+      "artifact_sha256": "77ed310fb22f93dfb6742060b41b24403b94d871c7f42050148879ad0059d15b"
+    },
+    {
+      "name": "F1 att-config",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/att-config.md",
+      "artifact_sha256": "0e8a8d877ffffdc788a83d5c614264aced4c3ab661e89a880bfce8a653773eed"
+    },
+    {
+      "name": "F1 tag-nav",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/tag-nav.md",
+      "artifact_sha256": "e18aabd9b2d9ac3347a835de6f3f0df2ad9c4a5abf1ac88c22a40d19420670e2"
+    },
+    {
+      "name": "F1 tag-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/tag-nc.md",
+      "artifact_sha256": "37e34a6b68ba05dd68847ec5d36f280eb5a120d7ba37834c1b5c87db3208273a"
+    },
+    {
+      "name": "F1 find-typed",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/find-typed.md",
+      "artifact_sha256": "d2dbdcec6f582e81b45d4221bc4ef825e42f0017ea86cac5aaf1c6bcd55fb710"
+    },
+    {
+      "name": "F1 find-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/find-nc.md",
+      "artifact_sha256": "d688712133dfed31a4db5141953fc1c008d1b09b48e15c0da2852038a4c19092"
+    },
+    {
+      "name": "F1 cap-home",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cap-home.md",
+      "artifact_sha256": "2901dc79f9f13595379ba9dcfc9f34e3740ce93364630111c3947d63273d6a9e"
+    },
+    {
+      "name": "F1 cap-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cap-nc.md",
+      "artifact_sha256": "f9ebef06794ee985b15ac98017440d0a5c6eebf847fb04c7e7a7415e873cb4d1"
+    },
+    {
+      "name": "F1 type-exact",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/type-exact.md",
+      "artifact_sha256": "50679d58e4f2f1d0604cb2706e75007b62f2e74acc01ed046574f4d109821c5d"
+    },
+    {
+      "name": "F1 type-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/type-nc.md",
+      "artifact_sha256": "f0426ad9adc415bc55ee7e2fcd2c35e3f16c927b6f66ed9f72004de32172710a"
+    },
+    {
+      "name": "F1 cred-acc2",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cred-acc2.md",
+      "artifact_sha256": "fe1c6e456eb1bd032352a9351c3cf4103e4abb7c03a06ba53e61c6df1c0d9c74"
+    },
+    {
+      "name": "F1 cred-missing",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cred-missing.md",
+      "artifact_sha256": "deeca906d465386b5ff10f7cbd6c58cad043b5a9e1c53c716be9df973fa8d94f"
+    },
+    {
+      "name": "F1 cred-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cred-nc.md",
+      "artifact_sha256": "6bc8184bba4dd1a2d6a6ffa9d2f06ee39a4e124ed2d4152febf63918188f4b1f"
+    },
+    {
+      "name": "F1 nocred-plain",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/nocred-plain.md",
+      "artifact_sha256": "470cbf402610250db78874c3dd6b322cb72257d686eec770f30327103f95ca0c"
+    },
+    {
+      "name": "F1 nocred-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/nocred-nc.md",
+      "artifact_sha256": "4697f48c383edf09a3b83ca21028c22d902a9efef7ca7d6db960aed885648504"
+    },
+    {
+      "name": "F1 exp-onb",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/exp-onb.md",
+      "artifact_sha256": "5b96107403d2830e340e0540534bd3d3a89e2f752fd250a6bbf58ae9cfb432e3"
+    },
+    {
+      "name": "F1 exp-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/exp-nc.md",
+      "artifact_sha256": "f6e479f28b22ef7a03f1ec8ef5ef8d365befedd78eef995b4bf33b498f165118"
+    },
+    {
+      "name": "F1 red-echo",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/red-echo.md",
+      "artifact_sha256": "a33ab07e0be72ecfb008be2ef3a5e9ec0b552a8acbf0462d333c567dcfc41e69"
+    },
+    {
+      "name": "F1 cred-sentinel",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/cred-sentinel.md",
+      "artifact_sha256": "fdfd68753ba8700600bceae92394717d3aa438fb60be3f0b34f0066761716c7a"
+    },
+    {
+      "name": "F1 red-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/red-nc.md",
+      "artifact_sha256": "4bcc22adfd2f18145ebe8b0c07ff5aa3cd10083dac361fc7b3366c5bf8a17d88"
+    },
+    {
+      "name": "F1 lock-cross",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/lock-cross.md",
+      "artifact_sha256": "6a3744335ebc3dad0b678c7bcab58e4c384a89efc74f589ebdda16992650a1b6"
+    },
+    {
+      "name": "F1 lock-script",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/lock-script.md",
+      "artifact_sha256": "42b50479281950bac1ad38b834a24d78d8f28e4e8f1a48c69784277af56ac961"
+    },
+    {
+      "name": "F1 lock-simul",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/lock-simul.md",
+      "artifact_sha256": "ad29dd3e5f8f7d4851dfb243b3631114e01ea30bfa432c46311a5796aea28248"
+    },
+    {
+      "name": "F1 lock-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/lock-nc.md",
+      "artifact_sha256": "a2530de2577c1acb31e2b08d7344deb5bc1145bffa817e91a881b8185e64f6f5"
+    },
+    {
+      "name": "F1 root-pass",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/root-pass.md",
+      "artifact_sha256": "5ccbe0304d5971946dd5fd23e192b9c3ad5f69ade981c2ce7b6d17be1d291efe"
+    },
+    {
+      "name": "F1 root-fail",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/root-fail.md",
+      "artifact_sha256": "68416d4ec6d6bd7886871515d93f62594752f80ac07382b4c1a963c8b0cbbcfa"
+    },
+    {
+      "name": "F1 root-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/root-nc.md",
+      "artifact_sha256": "507ad4aac52229f308432529b975b4b3c5601658d3ec0525b1972dc3ce9fa537"
+    },
+    {
+      "name": "F1 sweep-logs",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/sweep-logs.md",
+      "artifact_sha256": "c832aa902eef850824e7eeb9101a56a7c76e92cdf96c36c487f65368a7d4aab7"
+    },
+    {
+      "name": "F1 sweep-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/sweep-nc.md",
+      "artifact_sha256": "604cdf69ab17ec53bad0b138a31de314bdf55e449966055a3ce7f0f314954cf8"
+    },
+    {
+      "name": "F1 sweep-name",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/sweep-name.md",
+      "artifact_sha256": "251fd514dbc4a102157abd93315139b4fe4aaa6b481caa00ae8b3ece7c875398"
+    },
+    {
+      "name": "F1 shot-clash",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/shot-clash.md",
+      "artifact_sha256": "f03eacf06a3f6fad6108484ad3301c0b6ea1f27c7d1b9c53b083a90d3f6cd5d0"
+    },
+    {
+      "name": "F1 shot-swept",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/shot-swept.md",
+      "artifact_sha256": "847356fdde5227f8882f8fdff14c05af019d7adfa253a2e592274dccda31fa1c"
+    },
+    {
+      "name": "F1 shot-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/shot-nc.md",
+      "artifact_sha256": "dbe91f50379f3a8c81d98cf4f8b624baac40b3e7fe2d0f14dd82c1bc86459929"
+    },
+    {
+      "name": "F1 scan-one",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/scan-one.md",
+      "artifact_sha256": "388da855208bf1b12409cc46dd178f70a0c35b918e6d3d4012122269d49d319c"
+    },
+    {
+      "name": "F1 scan-nocred",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/scan-nocred.md",
+      "artifact_sha256": "157a6799535c3c636d11872aadfae56fdfbf6f7068887729994d8f4e3bf0becf"
+    },
+    {
+      "name": "F1 scan-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/scan-nc.md",
+      "artifact_sha256": "1c6e23ec8cfd54c36fad1196d27de7b26e1712c1785ff8db828c823ba47cd15e"
+    },
+    {
+      "name": "F1 agent-desktop",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-desktop.md",
+      "artifact_sha256": "e694a372f38a621b7d864da066a19022b842e1306bf1cc6fd2fc16a459eefa08"
+    },
+    {
+      "name": "F1 agent-missing",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-missing.md",
+      "artifact_sha256": "733b0432458267133dbd195756adaaae41a729472426ae198351e84634e0dce2"
+    },
+    {
+      "name": "F1 agent-legacy",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-legacy.md",
+      "artifact_sha256": "bf92f7456f826dc8203bd8c284e30dd4917782d941917c115acc9c5db0977dd3"
+    },
+    {
+      "name": "F1 agent-signin",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-signin.md",
+      "artifact_sha256": "8b94e990ea2f5eafebe6efbcf1a8ad30aaf6ddeab9eec2de04b8ea6837b7253e"
+    },
+    {
+      "name": "F1 agent-batch",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-batch.md",
+      "artifact_sha256": "5b0fe0240217c4007965aeb562200d058456a15f24a930974cc08c274bd8bcef"
+    },
+    {
+      "name": "F1 agent-nc",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/agent-nc.md",
+      "artifact_sha256": "dc6e3f8b42b7d650b1482845050908b7ff93500ef34b84c08049d2666d7a56db"
+    },
+    {
+      "name": "F1 min-happy",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/min-happy.md",
+      "artifact_sha256": "9ebb48298ab56e37b2b7739071942ccceb775e1face449a0e5e17ddb7bc58fad"
+    },
+    {
+      "name": "F1 min-edge",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/min-edge.md",
+      "artifact_sha256": "19a6db34288636004eb1a7b9b9f20444af201fa83ae2000124dd110231deee8e"
+    },
+    {
+      "name": "F1 min-regression",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/f1/min-regression.md",
+      "artifact_sha256": "9a164e014885d7098de5fd3ad8c128af28407b3e7cfbfca34248104b2202c6ab"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/wave-1/implementation-audit-trailer.md",
+      "trailer_sha256": "f608c92544519d37360066dd5b1d03ab0f75e401e50aaedfe199a92857877c1a",
+      "note": "No blockers; notes: scan prints the credentials path before sentinels join redaction (qa.mjs:426-433); F1 agent-session evidence findings accepted, instruction mechanism is not universal enforcement."
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-shared-driver/wave-1/strategic-risk-review-trailer.md",
+      "trailer_sha256": "130569f452e99d5d5e9cf193f6704010bd406d0955ebd76494109fd1477a8702",
+      "note": "No blockers; notes: same scan-diagnostic sentinel ordering (qa.mjs:415-437); main checkout derived from --git-common-dir parent assumes conventional git dir layout (qa.mjs:84-87)."
+    }
+  ],
+  "blockers": []
+}
