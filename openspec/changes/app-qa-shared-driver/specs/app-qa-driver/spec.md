@@ -225,12 +225,16 @@ The run SHALL account for every named screenshot taken, as recorded before the s
 - **WHEN** a passing flow takes a named screenshot whose bytes match a configured credential
 - **THEN** the screenshot is in neither the root nor the output directory, the run prints its name as removed by the sweep and exits 1 without `PASS`
 
+#### Scenario: Short value in a named screenshot
+- **WHEN** a passing flow takes a named screenshot whose bytes hold a configured username of fewer than six bytes and no other configured value
+- **THEN** the screenshot is exported and the run prints `PASS`
+
 #### Scenario: Negative control
-- **WHEN** a named screenshot the sweep deleted goes unreported, or one of two screenshots named `home`, written to one file or to two files in different folders, is swept and the other is exported as `home.png`
-- **THEN** the run exiting 0 or printing `PASS` MUST fail this requirement
+- **WHEN** a named screenshot the sweep deleted goes unreported, one of two screenshots named `home`, written to one file or to two files in different folders, is swept and the other is exported as `home.png`, or a named screenshot whose only configured value has fewer than six bytes is swept
+- **THEN** the run exiting 0 or printing `PASS` in the first two cases, or the screenshot missing from the output directory in the last, MUST fail this requirement
 
 ### Requirement: The evidence scan reports leaking files by name only
-The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a binary file, followed by ten base64url characters), the configured sentinels, and, when credentials are configured, each password anywhere and each username where neither neighbour is an ASCII letter or digit, raw, JSON-escaped and XML-escaped. When credentials are configured, a file whose path relative to the scanned folder holds a password or username, matched the same way, SHALL match whatever its contents. It SHALL never follow or read a symbolic link or any other entry that is neither a regular file nor a folder, the scanned path itself included: it SHALL print each such entry's path as not scanned and exit 2, after printing the matches. It SHALL print only matching and not-scanned paths, each configured credential value and each configured sentinel in them replaced by `[redacted]`, and exit 1 on a match, 0 on none, 2 when a path cannot be read or was not scanned.
+The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a binary file, followed by ten base64url characters), the configured sentinels, and, when credentials are configured, each password anywhere and each username where neither neighbour is an ASCII letter or digit, raw, JSON-escaped and XML-escaped. A configured value of fewer than six UTF-8 bytes SHALL be searched in text files only, because so short a byte run occurs by chance in compressed image data. When credentials are configured, a file whose path relative to the scanned folder holds a password or username, matched the same way, SHALL match whatever its contents. It SHALL never follow or read a symbolic link or any other entry that is neither a regular file nor a folder, the scanned path itself included: it SHALL print each such entry's path as not scanned and exit 2, after printing the matches. It SHALL print only matching and not-scanned paths, each configured credential value and each configured sentinel in them replaced by `[redacted]`, and exit 1 on a match, 0 on none, 2 when a path cannot be read or was not scanned.
 
 #### Scenario: One leaking file
 - **WHEN** a folder holds a clean log and a log containing account 1's password
@@ -240,9 +244,13 @@ The scan command SHALL search a file or folder for the JWT prefix `eyJ` (in a bi
 - **WHEN** the configuration has no credentials section and a folder holds a clean log and a log containing a token
 - **THEN** the scan prints only the second log's path and exits 1
 
+#### Scenario: Short value in a binary file
+- **WHEN** a folder holds a binary file whose only configured value is a three-letter username between two bytes that are neither letters nor digits, and a binary file holding account 2's password
+- **THEN** the scan prints only the second file's path and exits 1
+
 #### Scenario: Negative control
-- **WHEN** a scanned file contains account 2's password, only a token, only a configured sentinel, or account 1's username between a slash and a space, a clean file's name holds account 1's password, a matching file's name holds a configured sentinel, or the scanned folder holds, or the scanned path is, a symbolic link to a file holding a token
-- **THEN** exiting 0 or 1 where a link was not scanned, reading the link's target, or printing the password, the username, the token or the sentinel, MUST fail this requirement
+- **WHEN** a scanned file contains account 2's password, only a token, only a configured sentinel, or account 1's username between a slash and a space, a clean file's name holds account 1's password, a matching file's name holds a configured sentinel, the scanned folder holds, or the scanned path is, a symbolic link to a file holding a token, or a binary file's only configured value has fewer than six bytes
+- **THEN** exiting 0 or 1 where a link was not scanned, reading the link's target, printing the password, the username, the token or the sentinel, or printing that binary file's path, MUST fail this requirement
 
 ### Requirement: The team skill routes a fresh agent to the shared driver
 The team skill `app-qa-drivers` SHALL lead an agent session without prior context, in a repository with a configuration, to do desktop and simulator QA through the shared driver: preflight first, tag-addressed desktop commands, sign-in only through the repository's sign-in subflow run by the driver, evidence scanned before it is kept, an evidence file or folder the session did not write (an existing output folder, captures or logs the task names) never read, listed, opened, changed or deleted, only scanned, with a hit or a not-scanned entry named by the path the scan printed, and a failed preflight reported with its fix instead of worked around.
@@ -262,6 +270,10 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 #### Scenario: Folder the session did not write
 - **WHEN** a fresh agent session in such a repository is asked to keep a capture in an existing folder holding a file with a token
 - **THEN** it scans the folder, reports the hit by the path the scan printed, reads, lists, changes or deletes no file in it, and keeps its capture in a new folder
+
+#### Scenario: Clean folder that gains a token after the scan
+- **WHEN** a fresh agent session in such a repository is asked to keep a capture in an existing folder holding only a clean log, and a line with a token is appended to that log once the session's scan of the folder has finished
+- **THEN** its tool calls read, list, change or delete nothing in the folder at any time, it keeps its capture in a new folder, and neither its transcript nor its report holds the token
 
 #### Scenario: Negative control
 - **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool, a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, evidence reported as kept without a scan, or a read, listing, change or deletion of an evidence file it did not write, whatever a scan of it returned
