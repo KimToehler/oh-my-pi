@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, spyOn, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AgentBusyError, type AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { AgentBusyError } from "@oh-my-pi/pi-agent-core";
 import { Database } from "bun:sqlite";
 import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -12,10 +12,6 @@ import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp
 import type { AgentSessionEvent, RoleModelCycle } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SILENT_ABORT_MARKER, USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
-import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import { initTheme } from "@oh-my-pi/pi-tui/theme";
 import type {
 	AgentSideConnection,
 	ClientCapabilities,
@@ -4396,7 +4392,7 @@ describe("ACP agent", () => {
 		expect(harness.setToolUIContextSpies).toHaveLength(1);
 		expect(harness.setToolUIContextSpies[0]).toHaveBeenCalledTimes(1);
 		expect(harness.setToolUIContextSpies[0]).toHaveBeenCalledWith(
-			expect.objectContaining({ askDialog: expect.any(Function) }),
+			expect.objectContaining({ formDialog: expect.any(Function) }),
 			true,
 		);
 
@@ -4710,61 +4706,6 @@ describe("ACP agent", () => {
 			}
 		});
 
-		it("ask free text: the ask tool reports a folded Other answer instead of cancelling", async () => {
-			// AskTool builds its dialog labels from the theme.
-			await initTheme(false);
-			// The reported failure: Air's folded Other answer ended the turn with "Ask tool was cancelled by the user".
-			const { connection } = createElicitConnection(async () => ({
-				action: "accept",
-				content: { q0: "klar läuft hier docker", q0__other: "" },
-			}));
-			const session: ToolSession = {
-				cwd: "/tmp/test",
-				hasUI: true,
-				canPromptUser: true,
-				settings: Settings.isolated(),
-				getSessionFile: () => null,
-				getSessionSpawns: () => "*",
-			};
-			const abort = vi.fn();
-			const context = {
-				hasUI: true,
-				ui: createAcpExtensionUiContext(connection, () => "session-ask-tool-folded", FORM_CAPABILITIES),
-				abort,
-			} as unknown as AgentToolContext;
-
-			const outcome = await new AskTool(session)
-				.execute(
-					"call-ask-folded",
-					{
-						questions: [
-							{
-								id: "proof",
-								question: "Belege?",
-								options: [{ label: "Proof-Branch" }, { label: "Lokales Docker" }],
-							},
-						],
-					},
-					undefined,
-					undefined,
-					context,
-				)
-				.then(
-					result => ({ result }),
-					(error: unknown) => ({ error }),
-				);
-
-			// Pre-fix, the off-list `q0` is dropped and AskTool ends the turn with `ToolAbortError`.
-			expect("error" in outcome ? outcome.error : outcome.result).not.toBeInstanceOf(ToolAbortError);
-			if ("error" in outcome) throw outcome.error;
-			expect(outcome.result.content[0]).toMatchObject({
-				type: "text",
-				text: "User provided custom input: klar läuft hier docker",
-			});
-			expect(outcome.result.details?.customInput).toBe("klar läuft hier docker");
-			expect(abort).not.toHaveBeenCalled();
-		});
-
 		it("packs multiple ask questions into one ordered form", async () => {
 			const { connection, calls } = createElicitConnection(async () => ({
 				action: "accept",
@@ -4857,6 +4798,129 @@ describe("ACP agent", () => {
 							timedOut: true,
 						},
 					],
+				});
+				expect(onTimeout).toHaveBeenCalledTimes(1);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		const DEPLOY_FORM = `<form>
+  <p>Staging is green; production has a pending migration.</p>
+  <fieldset>
+    <legend>Target</legend>
+    <label><input type="radio" name="target" value="staging" checked> Staging</label>
+    <label><input type="radio" name="target" value="prod"> Production</label>
+  </fieldset>
+  <fieldset>
+    <legend>Checks</legend>
+    <label><input type="checkbox" name="checks" value="lint" checked> Lint</label>
+    <label><input type="checkbox" name="checks" value="e2e"> E2E</label>
+  </fieldset>
+  <label><input type="checkbox" name="notify" value="yes"> Notify the channel</label>
+  <label>Replicas <input type="number" name="replicas" value="2" min="1" max="5" required></label>
+  <label>Notes <textarea name="notes" placeholder="Anything else?"></textarea></label>
+  <input type="hidden" name="source" value="ci">
+</form>`;
+
+		it("translates an HTML form into one elicitation with a property per field", async () => {
+			const { connection, calls } = createElicitConnection(async () => ({
+				action: "accept",
+				content: { target: "prod", checks: ["lint", "e2e", "bogus"], notify: true, replicas: 3, notes: "ship it" },
+			}));
+			const ctx = createAcpExtensionUiContext(connection, () => "session-form", FORM_CAPABILITIES);
+
+			const result = await ctx.formDialog!(DEPLOY_FORM);
+
+			expect(calls).toHaveLength(1);
+			const request = calls[0]!;
+			if (!isFormElicitation(request)) throw new Error("expected form-mode elicitation");
+			expect(request.message).toContain("Staging is green; production has a pending migration.");
+			expect(request.requestedSchema.required).toEqual(["replicas"]);
+			expect(request.requestedSchema.properties).toEqual({
+				target: {
+					type: "string",
+					title: "Target",
+					oneOf: [
+						{ const: "staging", title: "Staging" },
+						{ const: "prod", title: "Production" },
+					],
+					default: "staging",
+				},
+				target_other: { type: "string", title: "Target — Other", description: "Your own answer instead" },
+				checks: {
+					type: "array",
+					title: "Checks",
+					items: {
+						anyOf: [
+							{ const: "lint", title: "Lint" },
+							{ const: "e2e", title: "E2E" },
+						],
+					},
+					default: ["lint"],
+				},
+				checks_other: {
+					type: "string",
+					title: "Checks — Other",
+					description: "Another answer, added to those checked",
+				},
+				notify: { type: "boolean", title: "Notify the channel", default: false },
+				replicas: { type: "number", title: "Replicas", minimum: 1, maximum: 5, default: 2 },
+				notes: { type: "string", title: "Notes", description: "Anything else?" },
+			});
+			expect(result).toEqual({
+				data: {
+					source: "ci",
+					target: "prod",
+					checks: ["lint", "e2e"],
+					notify: "yes",
+					replicas: 3,
+					notes: "ship it",
+				},
+			});
+		});
+
+		it("folds a group's Other text into its value", async () => {
+			const { connection } = createElicitConnection(async () => ({
+				action: "accept",
+				content: {
+					target: "staging",
+					target_other: " canary ",
+					checks: ["lint"],
+					checks_other: "smoke",
+					replicas: 2,
+				},
+			}));
+			const ctx = createAcpExtensionUiContext(connection, () => "session-form-other", FORM_CAPABILITIES);
+
+			const result = await ctx.formDialog!(DEPLOY_FORM);
+
+			expect(result?.data).toMatchObject({ target: "canary", checks: ["lint", "smoke"] });
+		});
+
+		it("returns undefined when a form elicitation is cancelled", async () => {
+			const { connection } = createElicitConnection(async () => ({ action: "cancel" }));
+			const ctx = createAcpExtensionUiContext(connection, () => "session-form-cancel", FORM_CAPABILITIES);
+
+			expect(await ctx.formDialog!(DEPLOY_FORM)).toBeUndefined();
+		});
+
+		it("submits the form's defaults when a form elicitation times out", async () => {
+			vi.useFakeTimers();
+			try {
+				const { promise: never } = Promise.withResolvers<CreateElicitationResponse>();
+				const { connection } = createElicitConnection(() => never);
+				const ctx = createAcpExtensionUiContext(connection, () => "session-form-timeout", FORM_CAPABILITIES);
+				const onTimeout = vi.fn();
+
+				const pending = ctx.formDialog!(DEPLOY_FORM, { timeout: 10, onTimeout });
+				await Promise.resolve();
+				vi.advanceTimersByTime(10);
+				await Promise.resolve();
+
+				expect(await pending).toEqual({
+					data: { source: "ci", target: "staging", checks: ["lint"], replicas: 2, notes: "" },
+					timedOut: true,
 				});
 				expect(onTimeout).toHaveBeenCalledTimes(1);
 			} finally {

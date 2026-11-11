@@ -112,8 +112,8 @@ async function startHost(ctx: InteractiveModeContext): Promise<CollabSocket> {
 describe("collab guest agent chat admission", () => {
 	it("collab chat: a guest chat whose room ends while revival waits for a relocation prompts nothing and releases its ticket", async () => {
 		const transport = await startHost(makeContext());
-		spyOn(transport, "send").mockImplementation(() => {});
-		spyOn(transport, "sendBatch").mockImplementation(() => {});
+		spyOn(transport, "send").mockImplementation(() => true);
+		spyOn(transport, "sendBatch").mockImplementation(() => true);
 		const parsed = parseCollabLink(host!.link);
 		if ("error" in parsed) throw new Error(parsed.error);
 		const writeToken = parsed.writeToken ? Buffer.from(parsed.writeToken).toString("base64url") : undefined;
