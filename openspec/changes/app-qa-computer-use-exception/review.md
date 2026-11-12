@@ -1,18 +1,18 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 658157d26278ed40981c67baee7ef46df7fd0d03a398ae1aa963b132b08f15f7
+- **Reviewed digest**: e97c0c81cc3a9a9ff1ddc39d9d6ac0db936afbb98a16bb72dbbcd1b2d3e38e4e
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta3
+- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta4
 - **Verifier**: blocker-verifier, none
-- **Models**: ProposeComputerUse.PlanReviewDelta3 onara/cx/gpt-6.1-sol
-- **Round**: 3
+- **Models**: ProposeComputerUse.PlanReviewDelta4 onara/cx/gpt-6.1-sol
+- **Round**: 4
 - **Awaiting**: triage
 - **Override**: none
 
 ## Blockers
 
-### Delta check (ProposeComputerUse.PlanReviewDelta3)
+### Delta check (ProposeComputerUse.PlanReviewDelta4)
 
 1. **PROCESS 4 — Window-isolation proof remains non-discriminating**
    - defect: The overlap control permits a zoomed capture without requiring the captured rectangle to include the overlapping marker’s position. During ordinary execution, the session can zoom another part of the target window; the marker is then absent even if capture incorrectly samples composited screen pixels. The row can pass without establishing D5’s promised isolation property. This leaves the material boundary proof incomplete; it is not evidence that the prelude actually leaks pixels.
@@ -30,4 +30,4 @@
 
 none
 
-Round 2's findings were fixed by the delta this round checked (exhaustion answer Fix, user Tim 2026-11-12, scope: computer use only for apps whose configuration has no credentials section, one target window, no display or other-app capture).
+Round 3's findings were fixed by the delta this round checked (second exhaustion answer Fix, user Tim 2026-11-12).
