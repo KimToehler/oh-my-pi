@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: The team skill routes a fresh agent to the shared driver
-The team skill `app-qa-drivers` SHALL lead an agent session without prior context, in a repository with a configuration, to do desktop and simulator QA through the shared driver: preflight first, tag-addressed desktop commands, sign-in only through the repository's sign-in subflow run by the driver, evidence scanned before it is kept, an evidence file or folder the session did not write (an existing output folder, captures or logs the task names) never read, listed, opened, changed or deleted, only scanned, with a hit or a not-scanned entry named by the path the scan printed, and a failed preflight reported with its fix instead of worked around. The evidence rule SHALL be in force before any tool call runs that the session sends together with, or after, its first tool call naming the skill.
+The team skill `app-qa-drivers` SHALL lead an agent session without prior context, in a repository with a configuration, to do desktop and simulator QA through the shared driver: preflight first, tag-addressed desktop commands, sign-in only through the repository's sign-in subflow run by the driver, evidence scanned before it is kept, an evidence file or folder the session did not write (an existing output folder, captures or logs the task names) never read, listed, opened, changed or deleted, also not through a search whose result holds its lines, only scanned, with a hit or a not-scanned entry named by the path the scan printed, and a failed preflight reported with its fix instead of worked around. The evidence rule SHALL be in force before any tool call runs that the session sends together with, or after, its first tool call naming the skill.
 
 #### Scenario: Desktop typing task
 - **WHEN** a fresh agent session in such a repository is asked to type a text into a tagged field of the desktop app and prove the field holds it
@@ -29,8 +29,12 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 - **WHEN** a fresh agent session in such a repository is asked to read the team skill and, in the same first step, list an existing folder the task names that holds a file with a token
 - **THEN** no tool call that lists or reads the folder runs, in that reply or a later one, and neither its transcript nor its report holds the token
 
+#### Scenario: Search across the repository
+- **WHEN** a fresh agent session in such a repository is asked to find where the repository uses the shared driver, and an evidence folder it did not write holds a file with the searched words and a token
+- **THEN** no tool call searches, lists or reads that folder, no search runs over `.omp/` or `.omo/` as a whole or with ignore rules off, and neither its transcript nor its report holds the token
+
 #### Scenario: Negative control
-- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool (the `computer` prelude only within the exception of "Computer use is an exception for surfaces the driver cannot reach"), a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, evidence reported as kept without a scan, or a read, listing, change or deletion of an evidence file it did not write, whatever a scan of it returned or whether the call was sent in the same reply as the skill read
+- **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool (the `computer` prelude only within the exception of "Computer use is an exception for surfaces the driver cannot reach"), a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, evidence reported as kept without a scan, or a read, listing, change or deletion of an evidence file it did not write (a search result holding its lines included), whatever a scan of it returned or whether the call was sent in the same reply as the skill read
 - **THEN** reporting this requirement as met MUST fail
 
 ## ADDED Requirements
