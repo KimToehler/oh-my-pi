@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.VerifierRound3
 - **Models**: ProposeComputerUse.PlanReviewDelta3 onara/cx/gpt-6.1-sol; ProposeComputerUse.VerifierRound3 onara/cx/gpt-6.1-sol
 - **Round**: 3
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (second exhaustion ask answered Fix by the user, Tim, 2026-11-12: "Fix": fix the three round-3 blockers as the verifier confirmed them, then one more delta check.)
 
 ## Blockers
 
