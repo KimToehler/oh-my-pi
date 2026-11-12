@@ -12,6 +12,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 - Economy rules: capture the target window only, zoomed or silent captures combined into one grid; print only the accessibility lines the check needs; no whole-tree dump, no unfiltered observation, no desktop capture.
 - Evidence a session keeps states that computer use was used and for which surface.
 - The skill's section "Proving a QA instruction change" gains the proof for this exception: fresh sessions in both directions, with the same capture-and-scan discipline.
+- The credential rule `ui-automation-credentials` loads before any `computer` helper call and points such a call, in a repository with `.omp/app-qa.json`, to the skill and its credentials and one-window limits; the skill's description routes any computer use there, so a request not phrased as a QA check still reaches the limits.
 - **Not in this change** (assumptions, recorded): `computer.enabled` keeps its default `false` in code; enabling it stays a per-user setting (Tim's `~/.omp/agent/config.yml` already has it), so a session without the prelude reports it missing. No change to `qa.mjs`, the prelude, onara's or weaver's repository QA skills, or the DeviceHub input skill.
 
 ## Capabilities
