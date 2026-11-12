@@ -6,7 +6,7 @@ Gives an `omp-gated` change one cross-family architecture consultation before fo
 
 ### Requirement: Consultation before a risky round
 
-Before dispatching any full round at depth `risky`, whichever path reaches that dispatch (the incomplete-round re-run included), while the change folder holds no `consulted` or `skipped` `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed change folder, unless the user told it to skip with a reason, which it records as a `skipped` record. At `standard` depth it SHALL run one only when the user asks.
+Before dispatching a full round at depth `risky`, or a delta check after a fix that made the change `risky`, on any path (the incomplete-round re-run included), while the folder holds no `consulted` or `skipped` `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed folder, unless the user told it to skip with a reason, recorded as a `skipped` record. At `standard` depth it SHALL run one only when the user asks.
 
 #### Scenario: Risky change before round 1
 
@@ -43,9 +43,14 @@ Before dispatching any full round at depth `risky`, whichever path reaches that 
 - **WHEN** a session resumes a `risky` change whose `review.md` has Awaiting `incomplete` on the unchanged digest and whose folder holds no `consultation.md`
 - **THEN** the consultation runs, and its record is committed, before the re-run is dispatched, and the re-run keeps the recorded round number and carries the recorded findings
 
+#### Scenario: Exhaustion fix raises the depth
+
+- **WHEN** the user answers Fix to the exhaustion ask of a `standard` change, the fix makes the change `risky`, and the folder holds no `consultation.md`
+- **THEN** the consultation runs, and its record is committed, before the successor delta check, whose patch includes the adopted edits
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches a full `risky` round, on any path, of a change without a `consulted` or `skipped` `consultation.md`, dispatches a consultation for a change whose record is `consulted` or `skipped`, or dispatches a consultation while the change folder has uncommitted changes
+- **WHEN** an instruction dispatches a full `risky` round, on any path, or a delta check after a fix that made the change `risky`, of a change without a `consulted` or `skipped` `consultation.md`, dispatches a consultation for a change whose record is `consulted` or `skipped`, or dispatches a consultation while the change folder has uncommitted changes
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: A consultation survives interruption
@@ -88,12 +93,17 @@ The consultation SHALL be one fresh `architecture-oracle` task item that carries
 
 ### Requirement: A consultation counts only on its pinned model
 
-The instruction SHALL read the models of every consultation dispatch from its session file and compare them with the agent's pin. A dispatch without a structured report, or one with a turn on another model, SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
+Every consultation attempt SHALL count only when the report check accepts it, which compares every model in its session file with the `model` of the `architecture-oracle` definition, never with a configured `task.agentModelOverrides` entry. A refused attempt SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
 
 #### Scenario: Installation without the model entry
 
 - **WHEN** the agent directory's `models.yml` lacks `cc/claude-fable-5-2`, so both consultation attempts run on another model
 - **THEN** neither report is used, and the user is asked to skip with a reason or to stop, quoting the models each attempt ran on
+
+#### Scenario: Configured override
+
+- **WHEN** the agent directory's config sets `task.agentModelOverrides` for `architecture-oracle` to `onara/cx/gpt-6.1-sol`
+- **THEN** both attempts run on that model, neither report is used, and the user is asked to skip with a reason or to stop, quoting those models
 
 #### Scenario: User skips
 
@@ -102,7 +112,7 @@ The instruction SHALL read the models of every consultation dispatch from its se
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction applies findings from a dispatch whose session file records a model other than the pin, writes a `skipped` record without the user's answer, or replaces a failed consultation with the author's own architecture review
+- **WHEN** an instruction applies findings from a dispatch whose session file records a model other than the definition's, takes the expected model from `task.agentModelOverrides`, writes a `skipped` record without the user's answer, or replaces a failed consultation with the author's own architecture review
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: The author decides every finding before the next round
@@ -208,3 +218,17 @@ The validator SHALL refuse a record value as unfilled only when it still holds t
 
 - **WHEN** a record field or section still holds its template slot text
 - **THEN** the plain run MUST fail and `--reviewed` MUST fail, each naming that field
+
+### Requirement: One report check decides whether an attempt counts
+
+`validate-openspec-change.mjs --consultation-report <session file> <change dir>` SHALL print the report as one JSON line and exit 0 only when the file's first user message names that change directory, every assistant turn ran on the definition's model, the last accepted `yield` carries `data`, and that data passes the record's report check; otherwise it SHALL exit 1 naming the reason. Its output SHALL be the record's report.
+
+#### Scenario: Accepted report
+
+- **WHEN** the session file of an attempt for this change, on the definition's model, ends with an accepted `yield` whose `data` has a finding with an empty `counterevidence` string
+- **THEN** the check exits 0 and prints the report, and a record holding that line passes the plain run
+
+#### Scenario: Negative control
+
+- **WHEN** the session file names another change directory, has a turn on another model, ends with a `yield` the runtime refused or one without `data`, or carries a report with two findings of the same id
+- **THEN** the check MUST fail with exit 1 and name the reason
