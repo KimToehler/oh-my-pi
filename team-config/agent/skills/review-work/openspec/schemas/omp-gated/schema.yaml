@@ -379,9 +379,10 @@ artifacts:
          - Recovery: when consultation.md is `pending`, dispatch nothing before you resolve every
            attempt its Models names, from the one session file its entry names, never by searching
            for an attempt's name: an attempt that is still a running job of this session is waited
-           for; otherwise run `V --consultation-report <session file> <change-dir>`. An entry
-           without a session file, or a check that exits 1, is a failed attempt; an exit 0 counts
-           the attempt and goes to Record below.
+           for; otherwise run `V --consultation-report <session file> <change-dir>`. An attempt's
+           session file is only the one its entry names, so an entry that names none has no report
+           to count, even when the attempt itself finished: it is a failed attempt, as is one whose
+           check exits 1; an exit 0 counts the attempt and goes to Record below.
          - Dispatch, for each attempt: commit the change folder and confirm `git status
            --porcelain -- <change-dir>` prints nothing. Write consultation.md from the template
            with Status `pending`; Consulted commit the 40-hex commit whose plan the consultant reads
@@ -689,7 +690,8 @@ artifacts:
          ```
          Review this fix delta. Workspace root: {REPO ROOT}. Plan: the OpenSpec change folder
          {CHANGE DIR} (proposal.md, specs/**/spec.md, design.md, gate.md, tasks.md; review.md is
-         the review record and consultation.md the consultation record, neither is plan).
+         the review record and consultation.md the consultation record, neither is plan; do not
+         read consultation.md).
          Plan invariants: gate.md's Accepted residual risks and Out of scope for blocking,
          verbatim in that file; the `### Requirement:` blocks and their Negative control scenarios
          are the criteria.
