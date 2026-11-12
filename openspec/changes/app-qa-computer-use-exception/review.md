@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.Triage9
 - **Models**: ProposeComputerUse.PlanReviewDelta9 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage9 onara/cx/gpt-6.1-sol
 - **Round**: 9
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-12: "Fix: require the failed mkdir (task tells the session to mkdir first), then one more delta check and the full F1 run")
 
 ## Blockers
 
