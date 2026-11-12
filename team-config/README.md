@@ -41,7 +41,12 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 new entry in it never reaches an existing `~/.omp/agent/config.yml`: after an update that adds
 one, merge it by hand. Today that is `task.agentModelOverrides.plan-reviewer`, the model plan
 review is pinned to; without a pin for the agent it dispatches, a plan review stops and asks you
-to add the entry instead of reviewing on whatever model the runtime picks.
+to add the entry instead of reviewing on whatever model the runtime picks. `seed/models.yml` is
+copied the same way: merge its `cc/claude-fable-5-2` entry into an existing
+`~/.omp/agent/models.yml` by hand (and into each profile or custom `PI_CODING_AGENT_DIR`), or
+every architecture consultation runs on another model, counts as failed and ends in the
+skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` before
+`--reviewed` passes again: a consultation on their next full round, or a skip you approve.
 
 ## What lands where
 
@@ -238,6 +243,23 @@ with the re-run's. Only a round that delivered nothing and carries nothing write
 `Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
 login. F2, its delta reviews and an on-demand `integration-review` keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
+
+Before the first full `risky` round, and before any later full `risky` round while the folder holds no record, the
+review runs one architecture consultation (a `standard` change gets one only when you ask). The planner commits the
+change folder and a `pending` `consultation.md` naming the attempt, then dispatches one fresh `architecture-oracle`
+item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
+`onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
+list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
+accepts its session file: the brief names this change, every turn ran on the definition's model (never on a
+`task.agentModelOverrides` entry), and the final `yield` delivered a report matching the agent's output schema. A failed
+attempt gets one retry; after two, you choose between skipping with your reason and stopping. The counted report is
+copied into `consultation.md` by the report command, never retyped, and the planner marks every finding
+`adopted:` (with the plan edit) or `rejected:` with a reason, without a verifier; the record and the adopted edits
+are committed together before the round's digest. The formal reviewers stay blind: their briefs exclude
+`consultation.md`, the delta patch omits it, and no dispatch quotes a consultation finding. A session that finds a
+`pending` record resolves its named attempts from their session files before dispatching anything, so an interrupted
+consultation is never paid for twice.
+
 The record carries the digest of the folder it reviewed and the round's subagent ids. OpenSpec reports apply as
 `blocked` while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
 
@@ -246,8 +268,10 @@ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --revi
 ```
 
 It fails when `review.md` is missing or malformed (including a missing `## Blockers` section, one that says `none`
-for a `REJECT`, one that lists blockers for an `OKAY`, or a repeated subagent id), when the verdict is `REJECT` without an override, and when any
-artifact changed after the review (`stale`; ticking tasks does not count). Re-run the review after editing an artifact:
+for a `REJECT`, one that lists blockers for an `OKAY`, or a repeated subagent id), when the verdict is `REJECT` without an override, when
+a `risky` change has no `consultation.md`, when `consultation.md` is malformed or still `pending`, and when any
+artifact changed after the review (`stale`; ticking tasks does not count). `consultation.md` is outside the digest,
+like `review.md`: adding or editing it never makes the review stale. Re-run the review after editing an artifact:
 `openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
