@@ -6,7 +6,7 @@ Gives an `omp-gated` change one cross-family architecture consultation before fo
 
 ### Requirement: Consultation before a risky round
 
-Before dispatching any full round at depth `risky` while the change folder holds no `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed change folder, unless the user told it to skip with a reason, which it records as a `skipped` record. At `standard` depth it SHALL run one only when the user asks. A change SHALL get at most one consultation.
+Before dispatching any full round at depth `risky`, whichever path reaches that dispatch (the incomplete-round re-run included), while the change folder holds no `consulted` or `skipped` `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed change folder, unless the user told it to skip with a reason, which it records as a `skipped` record. At `standard` depth it SHALL run one only when the user asks.
 
 #### Scenario: Risky change before round 1
 
@@ -35,12 +35,36 @@ Before dispatching any full round at depth `risky` while the change folder holds
 
 #### Scenario: Record already present
 
-- **WHEN** a session resumes the review of a `risky` change whose folder already holds `consultation.md`
+- **WHEN** a session resumes the review of a `risky` change whose folder already holds a `consulted` or `skipped` `consultation.md`
 - **THEN** no further consultation is dispatched
+
+#### Scenario: Incomplete round resumed
+
+- **WHEN** a session resumes a `risky` change whose `review.md` has Awaiting `incomplete` on the unchanged digest and whose folder holds no `consultation.md`
+- **THEN** the consultation runs, and its record is committed, before the re-run is dispatched, and the re-run keeps the recorded round number and carries the recorded findings
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches a full `risky` round of a change without `consultation.md`, dispatches a second consultation for a change that has one, or dispatches a consultation while the change folder has uncommitted changes
+- **WHEN** an instruction dispatches a full `risky` round, on any path, of a change without a `consulted` or `skipped` `consultation.md`, dispatches a consultation for a change whose record is `consulted` or `skipped`, or dispatches a consultation while the change folder has uncommitted changes
+- **THEN** review of that instruction MUST fail
+
+### Requirement: A consultation survives interruption
+
+A change SHALL get at most one counted consultation from at most two dispatches, across session interruptions. Each attempt SHALL be named in a committed `pending` record before it is dispatched, and a session that finds a `pending` record SHALL resolve every named attempt from its session file before it dispatches anything.
+
+#### Scenario: Interrupted after the report was delivered
+
+- **WHEN** a session resumes a change whose `pending` record names an attempt whose session file holds a structured report on the pinned model
+- **THEN** no `architecture-oracle` is dispatched, and `consultation.md` is completed from that report
+
+#### Scenario: Interrupted before a report
+
+- **WHEN** a session resumes a change whose `pending` record names one attempt whose session file is missing or holds no structured report
+- **THEN** that attempt counts as failed, and exactly one retry is dispatched
+
+#### Scenario: Negative control
+
+- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, or dispatches a third attempt
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixed consultation brief on the pinned agent
@@ -111,7 +135,7 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 ### Requirement: Risky changes need the consultation record
 
-`validate-openspec-change.mjs --reviewed` SHALL refuse a change whose `gate.md` Depth starts with `risky` or whose Mandatory class is not `none` when its folder holds no `consultation.md`, and SHALL name `consultation.md`. A `standard` change SHALL pass without one.
+`validate-openspec-change.mjs --reviewed` SHALL refuse a change whose `gate.md` Depth starts with `risky` or whose Mandatory class is not `none` when its folder holds no `consultation.md`, and SHALL name `consultation.md`. It SHALL refuse a `pending` record at any depth. A `standard` change SHALL pass without one.
 
 #### Scenario: Consulted risky change
 
@@ -130,7 +154,7 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 #### Scenario: Negative control
 
-- **WHEN** a change with Mandatory class `auth-secrets-pii` and no Depth bullet, or with Depth `risky`, holds a valid, current OKAY `review.md` and no `consultation.md`
+- **WHEN** a change with Mandatory class `auth-secrets-pii` and no Depth bullet, or with Depth `risky`, holds a valid, current OKAY `review.md` and no `consultation.md`, or any change holds a `pending` record
 - **THEN** `--reviewed` MUST fail and name `consultation.md`
 
 ### Requirement: The record is outside the review digest
@@ -149,14 +173,33 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 ### Requirement: The consultation record is well formed
 
-`validate-openspec-change.mjs`, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line, `## Findings`, and one disposition per finding. A `skipped` record SHALL have a reason. The error SHALL name the field.
+The validator, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. Every header field and both sections SHALL appear exactly once. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line, a recommended approach, and per finding every report field, nonempty, then one disposition. A `skipped` record SHALL have a reason; a `pending` record a 40-hex commit and an attempt.
 
 #### Scenario: Consulted without findings
 
 - **WHEN** a `consulted` record has bottom line `KEEP APPROACH` and `## Findings` reads `none`
 - **THEN** the record passes this check
 
+#### Scenario: Pending record
+
+- **WHEN** a `pending` record names one dispatched attempt
+- **THEN** the plain run passes and `--reviewed` fails naming `consultation.md`
+
 #### Scenario: Negative control
 
-- **WHEN** a `consulted` record has a finding subsection without a `- **Disposition**:` bullet, a Status other than `consulted` or `skipped`, a `skipped` record has Skip reason `none`, or a Consultant field names an agent other than `architecture-oracle`
+- **WHEN** a `consulted` record has a finding subsection without a `- **Disposition**:` bullet or without one of its report fields, lacks `## Recommended approach`, has a Status other than `consulted`, `skipped` or `pending`, a `skipped` record has Skip reason `none`, or a Consultant field names an agent other than `architecture-oracle`
 - **THEN** the plain run MUST fail and `--reviewed` MUST fail, each naming the defective field
+
+### Requirement: Record text is kept verbatim
+
+The validator SHALL refuse a record value as unfilled only when it still holds the template's own slot text. Any other text, including the word TODO and angle-bracket syntax, SHALL be accepted verbatim.
+
+#### Scenario: Verbatim text that looks like a slot
+
+- **WHEN** a `skipped` record's reason reads `This only changes the TODO scanner; skip the consultation` and a finding's correction quotes `--original-reply <file>`
+- **THEN** the record passes this check
+
+#### Scenario: Negative control
+
+- **WHEN** a record field or section still holds its template slot text
+- **THEN** the plain run MUST fail and `--reviewed` MUST fail, each naming that field

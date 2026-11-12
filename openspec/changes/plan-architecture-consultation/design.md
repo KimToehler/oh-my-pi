@@ -21,7 +21,9 @@ See proposal.md (Why). Facts the design builds on:
 
 ### D1. A step inside the `review` artifact, before the round
 
-The consultation becomes step 2a of the `review` instruction. Step 2 reads and updates `- **Depth**:` as today. If the next dispatch is then a full round at depth `risky`, or the user asked for a consultation at `standard`, and the folder has no `consultation.md`, step 2a runs instead of step 2's digest. Step 2a commits the folder with an empty `git status --porcelain -- <change dir>` and dispatches on that commit. It then writes the record and the adopted edits, commits them, and returns to step 1. The re-entered step 2 finds `consultation.md` and proceeds to the round's commit and digest. This covers round 1, a full round after a fix raised the depth, and changes already in review when this change deploys. The fix-delta check of a `standard` change is not a full round and never triggers it.
+The consultation becomes step 2a of the `review` instruction, entered from an admission check at the head of step 3. Every full-round dispatch passes step 3: from step 2, and from the incomplete-round re-run, which resumes at step 3 directly (`schema.yaml:665-676`). The check: when the round is a full round at depth `risky`, or the user asked for a consultation at `standard`, and the folder holds no `consultation.md` or a `pending` one, step 3 dispatches nothing and runs step 2a. Step 2a commits the folder with an empty `git status --porcelain` for the change folder, runs the consultation on that commit (D5), writes the record and the adopted edits, commits them, and returns to step 1. The re-entered step 2 takes the round's commit and digest; step 3's check then finds a `consulted` or `skipped` record and dispatches. This covers round 1, a full round after a fix raised the depth, changes already in review when this change deploys, and an incomplete round resumed after it deploys. The fix-delta check of a `standard` change is not a full round and never triggers it.
+
+An incomplete round resumed through step 2a keeps what the incomplete-round paragraph gives it: the recorded round number, no budget spent, and its recorded findings carried verbatim. It re-runs on the digest step 2 takes after the consultation, at the depth step 2 then reads. Without adopted edits that digest equals the recorded one, because the record is outside it (D6). One added sentence in the incomplete-round paragraph says this.
 
 Alternatives:
 
@@ -78,15 +80,18 @@ Review this proposed change as a senior architecture advisor before it goes to f
 
 As with the reviewer briefs, the planner adds no focus, summary or file list. The item carries no `model` and uses `solutionSpace: "Architecture consultation before plan review; outcome open"`.
 
-### D5. Pin check, retry and skip
+### D5. Attempts, pin check, recovery and skip
 
-After each dispatch the instruction applies its existing session-file model check (`schema.yaml:464-476`) to `architecture-oracle`.
+A change gets at most two consultation attempts, across sessions, and at most one counts.
 
-- A dispatch without a structured result, or with a turn on another model, gets one fresh retry with the same brief.
-- If the retry fails too, the instruction asks the user, quoting each attempt's models:
+- Each attempt's id is its task item's `name`: `ArchConsult`, the first 8 hex digits of the consulted commit, and the attempt number, e.g. `ArchConsult1a2b3c4d1`. The id is unique per change and attempt, so a later session can find its session file.
+- Before an attempt is dispatched, `consultation.md` holds Status `pending`, the consulted commit and every attempt so far under Models, the new one as `<id> dispatched`. That record is committed; then the attempt is dispatched. The consulted commit is the plan commit before the first `pending` commit; the plan bytes of both are identical, and the brief excludes `consultation.md` (D4).
+- After each attempt the instruction applies its existing session-file model check (`schema.yaml:464-476`). An attempt without a structured result, or with a turn on another model, gets one fresh retry with the same brief.
+- Recovery: a session that finds a `pending` record dispatches nothing before it resolves every attempt the record names. It reads the attempt's session file: `read history://<id>` when that resolves, otherwise the file `<id>.jsonl` under the agent directory's `sessions/` (`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}`). An attempt that is still a running job of the current session is waited for. When the file's last `yield` carries a result and every assistant turn ran on the pin, the attempt counts and the record is completed from that result. A missing file, or one without a result, makes the attempt failed (`(no report)`), and the retry rule applies to what remains of the two.
+- When two attempts have failed, the instruction asks the user, quoting each attempt's models:
   - Skip: keep the reason in the user's words;
-  - Stop: write no record and dispatch nothing further.
-- The seed adds no `retry.fallbackChains` entry for the Fable model. With `fallbackOn: usage-limit`, an exhausted quota therefore surfaces as a failed dispatch instead of a silent substitute.
+  - Stop: leave the `pending` record, which `--reviewed` refuses, and dispatch nothing further.
+- The seed adds no `retry.fallbackChains` entry for the Fable model. With `fallbackOn: usage-limit`, an exhausted quota therefore surfaces as a failed attempt instead of a silent substitute.
 
 A substitute would be Opus, the author's own model, or Sol, the formal reviewer's model. Neither adds the second-family view the step exists for.
 
@@ -99,20 +104,20 @@ The schema gets a new template `templates/consultation.md`:
 ```
 # Consultation
 
-- **Status**: <consulted or skipped>
-- **Consulted commit**: <40-hex commit whose change folder the consultant read, or none when skipped>
-- **Consultant**: <architecture-oracle, then the subagent id of the counted attempt; none when skipped>
-- **Models**: <one entry per attempt, "<subagent id> <provider/model>", further models appended, "(no report)" after an attempt that did not count; none when skipped before any dispatch>
-- **Bottom line**: <the report's verdict, then its reason verbatim; none when skipped>
+- **Status**: <consulted, skipped or pending>
+- **Consulted commit**: <40-hex commit whose change folder the consultant read, or none when skipped before any dispatch>
+- **Consultant**: <architecture-oracle, then the subagent id of the counted attempt; none when pending or skipped>
+- **Models**: <one entry per attempt, "<subagent id> <provider/model>", further models appended, "(no report)" after an attempt that did not count, "<subagent id> dispatched" for an attempt not yet resolved; none when skipped before any dispatch>
+- **Bottom line**: <the report's verdict, then its reason verbatim; none when pending or skipped>
 - **Skip reason**: <none, or the user's reason in their words>
 
 ## Findings
 
-<none, or one "### <finding id>" subsection per finding, the report's fields verbatim as "- **<field>**: <value>" bullets, then exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>">
+<none, or one "### <finding id>" subsection per finding: the report's fields category, locations, trigger, consequence, counterevidence, correction and confidence verbatim, each as one "- **<field>**: <value>" bullet whose further lines are indented by two spaces, then exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>">
 
 ## Recommended approach
 
-<the report's recommended approach verbatim, or none when skipped>
+<the report's recommended approach verbatim, or none when pending or skipped>
 ```
 
 The record lives in the change folder, so the merge gate's `plan_sha256` binds it like every other file of the folder. `reviewDigest` excludes it, as it excludes `review.md`. The review digest covers exactly what the formal reviewers read (D8), and the adopted edits land in plan files the digest covers. A record added to a change whose review is already OKAY, such as a skip recorded for a change that was in apply when this change deployed, therefore does not make that review stale. The consulted commit lets a later experiment replay a formal round on the bytes the consultant read.
@@ -147,17 +152,18 @@ Validator changes in `validate-openspec-change.mjs`:
 - `checkReview` extracts the existing `risky` predicate (`:415-418`) into a helper it shares with the new presence check. When the change is `risky` and the snapshot has no `consultation.md`, it reports `consultation.md: required for a risky change; run the consultation step of the review, or record the user's skip`.
 - `reviewDigest` deletes `consultation.md` from its copy of the snapshot next to `review.md` (D6), so `--digest` prints the same value with or without the record.
 
-`validateConsultation` reuses `planContent`, `scanMarkdown`, `topLevelField`, `valueDefect` and `PLACEHOLDER`. It checks:
+`validateConsultation` reuses `planContent`, `scanMarkdown` and `topLevelField`. It does not use `PLACEHOLDER` or the template detection of `valueDefect`: report text and user reasons are verbatim and may contain `TODO` or angle-bracket syntax (the pilot's `runs/fable-oracle-20261112/results/P3-findings.md:73-76` on branch `experiment/fable-oracle-pilot` quotes `--original-reply <file>`). A value is unfilled only when it equals, after trimming, the slot text the shipped template holds at that place. The validator keeps those slot texts in one constant, and a test reads the shipped template and fails when a slot differs from the constant. It checks:
 
 | Field or element | Rule |
 |---|---|
-| `Status`, `Consulted commit`, `Consultant`, `Models`, `Bottom line`, `Skip reason` | Each exactly once and nonempty. |
-| `Status` | `consulted` or `skipped`. |
-| `consulted` record | Commit matches `^[0-9a-f]{40}$`. Consultant matches `^architecture-oracle, [A-Za-z0-9][\w.-]*$`. Models is not `none`. Bottom line starts with one of the three verdicts. Skip reason is `none`. Exactly one `## Findings` section, which is `none` or holds one or more `### ` subsections, each with exactly one `- **Disposition**:` bullet matching `^(adopted|rejected): \S`. |
-| `skipped` record | Skip reason is neither `none` nor a placeholder. Consulted commit, Consultant and Bottom line are `none`. |
-| Any field | No template placeholder. |
+| `Status`, `Consulted commit`, `Consultant`, `Models`, `Bottom line`, `Skip reason` | Each exactly once, nonempty, and not its slot text. |
+| `## Findings`, `## Recommended approach` | Each exactly once, nonempty, and not its slot text. |
+| `Status` | `consulted`, `skipped` or `pending`. |
+| `consulted` record | Commit matches `^[0-9a-f]{40}$`. Consultant matches `^architecture-oracle, [A-Za-z0-9][\w.-]*$`. Models is not `none` and has no `dispatched` entry. Bottom line starts with one of the three verdicts. Skip reason is `none`. Recommended approach is not `none`. `## Findings` is `none` or holds one or more `### ` subsections. Each subsection has the bullets `category`, `locations`, `trigger`, `consequence`, `counterevidence`, `correction` and `confidence` exactly once and nonempty, `category` one of the three enum values, and then exactly one `- **Disposition**:` bullet, the last one, matching `^(adopted|rejected): \S`. |
+| `skipped` record | Skip reason is not `none`. Consultant, Bottom line, `## Findings` and `## Recommended approach` are `none`. Consulted commit is `none` or 40-hex (a skip after two failed attempts keeps it). |
+| `pending` record | Commit matches `^[0-9a-f]{40}$`. Models is not `none`. Consultant, Bottom line, Skip reason, `## Findings` and `## Recommended approach` are `none`. |
 
-Each error names `consultation.md` and the field.
+Each error names `consultation.md` and the field. `checkReview` additionally refuses a `pending` record: `consultation.md: the consultation is still pending; finish the consultation step of the review`.
 
 ### D10. Seed model entry
 
