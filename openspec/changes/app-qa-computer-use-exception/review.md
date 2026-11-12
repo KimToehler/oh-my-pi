@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.Triage8
 - **Models**: ProposeComputerUse.PlanReviewDelta8 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage8 onara/cx/gpt-6.1-sol
 - **Round**: 8
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-12: "Fix: add the rt-collide row and the D11 wording, then one more delta check and the full F1 run")
 
 ## Blockers
 
