@@ -232,3 +232,8 @@ The validator SHALL refuse a record value as unfilled only when it still holds t
 
 - **WHEN** the session file names another change directory, has a turn on another model, ends with a `yield` the runtime refused (even after an earlier accepted one), an incremental section or a `yield` without `data`, or carries a report with two findings of the same id
 - **THEN** the check MUST fail with exit 1 and name the reason
+
+#### Scenario: Schema changed in the definition
+
+- **WHEN** the `architecture-oracle` definition's `output` schema gains a required field, and an attempt's report lacks it
+- **THEN** the check exits 1 naming that field, with no change to the validator

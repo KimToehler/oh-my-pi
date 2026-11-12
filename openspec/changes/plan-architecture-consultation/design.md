@@ -46,7 +46,9 @@ Alternatives:
   - `uncertainties`: at most 3 strings;
   - `inspected`: string.
 
-The declared schema is also the record's report contract (D12): strings may be empty, except a finding's `id`, which keys its disposition and must be nonempty and distinct.
+`output` is the frontmatter's last key and is written as one JSON object. JSON is YAML flow syntax, so the runtime's YAML frontmatter parser reads it unchanged, and the validator reads the text after `output:` with `JSON.parse` (D12) without a YAML parser. The limits are `metadata.maxElements` on `findings` (5) and `uncertainties` (3), next to their descriptions; the runtime keeps `metadata` opaque (`packages/coding-agent/src/tools/jtd-to-json-schema.ts:169-170`).
+
+This schema is the one report contract: the runtime validates `yield` data against it, and `checkReport` (D12) reads it from the same definition. Runtime acceptance alone is not proof, because `yield` lets non-conforming data through after `MAX_SCHEMA_RETRIES` failed attempts (`packages/coding-agent/src/tools/yield.ts:339-346`). The record adds two constraints JTD cannot express, because a finding's `id` keys its disposition: it is nonempty and distinct. All other strings may be empty.
 
 The pin lives in the definition, as for `blocker-verifier` (`team-config/agent/agents/blocker-verifier.md:5`) and `auditor`, so no seed config entry is needed. The report check of D12 reads it from the definition and ignores `task.agentModelOverrides`, so no configuration can redefine which model counts.
 
@@ -156,14 +158,14 @@ Validator changes in `validate-openspec-change.mjs`:
 - `checkReview` extracts the existing `risky` predicate (`:415-418`) into a helper it shares with the new presence check. When the change is `risky` and the snapshot has no `consultation.md`, it reports `consultation.md: required for a risky change; run the consultation step of the review, or record the user's skip`.
 - `reviewDigest` deletes `consultation.md` from its copy of the snapshot next to `review.md` (D6), so `--digest` prints the same value with or without the record.
 
-`validateConsultation` reuses `scanMarkdown` and `topLevelField` for the envelope. It does not use `PLACEHOLDER` or the template detection of `valueDefect`: user reasons are verbatim and may contain `TODO` or angle-bracket syntax (the pilot's `runs/fable-oracle-20261112/results/P3-findings.md:73-76` on branch `experiment/fable-oracle-pilot` quotes `--original-reply <file>`). A value is unfilled only when it equals, after trimming, the slot text the shipped template holds at that place. The validator keeps those slot texts in one constant, and a test reads the shipped template and fails when a slot differs from the constant. The report is read from the raw lines under `## Report`, not from `planContent`, parsed with `JSON.parse`, and checked by `checkReport` (D12), the function the report check uses; its strings are never interpreted as Markdown. It checks:
+`validateConsultation` reuses `scanMarkdown` and `topLevelField` for the envelope. It does not use `PLACEHOLDER` or the template detection of `valueDefect`: user reasons are verbatim and may contain `TODO` or angle-bracket syntax (the pilot's `runs/fable-oracle-20261112/results/P3-findings.md:73-76` on branch `experiment/fable-oracle-pilot` quotes `--original-reply <file>`). A value is unfilled only when it equals, after trimming, the slot text the shipped template holds at that place. The validator reads those slot texts from the shipped template at run time, `../openspec/schemas/omp-gated/templates/consultation.md` from the script, which is the same relative path in the repository and in the deployed skill (`install-openspec-workflow.mjs:26`), so no copy of them exists. A missing or unreadable template fails the check, naming its path. The report is read from the raw lines under `## Report`, not from `planContent`, parsed with `JSON.parse`, and checked by `checkReport` (D12), the function the report check uses; its strings are never interpreted as Markdown. It checks:
 
 | Field or element | Rule |
 |---|---|
 | `Status`, `Consulted commit`, `Consultant`, `Models`, `Bottom line`, `Skip reason` | Each exactly once, nonempty, and not its slot text. |
 | `## Report`, `## Findings` | Each exactly once, nonempty, and not its slot text. |
 | `Status` | `consulted`, `skipped` or `pending`. |
-| `## Report` of a `consulted` record | Exactly a `` ```json `` line, one line that `JSON.parse` accepts, and a `` ``` `` line. `checkReport` accepts it: an object with `bottom_line` (`verdict` one of `KEEP APPROACH`, `CHANGE APPROACH`, `INCONCLUSIVE`; `reason` a string), `findings` (an array of at most 5 objects, each with the strings `id`, `category`, `locations`, `trigger`, `consequence`, `counterevidence`, `correction` and `confidence`, `id` nonempty and distinct, `category` one of the three enum values), and the strings `recommended_approach` and `inspected` and `uncertainties` (at most 3 strings). Strings other than `id` may be empty, as the agent's declared schema allows (D2). |
+| `## Report` of a `consulted` record | Exactly a `` ```json `` line, one line that `JSON.parse` accepts, and a `` ``` `` line. `checkReport` accepts it: the value conforms to the definition's `output` schema, its `metadata.maxElements` limits included, and every finding's `id` is nonempty and distinct (D2). |
 | `consulted` record | Commit matches `^[0-9a-f]{40}$`. Consultant matches `^architecture-oracle, [A-Za-z0-9][\w.-]*$`. Models is not `none` and has no `dispatched` entry. Bottom line equals the report's verdict. Skip reason is `none`. `## Findings` is `none` exactly when the report has no findings; otherwise it holds one `### <id>` subsection per report finding, in the report's order and with its ids, each holding exactly one bullet, `- **Disposition**:` matching `^(adopted\|rejected): \S`. |
 | `skipped` record | Skip reason is not `none`. Consultant, Bottom line, `## Report` and `## Findings` are `none`. Consulted commit is `none` or 40-hex (a skip after two failed attempts keeps it). |
 | `pending` record | Commit matches `^[0-9a-f]{40}$`. Models is not `none`. Consultant, Bottom line, Skip reason, `## Report` and `## Findings` are `none`. |
@@ -197,7 +199,13 @@ Apart from the report codec below, no mechanism this change introduces is covere
 - Repository: the review-work scripts decode JSON with `JSON.parse` and import only Node built-ins (`team-config/agent/skills/review-work/scripts/gate-convergence.mjs:121`, `validate-gate-record.mjs:134`); their tests read JSONL one `JSON.parse` per line (`gate-convergence.test.mjs:45`). `JSON.stringify` prints a value as one line of JSON.
 - Platform: not searched, covered above.
 - Candidates: not searched, covered above.
-- Decision: adopt `JSON.parse` to read the session file and the record, and `JSON.stringify` to print the report line. The validator's type, enum and limit checks of D9 are project-specific checks of the agent's own output schema, not a general schema validator.
+- Decision: adopt `JSON.parse` to read the session file, the definition's `output` and the record, and `JSON.stringify` to print the report line.
+
+### Build vs. adopt: report schema check
+- Repository: `packages/coding-agent/src/tools/output-schema-validator.ts` and `jtd-to-json-schema.ts` validate JTD output schemas for the runtime. They are TypeScript inside the omp package; the deployed script under `~/.omp/agent/skills/review-work/scripts/` runs on Node and imports only Node built-ins, so it cannot load them.
+- Platform: Node has no JTD or JSON Schema validator among its built-in modules (https://nodejs.org/api/), not found.
+- Candidates: **Ajv** (https://ajv.js.org/json-type-definition.html): 8.20.0, 2026-04-24 (npm), MIT, maintained, validates JTD. Reject, gap: an npm dependency the deployed script cannot load, the same constraint the `dotenv` decision of `2026-11-03-post-impl-review-proportional` records.
+- Decision: build, gap: `checkReport` interprets the four JTD forms the definition uses (`properties`, `elements`, `enum`, `type: string`) plus `metadata.maxElements`. Any other form fails the check, naming the form, so a schema change outside the subset cannot pass unchecked.
 
 ### D12. One report check for counting and for the record
 
@@ -207,7 +215,7 @@ Apart from the report codec below, no mechanism this change introduces is covere
 2. Its first user message contains the line `Change directory: ` followed by the absolute `<change dir>`. A file of another change's attempt fails here.
 3. Every assistant turn's `provider/model` equals the `model` of the `architecture-oracle.md` installed beside the skill (`agents/architecture-oracle.md` three directories above the script, `team-config/agent/agents/` in the repository), without its thinking suffix. `task.agentModelOverrides` is not read: a configured override changes the dispatched model, so its attempts fail here and reach the skip-or-stop ask, which quotes their models.
 4. The report is the `data` of the session file's final `yield` tool call, and only when that call ended the run: its `toolResult` exists with `isError` false, its `type` argument is not a non-empty list of section labels (`type: "result"` is terminal; the rule of `isTerminalYieldResult`, `packages/coding-agent/src/tools/yield.ts:795-810`), and it carries `data`. A refused final submission (`yield.ts:686-698`), an unanswered one, an incremental section and a data-less terminal `yield` are not reports, and no earlier `yield` stands in for the final one.
-5. `checkReport` accepts that value (D9).
+5. `checkReport` accepts that value against the `output` schema of the same `architecture-oracle.md` and D2's record constraints (D9).
 
 On success it prints `JSON.stringify` of the report on one line and exits 0.
 
