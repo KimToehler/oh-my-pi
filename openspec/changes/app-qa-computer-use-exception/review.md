@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.VerifierRound4
 - **Models**: ProposeComputerUse.PlanReviewDelta4 onara/cx/gpt-6.1-sol; ProposeComputerUse.VerifierRound4 onara/cx/gpt-6.1-sol
 - **Round**: 4
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (third exhaustion ask answered Fix by the user, Tim, 2026-11-12: "Fix (QA lane takes the capture, whole target window, cite helper.m; next REJECT means the second route)". Pre-made fallback: if the next delta check is REJECT, D5 drops the isolation claim and rests on the no-credentials rule plus the one-target-window rule, `ce-overlap` is removed, and gate.md records the overlay of another app's window as an accepted residual risk with the helper.m citation.)
 
 ## Blockers
 
