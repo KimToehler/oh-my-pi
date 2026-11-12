@@ -1074,6 +1074,11 @@ The system SHALL export records in batches.
 			await Bun.write(path.join(root, "consultation.md"), record);
 			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 		});
+		it("prints the decoded report when the final yield's data is a JSON-encoded string, as the runtime delivers it", async () => {
+			const root = await changeFixture();
+			const file = await attempt(root, root, [{ yield: { id: "y1", data: JSON.stringify(ACCEPTED) } }]);
+			expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
+		});
 		for (const [name, turns, other, reason] of [
 			["a brief naming another change directory", [{ yield: { id: "y1", data: ACCEPTED } }], true, "change directory"],
 			["a turn on onara/cx/gpt-6.1-sol", [{ model: "onara/cx/gpt-6.1-sol" }, { yield: { id: "y1", data: ACCEPTED } }], false, "onara/cx/gpt-6.1-sol"],
@@ -1081,6 +1086,8 @@ The system SHALL export records in batches.
 			["a final yield without a tool result", [{ yield: { id: "y1", data: ACCEPTED, result: "none" } }], false, "no tool result"],
 			["a final yield carrying section labels", [{ yield: { id: "y1", type: ["findings"], data: ACCEPTED } }], false, "incremental section"],
 			["a data-less terminal yield", [{ yield: { id: "y1" } }], false, "no data"],
+			["a data string that is not JSON", [{ yield: { id: "y1", data: "{bottom_line: KEEP}" } }], false, "not JSON"],
+			["a data string encoding null", [{ yield: { id: "y1", data: "null" } }], false, "no data"],
 			["two findings with the same id", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1"), FINDING("F1")] }) } }], false, "duplicate"],
 		] as const) {
 			it(`refuses ${name}`, async () => {

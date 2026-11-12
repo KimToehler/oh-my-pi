@@ -550,7 +550,9 @@ function validateConsultation(text, errors) {
 /**
  * The report check of one consultation attempt: the session file's brief names `changeDir`, every assistant turn ran on
  * the oracle definition's model, and the final `yield` ended the run (accepted, not an incremental section) with `data`
- * that `checkReport` accepts. Returns `{ report }` or `{ error }`.
+ * that `checkReport` accepts. A string `data` is decoded with `JSON.parse` first, as the runtime decodes a JSON-encoded
+ * payload before it delivers it (`packages/coding-agent/src/tools/yield.ts`, lossless recovery), while the session file
+ * keeps the string the model sent. Returns `{ report }` or `{ error }`.
  */
 async function consultationReport(sessionFile, changeDir) {
 	const contract = loadConsultationContract();
@@ -600,7 +602,14 @@ async function consultationReport(sessionFile, changeDir) {
 	if (result.isError !== false) return { error: "the final yield was refused by the runtime; no earlier yield stands in for it" };
 	const labels = last.arguments?.type;
 	if (Array.isArray(labels) && labels.length > 0) return { error: `the final yield is an incremental section (${labels.join(", ")}), not a terminal report` };
-	const data = last.arguments?.data;
+	let data = last.arguments?.data;
+	if (typeof data === "string") {
+		try {
+			data = JSON.parse(data);
+		} catch {
+			return { error: "the final yield's data is a string that is not JSON, so the runtime delivered no report object" };
+		}
+	}
 	if (data === undefined || data === null) return { error: "the final yield carries no data" };
 	const issues = checkReport(data);
 	if (issues.length > 0) return { error: issues.join("; ") };
