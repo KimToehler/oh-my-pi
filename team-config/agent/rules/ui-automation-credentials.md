@@ -7,6 +7,7 @@ condition:
   - '(?i)\bspectre\b|\bosascript\b|System Events|\bscreencapture\b'
   - '(?i)\bapp-qa-drivers\b'
   - '\bcomputer\.[A-Za-z]|\.(ax|observe)\(|\.menu\.'
+  - '\bmkdir\b[^\n]*\bevidence'
 scope: ["tool"]
 interruptMode: always
 ---
@@ -34,6 +35,7 @@ Applies whenever an agent drives a browser, simulator, emulator or desktop app t
 
 - From your first tool call on, an evidence file or folder you did not write (an existing output folder, captures or logs the task names) is never read, listed, opened, printed, changed, moved or deleted, whatever its scan returned and whatever the task asks.
 - The only command that names it is the evidence scan the app's QA skill names. Report a hit or a not-scanned entry by the path the scan printed, and write your own output to a new folder.
+- Create your own output folder with `mkdir` without `-p` in a step of its own, stop when it fails and pick another name, and never pass a driver `--out` below a folder you did not create. A search (`grep`, `rg`, `glob`, `find`, a recursive listing) never covers an evidence folder you did not write: never run it over `.omp/` or `.omo/` as a whole or with ignore rules off (`gitignore: false`, `--no-ignore`, `-u`).
 - A clean scan is no permission to read: a running app can append a token to its log after the scan, and nothing ties a later read to the bytes the scan saw.
 - Repository sources and skills are not evidence and stay readable.
 
