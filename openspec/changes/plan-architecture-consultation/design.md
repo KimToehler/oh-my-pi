@@ -84,10 +84,10 @@ As with the reviewer briefs, the planner adds no focus, summary or file list. Th
 
 A change gets at most two consultation attempts, across sessions, and at most one counts.
 
-- Each attempt's id is its task item's `name`: `ArchConsult`, the first 8 hex digits of the consulted commit, and the attempt number, e.g. `ArchConsult1a2b3c4d1`. The id is unique per change and attempt, so a later session can find its session file.
-- Before an attempt is dispatched, `consultation.md` holds Status `pending`, the consulted commit and every attempt so far under Models, the new one as `<id> dispatched`. That record is committed; then the attempt is dispatched. The consulted commit is the plan commit before the first `pending` commit; the plan bytes of both are identical, and the brief excludes `consultation.md` (D4).
+- Each attempt's id is its task item's `name`: `ArchConsult`, the first 8 hex digits of the consulted commit, and the attempt number, e.g. `ArchConsult1a2b3c4d1`. Names are unique only within a session (`packages/coding-agent/src/task/output-manager.ts:2-8`), and two changes consulted at the same commit get the same name, so the name is never used to find a session file.
+- Before an attempt is dispatched, `consultation.md` holds Status `pending`, the consulted commit and every attempt so far under Models, the new one as `<id> dispatched`. That record is committed; then the attempt is dispatched. As soon as `read history://<id>` prints the attempt's session file, the entry becomes `<id> dispatched <absolute session file>` and is committed. The consulted commit is the plan commit before the first `pending` commit; the plan bytes of both are identical, and the brief excludes `consultation.md` (D4).
 - After each attempt the instruction applies its existing session-file model check (`schema.yaml:464-476`). An attempt without a structured result, or with a turn on another model, gets one fresh retry with the same brief.
-- Recovery: a session that finds a `pending` record dispatches nothing before it resolves every attempt the record names. It reads the attempt's session file: `read history://<id>` when that resolves, otherwise the file `<id>.jsonl` under the agent directory's `sessions/` (`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}`). An attempt that is still a running job of the current session is waited for. When the file's last `yield` carries a result and every assistant turn ran on the pin, the attempt counts and the record is completed from that result. A missing file, or one without a result, makes the attempt failed (`(no report)`), and the retry rule applies to what remains of the two.
+- Recovery: a session that finds a `pending` record dispatches nothing before it resolves every attempt the record names. An attempt that is still a running job of the current session is waited for. Otherwise only the session file the entry names is read; there is no search by name. The attempt counts only when all three hold: the file's first user message contains the line `Change directory: ` followed by this change's absolute change directory, its last `yield` carries a result, and every assistant turn ran on the pin. An entry without a session file, a missing file, a brief naming another change directory, or no result makes the attempt failed (`(no report)`), and the retry rule applies to what remains of the two.
 - When two attempts have failed, the instruction asks the user, quoting each attempt's models:
   - Skip: keep the reason in the user's words;
   - Stop: leave the `pending` record, which `--reviewed` refuses, and dispatch nothing further.
@@ -107,18 +107,26 @@ The schema gets a new template `templates/consultation.md`:
 - **Status**: <consulted, skipped or pending>
 - **Consulted commit**: <40-hex commit whose change folder the consultant read, or none when skipped before any dispatch>
 - **Consultant**: <architecture-oracle, then the subagent id of the counted attempt; none when pending or skipped>
-- **Models**: <one entry per attempt, "<subagent id> <provider/model>", further models appended, "(no report)" after an attempt that did not count, "<subagent id> dispatched" for an attempt not yet resolved; none when skipped before any dispatch>
-- **Bottom line**: <the report's verdict, then its reason verbatim; none when pending or skipped>
+- **Models**: <one entry per attempt, "<subagent id> <provider/model>", further models appended, "(no report)" after an attempt that did not count, "<subagent id> dispatched" with its session file once known for an attempt not yet resolved; none when skipped before any dispatch>
+- **Bottom line**: <the report's verdict; none when pending or skipped>
 - **Skip reason**: <none, or the user's reason in their words>
+
+## Report
+
+<none, or a json fence holding the counted attempt's structured result on one line, written by the report command of the review instruction>
 
 ## Findings
 
-<none, or one "### <finding id>" subsection per finding: the report's fields category, locations, trigger, consequence, counterevidence, correction and confidence verbatim, each as one "- **<field>**: <value>" bullet whose further lines are indented by two spaces, then exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>">
-
-## Recommended approach
-
-<the report's recommended approach verbatim, or none when pending or skipped>
+<none, or one "### <finding id>" subsection per finding of the report, in the report's order, holding only "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>">
 ```
+
+The report is copied, never retyped. The instruction's report command reads the counted attempt's session file and prints the data of its last `yield` as one line of JSON:
+
+```
+jq -c 'select(.type=="message" and .message.role=="assistant") | .message.content[]? | select(.type=="toolCall" and .name=="yield") | .arguments.data' <session file> | tail -n 1
+```
+
+The instruction writes that line by redirect between a `` ```json `` line and a `` ``` `` line under `## Report`. JSON on one line cannot hold a line break, so no line of the report can open or close a fence, start a heading or a bullet. Fenced examples, Markdown and angle brackets in report strings stay inside JSON strings, byte for byte. The `## Findings` subsections hold only the author's dispositions, keyed by the report's finding ids; the finding text lives once, in the report.
 
 The record lives in the change folder, so the merge gate's `plan_sha256` binds it like every other file of the folder. `reviewDigest` excludes it, as it excludes `review.md`. The review digest covers exactly what the formal reviewers read (D8), and the adopted edits land in plan files the digest covers. A record added to a change whose review is already OKAY, such as a skip recorded for a change that was in apply when this change deployed, therefore does not make that review stale. The consulted commit lets a later experiment replay a formal round on the bytes the consultant read.
 
@@ -135,7 +143,7 @@ The user chose that the author decides each finding, without a `blocker-verifier
 
 - `adopted:` must name the edited artifact.
 - `rejected:` must give a reason.
-- Every finding of the counted report appears, verbatim.
+- Every finding of the counted report gets a subsection, in order; the report itself is the command's output (D6).
 
 The formal review is the backstop for a wrongly rejected finding. Its brief does not show it the finding (D8), so it can find the defect independently.
 
@@ -152,16 +160,17 @@ Validator changes in `validate-openspec-change.mjs`:
 - `checkReview` extracts the existing `risky` predicate (`:415-418`) into a helper it shares with the new presence check. When the change is `risky` and the snapshot has no `consultation.md`, it reports `consultation.md: required for a risky change; run the consultation step of the review, or record the user's skip`.
 - `reviewDigest` deletes `consultation.md` from its copy of the snapshot next to `review.md` (D6), so `--digest` prints the same value with or without the record.
 
-`validateConsultation` reuses `planContent`, `scanMarkdown` and `topLevelField`. It does not use `PLACEHOLDER` or the template detection of `valueDefect`: report text and user reasons are verbatim and may contain `TODO` or angle-bracket syntax (the pilot's `runs/fable-oracle-20261112/results/P3-findings.md:73-76` on branch `experiment/fable-oracle-pilot` quotes `--original-reply <file>`). A value is unfilled only when it equals, after trimming, the slot text the shipped template holds at that place. The validator keeps those slot texts in one constant, and a test reads the shipped template and fails when a slot differs from the constant. It checks:
+`validateConsultation` reuses `scanMarkdown` and `topLevelField` for the envelope. It does not use `PLACEHOLDER` or the template detection of `valueDefect`: user reasons are verbatim and may contain `TODO` or angle-bracket syntax (the pilot's `runs/fable-oracle-20261112/results/P3-findings.md:73-76` on branch `experiment/fable-oracle-pilot` quotes `--original-reply <file>`). A value is unfilled only when it equals, after trimming, the slot text the shipped template holds at that place. The validator keeps those slot texts in one constant, and a test reads the shipped template and fails when a slot differs from the constant. The report is read from the raw lines under `## Report`, not from `planContent`, and parsed with `JSON.parse`; its strings are never interpreted as Markdown. It checks:
 
 | Field or element | Rule |
 |---|---|
 | `Status`, `Consulted commit`, `Consultant`, `Models`, `Bottom line`, `Skip reason` | Each exactly once, nonempty, and not its slot text. |
-| `## Findings`, `## Recommended approach` | Each exactly once, nonempty, and not its slot text. |
+| `## Report`, `## Findings` | Each exactly once, nonempty, and not its slot text. |
 | `Status` | `consulted`, `skipped` or `pending`. |
-| `consulted` record | Commit matches `^[0-9a-f]{40}$`. Consultant matches `^architecture-oracle, [A-Za-z0-9][\w.-]*$`. Models is not `none` and has no `dispatched` entry. Bottom line starts with one of the three verdicts. Skip reason is `none`. Recommended approach is not `none`. `## Findings` is `none` or holds one or more `### ` subsections. Each subsection has the bullets `category`, `locations`, `trigger`, `consequence`, `counterevidence`, `correction` and `confidence` exactly once and nonempty, `category` one of the three enum values, and then exactly one `- **Disposition**:` bullet, the last one, matching `^(adopted|rejected): \S`. |
-| `skipped` record | Skip reason is not `none`. Consultant, Bottom line, `## Findings` and `## Recommended approach` are `none`. Consulted commit is `none` or 40-hex (a skip after two failed attempts keeps it). |
-| `pending` record | Commit matches `^[0-9a-f]{40}$`. Models is not `none`. Consultant, Bottom line, Skip reason, `## Findings` and `## Recommended approach` are `none`. |
+| `## Report` of a `consulted` record | Exactly a `` ```json `` line, one line that `JSON.parse` accepts, and a `` ``` `` line. The value is an object with `bottom_line` (`verdict` one of `KEEP APPROACH`, `CHANGE APPROACH`, `INCONCLUSIVE`; `reason` a nonempty string), `findings` (an array of at most 5 objects, each with nonempty strings `id`, `category`, `locations`, `trigger`, `consequence`, `counterevidence`, `correction`, `confidence`, ids distinct, `category` one of the three enum values), a nonempty string `recommended_approach`, `uncertainties` (at most 3 strings) and a string `inspected`. |
+| `consulted` record | Commit matches `^[0-9a-f]{40}$`. Consultant matches `^architecture-oracle, [A-Za-z0-9][\w.-]*$`. Models is not `none` and has no `dispatched` entry. Bottom line equals the report's verdict. Skip reason is `none`. `## Findings` is `none` exactly when the report has no findings; otherwise it holds one `### <id>` subsection per report finding, in the report's order and with its ids, each holding exactly one bullet, `- **Disposition**:` matching `^(adopted\|rejected): \S`. |
+| `skipped` record | Skip reason is not `none`. Consultant, Bottom line, `## Report` and `## Findings` are `none`. Consulted commit is `none` or 40-hex (a skip after two failed attempts keeps it). |
+| `pending` record | Commit matches `^[0-9a-f]{40}$`. Models is not `none`. Consultant, Bottom line, Skip reason, `## Report` and `## Findings` are `none`. |
 
 Each error names `consultation.md` and the field. `checkReview` additionally refuses a `pending` record: `consultation.md: the consultation is still pending; finish the consultation step of the review`.
 

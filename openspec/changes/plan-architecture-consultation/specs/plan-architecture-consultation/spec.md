@@ -50,7 +50,7 @@ Before dispatching any full round at depth `risky`, whichever path reaches that 
 
 ### Requirement: A consultation survives interruption
 
-A change SHALL get at most one counted consultation from at most two dispatches, across session interruptions. Each attempt SHALL be named in a committed `pending` record before it is dispatched, and a session that finds a `pending` record SHALL resolve every named attempt from its session file before it dispatches anything.
+A change SHALL get at most one counted consultation from at most two dispatches, across session interruptions. Each attempt SHALL be named in a committed `pending` record before it is dispatched. A session that finds a `pending` record SHALL resolve every named attempt, before it dispatches anything, from the one session file its entry names, and SHALL count it only when that file's brief names this change directory.
 
 #### Scenario: Interrupted after the report was delivered
 
@@ -62,9 +62,14 @@ A change SHALL get at most one counted consultation from at most two dispatches,
 - **WHEN** a session resumes a change whose `pending` record names one attempt whose session file is missing or holds no structured report
 - **THEN** that attempt counts as failed, and exactly one retry is dispatched
 
+#### Scenario: Report of another change
+
+- **WHEN** a `pending` record's entry names a session file whose brief names another change directory and whose last `yield` holds a report on the pinned model
+- **THEN** that attempt counts as failed and its report is not used
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, or dispatches a third attempt
+- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, dispatches a third attempt, finds an attempt's session file by its name, or counts a report whose session file is not the one the entry names or whose brief names another change directory
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixed consultation brief on the pinned agent
@@ -100,14 +105,14 @@ The instruction SHALL read the models of every consultation dispatch from its se
 - **WHEN** an instruction applies findings from a dispatch whose session file records a model other than the pin, writes a `skipped` record without the user's answer, or replaces a failed consultation with the author's own architecture review
 - **THEN** review of that instruction MUST fail
 
-### Requirement: The author decides every finding before round 1
+### Requirement: The author decides every finding before the next round
 
-Every finding of the counted report SHALL appear verbatim in `consultation.md` with exactly one disposition: `adopted:`, naming the artifact change that applies it, or `rejected:` with the author's reason. The adopted changes and `consultation.md` SHALL be committed together, and validated, before the folder is committed and digested for round 1. No verifier triages consultation findings.
+The counted report SHALL be copied into `consultation.md` byte for byte from the attempt's session file, never retyped, and every finding SHALL get exactly one disposition: `adopted:`, naming the artifact change that applies it, or `rejected:` with the author's reason. The adopted changes and `consultation.md` SHALL be committed together, and validated, before the folder is committed and digested for the round that follows. No verifier triages consultation findings.
 
 #### Scenario: Mixed dispositions
 
 - **WHEN** the report holds three findings and the author adopts two and rejects one
-- **THEN** `consultation.md` lists all three verbatim, two with `adopted:` naming the edited artifact and one with `rejected:` and a reason, and round 1 reviews a digest that includes both edits
+- **THEN** `consultation.md` holds the report as the session file's `yield` data and three dispositions, two `adopted:` naming the edited artifact and one `rejected:` with a reason, and round 1 reviews a digest that includes both edits
 
 #### Scenario: Adopted fix raises the class
 
@@ -116,7 +121,7 @@ Every finding of the counted report SHALL appear verbatim in `consultation.md` w
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction drops a finding from the record, leaves a finding without a disposition, records `adopted:` without editing the plan, or dispatches round 1 before the adopted edits are committed
+- **WHEN** an instruction retypes or edits the report instead of copying it from the session file, leaves a finding without a disposition, records `adopted:` without editing the plan, or dispatches the round before the adopted edits are committed
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Formal review stays blind to the consultation
@@ -159,7 +164,7 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 ### Requirement: The record is outside the review digest
 
-`validate-openspec-change.mjs --digest`, and the digest `--reviewed` compares, SHALL exclude `consultation.md` as they exclude `review.md`. A change whose review is current SHALL stay current when a `consultation.md` is added or edited. Any change to another file of the folder SHALL still make it stale.
+`validate-openspec-change.mjs --digest`, and the digest `--reviewed` compares, SHALL exclude `consultation.md` as they exclude `review.md`. A change whose review is current SHALL stay current when a `consultation.md` is added or edited. Any other change to the plan's files SHALL still make it stale, as it does today.
 
 #### Scenario: Skip recorded after an OKAY review
 
@@ -173,7 +178,7 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 ### Requirement: The consultation record is well formed
 
-The validator, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. Every header field and both sections SHALL appear exactly once. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line, a recommended approach, and per finding every report field, nonempty, then one disposition. A `skipped` record SHALL have a reason; a `pending` record a 40-hex commit and an attempt.
+The validator, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. Every header field and both sections SHALL appear exactly once. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line equal to the report's verdict, the report as one JSON line of the agent's output schema, and one disposition per report finding, in its order. A `skipped` record SHALL have a reason.
 
 #### Scenario: Consulted without findings
 
@@ -187,16 +192,16 @@ The validator, in its plain run and under `--reviewed`, SHALL refuse at any dept
 
 #### Scenario: Negative control
 
-- **WHEN** a `consulted` record has a finding subsection without a `- **Disposition**:` bullet or without one of its report fields, lacks `## Recommended approach`, has a Status other than `consulted`, `skipped` or `pending`, a `skipped` record has Skip reason `none`, or a Consultant field names an agent other than `architecture-oracle`
+- **WHEN** a `consulted` record has a report finding without its `### ` subsection, a subsection without a `- **Disposition**:` bullet, a report line that is not JSON or lacks a report field, a Bottom line other than the report's verdict, a Status other than `consulted`, `skipped` or `pending`, a `skipped` record has Skip reason `none`, a `pending` record has no attempt, or a Consultant field names an agent other than `architecture-oracle`
 - **THEN** the plain run MUST fail and `--reviewed` MUST fail, each naming the defective field
 
 ### Requirement: Record text is kept verbatim
 
-The validator SHALL refuse a record value as unfilled only when it still holds the template's own slot text. Any other text, including the word TODO and angle-bracket syntax, SHALL be accepted verbatim.
+The validator SHALL refuse a record value as unfilled only when it still holds the template's own slot text, and SHALL read the report as JSON, never as Markdown. Any other text, including the word TODO, angle-bracket syntax and fenced Markdown inside report strings, SHALL be accepted verbatim.
 
 #### Scenario: Verbatim text that looks like a slot
 
-- **WHEN** a `skipped` record's reason reads `This only changes the TODO scanner; skip the consultation` and a finding's correction quotes `--original-reply <file>`
+- **WHEN** a `skipped` record's reason reads `This only changes the TODO scanner; skip the consultation`, and a `consulted` record's report has a correction that starts with a multiline fenced shell example and quotes `--original-reply <file>`, and a recommended approach with Markdown headings and a fence
 - **THEN** the record passes this check
 
 #### Scenario: Negative control
