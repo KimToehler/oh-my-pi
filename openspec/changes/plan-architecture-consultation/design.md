@@ -55,7 +55,7 @@ The existing `oracle` agent and its `@oracle` role stay unchanged. Re-pinning th
 The body takes `oracle-system.md` verbatim with three changes:
 
 - it drops the clauses that only fenced the experiment ("frozen", "historical reviews, experiment metadata, other reports or current-main code", "No other experiment inputs");
-- it names the structured fields of D2 instead of the numbered report;
+- it names the structured fields of D2 instead of the numbered report, and requires the whole report as one terminal `yield` whose `data` is the complete object, never incremental sections. The runtime also accepts sections finalized by a data-less `yield` (`packages/coding-agent/src/prompts/tools/yield.md:13-20`); this agent does not use that path, so the session file's last `yield` is the whole report;
 - it states that the brief's repository root and change directory are the only read roots.
 
 Unchanged from the pilot:
@@ -86,8 +86,8 @@ A change gets at most two consultation attempts, across sessions, and at most on
 
 - Each attempt's id is its task item's `name`: `ArchConsult`, the first 8 hex digits of the consulted commit, and the attempt number, e.g. `ArchConsult1a2b3c4d1`. Names are unique only within a session (`packages/coding-agent/src/task/output-manager.ts:2-8`), and two changes consulted at the same commit get the same name, so the name is never used to find a session file.
 - Before an attempt is dispatched, `consultation.md` holds Status `pending`, the consulted commit and every attempt so far under Models, the new one as `<id> dispatched`. That record is committed; then the attempt is dispatched. As soon as `read history://<id>` prints the attempt's session file, the entry becomes `<id> dispatched <absolute session file>` and is committed. The consulted commit is the plan commit before the first `pending` commit; the plan bytes of both are identical, and the brief excludes `consultation.md` (D4).
-- After each attempt the instruction applies its existing session-file model check (`schema.yaml:464-476`). An attempt without a structured result, or with a turn on another model, gets one fresh retry with the same brief.
-- Recovery: a session that finds a `pending` record dispatches nothing before it resolves every attempt the record names. An attempt that is still a running job of the current session is waited for. Otherwise only the session file the entry names is read; there is no search by name. The attempt counts only when all three hold: the file's first user message contains the line `Change directory: ` followed by this change's absolute change directory, its last `yield` carries a result, and every assistant turn ran on the pin. An entry without a session file, a missing file, a brief naming another change directory, or no result makes the attempt failed (`(no report)`), and the retry rule applies to what remains of the two.
+- After each attempt the instruction applies its existing session-file model check (`schema.yaml:464-476`) and reads the report from the attempt's session file with the report command of D6, on the normal path and on recovery alike. An attempt counts only when that command prints a JSON object, which a data-less terminal `yield` does not. An attempt without such a report, or with a turn on another model, gets one fresh retry with the same brief.
+- Recovery: a session that finds a `pending` record dispatches nothing before it resolves every attempt the record names. An attempt that is still a running job of the current session is waited for. Otherwise only the session file the entry names is read; there is no search by name. The attempt counts only when all three hold: the file's first user message contains the line `Change directory: ` followed by this change's absolute change directory, the report command of D6 prints a JSON object from it, and every assistant turn ran on the pin. An entry without a session file, a missing file, a brief naming another change directory, or no result makes the attempt failed (`(no report)`), and the retry rule applies to what remains of the two.
 - When two attempts have failed, the instruction asks the user, quoting each attempt's models:
   - Skip: keep the reason in the user's words;
   - Stop: leave the `pending` record, which `--reviewed` refuses, and dispatch nothing further.
@@ -195,7 +195,13 @@ There are three parts: the agent and seed entry, the instruction and template, a
 
 They share one contract, the `consultation.md` format of D6, and one cutover.
 
-No mechanism this change introduces is covered by the `Build vs. adopt` paragraph. The record is a project-specific Markdown form parsed by the existing `plan-contract.mjs` helpers, and the consultation is glue between existing task dispatch and the existing review flow.
+Apart from the report codec below, no mechanism this change introduces is covered by the `Build vs. adopt` paragraph. The record envelope is a project-specific Markdown form parsed by the existing `plan-contract.mjs` helpers, and the consultation is glue between existing task dispatch and the existing review flow.
+
+### Build vs. adopt: consultation report encoding
+- Repository: the `review` instruction already reads child session files with `jq` (`team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:464-467`), and the review-work scripts decode JSON with `JSON.parse`, importing only Node built-ins (`team-config/agent/skills/review-work/scripts/gate-convergence.mjs:121`, `validate-gate-record.mjs:134`). `jq -c` prints a value as one line of JSON; `JSON.parse` decodes it.
+- Platform: not searched, covered above.
+- Candidates: not searched, covered above.
+- Decision: adopt `jq -c` to write the report and `JSON.parse` to read it. The validator's type, enum and limit checks of D9 are project-specific checks of the agent's own output schema, not a general schema validator.
 
 ## Risks / Trade-offs
 
