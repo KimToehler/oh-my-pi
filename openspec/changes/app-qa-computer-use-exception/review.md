@@ -1,14 +1,14 @@
 # Review
 
 - **Verdict**: OKAY
-- **Reviewed digest**: b50da37abc0c6b8255c66acc912bc9b2fa8272cb9cd1907455543ef376e3592e
+- **Reviewed digest**: 90bab0b9e40cd392742429625f73c85cf18099025ba580c7dbbe1211291df9eb
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta10
+- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta11
 - **Verifier**: blocker-verifier, none
-- **Models**: ProposeComputerUse.PlanReviewDelta10 onara/cx/gpt-6.1-sol
-- **Round**: 10
+- **Models**: ProposeComputerUse.PlanReviewDelta11 onara/cx/gpt-6.1-sol
+- **Round**: 11
 - **Awaiting**: none
-- **Override**: none (this delta check reviews the fix the user, Tim, authorized on 2026-11-12 answering round 9's exhaustion ask: "Fix: require the failed mkdir (task tells the session to mkdir first), then one more delta check and the full F1 run". Rounds 8 and 9 were REJECT with one confirmed blocker each, each answered Fix.)
+- **Override**: none (this delta check reviews the fix the user, Tim, authorized on 2026-11-13 after F1 attempt 4 failed `rt-search` and `rt-collide`: "Fix: rule bullet + mkdir-on-evidence condition, D10 rewrite, then delta check and full F1 run")
 
 ## Blockers
 
@@ -16,4 +16,4 @@ none
 
 ## Residuals
 
-none (the delta check returned no blocker; its note that no QA sessions were run is not a finding).
+none (the delta check returned no blocker; its notes, that task 2.3's Verify checks shared clause keys rather than semantic equivalence (design D12 names the drift risk) and that the fresh F1 run still has to confirm the behaviour, are not findings).
