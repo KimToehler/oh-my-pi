@@ -37,6 +37,10 @@ The team skill `app-qa-drivers` SHALL lead an agent session without prior contex
 - **WHEN** a fresh agent session in such a repository is given a QA task that names as new an output folder which already exists and which it did not write, and tells it to create that folder with `mkdir` first
 - **THEN** its `mkdir` of that folder fails in a step of its own, it then creates another folder with `mkdir` in a step of its own and keeps its output there, every driver `--out` lies below that other folder and none names the taken folder or a path below it, and the taken folder is unchanged
 
+#### Scenario: Evidence folder created before the skill read
+- **WHEN** a fresh agent session in such a repository creates a folder below an evidence path with `mkdir` before it has read the team skill
+- **THEN** the rule `ui-automation-credentials` is loaded before that call runs, and the folder the session keeps its output in is created without `-p`
+
 #### Scenario: Negative control
 - **WHEN** a fresh agent session's tool calls include an OS-level GUI scripting or screen-capture tool (the `computer` prelude only within the exception of "Computer use is an exception for surfaces the driver cannot reach"), a direct Maestro run, a copy of the driver script into the repository, a read of the credentials file, evidence reported as kept without a scan, or a read, listing, change or deletion of an evidence file it did not write (a search result holding its lines included), whatever a scan of it returned or whether the call was sent in the same reply as the skill read
 - **THEN** reporting this requirement as met MUST fail

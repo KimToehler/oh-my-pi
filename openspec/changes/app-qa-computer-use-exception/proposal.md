@@ -9,6 +9,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 - The team skill allows omp's `computer` prelude for exactly three kinds of surface the driver cannot reach: screen readers (VoiceOver and its caption panel, TalkBack output), dialogs the app under test raises, and simulator or emulator host menus (for example Xcode 27 DeviceHub's Device > Accessibility menu). Everything a test tag reaches keeps going through the driver; computer use never replaces it.
 - Only the `computer` prelude; raw `osascript`, System Events, CGEvent, `screencapture` and custom Swift helpers stay forbidden for every surface.
 - Only for an app whose `.omp/app-qa.json` configures no `credentials`: an app with a sign-in surface gets no computer use at all. Only one resolved target window is captured or read (the app under test, a dialog it raised, the screen reader's caption panel or the simulator host window); no display or desktop capture, no other app's window. The rule `ui-automation-credentials` keeps every existing line unchanged; it gains a trigger so it loads before a `computer` call and one pointer bullet. Dialogs of other processes are out of scope.
+- The rule `ui-automation-credentials` also carries the folder and search clauses of the skill's section "Evidence you did not write" and loads on a `mkdir` naming an evidence path, because F1 sessions acted on evidence folders before reading the skill (design D12).
 - Economy rules: capture the target window only, zoomed or silent captures combined into one grid; print only the accessibility lines the check needs; no whole-tree dump, no unfiltered observation, no desktop capture.
 - Evidence a session keeps states that computer use was used and for which surface.
 - The skill's section "Proving a QA instruction change" gains the proof for this exception: fresh sessions in both directions, with the same capture-and-scan discipline.
@@ -25,7 +26,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 
 ## Impact
 
-- Changed: `team-config/agent/skills/app-qa-drivers/SKILL.md` (the "No OS-level GUI scripting" bullet becomes the exception, one new section, the intro line, the failed-preflight bullet, the evidence section and the proof section), `team-config/agent/rules/ui-automation-credentials.md` (one condition, description, one bullet). `team-config/agent/AGENTS.md:20` and `team-config/README.md` stay unchanged.
+- Changed: `team-config/agent/skills/app-qa-drivers/SKILL.md` (the "No OS-level GUI scripting" bullet becomes the exception, one new section, the intro line, the failed-preflight bullet, the evidence section and the proof section), `team-config/agent/rules/ui-automation-credentials.md` (two conditions, description, two bullets). `team-config/agent/AGENTS.md:20` and `team-config/README.md` stay unchanged.
 - Deployment: `scripts/deploy-local.sh` already mirrors `team-config/agent/**`; no new install.
 - Consumers: every agent session in a repository using the shared driver; effective only where `computer.enabled` is true.
 - Credentials: no credential is handled by the change, but it relaxes a ban next to the credential guardrail; see gate.md.
