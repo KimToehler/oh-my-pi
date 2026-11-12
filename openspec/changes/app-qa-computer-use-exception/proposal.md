@@ -13,7 +13,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 - Evidence a session keeps states that computer use was used and for which surface.
 - The skill's section "Proving a QA instruction change" gains the proof for this exception: fresh sessions in both directions, with the same capture-and-scan discipline.
 - The credential rule `ui-automation-credentials` loads before any `computer` helper call and points such a call, in a repository with `.omp/app-qa.json`, to the skill and its credentials and one-window limits; the skill's description routes any computer use there, so a request not phrased as a QA check still reaches the limits.
-- The skill's section "Evidence you did not write" also covers evidence the task does not name: a search never covers an evidence folder, `.omp/` or `.omo/` as a whole, or runs with ignore rules off (F1 found a search that returned another change's gate evidence).
+- The skill's section "Evidence you did not write" also covers evidence the task does not name: a search never covers an evidence folder, `.omp/` or `.omo/` as a whole, or runs with ignore rules off (F1 found a search that returned another change's gate evidence); the session creates its own output folder with `mkdir` without `-p` in its own step and never passes an `--out` below a folder it did not create.
 - **Not in this change** (assumptions, recorded): `computer.enabled` keeps its default `false` in code; enabling it stays a per-user setting (Tim's `~/.omp/agent/config.yml` already has it), so a session without the prelude reports it missing. No change to `qa.mjs`, the prelude, onara's or weaver's repository QA skills, or the DeviceHub input skill.
 
 ## Capabilities
