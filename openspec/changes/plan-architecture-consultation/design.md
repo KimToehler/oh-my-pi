@@ -93,7 +93,7 @@ A change gets at most two consultation attempts, across sessions, and at most on
 - When two attempts have failed, the instruction asks the user, quoting each attempt's models:
   - Skip: keep the reason in the user's words;
   - Stop: leave the `pending` record, which `--reviewed` refuses, and dispatch nothing further.
-- The seed adds no `retry.fallbackChains` entry for the Fable model. With `fallbackOn: usage-limit`, an exhausted quota therefore surfaces as a failed attempt instead of a silent substitute.
+- The seed adds no `retry.fallbackChains` entry for the Fable model. A pinned subagent still inherits a configured `retry.fallbackChains.default` (`packages/coding-agent/src/task/executor.ts:375-392`), so an exhausted quota can move an attempt to another model; the every-turn model check of D12 then refuses it, so a substitute's report never counts.
 
 A substitute would be Opus, the author's own model, or Sol, the formal reviewer's model. Neither adds the second-family view the step exists for.
 
@@ -206,7 +206,7 @@ Apart from the report codec below, no mechanism this change introduces is covere
 1. The session file reads as JSONL, one `JSON.parse` per line.
 2. Its first user message contains the line `Change directory: ` followed by the absolute `<change dir>`. A file of another change's attempt fails here.
 3. Every assistant turn's `provider/model` equals the `model` of the `architecture-oracle.md` installed beside the skill (`agents/architecture-oracle.md` three directories above the script, `team-config/agent/agents/` in the repository), without its thinking suffix. `task.agentModelOverrides` is not read: a configured override changes the dispatched model, so its attempts fail here and reach the skip-or-stop ask, which quotes their models.
-4. The report is the `data` of the last `yield` tool call whose `toolResult` has `isError` false. A submission the runtime refused (`packages/coding-agent/src/tools/yield.ts:686-698`) and a data-less terminal `yield` are not reports.
+4. The report is the `data` of the session file's final `yield` tool call, and only when that call ended the run: its `toolResult` exists with `isError` false, its `type` argument is not a non-empty list of section labels (`type: "result"` is terminal; the rule of `isTerminalYieldResult`, `packages/coding-agent/src/tools/yield.ts:795-810`), and it carries `data`. A refused final submission (`yield.ts:686-698`), an unanswered one, an incremental section and a data-less terminal `yield` are not reports, and no earlier `yield` stands in for the final one.
 5. `checkReport` accepts that value (D9).
 
 On success it prints `JSON.stringify` of the report on one line and exits 0.

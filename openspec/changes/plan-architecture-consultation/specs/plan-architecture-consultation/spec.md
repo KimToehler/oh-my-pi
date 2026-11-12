@@ -221,14 +221,14 @@ The validator SHALL refuse a record value as unfilled only when it still holds t
 
 ### Requirement: One report check decides whether an attempt counts
 
-`validate-openspec-change.mjs --consultation-report <session file> <change dir>` SHALL print the report as one JSON line and exit 0 only when the file's first user message names that change directory, every assistant turn ran on the definition's model, the last accepted `yield` carries `data`, and that data passes the record's report check; otherwise it SHALL exit 1 naming the reason. Its output SHALL be the record's report.
+`validate-openspec-change.mjs --consultation-report <session file> <change dir>` SHALL print the report as one JSON line and exit 0 only when the file's first user message names that change directory, every assistant turn ran on the definition's model, the final `yield` was accepted as terminal and carries `data`, and that data passes the record's report check; otherwise it SHALL exit 1 naming the reason. Its output SHALL be the record's report.
 
 #### Scenario: Accepted report
 
-- **WHEN** the session file of an attempt for this change, on the definition's model, ends with an accepted `yield` whose `data` has a finding with an empty `counterevidence` string
+- **WHEN** the session file of an attempt for this change, on the definition's model, ends with an accepted terminal `yield` whose `data` has a finding with an empty `counterevidence` string
 - **THEN** the check exits 0 and prints the report, and a record holding that line passes the plain run
 
 #### Scenario: Negative control
 
-- **WHEN** the session file names another change directory, has a turn on another model, ends with a `yield` the runtime refused or one without `data`, or carries a report with two findings of the same id
+- **WHEN** the session file names another change directory, has a turn on another model, ends with a `yield` the runtime refused (even after an earlier accepted one), an incremental section or a `yield` without `data`, or carries a report with two findings of the same id
 - **THEN** the check MUST fail with exit 1 and name the reason
