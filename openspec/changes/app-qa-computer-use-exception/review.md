@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.VerifierRound2
 - **Models**: ProposeComputerUse.PlanReviewA2 onara/cx/gpt-6.1-sol (no verdict); ProposeComputerUse.PlanReviewA2r onara/cx/gpt-6.1-sol; ProposeComputerUse.PlanReviewB2 onara/cx/gpt-6.1-sol; ProposeComputerUse.VerifierRound2 onara/cx/gpt-6.1-sol
 - **Round**: 2
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (exhaustion ask answered Fix by the user, Tim, 2026-11-12: "Fix, with a narrower scope for blocker 1 instead of the known-clear proposal": computer use only for an app whose QA configuration configures no dev accounts or credentials, and only with captures and accessibility reads of the target window, no desktop or display capture and no other app's window; blocker 2: add the Build vs. adopt subsection; blocker 3: add a positive system-dialog row within the narrowed scope. The edits and one delta check follow.)
 
 ## Blockers
 
