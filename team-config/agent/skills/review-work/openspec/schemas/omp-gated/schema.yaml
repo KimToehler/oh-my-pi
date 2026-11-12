@@ -682,8 +682,8 @@ artifacts:
             once, and the delta check covers every edit the answers authorized. Delta admission:
             when the depth update of that fix made the change `risky` and the folder holds no
             `consulted` or `skipped` consultation.md, run step 2a before that delta dispatch;
-            step 2a then returns to it, and its patch, taken from the recording commit, covers
-            the consultation edits with the fixes.
+            step 2a then returns to it, which takes `V --digest` after the consultation commit,
+            and its patch, taken from the recording commit, covers the consultation edits too.
 
          Delta brief (substitute the `{...}` inputs, change nothing else):
 
