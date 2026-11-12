@@ -25,7 +25,7 @@ The `omp-gated` plan review checks a finished plan with `plan-reviewer` on `onar
 
 ### Modified Capabilities
 
-None. The existing `openspec-plan-review` requirements keep their text. Brief fidelity and the pinned-model rule already cover any fixed brief and any pinned dispatch. This change adds its consultation-specific rules in its own capability.
+- `openspec-plan-review`: "The user is asked only on named exceptions" gains one exception, the skip-or-stop ask after two failed consultation attempts. Its other requirements keep their text: brief fidelity and the pinned-model rule already cover any fixed brief and any pinned dispatch, and the consultation-specific rules live in the new capability.
 
 ## Impact
 
