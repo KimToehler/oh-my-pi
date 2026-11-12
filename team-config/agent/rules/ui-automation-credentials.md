@@ -6,7 +6,7 @@ condition:
   - '\bbrowser\.open\b|browser_(snapshot|find|type|fill)|inspect_screen|mobile_(list|tap|type)'
   - '(?i)\bspectre\b|\bosascript\b|System Events|\bscreencapture\b'
   - '(?i)\bapp-qa-drivers\b'
-  - '\bcomputer\.(window|windows|focusedWindow|screenshot|zoom|elementAt|focusedElement|ref|clipboard|apps|run)\b|\.(ax|observe)\(|\.menu\.'
+  - '\bcomputer\.[A-Za-z]|\.(ax|observe)\(|\.menu\.'
 scope: ["tool"]
 interruptMode: always
 ---
@@ -20,7 +20,7 @@ Applies whenever an agent drives a browser, simulator, emulator or desktop app t
 - While a login, identity-provider or password-manager surface is visible, take no accessibility snapshot or UI-hierarchy dump, run no text or regex find, and call no tool that renders textbox values: Playwright MCP `browser_snapshot`/`browser_find`, `uiautomator dump`, `maestro hierarchy`, mobile-mcp `inspect_screen` or their equivalents. Browsers prefill saved passwords as textbox values, and password-manager dialogs (also a "save/update password?" dialog that appears after sign-in) render the saved password as node text.
 - Sign in with one scripted step that reads the values inside the code or the driver's environment, never echoes them, and returns only where it landed (URL, or the tag of the screen it expects). Submit the form natively (Enter in the focused password field, the form's submit) rather than by coordinate tap: a tap an on-screen keyboard swallows is what leads agents to inspect the page. Inspect the screen again only after it has left the login surface and no password dialog shows.
 - When a hierarchy is unavoidable elsewhere, match only an allowlist of expected literals and delete the dump on device and host in the same call that reads it.
-- The equivalents in the first bullet include omp's `computer` prelude: its `screenshot`, `zoom`, `ax`, `observe`, `find`, `elementAt`, `focusedElement`, `value` and typing calls are forbidden while a login, identity-provider, password-manager or save-password surface is visible. The app QA skill's computer-use exception holds only for apps whose `.omp/app-qa.json` has no credentials section.
+- The equivalents in the first bullet include omp's `computer` prelude: its `screenshot`, `zoom`, `ax`, `observe`, `find`, `elementAt`, `focusedElement`, `value` and typing calls are forbidden while a login, identity-provider, password-manager or save-password surface is visible. In a repository with `.omp/app-qa.json`, a `computer` call follows the team skill `app-qa-drivers`, read before the call: its computer-use exception holds only for apps whose `.omp/app-qa.json` has no credentials section, and only for one target window resolved by app, never a display, the desktop or another app's window.
 
 ## Maestro (verified on cli-2.12.1 with synthetic values)
 

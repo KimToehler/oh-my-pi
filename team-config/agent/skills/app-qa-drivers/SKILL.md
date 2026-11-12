@@ -1,6 +1,6 @@
 ---
 name: app-qa-drivers
-description: "Use for hands-on QA of a Compose Multiplatform or mobile app: driving the desktop app with Spectre, the iOS simulator or Android emulator with Maestro, sign-in on a simulator or emulator, screen reader, app dialog and host menu checks through omp's computer use, and keeping QA evidence. Routes to the shared driver or the app's own; the app's values live in its repository skill."
+description: "Use for hands-on QA of a Compose Multiplatform or mobile app: driving the desktop app with Spectre, the iOS simulator or Android emulator with Maestro, sign-in on a simulator or emulator, screen reader, app dialog and host menu checks through omp's computer use, and keeping QA evidence; also before any use of omp's `computer` prelude in a repository with `.omp/app-qa.json`. Routes to the shared driver or the app's own; the app's values live in its repository skill."
 ---
 
 # App QA drivers
