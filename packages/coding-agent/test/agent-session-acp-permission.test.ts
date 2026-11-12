@@ -778,7 +778,7 @@ it("eval applies a custom-wire patch exactly once through the canonical tool", a
 	expect(executeSpy.mock.calls[0]?.[1]).toEqual({ input });
 	expect(evalSession.getToolForEvalBridge("edit")?.name).toBe("edit");
 	expect(evalSession.getEvalBridgeToolNames()).toEqual(["edit", "apply_patch"]);
-	expect(new EvalTool(evalToolSession).description).toContain("`edit`, `apply_patch`");
+	expect(new EvalTool(evalToolSession).description).toContain("edit, apply_patch");
 });
 
 it("eval refuses both canonical and wire names after their tool is disabled", async () => {
@@ -926,6 +926,7 @@ describe("acp approve: intercepted bash", () => {
  * `loopSteeringSignal` stands in for the loop's per-call steer signal (`ctx.toolCall.steeringSignal`),
  * aborted on command the way the loop's any-source steering poll does.
  */
+
 async function createSessionWithMockModel(
 	tools: AgentTool[],
 	responses: NonNullable<MockModelOptions["responses"]>,

@@ -11,7 +11,6 @@
 import type { Goal } from "@oh-my-pi/pi-tui/tools/goal";
 import { logger } from "@oh-my-pi/pi-utils";
 import type { AgentSession, AgentSessionEvent } from "../session/agent-session";
-import { nextActionableTask } from "../tools/todo";
 import { type GoalOwnerStamp, GoalOwnerStale } from "./runtime";
 import { cfgGoalContinuationModes, cfgGoalEnabled, type GoalContinuationMode } from "./settings";
 import { type GoalModeState, goalContinuationActivity, goalFromModeData } from "./state";
@@ -570,10 +569,7 @@ export class GoalHostController {
 		if (session.getPlanModeState()?.enabled) return false;
 		const state = session.getGoalModeState();
 		if (!state?.enabled || state.goal.status !== "active") return false;
-		const phases = session.getTodoPhases();
-		return !(
-			!nextActionableTask(phases) && phases.some(phase => phase.tasks.some(task => task.status === "blocked"))
-		);
+		return true;
 	}
 
 	/**
