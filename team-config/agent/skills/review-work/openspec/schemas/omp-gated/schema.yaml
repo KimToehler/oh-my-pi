@@ -367,10 +367,15 @@ artifacts:
          commit, never this one and never any other, is the base of a later delta check. Then run
          `V --digest <change-dir>` and keep the printed digest for this round. An edit after this
          point, the depth bullet included, makes the digest stale: return to step 1.
-      2a. Architecture consultation, entered only from an admission check (step 3's, or the delta
-         admission of step 5); it never runs for a `standard` fix-delta check, and never once
-         consultation.md is `consulted` or `skipped`. One consultation per change: at most two
-         attempts across sessions, at most one counted.
+      2a. Architecture consultation, entered only from step 3's admission check or from the
+         current-review entry below, and never once consultation.md is `consulted` or `skipped`.
+         One consultation per change, at most one attempt counted; attempts are dispatched in
+         pairs (Retry and ask below).
+         - Current review: when the review is re-run on a change that gate.md makes `risky`, or
+           whose consultation the user asked for, while the folder holds no consultation.md or a
+           `pending` one, review.md is OKAY and its recorded digest equals `V --digest`, run step
+           2a without a round. When step 2a adopted no edit (a skip, or every finding rejected), go
+           to step 8 and dispatch nothing; otherwise return to step 1.
          - User skip: when the user told you to skip the consultation and gave a reason, write
            consultation.md from `templates/consultation.md` with Status `skipped`, the reason in
            their words verbatim as Skip reason, Models `none` and Consulted commit `none` (or, when
@@ -384,9 +389,12 @@ artifacts:
            to count, even when the attempt itself finished: it is a failed attempt, as is one whose
            check exits 1; an exit 0 counts the attempt and goes to Record below.
          - Dispatch, for each attempt: commit the change folder and confirm `git status
-           --porcelain -- <change-dir>` prints nothing. Write consultation.md from the template
-           with Status `pending`; Consulted commit the 40-hex commit whose plan the consultant reads
-           (the plan commit before the first `pending` commit, kept on a retry); Models every
+           --porcelain -- <change-dir>` prints nothing. Set the consulted commit: when
+           consultation.md records one, compare the plan files with it by `git diff --quiet
+           <recorded commit> -- <change-dir> ':!<change-dir>/review.md'
+           ':!<change-dir>/consultation.md'`; exit 0 keeps the recorded commit, and a nonzero exit,
+           or no recorded commit, sets it to `git rev-parse HEAD`. Write consultation.md from the
+           template with Status `pending`; Consulted commit that 40-hex commit; Models every
            earlier attempt and the new one as `<requested name> dispatched`; `none` everywhere
            else. Run `V <change-dir>` and commit the record; only then dispatch, in a new task
            call, exactly one fresh item: `agent: "architecture-oracle"`, `name` `ArchConsult`
@@ -413,22 +421,28 @@ artifacts:
            `read history://<id>` prints the attempt's session file, replace its entry with
            `<allocated id> dispatched <absolute session file>` and commit the record. The runtime
            may allocate another id than the requested name; only the recorded id and file count.
-         - Counting, on completion and on recovery alike: run `V --consultation-report <session
-           file> <change-dir>` on the session file the entry names. The attempt counts only when
-           it exits 0. For this agent that check decides the model question; the override-first
-           pin check after step 3's briefs is not used. Replace the entry with `<id>
+         - Counting, on completion and on recovery alike: first run the Dispatch comparison
+           against the record's consulted commit; a nonzero exit means a plan file changed while
+           the attempt ran, so it failed without a check. Otherwise run `V --consultation-report
+           <session file> <change-dir>` on the session file the entry names. The attempt counts
+           only when it exits 0. For this agent that check decides the model question; the
+           override-first pin check after step 3's briefs is not used. Replace the entry with `<id>
            <provider/model>` for every model its session file shows (the jq command after step 3's
            briefs), with `(no report)` appended when it did not count.
-         - Retry and ask: a failed attempt gets one fresh retry with the same brief and the next
-           attempt number, within the two, even when you expect it to fail the same way: only two
-           observed failures reach the ask. After two failed attempts, one `ask` quoting each
+         - Retry and ask: attempts come in pairs. After a failed attempt, count the record's
+           failed attempts. When they are odd in number, dispatch one fresh retry with the same
+           brief and the next attempt number, even when you expect it to fail the same way, a
+           refusal for a wrong model included. When they are even, one `ask` quoting each
            attempt's Models entry, with exactly two options: Skip, with the user's reason in their
-           words (write the `skipped` record above with both attempts and the consulted commit),
-           or Stop (leave the `pending` record, which `--reviewed` refuses, and dispatch nothing
+           words (write the `skipped` record above with every attempt and the consulted commit), or
+           Stop (leave the `pending` record, which `--reviewed` refuses, and dispatch nothing
            further). The question may name the cause you observed, such as a missing model entry
            or a configured override; a fix to the installation is the user's to make, never a
-           third option. No other model's report and no architecture review of your own stands in
-           for the consultation.
+           third option. After a Stop, a session that finds the `pending` record resolves its
+           attempts (Recovery) and, their failures being even, asks again and dispatches nothing,
+           unless the user asked to consult again: that request opens the next pair, with the next
+           attempt numbers and every earlier attempt kept under Models. No other model's report and
+           no architecture review of your own stands in for the consultation.
          - Record: write consultation.md from the template with Status `consulted`, the consulted
            commit, Consultant `architecture-oracle, <id of the counted attempt>`, Models with
            every attempt, Bottom line the report's `bottom_line.verdict` and Skip reason `none`.
@@ -444,12 +458,13 @@ artifacts:
          - Commit: apply the adopted edits to the plan artifacts, update the Mandatory class and
            `- **Depth**:` in gate.md when an adopted edit changed the class or the reach, run
            `V <change-dir>`, and commit consultation.md with the edits in one commit. Then return
-           to step 1, or, from the delta admission, to that delta dispatch.
-      3. Admission, at the head of this step and before any of its dispatches (from step 2, and
-         from the incomplete-round re-run below, which resumes here): when the round is a full
-         round at depth `risky`, or the user asked for a consultation of this change, and the
-         change folder holds no consultation.md or a `pending` one, dispatch nothing and run step
-         2a. Otherwise dispatch the round for the depth step 2 read:
+           to step 1, or, from the admission of a delta check, to that delta dispatch, or, from the
+           current-review entry, as that entry says.
+      3. Admission, before every plan-reviewer dispatch, a full round or a delta check (from step
+         2, from the incomplete-round re-run below, which resumes here, and from step 5's delta
+         checks): when gate.md makes the change `risky`, or the user asked for a consultation of
+         this change, and the change folder holds no consultation.md or a `pending` one, dispatch
+         nothing and run step 2a. Otherwise dispatch the round for the depth step 2 read:
          - `standard`: dispatch one fresh plan-reviewer item with the all-scopes paragraph.
          - `risky`: dispatch two fresh plan-reviewer items in one task call, item 1 with the
            scope A paragraph, item 2 with the scope B paragraph.
@@ -676,17 +691,16 @@ artifacts:
              `git status --porcelain -- <change dir>` is empty as step 2 prescribes, run
              `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
              so the delta check's record carries this new digest, not the round's — and dispatch
-             one fresh plan-reviewer item with the delta brief below. The
-             delta reviewer follows step 3's retry and incomplete-round rule, and its findings go
-             through step 4 and this step like a round.
+             one fresh plan-reviewer item with the delta brief below, after step 3's admission.
+             The delta reviewer follows step 3's retry and incomplete-round rule, and its findings
+             go through step 4 and this step like a round.
           - After an exhaustion Fix, or a Fix answer to an exception or scope ask on a spent
             budget, the successor is that one more delta check, whatever the depth: the budget is
             already spent and only the user's answer extended it. Each such answer extends it
-            once, and the delta check covers every edit the answers authorized. Delta admission:
-            when the depth update of that fix made the change `risky` and the folder holds no
-            `consulted` or `skipped` consultation.md, run step 2a before that delta dispatch;
-            step 2a then returns to it, which takes `V --digest` after the consultation commit,
-            and its patch, taken from the recording commit, covers the consultation edits too.
+            once, and the delta check covers every edit the answers authorized. Step 3's admission
+            runs before every delta dispatch; when it runs step 2a, step 2a returns to that
+            dispatch, which takes `V --digest` after the consultation commit, and its patch, taken
+            from the recording commit, covers the consultation edits too.
 
          Delta brief (substitute the `{...}` inputs, change nothing else):
 
