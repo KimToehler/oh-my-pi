@@ -4,7 +4,7 @@
 
 `/opsx-propose` ends every proposal with a planning boundary: the invoking request authorizes planning only, and apply needs a new user request after the artifacts are presented (`team-config/agent/commands/opsx-propose.md:7,165`). A goal-mode session that the owner started to run a whole programme of OpenSpec changes therefore stalls after each proposal. onara's generation-pipeline roadmap (2026-11-12) was rejected by plan-reviewer on exactly this point: the roadmap cannot authorize apply in advance against the command's text, so the roadmap had to plan either one owner pause per slice or rely on an interpretation the command does not state.
 
-omp already sends a new user-role message at every goal turn boundary: the hidden goal continuation, which repeats the objective (`packages/coding-agent/src/goals/host-controller.ts:620`, `packages/coding-agent/src/prompts/goals/goal-continuation.md`). The command does not say whether that message counts as the new request, so one agent applies and another stops.
+omp already sends a new message at every goal turn boundary: the hidden goal continuation, a custom message the model receives in the developer role, which repeats the objective (`packages/coding-agent/src/goals/host-controller.ts:620`, `packages/coding-agent/src/prompts/goals/goal-continuation.md`). The command does not say whether that message counts as the new request, so one agent applies and another stops.
 
 ## What Changes
 
