@@ -1,1077 +1,3162 @@
-# F1-E form rows
+# F1-E validator form rows
 
-Generated 2026-11-12T21:35:30.854Z on worktree HEAD 833d26ad26b643915f9de7be626b2157a1b46ed0; validator `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs` run with `node` (v25.9.0). Every folder is built from the shipped `templates/gate.md`, `templates/review.md` and `templates/consultation.md` with their slots filled; the other plan files are fixed fixture text.
+Requirements "The consultation record is well formed", "Record text is kept verbatim" and "One report check decides whether an attempt counts" (spec plan-architecture-consultation); task 2.2 duplicate and id rows, task 2.3 record-invariant rows. Each record is the shipped consultation template with slots filled (reports written with JSON.stringify) inside a risky change with a two-reviewer OKAY review.md.
 
-## Row: Consulted without findings: bottom line KEEP APPROACH, Findings none (expect both pass)
+All commands ran on the real CLI `/Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs` (node). Fixtures are under `/tmp/pac-f1-ValidatorRowsF1E/`.
 
-Folder `/tmp/pac-f1e/fixtures/10-form/openspec/changes/safe-update`:
+## Row: Consulted without findings
 
-```
-    38  .openspec.yaml
-   640  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+**Expected (per scenario):** a `consulted` record with bottom line `KEEP APPROACH` and `## Findings` `none` passes this check: plain run exit 0 `passed`, `--reviewed` exit 0.
 
-`consultation.md`:
+### Step 1: plain run
 
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: KEEP APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"KEEP APPROACH","reason":"No defect found."},"findings":[],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-none
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-1/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/10-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-1/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-1/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 passed
-exit=0
 ```
 
+stderr:
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/10-form/openspec/changes/safe-update
+```
+
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-1/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-1/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-1/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 reviewed: OKAY in round 1
-exit=0
 ```
 
-## Row: Verbatim text that looks like a slot: consulted record (report written with JSON.stringify; correction opens with a multiline fenced example) (expect both pass)
-
-Folder `/tmp/pac-f1e/fixtures/11-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-  1204  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-````markdown
-# Consultation
+Row judgment: **MATCH** (observed matches expected)
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+## Row: Verbatim text that looks like a slot
 
-## Report
+**Expected (per scenario):** a `skipped` record whose reason reads `This only changes the TODO scanner; skip the consultation` passes, and a `consulted` record whose report (JSON.stringify) has a correction starting with a multiline fenced shell example quoting `--original-reply <file>` and a recommended approach with Markdown headings and a fence passes: plain exit 0 and `--reviewed` exit 0 for both.
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"```sh\nnode review-work/scripts/repair.mjs \\\n  --original-reply <file>\n```\nRun the repair with `--original-reply <file>` before the retry.","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"## Approach\n\nKeep the endpoint.\n\n### Lock\n\n```sql\nSELECT * FROM rows WHERE id = $1 FOR UPDATE;\n```","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
+### Step 1: skipped record: plain run
 
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-2/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/11-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-2/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-2/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 passed
-exit=0
 ```
 
+stderr:
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/11-form/openspec/changes/safe-update
+```
+
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
+
+### Step 2: skipped record: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-2/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-2/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-2/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 reviewed: OKAY in round 1
-exit=0
 ```
 
-## Row: Verbatim text that looks like a slot: skipped record with TODO in the reason (expect both pass)
-
-Folder `/tmp/pac-f1e/fixtures/12-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-   246  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-````markdown
-# Consultation
+### Step 3: consulted record with fenced report text: plain run
 
-- **Status**: skipped
-- **Consulted commit**: none
-- **Consultant**: none
-- **Models**: none
-- **Bottom line**: none
-- **Skip reason**: This only changes the TODO scanner; skip the consultation
-
-## Report
-
-none
-
-## Findings
-
-none
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-3/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/12-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-3/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-3/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 passed
-exit=0
 ```
 
+stderr:
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/12-form/openspec/changes/safe-update
+```
+
+Step 3 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
+
+### Step 4: consulted record with fenced report text: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-3/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-3/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-3/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 reviewed: OKAY in round 1
-exit=0
 ```
 
-## Row: Pending record naming one dispatched attempt (expect plain pass, --reviewed fail naming consultation.md)
-
-Folder `/tmp/pac-f1e/fixtures/13-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-   256  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+Step 4 judgment: expected exit 0; observed exit 0. **MATCH**
 
-````markdown
-# Consultation
+Row judgment: **MATCH** (observed matches expected)
 
-- **Status**: pending
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: none
-- **Models**: ArchConsult012345671 dispatched
-- **Bottom line**: none
-- **Skip reason**: none
+## Row: Pending record
 
-## Report
+**Expected (per scenario):** a `pending` record naming one dispatched attempt: the plain run passes (exit 0) and `--reviewed` fails (exit 1) naming `consultation.md`.
 
-none
+### Step 1: plain run
 
-## Findings
-
-none
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-4/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/13-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-4/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-4/change
+```
+
+Exit code: **0**
+
+stdout:
+
+```
 passed
-exit=0
 ```
 
+stderr:
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/13-form/openspec/changes/safe-update
+```
+
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-4/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-4/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-4/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md: the consultation is still pending; finish the consultation step of the review
-exit=1
 ```
 
-## Row: Negative control: a report finding without its subsection (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/14-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1333  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a subsection without its Disposition bullet
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-5/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/14-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-5/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-5/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: ### F1: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-5/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-5/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-5/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: ### F1: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a disposition that is neither adopted nor rejected
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-6/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-6/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-6/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: ### F1: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-6/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-6/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-6/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: ### F1: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a report finding without its ### subsection
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-7/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-7/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-7/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1, F2); found (F1)
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-7/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/14-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-7/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-7/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1, F2); found (F1)
-exit=1
 ```
 
-## Row: Negative control: a subsection without a Disposition bullet (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/15-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1384  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: subsections in another order than the report
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-The second table carries the audit trail.
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-8/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/15-form/openspec/changes/safe-update
-consultation.md Findings: ### F2: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/15-form/openspec/changes/safe-update
-consultation.md Findings: ### F2: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
-exit=1
-```
-
-## Row: Negative control: a disposition that is neither adopted: nor rejected: (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/16-form/openspec/changes/safe-update`:
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-8/change`):
 
 ```
-    38  .openspec.yaml
-  1412  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-8/change
 ```
 
-`consultation.md`:
+Exit code: **1**
 
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: deferred: the second table carries the audit trail
-
-````
+stdout:
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/16-form/openspec/changes/safe-update
-consultation.md Findings: ### F2: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
-exit=1
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/16-form/openspec/changes/safe-update
-consultation.md Findings: ### F2: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet
-exit=1
-```
-
-## Row: Negative control: subsections in another order than the report's findings (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/17-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-  1412  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
-
-`consultation.md`:
-
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-````
-
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/17-form/openspec/changes/safe-update
 consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1, F2); found (F2, F1)
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-8/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/17-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-8/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-8/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1, F2); found (F2, F1)
-exit=1
 ```
 
-## Row: Negative control: a report line that is not JSON (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/18-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-   482  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a report line that is not JSON
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{bottom_line: KEEP}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-9/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/18-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-9/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-9/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Report: the report line is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-9/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/18-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-9/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-9/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Report: the report line is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)
-exit=1
 ```
 
-## Row: Negative control: a report finding without trigger (lacks a report field) (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/19-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1366  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a report that lacks `findings`
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-10/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/19-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].trigger: missing
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/19-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].trigger: missing
-exit=1
-```
-
-## Row: Negative control: a report without recommended_approach (lacks a report field) (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/20-form/openspec/changes/safe-update`:
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-10/change`):
 
 ```
-    38  .openspec.yaml
-  1351  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-10/change
 ```
 
-`consultation.md`:
+Exit code: **1**
 
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+stdout:
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/20-form/openspec/changes/safe-update
-consultation.md Report: report.recommended_approach: missing
-exit=1
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/20-form/openspec/changes/safe-update
-consultation.md Report: report.recommended_approach: missing
-exit=1
-```
-
-## Row: Negative control: a Bottom line other than the report's verdict (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/21-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-  1410  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+consultation.md Report: report.findings: expected an array
 ```
 
-`consultation.md`:
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
 
-````markdown
-# Consultation
+### Step 2: --reviewed
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: KEEP APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-10/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/21-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-10/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-10/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings: expected an array
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a Bottom line other than the report's verdict
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Bottom line`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-11/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-11/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-11/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Bottom line: expected the report's verdict CHANGE APPROACH
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-11/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/21-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-11/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-11/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Bottom line: expected the report's verdict CHANGE APPROACH
-exit=1
 ```
 
-## Row: Negative control: a record without ## Report (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/22-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-   438  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a record without the ## Report heading
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-12/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/22-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-12/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-12/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Report: expected exactly one "## Report" section, found 0
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-12/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/22-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-12/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-12/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Report: expected exactly one "## Report" section, found 0
-exit=1
 ```
 
-## Row: Negative control: a consulted record whose Models holds a dispatched entry (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/23-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1397  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a consulted record whose Models holds a dispatched entry
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Models`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 dispatched
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-13/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/23-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-13/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-13/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Models: expected every attempt with its models and no dispatched entry
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-13/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/23-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-13/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-13/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Models: expected every attempt with its models and no dispatched entry
-exit=1
 ```
 
-## Row: Negative control: Status drafted (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/24-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1410  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a pending record with no attempt (Models none)
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Models`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: drafted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-14/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/24-form/openspec/changes/safe-update
-consultation.md Status: expected consulted, skipped or pending, got drafted
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/24-form/openspec/changes/safe-update
-consultation.md Status: expected consulted, skipped or pending, got drafted
-exit=1
-```
-
-## Row: Negative control: a skipped record with Skip reason none (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/25-form/openspec/changes/safe-update`:
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-14/change`):
 
 ```
-    38  .openspec.yaml
-   193  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-14/change
 ```
 
-`consultation.md`:
+Exit code: **1**
 
-````markdown
-# Consultation
-
-- **Status**: skipped
-- **Consulted commit**: none
-- **Consultant**: none
-- **Models**: none
-- **Bottom line**: none
-- **Skip reason**: none
-
-## Report
-
-none
-
-## Findings
-
-none
-
-````
+stdout:
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/25-form/openspec/changes/safe-update
-consultation.md Skip reason: a skipped record needs the user's reason in their words
-exit=1
 ```
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/25-form/openspec/changes/safe-update
-consultation.md Skip reason: a skipped record needs the user's reason in their words
-exit=1
-```
-
-## Row: Negative control: a pending record with no attempt (Models none) (expect both fail naming the field)
-
-Folder `/tmp/pac-f1e/fixtures/26-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-   229  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
-
-`consultation.md`:
-
-````markdown
-# Consultation
-
-- **Status**: pending
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: none
-- **Models**: none
-- **Bottom line**: none
-- **Skip reason**: none
-
-## Report
-
-none
-
-## Findings
-
-none
-
-````
-
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/26-form/openspec/changes/safe-update
 consultation.md Models: a pending record names every attempt so far
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-14/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/26-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-14/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-14/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Models: a pending record names every attempt so far
-exit=1
 ```
 
-## Row: Negative control: Consultant oracle, X1 (an agent other than architecture-oracle) (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/27-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1381  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: Status drafted
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Status`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: oracle, X1
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-15/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/27-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-15/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-15/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: expected consulted, skipped or pending, got drafted
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-15/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-15/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-15/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: expected consulted, skipped or pending, got drafted
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a skipped record with Skip reason none
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Skip reason`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-16/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-16/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-16/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: a skipped record needs the user's reason in their words
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-16/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-16/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-16/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: a skipped record needs the user's reason in their words
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: Consultant naming another agent (oracle, X1)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consultant`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-17/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-17/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-17/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Consultant: expected architecture-oracle, <subagent id of the counted attempt>
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-17/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/27-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-17/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-17/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Consultant: expected architecture-oracle, <subagent id of the counted attempt>
-exit=1
 ```
 
-## Row: Negative control: a 39-hex consulted commit (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/28-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1411  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: a 39-hex consulted commit
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consulted commit`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: consulted
-- **Consulted commit**: 123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
-
-- **Disposition**: rejected: the second table carries the audit trail
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-18/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/28-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-18/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-18/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Consulted commit: expected the 40-hex commit whose change folder the consultant read
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-18/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/28-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-18/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-18/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Consulted commit: expected the 40-hex commit whose change folder the consultant read
-exit=1
 ```
 
-## Row: Negative control: the shipped template copied unfilled (fields still hold their slot text) (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/29-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1090  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
+## Row: Negative control: header field Status twice (task 2.2 duplicate row)
 
-`consultation.md`:
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Status`.
 
-````markdown
-# Consultation
+### Step 1: plain run
 
-- **Status**: <consulted, skipped or pending>
-- **Consulted commit**: <40-hex commit whose change folder the consultant read, or none when skipped before any dispatch>
-- **Consultant**: <architecture-oracle, then the subagent id of the counted attempt; none when pending or skipped>
-- **Models**: <one entry per attempt, "<subagent id> <provider/model>", further models appended, "(no report)" after an attempt that did not count, "<subagent id> dispatched" with its session file once known for an attempt not yet resolved; none when skipped before any dispatch>
-- **Bottom line**: <the report's verdict; none when pending or skipped>
-- **Skip reason**: <none, or the user's reason in their words>
-
-## Report
-
-<none, or a json fence holding the counted attempt's structured result on one line, written by the report command of the review instruction>
-
-## Findings
-
-<none, or one "### <finding id>" subsection per finding of the report, in the report's order, holding only "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>">
-
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-19/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/29-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-19/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-19/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-19/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-19/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-19/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: header field Consulted commit twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consulted commit`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-20/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-20/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-20/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consulted commit: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-20/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-20/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-20/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consulted commit: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: header field Consultant twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consultant`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-21/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-21/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-21/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consultant: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-21/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-21/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-21/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consultant: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: header field Models twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Models`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-22/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-22/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-22/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Models: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-22/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-22/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-22/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Models: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: header field Bottom line twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Bottom line`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-23/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-23/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-23/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Bottom line: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-23/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-23/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-23/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Bottom line: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: header field Skip reason twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Skip reason`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-24/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-24/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-24/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: expected exactly one top-level bullet, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-24/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-24/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-24/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: expected exactly one top-level bullet, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: section ## Report twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-25/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-25/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-25/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: expected exactly one "## Report" section, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-25/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-25/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-25/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: expected exactly one "## Report" section, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: section ## Findings twice (task 2.2 duplicate row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-26/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-26/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-26/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: expected exactly one "## Findings" section, found 2
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-26/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-26/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-26/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: expected exactly one "## Findings" section, found 2
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: two report findings with the same id (task 2.2 id row / 2.3 invariant)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report.findings[1].id: duplicate id F1`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-27/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-27/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-27/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[1].id: duplicate id F1
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[1].id: duplicate id F1"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-27/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-27/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-27/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[1].id: duplicate id F1
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[1].id: duplicate id F1"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a finding with an empty id (task 2.2 id row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report.findings[0].id`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-28/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-28/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-28/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[0].id"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-28/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-28/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-28/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[0].id"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a finding id spanning two lines (task 2.2 id row)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report.findings[0].id`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-29/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-29/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-29/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
+consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1
+F1b, F2); found (F1 F1b, F2)
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[0].id"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-29/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-29/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-29/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
+consultation.md Findings: expected one ### subsection per report finding, in the report's order (F1
+F1b, F2); found (F1 F1b, F2)
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings[0].id"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a report line that is a JSON array (2.3 invariant)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report: expected an object`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-30/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-30/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-30/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report: expected an object
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report: expected an object"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-30/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-30/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-30/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report: expected an object
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report: expected an object"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a report without bottom_line.verdict (2.3 invariant)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report.bottom_line.verdict: expected a string`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-31/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-31/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-31/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.bottom_line.verdict: expected a string
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report.bottom_line.verdict: expected a string"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-31/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-31/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-31/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.bottom_line.verdict: expected a string
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report.bottom_line.verdict: expected a string"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: a report whose findings is an object (2.3 invariant)
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report: report.findings: expected an array`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-32/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-32/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-32/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings: expected an array
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings: expected an array"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-32/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-32/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-32/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: report.findings: expected an array
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report: report.findings: expected an array"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Status left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Status`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-33/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-33/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-33/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-33/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-33/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-33/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Status: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Consulted commit left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consulted commit`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-34/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-34/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-34/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consulted commit: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-34/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-34/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-34/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consulted commit: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consulted commit"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Consultant left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Consultant`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-35/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-35/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-35/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consultant: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-35/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-35/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-35/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Consultant: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Consultant"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Models left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Models`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-36/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-36/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-36/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Models: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-36/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-36/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-36/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Models: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Models"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Bottom line left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Bottom line`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-37/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-37/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-37/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Bottom line: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-37/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-37/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-37/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Bottom line: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Bottom line"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: field Skip reason left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Skip reason`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-38/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-38/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-38/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-38/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-38/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-38/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Skip reason: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Skip reason"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: section ## Report left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Report`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-39/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-39/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-39/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-39/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-39/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-39/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Report: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Report"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: section ## Findings left at its template slot text
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Findings`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-40/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-40/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-40/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: still holds the template's slot text
+```
+
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-40/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-40/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-40/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
+consultation.md Findings: still holds the template's slot text
+```
+
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Findings"; observed exit 1. **MATCH**
+
+Row judgment: **MATCH** (observed matches expected)
+
+## Row: Negative control: the shipped template copied unfilled
+
+**Expected (per scenario):** plain run MUST fail (exit 1) and `--reviewed` MUST fail (exit 1), each naming `consultation.md Status`.
+
+### Step 1: plain run
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-41/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-41/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-41/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Status: still holds the template's slot text
 consultation.md Consulted commit: still holds the template's slot text
 consultation.md Consultant: still holds the template's slot text
@@ -1080,11 +3165,41 @@ consultation.md Bottom line: still holds the template's slot text
 consultation.md Skip reason: still holds the template's slot text
 consultation.md Report: still holds the template's slot text
 consultation.md Findings: still holds the template's slot text
-exit=1
 ```
 
+Step 1 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-41/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/29-form/openspec/changes/safe-update
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-41/change`):
+
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-41/change
+```
+
+Exit code: **1**
+
+stdout:
+
+```
+```
+
+stderr:
+
+```
 consultation.md Status: still holds the template's slot text
 consultation.md Consulted commit: still holds the template's slot text
 consultation.md Consultant: still holds the template's slot text
@@ -1093,947 +3208,769 @@ consultation.md Bottom line: still holds the template's slot text
 consultation.md Skip reason: still holds the template's slot text
 consultation.md Report: still holds the template's slot text
 consultation.md Findings: still holds the template's slot text
-exit=1
 ```
 
-## Row: Negative control: header field Status duplicated (expect both fail naming the field)
+Step 2 judgment: expected exit 1, stderr contains "consultation.md Status"; observed exit 1. **MATCH**
 
-Folder `/tmp/pac-f1e/fixtures/30-form/openspec/changes/safe-update`:
+Row judgment: **MATCH** (observed matches expected)
 
-```
-    38  .openspec.yaml
-  1436  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
-```
-
-`consultation.md`:
+## Row: Record invariant (passes the record check): a report lacking `trigger`
 
-````markdown
-# Consultation
+**Expected (per scenario):** the record check does not validate those report fields: plain run exit 0 `passed` and `--reviewed` exit 0.
 
-- **Status**: consulted
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+### Step 1: plain run
 
-## Report
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-42/change && find . -type f | sort`):
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
 
-## Findings
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-42/change`):
 
-### F1
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-42/change
+```
 
-- **Disposition**: adopted: design.md locks the row
+Exit code: **0**
 
-### F2
+stdout:
 
-- **Disposition**: rejected: the second table carries the audit trail
+```
+passed
+```
 
-````
+stderr:
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/30-form/openspec/changes/safe-update
-consultation.md Status: expected exactly one top-level bullet, found 2
-exit=1
 ```
+
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
+
+### Step 2: --reviewed
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-42/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/30-form/openspec/changes/safe-update
-consultation.md Status: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-## Row: Negative control: header field Consulted commit duplicated (expect both fail naming the field)
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-42/change`):
 
-Folder `/tmp/pac-f1e/fixtures/31-form/openspec/changes/safe-update`:
-
 ```
-    38  .openspec.yaml
-  1477  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-42/change
 ```
 
-`consultation.md`:
+Exit code: **0**
 
-````markdown
-# Consultation
+stdout:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+```
+reviewed: OKAY in round 1
+```
 
-## Report
+stderr:
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
 ```
 
-## Findings
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: Record invariant (passes the record check): a report lacking `recommended_approach`
 
-### F2
+**Expected (per scenario):** the record check does not validate those report fields: plain run exit 0 `passed` and `--reviewed` exit 0.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: plain run
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-43/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/31-form/openspec/changes/safe-update
-consultation.md Consulted commit: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-43/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/31-form/openspec/changes/safe-update
-consultation.md Consulted commit: expected exactly one top-level bullet, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-43/change
 ```
 
-## Row: Negative control: header field Consultant duplicated (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/32-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1472  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+passed
 ```
-
-`consultation.md`:
-
-````markdown
-# Consultation
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+stderr:
 
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
+```
 
-### F2
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 2: --reviewed
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-43/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/32-form/openspec/changes/safe-update
-consultation.md Consultant: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-43/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/32-form/openspec/changes/safe-update
-consultation.md Consultant: expected exactly one top-level bullet, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-43/change
 ```
 
-## Row: Negative control: header field Models duplicated (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/33-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1473  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+reviewed: OKAY in round 1
 ```
-
-`consultation.md`:
-
-````markdown
-# Consultation
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+stderr:
 
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
 ```
 
-## Findings
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: Record invariant (passes the record check): a `category` outside its enum
 
-### F2
+**Expected (per scenario):** the record check does not validate those report fields: plain run exit 0 `passed` and `--reviewed` exit 0.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: plain run
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-44/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/33-form/openspec/changes/safe-update
-consultation.md Models: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-44/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/33-form/openspec/changes/safe-update
-consultation.md Models: expected exactly one top-level bullet, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-44/change
 ```
 
-## Row: Negative control: header field Bottom line duplicated (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/34-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1447  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+passed
 ```
-
-`consultation.md`:
 
-````markdown
-# Consultation
+stderr:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
+```
 
-### F2
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 2: --reviewed
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-44/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/34-form/openspec/changes/safe-update
-consultation.md Bottom line: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-44/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/34-form/openspec/changes/safe-update
-consultation.md Bottom line: expected exactly one top-level bullet, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-44/change
 ```
 
-## Row: Negative control: header field Skip reason duplicated (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/35-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1436  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+reviewed: OKAY in round 1
 ```
 
-`consultation.md`:
+stderr:
 
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
 ```
 
-## Findings
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: Record invariant (passes the record check): a number as `confidence`
 
-### F2
+**Expected (per scenario):** the record check does not validate those report fields: plain run exit 0 `passed` and `--reviewed` exit 0.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: plain run
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-45/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/35-form/openspec/changes/safe-update
-consultation.md Skip reason: expected exactly one top-level bullet, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-45/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/35-form/openspec/changes/safe-update
-consultation.md Skip reason: expected exactly one top-level bullet, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/form-45/change
 ```
 
-## Row: Negative control: ## Report duplicated (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/36-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  2387  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+passed
 ```
-
-`consultation.md`:
-
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
 
-## Report
+stderr:
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
-
-### F2
+```
 
-- **Disposition**: rejected: the second table carries the audit trail
+Step 1 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
 
+### Step 2: --reviewed
 
-## Report
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/form-45/change && find . -type f | sort`):
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./review.md
+./specs/feature/spec.md
+./tasks.md
+```
 
-````
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/form-45/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/36-form/openspec/changes/safe-update
-consultation.md Report: expected exactly one "## Report" section, found 2
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1-ValidatorRowsF1E/form-45/change
 ```
+
+Exit code: **0**
 
+stdout:
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/36-form/openspec/changes/safe-update
-consultation.md Report: expected exactly one "## Report" section, found 2
-exit=1
+reviewed: OKAY in round 1
 ```
-
-## Row: Negative control: ## Findings duplicated (expect both fail naming the field)
 
-Folder `/tmp/pac-f1e/fixtures/37-form/openspec/changes/safe-update`:
+stderr:
 
 ```
-    38  .openspec.yaml
-  1432  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+Step 2 judgment: expected exit 0; observed exit 0. **MATCH**
 
-````markdown
-# Consultation
+Row judgment: **MATCH** (observed matches expected)
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+## Row: Accepted report (--consultation-report)
 
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
+**Expected (per scenario):** an accepted terminal yield for this change on the pinned model whose data has a finding with an empty `counterevidence`: exit 0, prints the report as one JSON line; a record holding that line passes the plain run.
 
-## Findings
+### Step 1: report check
 
-### F1
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-46/change && find . -type f | sort`):
 
-- **Disposition**: adopted: design.md locks the row
+```
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
+```
 
-### F2
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-46/change`):
 
-- **Disposition**: rejected: the second table carries the audit trail
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-46/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-46/change
+```
 
+Exit code: **0**
 
-## Findings
+stdout:
 
-none
+```
+{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
 
-````
+stderr:
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/37-form/openspec/changes/safe-update
-consultation.md Findings: expected exactly one "## Findings" section, found 2
-exit=1
 ```
+
+Step 1 judgment: expected exit 0, stdout "{\"bottom_line\":{\"verdict\":\"CHANGE APPROACH\",\"reason\":\"The update races. A row lock fixes it.\"},\"findings\":[{\"id\":\"F1\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"}],\"recommended_approach\":\"Keep the endpoint and lock the row.\",\"uncertainties\":[\"Whether the ORM issues SELECT FOR UPDATE; its query log settles it.\"],\"inspected\":\"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md\"}\n"; observed exit 0. **MATCH**
 
+### Step 2: record holding the printed line
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-46/change && find . -type f | sort`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/37-form/openspec/changes/safe-update
-consultation.md Findings: expected exactly one "## Findings" section, found 2
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-## Row: Negative control: two report findings with the same id (expect both fail naming the field)
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-46/change`):
 
-Folder `/tmp/pac-f1e/fixtures/38-form/openspec/changes/safe-update`:
-
 ```
-    38  .openspec.yaml
-  1411  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/rep-46/change
 ```
 
-`consultation.md`:
+Exit code: **0**
 
-````markdown
-# Consultation
+stdout:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+```
+passed
+```
 
-## Report
+stderr:
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
 ```
 
-## Findings
+Step 2 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: --consultation-report: a finding without trigger (2.2 row moved to the report check)
 
-### F1
+**Expected (per scenario):** exit 1 naming `report.findings[0].trigger: missing`, stdout empty.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: report check
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-47/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/38-form/openspec/changes/safe-update
-consultation.md Report: report.findings[1].id: duplicate id F1
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-47/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/38-form/openspec/changes/safe-update
-consultation.md Report: report.findings[1].id: duplicate id F1
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-47/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-47/change
 ```
 
-## Row: Negative control: a report finding with an empty id (expect both fail naming the field)
+Exit code: **1**
 
-Folder `/tmp/pac-f1e/fixtures/39-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1409  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
-
-`consultation.md`:
 
-````markdown
-# Consultation
+stderr:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
+consultation report: report.findings[0].trigger: missing
+```
 
-## Findings
+Step 1 judgment: expected exit 1, stderr contains "report.findings[0].trigger: missing", stdout ""; observed exit 1. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: --consultation-report: a report without recommended_approach (2.2 row moved)
 
-### F2
+**Expected (per scenario):** exit 1 naming `report.recommended_approach: missing`, stdout empty.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: report check
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-48/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/39-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
-consultation.md Findings: expected one ### subsection per report finding, in the report's order (, F2); found (F1, F2)
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-48/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/39-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].id: expected a nonempty single line without surrounding whitespace
-consultation.md Findings: expected one ### subsection per report finding, in the report's order (, F2); found (F1, F2)
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-48/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-48/change
 ```
 
-## Row: Negative control: six report findings (limit 5) (expect both fail naming the field)
+Exit code: **1**
 
-Folder `/tmp/pac-f1e/fixtures/40-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  2801  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+stderr:
 
-````markdown
-# Consultation
+```
+consultation report: report.recommended_approach: missing
+```
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+Step 1 judgment: expected exit 1, stderr contains "report.recommended_approach: missing", stdout ""; observed exit 1. **MATCH**
 
-## Report
+Row judgment: **MATCH** (observed matches expected)
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F3","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F4","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F5","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F6","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
-```
+## Row: --consultation-report: enum - category outside its enum
 
-## Findings
+**Expected (per scenario):** exit 1 naming `report.findings[0].category`, stdout empty.
 
-### F1
+### Step 1: report check
+
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-49/change && find . -type f | sort`):
+
+```
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
+```
 
-- **Disposition**: rejected: out of scope
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-49/change`):
 
-### F2
+```
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-49/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-49/change
+```
 
-- **Disposition**: rejected: out of scope
+Exit code: **1**
 
-### F3
+stdout:
 
-- **Disposition**: rejected: out of scope
+```
+```
 
-### F4
+stderr:
 
-- **Disposition**: rejected: out of scope
+```
+consultation report: report.findings[0].category: expected one of design defect, simplification, unresolved assumption, got "style"
+```
 
-### F5
+Step 1 judgment: expected exit 1, stderr contains "report.findings[0].category", stdout ""; observed exit 1. **MATCH**
 
-- **Disposition**: rejected: out of scope
+Row judgment: **MATCH** (observed matches expected)
 
-### F6
+## Row: --consultation-report: enum - verdict outside its enum
 
-- **Disposition**: rejected: out of scope
+**Expected (per scenario):** exit 1 naming `report.bottom_line.verdict`, stdout empty.
 
-````
+### Step 1: report check
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/40-form/openspec/changes/safe-update
-consultation.md Report: report.findings: at most 5 elements, got 6
-exit=1
-```
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-50/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/40-form/openspec/changes/safe-update
-consultation.md Report: report.findings: at most 5 elements, got 6
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
-## Row: Negative control: four uncertainties (limit 3) (expect both fail naming the field)
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-50/change`):
 
-Folder `/tmp/pac-f1e/fixtures/41-form/openspec/changes/safe-update`:
-
 ```
-    38  .openspec.yaml
-  1358  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-50/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-50/change
 ```
 
-`consultation.md`:
+Exit code: **1**
 
-````markdown
-# Consultation
+stdout:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+```
+```
 
-## Report
+stderr:
 
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["a","b","c","d"],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
+consultation report: report.bottom_line.verdict: expected one of KEEP APPROACH, CHANGE APPROACH, INCONCLUSIVE, got "APPROVE"
+```
 
-## Findings
+Step 1 judgment: expected exit 1, stderr contains "report.bottom_line.verdict", stdout ""; observed exit 1. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: --consultation-report: type - confidence is a number
 
-### F2
+**Expected (per scenario):** exit 1 naming `report.findings[0].confidence: expected a string`, stdout empty.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: report check
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-51/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/41-form/openspec/changes/safe-update
-consultation.md Report: report.uncertainties: at most 3 elements, got 4
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-51/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/41-form/openspec/changes/safe-update
-consultation.md Report: report.uncertainties: at most 3 elements, got 4
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-51/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-51/change
 ```
 
-## Row: Negative control: a report category outside its enum (expect both fail naming the field)
+Exit code: **1**
 
-Folder `/tmp/pac-f1e/fixtures/42-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1403  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
-
-`consultation.md`:
-
-````markdown
-# Consultation
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
+stderr:
 
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"style","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
+consultation report: report.findings[0].confidence: expected a string
 ```
 
-## Findings
+Step 1 judgment: expected exit 1, stderr contains "report.findings[0].confidence: expected a string", stdout ""; observed exit 1. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: --consultation-report: over-limit report (six findings, four uncertainties)
 
-### F2
+**Expected (per scenario):** an accepted terminal yield whose data holds six findings and four uncertainties: exit 0, prints the report; a record holding that line passes the plain run.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: report check
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-52/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/42-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].category: expected one of design defect, simplification, unresolved assumption, got "style"
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-52/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/42-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].category: expected one of design defect, simplification, unresolved assumption, got "style"
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-52/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-52/change
 ```
 
-## Row: Negative control: a report verdict outside its enum (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/43-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1360  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F3","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F4","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F5","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F6","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["a","b","c","d"],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
-
-`consultation.md`:
 
-````markdown
-# Consultation
+stderr:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: MAYBE
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"MAYBE","reason":"unsure"},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"},{"id":"F2","category":"simplification","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
-
-## Findings
-
-### F1
-
-- **Disposition**: adopted: design.md locks the row
+```
 
-### F2
+Step 1 judgment: expected exit 0, stdout "{\"bottom_line\":{\"verdict\":\"CHANGE APPROACH\",\"reason\":\"The update races. A row lock fixes it.\"},\"findings\":[{\"id\":\"F1\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"},{\"id\":\"F2\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"},{\"id\":\"F3\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"},{\"id\":\"F4\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"},{\"id\":\"F5\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"},{\"id\":\"F6\",\"category\":\"design defect\",\"locations\":\"design.md:3\",\"trigger\":\"two sessions update the same row\",\"consequence\":\"one update is lost\",\"counterevidence\":\"the endpoint takes no lock\",\"correction\":\"lock the row inside the transaction\",\"confidence\":\"high; a concurrent update test would confirm it\"}],\"recommended_approach\":\"Keep the endpoint and lock the row.\",\"uncertainties\":[\"a\",\"b\",\"c\",\"d\"],\"inspected\":\"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md\"}\n"; observed exit 0. **MATCH**
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 2: record holding the printed line
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-52/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/43-form/openspec/changes/safe-update
-consultation.md Report: report.bottom_line.verdict: expected one of KEEP APPROACH, CHANGE APPROACH, INCONCLUSIVE, got "MAYBE"
-exit=1
+./.openspec.yaml
+./consultation.md
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
 
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-52/change`):
+
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/43-form/openspec/changes/safe-update
-consultation.md Report: report.bottom_line.verdict: expected one of KEEP APPROACH, CHANGE APPROACH, INCONCLUSIVE, got "MAYBE"
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1-ValidatorRowsF1E/rep-52/change
 ```
 
-## Row: Negative control: a report field of another type: confidence a number (expect both fail naming the field)
+Exit code: **0**
 
-Folder `/tmp/pac-f1e/fixtures/44-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-  1365  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
+passed
 ```
-
-`consultation.md`:
 
-````markdown
-# Consultation
+stderr:
 
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":[{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":0.9},{"id":"F2","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}],"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
 ```
+```
 
-## Findings
+Step 2 judgment: expected exit 0, stdout "passed\n"; observed exit 0. **MATCH**
 
-### F1
+Row judgment: **MATCH** (observed matches expected)
 
-- **Disposition**: adopted: design.md locks the row
+## Row: --consultation-report: two findings with the same id
 
-### F2
+**Expected (per scenario):** exit 1 naming `duplicate`, stdout empty.
 
-- **Disposition**: rejected: the second table carries the audit trail
+### Step 1: report check
 
-````
+Folder listing (`cd /tmp/pac-f1-ValidatorRowsF1E/rep-53/change && find . -type f | sort`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/44-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].confidence: expected a string
-exit=1
+./.openspec.yaml
+./design.md
+./gate.md
+./proposal.md
+./specs/feature/spec.md
+./tasks.md
 ```
+
+Command (cwd `/tmp/pac-f1-ValidatorRowsF1E/rep-53/change`):
 
 ```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/44-form/openspec/changes/safe-update
-consultation.md Report: report.findings[0].confidence: expected a string
-exit=1
+node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --consultation-report /tmp/pac-f1-ValidatorRowsF1E/rep-53/attempt.jsonl /tmp/pac-f1-ValidatorRowsF1E/rep-53/change
 ```
 
-## Row: Negative control: a report field of another type: findings an object (expect both fail naming the field)
+Exit code: **1**
 
-Folder `/tmp/pac-f1e/fixtures/45-form/openspec/changes/safe-update`:
+stdout:
 
 ```
-    38  .openspec.yaml
-   976  consultation.md
-    43  design.md
-   964  gate.md
-   297  proposal.md
-   393  review.md
-   315  specs/feature/spec.md
-   141  tasks.md
 ```
 
-`consultation.md`:
+stderr:
 
-````markdown
-# Consultation
-
-- **Status**: consulted
-- **Consulted commit**: 0123456789abcdef0123456789abcdef01234567
-- **Consultant**: architecture-oracle, ArchConsult012345671
-- **Models**: ArchConsult012345671 onara/cc/claude-fable-5-2
-- **Bottom line**: CHANGE APPROACH
-- **Skip reason**: none
-
-## Report
-
-```json
-{"bottom_line":{"verdict":"CHANGE APPROACH","reason":"The update races. A row lock fixes it."},"findings":{"F1":{"id":"F1","category":"design defect","locations":"design.md:3","trigger":"two sessions update the same row","consequence":"one update is lost","counterevidence":"the endpoint takes no lock","correction":"lock the row inside the transaction","confidence":"high; a concurrent update test would confirm it"}},"recommended_approach":"Keep the endpoint and lock the row.","uncertainties":["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],"inspected":"proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md"}
+```
+consultation report: report.findings[1].id: duplicate id F1
 ```
 
-## Findings
+Step 1 judgment: expected exit 1, stderr contains "duplicate", stdout ""; observed exit 1. **MATCH**
 
-none
+Row judgment: **MATCH** (observed matches expected)
 
-````
+## Summary
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs /tmp/pac-f1e/fixtures/45-form/openspec/changes/safe-update
-consultation.md Report: report.findings: expected an array
-exit=1
-```
+| Row | Result |
+|---|---|
+| Consulted without findings | MATCH |
+| Verbatim text that looks like a slot | MATCH |
+| Pending record | MATCH |
+| Negative control: a subsection without its Disposition bullet | MATCH |
+| Negative control: a disposition that is neither adopted nor rejected | MATCH |
+| Negative control: a report finding without its ### subsection | MATCH |
+| Negative control: subsections in another order than the report | MATCH |
+| Negative control: a report line that is not JSON | MATCH |
+| Negative control: a report that lacks `findings` | MATCH |
+| Negative control: a Bottom line other than the report's verdict | MATCH |
+| Negative control: a record without the ## Report heading | MATCH |
+| Negative control: a consulted record whose Models holds a dispatched entry | MATCH |
+| Negative control: a pending record with no attempt (Models none) | MATCH |
+| Negative control: Status drafted | MATCH |
+| Negative control: a skipped record with Skip reason none | MATCH |
+| Negative control: Consultant naming another agent (oracle, X1) | MATCH |
+| Negative control: a 39-hex consulted commit | MATCH |
+| Negative control: header field Status twice (task 2.2 duplicate row) | MATCH |
+| Negative control: header field Consulted commit twice (task 2.2 duplicate row) | MATCH |
+| Negative control: header field Consultant twice (task 2.2 duplicate row) | MATCH |
+| Negative control: header field Models twice (task 2.2 duplicate row) | MATCH |
+| Negative control: header field Bottom line twice (task 2.2 duplicate row) | MATCH |
+| Negative control: header field Skip reason twice (task 2.2 duplicate row) | MATCH |
+| Negative control: section ## Report twice (task 2.2 duplicate row) | MATCH |
+| Negative control: section ## Findings twice (task 2.2 duplicate row) | MATCH |
+| Negative control: two report findings with the same id (task 2.2 id row / 2.3 invariant) | MATCH |
+| Negative control: a finding with an empty id (task 2.2 id row) | MATCH |
+| Negative control: a finding id spanning two lines (task 2.2 id row) | MATCH |
+| Negative control: a report line that is a JSON array (2.3 invariant) | MATCH |
+| Negative control: a report without bottom_line.verdict (2.3 invariant) | MATCH |
+| Negative control: a report whose findings is an object (2.3 invariant) | MATCH |
+| Negative control: field Status left at its template slot text | MATCH |
+| Negative control: field Consulted commit left at its template slot text | MATCH |
+| Negative control: field Consultant left at its template slot text | MATCH |
+| Negative control: field Models left at its template slot text | MATCH |
+| Negative control: field Bottom line left at its template slot text | MATCH |
+| Negative control: field Skip reason left at its template slot text | MATCH |
+| Negative control: section ## Report left at its template slot text | MATCH |
+| Negative control: section ## Findings left at its template slot text | MATCH |
+| Negative control: the shipped template copied unfilled | MATCH |
+| Record invariant (passes the record check): a report lacking `trigger` | MATCH |
+| Record invariant (passes the record check): a report lacking `recommended_approach` | MATCH |
+| Record invariant (passes the record check): a `category` outside its enum | MATCH |
+| Record invariant (passes the record check): a number as `confidence` | MATCH |
+| Accepted report (--consultation-report) | MATCH |
+| --consultation-report: a finding without trigger (2.2 row moved to the report check) | MATCH |
+| --consultation-report: a report without recommended_approach (2.2 row moved) | MATCH |
+| --consultation-report: enum - category outside its enum | MATCH |
+| --consultation-report: enum - verdict outside its enum | MATCH |
+| --consultation-report: type - confidence is a number | MATCH |
+| --consultation-report: over-limit report (six findings, four uncertainties) | MATCH |
+| --consultation-report: two findings with the same id | MATCH |
 
-```
-$ node /Users/tim/git/oh-my-pi/.worktrees/plan-architecture-consultation/team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed /tmp/pac-f1e/fixtures/45-form/openspec/changes/safe-update
-consultation.md Report: report.findings: expected an array
-exit=1
-```
+Overall: PASS

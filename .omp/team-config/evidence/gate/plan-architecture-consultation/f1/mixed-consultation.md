@@ -1,7 +1,7 @@
 # Consultation
 
 - **Status**: consulted
-- **Consulted commit**: a173873f7b9ea70123a6cedad8cdbef1ad5c8507
+- **Consulted commit**: c0eb0d46f2cfbff75297d107377f786ac3fe6524
 - **Consultant**: architecture-oracle, ArchConsultSeedE1
 - **Models**: ArchConsultSeedE1 onara/cc/claude-fable-5-2
 - **Bottom line**: CHANGE APPROACH
@@ -17,12 +17,12 @@
 
 ### F1
 
-- **Disposition**: adopted: design.md D1 now runs the capacity read with `SELECT ... FOR UPDATE`, the count and the insert in one transaction on one client checked out with `pool.connect()`, with ROLLBACK on error and release in every case
+- **Disposition**: adopted: design.md D1 now runs the capacity read `SELECT capacity FROM events WHERE id = $1 FOR UPDATE`, the count and the insert in one transaction on one pool client (BEGIN/COMMIT, ROLLBACK on error, client released in `finally`), so concurrent requests on any instance serialize on the event row
 
 ### F2
 
-- **Disposition**: adopted: design.md D1 returns `{ status: "not_found" }` when the capacity row is missing (and `full` / `reserved` otherwise), D3 maps `not_found` to 404, and tasks.md 2.1 adds a test for an unknown event
+- **Disposition**: adopted: design.md D1 now returns a distinct not-found result when the event row is missing, D3 maps it to 404, and tasks.md 2.1 adds a test for an unknown event
 
 ### F3
 
-- **Disposition**: rejected: the repository has no Redis (package.json depends only on `pg`), a second store's counter can drift from the reservations table that the capacity requirement is stated over, and the report itself rates the count cost small at the stated sizes; the locked count in D1 keeps one source of truth
+- **Disposition**: rejected: a Redis counter adds a new service and a second source of truth that can drift from the reservations table, while the consultant itself rates the scan cost small at the stated sizes (at most a few thousand seats per event)

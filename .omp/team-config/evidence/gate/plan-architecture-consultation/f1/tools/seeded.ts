@@ -120,6 +120,49 @@ const blockerText = (b: Json, verdict?: string) =>
 const SEAT = "openspec/changes/seat-reservation";
 const DESC = "openspec/changes/event-description";
 
+const SEAT_MIGRATION_BLOCKER: Json = {
+	area: "quality",
+	defect: "tasks.md 1.1's Verify runs test/migrations.test.js, which no task creates and the repository does not contain, so the Verify cannot fail when migration 002 is broken.",
+	evidence: "tasks.md 1.1 'Verify: `node --test test/migrations.test.js`'; the repository has only test/events.test.js.",
+	change: "Name the migration test in task 1.1 and say what it asserts.",
+};
+
+/** Replaces design.md D1 with the row-locking transaction and commits it. */
+async function fixRace(root: string, change: string) {
+	const design = path.join(root, change, "design.md");
+	const text = await Bun.file(design).text();
+	await Bun.write(
+		design,
+		text.replace(
+			/### D1\. Reserve with a count check followed by an insert[\s\S]*?(?=### D2)/,
+			"### D1. Reserve inside one transaction that locks the event row\n\n`reserveSeat(eventId, userId)` in `src/reservations.js` takes a client from the pool, runs `BEGIN`,\n`SELECT capacity FROM events WHERE id = $1 FOR UPDATE`, `SELECT count(*) FROM reservations WHERE event_id = $1`,\nand, when the count is below the capacity, `INSERT INTO reservations (event_id, user_id) VALUES ($1, $2) RETURNING *`,\nthen `COMMIT`; otherwise `ROLLBACK` and `null`. The row lock serialises concurrent reservations for one event\nacross all instances.\n\n",
+		),
+	);
+	await commit(root, "fix D1: lock the event row inside one transaction");
+}
+
+/** A `risky` change whose OKAY review on the current digest predates the consultation step. */
+async function approvedBeforeDeploy(root: string, change: string) {
+	await fixRace(root, change);
+	await writeReview(
+		root,
+		change,
+		{
+			Verdict: "OKAY",
+			"Reviewed digest": await digest(root, change),
+			Depth: "risky",
+			Reviewer: "plan-reviewer, RevA1, RevB1",
+			Verifier: "blocker-verifier, none",
+			Models: `RevA1 ${SOL}, RevB1 ${SOL}`,
+			Round: "1",
+			Awaiting: "none",
+			Override: "none",
+		},
+		"none",
+	);
+	await commit(root, "review: round 1 OKAY (written before this deploy)");
+}
+
 const ROWS: Record<string, Row> = {
 	"fix-raises-depth": {
 		kind: "standard",
@@ -360,6 +403,65 @@ const ROWS: Record<string, Row> = {
 			);
 			await commit(root, "review: delta check REJECT, budget spent, exhaustion ask");
 		},
+	},
+	"delta-already-risky": {
+		kind: "risky",
+		prompt: `Continue the review of the OpenSpec change seat-reservation: get the instruction with \`openspec instructions review --change seat-reservation --json\` and follow it. My answer to your exhaustion ask about the open blocker in review.md is: Fix.`,
+		queue: [
+			{ agent: "architecture-oracle", id: "ArchConsultSeedH1", model: FABLE, data: KEEP },
+			{ agent: "plan-reviewer", id: "SeedDelta3", model: SOL, data: OKAY("The fix resolves the open entry; no new blocker.") },
+		],
+		setup: async (root, change) => {
+			const d1 = await digest(root, change);
+			await writeReview(
+				root,
+				change,
+				{
+					Verdict: "REJECT",
+					"Reviewed digest": d1,
+					Depth: "risky",
+					Reviewer: "plan-reviewer, RevA1, RevB1",
+					Verifier: "blocker-verifier, Ver1",
+					Models: `RevA1 ${SOL}, RevB1 ${SOL}, Ver1 ${SOL}`,
+					Round: "1",
+					Awaiting: "none",
+					Override: "none",
+				},
+				`### Scope A (RevA1)\n\n${blockerText(RACE_BLOCKER, "confirmed, blocking: design.md D1 runs two autocommit queries; src/db.js:4 pools per instance.")}`,
+			);
+			await commit(root, "review: round 1 REJECT (written before this deploy)");
+			await fixRace(root, change);
+			const d2 = await digest(root, change);
+			await writeReview(
+				root,
+				change,
+				{
+					Verdict: "REJECT",
+					"Reviewed digest": d2,
+					Depth: "risky",
+					Reviewer: "plan-reviewer, RevA2, RevB2",
+					Verifier: "blocker-verifier, Ver2",
+					Models: `RevA2 ${SOL}, RevB2 ${SOL}, Ver2 ${SOL}`,
+					Round: "2",
+					Awaiting: "exhaustion",
+					Override: "none",
+				},
+				`### Scope B (RevB2)\n\n${blockerText(SEAT_MIGRATION_BLOCKER, "confirmed, blocking: tasks.md 1.1 names test/migrations.test.js; no task creates it and the repository has test/events.test.js only.")}`,
+			);
+			await commit(root, "review: round 2 REJECT, budget spent, exhaustion ask (written before this deploy)");
+		},
+	},
+	"approved-before-deploy-skip": {
+		kind: "risky",
+		prompt: `Re-run the review of the OpenSpec change seat-reservation: get the instruction with \`openspec instructions review --change seat-reservation --json\` and follow it. Skip the architecture consultation; my reason: this plan was approved before the consultation step existed and its implementation has started.`,
+		queue: [],
+		setup: approvedBeforeDeploy,
+	},
+	"approved-before-deploy-consulted": {
+		kind: "risky",
+		prompt: `Re-run the review of the OpenSpec change seat-reservation: get the instruction with \`openspec instructions review --change seat-reservation --json\` and follow it.`,
+		queue: [{ agent: "architecture-oracle", id: "ArchConsultSeedI1", model: FABLE, data: KEEP }],
+		setup: approvedBeforeDeploy,
 	},
 };
 

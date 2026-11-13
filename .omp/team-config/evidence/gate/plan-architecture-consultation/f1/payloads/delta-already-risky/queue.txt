@@ -1,0 +1,2 @@
+architecture-oracle ArchConsultSeedH1 /tmp/pac-f1/payloads/delta-already-risky/ArchConsultSeedH1.jsonl
+plan-reviewer SeedDelta3 /tmp/pac-f1/payloads/delta-already-risky/SeedDelta3.jsonl

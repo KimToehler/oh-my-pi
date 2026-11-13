@@ -1,11 +1,12 @@
 #!/bin/bash
 # F1 fixture builder for plan-architecture-consultation (one-off evidence helper, not delivered).
-# usage: fixture.sh <dir> <risky|standard>
+# usage: fixture.sh <dir> <risky|standard|plain>
 # Creates a git repository at <dir> (refuses an existing one): a small Node service, the omp-gated
 # workflow installed from the disposable home's deployed installer, and one change folder that
 # `V <change-dir>` accepts. risky: change seat-reservation, Mandatory class concurrency-state, with one
 # planted design defect (design.md D1 counts and inserts in two pool statements without a lock or
 # transaction, so concurrent requests oversell). standard: change event-description, class none.
+# plain: change event-id-range, class none with no migration or contract change (the F1-B standard rows).
 set -euo pipefail
 dir=$1 kind=$2
 H=${PAC_HOME:?set PAC_HOME to the disposable home}/.omp/agent
@@ -213,6 +214,116 @@ cat > "$c/tasks.md" <<'EOF'
 ## Workflow follow-up
 
 - F2 merge gate (`review-work`), after 3.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
+- Merge only after the F2 record validates.
+EOF
+elif [ "$kind" = plain ]; then
+c=openspec/changes/event-id-range
+mkdir -p "$c/specs/event-lookup"
+printf 'schema: omp-gated\ncreated: 2026-11-13\n' > "$c/.openspec.yaml"
+cat > "$c/proposal.md" <<'EOF'
+# Proposal
+
+## Why
+
+`GET /events/99999999999` crashes the serving instance: `getEvent` passes the id to PostgreSQL,
+which rejects it as out of range for `integer`, and the rejection is unhandled in the request
+handler. Any unknown event id should answer 404 like every other unknown id.
+
+## What Changes
+
+- `getEvent` returns `null` for an id outside `1..2147483647` without querying, so the existing
+  route answers 404.
+
+## Capabilities
+
+### New Capabilities
+- `event-lookup`: how `GET /events/:id` answers for an id that names no event
+
+### Modified Capabilities
+
+## Impact
+
+`src/events.js` and `test/events.test.js`. No schema, no new endpoint, no response field changes.
+EOF
+cat > "$c/specs/event-lookup/spec.md" <<'EOF'
+# Spec Delta
+
+## Purpose
+
+Answer every lookup of an id that names no event with the existing 404, never with a crash.
+
+## ADDED Requirements
+
+### Requirement: Out-of-range event id
+
+`getEvent(id)` SHALL return `null` without a database query when `id` is not an integer in
+`1..2147483647`, so `GET /events/:id` answers 404 with `{"error":"not found"}` as for any unknown id.
+
+#### Scenario: Id above the integer range
+- **WHEN** `GET /events/99999999999` is requested
+- **THEN** the response is 404 with `{"error":"not found"}` and the instance keeps serving
+
+#### Scenario: Id in range
+- **WHEN** an existing event id is requested
+- **THEN** the response is 200 with that event, unchanged by the range check
+
+#### Scenario: Negative control
+- **WHEN** `GET /events/2147483648`, one above the range, is requested
+- **THEN** the request MUST fail with 404 and no database query runs
+EOF
+cat > "$c/design.md" <<'EOF'
+# Design
+
+## Context
+
+`src/server.js` parses the path id with `Number(...)` and calls `getEvent`, which runs one pool query.
+PostgreSQL rejects ids above 2147483647 for the `serial` (`integer`) column, and the handler does not
+catch the rejection.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Unknown ids, including out-of-range ones, answer 404.
+
+**Non-Goals:**
+- General error handling in the request handler; other routes.
+
+## Decisions
+
+### D1. Range check in getEvent
+
+`getEvent(id)` returns `null` when `!Number.isSafeInteger(id) || id < 1 || id > 2147483647`, before
+the query; the route already maps `null` to 404. The check sits in `getEvent` so every caller gets it.
+
+## Risks / Trade-offs
+
+- None beyond one comparison per lookup.
+EOF
+cat > "$c/gate.md" <<'EOF'
+# Gate
+
+- **Mandatory class**: none
+- **Depth**: standard (the class is none: no schema, wire contract, auth or shared-state change; 404 for an unknown id is the existing contract)
+- **Risk tier**: product
+- **Author's risk assessment**: a wrong bound would answer 404 for a real event, caught by the negative control
+- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
+- **Accepted residual risks**: none (every requirement has a scenario and a QA row)
+- **Out of scope for blocking**: none (the change is self-contained)
+EOF
+cat > "$c/tasks.md" <<'EOF'
+# Tasks
+
+## 1. Range check
+
+- [ ] 1.1 Add the range check of design D1 to `getEvent`, with tests in `test/events.test.js` that `getEvent(99999999999)`, `getEvent(0)` and `getEvent(1.5)` return `null` without a query (the pool's `query` spied and asserted uncalled) and that an id in range still queries. Verify: `node --test test/events.test.js`
+
+## 2. Final verification
+
+- [ ] 2.1 F1. Manual QA on the real surface: merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; then, against a local PostgreSQL with one event, run `f1/out-of-range.md` (curl to `/events/99999999999` showing 404 and a following curl to `/events/1` showing 200 from the same instance), `f1/in-range.md` (curl to `/events/1` showing 200 with the event) and `f1/negative-control.md` (curl to `/events/2147483648` showing 404, and the PostgreSQL log showing no query for it). One evidence path per row in `.omp/team-config/evidence/gate/event-id-range/f1/`, on the head after the last code commit; the QA lane judges the observations. Verify: `cd .omp/team-config/evidence/gate/event-id-range/f1 && test -s out-of-range.md && test -s in-range.md && test -s negative-control.md`
+
+## Workflow follow-up
+
+- F2 merge gate (`review-work`), after 2.1 and never a checkbox: the record binds every file of this folder by `plan_sha256`, tasks.md included, so the folder is final before the F2 snapshot.
 - Merge only after the F2 record validates.
 EOF
 else
