@@ -11,3 +11,5 @@ Observation, turn 0 (07:07:24Z to the continuation at 07:20:06Z):
 3. No implementation: no write to `src/`, no `openspec instructions apply`, no task ticked. The turn's commits touch only `openspec/changes/widget-cache/`.
 
 Verdict: FAIL as the criterion is written. Hits 1 and 2 meet its letter: a `diff` that opened `opsx-apply.md`, and the schema-mandated review delta patch outside `openspec/changes/`. Neither starts apply or edits project code, which is what the requirement forbids. Hit 2 comes from the review procedure the same planning turn must run, so any review with a fix round trips this criterion. Owner decision required: accept the row on the requirement's intent, or amend the criterion (a planning-artifact change, then re-review) and rerun.
+
+Owner decision (user, 2026-11-13): "Accept same-turn-nc on intent, tick 4.1, proceed to F2". The row is accepted on the requirement's intent: the planning turn started no apply and edited no project code. The FAIL-as-written hits above stand as recorded.
