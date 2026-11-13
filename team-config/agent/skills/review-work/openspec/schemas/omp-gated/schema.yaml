@@ -420,12 +420,15 @@ artifacts:
            <provider/model>` for every model its session file shows (the jq command after step 3's
            briefs), with `(no report)` appended when it did not count.
          - Retry and ask: a failed attempt gets one fresh retry with the same brief and the next
-           attempt number, within the two. After two failed attempts, one `ask` quoting each
+           attempt number, within the two, even when you expect it to fail the same way: only two
+           observed failures reach the ask. After two failed attempts, one `ask` quoting each
            attempt's Models entry, with exactly two options: Skip, with the user's reason in their
            words (write the `skipped` record above with both attempts and the consulted commit),
            or Stop (leave the `pending` record, which `--reviewed` refuses, and dispatch nothing
-           further). No other model's report and no architecture review of your own stands in for
-           the consultation.
+           further). The question may name the cause you observed, such as a missing model entry
+           or a configured override; a fix to the installation is the user's to make, never a
+           third option. No other model's report and no architecture review of your own stands in
+           for the consultation.
          - Record: write consultation.md from the template with Status `consulted`, the consulted
            commit, Consultant `architecture-oracle, <id of the counted attempt>`, Models with
            every attempt, Bottom line the report's `bottom_line.verdict` and Skip reason `none`.
