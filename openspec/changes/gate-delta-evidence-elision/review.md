@@ -1,26 +1,22 @@
 # Review
 
-- **Verdict**: REJECT
-- **Reviewed digest**: fd28d908063ffdb84310b41821ebecb9d00e956815cec9009be958c2e6da1ceb
+- **Verdict**: OKAY
+- **Reviewed digest**: 6d01784015494dc2ba1d5718bec0151e8d170245a24cb86f4e157591d9a25282
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, GdeD3
-- **Verifier**: blocker-verifier, GdeV3
-- **Models**: GdeD3 onara/cx/gpt-6.1-sol; GdeV3 onara/cx/gpt-6.1-sol
-- **Round**: 3
-- **Awaiting**: exhaustion
+- **Reviewer**: plan-reviewer, GdeD4
+- **Verifier**: blocker-verifier, none
+- **Models**: GdeD4 onara/cx/gpt-6.1-sol
+- **Round**: 4
+- **Awaiting**: none
 - **Override**: none
 
 ## Blockers
 
-### Fix delta (GdeD3)
-
-1. **Area**: PROCESS 4 — correctness / executability, task 3.1
-   **Defect**: Normal execution of s1-mixed now retains the omitted evidence inside the measured directory, so a correct implementation cannot satisfy its required “under 1 MB” observation. The delta reduces mandatory reading, not total artifact size. This blocks honest completion of the planned value proof; the contradiction is reversible before implementation.
-   **Evidence**: openspec/changes/gate-delta-evidence-elision/design.md:55-59 adds <NNN>.evidence.patch beside each numbered patch and puts every omitted evidence hunk into it. proposal.md:8-10 states that the selected range contains 10 MB of patches, with only 251 KB outside evidence. However, tasks.md:19 still requires s1-mixed to capture “du -b of the directory (the observation: under 1 MB, against 10 MB before)”. Moving those evidence hunks into sidecars within that directory preserves approximately the original total bytes rather than reducing them below 1 MB.
-   **Change**: Measure the mandatory reading set explicitly: manifest plus the numbered files referenced by commits[].patch, excluding commits[].evidence. Apply the under-1-MB expectation to that set, and report total directory bytes separately without claiming they shrink. Update s1-mixed's command and expected observation accordingly; retain the historical-evidence sidecars and m4 lookup proof.
-   **Triage**: confirmed, blocking (GdeV3): The cited contradiction exists. design.md:55-63 puts every omitted evidence hunk in a sibling <NNN>.evidence.patch, retaining those bytes in the output directory. proposal.md:8-10 identifies the actual selected range as 10 MB, with only 251 KB outside evidence. Yet tasks.md:19 explicitly requires s1-mixed to capture du -b of that directory with the observation 'under 1 MB, against 10 MB before'. Normal execution on the named range therefore retains approximately the original patch bytes plus metadata rather than meeting the required directory-size observation. This is a defect in the required value proof, not a missing check: the planned capture would expose it but does not resolve the contradictory requirement. It blocks honest completion of the mandatory F1 row. No protected asset is implicated.
+none
 
 ## Residuals
 
 - Round 1 (GdeR1A, GdeR1B; triage GdeV1): four findings confirmed blocking and fixed in commit after 4983a1188d (one LEFT_OUT_DIR spelling, new-form round trip, exact brief check, head-bound F1 rows).
 - Round 2 (GdeR2A, GdeR2B; triage GdeV2): three findings confirmed blocking (reviewer cannot run git to read left-out evidence; no real-session check of that lookup; RED rule contradicts preservation guards); budget spent, the user answered the exhaustion ask with Fix (2026-11-13); fixed in the commit after 8c863d829c.
+- Round 3 (delta check GdeD3, triage GdeV3): one finding confirmed blocking (task 3.1 s1-mixed expected the whole patch directory under 1 MB although it keeps the evidence files); budget spent, the user answered the exhaustion ask with Fix (2026-11-13); fixed in the commit after a491a1a912.
+- Round 4 (delta check GdeD4): OKAY; the fix measures manifest.json plus the commits[].patch files only and reports the directory size apart.
