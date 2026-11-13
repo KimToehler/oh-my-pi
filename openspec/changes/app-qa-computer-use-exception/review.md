@@ -8,7 +8,7 @@
 - **Models**: ProposeComputerUse.PlanReviewDelta19 onara/cx/gpt-6.1-sol (no verdict), ProposeComputerUse.PlanReviewDelta19Retry onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage19 onara/cx/gpt-6.1-sol
 - **Round**: 19
 - **Awaiting**: exhaustion
-- **Override**: none (this delta check reviews the fix of F1 attempt 10 that the user, Tim, authorized on 2026-11-13: "Fix all, then delta check and attempt 11")
+- **Override**: none
 
 ## Blockers
 
