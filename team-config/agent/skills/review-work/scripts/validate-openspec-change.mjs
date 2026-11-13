@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import { readFileSync, realpathSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs";
 import {
 	abortRuleDefects,
@@ -310,9 +311,341 @@ function parseSkipSpecs(text, errors) {
 	return skipSpecs;
 }
 
+const CONSULTATION_FILE = "consultation.md";
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+// The consultation contract has one source per part, read where the installation keeps it: the slot texts in the shipped
+// template beside this script's schema, the model and the report schema in the architecture-oracle definition three
+// directories above this script (`team-config/agent/agents/` in the repository, `~/.omp/agent/agents/` when deployed).
+const CONSULTATION_TEMPLATE = path.join(SCRIPT_DIR, "..", "openspec", "schemas", "omp-gated", "templates", CONSULTATION_FILE);
+const ORACLE_DEFINITION = path.join(SCRIPT_DIR, "..", "..", "..", "agents", "architecture-oracle.md");
+const CONSULTATION_FIELDS = ["Status", "Consulted commit", "Consultant", "Models", "Bottom line", "Skip reason"];
+const CONSULTATION_SECTIONS = ["Report", "Findings"];
+const COMMIT = /^[0-9a-f]{40}$/;
+
+/** Each `## <name>` section of `text` as the raw lines up to the next level-1 or level-2 heading; fences and comments hide headings. */
+function markdownSections(text) {
+	const sections = new Map();
+	let current;
+	for (const line of scanMarkdown(text)) {
+		if (line.content && /^#{1,2}[ \t]/.test(line.text)) {
+			const name = /^##[ \t]+(.+?)[ \t]*$/.exec(line.text)?.[1];
+			current = name === undefined ? undefined : [];
+			if (name !== undefined) sections.set(name, [...(sections.get(name) ?? []), current]);
+			continue;
+		}
+		current?.push(line.text);
+	}
+	return new Map([...sections].map(([name, bodies]) => [name, bodies.map(body => body.join("\n").trim())]));
+}
+
 /**
- * Pure checker over a snapshot: a Map of change-relative path (`/`-separated) to file bytes. It reads nothing from disk,
- * so a caller that digests the same snapshot validates exactly the bytes it pins.
+ * The JTD forms `checkReport` interprets: `properties` (every key required, no others), `elements`, an `enum` of strings
+ * and `type: string`. `metadata` is ignored, `maxElements` included: the definition's limits guide the model and are
+ * never enforced. Returns a defect for every other form, naming it.
+ */
+function jtdSubsetDefects(schema, at, defects = []) {
+	if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
+		defects.push(`${at}: expected a JTD schema object`);
+		return defects;
+	}
+	const forms = Object.keys(schema).filter(key => key !== "metadata");
+	for (const form of forms.filter(key => !["properties", "elements", "enum", "type"].includes(key)))
+		defects.push(`${at}: unsupported JTD form ${form}`);
+	const known = forms.filter(key => ["properties", "elements", "enum", "type"].includes(key));
+	if (known.length !== 1) {
+		if (forms.length === known.length) defects.push(`${at}: expected exactly one of properties, elements, enum or type`);
+		return defects;
+	}
+	if (known[0] === "type" && schema.type !== "string") defects.push(`${at}: unsupported JTD form type: ${schema.type}`);
+	if (known[0] === "enum" && (!Array.isArray(schema.enum) || !schema.enum.every(item => typeof item === "string")))
+		defects.push(`${at}: enum must list strings`);
+	if (known[0] === "elements") jtdSubsetDefects(schema.elements, `${at}[]`, defects);
+	if (known[0] === "properties") {
+		if (schema.properties === null || typeof schema.properties !== "object" || Array.isArray(schema.properties))
+			defects.push(`${at}: properties must be an object`);
+		else for (const [key, sub] of Object.entries(schema.properties)) jtdSubsetDefects(sub, `${at}.${key}`, defects);
+	}
+	return defects;
+}
+
+let consultationSlots;
+let oracleContract;
+
+/** The slot text of every record field and section from the shipped template; `{ error }` when it is missing or unreadable. */
+function loadConsultationSlots() {
+	if (consultationSlots !== undefined) return consultationSlots;
+	const template = readSource(CONSULTATION_TEMPLATE);
+	if (template.error) return (consultationSlots = { error: template.error });
+	const slots = new Map();
+	const content = planContent(scanMarkdown(template.text));
+	for (const field of CONSULTATION_FIELDS) slots.set(field, topLevelField(content, field).value);
+	const sections = markdownSections(template.text);
+	for (const name of CONSULTATION_SECTIONS) slots.set(name, sections.get(name)?.[0]);
+	const missing = [...slots].filter(([, slot]) => !slot).map(([name]) => name);
+	if (missing.length > 0)
+		return (consultationSlots = { error: `${CONSULTATION_FILE}: the template ${CONSULTATION_TEMPLATE} has no slot for ${missing.join(", ")}` });
+	return (consultationSlots = { slots });
+}
+
+/**
+ * The oracle's model (without its thinking suffix) and output schema from its definition, whose `output` is the last
+ * frontmatter key, written as one JSON object. Only the report check reads it; a stored record is never re-checked
+ * against it (design D9). `{ error }` when the definition is missing, unreadable or outside the supported schema subset.
+ */
+function loadOracleContract() {
+	if (oracleContract !== undefined) return oracleContract;
+	const definition = readSource(ORACLE_DEFINITION);
+	if (definition.error) return (oracleContract = { error: definition.error });
+	const front = definition.text.split(/^---[ \t]*$/m)[1] ?? "";
+	const model = /^model:[ \t]*(\S+)[ \t]*$/m.exec(front)?.[1]?.replace(/:[^:/]+$/, "");
+	const outputAt = front.search(/^output:/m);
+	let schema;
+	try {
+		schema = outputAt === -1 ? undefined : JSON.parse(front.slice(outputAt + "output:".length));
+	} catch {
+		schema = undefined;
+	}
+	if (!model || schema === undefined)
+		return (oracleContract = {
+			error: `${CONSULTATION_FILE}: ${ORACLE_DEFINITION} needs a model line and output as its last frontmatter key, written as one JSON object`,
+		});
+	const defects = jtdSubsetDefects(schema, "report");
+	if (defects.length > 0)
+		return (oracleContract = { error: `${CONSULTATION_FILE}: the output schema of ${ORACLE_DEFINITION}: ${defects.join("; ")}` });
+	return (oracleContract = { model, schema });
+}
+
+function readSource(file) {
+	try {
+		return { text: readFileSync(file, "utf8") };
+	} catch (error) {
+		return { error: `${CONSULTATION_FILE}: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}` };
+	}
+}
+
+function checkJtd(schema, value, at, issues) {
+	if ("properties" in schema) {
+		if (value === null || typeof value !== "object" || Array.isArray(value)) return issues.push(`${at}: expected an object`);
+		for (const [key, sub] of Object.entries(schema.properties)) {
+			if (Object.hasOwn(value, key)) checkJtd(sub, value[key], `${at}.${key}`, issues);
+			else issues.push(`${at}.${key}: missing`);
+		}
+		for (const key of Object.keys(value))
+			if (!Object.hasOwn(schema.properties, key)) issues.push(`${at}.${key}: not in the agent's output schema`);
+	} else if ("elements" in schema) {
+		if (!Array.isArray(value)) return issues.push(`${at}: expected an array`);
+		value.forEach((item, index) => checkJtd(schema.elements, item, `${at}[${index}]`, issues));
+	} else if ("enum" in schema) {
+		if (!schema.enum.includes(value)) issues.push(`${at}: expected one of ${schema.enum.join(", ")}, got ${JSON.stringify(value)}`);
+	} else if (typeof value !== "string") issues.push(`${at}: expected a string`);
+}
+
+/**
+ * Every finding's `id` is a nonempty single line without surrounding whitespace, distinct from the others, because it
+ * keys its disposition.
+ */
+function findingIdIssues(findings, issues) {
+	const seen = new Set();
+	findings.forEach((finding, index) => {
+		const id = finding?.id;
+		if (typeof id !== "string") return;
+		if (id === "" || /[\r\n]/.test(id) || id !== id.trim())
+			issues.push(`report.findings[${index}].id: expected a nonempty single line without surrounding whitespace`);
+		else if (seen.has(id)) issues.push(`report.findings[${index}].id: duplicate id ${id}`);
+		seen.add(id);
+	});
+}
+
+/** The one report check: the value conforms to the oracle definition's output schema, and its finding ids key dispositions. */
+function checkReport(value) {
+	const contract = loadOracleContract();
+	if (contract.error) return [contract.error];
+	const issues = [];
+	checkJtd(contract.schema, value, "report", issues);
+	findingIdIssues(Array.isArray(value?.findings) ? value.findings : [], issues);
+	return issues;
+}
+
+/**
+ * The invariants a stored report needs for its record (design D9): an object whose `bottom_line.verdict` is a string and
+ * whose `findings` is an array with ids that key dispositions. The report check proved the rest when the attempt counted.
+ */
+function recordReportIssues(value) {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return ["report: expected an object"];
+	const issues = [];
+	if (typeof value.bottom_line?.verdict !== "string") issues.push("report.bottom_line.verdict: expected a string");
+	if (!Array.isArray(value.findings)) issues.push("report.findings: expected an array");
+	else {
+		value.findings.forEach((finding, index) => {
+			if (typeof finding?.id !== "string") issues.push(`report.findings[${index}].id: expected a string`);
+		});
+		findingIdIssues(value.findings, issues);
+	}
+	return issues;
+}
+
+/** Checks consultation.md against the shipped template's form; the report is read as one JSON line, never as Markdown. */
+function validateConsultation(text, errors) {
+	const contract = loadConsultationSlots();
+	if (contract.error) {
+		errors.push(contract.error);
+		return;
+	}
+	const say = (field, detail) => errors.push(`${CONSULTATION_FILE} ${field}: ${detail}`);
+	const values = new Map();
+	const content = planContent(scanMarkdown(text));
+	const sections = markdownSections(text);
+	const found = name =>
+		CONSULTATION_FIELDS.includes(name)
+			? topLevelField(content, name)
+			: { count: sections.get(name)?.length ?? 0, value: sections.get(name)?.[0] };
+	for (const name of [...CONSULTATION_FIELDS, ...CONSULTATION_SECTIONS]) {
+		const { count, value } = found(name);
+		const kind = CONSULTATION_SECTIONS.includes(name) ? `"## ${name}" section` : "top-level bullet";
+		if (count !== 1) say(name, `expected exactly one ${kind}, found ${count}`);
+		else if (!value?.trim()) say(name, "empty");
+		else if (value.trim() === contract.slots.get(name)) say(name, "still holds the template's slot text");
+		else values.set(name, value.trim());
+	}
+	const plain = name => values.get(name)?.replace(/`/g, "").trim();
+	const require = (name, ok, detail) => {
+		if (values.has(name) && !ok(plain(name))) say(name, detail);
+	};
+	const none = value => value === "none";
+	const status = plain("Status");
+	if (status === undefined) return;
+	if (!["consulted", "skipped", "pending"].includes(status)) {
+		say("Status", `expected consulted, skipped or pending, got ${status}`);
+		return;
+	}
+	if (status !== "consulted") {
+		for (const name of ["Consultant", "Bottom line", "Report", "Findings"]) require(name, none, `expected none for a ${status} record`);
+		if (status === "skipped") {
+			require("Skip reason", value => !none(value), "a skipped record needs the user's reason in their words");
+			require("Consulted commit", value => none(value) || COMMIT.test(value), "expected none or the 40-hex consulted commit");
+		} else {
+			require("Skip reason", none, "expected none for a pending record");
+			require("Consulted commit", value => COMMIT.test(value), "expected the 40-hex consulted commit");
+			require("Models", value => !none(value), "a pending record names every attempt so far");
+		}
+		return;
+	}
+	require("Consulted commit", value => COMMIT.test(value), "expected the 40-hex commit whose change folder the consultant read");
+	require("Consultant", value => /^architecture-oracle, [A-Za-z0-9][\w.-]*$/.test(value), "expected architecture-oracle, <subagent id of the counted attempt>");
+	require("Models", value => !none(value) && !/\bdispatched\b/.test(value), "expected every attempt with its models and no dispatched entry");
+	require("Skip reason", none, "expected none for a consulted record");
+	if (!values.has("Report")) return;
+	const lines = values.get("Report").split("\n").map(line => line.trimEnd());
+	if (lines.length !== 3 || lines[0] !== "```json" || lines[2] !== "```") {
+		say("Report", "expected a ```json line, the report command's output on one line, and a ``` line");
+		return;
+	}
+	let report;
+	try {
+		report = JSON.parse(lines[1]);
+	} catch (error) {
+		say("Report", `the report line is not JSON: ${error instanceof Error ? error.message : String(error)}`);
+		return;
+	}
+	for (const issue of recordReportIssues(report)) say("Report", issue);
+	const verdict = report?.bottom_line?.verdict;
+	if (typeof verdict === "string") require("Bottom line", value => value === verdict, `expected the report's verdict ${verdict}`);
+	if (!Array.isArray(report?.findings) || !values.has("Findings")) return;
+	const ids = report.findings.map(finding => finding?.id);
+	if (ids.length === 0) {
+		require("Findings", none, "expected none for a report without findings");
+		return;
+	}
+	const subsections = [];
+	for (const line of values.get("Findings").split("\n")) {
+		const heading = /^###[ \t]+(.*?)[ \t]*$/.exec(line) ?? (/^###[ \t]*$/.test(line) ? [line, ""] : null);
+		if (heading) subsections.push({ id: heading[1], lines: [] });
+		else if (subsections.length > 0) subsections.at(-1).lines.push(line);
+		else if (line.trim()) say("Findings", "expected only ### subsections, one per report finding");
+	}
+	const headings = subsections.map(subsection => subsection.id);
+	if (headings.length !== ids.length || headings.some((id, index) => id !== ids[index]))
+		say("Findings", `expected one ### subsection per report finding, in the report's order (${ids.join(", ")}); found (${headings.join(", ")})`);
+	for (const { id, lines: body } of subsections) {
+		const bullets = body.filter(line => /^\S/.test(line));
+		if (bullets.length !== 1 || !/^- \*\*Disposition\*\*: (?:adopted|rejected): \S/.test(bullets[0]))
+			say("Findings", `### ${id}: expected exactly one "- **Disposition**: adopted: <artifact and what changed>" or "- **Disposition**: rejected: <reason>" bullet`);
+	}
+}
+
+/**
+ * The report check of one consultation attempt: the session file's brief names `changeDir`, every assistant turn ran on
+ * the oracle definition's model, and the final `yield` ended the run (accepted, not an incremental section) with `data`
+ * that `checkReport` accepts. A string `data` is decoded with `JSON.parse` first, as the runtime decodes a JSON-encoded
+ * payload before it delivers it (`packages/coding-agent/src/tools/yield.ts`, lossless recovery), while the session file
+ * keeps the string the model sent. Returns `{ report }` or `{ error }`.
+ */
+async function consultationReport(sessionFile, changeDir) {
+	const contract = loadOracleContract();
+	if (contract.error) return { error: contract.error };
+	let text;
+	try {
+		text = await fs.readFile(sessionFile, "utf8");
+	} catch (error) {
+		return { error: `cannot read the session file ${sessionFile}: ${error instanceof Error ? error.message : String(error)}` };
+	}
+	const messages = [];
+	for (const [index, line] of text.split("\n").entries()) {
+		if (!line.trim()) continue;
+		let entry;
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			return { error: `line ${index + 1} of the session file is not JSON` };
+		}
+		if (entry?.type === "message" && entry.message && typeof entry.message === "object") messages.push(entry.message);
+	}
+	const real = file => {
+		try {
+			return realpathSync(file);
+		} catch {
+			return path.resolve(file);
+		}
+	};
+	const brief = messages.find(message => message.role === "user")?.content;
+	const briefText = typeof brief === "string" ? brief : Array.isArray(brief) ? brief.filter(part => part?.type === "text").map(part => part.text).join("\n") : "";
+	const named = briefText.split(/\r?\n/).flatMap(line => (line.startsWith("Change directory: ") ? [line.slice("Change directory: ".length).trim()] : []));
+	if (!named.some(dir => path.isAbsolute(dir) && real(dir) === real(changeDir)))
+		return { error: `the brief does not name the change directory ${path.resolve(changeDir)} (it names ${named.join(", ") || "none"})` };
+	const turns = messages.filter(message => message.role === "assistant");
+	if (turns.length === 0) return { error: "the session file has no assistant turn" };
+	for (const [index, turn] of turns.entries()) {
+		const ran = `${turn.provider}/${turn.model}`;
+		if (ran !== contract.model) return { error: `assistant turn ${index + 1} ran on ${ran}, expected ${contract.model} from ${ORACLE_DEFINITION}` };
+	}
+	const last = turns
+		.flatMap(turn => (Array.isArray(turn.content) ? turn.content : []))
+		.filter(part => part?.type === "toolCall" && part.name === "yield")
+		.at(-1);
+	if (last === undefined) return { error: "the session file has no yield" };
+	const result = messages.find(message => message.role === "toolResult" && message.toolCallId === last.id);
+	if (result === undefined) return { error: "the final yield has no tool result; the run ended before the runtime answered it" };
+	if (result.isError !== false) return { error: "the final yield was refused by the runtime; no earlier yield stands in for it" };
+	const labels = last.arguments?.type;
+	if (Array.isArray(labels) && labels.length > 0) return { error: `the final yield is an incremental section (${labels.join(", ")}), not a terminal report` };
+	let data = last.arguments?.data;
+	if (typeof data === "string") {
+		try {
+			data = JSON.parse(data);
+		} catch {
+			return { error: "the final yield's data is a string that is not JSON, so the runtime delivered no report object" };
+		}
+	}
+	if (data === undefined || data === null) return { error: "the final yield carries no data" };
+	const issues = checkReport(data);
+	if (issues.length > 0) return { error: issues.join("; ") };
+	return { report: data };
+}
+
+/**
+ * Checker over a snapshot: a Map of change-relative path (`/`-separated) to file bytes. It reads no change file from disk,
+ * so a caller that digests the same snapshot validates exactly the bytes it pins; a consultation record is checked against
+ * the shipped template and the architecture-oracle definition, which it reads from the installation.
  */
 export function validateOpenSpecFiles(snapshot) {
 	const errors = [];
@@ -327,13 +660,14 @@ export function validateOpenSpecFiles(snapshot) {
 	const hasRequirements = validateSpecs(specs, texts, skipSpecs, errors);
 	if (snapshot.has("tasks.md")) validateTasks(text("tasks.md"), errors);
 	if (snapshot.has("gate.md")) validateGate(text("gate.md"), hasRequirements, errors);
+	if (snapshot.has(CONSULTATION_FILE)) validateConsultation(text(CONSULTATION_FILE), errors);
 	return errors;
 }
 
 export async function validateOpenSpecChange(changeDir) {
 	const root = path.resolve(changeDir);
 	const snapshot = new Map();
-	for (const file of ["proposal.md", "gate.md", "tasks.md", ".openspec.yaml"]) {
+	for (const file of ["proposal.md", "gate.md", "tasks.md", ".openspec.yaml", CONSULTATION_FILE]) {
 		if (await regularFile(path.join(root, file))) snapshot.set(file, await fs.readFile(path.join(root, file)));
 	}
 	for (const file of await markdownFiles(path.join(root, "specs"))) {
@@ -347,13 +681,14 @@ const REVIEW_FILE = "review.md";
 const TASK_BOX = /^(\s*(?:[-*+]|\d{1,9}[.)])\s*)\[(?:\s*[^\]\s]?\s*\]|\s+\])/;
 
 /**
- * The digest a review is bound to: the change folder's bundle without the review record itself, with every tracked
- * task's checkbox reset to `[ ]`. Ticking tasks during apply keeps the review valid; any other byte, file added or
- * file removed invalidates it.
+ * The digest a review is bound to: the change folder's bundle without the review record and the consultation record,
+ * neither of which the reviewers read, with every tracked task's checkbox reset to `[ ]`. Ticking tasks during apply
+ * keeps the review valid; any other byte, file added or file removed invalidates it.
  */
 export function reviewDigest(snapshot) {
 	const reviewed = new Map(snapshot);
 	reviewed.delete(REVIEW_FILE);
+	reviewed.delete(CONSULTATION_FILE);
 	const tasks = reviewed.get("tasks.md");
 	if (tasks !== undefined) {
 		const lines = tasks.toString("utf8").split("\n");
@@ -361,6 +696,16 @@ export function reviewDigest(snapshot) {
 		reviewed.set("tasks.md", Buffer.from(reset.join("\n")));
 	}
 	return bundleDigest(buildBundle(reviewed));
+}
+
+/** Whether gate.md makes the change `risky`: Depth starting with risky, or a Mandatory class other than none. */
+function riskyChange(snapshot) {
+	const gate = snapshot.get("gate.md");
+	if (gate === undefined) return false;
+	const gateContent = planContent(scanMarkdown(gate.toString("utf8")));
+	const depth = (topLevelField(gateContent, "Depth").value ?? "").replace(/`/g, "").trim();
+	const mandatory = (topLevelField(gateContent, "Mandatory class").value ?? "").replace(/`/g, "").trim();
+	return /^risky\b/.test(depth) || (mandatory !== "" && mandatory !== "none");
 }
 
 /** The trimmed body of the one top-level `## Blockers` section, or undefined when there is none or more than one. */
@@ -410,12 +755,8 @@ export function checkReview(snapshot) {
 	if (round !== undefined && !/^[1-9]\d*$/.test(round))
 		errors.push(`${REVIEW_FILE} Round: expected a positive integer`);
 	// A risky review runs both scopes in rounds 1 and 2; a record naming one reviewer there is a half-dispatched round.
-	const gate = snapshot.get("gate.md");
-	if (gate !== undefined && reviewer !== undefined && (round === "1" || round === "2")) {
-		const gateContent = planContent(scanMarkdown(gate.toString("utf8")));
-		const depth = (topLevelField(gateContent, "Depth").value ?? "").replace(/`/g, "").trim();
-		const mandatory = (topLevelField(gateContent, "Mandatory class").value ?? "").replace(/`/g, "").trim();
-		const risky = /^risky\b/.test(depth) || (mandatory !== "" && mandatory !== "none");
+	if (reviewer !== undefined && (round === "1" || round === "2")) {
+		const risky = riskyChange(snapshot);
 		const ids = reviewer
 			.split(",")
 			.slice(1)
@@ -440,6 +781,12 @@ export function checkReview(snapshot) {
 		else if (verdict === "OKAY" && !empty)
 			errors.push(`${REVIEW_FILE} Blockers: an OKAY round has no blockers; expected none (an open confirmed finding makes the round REJECT)`);
 	}
+	if (snapshot.has(CONSULTATION_FILE)) {
+		const record = planContent(scanMarkdown(snapshot.get(CONSULTATION_FILE).toString("utf8")));
+		if ((topLevelField(record, "Status").value ?? "").replace(/`/g, "").trim() === "pending")
+			errors.push(`${CONSULTATION_FILE}: the consultation is still pending; finish the consultation step of the review`);
+	} else if (riskyChange(snapshot))
+		errors.push(`${CONSULTATION_FILE}: required for a risky change; run the consultation step of the review, or record the user's skip`);
 	if (errors.length > 0) return { errors };
 
 	const current = reviewDigest(snapshot);
@@ -456,10 +803,26 @@ export function checkReview(snapshot) {
 	};
 }
 
-const USAGE = "usage: validate-openspec-change.mjs [--digest | --reviewed] <change-dir>";
+const USAGE =
+	"usage: validate-openspec-change.mjs [--digest | --reviewed] <change-dir>\n       validate-openspec-change.mjs --consultation-report <session-file> <change-dir>";
 
 async function main() {
 	const args = process.argv.slice(2);
+	if (args[0] === "--consultation-report") {
+		if (args.length !== 3 || args.slice(1).some(arg => arg.startsWith("--"))) {
+			console.error(USAGE);
+			process.exitCode = 2;
+			return;
+		}
+		const { report, error } = await consultationReport(args[1], args[2]);
+		if (error !== undefined) {
+			console.error(`consultation report: ${error}`);
+			process.exitCode = 1;
+			return;
+		}
+		console.log(JSON.stringify(report));
+		return;
+	}
 	const mode = args[0] === "--digest" || args[0] === "--reviewed" ? args.shift() : undefined;
 	if (args.length !== 1 || args[0].startsWith("--")) {
 		console.error(USAGE);

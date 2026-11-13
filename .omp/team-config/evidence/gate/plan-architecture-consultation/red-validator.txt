@@ -1,0 +1,109 @@
+# RED: validate-openspec-change.test.ts with the new consultation tests, run against the unchanged validator
+# HEAD c1d256a5b1be9bad7848cc31cf4d66e8cc4d0644; validate-openspec-change.mjs unmodified vs HEAD: yes
+# $ bun test --reporter=junit team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts (one line per test of the review-record suite, from the junit report)
+pass  validate-openspec-change review record > prints a 64-hex digest for a valid change and nothing for an invalid one
+pass  validate-openspec-change review record > accepts an OKAY review of the current artifacts
+pass  validate-openspec-change review record > keeps an OKAY review valid after every task is ticked
+pass  validate-openspec-change review record > leaves the plain mode independent of the review record
+pass  validate-openspec-change review record > refuses a change without review.md
+pass  validate-openspec-change review record > refuses a review without Verdict
+pass  validate-openspec-change review record > refuses a review with Verdict twice
+pass  validate-openspec-change review record > refuses a review without Reviewed digest
+pass  validate-openspec-change review record > refuses a review with Reviewed digest twice
+pass  validate-openspec-change review record > refuses a review without Reviewer
+pass  validate-openspec-change review record > refuses a review with Reviewer twice
+pass  validate-openspec-change review record > refuses a review without Round
+pass  validate-openspec-change review record > refuses a review with Round twice
+pass  validate-openspec-change review record > refuses a review without Override
+pass  validate-openspec-change review record > refuses a review with Override twice
+pass  validate-openspec-change review record > refuses a malformed Verdict: PASS
+pass  validate-openspec-change review record > refuses a malformed Reviewed digest: abc123
+pass  validate-openspec-change review record > refuses a malformed Reviewer: me
+pass  validate-openspec-change review record > refuses a malformed Reviewer: plan-reviewer, <subagent id>
+pass  validate-openspec-change review record > refuses a malformed Round: 0
+pass  validate-openspec-change review record > accepts the reviewer list plan-reviewer, LensCor1, LensVer1, LensChk1
+pass  validate-openspec-change review record > accepts the reviewer list plan-reviewer, PlanReviewR27
+pass  validate-openspec-change review record > refuses the reviewer list plan-reviewer, LensCor1, LensCor1, LensChk1
+pass  validate-openspec-change review record > refuses the reviewer list plan-reviewer, <correctness id>, LensVer1, LensChk1
+pass  validate-openspec-change review record > refuses the reviewer list plan-reviewer, LensCor1,
+pass  validate-openspec-change review record > refuses an OKAY whose Blockers section lists a reviewer's findings
+pass  validate-openspec-change review record > accepts an OKAY with none followed by a Notes section
+pass  validate-openspec-change review record > accepts an OKAY with an empty Blockers section
+pass  validate-openspec-change review record > accepts a current OKAY whose findings all stand under Residuals
+pass  validate-openspec-change review record > refuses an overridden REJECT whose findings stand only under Residuals
+pass  validate-openspec-change review record > refuses a risky round 1 record with one reviewer id, naming Reviewer
+pass  validate-openspec-change review record > refuses a class-bearing gate.md without Depth whose round 1 record names one reviewer id
+pass  validate-openspec-change review record > refuses a risky round 2 record with one reviewer id, naming Reviewer
+pass  validate-openspec-change review record > accepts a risky round 3 record with one reviewer id
+pass  validate-openspec-change review record > accepts a class-bearing gate.md without Depth whose record names two reviewers
+pass  validate-openspec-change review record > refuses a REJECT without a user override
+pass  validate-openspec-change review record > accepts a REJECT the user overrode and prints the override
+pass  validate-openspec-change review record > refuses no Blockers section
+pass  validate-openspec-change review record > refuses two Blockers sections
+pass  validate-openspec-change review record > refuses the template placeholder as Blockers
+pass  validate-openspec-change review record > refuses an overridden REJECT whose Blockers are none
+pass  validate-openspec-change review record > refuses an overridden REJECT with an empty Blockers section
+pass  validate-openspec-change review record > refuses a review made stale by a change to proposal.md
+pass  validate-openspec-change review record > refuses a review made stale by a change to a spec
+pass  validate-openspec-change review record > refuses a review made stale by a change to design.md
+pass  validate-openspec-change review record > refuses a review made stale by a change to gate.md
+pass  validate-openspec-change review record > refuses a review made stale by a change to .openspec.yaml
+pass  validate-openspec-change review record > refuses a review made stale by a change to a task's text
+pass  validate-openspec-change review record > refuses a review made stale by a change to an added spec
+pass  validate-openspec-change review record > refuses a review made stale by a change to a deleted design.md
+FAIL  validate-openspec-change review record > presence > refuses a class auth-secrets-pii gate without Depth without consultation.md
+FAIL  validate-openspec-change review record > presence > refuses Depth risky without consultation.md
+FAIL  validate-openspec-change review record > presence > refuses a pending record at risky
+FAIL  validate-openspec-change review record > presence > refuses a pending record at standard
+pass  validate-openspec-change review record > presence > accepts a consulted record at risky
+pass  validate-openspec-change review record > presence > accepts a skipped record at risky
+FAIL  validate-openspec-change review record > digest > keeps the review current when a skip is recorded and when the record is edited
+pass  validate-openspec-change review record > digest > refuses a review made stale by a design.md edit while a record is present
+FAIL  validate-openspec-change review record > form > refuses a subsection without its Disposition bullet in the plain run and under --reviewed, naming consultation.md Findings
+FAIL  validate-openspec-change review record > form > refuses a disposition that is neither adopted nor rejected in the plain run and under --reviewed, naming consultation.md Findings
+FAIL  validate-openspec-change review record > form > refuses a report finding without its subsection in the plain run and under --reviewed, naming consultation.md Findings
+FAIL  validate-openspec-change review record > form > refuses subsections in another order than the report in the plain run and under --reviewed, naming consultation.md Findings
+FAIL  validate-openspec-change review record > form > refuses a report line that is not JSON in the plain run and under --reviewed, naming consultation.md Report
+FAIL  validate-openspec-change review record > form > refuses a report finding without trigger in the plain run and under --reviewed, naming trigger
+FAIL  validate-openspec-change review record > form > refuses a report without recommended_approach in the plain run and under --reviewed, naming recommended_approach
+FAIL  validate-openspec-change review record > form > refuses a Bottom line other than the report's verdict in the plain run and under --reviewed, naming consultation.md Bottom line
+FAIL  validate-openspec-change review record > form > refuses a record without ## Report in the plain run and under --reviewed, naming consultation.md Report
+FAIL  validate-openspec-change review record > form > refuses a consulted record whose Models holds a dispatched entry in the plain run and under --reviewed, naming consultation.md Models
+FAIL  validate-openspec-change review record > form > refuses a pending record with Models none in the plain run and under --reviewed, naming consultation.md Models
+FAIL  validate-openspec-change review record > form > refuses Status twice in the plain run and under --reviewed, naming consultation.md Status
+FAIL  validate-openspec-change review record > form > refuses Consulted commit twice in the plain run and under --reviewed, naming consultation.md Consulted commit
+FAIL  validate-openspec-change review record > form > refuses Consultant twice in the plain run and under --reviewed, naming consultation.md Consultant
+FAIL  validate-openspec-change review record > form > refuses Models twice in the plain run and under --reviewed, naming consultation.md Models
+FAIL  validate-openspec-change review record > form > refuses Bottom line twice in the plain run and under --reviewed, naming consultation.md Bottom line
+FAIL  validate-openspec-change review record > form > refuses Skip reason twice in the plain run and under --reviewed, naming consultation.md Skip reason
+FAIL  validate-openspec-change review record > form > refuses ## Report twice in the plain run and under --reviewed, naming consultation.md Report
+FAIL  validate-openspec-change review record > form > refuses ## Findings twice in the plain run and under --reviewed, naming consultation.md Findings
+FAIL  validate-openspec-change review record > form > refuses two report findings with the same id in the plain run and under --reviewed, naming id
+FAIL  validate-openspec-change review record > form > refuses six report findings in the plain run and under --reviewed, naming findings
+FAIL  validate-openspec-change review record > form > refuses four uncertainties in the plain run and under --reviewed, naming uncertainties
+FAIL  validate-openspec-change review record > form > refuses a category outside its enum in the plain run and under --reviewed, naming category
+FAIL  validate-openspec-change review record > form > refuses a verdict outside its enum in the plain run and under --reviewed, naming verdict
+FAIL  validate-openspec-change review record > form > refuses a confidence that is a number in the plain run and under --reviewed, naming confidence
+FAIL  validate-openspec-change review record > form > refuses findings that are an object in the plain run and under --reviewed, naming findings
+FAIL  validate-openspec-change review record > form > refuses a finding with an empty id in the plain run and under --reviewed, naming id
+FAIL  validate-openspec-change review record > form > refuses Status drafted in the plain run and under --reviewed, naming consultation.md Status
+FAIL  validate-openspec-change review record > form > refuses a skipped record with Skip reason none in the plain run and under --reviewed, naming consultation.md Skip reason
+FAIL  validate-openspec-change review record > form > refuses Consultant oracle, X1 in the plain run and under --reviewed, naming consultation.md Consultant
+FAIL  validate-openspec-change review record > form > refuses a 39-hex consulted commit in the plain run and under --reviewed, naming consultation.md Consulted commit
+FAIL  validate-openspec-change review record > form > refuses the shipped template copied unfilled in the plain run and under --reviewed, naming consultation.md Status
+pass  validate-openspec-change review record > form > accepts a consulted record without findings
+pass  validate-openspec-change review record > form > accepts a pending record in the plain run
+pass  validate-openspec-change review record > form > keeps text that looks like a slot verbatim
+FAIL  validate-openspec-change review record > report check > prints the report of an accepted terminal yield, and a record holding it passes
+FAIL  validate-openspec-change review record > report check > refuses a brief naming another change directory
+FAIL  validate-openspec-change review record > report check > refuses a turn on onara/cx/gpt-6.1-sol
+FAIL  validate-openspec-change review record > report check > refuses a refused final yield after an accepted one
+FAIL  validate-openspec-change review record > report check > refuses a final yield without a tool result
+FAIL  validate-openspec-change review record > report check > refuses a final yield carrying section labels
+FAIL  validate-openspec-change review record > report check > refuses a data-less terminal yield
+FAIL  validate-openspec-change review record > report check > refuses two findings with the same id
+FAIL  validate-openspec-change review record > contract sources > reads the slot texts from the shipped template
+FAIL  validate-openspec-change review record > contract sources > reads the report schema from the agent definition
+FAIL  validate-openspec-change review record > contract sources > applies the definition's maxElements
+FAIL  validate-openspec-change review record > contract sources > refuses a JTD form outside the supported subset, naming it
+# totals: 145 pass, 49 fail

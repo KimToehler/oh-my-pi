@@ -1,0 +1,9 @@
+# RED: task 2.3 tests against validate-openspec-change.mjs as 2.2 delivered it (HEAD 1e5dfa56af97f8d3db6c6d003c248ecabfcc4b14; validator unmodified: yes)
+(fail) validate-openspec-change review record > form > refuses a report without bottom_line.verdict in the plain run and under --reviewed, naming consultation.md Report: report.bottom_line.verdict: expected a string [129.56ms]
+(fail) validate-openspec-change review record > form > accepts a record whose report defects only the report check refuses [98.51ms]
+(fail) validate-openspec-change review record > report check > prints a report over the described limits, and a record holding it passes [35.89ms]
+(fail) validate-openspec-change review record > contract sources > keeps stored records valid when the agent definition gains a required report field, while the report check refuses [101.07ms]
+(fail) validate-openspec-change review record > contract sources > keeps stored records valid when the agent definition is missing, while the report check refuses [100.47ms]
+(fail) validate-openspec-change review record > contract sources > refuses a JTD form outside the supported subset in the report check only, naming it [99.95ms]
+ 193 pass
+ 6 fail

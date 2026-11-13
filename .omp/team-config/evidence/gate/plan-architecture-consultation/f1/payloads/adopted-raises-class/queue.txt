@@ -1,0 +1,3 @@
+architecture-oracle ArchConsultSeedF1 /tmp/pac-f1/payloads/adopted-raises-class/ArchConsultSeedF1.jsonl
+plan-reviewer SeedA1 /tmp/pac-f1/payloads/adopted-raises-class/SeedA1.jsonl
+plan-reviewer SeedB1 /tmp/pac-f1/payloads/adopted-raises-class/SeedB1.jsonl

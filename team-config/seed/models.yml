@@ -22,6 +22,16 @@ providers:
         tokenizer: claude-v5
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 }
+      - id: cc/claude-fable-5-2
+        name: Fable 5.2 (onara)
+        api: anthropic-messages
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1000000
+        maxTokens: 128000
+        tokenizer: claude-v5
+        thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
+        cost: { input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10 }
       - id: cc/claude-opus-5
         name: Opus 5 (onara)
         api: anthropic-messages

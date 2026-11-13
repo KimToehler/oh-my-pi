@@ -547,6 +547,78 @@ The system SHALL export records in batches.
 			.join("\n")}\n${extra}\n${blockers === null ? "" : `## Blockers\n\n${blockers}\n`}`;
 	const REJECT_BLOCKERS = "1. **Verification**\n   - Defect: task 1.1's Verify passes before implementation";
 
+	// consultation.md fixtures: the shipped template with its slots filled in.
+	const SKILL_DIR = path.join(import.meta.dir, "..");
+	const CONSULTATION_TEMPLATE = path.join(SKILL_DIR, "openspec", "schemas", "omp-gated", "templates", "consultation.md");
+	const ORACLE_DEFINITION = path.join(SKILL_DIR, "..", "..", "agents", "architecture-oracle.md");
+	const COMMIT = "0123456789abcdef0123456789abcdef01234567";
+	const ATTEMPT = "ArchConsult012345671";
+	const FINDING = (id: string, extra: Record<string, unknown> = {}) => ({
+		id,
+		category: "design defect",
+		locations: "design.md:3",
+		trigger: "two sessions update the same row",
+		consequence: "one update is lost",
+		counterevidence: "the endpoint takes no lock",
+		correction: "lock the row inside the transaction",
+		confidence: "high; a concurrent update test would confirm it",
+		...extra,
+	});
+	const REPORT = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+		bottom_line: { verdict: "CHANGE APPROACH", reason: "The update races. A row lock fixes it." },
+		findings: [FINDING("F1"), FINDING("F2", { category: "simplification" })],
+		recommended_approach: "Keep the endpoint and lock the row.",
+		uncertainties: ["Whether the ORM issues SELECT FOR UPDATE; its query log settles it."],
+		inspected: "proposal.md, design.md, tasks.md, gate.md, specs/feature/spec.md",
+		...extra,
+	});
+	const reportSection = (report: unknown) => `\`\`\`json\n${JSON.stringify(report)}\n\`\`\``;
+	const DISPOSITIONS =
+		"### F1\n\n- **Disposition**: adopted: design.md locks the row\n\n### F2\n\n- **Disposition**: rejected: the second table carries the audit trail";
+	type Record_ = Record<string, string>;
+	const CONSULTED: Record_ = {
+		Status: "consulted",
+		"Consulted commit": COMMIT,
+		Consultant: `architecture-oracle, ${ATTEMPT}`,
+		Models: `${ATTEMPT} onara/cc/claude-fable-5-2`,
+		"Bottom line": "CHANGE APPROACH",
+		"Skip reason": "none",
+		Report: reportSection(REPORT()),
+		Findings: DISPOSITIONS,
+	};
+	const NO_FINDINGS: Record_ = {
+		...CONSULTED,
+		"Bottom line": "KEEP APPROACH",
+		Report: reportSection(REPORT({ bottom_line: { verdict: "KEEP APPROACH", reason: "No defect found." }, findings: [] })),
+		Findings: "none",
+	};
+	const SKIPPED: Record_ = {
+		Status: "skipped",
+		"Consulted commit": "none",
+		Consultant: "none",
+		Models: "none",
+		"Bottom line": "none",
+		"Skip reason": "The change is already in apply on another branch",
+		Report: "none",
+		Findings: "none",
+	};
+	const PENDING: Record_ = { ...SKIPPED, Status: "pending", "Consulted commit": COMMIT, Models: `${ATTEMPT} dispatched`, "Skip reason": "none" };
+	const HEADER_FIELDS = ["Status", "Consulted commit", "Consultant", "Models", "Bottom line", "Skip reason"];
+
+	/** The shipped template (or `template`) with every slot replaced by `values`. */
+	async function consultation(values: Record_, template = CONSULTATION_TEMPLATE): Promise<string> {
+		const lines = (await Bun.file(template).text()).split("\n").map(line => {
+			const field = /^- \*\*(.+?)\*\*: </.exec(line)?.[1];
+			return field !== undefined && field in values ? `- **${field}**: ${values[field]}` : line;
+		});
+		for (const section of ["Report", "Findings"]) {
+			const at = lines.indexOf(`## ${section}`);
+			expect(lines[at + 2]).toStartWith("<");
+			lines[at + 2] = values[section];
+		}
+		return lines.join("\n");
+	}
+
 	/** A complete change with design.md, .openspec.yaml and two tasks, so every artifact kind can be edited after review. */
 	async function changeFixture(): Promise<string> {
 		const root = await fixture();
@@ -705,7 +777,12 @@ The system SHALL export records in batches.
 	});
 
 	/** A review record over a change whose gate.md carries `class` and, unless null, `depth`. */
-	async function atDepth(cls: string, depth: string | null, fields: Record<string, string | null>): Promise<string> {
+	async function atDepth(
+		cls: string,
+		depth: string | null,
+		fields: Record<string, string | null>,
+		record: string | null = null,
+	): Promise<string> {
 		const root = await changeFixture();
 		const gate = path.join(root, "gate.md");
 		const text = (await Bun.file(gate).text()).replace("- **Mandatory class**: none", `- **Mandatory class**: ${cls}`);
@@ -715,6 +792,7 @@ The system SHALL export records in batches.
 				? text
 				: text.replace(`- **Mandatory class**: ${cls}`, `- **Mandatory class**: ${cls}\n- **Depth**: ${depth}`),
 		);
+		if (record !== null) await Bun.write(path.join(root, "consultation.md"), record);
 		await Bun.write(
 			path.join(root, "review.md"),
 			REVIEW(
@@ -745,13 +823,15 @@ The system SHALL export records in batches.
 	});
 
 	it("accepts a risky round 3 record with one reviewer id", async () => {
-		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "3" }));
+		const record = await consultation(CONSULTED);
+		const result = run("--reviewed", await atDepth("none", "risky (it changes the review mechanism)", { Round: "3" }, record));
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
 	});
 
 	it("accepts a class-bearing gate.md without Depth whose record names two reviewers", async () => {
-		const result = run("--reviewed", await atDepth("concurrency-state", null, { Reviewer: "plan-reviewer, ScopeA1, ScopeB1" }));
+		const record = await consultation(CONSULTED);
+		const result = run("--reviewed", await atDepth("concurrency-state", null, { Reviewer: "plan-reviewer, ScopeA1, ScopeB1" }, record));
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
 	});
@@ -803,4 +883,322 @@ The system SHALL export records in batches.
 			expect(result.stderr).toContain("stale");
 		});
 	}
+
+	const RISKY = "risky (it changes the review mechanism)";
+	const TWO_REVIEWERS = { Reviewer: "plan-reviewer, ScopeA1, ScopeB1" };
+
+	/**
+	 * A `risky` change (or `gate`) with `record` as consultation.md and a two-reviewer OKAY review. The review is bound to the
+	 * digest `--digest` prints with the record in place, or, when the validator refuses the record, to the digest taken
+	 * before it was written.
+	 */
+	async function consulted(record: string | null, gate: { cls: string; depth: string | null } = { cls: "none", depth: RISKY }) {
+		const root = await atDepth(gate.cls, gate.depth, TWO_REVIEWERS);
+		if (record === null) return root;
+		await Bun.write(path.join(root, "consultation.md"), record);
+		const withRecord = run("--digest", root);
+		if (withRecord.exitCode === 0) {
+			const review = path.join(root, "review.md");
+			const text = await Bun.file(review).text();
+			await Bun.write(review, text.replace(/(Reviewed digest\*\*: )[0-9a-f]{64}/, `$1${withRecord.stdout.trim()}`));
+		}
+		return root;
+	}
+
+	describe("presence", () => {
+		for (const [name, gate] of [
+			["a class auth-secrets-pii gate without Depth", { cls: "auth-secrets-pii", depth: null }],
+			["Depth risky", { cls: "none", depth: RISKY }],
+		] as const) {
+			it(`refuses ${name} without consultation.md`, async () => {
+				const result = run("--reviewed", await consulted(null, gate));
+				expect(result.exitCode).toBe(1);
+				expect(result.stderr).toContain("consultation.md");
+			});
+		}
+		for (const [name, gate] of [
+			["risky", { cls: "none", depth: RISKY }],
+			["standard", { cls: "none", depth: "standard (one module)" }],
+		] as const) {
+			it(`refuses a pending record at ${name}`, async () => {
+				const result = run("--reviewed", await consulted(await consultation(PENDING), gate));
+				expect(result.exitCode).toBe(1);
+				expect(result.stderr).toContain("consultation.md");
+			});
+		}
+		for (const [name, values] of [
+			["consulted", CONSULTED],
+			["skipped", SKIPPED],
+		] as const) {
+			it(`accepts a ${name} record at risky`, async () => {
+				const result = run("--reviewed", await consulted(await consultation(values)));
+				expect(result.stderr).toBe("");
+				expect(result.exitCode).toBe(0);
+			});
+		}
+	});
+
+	describe("digest", () => {
+		it("keeps the review current when a skip is recorded and when the record is edited", async () => {
+			const root = await consulted(null);
+			const before = digest(root);
+			await Bun.write(path.join(root, "consultation.md"), await consultation(SKIPPED));
+			expect(digest(root)).toBe(before);
+			expect(run("--reviewed", root).exitCode).toBe(0);
+			await edit(path.join(root, "consultation.md"), "already in apply", "already merged");
+			expect(digest(root)).toBe(before);
+			const result = run("--reviewed", root);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		});
+		it("refuses a review made stale by a design.md edit while a record is present", async () => {
+			const root = await consulted(await consultation(CONSULTED));
+			await edit(path.join(root, "design.md"), "one row", "two rows");
+			const result = run("--reviewed", root);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("stale");
+		});
+	});
+
+	describe("form", () => {
+		const withReport = (report: Record<string, unknown>, extra: Record_ = {}): Record_ => ({ ...CONSULTED, Report: reportSection(report), ...extra });
+		const findings = (...items: unknown[]) => ({ findings: items });
+		const rows: [string, Record_ | (() => Promise<string>), string][] = [
+			["a subsection without its Disposition bullet", { ...CONSULTED, Findings: DISPOSITIONS.replace("- **Disposition**: adopted: design.md locks the row", "") }, "consultation.md Findings"],
+			["a disposition that is neither adopted nor rejected", { ...CONSULTED, Findings: DISPOSITIONS.replace("adopted:", "deferred:") }, "consultation.md Findings"],
+			["a report finding without its subsection", { ...CONSULTED, Findings: DISPOSITIONS.slice(0, DISPOSITIONS.indexOf("\n\n### F2")) }, "consultation.md Findings"],
+			["subsections in another order than the report", { ...CONSULTED, Findings: `${DISPOSITIONS.slice(DISPOSITIONS.indexOf("### F2"))}\n\n${DISPOSITIONS.slice(0, DISPOSITIONS.indexOf("\n\n### F2"))}` }, "consultation.md Findings"],
+			["a report line that is not JSON", { ...CONSULTED, Report: "```json\n{bottom_line: KEEP}\n```" }, "consultation.md Report"],
+			["a Bottom line other than the report's verdict", { ...CONSULTED, "Bottom line": "KEEP APPROACH" }, "consultation.md Bottom line"],
+			["a record without ## Report", async () => (await consultation(CONSULTED)).replace("## Report\n", ""), "consultation.md Report"],
+			["a consulted record whose Models holds a dispatched entry", { ...CONSULTED, Models: `${ATTEMPT} onara/cc/claude-fable-5-2; ArchConsult012345672 dispatched` }, "consultation.md Models"],
+			["a pending record with Models none", { ...PENDING, Models: "none" }, "consultation.md Models"],
+			...HEADER_FIELDS.map((field): [string, () => Promise<string>, string] => [
+				`${field} twice`,
+				async () => (await consultation(CONSULTED)).replace("\n\n## Report", `\n- **${field}**: ${CONSULTED[field]}\n\n## Report`),
+				`consultation.md ${field}`,
+			]),
+			...["Report", "Findings"].map((section): [string, () => Promise<string>, string] => [
+				`## ${section} twice`,
+				async () => `${await consultation(CONSULTED)}\n## ${section}\n\nnone\n`,
+				`consultation.md ${section}`,
+			]),
+			["two report findings with the same id", withReport(REPORT(findings(FINDING("F1"), FINDING("F1"))), { Findings: DISPOSITIONS.replace("### F2", "### F1") }), "consultation.md Report: report.findings[1].id: duplicate id F1"],
+			["a report line that is a JSON array", { ...CONSULTED, Report: reportSection([REPORT()]) }, "consultation.md Report: report: expected an object"],
+			["a report without bottom_line.verdict", withReport(REPORT({ bottom_line: { reason: "fine" } })), "consultation.md Report: report.bottom_line.verdict: expected a string"],
+			["findings that are an object", withReport(REPORT({ findings: { F1: FINDING("F1") } }), { Findings: "none" }), "consultation.md Report: report.findings: expected an array"],
+			["a finding with an empty id", withReport(REPORT(findings(FINDING(""), FINDING("F2"))), { Findings: DISPOSITIONS.replace("### F1", "### ") }), "consultation.md Report: report.findings[0].id"],
+			["Status drafted", { ...CONSULTED, Status: "drafted" }, "consultation.md Status"],
+			["a skipped record with Skip reason none", { ...SKIPPED, "Skip reason": "none" }, "consultation.md Skip reason"],
+			["Consultant oracle, X1", { ...CONSULTED, Consultant: "oracle, X1" }, "consultation.md Consultant"],
+			["a 39-hex consulted commit", { ...CONSULTED, "Consulted commit": COMMIT.slice(1) }, "consultation.md Consulted commit"],
+			["the shipped template copied unfilled", async () => Bun.file(CONSULTATION_TEMPLATE).text(), "consultation.md Status"],
+		];
+		for (const [name, record, field] of rows) {
+			it(`refuses ${name} in the plain run and under --reviewed, naming ${field}`, async () => {
+				const root = await consulted(typeof record === "function" ? await record() : await consultation(record));
+				for (const result of [run(root), run("--reviewed", root)]) {
+					expect(result.exitCode).toBe(1);
+					expect(result.stderr).toContain(field);
+				}
+			});
+		}
+
+		it("accepts a consulted record without findings", async () => {
+			const root = await consulted(await consultation(NO_FINDINGS));
+			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			expect(run("--reviewed", root).exitCode).toBe(0);
+		});
+		it("accepts a record whose report defects only the report check refuses", async () => {
+			for (const report of [
+				REPORT(findings(FINDING("F1", { trigger: undefined }), FINDING("F2"))),
+				REPORT({ recommended_approach: undefined }),
+				REPORT(findings(FINDING("F1", { category: "style" }), FINDING("F2"))),
+				REPORT(findings(FINDING("F1", { confidence: 0.9 }), FINDING("F2"))),
+			]) {
+				const root = await consulted(await consultation(withReport(report)));
+				expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+				expect(run("--reviewed", root).exitCode).toBe(0);
+			}
+		});
+		it("accepts a pending record in the plain run", async () => {
+			expect(run(await consulted(await consultation(PENDING)))).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
+		it("keeps text that looks like a slot verbatim", async () => {
+			const skipped = await consulted(await consultation({ ...SKIPPED, "Skip reason": "This only changes the TODO scanner; skip the consultation" }));
+			expect(run(skipped)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			const report = REPORT(
+				findings(
+					FINDING("F1", { correction: "```sh\nomp review --original-reply <file>\n```\nthen re-run the round" }),
+					FINDING("F2"),
+				),
+			);
+			report.recommended_approach = "## Approach\n\nKeep it.\n\n```ts\nconst x = 1;\n```";
+			const verbatim = await consulted(await consultation(withReport(report)));
+			expect(run(verbatim)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			expect(run("--reviewed", verbatim).exitCode).toBe(0);
+		});
+	});
+
+	type Turn = { model?: string; yield?: { id: string; type?: unknown; data?: unknown; result?: "accepted" | "refused" | "none" } };
+	/** A session file of one attempt: the brief naming `changeDir`, then one assistant turn per entry with its tool result. */
+	async function attempt(root: string, changeDir: string, turns: Turn[]): Promise<string> {
+		const lines: unknown[] = [
+			{ type: "session", version: 3, id: "attempt", timestamp: "2026-11-12T00:00:00.000Z", cwd: root },
+			{
+				type: "message",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: `Complete assignment thoroughly:\n\nRepository root: ${root}\nChange directory: ${changeDir}\n\nReview this proposed change.` }],
+				},
+			},
+		];
+		for (const [index, turn] of turns.entries()) {
+			const [provider, ...model] = (turn.model ?? "onara/cc/claude-fable-5-2").split("/");
+			const call = turn.yield
+				? { type: "toolCall", id: turn.yield.id, name: "yield", arguments: { type: turn.yield.type ?? "result", data: turn.yield.data ?? null, error: null } }
+				: { type: "toolCall", id: `read${index}`, name: "read", arguments: { path: "design.md" } };
+			lines.push({ type: "message", message: { role: "assistant", provider, model: model.join("/"), content: [call] } });
+			const result = turn.yield?.result ?? "accepted";
+			if (result !== "none")
+				lines.push({ type: "message", message: { role: "toolResult", toolCallId: call.id, toolName: call.name, isError: result === "refused", content: [{ type: "text", text: "ok" }] } });
+		}
+		const file = path.join(root, "attempt.jsonl");
+		await Bun.write(file, `${lines.map(line => JSON.stringify(line)).join("\n")}\n`);
+		return file;
+	}
+
+	describe("report check", () => {
+		const ACCEPTED = REPORT({ findings: [FINDING("F1", { counterevidence: "" })] });
+
+		it("prints the report of an accepted terminal yield, and a record holding it passes", async () => {
+			const root = await changeFixture();
+			const file = await attempt(root, root, [{}, { yield: { id: "y1", data: ACCEPTED } }]);
+			const result = run("--consultation-report", file, root);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toBe(`${JSON.stringify(ACCEPTED)}\n`);
+			const record = await consultation({ ...CONSULTED, Report: `\`\`\`json\n${result.stdout.trim()}\n\`\`\``, Findings: DISPOSITIONS.slice(0, DISPOSITIONS.indexOf("\n\n### F2")) });
+			await Bun.write(path.join(root, "consultation.md"), record);
+			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
+		it("prints the decoded report when the final yield's data is a JSON-encoded string, as the runtime delivers it", async () => {
+			const root = await changeFixture();
+			const file = await attempt(root, root, [{ yield: { id: "y1", data: JSON.stringify(ACCEPTED) } }]);
+			expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
+		});
+		for (const [name, turns, other, reason] of [
+			["a brief naming another change directory", [{ yield: { id: "y1", data: ACCEPTED } }], true, "change directory"],
+			["a turn on onara/cx/gpt-6.1-sol", [{ model: "onara/cx/gpt-6.1-sol" }, { yield: { id: "y1", data: ACCEPTED } }], false, "onara/cx/gpt-6.1-sol"],
+			["a refused final yield after an accepted one", [{ yield: { id: "y1", data: ACCEPTED } }, { yield: { id: "y2", data: ACCEPTED, result: "refused" } }], false, "refused"],
+			["a final yield without a tool result", [{ yield: { id: "y1", data: ACCEPTED, result: "none" } }], false, "no tool result"],
+			["a final yield carrying section labels", [{ yield: { id: "y1", type: ["findings"], data: ACCEPTED } }], false, "incremental section"],
+			["a data-less terminal yield", [{ yield: { id: "y1" } }], false, "no data"],
+			["a data string that is not JSON", [{ yield: { id: "y1", data: "{bottom_line: KEEP}" } }], false, "not JSON"],
+			["a data string encoding null", [{ yield: { id: "y1", data: "null" } }], false, "no data"],
+			["two findings with the same id", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1"), FINDING("F1")] }) } }], false, "duplicate"],
+			["a finding without trigger", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { trigger: undefined })] }) } }], false, "report.findings[0].trigger: missing"],
+			["a report without recommended_approach", [{ yield: { id: "y1", data: REPORT({ recommended_approach: undefined }) } }], false, "report.recommended_approach: missing"],
+			["a category outside its enum", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { category: "style" })] }) } }], false, "report.findings[0].category"],
+			["a verdict outside its enum", [{ yield: { id: "y1", data: REPORT({ bottom_line: { verdict: "APPROVE", reason: "fine" } }) } }], false, "report.bottom_line.verdict"],
+			["a confidence that is a number", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { confidence: 0.9 })] }) } }], false, "report.findings[0].confidence: expected a string"],
+		] as const) {
+			it(`refuses ${name}`, async () => {
+				const root = await changeFixture();
+				const file = await attempt(root, other ? `${root}-other` : root, turns as unknown as Turn[]);
+				const result = run("--consultation-report", file, root);
+				expect(result.stdout).toBe("");
+				expect(result.exitCode).toBe(1);
+				expect(result.stderr).toContain(reason);
+			});
+		}
+		it("prints a report over the described limits, and a record holding it passes", async () => {
+			const root = await changeFixture();
+			const ids = ["F1", "F2", "F3", "F4", "F5", "F6"];
+			const over = REPORT({ findings: ids.map(id => FINDING(id)), uncertainties: ["a", "b", "c", "d"] });
+			const file = await attempt(root, root, [{ yield: { id: "y1", data: over } }]);
+			const result = run("--consultation-report", file, root);
+			expect(result).toEqual({ exitCode: 0, stdout: `${JSON.stringify(over)}\n`, stderr: "" });
+			const dispositions = ids.map(id => `### ${id}\n\n- **Disposition**: rejected: outside this change`).join("\n\n");
+			await Bun.write(path.join(root, "consultation.md"), await consultation({ ...CONSULTED, Report: `\`\`\`json\n${result.stdout.trim()}\n\`\`\``, Findings: dispositions }));
+			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
+	});
+
+	/** A copy of the scripts, the template and the agent definition in the deployed layout, for source changes. */
+	async function skillCopy(): Promise<{ script: string; template: string; definition: string }> {
+		const home = await fs.mkdtemp(path.join(os.tmpdir(), "consultation-skill-"));
+		roots.push(home);
+		const scripts = path.join(home, "skills", "review-work", "scripts");
+		for (const name of ["validate-openspec-change.mjs", "folder-plan.mjs", "plan-contract.mjs"])
+			await fs.cp(path.join(import.meta.dir, name), path.join(scripts, name));
+		const template = path.join(home, "skills", "review-work", "openspec", "schemas", "omp-gated", "templates", "consultation.md");
+		await fs.cp(CONSULTATION_TEMPLATE, template);
+		const definition = path.join(home, "agents", "architecture-oracle.md");
+		await fs.cp(ORACLE_DEFINITION, definition);
+		return { script: path.join(scripts, "validate-openspec-change.mjs"), template, definition };
+	}
+	const runCopy = (script: string, ...args: string[]) => {
+		const result = Bun.spawnSync(["node", script, ...args]);
+		return { exitCode: result.exitCode, stdout: result.stdout.toString(), stderr: result.stderr.toString() };
+	};
+	/** Rewrites the copied definition's `output` JSON, its last frontmatter key. */
+	async function changeSchema(definition: string, change: (schema: Record<string, any>) => void): Promise<void> {
+		const [, front, ...body] = (await Bun.file(definition).text()).split(/^---$/m);
+		const at = front.indexOf("\noutput:") + "\noutput:".length;
+		const schema = JSON.parse(front.slice(at));
+		change(schema);
+		await Bun.write(definition, `---${front.slice(0, at)} ${JSON.stringify(schema)}\n---${body.join("---")}`);
+	}
+
+	describe("contract sources", () => {
+		it("reads the slot texts from the shipped template", async () => {
+			const copy = await skillCopy();
+			const oldSlot = "<none, or the user's reason in their words>";
+			const newSlot = "<none, or the user's reason, verbatim>";
+			await edit(copy.template, oldSlot, newSlot);
+			const stale = await consulted(await consultation({ ...SKIPPED, "Skip reason": newSlot }, copy.template));
+			const refused = runCopy(copy.script, stale);
+			expect(refused.exitCode).toBe(1);
+			expect(refused.stderr).toContain("consultation.md Skip reason");
+			const verbatim = await consulted(await consultation({ ...SKIPPED, "Skip reason": oldSlot }, copy.template));
+			expect(runCopy(copy.script, verbatim)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
+		for (const [name, change, reason] of [
+			[
+				"gains a required report field",
+				(definition: string) =>
+					changeSchema(definition, schema => {
+						schema.properties.risk_summary = { type: "string" };
+					}),
+				"report.risk_summary: missing",
+			],
+			["is missing", (definition: string) => fs.rm(definition), "agents/architecture-oracle.md"],
+		] as const) {
+			it(`keeps stored records valid when the agent definition ${name}, while the report check refuses`, async () => {
+				const copy = await skillCopy();
+				await change(copy.definition);
+				for (const record of [CONSULTED, SKIPPED]) {
+					const root = await consulted(await consultation(record));
+					expect(runCopy(copy.script, root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+					expect(runCopy(copy.script, "--reviewed", root).exitCode).toBe(0);
+				}
+				const root = await consulted(await consultation(CONSULTED));
+				const refused = runCopy(copy.script, "--consultation-report", await attempt(root, root, [{ yield: { id: "y1", data: REPORT() } }]), root);
+				expect(refused.exitCode).toBe(1);
+				expect(refused.stderr).toContain(reason);
+			});
+		}
+		it("refuses a JTD form outside the supported subset in the report check only, naming it", async () => {
+			const copy = await skillCopy();
+			await changeSchema(copy.definition, schema => {
+				schema.optionalProperties = { note: { type: "string" } };
+			});
+			const root = await consulted(await consultation(CONSULTED));
+			expect(runCopy(copy.script, root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			const refused = runCopy(copy.script, "--consultation-report", await attempt(root, root, [{ yield: { id: "y1", data: REPORT() } }]), root);
+			expect(refused.exitCode).toBe(1);
+			expect(refused.stderr).toContain("unsupported JTD form optionalProperties");
+		});
+	});
 });

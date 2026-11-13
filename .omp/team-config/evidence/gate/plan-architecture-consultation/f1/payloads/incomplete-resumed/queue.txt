@@ -1,0 +1,6 @@
+architecture-oracle ArchConsultSeedC1 /tmp/pac-f1/payloads/incomplete-resumed/ArchConsultSeedC1.jsonl
+plan-reviewer SeedA1r /tmp/pac-f1/payloads/incomplete-resumed/SeedA1r.jsonl
+plan-reviewer SeedB1r /tmp/pac-f1/payloads/incomplete-resumed/SeedB1r.jsonl
+blocker-verifier SeedVer1 /tmp/pac-f1/payloads/incomplete-resumed/SeedVer1.jsonl
+plan-reviewer SeedA2 /tmp/pac-f1/payloads/incomplete-resumed/SeedA2.jsonl
+plan-reviewer SeedB2 /tmp/pac-f1/payloads/incomplete-resumed/SeedB2.jsonl

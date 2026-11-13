@@ -1,0 +1,5 @@
+plan-reviewer SeedStd1 /tmp/pac-f1/payloads/fix-raises-depth/SeedStd1.jsonl
+blocker-verifier SeedVer1 /tmp/pac-f1/payloads/fix-raises-depth/SeedVer1.jsonl
+architecture-oracle ArchConsultSeedA1 /tmp/pac-f1/payloads/fix-raises-depth/ArchConsultSeedA1.jsonl
+plan-reviewer SeedA2 /tmp/pac-f1/payloads/fix-raises-depth/SeedA2.jsonl
+plan-reviewer SeedB2 /tmp/pac-f1/payloads/fix-raises-depth/SeedB2.jsonl

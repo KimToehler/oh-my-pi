@@ -34,8 +34,9 @@ after fixes is a new task with the delta and the open blockers, never a follow-u
 old reviewer (`write agent://...`). The review-work TRAILER REPAIR. message is not a re-review: it
 goes to the same reviewer by design. A procedure that prescribes its own brief overrides this
 paragraph: review-work and integration-review dispatch their verbatim briefs, and the OpenSpec
-`omp-gated` review artifact dispatches its fixed brief for every round, with the two paths filled
-in and nothing added.
+`omp-gated` review artifact dispatches its fixed brief for every round, and its architecture
+consultation step its fixed consultation brief, each with the two paths filled in and nothing
+added.
 
 **After every editing subagent:** check `git reflog <default-branch> -3` and `git worktree list`.
 Unexpected movement of the default branch is an incident to report.

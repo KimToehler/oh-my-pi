@@ -1,0 +1,2 @@
+architecture-oracle ArchConsultSeedG1 /tmp/pac-f1/payloads/exhaustion-fix-raises-depth/ArchConsultSeedG1.jsonl
+plan-reviewer SeedDelta3 /tmp/pac-f1/payloads/exhaustion-fix-raises-depth/SeedDelta3.jsonl

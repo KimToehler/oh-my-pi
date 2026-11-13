@@ -1,0 +1,3 @@
+architecture-oracle ArchConsultSeedE1 /tmp/pac-f1/payloads/mixed-dispositions/ArchConsultSeedE1.jsonl
+plan-reviewer SeedA1 /tmp/pac-f1/payloads/mixed-dispositions/SeedA1.jsonl
+plan-reviewer SeedB1 /tmp/pac-f1/payloads/mixed-dispositions/SeedB1.jsonl
