@@ -1,0 +1,8 @@
+command: bun test team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs -t 'delta patch:' (task 1.1 Verify), tree: working tree on e967d39338 with the 1.1/1.2 script change
+bun test v1.4.4 (5d9cc0f4f)
+
+ 7 pass
+ 61 filtered out
+ 0 fail
+Ran 7 tests across 1 file. [3.84s]
+exit 0
