@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR24
 - **Models**: ComputerUsePlanReviewDelta24 onara/cx/gpt-6.1-sol, ComputerUseTriageR24 onara/cx/gpt-6.1-sol
 - **Round**: 24
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 24 exhaustion ask answered Fix by the user, Tim, 2026-11-13: "Fix (dialog by AXSubrole, ce-missing on the dialog task)")
 
 ## Blockers
 
