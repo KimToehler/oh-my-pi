@@ -18,13 +18,16 @@ because it changes code.
 
 - `GC patch` leaves out the hunks of every file under `.omp/team-config/evidence/` (the evidence directory of
   `gate-layout.mjs`). Each patch keeps its commit header and every other hunk. At its end it names the left-out files
-  by directory, with the file count and the added and removed lines per directory, and how to show one
-  (`git show <sha> -- <path>`). A commit that changes only evidence becomes its header plus that listing.
-- The manifest records the left-out directory. `GC delta` recomputes each patch the way its manifest says: a manifest
+  by directory, with the file count and the added and removed lines per directory, and names an evidence file beside
+  it (`045.evidence.patch` for `045.patch`) that holds exactly the left-out hunks as of that commit. The delta reviewer
+  (`plan-reviewer`, tools `read`, `grep`, `glob`, no shell) reads that file on demand; it is not part of the mandatory
+  reading. A commit that changes only evidence becomes its header plus that listing.
+- The manifest records the left-out directory and each evidence file with its hash. `GC delta` recomputes each patch
+  and evidence file the way its manifest says: a manifest
   without the field gets full patches, so delta directories written before this change still verify; a manifest that
   names any other directory is refused, so a manifest cannot hide code from the reviewer.
 - The delta brief in `review-work` (Fix waves step 5a and the brief text) says that evidence hunks are left out, where
-  the listing is and how to read a file from it.
+  the listing and the evidence file are, and when to read one.
 - The commit list of a range does not change: every commit of `<base>..<head>` keeps its patch file and is decided by
   the delta verdict, as today. No ledger event, record field or validator rule changes.
 
