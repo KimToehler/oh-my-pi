@@ -41,7 +41,13 @@ Update later with `git pull && scripts/deploy-local.sh`. Restart running omp ses
 new entry in it never reaches an existing `~/.omp/agent/config.yml`: after an update that adds
 one, merge it by hand. Today that is `task.agentModelOverrides.plan-reviewer`, the model plan
 review is pinned to; without a pin for the agent it dispatches, a plan review stops and asks you
-to add the entry instead of reviewing on whatever model the runtime picks.
+to add the entry instead of reviewing on whatever model the runtime picks. `seed/models.yml` is
+copied the same way: merge its `cc/claude-fable-5-2` entry into an existing
+`~/.omp/agent/models.yml` by hand (and into each profile or custom `PI_CODING_AGENT_DIR`), or
+every architecture consultation runs on another model, counts as failed and ends in the
+skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` before
+`--reviewed` passes again: re-run their review, which records the consultation, or a skip you
+approve, without a round unless an adopted finding edits the plan.
 
 ## What lands where
 
@@ -238,6 +244,24 @@ with the re-run's. Only a round that delivered nothing and carries nothing write
 `Change verification` section: instruction changes are proven by their text plus real sessions on disposable fixtures,
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
 login. F2, its delta reviews and an on-demand `integration-review` keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
+
+Before every `plan-reviewer` dispatch of a `risky` change, a full round or a delta check, while the folder holds no
+record, the review runs one architecture consultation (a `standard` change gets one only when you ask). The planner commits the
+change folder and a `pending` `consultation.md` naming the attempt, then dispatches one fresh `architecture-oracle`
+item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
+`onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
+list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
+accepts its session file: the brief names this change, every turn ran on the definition's model (never on a
+`task.agentModelOverrides` entry), and the final `yield` delivered a report matching the agent's output schema. A failed
+attempt gets one retry; after two, you choose between skipping with your reason and stopping. After a Stop you can ask
+the agent to consult again, for example once the model entry is fixed, which allows two more attempts. The counted report is
+copied into `consultation.md` by the report command, never retyped, and the planner marks every finding
+`adopted:` (with the plan edit) or `rejected:` with a reason, without a verifier; the record and the adopted edits
+are committed together before the round's digest. The formal reviewers stay blind: their briefs exclude
+`consultation.md`, the delta patch omits it, and no dispatch quotes a consultation finding. A session that finds a
+`pending` record resolves its named attempts from their session files before dispatching anything, so an interrupted
+consultation is never paid for twice.
+
 The record carries the digest of the folder it reviewed and the round's subagent ids. OpenSpec reports apply as
 `blocked` while `review.md` is missing, and `/opsx-apply` runs this before the first source edit:
 
@@ -246,8 +270,10 @@ node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --revi
 ```
 
 It fails when `review.md` is missing or malformed (including a missing `## Blockers` section, one that says `none`
-for a `REJECT`, one that lists blockers for an `OKAY`, or a repeated subagent id), when the verdict is `REJECT` without an override, and when any
-artifact changed after the review (`stale`; ticking tasks does not count). Re-run the review after editing an artifact:
+for a `REJECT`, one that lists blockers for an `OKAY`, or a repeated subagent id), when the verdict is `REJECT` without an override, when
+a `risky` change has no `consultation.md`, when `consultation.md` is malformed or still `pending`, and when any
+artifact changed after the review (`stale`; ticking tasks does not count). `consultation.md` is outside the digest,
+like `review.md`: adding or editing it never makes the review stale. Re-run the review after editing an artifact:
 `openspec instructions review --change <change>` and follow it. To accept a `REJECT`, tell the agent your reason; it
 writes it as `- **Override**:` and `--reviewed` prints it. `--digest` prints the digest the review is bound to. Both
 checks are prompt-level: they stop an agent that follows the commands, not one that ignores them.
@@ -357,3 +383,6 @@ The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.15.0 (M
 - The QA proxies "no read of the apply file" and "no write outside the change directory" are stricter than the boundary and reject harmless comparison and schema-required review-delta output; future criteria would be clearer if they distinguished apply execution and project-code edits from planning support. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/same-turn-nc.md:3`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — QA proxies are stricter than the actual boundary
 - Both build-request runs stopped for clarification before presenting artifacts, so the complete no-goal build-request interaction is shown only by adjacent sessions. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/build-request.md:16`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — combined no-goal build scenario is partial
 - The authorized continuation omitted the apply workflow's status step, so complete apply-command compliance on a continuation is not established. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/authorized.md:14`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — complete apply-command compliance is not established
+- A finding id that carries Markdown, such as `F1 <!-- rationale -->`, passes the report check but changes when its `### <id>` disposition heading is parsed, so a correctly written consultation record is refused as mismatched. `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs:447`. Source: `plan-architecture-consultation` `.omp/team-config/evidence/gate/plan-architecture-consultation/wave-1/trailer-implementation-audit.txt`, N1
+- The README promises an interrupted consultation is never paid for twice, but an attempt interrupted before its session file is recorded counts as failed and is retried, so it is paid again. `team-config/README.md:261`. Source: `plan-architecture-consultation` `.omp/team-config/evidence/gate/plan-architecture-consultation/wave-1/trailer-strategic-risk-review.txt`, note 1
+- No capture resumes an incomplete round, adopts a consultation edit, is interrupted after that commit and before the re-run is recorded, then resumes again on the now stale digest, so a resume that drops the round's untriaged findings would go unnoticed. `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:768`. Source: `plan-architecture-consultation` `.omp/team-config/evidence/gate/plan-architecture-consultation/wave-1/trailer-strategic-risk-review.txt`, note 3

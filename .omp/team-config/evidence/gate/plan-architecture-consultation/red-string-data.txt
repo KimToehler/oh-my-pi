@@ -1,0 +1,22 @@
+# RED: JSON-encoded yield data tests against validate-openspec-change.mjs at bd800b7175e68c3eef202ced8fef27a8be4807a5 (validator unmodified: yes)
+1075 | 			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+1080 | 			expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
+-   "exitCode": 0,
+-   "stderr": "",
++   "exitCode": 1,
++   "stderr": 
+- Expected  - 4
++ Received  + 4
+(fail) validate-openspec-change review record > report check > prints the decoded report when the final yield's data is a JSON-encoded string, as the runtime delivers it [28.73ms]
+1098 | 				expect(result.exitCode).toBe(1);
+1099 | 				expect(result.stderr).toContain(reason);
+Expected to contain: "not JSON"
+Received: "consultation report: report: expected an object\n"
+(fail) validate-openspec-change review record > report check > refuses a data string that is not JSON [27.07ms]
+1098 | 				expect(result.exitCode).toBe(1);
+1099 | 				expect(result.stderr).toContain(reason);
+Expected to contain: "no data"
+Received: "consultation report: report: expected an object\n"
+(fail) validate-openspec-change review record > report check > refuses a data string encoding null [27.11ms]
+ 8 pass
+ 3 fail

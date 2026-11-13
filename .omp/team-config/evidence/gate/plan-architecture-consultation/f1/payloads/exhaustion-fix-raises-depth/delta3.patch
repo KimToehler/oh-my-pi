@@ -1,0 +1,43 @@
+diff --git a/openspec/changes/event-description/design.md b/openspec/changes/event-description/design.md
+index 2119860..503b053 100644
+--- a/openspec/changes/event-description/design.md
++++ b/openspec/changes/event-description/design.md
+@@ -17,7 +17,10 @@
+ ### D1. Column and query
+ 
+ Migration `002_event_description.sql` adds `description text NULL` to `events`; `getEvent` adds
+-`description` to its select list, so a missing value is returned as `null` by `pg`.
++`description` to its select list, so a missing value is returned as `null` by `pg`. The
++repository has no migration runner (`package.json` defines none and `001_events.sql` is applied by
++hand), so migrations are applied by hand in file order with `psql -f`: `001_events.sql`, then
++`002_event_description.sql`.
+ 
+ ## Risks / Trade-offs
+ 
+diff --git a/openspec/changes/event-description/gate.md b/openspec/changes/event-description/gate.md
+index 68f6974..2eb6343 100644
+--- a/openspec/changes/event-description/gate.md
++++ b/openspec/changes/event-description/gate.md
+@@ -1,7 +1,7 @@
+ # Gate
+ 
+-- **Mandatory class**: none
+-- **Depth**: standard (the class is none and no review, gate or release mechanism changes)
++- **Mandatory class**: schema-migration
++- **Depth**: risky (the class is schema-migration: migration 002_event_description.sql alters the events table)
+ - **Risk tier**: product
+ - **Author's risk assessment**: a wrong query breaks the event page, caught by the event test
+ - **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
+diff --git a/openspec/changes/event-description/tasks.md b/openspec/changes/event-description/tasks.md
+index 7b608a6..139ef05 100644
+--- a/openspec/changes/event-description/tasks.md
++++ b/openspec/changes/event-description/tasks.md
+@@ -7,7 +7,7 @@
+ 
+ ## 2. Final verification
+ 
+-- [ ] 2.1 F1. Manual QA on the real surface: merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; then, against a local PostgreSQL, run `f1/event-description.md` (curl showing the description), `f1/no-description.md` (curl showing `"description":null`) and `f1/unknown-event.md` (curl showing 404). One evidence path per row in `.omp/team-config/evidence/gate/event-description/f1/`, on the head after the last code commit; the QA lane judges the observations. Verify: `cd .omp/team-config/evidence/gate/event-description/f1 && test -s event-description.md && test -s no-description.md && test -s unknown-event.md`
++- [ ] 2.1 F1. Manual QA on the real surface: merge the default branch (`main`) into the work branch when it is not an ancestor of the head, and commit; then create a local PostgreSQL database, apply `migrations/001_events.sql` and `migrations/002_event_description.sql` to it in that order with `psql -f` before the server starts, and against it run `f1/event-description.md` (curl showing the description), `f1/no-description.md` (curl showing `"description":null`) and `f1/unknown-event.md` (curl showing 404). One evidence path per row in `.omp/team-config/evidence/gate/event-description/f1/`, on the head after the last code commit; the QA lane judges the observations. Verify: `cd .omp/team-config/evidence/gate/event-description/f1 && test -s event-description.md && test -s no-description.md && test -s unknown-event.md`
+ 
+ ## Workflow follow-up
+ 

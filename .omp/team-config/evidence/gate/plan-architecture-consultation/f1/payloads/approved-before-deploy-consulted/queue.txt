@@ -1,0 +1,1 @@
+architecture-oracle ArchConsultSeedI1 /tmp/pac-f1/payloads/approved-before-deploy-consulted/ArchConsultSeedI1.jsonl
