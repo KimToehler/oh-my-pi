@@ -1,0 +1,10 @@
+grep -n '^+fun stop() = deadline()$' 001.patch
+15:+fun stop() = deadline()
+exit 0
+grep -n WebView 001.patch
+exit 1
+grep -n deadline 001.evidence.patch
+exit 1
+grep -c '^+.*WebView' 001.evidence.patch
+3
+exit 0

@@ -1,0 +1,2 @@
+RECORDED fix_delta_review rows=R1 round=1 verdict=REJECT
+exit 0

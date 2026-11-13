@@ -1,0 +1,12 @@
+diff --git a/.omp/team-config/evidence/gate/demo/f1/captures/shot.png b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png
+new file mode 100644
+index 0000000..092c69d
+Binary files /dev/null and b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png differ
+diff --git a/.omp/team-config/evidence/gate/demo/f1/row.md b/.omp/team-config/evidence/gate/demo/f1/row.md
+new file mode 100644
+index 0000000..c859c85
+--- /dev/null
++++ b/.omp/team-config/evidence/gate/demo/f1/row.md
+@@ -0,0 +1,2 @@
++Head: x
++Verdict: PASS

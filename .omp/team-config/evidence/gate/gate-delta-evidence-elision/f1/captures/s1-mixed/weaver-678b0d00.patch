@@ -1,0 +1,105 @@
+commit 678b0d0084779c50ac96a18c40d7928b6c9ef7f0
+Author:     Tim <tim.koehler90@googlemail.com>
+AuthorDate: Mon Nov 9 15:39:14 2026 +0100
+Commit:     Tim <tim.koehler90@googlemail.com>
+CommitDate: Mon Nov 9 15:39:14 2026 +0100
+
+    m5-app-design-workspace: F2 fix 4.25 create the preview WebView only when no close is in flight
+
+diff --git a/app/preview/src/androidMain/kotlin/eu/weaver/app/preview/WebViewEngine.kt b/app/preview/src/androidMain/kotlin/eu/weaver/app/preview/WebViewEngine.kt
+index b42024b2..dc5eea82 100644
+--- a/app/preview/src/androidMain/kotlin/eu/weaver/app/preview/WebViewEngine.kt
++++ b/app/preview/src/androidMain/kotlin/eu/weaver/app/preview/WebViewEngine.kt
+@@ -7,6 +7,7 @@ import android.os.Handler
+ import android.os.Looper
+ import android.os.Message
+ import android.view.View
++import android.widget.FrameLayout
+ import android.webkit.ConsoleMessage
+ import android.webkit.CookieManager
+ import android.webkit.GeolocationPermissions
+@@ -78,6 +79,7 @@ internal class WebViewEngine(
+     override val nativeObserved: StateFlow<Set<String>> = observed
+ 
+     private var view: WebView? = null
++    private var host: FrameLayout? = null
+     private val popups = mutableListOf<WebView>()
+     private var stopped = false
+     private var stopping: BoundedStop? = null
+@@ -151,11 +153,33 @@ internal class WebViewEngine(
+         AndroidView(factory = { context -> openView(context) }, modifier = modifier)
+     }
+ 
++    /**
++     * The surface is a container the `WebView` is added to once no close is in flight: a `WebView` created earlier would bind to the
++     * renderer process of a closing preview, and the termination at that preview's Stop deadline would end the new page with it.
++     */
+     private fun openView(context: Context): View {
+-        val existing = view
++        val existing = host
+         if (existing != null) return existing
+-        if (stopped) return View(context)
+-        return createView(context)
++        val container = FrameLayout(context)
++        host = container
++        if (stopped) return container
++        log.record(PreviewLogEvent.StateChanged(PreviewLogState.Loading))
++        Closing.whenIdle {
++            if (on(Guard.StateClearing)) {
++                // A fresh preview starts on an empty jar, whatever an earlier open or another view left in it.
++                CookieManager.getInstance().removeAllCookies { main.post { attach(container, context) } }
++            } else {
++                attach(container, context)
++            }
++        }
++        return container
++    }
++
++    private fun attach(container: FrameLayout, context: Context) {
++        if (stopped || view != null || host !== container) return
++        val web = createView(context)
++        container.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
++        web.loadUrl(pendingUrl)
+     }
+ 
+     @SuppressLint("SetJavaScriptEnabled")
+@@ -188,27 +212,15 @@ internal class WebViewEngine(
+         web.webChromeClient = Chrome()
+         web.setDownloadListener { url, _, _, _, _ -> onDownload(url) }
+         if (on(Guard.WebRtc)) WebViewCompat.addDocumentStartJavaScript(web, NO_PEER_CONNECTION_SCRIPT, setOf("*"))
+-        log.record(PreviewLogEvent.StateChanged(PreviewLogState.Loading))
+-        Closing.whenIdle {
+-            if (on(Guard.StateClearing)) {
+-                // A fresh preview starts on an empty jar, whatever an earlier open or another view left in it.
+-                CookieManager.getInstance().removeAllCookies { main.post { loadPending(web) } }
+-            } else {
+-                loadPending(web)
+-            }
+-        }
+         return web
+     }
+ 
+-    private fun loadPending(web: WebView) {
+-        if (!stopped && view === web) web.loadUrl(pendingUrl)
+-    }
+-
+     /** Destroys the views and, with the guard in force, the state they leave in the process-wide jar (design.md D-7). */
+     private fun teardown() {
+         val open = view
+         view = null
+         if (open != null) {
++            host?.removeView(open)
+             open.stopLoading()
+             open.clearCache(true)
+             open.clearHistory()
+Left out by GC patch: the hunks of files under .omp/team-config/evidence/, in 045.evidence.patch beside this patch
+2 files, +43 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/
+1 files, +1 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/
+6 files, +20178 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/
+3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/frames/
+6 files, +4642 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.0-return/
+3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.0-return/frames/
+6 files, +10154 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.8-return/
+3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.8-return/frames/
+6 files, +735 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-3.0-return/
+3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-3.0-return/frames/

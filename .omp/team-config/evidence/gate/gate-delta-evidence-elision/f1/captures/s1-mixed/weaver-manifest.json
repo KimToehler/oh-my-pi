@@ -1,0 +1,417 @@
+{
+  "base_sha": "3e180e65f9eeed3cecccd2aa55dc430921cc2653",
+  "head_sha": "32dc8c5ddd6a85796250d17ea120bda8ddba780f",
+  "left_out": ".omp/team-config/evidence/",
+  "commits": [
+    {
+      "sha": "c3bb0c9900eb05d35f9f376e1a55d9a69766c193",
+      "subject": "m5-app-design-workspace: F2 fix 4.24 RED: new-window routing test (pre-fix behaviour: every window request is a popup)",
+      "patch": "001.patch",
+      "sha256": "23eead47a67cde06fede3a36cdc950486fd7b2e1ed10324aa9b2766384401f37"
+    },
+    {
+      "sha": "f01f75c722eed42880691c5859912f8588734ef5",
+      "subject": "m5-app-design-workspace: F2 fix 4.23 RED test: Stop deadline independent of the renderer callback (BoundedStop modelling the old callback-only deadline)",
+      "patch": "002.patch",
+      "sha256": "e88bd8c4f1e7d899734a6a056b805eca1b06a40db71f8837d8fbb82bc067bfa7"
+    },
+    {
+      "sha": "9f634241fdc311fb66591025621ac50718520c8f",
+      "subject": "m5-app-design-workspace: F2 fix 4.23 RED record",
+      "patch": "003.patch",
+      "sha256": "d10030254bd7bd6af310e6b4da88df0117c0531c708fa5cf0de7ec8868a635fe",
+      "evidence": "003.evidence.patch",
+      "evidence_sha256": "60c1abe2eed8acdabc5e3ddd98f85326a506424b5a8d56065abe63a24fbf1869"
+    },
+    {
+      "sha": "267e330b078c08d58fd0717ab1c1e4de3ccf2bb7",
+      "subject": "m5-app-design-workspace: F2 fix 4.24 iOS in-set target=_blank link loads in the existing web view",
+      "patch": "004.patch",
+      "sha256": "c0986b141ce9ec75fef52417dccafaeac9c11e194cae39dfb4b4365fbf7736ca"
+    },
+    {
+      "sha": "a884b32c100840fe0c782747fb04c3bfdf5725f2",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 RED tests: cancel during verification and extraction, publish the worker's result",
+      "patch": "005.patch",
+      "sha256": "d13363f416fdaca9bcae8c410e3c95c0ccf5a5c23a691ab5d6e598b1d8399d15"
+    },
+    {
+      "sha": "ccaf037cf0c6faac8e02c375b1210b386b52f63a",
+      "subject": "m5-app-design-workspace: F2 fix 4.24 RED/GREEN records",
+      "patch": "006.patch",
+      "sha256": "70a301b1b4c42212e324b6e29577bc5781a942f666cda1faf1821915f8ce5055",
+      "evidence": "006.evidence.patch",
+      "evidence_sha256": "90bd0fa960134481d26b7b755956c73fb257b51e044142098099b441c69f3082"
+    },
+    {
+      "sha": "cf96f70270f4a8867ac585bc7e5a73a2f6bfa358",
+      "subject": "m5-app-design-workspace: F2 fix 4.23 Android Stop ends within an app-owned deadline (BoundedStop scheduled on the main looper)",
+      "patch": "007.patch",
+      "sha256": "f23ea667e39400d18b46b5c8580c95c83c9ae13f371f0e3b59ca89cc3b7eb4bb"
+    },
+    {
+      "sha": "191e6ebd82d7bd4277160fed8915ab659e6368ed",
+      "subject": "m5-app-design-workspace: F2 fix 4.23 GREEN record",
+      "patch": "008.patch",
+      "sha256": "a17589c6187949aff2e6d763507789af18e3afcaf6db8c8e752221c61e0be3c3",
+      "evidence": "008.evidence.patch",
+      "evidence_sha256": "2d624cf0fa4dae95402935ee4d0166789740bdbc1d85f4b24324099f0e9b408c"
+    },
+    {
+      "sha": "5e25f9bd36f560af8c0222d416e4eae7686dd2ad",
+      "subject": "m5-app-design-workspace: F2 fix 4.24 desktop/android use the common new-window decision (desktop; android keeps its own, see report)",
+      "patch": "009.patch",
+      "sha256": "ea0b5d8306a0239b93e3564988fb7eb0697d6b2c8db657dd7f86c3b02ac935a2"
+    },
+    {
+      "sha": "a76d14aa7224d8e08732f0d314fde8a15cf111bd",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 cancel during verification and extraction ends the attempt; publish the worker's result",
+      "patch": "010.patch",
+      "sha256": "65c6c7140111ddb7081ed0de3a5e54c3150adc9f56546b8a1b14d6170859ed29"
+    },
+    {
+      "sha": "d153cd74ac3179bdf48211766b7a14cd80f225e7",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 stay inside the module import allowlists (InputStream wrapper, local var)",
+      "patch": "011.patch",
+      "sha256": "27055ace8a2fb00d53c79b02494d6c4991e1f4a45b9190f3038ffa1fb51ab989"
+    },
+    {
+      "sha": "8198b378b8fd9c68b5e26d4768d54a02bc1dded4",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 RED and GREEN records",
+      "patch": "012.patch",
+      "sha256": "5d0f994479d7ab00ced966f94d06ba316bc44ed0957f8ab4a460976959651144",
+      "evidence": "012.evidence.patch",
+      "evidence_sha256": "311548334826259c747227aa9d1f26e4cc499b9dc051ec2fe332c663279a9427"
+    },
+    {
+      "sha": "0b88c46ca21dbed74a92b7c8d2bd8fb055d2fa8f",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 commit-wins adapter test and the afterCommit seam",
+      "patch": "013.patch",
+      "sha256": "b890a8966177e456989cb5650bd318c2ecaa2b151bb5f4b1385d9721ec430c3e"
+    },
+    {
+      "sha": "ef1d3c649ecd105554055fbf744162014d2e37f9",
+      "subject": "merge(plan/m5-adw-seal-and): F2 fix round 2 (4.23 Android Stop deadline / 4.24 common new-window decision)",
+      "patch": "014.patch",
+      "sha256": "e7c4a6d5ffcbfc5651efae4298f444b8300a8de1160982ff2ac66a5230a61d85"
+    },
+    {
+      "sha": "b218edd90fbb6c4749806ad94c689a81a9e7ad8a",
+      "subject": "merge(plan/m5-adw-seal-ios): F2 fix round 2 (4.23 Android Stop deadline / 4.24 common new-window decision)",
+      "patch": "015.patch",
+      "sha256": "d41fdb29f846464c10d55cc20c2965adad300da20d82be8cf346b23a9968a8c8",
+      "evidence": "015.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "69ed628bb3b3ff2e5da87dcfb56ce202ef39db77",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 record the commit-wins RED and GREEN",
+      "patch": "016.patch",
+      "sha256": "580de7b72b80ff35a6b8833f1fc48f7f1d097aad21b251226abb76be0f7670ac",
+      "evidence": "016.evidence.patch",
+      "evidence_sha256": "fa767a00640ad54804f95f8c732162115d3ec43a118d7d353aab84054faf52e4"
+    },
+    {
+      "sha": "3e5747255b0c8f7f0178c4c3416a8ede35c3880a",
+      "subject": "Merge branch 'plan/m5-app-design-workspace' into plan/m5-adw-acq",
+      "patch": "017.patch",
+      "sha256": "72ac73e41b0e4a228456226f5d2a1b59116b00dad03019993e66847459cc58f7",
+      "evidence": "017.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "11940f1712de422a3dcb0d3a7b0e28a72120c702",
+      "subject": "m5-app-design-workspace: F2 fix 4.22 records -b (commit-wins RED on the pre-fix adapter, GREEN)",
+      "patch": "018.patch",
+      "sha256": "1b11b11cba7131041ffbdd799fe9452cbc21dc8d8a9127333c9362094cf30077",
+      "evidence": "018.evidence.patch",
+      "evidence_sha256": "7b9676e570074e9186e4e94d8fff3ae53757d4f7dfa669ed4e7be5e0daf5bc39"
+    },
+    {
+      "sha": "81a3b26a9339ac23ead11de1d550ffb25c2cc080",
+      "subject": "merge(m5-adw-acq): F2 fix round 2 row 4.22 (cancel during verification and extraction, one commit decision, adapter publishes the worker's result; commit-wins test)",
+      "patch": "019.patch",
+      "sha256": "64951f91585e190c853e6bf0be5c2b708fba0c87a3e8daa7ccf5d8db45e8a273"
+    },
+    {
+      "sha": "ec6aeca78e932c410b573602246817f86ca760df",
+      "subject": "plan(m5-app-design-workspace): round 33 follow-up, row 4.22 and D-14 match the lane (afterCommit seam, pre-set flag for verification)",
+      "patch": "020.patch",
+      "sha256": "0c780a31eb6a747e120728ad571481ae19a36216c95959e5fb0f51030ba93748"
+    },
+    {
+      "sha": "090e82375c58aa70a14ab30817386aa0cf895ccf",
+      "subject": "plan(m5-app-design-workspace): round 33 follow-up, row 4.22 and D-14 match the lane (afterCommit seam, pre-set flag for verification)",
+      "patch": "021.patch",
+      "sha256": "8a96bd7974a5abd98b75554ca6667328da04d2ef13f9a4613fe8dc4a64ba90cd"
+    },
+    {
+      "sha": "b863a1456e9c2a40a5dbaea8c018a562ed4e4011",
+      "subject": "docs(m5-app-design-workspace): round 34 OKAY record for the fourteenth amendment follow-up",
+      "patch": "022.patch",
+      "sha256": "dd73caaa57e86d0a9cb8e6edcc8cc0c45f9535f482ce492fbdc4f7c2b45bb4df"
+    },
+    {
+      "sha": "f699b6223a3c335db24ccdea88324036e6e99dad",
+      "subject": "plan(m5-app-design-workspace): tick F2 fix rows 4.22-4.24 (fixes and aligned tests merged; full suite green)",
+      "patch": "023.patch",
+      "sha256": "3864102ab94f8276f3341b3787616c5cbe57b603d8e3fc22eee109784010741f"
+    },
+    {
+      "sha": "9f7e5753d06e146929a7905964a78923f0e7692f",
+      "subject": "evidence(m5-app-design-workspace): re-record M1-M14 and 10.4 build on f699b622",
+      "patch": "024.patch",
+      "sha256": "c406572c534b7cef51bd90d747c1625803956d9fdd363e829d62ea5632fa2ce3",
+      "evidence": "024.evidence.patch",
+      "evidence_sha256": "0c1e41ba25802de819af7977123ef909b919cae22f350afed0d0ff07618abf63"
+    },
+    {
+      "sha": "0c145e2520d159f552b3e3a951a31fb4734fd1f8",
+      "subject": "merge(m5-adw-verify): mutations M1-M14 re-recorded on f699b622 (M6 re-derived; check-mutations ok), 10.4 green",
+      "patch": "025.patch",
+      "sha256": "6229471491ad85c10c2b7684dd522ed5fae38c2b1e0bb22e22bfa78b00146548"
+    },
+    {
+      "sha": "66c09096989a446aa765108c52702ccaeb2aff5e",
+      "subject": "m5-app-design-workspace: ios reseal on f699b622 (F2 round 2): matrix runs, MANIFEST, socket samples",
+      "patch": "026.patch",
+      "sha256": "61d5ac57b2c7056b716b41610a44f4d82583a299f392177b0499251b3b40c6ed",
+      "evidence": "026.evidence.patch",
+      "evidence_sha256": "128a2cd2137eed1436e6ed6e7b859e30f105aaf14ab7998742ce2e257aa94b38"
+    },
+    {
+      "sha": "78dac631d69269c36f3338348b3de65eab364e5f",
+      "subject": "m5-app-design-workspace: desktop sealed matrix on the F2 fix-round-2 identity, socket samples of the all run",
+      "patch": "027.patch",
+      "sha256": "8c0fcdee87d05ebd0b45ff5a2f1d125effaee96553f1b69663dcb0cdfa2e9628",
+      "evidence": "027.evidence.patch",
+      "evidence_sha256": "3dbb0b2305c762f92f4320f2534fca313608c891a18f3e647e6479e201ae8ca4"
+    },
+    {
+      "sha": "88deb71db4dd2ef56735910639b879b6058a1ce6",
+      "subject": "m5-app-design-workspace: desktop sealed matrix, the two remaining bare-kind run directories",
+      "patch": "028.patch",
+      "sha256": "02dcb298c84f188b5fbaf26b8c1adab649b94a959a3552ff91bd50ac48e6178b",
+      "evidence": "028.evidence.patch",
+      "evidence_sha256": "c2d1bc47d0a10660bf63a6311b7370f047d1ffbe6feda1a33e2fef8a6713bccf"
+    },
+    {
+      "sha": "4e8c18f6d60df9b84cb488c23fc8f66aac814e0e",
+      "subject": "merge(m5-adw-seal-ios): sealed iOS isolation matrix on f699b622 (check-evidence ok) with socket samples",
+      "patch": "029.patch",
+      "sha256": "f81336a07a1ad6621459dc67ffd4597e77b158f0d4a85d60f2819ce243c79be7",
+      "evidence": "029.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "a03fd9f06007aa48e9443734d93b40d13a8e4954",
+      "subject": "merge(m5-adw-desktop): sealed desktop isolation matrix on f699b622 (check-evidence ok) with socket samples",
+      "patch": "030.patch",
+      "sha256": "4a97489d3537955c7483281546c7dbed6c35bd0ac6bfada666dfa10a7333ea4b",
+      "evidence": "030.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "7bf336a87fedd32c1691af1be284529a576c79f4",
+      "subject": "m5-app-design-workspace: Android probe matrix reseal on f699b622 with socket samples",
+      "patch": "031.patch",
+      "sha256": "c28981615563aff4e63afc8634ec19b4002c77b092a033582daf93240c91e252",
+      "evidence": "031.evidence.patch",
+      "evidence_sha256": "4537c9d76c4a099de6ade65f525642c746f4672f1eef6acea0e07088b9c8faf4"
+    },
+    {
+      "sha": "616033caaaae3b7d043e923362a614e425681965",
+      "subject": "merge(m5-adw-seal-and): sealed Android isolation matrix on f699b622 (check-evidence ok) with probe-app socket samples",
+      "patch": "032.patch",
+      "sha256": "0ef3de131873fd18db1e819d1b34e9a15c186ec0fcad708616b846bb6aad5153",
+      "evidence": "032.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "af1af7c70883fc05a87d35e7f6b0c0ea90b3c0b2",
+      "subject": "evidence(m5-adw-seal-ios): F1 fix round 2 iOS rows (target=_blank in-set link, external links ask first) on f699b622",
+      "patch": "033.patch",
+      "sha256": "a2dff2b6fcbe5f97bba32ebfded7f7caedcd2cf4b047356ddf74332c8ac5d270",
+      "evidence": "033.evidence.patch",
+      "evidence_sha256": "043d13c50b80139ce8df05848e2567488723aa7c6cd6aabb834697dd27a8f1fb"
+    },
+    {
+      "sha": "c75c07b2e88d42ff44dc520fd1d32a9f2d27a891",
+      "subject": "merge(m5-adw-seal-ios): fix-round-2 iOS F1 rows (in-set target=_blank loads in place with query and fragment; external new-window confirm and cancel)",
+      "patch": "034.patch",
+      "sha256": "95cfef6ef714a2b6a1878af4fdbf540734dae35b0f7715c2697fbf47a50e4ab3",
+      "evidence": "034.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "e028e36fdcaf149707949dab1c8d4c362af5cc70",
+      "subject": "m5-app-design-workspace: F1 desktop fix round 2 (4.22 extraction cancel live, 4.24 target=_blank limit, stalled cancel re-run)",
+      "patch": "035.patch",
+      "sha256": "bbaa0336a4cb66287739c04a4c02b457c89002e5be4749b0198ca8f8bae88c36",
+      "evidence": "035.evidence.patch",
+      "evidence_sha256": "d3c694154e7068077c43b9dee2a9f75a823b473f8d3ba7bf9c78e3b1901da14b"
+    },
+    {
+      "sha": "529c750a9cb7178d70df0ad386c3dd56e4673c21",
+      "subject": "merge(m5-adw-acq): fix-round-2 desktop F1 rows (cancel during extraction of a download and a cached archive, stalled transfer, link rows)",
+      "patch": "036.patch",
+      "sha256": "97dd5e5829da32ccd574253e93a0b7ebd1bf34418092aba581cf0e0d47d3a480",
+      "evidence": "036.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "8cd004a3cb525d2993aaee04a8166da1ff5a060d",
+      "subject": "m5-app-design-workspace: Android F1 fix round 2 rows (Stop on a busy page FAIL on leave-and-return, Crash PASS, in-set _blank link PASS)",
+      "patch": "037.patch",
+      "sha256": "e57c4d8dd6aff180711daa07109919f6e5daa4cd7b43b37dc8bd4abdc0357f0e",
+      "evidence": "037.evidence.patch",
+      "evidence_sha256": "16c0592261f9a2c7fd343b8f7486d9e5770e6c364c61334f27f94a024de0ea92"
+    },
+    {
+      "sha": "cc92d273b9dbd9df8a8c163da6c9969fa7cd235a",
+      "subject": "merge(m5-adw-seal-and): fix-round-2 Android F1 rows (Stop FAIL on leave-and-return inside the deadline with a busy renderer; Crash and in-set target=_blank PASS)",
+      "patch": "038.patch",
+      "sha256": "74a7a7b082981503e15e7c68adb723d83313a61bed0c4d09e63b173a2b6952a3",
+      "evidence": "038.evidence.patch",
+      "evidence_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "sha": "e3994c6f8a7cd6173c07c1311f143182162560c8",
+      "subject": "plan(m5-app-design-workspace): F2 fix row 4.25 (Android Stop: terminate the busy renderer at the deadline)",
+      "patch": "039.patch",
+      "sha256": "2989907f0fabf20c87278f17b909e33bc5122c4f387b44f2162f13fbcc2ece53"
+    },
+    {
+      "sha": "03b90433a81f52b0711e632a0a93e29205d5c5a7",
+      "subject": "plan(m5-app-design-workspace): fifteenth amendment, design D-7 and spec Stop for row 4.25",
+      "patch": "040.patch",
+      "sha256": "9bf05512c544022b54faeb36c88f500645b7095d6c6242261be2eb2f15d5e8a2"
+    },
+    {
+      "sha": "53927565d58c13bef5f380696fbfc9cd101917e5",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 RED test for the renderer termination at the Stop deadline (seams change no behaviour)",
+      "patch": "041.patch",
+      "sha256": "d1aa759715e6245b661f8c6d13aada06c23f6a550303e7ef7b1dcd979e4a65bb"
+    },
+    {
+      "sha": "0cebe0f3bc0c534b1d08d80bb7e45e54f2e24c5e",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 terminate the busy preview renderer at the Stop deadline",
+      "patch": "042.patch",
+      "sha256": "39e571cb4ca5b3f0a457e00e17c07dd16618d8a42915b8b03b8d353d52772d87"
+    },
+    {
+      "sha": "4242e769c500229c8ab5a2d9a6838664214fbc3e",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 RED/GREEN records",
+      "patch": "043.patch",
+      "sha256": "6d79eb9be86d40c1b00d4af18bebcac35c7cd9b60d2edc75e69f4ba263fd1845",
+      "evidence": "043.evidence.patch",
+      "evidence_sha256": "0acf1d47249c29373579ba19b29c1b60f2cacc4b68291b06e4e70bb9f7ce37e7"
+    },
+    {
+      "sha": "accdf88997485bbc5c248b68f5c6f14b28b30302",
+      "subject": "docs(m5-app-design-workspace): round 35 pre-triage record (REJECT, awaiting triage)",
+      "patch": "044.patch",
+      "sha256": "7193253d7a0a476a40d7b43d45d4fb586f86b1219465cef7c2f5c577fa5bfe58"
+    },
+    {
+      "sha": "678b0d0084779c50ac96a18c40d7928b6c9ef7f0",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 create the preview WebView only when no close is in flight",
+      "patch": "045.patch",
+      "sha256": "fdf0446c60839998ffd85952e2d6efb17929724181c5fea93e269688cf557553",
+      "evidence": "045.evidence.patch",
+      "evidence_sha256": "ee7301a5f5b8e6a786eac7f71216348cb5e13eced3ee1cd4ad7a34e6d4cf68ab"
+    },
+    {
+      "sha": "6b616c857fbde2f0194608351590269fe858fa7c",
+      "subject": "docs(m5-app-design-workspace): round 35 triage record (blocker confirmed, fix decided)",
+      "patch": "046.patch",
+      "sha256": "65ddb0302241729770a8d3df1b0a4c665bae8a84ee7786507833e797aaf86d2b"
+    },
+    {
+      "sha": "ba94a7d0a861418a181d7fd00f5f55e96efd569e",
+      "subject": "plan(m5-app-design-workspace): round 35 fix, gate the replacement WebView on the barrier",
+      "patch": "047.patch",
+      "sha256": "fb2fbdff69a4b773cc27dc304c0fe36e913723dd7637e59f47fb35d8718c5869"
+    },
+    {
+      "sha": "90f2dcdb16b2138d9aa2c1c7d9c91b564305ad5d",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 allow FrameLayout in the preview Android imports",
+      "patch": "048.patch",
+      "sha256": "ddfb4e9ccb7a8556f1272fef495f6c4905f0d411d1ef3df220be08d518c35a0b"
+    },
+    {
+      "sha": "ee9fee670de45d2f0f179b85bcdd663bb1518d2d",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 interim Android observations and GREEN record",
+      "patch": "049.patch",
+      "sha256": "fe53fc3255aa6bbde1a1a814f8b785473bb2f0570324f69b070551987ef3ce79",
+      "evidence": "049.evidence.patch",
+      "evidence_sha256": "300a6cbe649dc33f11199122f41322147da184c3e7738fa79cfe5511f3d6cbf9"
+    },
+    {
+      "sha": "de876cb70e55420673ecbc73f542ec42a06dcf28",
+      "subject": "docs(m5-app-design-workspace): round 36 pre-triage record (REJECT, awaiting triage)",
+      "patch": "050.patch",
+      "sha256": "833d8fc72379a56f71a1f6e0d669b2af834f04750fcb148e4ce602e364a09420"
+    },
+    {
+      "sha": "9fb556bc09b28a26154bc1deb64122dd2f4c904a",
+      "subject": "docs(m5-app-design-workspace): round 36 triage record (blocker confirmed, fix decided)",
+      "patch": "051.patch",
+      "sha256": "8c79cffc81365613eeb266f2446fe2837536e99f2274cd5c9dd835606a9f3c58"
+    },
+    {
+      "sha": "5dd9208b9edc4d1c5550c9049d97d096cec24f50",
+      "subject": "plan(m5-app-design-workspace): round 36 fix, Stop timing contract (2 s deadline plus 1 s) and the code lane's facts for row 4.25",
+      "patch": "052.patch",
+      "sha256": "b438b7a79a50b17472f04a96209161cbbf56730f519f0deef49d12ccc7544195"
+    },
+    {
+      "sha": "c7740e158284ea8267109d7bb649e22a7cc6d433",
+      "subject": "docs(m5-app-design-workspace): round 37 pre-triage record (REJECT, awaiting triage)",
+      "patch": "053.patch",
+      "sha256": "445eb7dcb5eeceb1edbb3378d4a6864e43d92e0e278634dd14c726e78cf156f9"
+    },
+    {
+      "sha": "d7c863aca77be2db690a4117147ca00e4950dcb5",
+      "subject": "docs(m5-app-design-workspace): round 37 triage record (blocker confirmed, fix decided)",
+      "patch": "054.patch",
+      "sha256": "b38308de8e27cc5ddfdfda74cd5c425a137c57d235e555f66839deaf6623f752"
+    },
+    {
+      "sha": "d250abc8f8b0af30e9dac56b325e7d5911e2e6ea",
+      "subject": "plan(m5-app-design-workspace): round 37 fix, one Stop timing contract (2 s deadline, completion within 3 s)",
+      "patch": "055.patch",
+      "sha256": "8f41822491773b12efda5ceceb7ad4d7b1c246766f06908ba929f2cbdaae612a"
+    },
+    {
+      "sha": "a7c8fcf941aa6892573003f983427a2d32c70a5a",
+      "subject": "docs(m5-app-design-workspace): round 38 OKAY record for the fourteenth amendment",
+      "patch": "056.patch",
+      "sha256": "26e68579adf4ec11d3ae7587b4c5e399af69693b8cd853267cc8f5c25f626b34"
+    },
+    {
+      "sha": "0655afb83fc8e3968b72d70838c8039b14dddbf8",
+      "subject": "merge(m5-adw-seal-and): F2 fix 4.25 Android Stop on an unresponsive renderer (terminate at the deadline, barrier after renderer gone, WebView added only when the barrier is idle)",
+      "patch": "057.patch",
+      "sha256": "04ec84a92f8384d7085eddbf996b8dcaff8659dbd179b617a1c6753178ee65f4"
+    },
+    {
+      "sha": "491ea27ac54cab19e553e96e639779d9939bc919",
+      "subject": "m5-app-design-workspace: F2 fix 4.25 popup windows handle the renderer the Stop terminates",
+      "patch": "058.patch",
+      "sha256": "cf8c73dfd7b5a04325620e77147a9c4b7f6b46e5f89b958d60c5cb6d0189278d"
+    },
+    {
+      "sha": "c5c0c50b159330827ffb57feb9c2e0c9882542f0",
+      "subject": "merge(m5-adw-seal-and): F2 fix 4.25 handoff windows survive the renderer terminate (onRenderProcessGone true)",
+      "patch": "059.patch",
+      "sha256": "bd8798e46c1a84ef7492620f3c26655bc83a19e253ca87f0453cd911a9e354c5"
+    },
+    {
+      "sha": "32dc8c5ddd6a85796250d17ea120bda8ddba780f",
+      "subject": "plan(m5-app-design-workspace): tick F2 fix row 4.25 (fix and handoff-window guard merged)",
+      "patch": "060.patch",
+      "sha256": "394e761b64a1731db16193a2b52811ac710d5d108d05bbf8f0a707946683f17a"
+    }
+  ]
+}

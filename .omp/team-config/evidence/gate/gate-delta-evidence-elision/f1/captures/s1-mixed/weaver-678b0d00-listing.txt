@@ -1,0 +1,17 @@
+grep -n -A12 '^Left out by GC patch' 045.patch
+95:Left out by GC patch: the hunks of files under .omp/team-config/evidence/, in 045.evidence.patch beside this patch
+96-2 files, +43 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/
+97-1 files, +1 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/
+98-6 files, +20178 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/
+99-3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/frames/
+100-6 files, +4642 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.0-return/
+101-3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.0-return/frames/
+102-6 files, +10154 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.8-return/
+103-3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.8-return/frames/
+104-6 files, +735 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-3.0-return/
+105-3 files, +0 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-3.0-return/frames/
+grep -o '^diff --git a/[^ ]*' 045.evidence.patch | grep -i logcat
+diff --git a/.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/logcat.txt
+diff --git a/.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.0-return/logcat.txt
+diff --git a/.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-1.8-return/logcat.txt
+diff --git a/.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-3.0-return/logcat.txt

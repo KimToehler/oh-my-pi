@@ -1,0 +1,24 @@
+== left_out src/, delta
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b
+== left_out src/, accept
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b
+== left_out .omp/team-config/evidence, delta
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b
+== left_out .omp/team-config/evidence, accept
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b
+== left_out null, delta
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b
+== left_out null, accept
+gate-convergence: patch artifacts changed since dispatch: manifest.json
+exit 1
+ledger sha256 before f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b after f7790b6a40c8d1d720207953a40a23f29c82f5b08a6bc2a91a13364d9973f68b

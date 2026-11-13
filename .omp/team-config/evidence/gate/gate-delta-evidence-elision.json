@@ -1,0 +1,131 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/gate-delta-evidence-elision",
+  "plan_sha256": "f7444b5fb3e8c447e5c0b659ea235eb781182a8ce7f3e3d264a08483fc69e509",
+  "reviewed_sha": "f1f0e5b52eab0788d4822751f15126e20d140357",
+  "diff_base": "e967d39338dc6fa6d8e81a17d2865026419aec40",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Depth risky from gate.md (the change alters what a fix-delta reviewer of the merge gate is shown), Risk tier product, Mandatory class none: both invocations; F2 wave 1 on f1f0e5b52e: QA 12/12 F1 rows PASS (run on the deployed H 9da2bf1161; the later commit only ticks task 3.1 and adds evidence), both reviewers PASS/PASS.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F1 s1-mixed",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s1-mixed.md",
+      "artifact_sha256": "e51ac3c2e11f4c6a7f2c747d7543ca0a1650ec091a3e5ef3feca8e57095ca512"
+    },
+    {
+      "name": "F1 s2-evidence-only",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s2-evidence-only.md",
+      "artifact_sha256": "1422f678bbf4c606aabc868695668f7afe1534fdb94bf50c11ffe5b58e56a9e1"
+    },
+    {
+      "name": "F1 s3-no-evidence",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s3-no-evidence.md",
+      "artifact_sha256": "8e7acfe79cfd22bd3da96a81b549071163bd3eccd621113fbf46b7629309c154"
+    },
+    {
+      "name": "F1 s4-negative-patch",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s4-negative-patch.md",
+      "artifact_sha256": "448883de53e433bace114adb23e5f84f9c61d781a4395b52f1954e9d113dd04b"
+    },
+    {
+      "name": "F1 s5-new-round-trip",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s5-new-round-trip.md",
+      "artifact_sha256": "2cffdec0699bc5480c182f65312ecd6ed06ce1d79a270144366f58c7e7686d17"
+    },
+    {
+      "name": "F1 s6-old-dir",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s6-old-dir.md",
+      "artifact_sha256": "f8fbadb117aa60639303647edd3af91041d3ff45cb177ea2b4820b33179f981c"
+    },
+    {
+      "name": "F1 s7-edited",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s7-edited.md",
+      "artifact_sha256": "2082fd36f20517a937f85f8ccb0f479ee549b9684def8097ac2db815cb8ce60f"
+    },
+    {
+      "name": "F1 s8-negative-manifest",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/s8-negative-manifest.md",
+      "artifact_sha256": "e5d004edf9dc31e9093542b02c521251119e62608477ebc33a1197005e424c2c"
+    },
+    {
+      "name": "F1 m1-brief",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/m1-brief.md",
+      "artifact_sha256": "5a75776e13cfd8dbc6a9cf28c8be1e5c4209c584e6e6e6ecba5eecc06f2f8e3b"
+    },
+    {
+      "name": "F1 m2-suite",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/m2-suite.md",
+      "artifact_sha256": "cdba278c96ffbc7f0573fa50d4f9607ecc5b48db8d60a4f904b4a72d708434ae"
+    },
+    {
+      "name": "F1 m3-real-reviewer",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/m3-real-reviewer.md",
+      "artifact_sha256": "89e6471028414b7ba486edf31711ee889f168e113d6fb47413056086c8a4f001"
+    },
+    {
+      "name": "F1 m4-evidence-lookup",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/f1/m4-evidence-lookup.md",
+      "artifact_sha256": "5d697cab97f10b589a1c22dbdae73f9e5d858e3cc631d0a1a5b896d64e3a084d"
+    },
+    {
+      "name": "F2 wave 1 QA matrix (all rows carried from H)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/wave-1/qa-matrix.md",
+      "artifact_sha256": "20383d2ad4c1a9676b207ee71769b235185910cb9141bab4a8ed7af6d3fe1cba"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/wave-1/implementation-audit-trailer.md",
+      "trailer_sha256": "a7b3092c58fb14908d02086b5b8a6048fd86faf88b5c3fe5ee9ffc69e75185ef",
+      "note": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/wave-1/implementation-audit-trailer.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/wave-1/strategic-risk-review-trailer.md",
+      "trailer_sha256": "53ced60b1c26f7d83df56752b6b40431c0bbb5dedcf21db4a021a15fc6298b58",
+      "note": ".omp/team-config/evidence/gate/gate-delta-evidence-elision/wave-1/strategic-risk-review-trailer.md"
+    }
+  ],
+  "blockers": []
+}
