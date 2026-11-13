@@ -1,0 +1,16 @@
+== patch-edited
+gate-convergence: patch artifacts changed since dispatch: 002.patch
+exit 1
+ledger sha256 before d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60 after d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60
+== evidence-edited
+gate-convergence: patch artifacts changed since dispatch: 002.evidence.patch
+exit 1
+ledger sha256 before d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60 after d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60
+== evidence-removed
+gate-convergence: patch artifacts changed since dispatch: 002.evidence.patch
+exit 1
+ledger sha256 before d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60 after d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60
+== evidence-not-expected
+gate-convergence: patch artifacts changed since dispatch: 001.evidence.patch
+exit 1
+ledger sha256 before d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60 after d0150ca6d729a9509a38ea43c2bf29dc1394020cb3a1711bf14bf5d5c1c3af60

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "omp-gated",
+    "description": "Team workflow - proposal → specs → design → gate → verifiable tasks → independent review",
+    "artifacts": [
+      "proposal",
+      "specs",
+      "design",
+      "gate",
+      "tasks",
+      "review"
+    ],
+    "source": "project"
+  },
+  {
+    "name": "spec-driven",
+    "description": "Default OpenSpec workflow - proposal → specs → design → tasks",
+    "artifacts": [
+      "proposal",
+      "specs",
+      "design",
+      "tasks"
+    ],
+    "source": "package"
+  }
+]

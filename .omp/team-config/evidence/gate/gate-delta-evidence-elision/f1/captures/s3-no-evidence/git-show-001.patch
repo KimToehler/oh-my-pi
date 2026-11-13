@@ -1,0 +1,15 @@
+commit 1af1dc02fbd6603d7367547407d7e333a355fdec
+Author:     F1 Row <f1@test>
+AuthorDate: Fri Nov 13 08:55:48 2026 +0100
+Commit:     F1 Row <f1@test>
+CommitDate: Fri Nov 13 08:55:48 2026 +0100
+
+    side work
+
+diff --git a/src/c.ts b/src/c.ts
+new file mode 100644
+index 0000000..2299c37
+--- /dev/null
++++ b/src/c.ts
+@@ -0,0 +1 @@
++side

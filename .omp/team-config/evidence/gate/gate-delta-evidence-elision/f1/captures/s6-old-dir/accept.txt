@@ -1,0 +1,2 @@
+RECORDED fix_delta_review verdict=accepted-risk
+exit 0

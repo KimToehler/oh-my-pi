@@ -1,0 +1,23 @@
+deployed /Users/tim/.omp/agent/skills/review-work/SKILL.md, design openspec/changes/gate-delta-evidence-elision/design.md at H
+step 5a line:
+494:   a. `GC patch --base <base> --head <head> --out .omp/team-config/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path. Each patch leaves out the hunks of files under `.omp/team-config/evidence/`; when its commit changes any, they go to `<NNN>.evidence.patch` beside it and the patch ends with their listing by directory and that file's name.
+diff <(brief block of deployed SKILL.md) <(brief block of design D-4):
+diff exit 0
+step 5a line == design D-4 a. line:
+diff exit 0
+brief block:
+Delta brief (substitute the `{...}` inputs, change nothing else):
+
+```
+Review this fix delta. Workspace root: {REPO ROOT}. Plan: {PLAN PATH}.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+{PLAN INVARIANTS}
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+{FIX ROWS}
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+{CARRIED ROWS}
+Commit range {BASE SHA}..{HEAD SHA}, commits {FIX SHAS}.
+The diff is one patch file per commit, in commit order, each with its commit header. Hunks of files under .omp/team-config/evidence/ (QA captures, RED and GREEN records, trailers) are left out of the patches: a patch whose commit changes any ends with their listing by directory and the name of its evidence file, which holds those hunks as of that commit. When a fix entry or a carried QA row depends on a capture, read that evidence file, or the part of it you need; you need not read evidence files whole. Read {MANIFEST PATH}, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.
+```
+
+## Phase 5: Gate record

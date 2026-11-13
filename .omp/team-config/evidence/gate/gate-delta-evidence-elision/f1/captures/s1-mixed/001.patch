@@ -1,0 +1,17 @@
+commit 9203db85abfae4552fa00acd814a749fd365fedb
+Author:     F1 Row <f1@test>
+AuthorDate: Fri Nov 13 08:55:47 2026 +0100
+Commit:     F1 Row <f1@test>
+CommitDate: Fri Nov 13 08:55:47 2026 +0100
+
+    fix engine with its capture
+
+diff --git a/src/engine.kt b/src/engine.kt
+new file mode 100644
+index 0000000..b238e5f
+--- /dev/null
++++ b/src/engine.kt
+@@ -0,0 +1 @@
++fun stop() = deadline()
+Left out by GC patch: the hunks of files under .omp/team-config/evidence/, in 001.evidence.patch beside this patch
+1 files, +3 -0	.omp/team-config/evidence/gate/demo/f1/

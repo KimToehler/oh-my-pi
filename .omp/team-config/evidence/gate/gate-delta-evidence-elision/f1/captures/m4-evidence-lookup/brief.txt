@@ -1,0 +1,13 @@
+Review this fix delta. Workspace root: /tmp/f1-m4-NR6V. Plan: .omp/plans/demo.md.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+Feature-specific criteria: not in plan
+Accepted residual risks: not in plan
+Out of scope for blocking: not in plan
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+- [x] 1.1 `Engine.stop` returns within the deadline. RED record `.omp/team-config/evidence/gate/demo/red/1.1.txt`
+  holds the failing assertion of `EngineTest.stopsWithinDeadline` on the unfixed engine.
+  Reviewer: state in your reply the measured stop time, in ms, that this RED record shows for the unfixed engine.
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+none
+Commit range f189717632cf345f27c09771a15c68a5f2ad2b02..d824d6ebda8f92179ffee7268162047d46d671a7, commits a7068f983c4e 762ff63bcc49 d824d6ebda8f.
+The diff is one patch file per commit, in commit order, each with its commit header. Hunks of files under .omp/team-config/evidence/ (QA captures, RED and GREEN records, trailers) are left out of the patches: a patch whose commit changes any ends with their listing by directory and the name of its evidence file, which holds those hunks as of that commit. When a fix entry or a carried QA row depends on a capture, read that evidence file, or the part of it you need; you need not read evidence files whole. Read /tmp/f1-m4-NR6V/.omp/team-config/gate-deltas/F2-1.1-m4/manifest.json, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.

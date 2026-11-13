@@ -1,0 +1,153 @@
+head e967d39338dc6fa6d8e81a17d2865026419aec40 (unchanged gate-convergence.mjs), command: bun test team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs -t 'delta patch:'
+bun test v1.4.4 (5d9cc0f4f)
+
+team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:
+422 |   const sha = commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [logcat]: "I/WebView: start\nE/WebView: renderer busy\nI/WebView: stop\n" }, "fix engine with its capture")
+423 |   const out = ".omp/team-config/gate-deltas/mixed"
+424 |   const result = s.run("patch", "--base", base, "--head", sha, "--out", out)
+425 |   assert.equal(result.status, 0, result.stderr)
+426 |   const dir = path.join(s.repo, out)
+427 |   assert.deepEqual(readdirSync(dir).sort(), ["001.evidence.patch", "001.patch", "manifest.json"])
+               ^
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+
+  [
+-   '001.evidence.patch',
+    '001.patch',
+    'manifest.json'
+  ]
+
+ generatedMessage: true,
+     actual: [ "001.patch", "manifest.json" ],
+   expected: [ "001.evidence.patch", "001.patch", "manifest.json" ],
+   operator: "deepStrictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:427:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) delta patch: #given a commit that mixes a fix with a capture #when patch runs #then the patch keeps the fix, its evidence file keeps the capture, and the listing names both [199.74ms]
+447 |   const out = ".omp/team-config/gate-deltas/evidence-only"
+448 |   const result = s.run("patch", "--base", base, "--head", sha, "--out", out)
+449 |   assert.equal(result.status, 0, result.stderr)
+450 |   const dir = path.join(s.repo, out)
+451 |   const header = show(s, "-s", "--format=fuller", sha).toString()
+452 |   assert.equal(readFileSync(path.join(dir, "001.patch"), "utf8"), `${header}\n${listingHead("001")}1 files, +2 -0\t${EVIDENCE}gate/demo/f1/\n1 files, +0 -0\t${EVIDENCE}gate/demo/f1/captures/\n`)
+               ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+... Skipped lines
+
+  'commit f0b0e722f8139c0f590ebcdb73a5d39f4fc79a0e\n' +
+    'Author:     Gate Test <gate@test>\n' +
+    'AuthorDate: Fri Nov 13 08:41:58 2026 +0100\n' +
+    'Commit:     Gate Test <gate@test>\n' +
+    'CommitDate: Fri Nov 13 08:41:58 2026 +0100\n' +
+...
+    '\n' +
++   'diff --git a/.omp/team-config/evidence/gate/demo/f1/captures/shot.png b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png\n' +
++   'new file mode 100644\n' +
++   'index 0000000..092c69d\n' +
++   'Binary files /dev/null and b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png differ\n' +
++   'diff --git a/.omp/team-config/evidence/gate/demo/f1/row.md b/.omp/team-config/evidence/gate/demo/f1/row.md\n' +
++   'new file mode 100644\n' +
++   'index 0000000..c859c85\n' +
++   '--- /dev/null\n' +
++   '+++ b/.omp/team-config/evidence/gate/demo/f1/row.md\n' +
++   '@@ -0,0 +1,2 @@\n' +
++   '+Head: x\n' +
++   '+Verdict: PASS\n'
+-   'Left out by GC patch: the hunks of files under .omp/team-config/evidence/, in 001.evidence.patch beside this patch\n' +
+-   '1 files, +2 -0\t.omp/team-config/evidence/gate/demo/f1/\n' +
+-   '1 files, +0 -0\t.omp/team-config/evidence/gate/demo/f1/captures/\n'
+
+ generatedMessage: true,
+     actual: "commit f0b0e722f8139c0f590ebcdb73a5d39f4fc79a0e\nAuthor:     Gate Test <gate@test>\nAuthorDate: Fri Nov 13 08:41:58 2026 +0100\nCommit:     Gate Test <gate@test>\nCommitDate: Fri Nov 13 08:41:58 2026 +0100\n\n    evidence only\n\ndiff --git a/.omp/team-config/evidence/gate/demo/f1/captures/shot.png b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png\nnew file mode 100644\nindex 0000000..092c69d\nBinary files /dev/null and b/.omp/team-config/evidence/gate/demo/f1/captures/shot.png differ\ndiff --git a/.omp/team-config/evidence/gate/demo/f1/row.md b/.omp/team-config/evidence/gate/demo/f1/row.md\nnew file mode 100644\nindex 0000000..c859c85\n--- /dev/null\n+++ b/.omp/team-config/evidence/gate/demo/f1/row.md\n@@ -0,0 +1,2 @@\n+Head: x\n+Verdict: PASS\n",
+   expected: "commit f0b0e722f8139c0f590ebcdb73a5d39f4fc79a0e\nAuthor:     Gate Test <gate@test>\nAuthorDate: Fri Nov 13 08:41:58 2026 +0100\nCommit:     Gate Test <gate@test>\nCommitDate: Fri Nov 13 08:41:58 2026 +0100\n\n    evidence only\n\nLeft out by GC patch: the hunks of files under .omp/team-config/evidence/, in 001.evidence.patch beside this patch\n1 files, +2 -0\t.omp/team-config/evidence/gate/demo/f1/\n1 files, +0 -0\t.omp/team-config/evidence/gate/demo/f1/captures/\n",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:452:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) delta patch: #given an evidence-only commit with a binary capture #when patch runs #then its patch is the header and the listing, and its evidence file holds every hunk [213.79ms]
+485 |   const base = s.head()
+486 |   commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [`${EVIDENCE}gate/demo/f1/logcat.txt`]: "E/WebView: renderer busy\n" }, "fix engine with its capture")
+487 |   const head = commitFiles(s, { [`${EVIDENCE}gate/demo/f1/row.md`]: "Verdict: PASS\n" }, "F1 row")
+488 |   const reviewed = s.delta("F2", base, head, "REJECT")
+489 |   assert.equal(reviewed.result.status, 0, reviewed.result.stderr)
+490 |   assert.equal(readManifest(path.join(s.repo, reviewed.dir)).left_out, EVIDENCE)
+               ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- '.omp/team-config/evidence/'
+
+ generatedMessage: true,
+     actual: undefined,
+   expected: ".omp/team-config/evidence/",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:490:10
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) delta patch: #given a directory written by the new patch #when delta records a REJECT and accept runs #then both are recorded [349.49ms]
+542 |   }
+543 |   for (const [name, change] of Object.entries(cases)) {
+544 |     const s = sandbox(t)
+545 |     const out = ".omp/team-config/gate-deltas/edited"
+546 |     const { dir } = mixedRange(s, out)
+547 |     assert.ok(existsSync(path.join(dir, "002.evidence.patch")), `${name}: patch wrote no evidence file`)
+                 ^
+AssertionError: patch edited: patch wrote no evidence file
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:547:12
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) delta patch: #given a new-form directory changed after patch wrote it #when delta runs #then it refuses and the ledger is unchanged [275.40ms]
+601 |     writeFileSync(path.join(dir, "verdict.json"), rejectVerdict)
+602 |     const before = readFileSync(s.ledgerPath)
+603 |     for (const args of [["delta", "--lane", "F2", "--dir", out, "--row", "R1"], ["accept", "--lane", "F2", "--dir", out, "--by", "tim", "--reason", "r"]]) {
+604 |       const result = s.gc(...args)
+605 |       assert.equal(result.status, 1, `${value} ${args[0]}: ${result.stdout}`)
+606 |       assert.match(result.stderr, /patch artifacts changed since dispatch: manifest\.json/, `${value} ${args[0]}`)
+                   ^
+AssertionError: src/ delta
+ generatedMessage: false,
+     actual: "gate-convergence: patch artifacts changed since dispatch: 001.patch\n",
+   expected: /patch artifacts changed since dispatch: manifest\.json/,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs:606:14
+      at run (node:async_hooks:144:29)
+      at node:test:1445:26
+      at executeTestNode (node:test:1448:45)
+      at node:test:1591:20
+(fail) delta patch: #given a manifest naming another left-out value #when delta or accept runs #then each refuses the manifest and the ledger is unchanged [379.17ms]
+
+ 2 pass
+ 61 filtered out
+ 5 fail
+Ran 7 tests across 1 file. [2.19s]

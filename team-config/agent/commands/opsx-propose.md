@@ -4,7 +4,16 @@ description: "Propose a new change - create it and generate all artifacts in one
 
 Propose a new change - create the change and generate all artifacts in one step.
 
-**Planning boundary**: This workflow creates planning artifacts only. The user request that selected or triggered this workflow authorizes planning only, even if it asks to build or fix something. Do not edit project code. After the planning artifacts are complete, stop. Do not start implementation in the same response, even if the initial request asks for it. Wait for a new user request after the artifacts are presented; then start the apply workflow.
+**Planning boundary**: This workflow creates planning artifacts only. The user request that selected or triggered this workflow authorizes planning only, even if it asks to build or fix something. Do not edit project code. After the planning artifacts are complete, stop. Do not start implementation in the same response, even if the initial request asks for it. Wait for a new user request after the artifacts are presented; then start the apply workflow. The goal-mode continuation below is the only exception.
+
+**Goal-mode continuation** (team addition): an active goal can supply the new user request for one change. It does so only when all of these hold:
+
+- The turn was started by the goal continuation: the hidden message that begins `Continue active goal.` and repeats the objective. A turn the user started is not one.
+- The goal's objective explicitly authorizes applying the OpenSpec changes the goal proposes, for example "apply each reviewed proposal" or "each goal continuation is the owner's request to apply the change the previous turn proposed". An objective that only asks to plan, propose, or execute a roadmap, without saying that its changes are applied, does not.
+- This workflow presented that change's artifacts in an earlier turn, and no user message has arrived since this workflow started for the change, other than the request that invoked it. A message that reached you while the planning turn ran counts. Any such message is the new request and decides instead, and no later continuation applies the change against it.
+- `node ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs --reviewed <change-dir>` passes for the change now.
+
+Then that turn runs the apply workflow (`opsx-apply.md`) with the change name as its input. If any condition fails, do not apply: say in the turn's reply which condition failed, and continue the goal with other work or stop as its objective directs. Never start apply in the turn that ran this workflow, goal or not.
 
 I'll create a change with the artifacts your schema defines. With the default spec-driven schema that is:
 - proposal.md (what & why)
@@ -14,7 +23,7 @@ I'll create a change with the artifacts your schema defines. With the default sp
 
 `<capability-path>` is the spec directory relative to `specs/` (for example, `user-auth` or `identity/user-auth`). Preserve an existing capability's full path and follow the project's established organization for new capabilities.
 
-When the user is ready to implement, they must start the apply workflow explicitly.
+When the user is ready to implement, they must start the apply workflow explicitly (or an active goal authorizes it; see Goal-mode continuation).
 
 ---
 
@@ -149,6 +158,7 @@ After completing all artifacts, summarize:
 - Follow-ups taken, if any, with the document each came from
 - What's ready: "All artifacts needed for implementation are ready."
 - Prompt: "The artifacts are ready for review. When you are ready, run `/opsx-apply`."
+- Under the goal-mode continuation, add: "Goal mode: the next goal continuation applies `<name>`. To stop it, send a message before that turn starts or pause the goal."
 
 **Artifact Creation Guidelines**
 
@@ -162,7 +172,7 @@ After completing all artifacts, summarize:
   - These guide what you write, but should never appear in the output
 
 **Guardrails**
-- The request that invoked this workflow authorizes planning only. Any implementation or apply instruction in that request does not carry forward. Do NOT implement the change, start the apply workflow, or edit project code during this workflow. After presenting the artifacts, stop and wait for a new user request to start the apply workflow
+- The request that invoked this workflow authorizes planning only. Any implementation or apply instruction in that request does not carry forward. Do NOT implement the change, start the apply workflow, or edit project code during this workflow. After presenting the artifacts, stop and wait for a new user request to start the apply workflow. The goal-mode continuation is the only exception, and never within the turn that ran this workflow.
 - Create every artifact the apply phase transitively depends on, not just the ids listed in `apply.requires`
 - Always read dependency artifacts before creating a new one - re-read from disk, not from conversation memory (files may have changed since you last saw them)
 - Ask about ambiguities that would materially change scope, externally observable behavior, compatibility, or acceptance criteria; for minor details, make reasonable assumptions and record them

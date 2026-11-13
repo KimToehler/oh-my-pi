@@ -1,0 +1,3 @@
+node ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs patch --repo /Users/tim/git/weaver/.worktrees/m5-app-design-workspace --base 3e180e65 --head 32dc8c5d --out /tmp/f1-weaver-ClO5/delta
+/tmp/f1-weaver-ClO5/delta/manifest.json
+exit 0

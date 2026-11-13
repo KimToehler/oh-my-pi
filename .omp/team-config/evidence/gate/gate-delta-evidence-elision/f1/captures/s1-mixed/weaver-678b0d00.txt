@@ -1,0 +1,10 @@
+678b0d00 is 045.patch,     5736 bytes; evidence 045.evidence.patch
+grep -c '^diff --git .*WebViewEngine.kt' 045.patch
+1
+grep -n -A3 '^Left out by GC patch' 045.patch
+95:Left out by GC patch: the hunks of files under .omp/team-config/evidence/, in 045.evidence.patch beside this patch
+96-2 files, +43 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/
+97-1 files, +1 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/
+98-6 files, +20178 -0	.omp/team-config/evidence/gate/m5-app-design-workspace/f1/diagnosis/android-busy-return/attempt1-terminate-only/leave-0.4-return/
+grep -c '^diff --git a/.omp/team-config/evidence/' 045.patch
+0

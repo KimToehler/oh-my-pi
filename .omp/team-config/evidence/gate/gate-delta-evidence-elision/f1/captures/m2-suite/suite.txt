@@ -1,0 +1,12 @@
+HEAD 9da2bf11616fb8d66db6655976da96949ead17ae; H 9da2bf11616fb8d66db6655976da96949ead17ae; git status --short -- team-config: []
+bun run test:team-config
+$ bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts scripts/ensure-openspec-cli.test.ts team-config/agent/skills/context-review/scripts/measure-context.test.ts team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
+bun test v1.4.4 (5d9cc0f4f)
+[pi-natives] /Users/tim/git/oh-my-pi/packages/natives/native/pi_natives.darwin-arm64.node is @oh-my-pi/pi-natives@18.18.2, but this checkout is @18.19.0. Symbols this checkout expects may be missing and shared ones may behave differently; run `bun run build:native` before trusting results from this tree.
+warning: in the working copy of 'evidence/merge-gate.json', LF will be replaced by CRLF the next time Git touches it
+
+ 826 pass
+ 0 fail
+ 837 expect() calls
+Ran 826 tests across 10 files. [134.48s]
+exit 0

@@ -1,0 +1,2 @@
+{"verdict":"REJECT","round":1,"fix_shas":2}
+{"verdict":"accepted-risk","round":1,"fix_shas":2}

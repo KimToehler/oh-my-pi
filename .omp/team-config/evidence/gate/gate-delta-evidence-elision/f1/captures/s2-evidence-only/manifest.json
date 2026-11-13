@@ -1,0 +1,15 @@
+{
+  "base_sha": "07b4c3f174d338668acc4013fb1624bcb8e738fe",
+  "head_sha": "871110a4ab14a41446763ac316510f925a210d09",
+  "left_out": ".omp/team-config/evidence/",
+  "commits": [
+    {
+      "sha": "871110a4ab14a41446763ac316510f925a210d09",
+      "subject": "evidence only",
+      "patch": "001.patch",
+      "sha256": "897988af637f1acd2f48f718b99820ece5f0e27d023a1cc17dd287cae9bbeb1b",
+      "evidence": "001.evidence.patch",
+      "evidence_sha256": "76c87caafbbb0749ac6b031c2cb88c6017431f9990b36a3f5a00d050056521ea"
+    }
+  ]
+}

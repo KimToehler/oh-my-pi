@@ -321,21 +321,24 @@ telemetry setting.
 ### Bumping OpenSpec
 
 `team-config/openspec-version` is the single pin; the deploy check reads it.
-`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version, with three
-team additions: step 4 of `opsx-apply.md` ("Run in the change's worktree"), step 5 of `opsx-archive.md` ("Route the
-change's follow-ups") and the `Take matching follow-ups (proposal only)` bullet of step 6a in `opsx-propose.md`, plus its
-Guardrails and Output lines; the later steps of the first two are renumbered, and `opsx-archive.md` also carries the
-`Follow-ups` summary bullet and output lines. They stay standalone so each deploys on its own. To bump, set the new
-version in `team-config/openspec-version`, then regenerate the commands with it and compare:
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version,
+with four team additions: step 4 of `opsx-apply.md` ("Run in the change's worktree"), step 5 of `opsx-archive.md`
+("Route the change's follow-ups"), the `Take matching follow-ups (proposal only)` bullet of step 6a in
+`opsx-propose.md`, plus its Guardrails and Output lines, and the `**Goal-mode continuation**` paragraph after the
+planning boundary of `opsx-propose.md` with its four one-sentence additions (to the boundary paragraph, the line
+"start the apply workflow explicitly", the Output and the first Guardrail); the later steps of the first two are
+renumbered, and `opsx-archive.md` also carries the `Follow-ups` summary bullet and output lines. They stay standalone
+so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then regenerate the
+commands with it and compare:
 
 ```sh
 v=$(cat team-config/openspec-version)
 tmp=$(mktemp -d) && git -C "$tmp" init -q
 DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun "@fission-ai/openspec@$v" init "$tmp" --tools oh-my-pi --profile core --no-animation
-diff -r "$tmp/.omp/commands" team-config/agent/commands   # only the three team additions and their renumbering = no drift
+diff -r "$tmp/.omp/commands" team-config/agent/commands   # only the four team additions and their renumbering = no drift
 ```
 
-Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply the three team additions from the
+Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply the four team additions from the
 previous version (`git diff` shows them as removed), and rerun the diff. Update the version in the New machine install line
 and in Provenance, install the new CLI, and redeploy. Hand-edit the command files only for these team additions.
 
@@ -371,3 +374,12 @@ The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.15.0 (M
 - `qa.mjs scan` emits its credentials-path diagnostic before configured sentinels join `redactValues`, so a credentials filename holding a scan marker prints that marker literally. `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:415`. Source: `app-qa-shared-driver` `.omp/team-config/evidence/gate/app-qa-shared-driver/wave-1/strategic-risk-review-trailer.md`, N1
 - The driver takes the parent of `git --git-common-dir` as the main checkout, so a repository with a separate Git directory resolves the default credentials file wrongly (`--credentials` works around it). `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:84`. Source: `app-qa-shared-driver` `.omp/team-config/evidence/gate/app-qa-shared-driver/wave-1/strategic-risk-review-trailer.md`, N2
 - `sweepRoot` walks the run root several times; a single pass could replace them, but only if the screenshot manifest is still recorded before the sweep and deletion stays safe. No defect is shown. `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:961`. Source: `app-qa-shared-driver` `.omp/team-config/evidence/gate/app-qa-shared-driver/wave-1/strategic-risk-review-trailer.md`, note 1
+- The continuation-to-apply handoff across the worktree move was captured only on the ordinary path; no session applies a change whose destination worktree holds a different or stale proposal, so validating in one checkout and editing in another would go unnoticed. `team-config/agent/commands/opsx-apply.md` (worktree step). Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt`, note 1
+- A goal continuation that does not apply left the failed condition out of its own reply (`planonly-later`; named one turn earlier in the proposal output), although the Goal-mode continuation paragraph requires it, so an owner reading only that turn cannot tell why the goal stopped short of apply. `team-config/agent/commands/opsx-propose.md:16`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt`, Residual note 1
+- The same-turn QA criteria (no read of `opsx-apply.md`, no write outside `openspec/changes/`) also reject harmless planning support, and the exact build-request sessions stopped for clarification before presenting artifacts, so the combined build-request-to-presented-proposal scenario is unobserved. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/same-turn-nc.md:13`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt`, Residual note 2
+- The authorized-continuation capture skipped the apply workflow's `openspec status` call and change announcement, so full compliance with the unchanged `opsx-apply.md` steps on a goal continuation is not shown. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/authorized.md:14`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt`, Residual note 3
+- `owner-objects.md` gives the first two continuation starts as 08:39:59Z and 08:40:07Z (the ends of the preceding turns); the transcript records 08:39:55.076Z and 08:40:05.816Z, so the row's timeline is a few seconds off. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/owner-objects.md:11`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt`, Residual note 4
+- The qualifying planning-only continuation did not name the failed authorization condition in its own reply, despite the command requiring it; only the earlier planning reply explained it. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/planonly-nc.md:17`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — known diagnostic deviation
+- The QA proxies "no read of the apply file" and "no write outside the change directory" are stricter than the boundary and reject harmless comparison and schema-required review-delta output; future criteria would be clearer if they distinguished apply execution and project-code edits from planning support. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/same-turn-nc.md:3`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — QA proxies are stricter than the actual boundary
+- Both build-request runs stopped for clarification before presenting artifacts, so the complete no-goal build-request interaction is shown only by adjacent sessions. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/build-request.md:16`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — combined no-goal build scenario is partial
+- The authorized continuation omitted the apply workflow's status step, so complete apply-command compliance on a continuation is not established. `.omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/authorized.md:14`. Source: `goal-mode-apply-continuation` `.omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt`, Note — complete apply-command compliance is not established
