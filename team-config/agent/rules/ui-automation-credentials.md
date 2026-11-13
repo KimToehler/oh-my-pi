@@ -9,6 +9,7 @@ condition:
   - '\bcomputer\.[A-Za-z]|\.(ax|observe)\(|\.menu\.'
   - '\bmkdir\b[^\n]*\bevidence'
   - '"gitignore"\s*:\s*false|--no-ignore|\brg\b[^\n]*\s-u{1,3}\b'
+  - '(?i)skill://[\w.-]*-qa(?![\w-])|[\w.-]*-qa/SKILL\.md|\bapp-qa\.json\b'
 scope: ["tool"]
 interruptMode: always
 ---
@@ -17,7 +18,7 @@ interruptMode: always
 
 Applies whenever an agent drives a browser, simulator, emulator or desktop app that signs in with a real account. A credential that reaches a tool result is in the transcript and cannot be scrubbed.
 
-When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir` or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
+When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
 
 ## Login surfaces
 
