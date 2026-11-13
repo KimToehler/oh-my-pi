@@ -1,30 +1,30 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: 1d8f089d369eecd8e8ba903be5bedf21560997de9a3b03df79a65e4383b402a0
+- **Reviewed digest**: 355ad800d3abb576600b2ee12a5679dbbed956fdd6f62f87b67a2ca6ca93899d
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, ComputerUsePlanReviewDelta24
-- **Verifier**: blocker-verifier, ComputerUseTriageR24
-- **Models**: ComputerUsePlanReviewDelta24 onara/cx/gpt-6.1-sol, ComputerUseTriageR24 onara/cx/gpt-6.1-sol
-- **Round**: 24
-- **Awaiting**: none
-- **Override**: none (round 24 exhaustion ask answered Fix by the user, Tim, 2026-11-13: "Fix (dialog by AXSubrole, ce-missing on the dialog task)")
+- **Reviewer**: plan-reviewer, ComputerUsePlanReviewDelta25
+- **Verifier**: blocker-verifier, none
+- **Models**: ComputerUsePlanReviewDelta25 onara/cx/gpt-6.1-sol
+- **Round**: 25
+- **Awaiting**: triage
+- **Override**: none
 
 ## Blockers
 
-### Delta check (ComputerUsePlanReviewDelta24)
+### Delta check (ComputerUsePlanReviewDelta25)
 
-1. **PROCESS 4 — Fix 1: Already-open dialogs have no resolution path**
-   - defect: When a fresh session receives the ordinary request to inspect a dialog that is already open, it has no pre-dialog window inventory. The new resolver requires precisely that historical inventory and permits no alternative. Taking both listings now yields no new id and incorrectly reports the existing dialog as missing; closing and recreating it is neither specified nor necessarily preserves the requested state. This breaks the explicit already-open-dialog scenarios. The refusal is reversible, but the requested check cannot be completed.
-   - evidence: openspec/changes/app-qa-computer-use-exception/specs/app-qa-driver/spec.md:66–67 requires resolving a dialog the app 'has raised'; :132–133 explicitly starts with the main window and dialog both open. However, :117, design.md:122 and tasks.md:15 allow resolution only from the id difference across a driver step that raises the dialog. tasks.md:57 retains the task 'list the buttons of the open dialog' without supplying an earlier inventory or another identification path.
-   - change: Define an app-scoped identification path for a dialog already open when the session starts, retaining ambiguity refusal and the safe id-resolution catch. Alternatively, explicitly settle a narrower contract with the user and update every affected scenario. Add a fresh-session control with the main window and dialog already open and no pre-dialog inventory available.
-   - triage: confirmed, blocking true, protected false: The ordinary fresh-session request with a dialog already open is explicitly required by spec.md:66–67 and :132–133. Yet spec.md:117, design.md:122 (D20(b)) and tasks.md:15 (1.9) permit identification only by comparing window ids before and after the driver step that raises it. With no historical inventory and both listings taken after opening, there is no new id and the mandated outcome is refusal; no alternative identification path is provided. Tasks.md:57 retains an already-open-dialog run without supplying that history. This is a delivered-contract defect, not merely missing verification, so a later check exposing it does not resolve it. Normal use therefore leaves a required dialog check uncompletable, and no gate residual or blocking exclusion accepts that limitation.
+1. **PROCESS 4 — Fix 1: Hard-coded e1 does not identify each window’s root**
+   - defect: With the main window and dialog both open, the prescribed resolver reads the same element’s attributes for every candidate. Accessibility references are session-wide, not numbered anew for each window. If e1 belongs to the main window, the dialog is incorrectly reported missing; if it belongs to the dialog, multiple candidates can be classified as dialogs and refused as ambiguous. This breaks the normal already-open-dialog case the fix must support. The refusal is reversible.
+   - evidence: openspec/changes/app-qa-computer-use-exception/tasks.md:15 and design.md:122 prescribe win.ref("e1") after each candidate’s win.ax({maxDepth: 0}). However, packages/coding-agent/src/tools/computer/prelude.js:145–147,187 implements win.ref through a reference-only lookup without the window id; worker.ts:1306–1310 likewise resolves axNode(ref), not a window-scoped reference. crates/pi-natives/src/desktop/ax.rs:176–190,254–284 maintains one incrementing next_ref and allocates references across targets, so the second window’s root is not necessarily e1.
+   - change: Extract the actual root reference from each candidate window’s returned snapshot and resolve that reference rather than assuming e1. Retain the app-filtered listing and safe catch. Exercise the two-window case with either window encountered first and with earlier accessibility reads already having allocated references.
+   - triage: not triaged: the verifier has not returned
 
-2. **PROCESS 4 — Screen-reader cutover leaves the missing-prelude proof on the wrong surface**
-   - defect: With computer use disabled, ce-missing still asks for a VoiceOver check and requires a missing-prelude report. Under the new design, that request must instead produce the human step independently of prelude availability. A correct session can therefore fail this mandatory row, while a session passing it does not prove the missing-prelude behavior for either remaining computer-use surface. This is a reversible verification defect that leaves a specified material branch unproved.
-   - evidence: openspec/changes/app-qa-computer-use-exception/tasks.md:50 still says 'ce-missing: the VoiceOver task with computer.enabled false: the report names the missing prelude'. In contrast, specs/app-qa-driver/spec.md:59–63 makes screen-reader checks human-only, :81–83 changes the unavailable-prelude scenario to a dialog task, and tasks.md:16 explicitly rebases the delivered skill's proof item 8 onto 'The dialog check with computer.enabled false'. tasks.md:68 still requires the ce-missing evidence row.
-   - change: Rebase ce-missing onto the dialog task with computer.enabled false and require the missing-prelude report with no substitute driving. Keep the VoiceOver human-step outcome independent of whether computer use is enabled.
-   - triage: confirmed, blocking true, protected false: Tasks.md:50 still mandates ce-missing as a VoiceOver request with computer.enabled false and requires a missing-prelude report; task 4.1 at :68 requires that row and its evidence. In contrast, spec.md:59–63 and design.md:121 make screen-reader checks human-only, while spec.md:81–83 and tasks.md:16 (1.10, proof item 8) explicitly move missing-prelude coverage to the dialog request. A correct human-step response to the disabled-prelude VoiceOver request thus cannot establish the required missing-prelude behavior on an allowed computer-use surface. The planned skill-text checks only establish the revised wording, and the mandatory executed F1 row remains the obsolete request. This contradictory mandatory verification row leaves the specified unavailable-prelude branch without its material real-session proof and can reject correct behavior; it is not an accepted residual or excluded area.
+2. **PROCESS 4 — Fix 1: Replacement resolver contradicts mandatory window criteria**
+   - defect: A session correctly following the new already-open-dialog path still necessarily fails the unchanged negative control: its listing was taken after the dialog was raised. Candidate-root inspection also conflicts with the unchanged criterion requiring every accessibility read to name only the resolved dialog. Consequently the new positive scenarios and mandatory criteria cannot be satisfied together in ordinary two-window operation. This is a reversible specification/gate defect, not an accepted residual risk.
+   - evidence: openspec/changes/app-qa-computer-use-exception/specs/app-qa-driver/spec.md:135–137 requires resolving an already-open dialog without a driver step, but :148–149 still mandates failure when resolution uses a listing 'not taken before the step that raised it'. Separately, :117 now requires root-attribute reads for every app-window id, while :121 requires 'every capture and accessibility read' to name the one target window. tasks.md:57 explicitly permits the main window’s root attributes, demonstrating the newly intended exception that the criteria do not consistently express.
+   - change: Replace the historical-listing negative-control clause with one testing violations of the app-scoped subrole resolver. Explicitly distinguish narrowly allowed candidate-root identification reads from content reads and captures of the resolved dialog, and align the positive scenarios and negative controls with that distinction.
+   - triage: not triaged: the verifier has not returned
 
 ## Residuals
 
