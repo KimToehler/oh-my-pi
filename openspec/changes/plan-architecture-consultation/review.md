@@ -4,10 +4,10 @@
 - **Reviewed digest**: 74862b83fb1fc8f20bf551a6b302fbd091a53062be9ea4c489c4ed22f28db268
 - **Depth**: risky
 - **Reviewer**: plan-reviewer, PacRevA9, PacRevB9
-- **Verifier**: blocker-verifier, none
-- **Models**: PacRevA9 onara/cx/gpt-6.1-sol; PacRevB9 onara/cx/gpt-6.1-sol
+- **Verifier**: blocker-verifier, PacVer9
+- **Models**: PacRevA9 onara/cx/gpt-6.1-sol; PacRevB9 onara/cx/gpt-6.1-sol; PacVer9 onara/cx/gpt-6.1-sol
 - **Round**: 9
-- **Awaiting**: triage
+- **Awaiting**: exhaustion
 - **Override**: none
 
 ## Blockers
@@ -18,7 +18,7 @@
    - Defect: The consulted commit remains fixed across retries without binding subsequent attempts to those bytes. A normal sequence is: attempts fail on plan commit A; the user answers Stop; the plan is revised and committed as B; the user requests consultation again. The new attempt reads B at the supplied directory, but the completed record still identifies A as the commit whose folder it read. The report check accepts this because it binds only the directory, model and report—not the consulted plan version. This produces an inaccurate audit record and prevents replaying the consultation from its recorded commit. The damage is reversible by correcting and revalidating the record.
    - Evidence: openspec/changes/plan-architecture-consultation/design.md:94 fixes the consulted commit to the plan commit before the first pending record; :100 permits another attempt pair after Stop; :115 defines the field as the commit whose change folder the consultant read; :132 promises replay on those bytes; :218-221 specify no commit/content comparison. The retained dispatch rule explicitly says the original commit is “kept on a retry” at team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml:386-389, and tasks.md:18 changes the retry admission without replacing that rule.
    - Change: Before each fresh attempt, bind the recorded consulted commit to the committed planning bytes that attempt will actually read. Retain the earlier commit only after establishing that the relevant bytes are unchanged; otherwise update the consulted commit for the new attempt while preserving earlier attempt entries. Maintain the no-edit boundary during the attempt. Add a control that stops after failed attempts, changes and commits the plan, then requests consultation again and verifies that the successful report identifies the new input commit rather than the original one.
-   - Verifier: not triaged: the verifier has not returned
+   - Verifier: confirmed, blocking true, protected true: The Stop → commit revised plan B → explicitly request consultation again sequence is permitted by design.md:100 and tasks.md:18. Nevertheless design.md:94 fixes Consulted commit to the plan commit before the first pending record, and schema.yaml:386-389 explicitly keeps that original commit on retry while dispatching against the current change directory. Task 3.3 changes retry admission but does not replace that commit rule. Thus a successful later attempt reading B is recorded as reading A, contrary to the field's definition at design.md:115 and the replay promise at :132. D12's checks at :218-222 bind directory, model and report, not input commit or contents. This is a delivery-rule contradiction, not merely missing verification, so later checks do not resolve it. The normal retry-after-revision trigger corrupts the consultation audit trail and defeats replay of the recorded inputs; gate.md:8 accepts form-only validation and other specific limitations, but not knowingly recording the wrong input commit. Protected is true because the finding explicitly concerns an inaccurate audit record.
 
 ## Residuals
 
