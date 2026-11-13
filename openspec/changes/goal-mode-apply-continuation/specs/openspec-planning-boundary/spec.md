@@ -22,11 +22,15 @@ After `/opsx-propose` presents a change's artifacts, the agent SHALL end that tu
 - **THEN** that turn MUST fail the requirement
 
 ### Requirement: A goal continuation applies a reviewed change its objective authorizes
-In a turn started by the runtime's goal continuation, the agent SHALL run `/opsx-apply` for a change only when the goal is active, its objective explicitly authorizes applying the OpenSpec changes the goal proposes, the change's artifacts were presented in an earlier turn, no user message arrived since, and its reviewed validation passes. Otherwise it SHALL NOT apply and SHALL name the failed condition.
+In a turn started by the runtime's goal continuation, the agent SHALL run `/opsx-apply` for a change only when the goal is active, its objective explicitly authorizes applying the OpenSpec changes the goal proposes, the change's artifacts were presented in an earlier turn, no user message arrived since the workflow started for it other than its invoking request, and its reviewed validation passes. Otherwise it SHALL NOT apply and SHALL name the failed condition.
 
 #### Scenario: Authorized continuation
 - **WHEN** the goal objective says to apply each reviewed proposal, the previous turn presented change `widget-cache` whose reviewed validation passes, and the next turn starts with the goal continuation
 - **THEN** that turn runs `/opsx-apply` for `widget-cache`
+
+#### Scenario: Review stale
+- **WHEN** the goal objective authorizes apply, and the presented change's artifacts were edited after its review, so its reviewed validation fails, and the goal continuation starts the next turn
+- **THEN** that turn does not start `/opsx-apply` and its reply names the failed reviewed validation
 
 #### Scenario: No goal active
 - **WHEN** a session without an active goal receives an automatic or empty continuation after a proposal
@@ -37,11 +41,11 @@ In a turn started by the runtime's goal continuation, the agent SHALL run `/opsx
 - **THEN** that turn MUST fail the requirement
 
 ### Requirement: A user message decides instead of the continuation
-A user message that arrives after the artifacts were presented SHALL be the new request for that change. A later goal continuation SHALL NOT apply the change against it; it may apply the change only when that message asked for apply.
+A user message that arrives after `/opsx-propose` started for a change, other than its invoking request and including one delivered inside the planning turn, SHALL be the new request for that change. No later goal continuation SHALL apply the change against it; only a user message that asks for apply may start it.
 
 #### Scenario: Owner objects
-- **WHEN** the owner queues "do not apply, change D2 first" while the planning turn runs, so it is delivered after the proposal is presented and before any continuation
-- **THEN** the agent revises or waits as the reply says and does not start `/opsx-apply` for the change
+- **WHEN** the owner sends "do not apply, change D2 first" while the planning turn runs, so it reaches the agent inside that turn, and goal continuations follow
+- **THEN** the agent revises or waits as the message says, and neither the next turn nor any later continuation starts `/opsx-apply` for the change
 
 #### Scenario: Negative control
 - **WHEN** the agent applies the change on a continuation after the owner's objection

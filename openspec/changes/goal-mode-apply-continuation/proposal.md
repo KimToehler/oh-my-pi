@@ -8,7 +8,7 @@ omp already sends a new user-role message at every goal turn boundary: the hidde
 
 ## What Changes
 
-- `opsx-propose.md` gains a team addition, **Goal-mode continuation**, after its planning boundary. A goal continuation counts as the new user request for one change when the goal is active, its objective explicitly authorizes applying the changes it proposes, that change's artifacts were presented in an earlier turn and pass `validate-openspec-change.mjs --reviewed`, and no user message has arrived since. That continuation turn then runs `/opsx-apply` for the change.
+- `opsx-propose.md` gains a team addition, **Goal-mode continuation**, after its planning boundary. A goal continuation counts as the new user request for one change when the goal is active, its objective explicitly authorizes applying the changes it proposes, that change's artifacts were presented in an earlier turn and pass `validate-openspec-change.mjs --reviewed`, and no user message has arrived since the planning started (a message that steered the planning turn counts). That continuation turn then runs `/opsx-apply` for the change.
 - The boundary itself is unchanged in every other case: no apply in the turn that planned (goal or not), no apply on an objective that only asks to plan, on an unreviewed change, or after the user replied.
 - The proposal output tells the owner, under this exception, that the next continuation applies the change, and how to stop it (a message queued before that turn, or pausing the goal).
 - The boundary sentence, the "start the apply workflow explicitly" line and the planning guardrail name the exception as the only one.

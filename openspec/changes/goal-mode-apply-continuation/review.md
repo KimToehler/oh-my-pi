@@ -7,7 +7,7 @@
 - **Verifier**: blocker-verifier, GmacTriage1
 - **Models**: GmacReviewA onara/cx/gpt-6.1-sol; GmacReviewB onara/cx/gpt-6.1-sol; GmacTriage1 onara/cx/gpt-6.1-sol
 - **Round**: 1
-- **Awaiting**: scope
+- **Awaiting**: none
 - **Override**: none
 
 ## Blockers
@@ -56,3 +56,5 @@
 ## Residuals
 
 none
+
+Answer (user, 2026-11-13): scope ask (blockers 2 and 6): Fix: re-tier to Risk tier product, keep depth risky; F2 runs implementation-audit and strategic-risk-review.
