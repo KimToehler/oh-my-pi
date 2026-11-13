@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.Triage13
 - **Models**: ProposeComputerUse.PlanReviewDelta13 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage13 onara/cx/gpt-6.1-sol
 - **Round**: 13
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-13: "Fix: reconcile scenario, negative control and rt-search with the residual, add the rule-ignoreoff row, then one delta check and the full F1 run")
 
 ## Blockers
 
