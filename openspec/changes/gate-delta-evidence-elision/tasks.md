@@ -12,7 +12,7 @@ the code it covers is written; a preservation guard ("Range without evidence", "
 
 ## 2. Brief
 
-- [ ] 2.1 `team-config/agent/skills/review-work/SKILL.md` (spec "Fix-delta patches leave out gate evidence", design D-4): Fix waves step 5a becomes D-4's line and the fenced delta brief becomes D-4's block, nothing else in the file changes. Verify: `F=team-config/agent/skills/review-work/SKILL.md D=openspec/changes/gate-delta-evidence-elision/design.md && diff <(perl -ne 'print if /^Delta brief \(substitute/.../^## Phase 5/' $F | perl -ne 'print if /^\x60{3}$/.../^\x60{3}$/') <(perl -ne 'print if /^### D-4/.../^### Build/' $D | perl -ne 'print if /^\x60{3}$/.../^\x60{3}$/') && grep -qxF "$(perl -ne 'print if /^### D-4/.../^### Build/' $D | grep '^   a\. ')" $F && test "$(git diff --numstat main -- $F | cut -f1,2)" = "$(printf '2\t2')" && bun run test:team-config`
+- [x] 2.1 `team-config/agent/skills/review-work/SKILL.md` (spec "Fix-delta patches leave out gate evidence", design D-4): Fix waves step 5a becomes D-4's line and the fenced delta brief becomes D-4's block, nothing else in the file changes. Verify: `F=team-config/agent/skills/review-work/SKILL.md D=openspec/changes/gate-delta-evidence-elision/design.md && diff <(perl -ne 'print if /^Delta brief \(substitute/.../^## Phase 5/' $F | perl -ne 'print if /^\x60{3}$/.../^\x60{3}$/') <(perl -ne 'print if /^### D-4/.../^### Build/' $D | perl -ne 'print if /^\x60{3}$/.../^\x60{3}$/') && grep -qxF "$(perl -ne 'print if /^### D-4/.../^### Build/' $D | grep '^   a\. ')" $F && test "$(git diff --numstat main -- $F | cut -f1,2)" = "$(printf '2\t2')" && bun run test:team-config`
 
 ## 3. Final verification
 
