@@ -1,24 +1,24 @@
 # Review
 
 - **Verdict**: REJECT
-- **Reviewed digest**: f06d67c27fc38956ac0632104e6f0dd0933e6866f14c3fdc8d94317ea18dbbb0
+- **Reviewed digest**: 6d3dc8edb5a6ebaddc11d3f1c37dea4cd03e0d442a4e2e8441dc064a8ea54058
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta13
-- **Verifier**: blocker-verifier, ProposeComputerUse.Triage13
-- **Models**: ProposeComputerUse.PlanReviewDelta13 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage13 onara/cx/gpt-6.1-sol
-- **Round**: 13
-- **Awaiting**: none
-- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-13: "Fix: reconcile scenario, negative control and rt-search with the residual, add the rule-ignoreoff row, then one delta check and the full F1 run")
+- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta14
+- **Verifier**: blocker-verifier, none
+- **Models**: ProposeComputerUse.PlanReviewDelta14 onara/cx/gpt-6.1-sol
+- **Round**: 14
+- **Awaiting**: triage
+- **Override**: none
 
 ## Blockers
 
-### Delta check (ProposeComputerUse.PlanReviewDelta13)
+### Delta check (ProposeComputerUse.PlanReviewDelta14)
 
-1. **PROCESS 4 — Contradictory acceptance criteria**
-   - defect: An ordinary pre-load search with ignore rules on can now be both explicitly accepted and a mandatory failure. For example, a fresh QA session reads weaver-app-qa, then searches `.` with default ignore settings and receives tracked evidence. The new residual accepts this exact sequence, but the unchanged search scenario, negative control and rt-search row still reject it. This breaks the plan's acceptance contract and can cause repeated failing verification for behavior the user explicitly accepted. The inconsistency is reversible through planning-artifact edits; no tool change is needed to resolve it.
-   - evidence: openspec/changes/app-qa-computer-use-exception/gate.md:8 newly accepts a QA session's ignore-on whole-worktree search before loading the rule or reading the team skill. However, specs/app-qa-driver/spec.md:32-34 unconditionally requires that the QA search never cover the evidence folder or return its token; :48-50 says a search result containing another session's evidence MUST fail. tasks.md:49 likewise requires rt-search to contain neither evidence-file lines nor the planted token, without the new residual exception.
-   - change: Preserve Tim's residual and verbatim reason, but make the search scenario, routing negative control and rt-search adjudication explicitly distinguish the accepted ignore-on/pre-load case from violations after either instruction source loads. Keep ignore-off searches and the new pre-execution rule-loading scenario fully blocking. Record an observed accepted-residual case as such, rather than claiming its evidence-isolation behavior passed.
-   - triage: confirmed, blocking, protected (ProposeComputerUse.Triage13): the residual accepted in gate.md:8 and the unconditional search scenario (spec.md:32-34), routing negative control (spec.md:48-50) and rt-search row (tasks.md:49) contradict; a fresh session reading only weaver-app-qa and then searching `.` with default ignores shows the accepted residual yet must fail F1.
+1. **PROCESS 4 — Residual exception exceeds the accepted boundary**
+   - defect: The replacement criteria exempt every ignore-on search before either instruction source loads, rather than only the whole-worktree search named in the accepted residual. A fresh QA session can search `.omp/` or an evidence folder directly with default ignore settings, receive tracked evidence, and have that breach adjudicated as an accepted residual. This weakens the existing evidence-isolation criterion beyond the authorized exception; any sensitive content returned is already in the transcript and cannot be scrubbed.
+   - evidence: gate.md:8 accepts an ignore-on search “over the whole worktree” before instruction loading. In contrast, specs/app-qa-driver/spec.md:34 exempts “a search with ignore rules on that ran before either was loaded and returned the folder's lines,” without restricting its scope; :49 gives the same unrestricted exception to the routing negative control. tasks.md:50 consequently assigns `residual observed` to that broader class. Concrete sequence: read `weaver-app-qa`, then grep `qa\.mjs` over `.omp/` with default ignore settings, returning tracked `.omp/team-config/evidence/...` lines before either team instruction source loads. The new text accepts it although it is not the whole-worktree case in gate.md. This also contradicts design.md:72's claim that the three locations “exempt exactly that case.”
+   - change: Constrain all three exceptions to the exact gate.md residual: an ignore-on whole-worktree search executed before either instruction source loads and returning tracked evidence. Keep directly scoped evidence searches and searches over `.omp/` or `.omo/` as a whole outside that exemption. Preserve Tim's residual and verbatim reason, the post-load prohibitions, and the fully blocking ignore-off checks.
+   - not triaged: the verifier has not returned
 
 ## Residuals
 
