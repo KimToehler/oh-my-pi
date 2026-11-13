@@ -1,0 +1,53 @@
+## 1. Goal and behavioural contract
+
+Reviewed the supplied complete implementation diff, frozen F2 plan, requirements and Negative controls, and QA matrix. The implementation covers the intended consultation admission, paired attempts and recovery, definition-pinned report check, author dispositions, blind formal review, validator enforcement, and installation documentation.
+
+No blocking contract violation was substantiated.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Traced the integration between the schema instruction, agent definition, template, report checker, record validator, review digest, and merge-gate snapshot consumer.
+
+The important separations hold: stored records do not depend on the live agent definition; report counting does; only the two record files are excluded from the review digest; adopted plan edits remain review inputs.
+
+**Note N1 — Finding IDs have a serialization edge case.**  
+`validate-openspec-change.mjs:447–455` accepts any nonempty, trimmed, single-line ID. However, `markdownSections` passes Findings through `scanMarkdown` and retains its transformed text (`:329–336`). An accepted ID such as `F1 <!-- rationale -->` is therefore changed when its `###` disposition heading is parsed, producing a mismatch at `:566–568`. Consider preserving raw subsection text or defining a Markdown-safe ID grammar consistently at counting and record validation. **Non-blocking:** this requires an unusual ID representation and causes a local, reversible validation failure, not unauthorized apply. This conclusion is source-derived, not an executed reproduction.
+
+**Note N2 — Completed follow-up work remains unchecked.**  
+`openspec/changes/plan-architecture-consultation/tasks.md:12,18,23` still marks tasks 2.3, 3.3 and 4.2 incomplete, although their changes are present in the reviewed implementation. Reconcile those boxes with the finished work. **Non-blocking:** this is inaccurate workflow status, not evidence that the corresponding implementation is missing.
+
+**Note N3 — Snapshot checker documentation is stale.**  
+`validate-openspec-change.mjs:647–648` says record validation reads the architecture-oracle definition. The implementation correctly avoids doing so. Update the comment to prevent a future maintainer from restoring that dependency. **Non-blocking:** the executable behavior is correct.
+
+## 3. Security and privacy delta
+
+No changed authentication or authorization path, real credential handling, third-party personal-data processing, or weakened protected-asset access was identified.
+
+The consultant’s tools and prompt are read-only. The report checker compares every assistant turn against the definition’s model rather than treating a configured override as authorization. The documented limits of record authenticity remain accepted residual risks, not newly claimed guarantees.
+
+## 4. Verification adequacy
+
+The added tests exercise the real validator CLI, including missing/pending records, digest stability and staleness, malformed envelopes, report-schema failures, refused/incremental yields, JSON-string payload recovery, and definition independence.
+
+I inspected retained live consultation evidence, retry-after-Stop evidence, validator-form output, and the follow-up RED capture. The latter records six failures against the prior validator. The supplied matrix additionally covers admission and delta branches with seeded sessions; those are appropriately distinguishable from live consultant runs.
+
+I ran no tests or commands and made no changes. My additional adversarial criterion concerns filesystem identity normalization, supported by the checker’s `realpathSync` comparison; it was not independently executed.
+
+## 5. Final verdict
+
+No blocker was found. Residual findings and verification limits are recorded above; the verdict appears only in the trailer.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Change-directory binding follows physical filesystem identity rather than path spelling or a matching basename.
+  positive_witness: A session brief naming a symlink alias of the requested directory is accepted when both resolve to the same physical directory.
+  negative_control: A session brief naming a distinct directory with the same basename is accepted solely because the final path component matches.
+  observable: The report-check exit status and change-directory diagnostic distinguish equivalent aliases from distinct directories.
+  boundary: Filesystem path normalization in the consultation-report CLI.
+END-REVIEW-TRAILER

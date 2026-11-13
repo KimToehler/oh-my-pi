@@ -1,0 +1,67 @@
+## 1. Architecture and cross-module seams
+
+The architecture holds up against the reviewed system. The consultation remains inside the existing review workflow rather than introducing a second approval mechanism.
+
+The important seams are coherent:
+
+- **Agent definition → dispatch → session validator:** the definition owns the model pin and report schema; the instruction dispatches without an item-level model override; `--consultation-report` checks every assistant turn against the definition.
+- **Report → record:** full report conformance is checked when counting an attempt. Stored records check their own invariants without depending on the current agent definition. This avoids retroactively invalidating historical reports.
+- **Record → review digest → merge gate:** `reviewDigest` excludes the consultation record but includes adopted plan edits. The merge gate separately bundles the whole folder, including the record. Its `loadFolderPlan` uses the shared snapshot validator before computing that bundle (`validate-gate-record.mjs:530–539`).
+- **Installation → consumer workflow:** the schema, template, agent and validator need coordinated deployment. The README explicitly addresses the separately managed model registry and existing reviewed changes.
+
+I found no substantiated blocker in those seams.
+
+## 2. Inconsistency, duplication and simplification
+
+The restricted JTD interpreter is additional maintenance, but its scope is explicit and unsupported forms fail closed. Given the deployed Node-only script constraint documented in the design, I would not replace it with another validation mechanism here.
+
+Two non-blocking consistency notes:
+
+- **Documentation overstates interruption guarantees.** `team-config/README.md:261–263` says an interrupted consultation is “never paid for twice.” However, `schema.yaml:384–390` explicitly treats an attempt without a recorded session file as failed, and `:430–434` authorizes its retry. An interruption between dispatch and durable session binding can therefore cause another paid attempt. Narrow the README promise to recovery of durably bound reports. **Not blocking:** the implementation follows the explicitly specified missing-session recovery policy.
+- **Follow-up bookkeeping is stale.** `openspec/changes/plan-architecture-consultation/tasks.md:12,18,23` leaves tasks 2.3, 3.3 and 4.2 unchecked although the supplied implementation contains their changes. The snapshot-checker comment at `validate-openspec-change.mjs:645–648` also still says stored records are checked against the agent definition, contrary to the implementation. **Not blocking:** these inaccuracies do not change validation or dispatch behavior.
+
+## 3. Highest-consequence failure
+
+The most damaging failure would be **an existing OKAY review authorizing apply after consultation adoption changed the plan**.
+
+The delivered mechanisms address it:
+
+- Adopted edits land in ordinary plan files, which remain inside the review digest.
+- The current-review shortcut is available only when the consultation adopted no edit.
+- Delta paths take their digest after the consultation commit and include adopted edits in their patch.
+- `--reviewed` validates the snapshot before checking its review digest.
+- A missing risky-change record or a pending record prevents acceptance.
+
+The supplied tests exercise stale-plan rejection with a consultation present. The QA matrix also covers current-review admission without another round and consultation edits entering the exhaustion delta.
+
+Wrong-model execution fails closed instead of silently substituting another model’s advice. Missing-model and configured-override failures have a user-controlled skip/stop path, including an explicitly authorized later retry.
+
+## 4. What line-level review would miss
+
+The main residual risk is **composition of recovery states**, rather than an individual conditional.
+
+The retained `incomplete-resumed.md` evidence demonstrates consultation followed by preservation of carried findings, but its consultation has no findings and changes no plan bytes (`:25–30`). It does not demonstrate the combined sequence:
+
+1. resume an incomplete round;
+2. adopt a consultation edit;
+3. interrupt after committing that edit but before recording the reviewer re-run;
+4. resume again with the old incomplete-review digest now stale.
+
+The instruction adds preservation language at `schema.yaml:778–781`, while the ordinary incomplete-resume entry remains conditional on an unchanged digest at `:767–769`. This combination deserves an explicit recovery witness. **Non-blocking residual uncertainty:** the reviewed evidence does not establish that the combined path loses findings or authorizes apply, and the instruction explicitly requires their preservation.
+
+I reviewed the supplied diff, plan, tests and QA matrix, plus selected retained recovery/candidate evidence, the runtime’s terminal-yield behavior, and the merge-gate snapshot consumer. I ran no commands or tests and fetched no network context.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Crossing an auxiliary consultation commit must not erase an unresolved reviewer obligation.
+  positive_witness: After consultation adoption and an interruption, the resumed review retains the prior incomplete round's findings until each receives a disposition.
+  negative_control: Resumption treats the changed digest as a clean review and silently drops previously delivered, untriaged findings.
+  observable: Committed review records preserve the original finding identities and show their subsequent triage before apply is accepted.
+  boundary: Consultation commit handoff into incomplete-round recovery and final reviewed validation.
+END-REVIEW-TRAILER
